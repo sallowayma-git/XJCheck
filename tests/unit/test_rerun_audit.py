@@ -99,6 +99,11 @@ def _sample_frames() -> dict[str, pd.DataFrame]:
                     "distance_y": 0.0,
                     "text_insert_x": 10.0,
                     "text_insert_y": 20.0,
+                    "vertical_alignment_score": 1.0,
+                    "horizontal_side_score": 0.95,
+                    "text_type_score": 1.0,
+                    "height_score": 1.0,
+                    "rank": 1,
                 }
             ]
         ),
@@ -154,6 +159,8 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
         assert pairs[0].left_coord_x == 10.0
         assert [candidate.candidate_id for candidate in terminal_candidates] == ["C0001"]
         assert terminal_candidates[0].text_insert_x == 10.0
+        assert terminal_candidates[0].vertical_alignment_score == 1.0
+        assert terminal_candidates[0].rank == 1
         assert config == {"audit": {"strict": True}}
         return [issue]
 

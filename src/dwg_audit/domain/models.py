@@ -177,6 +177,11 @@ class TerminalCandidate:
     distance_y: float
     text_insert_x: float | None = None
     text_insert_y: float | None = None
+    vertical_alignment_score: float | None = None
+    horizontal_side_score: float | None = None
+    text_type_score: float | None = None
+    height_score: float | None = None
+    rank: int | None = None
 
 
 @dataclass(slots=True)

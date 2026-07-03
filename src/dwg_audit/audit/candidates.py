@@ -69,6 +69,10 @@ def build_terminal_candidates(
                 dy = text.insert_y - endpoint[1]
                 side_ok = dx <= 2.5 if side == "left" else dx >= -2.5
                 within_height = min_height <= text.height <= max_height
+                vertical_alignment_score = round(max(0.0, 1.0 - min(abs(dy) / max(radius_y, 1.0), 1.0)), 4)
+                horizontal_side_score = _horizontal_side_score(dx, radius_x, side)
+                text_type_score = 1.0 if text.is_numeric_candidate else 0.0
+                height_score = 1.0 if within_height else 0.0
                 if not text.is_numeric_candidate:
                     status = "rejected"
                     reason = "not_numeric"
@@ -104,8 +108,13 @@ def build_terminal_candidates(
                         distance_y=round(abs(dy), 4),
                         text_insert_x=text.insert_x,
                         text_insert_y=text.insert_y,
+                        vertical_alignment_score=vertical_alignment_score,
+                        horizontal_side_score=horizontal_side_score,
+                        text_type_score=text_type_score,
+                        height_score=height_score,
                     )
                 )
+    _assign_candidate_ranks(results)
     return results
 
 
@@ -114,3 +123,25 @@ def _candidate_score(dx: float, dy: float, radius_x: float, radius_y: float, hei
     side_bonus = 0.05 if (side == "left" and dx <= 0) or (side == "right" and dx >= 0) else 0.0
     height_bonus = 0.05 if 1.8 <= height <= 3.5 else 0.0
     return round(max(0.0, min(1.0, distance_term + side_bonus + height_bonus)), 4)
+
+
+def _horizontal_side_score(dx: float, radius_x: float, side: str) -> float:
+    if (side == "left" and dx > 2.5) or (side == "right" and dx < -2.5):
+        return 0.0
+    if side == "left":
+        normalized = 1.0 - min(max(dx, 0.0) / max(radius_x, 1.0), 1.0)
+    else:
+        normalized = 1.0 - min(max(-dx, 0.0) / max(radius_x, 1.0), 1.0)
+    return round(max(0.0, min(1.0, normalized)), 4)
+
+
+def _assign_candidate_ranks(candidates: list[TerminalCandidate]) -> None:
+    by_group_side = defaultdict(list)
+    for candidate in candidates:
+        if candidate.status == "accepted" and candidate.value:
+            by_group_side[(candidate.line_group_id, candidate.side)].append(candidate)
+
+    for ranked_candidates in by_group_side.values():
+        ranked_candidates.sort(key=lambda item: item.score, reverse=True)
+        for index, candidate in enumerate(ranked_candidates, start=1):
+            candidate.rank = index

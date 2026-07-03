@@ -127,6 +127,11 @@ def _terminal_candidate(row: pd.Series) -> TerminalCandidate:
         distance_y=float(row.get("distance_y", 0.0)),
         text_insert_x=_nullable_float(row.get("text_insert_x")),
         text_insert_y=_nullable_float(row.get("text_insert_y")),
+        vertical_alignment_score=_nullable_float(row.get("vertical_alignment_score")),
+        horizontal_side_score=_nullable_float(row.get("horizontal_side_score")),
+        text_type_score=_nullable_float(row.get("text_type_score")),
+        height_score=_nullable_float(row.get("height_score")),
+        rank=_nullable_int(row.get("rank")),
     )
 
 
@@ -179,6 +184,15 @@ def _nullable_float(value: object) -> float | None:
         return None
     try:
         return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _nullable_int(value: object) -> int | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    try:
+        return int(value)
     except (TypeError, ValueError):
         return None
 
