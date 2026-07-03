@@ -1,0 +1,74 @@
+project:
+  name: ""
+  skip_files:
+    - "封面"
+    - "目录"
+    - "屏面布置"
+    - "标牌"
+  skip_globs:
+    - "*~1.DWG"
+    - "*.bak"
+    - "*.lck"
+
+ingest:
+  dwg_reader: "odafc"
+  odafc_path: "C:\\Program Files\\ODA\\ODAFileConverter 27.1.0\\ODAFileConverter.exe"
+  convert_version: "R2018"
+  audit_before_load: true
+  ascii_stage_dir: ".cache/odafc_stage"
+
+layout:
+  page_no_source_priority:
+    - "prj"
+    - "title_block"
+    - "filename"
+    - "manual"
+  audit_area:
+    mode: "auto"
+    manual_bbox: null
+    bottom_trim_ratio: 0.16
+    side_trim_ratio: 0.02
+  title_block:
+    mode: "auto"
+    manual_bbox: null
+    width_ratio: 0.28
+    height_ratio: 0.22
+
+geometry:
+  horizontal_angle_tolerance_deg: 2.0
+  min_wire_length: 12.0
+  line_y_tolerance: 1.8
+  line_gap_tolerance: 4.0
+  endpoint_search_radius_x: 18.0
+  endpoint_search_radius_y: 7.0
+
+text:
+  numeric_pattern: "^[0-9]+$"
+  allow_suffix: false
+  min_text_height: 1.0
+  max_text_height: 8.0
+  top_k_per_side: 3
+
+confidence:
+  high_threshold: 0.92
+  review_threshold: 0.75
+
+rules:
+  enable:
+    - "R-PAIR-MISSING-SIDE"
+    - "R-PAIR-LOW-CONFIDENCE"
+    - "R-DUPLICATE-SAME-LINE"
+    - "R-CROSS-PAGE-CONFLICT"
+    - "R-ONE-TO-MANY"
+    - "R-MANY-TO-ONE"
+    - "R-MISSING-RECIPROCAL"
+    - "R-DUPLICATE-PAIR"
+  reciprocal_required: false
+
+report:
+  include_low_confidence_pairs: true
+  include_candidate_details: true
+  export_formats:
+    - "xlsx"
+    - "html"
+    - "md"

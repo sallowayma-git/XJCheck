@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dwg-audit"
+version = "0.2.0"
+description = "Local DWG audit toolkit for cross-page terminal number pairing."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "OpenAI Codex" }]
+dependencies = [
+  "ezdxf>=1.4.4",
+  "networkx>=3.6",
+  "openpyxl>=3.1.5",
+  "pandas>=3.0.3",
+  "pyarrow>=24.0.0",
+  "PyYAML>=6.0.3",
+  "shapely>=2.1.2",
+  "streamlit>=1.58.0",
+  "typer>=0.26.8",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.1.1",
+]
+
+[project.scripts]
+dwg-audit = "dwg_audit.cli:run"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,226 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from shutil import copy2
+from typing import Any
+
+import pandas as pd
+
+from dwg_audit.audit import build_issues
+from dwg_audit.domain.models import LineGroup
+from dwg_audit.domain.models import Pair
+from dwg_audit.domain.models import SheetRecord
+from dwg_audit.domain.models import TerminalCandidate
+from dwg_audit.report.artifacts import export_existing_reports
+from dwg_audit.report.artifacts import load_report_frames
+
+
+def rerun_audit_from_findings(project_dir: Path, config: dict, output_dir: Path | None = None) -> Path:
+    frames = load_report_frames(project_dir)
+    pages = [_sheet_record(row) for _, row in frames.get("pages", pd.DataFrame()).iterrows()]
+    line_groups = [_line_group(row) for _, row in frames.get("line_groups", pd.DataFrame()).iterrows()]
+    pairs = [_pair(row) for _, row in frames.get("pairs", pd.DataFrame()).iterrows()]
+    terminal_candidates = [
+        _terminal_candidate(row)
+        for _, row in frames.get("terminal_candidates", pd.DataFrame()).iterrows()
+    ]
+
+    issues = build_issues(pairs, line_groups, pages, config, terminal_candidates=terminal_candidates)
+    audit_dir = project_dir / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    issues_frame = _issues_frame(issues)
+    issues_frame.to_parquet(audit_dir / "issues.parquet", index=False)
+    issues_frame.to_json(audit_dir / "issues.json", orient="records", force_ascii=False, indent=2)
+    export_existing_reports(project_dir)
+
+    if output_dir is not None and output_dir.resolve() != audit_dir.resolve():
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for name in ("issues.parquet", "issues.json", "audit_report.md", "audit_report.html", "issues.xlsx"):
+            copy2(audit_dir / name, output_dir / name)
+        return output_dir
+    return audit_dir
+
+
+def _sheet_record(row: pd.Series) -> SheetRecord:
+    return SheetRecord(
+        sheet_id=str(row["sheet_id"]),
+        file_id=str(row["file_id"]),
+        filename=str(row["filename"]),
+        sheet_order=int(row["sheet_order"]),
+        sheet_no=_nullable_str(row.get("sheet_no")),
+        sheet_title=_nullable_str(row.get("sheet_title")) or "",
+        sheet_category=_nullable_str(row.get("sheet_category")),
+        audit_role=_nullable_str(row.get("audit_role")) or "secondary",
+        page_no_source=_nullable_str(row.get("page_no_source")) or "unknown",
+        is_primary_audit_candidate=bool(row.get("is_primary_audit_candidate", False)),
+        source_refs=_json_list(row.get("source_refs")),
+        warnings=_json_list(row.get("warnings")),
+        layout_name=_nullable_str(row.get("layout_name")),
+        drawing_units=_nullable_str(row.get("drawing_units")),
+        extent_bbox=_json_bbox(row.get("extent_bbox")),
+        frame_bbox=_json_bbox(row.get("frame_bbox")),
+        title_block_bbox=_json_bbox(row.get("title_block_bbox")),
+        audit_area_bbox=_json_bbox(row.get("audit_area_bbox")),
+    )
+
+
+def _line_group(row: pd.Series) -> LineGroup:
+    return LineGroup(
+        line_group_id=str(row["line_group_id"]),
+        sheet_id=str(row["sheet_id"]),
+        file_id=str(row["file_id"]),
+        start_x=float(row["start_x"]),
+        start_y=float(row["start_y"]),
+        end_x=float(row["end_x"]),
+        end_y=float(row["end_y"]),
+        length=float(row["length"]),
+        wire_candidate_score=float(row["wire_candidate_score"]),
+        member_line_ids=_json_list(row.get("member_line_ids")),
+        layer_hints=_json_list(row.get("layer_hints")),
+    )
+
+
+def _pair(row: pd.Series) -> Pair:
+    return Pair(
+        pair_id=str(row["pair_id"]),
+        line_group_id=str(row["line_group_id"]),
+        sheet_id=str(row["sheet_id"]),
+        file_id=str(row["file_id"]),
+        selected_pair_candidate_id=_nullable_str(row.get("selected_pair_candidate_id")),
+        left_value=_nullable_str(row.get("left_value")),
+        right_value=_nullable_str(row.get("right_value")),
+        confidence=float(row.get("confidence", 0.0)),
+        status=_nullable_str(row.get("status")) or "review",
+        rationale=_nullable_str(row.get("rationale")) or "",
+        alternative_pair_candidate_ids=_json_list(row.get("alternative_pair_candidate_ids")),
+        confidence_bucket=_nullable_str(row.get("confidence_bucket")),
+        evidence=_json_dict(row.get("evidence")),
+        left_candidate_id=_nullable_str(row.get("left_candidate_id")),
+        right_candidate_id=_nullable_str(row.get("right_candidate_id")),
+        left_text_id=_nullable_str(row.get("left_text_id")),
+        right_text_id=_nullable_str(row.get("right_text_id")),
+        left_coord_x=_nullable_float(row.get("left_coord_x")),
+        left_coord_y=_nullable_float(row.get("left_coord_y")),
+        right_coord_x=_nullable_float(row.get("right_coord_x")),
+        right_coord_y=_nullable_float(row.get("right_coord_y")),
+    )
+
+
+def _terminal_candidate(row: pd.Series) -> TerminalCandidate:
+    return TerminalCandidate(
+        candidate_id=str(row["candidate_id"]),
+        line_group_id=str(row["line_group_id"]),
+        sheet_id=str(row["sheet_id"]),
+        file_id=str(row["file_id"]),
+        side=str(row["side"]),
+        text_id=str(row["text_id"]),
+        text=str(row["text"]),
+        value=_nullable_str(row.get("value")),
+        score=float(row.get("score", 0.0)),
+        status=_nullable_str(row.get("status")) or "rejected",
+        rejection_reason=_nullable_str(row.get("rejection_reason")),
+        endpoint_x=float(row.get("endpoint_x", 0.0)),
+        endpoint_y=float(row.get("endpoint_y", 0.0)),
+        distance_x=float(row.get("distance_x", 0.0)),
+        distance_y=float(row.get("distance_y", 0.0)),
+        text_insert_x=_nullable_float(row.get("text_insert_x")),
+        text_insert_y=_nullable_float(row.get("text_insert_y")),
+    )
+
+
+def _issues_frame(issues: list[Any]) -> pd.DataFrame:
+    rows = []
+    for issue in issues:
+        row = issue.__dict__.copy() if hasattr(issue, "__dict__") else {}
+        if not row:
+            row = {
+                "issue_id": issue.issue_id,
+                "rule_id": issue.rule_id,
+                "severity": issue.severity,
+                "status": issue.status,
+                "confidence": issue.confidence,
+                "message": issue.message,
+                "sheet_id": issue.sheet_id,
+                "file_id": issue.file_id,
+                "pair_id": issue.pair_id,
+                "line_group_id": issue.line_group_id,
+                "left_value": issue.left_value,
+                "right_value": issue.right_value,
+                "evidence": issue.evidence,
+                "issue_type": issue.issue_type,
+                "title": issue.title,
+                "summary": issue.summary,
+                "explanation": issue.explanation,
+                "recommended_action": issue.recommended_action,
+                "primary_pair_id": issue.primary_pair_id,
+                "related_pair_ids": issue.related_pair_ids,
+                "sheet_ids": issue.sheet_ids,
+                "values": issue.values,
+                "evidence_refs": issue.evidence_refs,
+            }
+        for key, value in list(row.items()):
+            if isinstance(value, (list, tuple, dict)):
+                row[key] = json.dumps(value, ensure_ascii=False)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _nullable_str(value: object) -> str | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    text = str(value)
+    return None if text == "None" else text
+
+
+def _nullable_float(value: object) -> float | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _json_list(value: object) -> list[Any]:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+            return decoded if isinstance(decoded, list) else []
+        except json.JSONDecodeError:
+            return []
+    return []
+
+
+def _json_dict(value: object) -> dict[str, Any]:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+            return decoded if isinstance(decoded, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _json_bbox(value: object) -> tuple[float, float, float, float] | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    else:
+        decoded = value
+    if not isinstance(decoded, (list, tuple)) or len(decoded) != 4:
+        return None
+    return tuple(float(item) for item in decoded)
