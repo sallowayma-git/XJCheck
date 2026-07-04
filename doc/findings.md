@@ -1,8 +1,8 @@
 # Findings
 
-状态：已完成当前仓库、任务文档与样本 DWG 的首轮读图盘点，进入实现补齐与样本验证阶段。
+状态：已完成规则层聚类、报告复核增强与主验证集一次真实链路验证，进入 Pair 召回率与低置信度优化阶段。
 
-更新时间：2026-07-03
+更新时间：2026-07-05
 
 用途：作为当前阶段的读图发现文档，记录已经确认的样本事实、工程约束、当前仓库实现状态，以及会直接影响实现与验收的关键结论。后续每完成一个里程碑，都应回写本文件。
 
@@ -158,8 +158,22 @@
 
 下一步执行顺序：
 
-1. 对齐 findings / audit 输出目录与 CLI 命令。
+1. 基于主验证集的 review pair 高比例结果，优先优化端点数字召回和缺边 Pair 误报。
 2. 补足 CAD 抽取中的 `ATTRIB`、`POLYLINE` 与 manual bbox。
-3. 增强 Pair / Issue 证据链。
-4. 补充单元测试并运行 `pytest`。
-5. 用 `test/` 样本跑真实链路，记录 findings 与 audit 的实际输出结果。
+3. 针对 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 做分层抽样复盘，定位主要误报来源。
+4. 引入更多真实样本回归基线，避免召回率优化破坏当前证据链输出。
+5. 继续扩展报告中的候选详情与局部定位预览能力。
+
+## 12. 2026-07-05 主验证集实跑结果
+
+对 `test/110kV变压器保护柜` 的主验证集已完成一次真实链路验证，结论如下：
+
+- `analyze-project` 成功跑通，输出了完整 `manifest/findings` 目录。
+- 主验证项目统计为：`file_count=28`、`converted_pages=24`、`primary_audit_pages=17`。
+- 当前抽取规模为：`line_groups=585`、`terminal_candidates=3025`、`pair_candidates=623`、`pairs=585`。
+- `run-audit` 已成功生成 `audit/` 报告，当前输出 `1133` 个 issue，且全部为 `review` 级。
+- 规则分布集中在：
+  - `R-PAIR-MISSING-SIDE = 548`
+  - `R-PAIR-LOW-CONFIDENCE = 585`
+- 当前没有出现项目级高严重度冲突问题，说明此阶段的主瓶颈不是图间冲突规则，而是 Pair 召回、单侧缺失和置信度不足。
+- 报告层现已能直接展示审计概览、待复核 Pair 概览、结构化 issue 证据块与 findings 代表性 Pair 证据，人工复核路径明显比首轮实现更清晰。

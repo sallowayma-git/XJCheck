@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.rules import build_issues
 from dwg_audit.domain.models import LineGroup
@@ -167,3 +169,60 @@ def test_rules_detect_duplicate_same_line_from_close_terminal_candidates() -> No
     assert issue.severity == "review"
     assert issue.evidence["side"] == "left"
     assert issue.evidence["candidate_values"] == ["101", "102"]
+
+
+def test_rules_detect_many_to_one_conflict() -> None:
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"}),
+        Pair("P2", "G2", "S2", "F2", "PC2", "102", "201", 0.96, "pass", "ok", [], "high", {"filename": "b.dwg"}),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S2", "F2", 10, 0, 20, 0, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "b.dwg", 2, "02", "B", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    conflict = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert conflict.severity == "review"
+    assert conflict.right_value == "201"
+    assert conflict.related_pair_ids == ["P2"]
+    assert conflict.evidence["conflicting_values"] == ["101", "102"]
+    assert {ref["filename"] for ref in conflict.evidence_refs} == {"a.dwg", "b.dwg"}
+
+
+def test_rules_cluster_duplicate_missing_reciprocal_and_keep_duplicate_pair_issue() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    config["rules"]["reciprocal_required"] = True
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"}),
+        Pair("P2", "G2", "S2", "F2", "PC2", "101", "201", 0.96, "pass", "ok", [], "high", {"filename": "b.dwg"}),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S2", "F2", 10, 0, 20, 0, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "b.dwg", 2, "02", "B", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, config)
+
+    missing = [item for item in issues if item.rule_id == "R-MISSING-RECIPROCAL"]
+    duplicates = [item for item in issues if item.rule_id == "R-DUPLICATE-PAIR"]
+
+    assert len(missing) == 1
+    assert missing[0].primary_pair_id == "P1"
+    assert missing[0].related_pair_ids == ["P2"]
+    assert missing[0].evidence["cluster_size"] == 2
+    assert missing[0].evidence["cluster_pair_ids"] == ["P1", "P2"]
+    assert len(missing[0].evidence_refs) == 2
+
+    assert len(duplicates) == 1
+    assert duplicates[0].evidence["occurrences"] == 2
+    assert duplicates[0].related_pair_ids == ["P2"]
