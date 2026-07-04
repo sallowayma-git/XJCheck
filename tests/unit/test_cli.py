@@ -96,3 +96,35 @@ def test_export_report_passes_requested_formats(tmp_path: Path) -> None:
     assert (audit / "audit_report.md").exists()
     assert not (audit / "audit_report.html").exists()
     assert not (audit / "issues.xlsx").exists()
+
+
+def test_compare_regression_writes_report_files(tmp_path: Path) -> None:
+    runner = CliRunner()
+    baseline = tmp_path / "baseline"
+    current = tmp_path / "current"
+    output = tmp_path / "regression"
+    for project_dir, pair_count, issue_rules in (
+        (baseline, 2, ["R-CROSS-PAGE-CONFLICT"]),
+        (current, 3, ["R-CROSS-PAGE-CONFLICT", "R-ONE-TO-MANY"]),
+    ):
+        findings = project_dir / "findings"
+        audit = project_dir / "audit"
+        findings.mkdir(parents=True)
+        audit.mkdir()
+        (project_dir / "manifest.json").write_text(f'{{"project_name": "{project_dir.name}", "project_id": "{project_dir.name}"}}', encoding="utf-8")
+        pd.DataFrame([{"pair_id": f"P{index}", "status": "pass"} for index in range(pair_count)]).to_parquet(findings / "pairs.parquet", index=False)
+        pd.DataFrame([{"issue_id": f"I{index}", "rule_id": rule_id, "status": "open"} for index, rule_id in enumerate(issue_rules, start=1)]).to_parquet(
+            audit / "issues.parquet",
+            index=False,
+        )
+
+    result = runner.invoke(
+        app,
+        ["compare-regression", "--baseline", str(baseline), "--current", str(current), "--output", str(output)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (output / "regression_report.json").exists()
+    assert (output / "regression_report.md").exists()
+    assert "pair_count delta: 1" in result.stdout
+    assert "issue_count delta: 1" in result.stdout

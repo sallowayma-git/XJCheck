@@ -5,8 +5,10 @@ from pathlib import Path
 import typer
 
 from dwg_audit.pipeline import analyze_input_root
+from dwg_audit.report import compare_project_regressions
 from dwg_audit.report import export_existing_reports
 from dwg_audit.report import rerun_audit_from_findings
+from dwg_audit.report import write_regression_report
 from dwg_audit.utils.config import load_config
 from dwg_audit.utils.config import write_default_config
 from dwg_audit.utils.logging import configure_logging
@@ -108,6 +110,24 @@ def serve(
         "Run this command from your shell:\n"
         f"streamlit run {Path(__file__).resolve().parent / 'ui' / 'app.py'} -- --artifacts {project}"
     )
+
+
+@app.command("compare-regression")
+def compare_regression(
+    baseline: Path = typer.Option(..., "--baseline", exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+    current: Path = typer.Option(..., "--current", exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+    output_path: Path = typer.Option(..., "--output", "-o", file_okay=False, dir_okay=True, resolve_path=True),
+) -> None:
+    for project_dir in (baseline, current):
+        manifest_path = project_dir / "manifest.json"
+        if not manifest_path.exists():
+            raise typer.BadParameter(f"No manifest.json found under {project_dir}")
+    write_regression_report(baseline, current, output_path)
+    comparison = compare_project_regressions(baseline, current)
+    typer.echo("Regression comparison completed:")
+    typer.echo(f"- pair_count delta: {comparison['delta']['pair_count']}")
+    typer.echo(f"- issue_count delta: {comparison['delta']['issue_count']}")
+    typer.echo(f"- report_dir: {output_path}")
 
 
 def run() -> None:

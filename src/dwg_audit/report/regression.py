@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+from dwg_audit.report.artifacts import load_report_frames
 
 
 FrameMap = Mapping[str, pd.DataFrame]
@@ -49,6 +53,85 @@ def compare_regression_metrics(baseline_frames: FrameMap, current_frames: FrameM
         "recall": None,
         "precision_recall_status": "not_computed",
     }
+
+
+def compare_project_regressions(baseline_project_dir: Path, current_project_dir: Path) -> dict[str, Any]:
+    baseline_manifest = json.loads((baseline_project_dir / "manifest.json").read_text(encoding="utf-8"))
+    current_manifest = json.loads((current_project_dir / "manifest.json").read_text(encoding="utf-8"))
+    comparison = compare_regression_metrics(
+        load_report_frames(baseline_project_dir),
+        load_report_frames(current_project_dir),
+    )
+    comparison["baseline_project"] = {
+        "project_name": baseline_manifest.get("project_name"),
+        "project_id": baseline_manifest.get("project_id"),
+        "path": str(baseline_project_dir.resolve()),
+    }
+    comparison["current_project"] = {
+        "project_name": current_manifest.get("project_name"),
+        "project_id": current_manifest.get("project_id"),
+        "path": str(current_project_dir.resolve()),
+    }
+    return comparison
+
+
+def write_regression_report(
+    baseline_project_dir: Path,
+    current_project_dir: Path,
+    output_dir: Path,
+) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    comparison = compare_project_regressions(baseline_project_dir, current_project_dir)
+    (output_dir / "regression_report.json").write_text(
+        json.dumps(comparison, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "regression_report.md").write_text(
+        _format_regression_markdown(comparison),
+        encoding="utf-8",
+    )
+    return output_dir
+
+
+def _format_regression_markdown(comparison: dict[str, Any]) -> str:
+    baseline_project = comparison.get("baseline_project", {})
+    current_project = comparison.get("current_project", {})
+    baseline = comparison.get("baseline", {})
+    current = comparison.get("current", {})
+    delta = comparison.get("delta", {})
+
+    lines = [
+        "# Regression Report",
+        "",
+        f"Baseline: {baseline_project.get('project_name')} (`{baseline_project.get('path')}`)",
+        f"Current: {current_project.get('project_name')} (`{current_project.get('path')}`)",
+        "",
+        "## Summary",
+        "",
+        f"- Baseline pair_count: `{baseline.get('pair_count', 0)}`",
+        f"- Current pair_count: `{current.get('pair_count', 0)}`",
+        f"- Delta pair_count: `{delta.get('pair_count', 0)}`",
+        f"- Baseline issue_count: `{baseline.get('issue_count', 0)}`",
+        f"- Current issue_count: `{current.get('issue_count', 0)}`",
+        f"- Delta issue_count: `{delta.get('issue_count', 0)}`",
+        "",
+        "## Rule Delta",
+        "",
+    ]
+
+    rule_counts = delta.get("rule_counts", {})
+    if rule_counts:
+        for rule_id, diff in rule_counts.items():
+            lines.append(f"- `{rule_id}`: `{diff}`")
+    else:
+        lines.append("- No rule deltas.")
+
+    lines.extend(["", "## Status Delta", ""])
+    pair_status = delta.get("status_counts", {}).get("pairs", {})
+    issue_status = delta.get("status_counts", {}).get("issues", {})
+    lines.append(f"- Pair statuses: `{json.dumps(pair_status, ensure_ascii=False, sort_keys=True)}`")
+    lines.append(f"- Issue statuses: `{json.dumps(issue_status, ensure_ascii=False, sort_keys=True)}`")
+    return "\n".join(lines) + "\n"
 
 
 def _frame(frames: FrameMap, name: str) -> pd.DataFrame:
