@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import json
 import re
 from dataclasses import fields
@@ -114,13 +115,51 @@ def _stringify_summary_value(value: Any) -> str:
     return str(value)
 
 
+def _is_blank_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    if isinstance(value, (list, tuple, dict)) and not value:
+        return True
+    if not isinstance(value, (list, tuple, dict)):
+        try:
+            if pd.isna(value):
+                return True
+        except TypeError:
+            pass
+    return False
+
+
+def _display_value(value: Any, *, default: str = "-") -> str:
+    return default if _is_blank_value(value) else str(value)
+
+
+def _format_confidence(confidence: Any) -> str:
+    if isinstance(confidence, (float, int)) and not pd.isna(confidence):
+        return f"{confidence:.2f}"
+    return _display_value(confidence)
+
+
+def _count_labels(values: list[Any], *, missing_label: str = "unknown") -> dict[str, int]:
+    counter: Counter[str] = Counter()
+    for value in values:
+        label = missing_label if _is_blank_value(value) else str(value)
+        counter[label] += 1
+    return dict(sorted(counter.items()))
+
+
+def _format_pair_label(left_value: Any, right_value: Any) -> str:
+    return f"{_display_value(left_value, default='?')} -> {_display_value(right_value, default='?')}"
+
+
 def _pair_evidence_summary(pair: Pair) -> str:
     evidence = pair.evidence or {}
     parts: list[str] = []
 
     for key in ("filename", "sheet_no", "sheet_order", "line_start", "line_end"):
         value = evidence.get(key)
-        if value in (None, "", [], {}):
+        if _is_blank_value(value):
             continue
         parts.append(f"{key}={_stringify_summary_value(value)}")
 
@@ -136,31 +175,63 @@ def _pair_evidence_summary(pair: Pair) -> str:
     return ", ".join(parts) if parts else "no evidence"
 
 
+def _pair_requires_review(pair: Pair) -> bool:
+    return pair.status != "pass" or pair.confidence_bucket in {"review", "low"} or pair.confidence < 0.92
+
+
+def _pair_review_sort_key(pair: Pair) -> tuple[int, int, float, str]:
+    status_order = {"fail": 0, "review": 1, "discard": 2, "pass": 3}
+    bucket_order = {"low": 0, "review": 1, "high": 2}
+    return (
+        status_order.get(pair.status, 99),
+        bucket_order.get(pair.confidence_bucket or "", 98),
+        pair.confidence,
+        pair.pair_id,
+    )
+
+
+def _build_pair_example(pair: Pair) -> dict[str, Any]:
+    return {
+        "pair_id": pair.pair_id,
+        "status": pair.status,
+        "confidence": pair.confidence,
+        "confidence_bucket": pair.confidence_bucket,
+        "left_value": pair.left_value,
+        "right_value": pair.right_value,
+        "rationale": pair.rationale,
+        "summary": _pair_evidence_summary(pair),
+    }
+
+
 def _build_pair_findings_summary(pairs: list[Pair]) -> dict[str, Any]:
     status_counts: dict[str, int] = {}
+    confidence_bucket_counts: dict[str, int] = {}
     with_evidence = 0
     examples: list[dict[str, Any]] = []
+    review_examples: list[dict[str, Any]] = []
+    review_pairs = sorted((pair for pair in pairs if _pair_requires_review(pair)), key=_pair_review_sort_key)
 
     for pair in pairs:
         status_counts[pair.status] = status_counts.get(pair.status, 0) + 1
+        bucket = pair.confidence_bucket or "unknown"
+        confidence_bucket_counts[bucket] = confidence_bucket_counts.get(bucket, 0) + 1
         if pair.evidence:
             with_evidence += 1
         if len(examples) >= 5:
             continue
-        examples.append(
-            {
-                "pair_id": pair.pair_id,
-                "status": pair.status,
-                "confidence": pair.confidence,
-                "summary": _pair_evidence_summary(pair),
-            }
-        )
+        examples.append(_build_pair_example(pair))
+
+    for pair in review_pairs[:5]:
+        review_examples.append(_build_pair_example(pair))
 
     return {
         "total_pairs": len(pairs),
         "pairs_with_evidence": with_evidence,
-        "status_counts": status_counts,
+        "review_pairs": len(review_pairs),
+        "status_counts": dict(sorted(status_counts.items())),
+        "confidence_bucket_counts": dict(sorted(confidence_bucket_counts.items())),
         "examples": examples,
+        "review_examples": review_examples,
     }
 
 
@@ -276,15 +347,31 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             "",
             f"- PairsWithEvidence: `{pair_summary['pairs_with_evidence']}/{pair_summary['total_pairs']}`",
             f"- StatusCounts: `{json.dumps(pair_summary['status_counts'], ensure_ascii=False, sort_keys=True)}`",
+            f"- ConfidenceBuckets: `{json.dumps(pair_summary['confidence_bucket_counts'], ensure_ascii=False, sort_keys=True)}`",
+            f"- ReviewPairs: `{pair_summary['review_pairs']}`",
             "",
-            "## 关键观察",
+            "## 待复核 Pair 概览",
             "",
         ]
     )
+    if pair_summary["review_examples"]:
+        for item in pair_summary["review_examples"]:
+            lines.append(
+                f"- `{item['pair_id']}` {_format_pair_label(item['left_value'], item['right_value'])} "
+                f"(status={item['status']}, bucket={_display_value(item['confidence_bucket'], default='unknown')}, "
+                f"conf={_format_confidence(item['confidence'])}): {item['summary']}; "
+                f"rationale={_display_value(item['rationale'])}"
+            )
+    else:
+        lines.append("- 当前没有待复核 pair。")
+    lines.extend(["", "## 代表性 Pair 证据", ""])
     for item in pair_summary["examples"]:
-        confidence = item["confidence"]
-        confidence_text = f"{confidence:.2f}" if isinstance(confidence, (float, int)) else str(confidence)
-        lines.append(f"- `{item['pair_id']}` ({item['status']}, conf={confidence_text}): {item['summary']}")
+        lines.append(
+            f"- `{item['pair_id']}` {_format_pair_label(item['left_value'], item['right_value'])} "
+            f"(status={item['status']}, bucket={_display_value(item['confidence_bucket'], default='unknown')}, "
+            f"conf={_format_confidence(item['confidence'])}): {item['summary']}"
+        )
+    lines.extend(["", "## 关键观察", ""])
     for item in payload["key_observations"]:
         lines.append(f"- {item}")
     if payload["failed_files"]:
@@ -399,6 +486,87 @@ def _evidence_display(row: pd.Series) -> str:
     return _format_evidence_value(row.get("evidence"))
 
 
+def _frame_value_counts(frame: pd.DataFrame, column: str, *, missing_label: str = "unknown") -> dict[str, int]:
+    if frame.empty or column not in frame.columns:
+        return {}
+    return _count_labels(frame[column].tolist(), missing_label=missing_label)
+
+
+def _row_requires_review(row: pd.Series) -> bool:
+    status = row.get("status")
+    bucket = row.get("confidence_bucket")
+    confidence = row.get("confidence")
+    return status != "pass" or bucket in {"review", "low"} or (isinstance(confidence, (float, int)) and confidence < 0.92)
+
+
+def _row_review_sort_key(row: pd.Series) -> tuple[int, int, float, str]:
+    status_order = {"fail": 0, "review": 1, "discard": 2, "pass": 3}
+    bucket_order = {"low": 0, "review": 1, "high": 2}
+    confidence = row.get("confidence")
+    confidence_value = float(confidence) if isinstance(confidence, (float, int)) and not pd.isna(confidence) else 1.0
+    return (
+        status_order.get(_display_value(row.get("status"), default=""), 99),
+        bucket_order.get(_display_value(row.get("confidence_bucket"), default=""), 98),
+        confidence_value,
+        _display_value(row.get("pair_id"), default=""),
+    )
+
+
+def _review_pair_rows(frame: pd.DataFrame) -> list[pd.Series]:
+    if frame.empty:
+        return []
+    rows = [row for _, row in frame.iterrows() if _row_requires_review(row)]
+    return sorted(rows, key=_row_review_sort_key)
+
+
+def _format_review_pair_row(row: pd.Series) -> str:
+    evidence = row.get("evidence_display") or _evidence_display(row)
+    return (
+        f"- `{_display_value(row.get('pair_id'))}` {_format_pair_label(row.get('left_value'), row.get('right_value'))} "
+        f"(status={_display_value(row.get('status'))}, bucket={_display_value(row.get('confidence_bucket'), default='unknown')}, "
+        f"conf={_format_confidence(row.get('confidence'))}): "
+        f"file={_display_value(_read_evidence_key(row, 'filename'))}, "
+        f"sheet_no={_display_value(_read_evidence_key(row, 'sheet_no'))}, "
+        f"sheet_order={_display_value(_read_evidence_key(row, 'sheet_order'))}, "
+        f"line_group={_display_value(row.get('line_group_id'))}, "
+        f"evidence={_display_value(evidence)}, "
+        f"rationale={_display_value(row.get('rationale'))}"
+    )
+
+
+def _format_issue_markdown_block(row: pd.Series) -> list[str]:
+    title = row.get("title")
+    if _is_blank_value(title):
+        title = row.get("message")
+    evidence = row.get("evidence_display") or _evidence_display(row)
+    details = [
+        f"### `{_display_value(row.get('issue_id'))}` {_display_value(title)}",
+        "",
+        f"- Rule / Severity: `{_display_value(row.get('rule_id'))}` / `{_display_value(row.get('severity'))}`",
+        f"- Status / Confidence: `{_display_value(row.get('status'))}` / `{_format_confidence(row.get('confidence'))}`",
+        f"- Pair / Line: `{_format_pair_label(row.get('left_value'), row.get('right_value'))}` / `line_group={_display_value(row.get('line_group_id'))}`",
+        (
+            f"- Location: file={_display_value(_read_evidence_key(row, 'filename'))}, "
+            f"sheet_no={_display_value(_read_evidence_key(row, 'sheet_no'))}, "
+            f"sheet_order={_display_value(_read_evidence_key(row, 'sheet_order'))}, "
+            f"line_group={_display_value(row.get('line_group_id'))}, "
+            f"line_start={_display_value(_read_evidence_key(row, 'line_start'))}, "
+            f"line_end={_display_value(_read_evidence_key(row, 'line_end'))}"
+        ),
+        f"- Evidence: {_display_value(evidence)}",
+    ]
+    for label, key in (
+        ("Summary", "summary"),
+        ("Explanation", "explanation"),
+        ("RecommendedAction", "recommended_action"),
+    ):
+        value = row.get(key)
+        if not _is_blank_value(value):
+            details.append(f"- {label}: {value}")
+    details.append("")
+    return details
+
+
 def _prepare_report_frame(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty or ("evidence_refs" not in frame.columns and "evidence" not in frame.columns):
         return frame
@@ -418,32 +586,44 @@ def _write_reports(
     report_frames = {name: _prepare_report_frame(frame) for name, frame in frames.items()}
 
     if "md" in selected_formats:
+        issues = report_frames["issues"]
+        pairs = report_frames["pairs"]
+        review_pairs = _review_pair_rows(pairs)
         markdown_lines = [
             "# Audit Report",
             "",
             f"项目：{project_name}",
             "",
+            "## 审计概览",
+            "",
+            f"- IssueCount: `{len(issues)}`",
+            f"- SeverityCounts: `{json.dumps(_frame_value_counts(issues, 'severity'), ensure_ascii=False, sort_keys=True)}`",
+            f"- RuleCounts: `{json.dumps(_frame_value_counts(issues, 'rule_id'), ensure_ascii=False, sort_keys=True)}`",
+            f"- PairStatusCounts: `{json.dumps(_frame_value_counts(pairs, 'status'), ensure_ascii=False, sort_keys=True)}`",
+            f"- PairConfidenceBuckets: `{json.dumps(_frame_value_counts(pairs, 'confidence_bucket'), ensure_ascii=False, sort_keys=True)}`",
+            f"- ReviewPairs: `{len(review_pairs)}`",
+            "",
+            "## 待复核 Pair",
+            "",
             "## 异常清单",
             "",
         ]
-        issues = frames["issues"]
+        if review_pairs:
+            markdown_lines.pop()
+            markdown_lines.pop()
+            for row in review_pairs[:5]:
+                markdown_lines.append(_format_review_pair_row(row))
+            markdown_lines.extend(["", "## 异常清单", ""])
+        else:
+            markdown_lines.pop()
+            markdown_lines.pop()
+            markdown_lines.append("- 当前没有待复核 pair。")
+            markdown_lines.extend(["", "## 异常清单", ""])
         if issues.empty:
             markdown_lines.append("未发现异常。")
         else:
             for _, row in issues.iterrows():
-                title = row.get("title") or row.get("message")
-                sheet_no = _read_evidence_key(row, "sheet_no")
-                sheet_order = _read_evidence_key(row, "sheet_order")
-                filename = _read_evidence_key(row, "filename")
-                line_start = _read_evidence_key(row, "line_start")
-                line_end = _read_evidence_key(row, "line_end")
-                evidence = _evidence_display(row)
-                markdown_lines.append(
-                    f"- `{row.get('rule_id', '')}` `{row.get('severity', '')}`: {title} "
-                    f"(file={filename}, sheet_no={sheet_no}, sheet_order={sheet_order}, "
-                    f"line_group={row.get('line_group_id')}, left={row.get('left_value')}, right={row.get('right_value')}, "
-                    f"line_start={line_start}, line_end={line_end}, confidence={row.get('confidence')}, evidence={evidence})"
-                )
+                markdown_lines.extend(_format_issue_markdown_block(row))
         (audit_dir / "audit_report.md").write_text("\n".join(markdown_lines) + "\n", encoding="utf-8")
 
     if "html" in selected_formats:
