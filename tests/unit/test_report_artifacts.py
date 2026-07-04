@@ -186,12 +186,33 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
             "line_end": [96.0, 25.0],
         },
     )
+    discard_pair = Pair(
+        pair_id="P0003",
+        line_group_id="G0003",
+        sheet_id="S0001",
+        file_id="F0001",
+        selected_pair_candidate_id="PC3",
+        left_value=None,
+        right_value=None,
+        confidence=0.18,
+        status="discard",
+        rationale="missing numeric candidates on both sides",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="low",
+        evidence={
+            "filename": "04.dwg",
+            "sheet_no": "04",
+            "sheet_order": 4,
+            "line_start": [12.0, 30.0],
+            "line_end": [24.0, 30.0],
+        },
+    )
 
-    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan, pairs=[pair, review_pair]), tmp_path)
+    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan, pairs=[pair, review_pair, discard_pair]), tmp_path)
     audit_dir = write_audit_outputs(
         project_dir,
         issues=[issue],
-        pairs=[pair, review_pair],
+        pairs=[pair, review_pair, discard_pair],
         source_files=scan.manifest.source_files,
         project_name=scan.manifest.project_name,
     )
@@ -200,9 +221,9 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     issues_payload = json.loads((audit_dir / "issues.json").read_text(encoding="utf-8"))
     report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
 
-    assert findings_payload["pair_evidence_summary"]["pairs_with_evidence"] == 2
+    assert findings_payload["pair_evidence_summary"]["pairs_with_evidence"] == 3
     assert findings_payload["pair_evidence_summary"]["review_pairs"] == 1
-    assert findings_payload["pair_evidence_summary"]["confidence_bucket_counts"] == {"high": 1, "review": 1}
+    assert findings_payload["pair_evidence_summary"]["confidence_bucket_counts"] == {"high": 1, "low": 1, "review": 1}
     assert findings_payload["pair_evidence_summary"]["examples"][0]["summary"] == (
         "filename=04.dwg, sheet_no=04, sheet_order=4, line_group=G0001, left_value=101, right_value=201"
     )
@@ -210,7 +231,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "## Pair Evidence 摘要" in findings_text
     assert "## 待复核 Pair 概览" in findings_text
     assert "## 代表性 Pair 证据" in findings_text
-    assert "ConfidenceBuckets: `{\"high\": 1, \"review\": 1}`" in findings_text
+    assert "ConfidenceBuckets: `{\"high\": 1, \"low\": 1, \"review\": 1}`" in findings_text
     assert "ReviewPairs: `1`" in findings_text
     assert "filename=04.dwg, sheet_no=04, sheet_order=4, line_group=G0001, left_value=101, right_value=201" in findings_text
     assert "`P0002` 202 -> 301 (status=review, bucket=review, conf=0.74)" in findings_text
@@ -225,6 +246,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "ReviewPairs: `1`" in report_text
     assert "## 待复核 Pair" in report_text
     assert "`P0002` 202 -> 301 (status=review, bucket=review, conf=0.74)" in report_text
+    assert "`P0003` ? -> ?" not in report_text
     assert "evidence=filename=04.dwg, sheet_no=04, sheet_order=4, line_start=[60.0, 25.0], line_end=[96.0, 25.0]" in report_text
     assert "## 异常清单" in report_text
     assert "### `I0001` 跨页配对冲突" in report_text

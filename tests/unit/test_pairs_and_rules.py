@@ -59,6 +59,34 @@ def test_build_pairs_marks_missing_side_as_review() -> None:
     assert pairs[0].left_candidate_id == "C0001"
 
 
+def test_build_pairs_discards_line_group_without_numeric_candidates() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=0,
+            start_y=0,
+            end_x=10,
+            end_y=0,
+            length=10,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True)
+    ]
+
+    _, pairs = build_pairs(groups, [], sheets, DEFAULT_CONFIG)
+
+    assert pairs[0].status == "discard"
+    assert pairs[0].confidence_bucket == "low"
+    assert pairs[0].left_value is None
+    assert pairs[0].right_value is None
+
+
 def test_rules_detect_cross_page_conflict() -> None:
     pairs = [
         Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"}),
@@ -131,6 +159,71 @@ def test_build_pairs_keeps_selected_and_alternative_traceability() -> None:
     assert pair.left_coord_y == 20.0
     assert pair.right_coord_x == 90.0
     assert pair.right_coord_y == 20.0
+    assert pair.confidence > 0.92
+
+
+def test_build_pairs_marks_strong_unambiguous_pair_as_pass() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=0,
+            start_y=0,
+            end_x=100,
+            end_y=0,
+            length=100,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "left", "T1", "101", "101", 0.96, "accepted", None, 0, 0, 1, 0, 10.0, 20.0),
+        TerminalCandidate("C0002", "G0001", "S0001", "F0001", "left", "T2", "102", "102", 0.75, "accepted", None, 0, 0, 1.5, 0, 12.0, 20.0),
+        TerminalCandidate("C0003", "G0001", "S0001", "F0001", "right", "T3", "201", "201", 0.95, "accepted", None, 100, 0, 1, 0, 90.0, 20.0),
+        TerminalCandidate("C0004", "G0001", "S0001", "F0001", "right", "T4", "202", "202", 0.70, "accepted", None, 100, 0, 1.5, 0, 88.0, 20.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    assert pairs[0].status == "pass"
+    assert pairs[0].confidence_bucket == "high"
+    assert pairs[0].confidence > DEFAULT_CONFIG["confidence"]["high_threshold"]
+
+
+def test_build_pairs_discards_full_pair_below_review_threshold() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=0,
+            start_y=0,
+            end_x=100,
+            end_y=0,
+            length=100,
+            wire_candidate_score=0.35,
+            member_line_ids=["L1"],
+            layer_hints=["DIM"],
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "left", "T1", "101", "101", 0.55, "accepted", None, 0, 0, 1, 0, 10.0, 20.0),
+        TerminalCandidate("C0002", "G0001", "S0001", "F0001", "right", "T2", "201", "201", 0.58, "accepted", None, 100, 0, 1, 0, 90.0, 20.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    assert pairs[0].status == "discard"
+    assert pairs[0].confidence_bucket == "low"
+    assert pairs[0].confidence < DEFAULT_CONFIG["confidence"]["review_threshold"]
 
 
 def test_rules_ignore_low_confidence_pairs_for_cross_page_conflict() -> None:
@@ -151,6 +244,25 @@ def test_rules_ignore_low_confidence_pairs_for_cross_page_conflict() -> None:
 
     assert not any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
     assert any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" for issue in issues)
+
+
+def test_rules_skip_discard_pairs_for_pair_quality_issues() -> None:
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", None, None, 0.18, "discard", "no numeric candidates", [], "low", {}),
+        Pair("P2", "G2", "S1", "F1", "PC2", "101", None, 0.52, "review", "missing right candidate", [], "review", {}),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 10, 0, 20, 0, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert all(issue.pair_id != "P1" for issue in issues)
+    assert any(issue.rule_id == "R-PAIR-MISSING-SIDE" and issue.pair_id == "P2" for issue in issues)
 
 
 def test_rules_detect_duplicate_same_line_from_close_terminal_candidates() -> None:

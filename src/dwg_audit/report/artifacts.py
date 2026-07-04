@@ -176,7 +176,7 @@ def _pair_evidence_summary(pair: Pair) -> str:
 
 
 def _pair_requires_review(pair: Pair) -> bool:
-    return pair.status != "pass" or pair.confidence_bucket in {"review", "low"} or pair.confidence < 0.92
+    return pair.status in {"review", "fail"} or pair.confidence_bucket == "review"
 
 
 def _pair_review_sort_key(pair: Pair) -> tuple[int, int, float, str]:
@@ -495,8 +495,7 @@ def _frame_value_counts(frame: pd.DataFrame, column: str, *, missing_label: str 
 def _row_requires_review(row: pd.Series) -> bool:
     status = row.get("status")
     bucket = row.get("confidence_bucket")
-    confidence = row.get("confidence")
-    return status != "pass" or bucket in {"review", "low"} or (isinstance(confidence, (float, int)) and confidence < 0.92)
+    return status in {"review", "fail"} or bucket == "review"
 
 
 def _row_review_sort_key(row: pd.Series) -> tuple[int, int, float, str]:

@@ -67,7 +67,6 @@ def build_terminal_candidates(
             for text in index.query(bbox):
                 dx = text.insert_x - endpoint[0]
                 dy = text.insert_y - endpoint[1]
-                side_ok = dx <= 2.5 if side == "left" else dx >= -2.5
                 within_height = min_height <= text.height <= max_height
                 vertical_alignment_score = round(max(0.0, 1.0 - min(abs(dy) / max(radius_y, 1.0), 1.0)), 4)
                 horizontal_side_score = _horizontal_side_score(dx, radius_x, side)
@@ -80,10 +79,6 @@ def build_terminal_candidates(
                 elif not within_height:
                     status = "rejected"
                     reason = "height_out_of_range"
-                    score = 0.0
-                elif not side_ok:
-                    status = "rejected"
-                    reason = "wrong_side"
                     score = 0.0
                 else:
                     score = _candidate_score(dx, dy, radius_x, radius_y, text.height, side)

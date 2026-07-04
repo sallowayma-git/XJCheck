@@ -37,7 +37,12 @@ def build_pairs(
         if not left or not right:
             left_item = left[0] if left else None
             right_item = right[0] if right else None
-            rationale = "missing left candidate" if not left else "missing right candidate"
+            if not left and not right:
+                rationale = "missing numeric candidates on both sides"
+                status = "discard"
+            else:
+                rationale = "missing left candidate" if not left else "missing right candidate"
+                status = "review"
             single = PairCandidate(
                 pair_candidate_id=pair_candidate_ids.next(),
                 line_group_id=group.line_group_id,
@@ -47,7 +52,7 @@ def build_pairs(
                 right_candidate_id=right_item.candidate_id if right_item else None,
                 left_value=left_item.value if left_item else None,
                 right_value=right_item.value if right_item else None,
-                score=round(((left_item.score if left_item else 0.0) + (right_item.score if right_item else 0.0) + group.wire_candidate_score) / 3.0, 4),
+                score=_pair_score(left_item.score if left_item else 0.0, right_item.score if right_item else 0.0, group.wire_candidate_score),
                 status="selected",
                 rationale=rationale,
                 left_text_id=left_item.text_id if left_item else None,
@@ -65,10 +70,10 @@ def build_pairs(
                     left_value=single.left_value,
                     right_value=single.right_value,
                     confidence=confidence,
-                    status="review",
+                    status=status,
                     rationale=rationale,
                     alternative_pair_candidate_ids=[],
-                    confidence_bucket="review",
+                    confidence_bucket=_bucket_for_status(status),
                     evidence=_pair_evidence(group, sheet_map.get(group.sheet_id), single, None),
                     left_candidate_id=single.left_candidate_id,
                     right_candidate_id=single.right_candidate_id,
@@ -84,7 +89,7 @@ def build_pairs(
 
         for left_item in left:
             for right_item in right:
-                score = round((left_item.score + right_item.score + group.wire_candidate_score) / 3.0, 4)
+                score = _pair_score(left_item.score, right_item.score, group.wire_candidate_score)
                 group_pair_candidates.append(
                     PairCandidate(
                         pair_candidate_id=pair_candidate_ids.next(),
@@ -112,7 +117,7 @@ def build_pairs(
         ambiguous = len(group_pair_candidates) > 1 and abs(group_pair_candidates[0].score - group_pair_candidates[1].score) < 0.08
         status = "pass" if selected.score >= high_threshold and not ambiguous else "review"
         if selected.score < review_threshold:
-            status = "fail"
+            status = "discard"
         rationale = selected.rationale
         if ambiguous:
             rationale += "; ambiguous candidate ordering"
@@ -156,6 +161,11 @@ def _bucket_for_status(status: str) -> str:
     if status == "review":
         return "review"
     return "low"
+
+
+def _pair_score(left_score: float, right_score: float, wire_score: float) -> float:
+    score = (left_score * 0.45) + (right_score * 0.45) + (wire_score * 0.10)
+    return round(score, 4)
 
 
 def _pair_evidence(

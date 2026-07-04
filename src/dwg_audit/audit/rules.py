@@ -49,6 +49,8 @@ def build_issues(
 def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     for pair in context.pairs:
+        if pair.status == "discard":
+            continue
         if pair.left_value and pair.right_value:
             continue
         issues.append(
@@ -68,6 +70,8 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
 def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     for pair in context.pairs:
+        if pair.status == "discard":
+            continue
         if pair.confidence >= context.high_threshold and pair.status == "pass":
             continue
         issues.append(
@@ -91,7 +95,7 @@ def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
     for key, candidates in ambiguous_groups.items():
         line_group_id, side = key
         pair = pair_by_group.get(line_group_id)
-        if pair is None:
+        if pair is None or pair.status == "discard":
             continue
         top_values = [candidate.value for candidate in candidates[:2] if candidate.value]
         top_scores = [candidate.score for candidate in candidates[:2]]

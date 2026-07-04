@@ -1,6 +1,6 @@
 # Findings
 
-状态：已完成规则层聚类、报告复核增强与主验证集一次真实链路验证，进入 Pair 召回率与低置信度优化阶段。
+状态：已完成规则层聚类、报告复核增强，并基于主验证集完成一轮 Pair 分流与候选召回优化，进入继续压降单侧缺失与提升高置信 Pair 占比阶段。
 
 更新时间：2026-07-05
 
@@ -158,9 +158,9 @@
 
 下一步执行顺序：
 
-1. 基于主验证集的 review pair 高比例结果，优先优化端点数字召回和缺边 Pair 误报。
+1. 继续压降单侧缺失 Pair，重点分析仍然停留在 `missing left/right candidate` 的页型模式。
 2. 补足 CAD 抽取中的 `ATTRIB`、`POLYLINE` 与 manual bbox。
-3. 针对 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 做分层抽样复盘，定位主要误报来源。
+3. 针对 `discard` Pair 做更细的结构性过滤，减少明显非跨页配对线进入 Pair 构建。
 4. 引入更多真实样本回归基线，避免召回率优化破坏当前证据链输出。
 5. 继续扩展报告中的候选详情与局部定位预览能力。
 
@@ -177,3 +177,30 @@
   - `R-PAIR-LOW-CONFIDENCE = 585`
 - 当前没有出现项目级高严重度冲突问题，说明此阶段的主瓶颈不是图间冲突规则，而是 Pair 召回、单侧缺失和置信度不足。
 - 报告层现已能直接展示审计概览、待复核 Pair 概览、结构化 issue 证据块与 findings 代表性 Pair 证据，人工复核路径明显比首轮实现更清晰。
+
+## 13. 2026-07-05 Pair 分流与候选召回优化结果
+
+本轮针对主验证集补了两类关键改动：
+
+1. `TerminalCandidate` 不再把“数字位于端点内侧”的情况硬判为 `wrong_side` 拒绝，而是允许进入打分。
+2. `Pair` 正式落地 `pass / review / discard` 三态分流，并在审计阶段跳过 `discard`，避免“没有任何数字证据”的线段刷屏进入 issue。
+
+对同一主验证集重新跑 `analyze-project + run-audit` 后，结果变为：
+
+- `pairs=585` 保持不变，但结构明显改善。
+- `both_present` 从 `37` 提升到 `102`。
+- `pass` 从 `0` 提升到 `29`。
+- `review` 为 `239`，`discard` 为 `317`。
+- `issues` 从 `1133` 降到 `482`。
+- 当前规则分布为：
+  - `R-PAIR-LOW-CONFIDENCE = 239`
+  - `R-PAIR-MISSING-SIDE = 231`
+  - `R-DUPLICATE-PAIR = 8`
+  - `R-CROSS-PAGE-CONFLICT = 2`
+  - `R-ONE-TO-MANY = 2`
+
+直接结论：
+
+- 主流程已不再把所有 Pair 都压成 `review`。
+- `discard` 分流已经开始承担“过滤明显无证据线段”的职责，符合任务书中 high-confidence / review / discard 的阶段 B 设计。
+- 目前剩余瓶颈已从“完全没有 pass”转为“review 仍偏多，且单侧缺失仍有 231 条”，后续应继续聚焦页型特征、线段过滤和端点召回规则。
