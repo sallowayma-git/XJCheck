@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import typer
 
+from dwg_audit.desktop import DesktopEventWriter
+from dwg_audit.desktop import analyze_session as run_desktop_session
+from dwg_audit.desktop import list_recent_projects as load_recent_projects
+from dwg_audit.desktop import load_project_result as load_desktop_project_result
+from dwg_audit.desktop import purge_session as purge_desktop_session
 from dwg_audit.pipeline import analyze_input_root
 from dwg_audit.report import compare_project_regressions
 from dwg_audit.report import export_existing_reports
@@ -128,6 +134,73 @@ def compare_regression(
     typer.echo(f"- pair_count delta: {comparison['delta']['pair_count']}")
     typer.echo(f"- issue_count delta: {comparison['delta']['issue_count']}")
     typer.echo(f"- report_dir: {output_path}")
+
+
+@app.command("analyze-session")
+def analyze_session(
+    input_path: Path = typer.Option(..., "--input", "-i", exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+    workspace_root: Path = typer.Option(Path(".desktop_workspace"), "--workspace-root", file_okay=False, dir_okay=True, resolve_path=True),
+    session_id: str | None = typer.Option(None, "--session-id"),
+    config_path: Path | None = typer.Option(None, "--config", "-c", exists=True, resolve_path=True),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+    include_audit: bool = typer.Option(True, "--include-audit/--skip-audit"),
+) -> None:
+    runs = run_desktop_session(
+        input_root=input_path,
+        workspace_root=workspace_root,
+        config_path=config_path,
+        session_id=session_id,
+        include_audit=include_audit,
+        state_db_path=state_db,
+        event_writer=DesktopEventWriter(),
+    )
+    typer.echo(json.dumps({"event": "run_result", "projects": runs}, ensure_ascii=False))
+
+
+@app.command("list-recent-projects")
+def list_recent_projects(
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+    limit: int = typer.Option(20, "--limit", min=1, max=200),
+) -> None:
+    typer.echo(
+        json.dumps(
+            {
+                "projects": load_recent_projects(state_db_path=state_db, limit=limit),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
+@app.command("load-result")
+def load_result(
+    project_id: str = typer.Option(..., "--project-id"),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+) -> None:
+    result = load_desktop_project_result(project_id=project_id, state_db_path=state_db)
+    if result is None:
+        raise typer.BadParameter(f"No stored result found for project_id={project_id}")
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command("purge-session")
+def purge_session(
+    session_id: str = typer.Option(..., "--session-id"),
+    workspace_root: Path = typer.Option(Path(".desktop_workspace"), "--workspace-root", file_okay=False, dir_okay=True, resolve_path=True),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+) -> None:
+    typer.echo(
+        json.dumps(
+            purge_desktop_session(
+                session_id=session_id,
+                workspace_root=workspace_root,
+                state_db_path=state_db,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def run() -> None:

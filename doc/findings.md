@@ -204,3 +204,40 @@
 - 主流程已不再把所有 Pair 都压成 `review`。
 - `discard` 分流已经开始承担“过滤明显无证据线段”的职责，符合任务书中 high-confidence / review / discard 的阶段 B 设计。
 - 目前剩余瓶颈已从“完全没有 pass”转为“review 仍偏多，且单侧缺失仍有 231 条”，后续应继续聚焦页型特征、线段过滤和端点召回规则。
+
+## 14. 2026-07-05 桌面端 sidecar 后端契约落地
+
+为给后续 Tauri 桌面端直接接入，本轮已补一条最小可用的本地 sidecar 后端链路：
+
+- 新增 CLI：
+  - `analyze-session`
+  - `list-recent-projects`
+  - `load-result`
+  - `purge-session`
+- 新增 `DesktopEventWriter`，当前可输出 JSONL 事件流，已覆盖：
+  - `run_started`
+  - `project_started`
+  - `progress`
+  - `page_started`
+  - `page_finished`
+  - `warning`
+  - `issue_found`
+  - `audit_finished`
+  - `project_stored`
+  - `run_finished`
+- 新增轻量 SQLite 状态库存储最近项目与 issue 摘要，当前已保存：
+  - `run_id / session_id / project_id / project_name`
+  - `input_root / artifact_dir`
+  - `sheet_count / pair_count / issue_count`
+  - issue 摘要行：`rule_id / severity / title / confidence / filename / sheet_no / 左右值 / evidence`
+
+真实 smoke 结果：
+
+- 已用 `analyze-session` 在 `110kV变压器保护柜` 样本上跑通一次完整链路。
+- `list-recent-projects` 能返回最近项目摘要。
+- `load-result` 能从 SQLite 成功载入最近一次项目结果与 `482` 条 issue 摘要。
+
+直接结论：
+
+- 桌面端已经不必直接拼装 Python 主流程命令，而可以围绕 sidecar 命令和 SQLite 最近项目结果继续实现。
+- 当前 M9 后端侧最小契约已经出现，后续重点转向 Tauri 壳接入、过程页消费事件流、结果页消费最近项目结果。

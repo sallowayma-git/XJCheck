@@ -16,7 +16,13 @@ from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
 
 
-def rerun_audit_from_findings(project_dir: Path, config: dict, output_dir: Path | None = None) -> Path:
+def rerun_audit_from_findings(
+    project_dir: Path,
+    config: dict,
+    output_dir: Path | None = None,
+    *,
+    event_sink = None,
+) -> Path:
     frames = load_report_frames(project_dir)
     pages = [_sheet_record(row) for _, row in frames.get("pages", pd.DataFrame()).iterrows()]
     line_groups = [_line_group(row) for _, row in frames.get("line_groups", pd.DataFrame()).iterrows()]
@@ -27,6 +33,29 @@ def rerun_audit_from_findings(project_dir: Path, config: dict, output_dir: Path 
     ]
 
     issues = build_issues(pairs, line_groups, pages, config, terminal_candidates=terminal_candidates)
+    if event_sink is not None:
+        event_sink.emit(
+            "progress",
+            stage="audit",
+            project_dir=str(project_dir),
+            pair_count=len(pairs),
+            issue_count=len(issues),
+        )
+        for issue in issues:
+            evidence = issue.evidence or {}
+            event_sink.emit(
+                "issue_found",
+                project_dir=str(project_dir),
+                issue_id=issue.issue_id,
+                rule_id=issue.rule_id,
+                severity=issue.severity,
+                title=issue.title or issue.message,
+                filename=evidence.get("filename"),
+                sheet_no=evidence.get("sheet_no"),
+                left_value=issue.left_value,
+                right_value=issue.right_value,
+                confidence=issue.confidence,
+            )
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
@@ -34,6 +63,13 @@ def rerun_audit_from_findings(project_dir: Path, config: dict, output_dir: Path 
     issues_frame.to_parquet(audit_dir / "issues.parquet", index=False)
     issues_frame.to_json(audit_dir / "issues.json", orient="records", force_ascii=False, indent=2)
     export_existing_reports(project_dir)
+    if event_sink is not None:
+        event_sink.emit(
+            "audit_finished",
+            project_dir=str(project_dir),
+            audit_dir=str(audit_dir),
+            issue_count=len(issues),
+        )
 
     if output_dir is not None and output_dir.resolve() != audit_dir.resolve():
         output_dir.mkdir(parents=True, exist_ok=True)

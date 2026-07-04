@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -28,6 +29,10 @@ def test_help_lists_taskbook_commands() -> None:
     assert "export-findings" in result.stdout
     assert "run-audit" in result.stdout
     assert "export-report" in result.stdout
+    assert "analyze-session" in result.stdout
+    assert "list-recent-projects" in result.stdout
+    assert "load-result" in result.stdout
+    assert "purge-session" in result.stdout
     assert "serve" in result.stdout
 
 
@@ -128,3 +133,98 @@ def test_compare_regression_writes_report_files(tmp_path: Path) -> None:
     assert (output / "regression_report.md").exists()
     assert "pair_count delta: 1" in result.stdout
     assert "issue_count delta: 1" in result.stdout
+
+
+def test_list_recent_projects_cli_reads_state_db(tmp_path: Path) -> None:
+    runner = CliRunner()
+    state_db = tmp_path / "desktop_state.db"
+
+    from dwg_audit.desktop.state_store import DesktopStateStore
+
+    DesktopStateStore(state_db).record_run(
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path / "input"),
+        artifact_dir=str(tmp_path / "workspace" / "session-a" / "demo_project"),
+        status="completed",
+        sheet_count=1,
+        pair_count=2,
+        issue_count=1,
+        metadata={"demo": True},
+    )
+
+    result = runner.invoke(app, ["list-recent-projects", "--state-db", str(state_db)])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["projects"][0]["project_id"] == "demo-project"
+
+
+def test_load_result_cli_returns_project_payload(tmp_path: Path) -> None:
+    runner = CliRunner()
+    state_db = tmp_path / "desktop_state.db"
+
+    from dwg_audit.desktop.state_store import DesktopStateStore
+
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path / "input"),
+        artifact_dir=str(tmp_path / "workspace" / "session-a" / "demo_project"),
+        status="completed",
+        sheet_count=1,
+        pair_count=2,
+        issue_count=1,
+        metadata={"demo": True},
+    )
+    store.replace_issue_summaries(
+        "session-a:demo-project",
+        [
+            {
+                "issue_id": "I1",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "title": "Low Confidence",
+                "severity": "review",
+                "status": "open",
+                "confidence": 0.74,
+                "filename": "01.dwg",
+                "sheet_no": "01",
+                "left_value": "101",
+                "right_value": "201",
+                "evidence": {"filename": "01.dwg"},
+            }
+        ],
+    )
+
+    result = runner.invoke(app, ["load-result", "--project-id", "demo-project", "--state-db", str(state_db)])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["run"]["project_id"] == "demo-project"
+    assert payload["issues"][0]["issue_id"] == "I1"
+
+
+def test_analyze_session_cli_emits_final_result_line(monkeypatch, tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    def fake_analyze_session(**kwargs):
+        kwargs["event_writer"].emit("run_started", session_id="session-a")
+        return [{"project_id": "demo-project", "project_name": "Demo Project"}]
+
+    monkeypatch.setattr("dwg_audit.cli.run_desktop_session", fake_analyze_session)
+
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+
+    result = runner.invoke(app, ["analyze-session", "--input", str(input_root), "--workspace-root", str(tmp_path / "workspace")])
+
+    assert result.exit_code == 0, result.output
+    lines = [json.loads(line) for line in result.stdout.splitlines()]
+    assert lines[0]["event"] == "run_started"
+    assert lines[-1]["event"] == "run_result"
+    assert lines[-1]["projects"][0]["project_id"] == "demo-project"

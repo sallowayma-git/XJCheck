@@ -31,6 +31,8 @@ def convert_source_files(
     output_dir: Path,
     config: dict,
     logger,
+    *,
+    event_sink = None,
 ) -> None:
     odafc_exe = _detect_odafc_exe(config)
     dxf_dir = output_dir / "cache" / "converted_dxf"
@@ -46,21 +48,67 @@ def convert_source_files(
             source.conversion_detail = "ODA File Converter executable not found."
             source.conversion_version = convert_version
             source.conversion_audit = audit_before_load
+            if event_sink is not None:
+                event_sink.emit(
+                    "warning",
+                    stage="convert",
+                    file_id=source.file_id,
+                    filename=source.filename,
+                    message=source.conversion_detail,
+                )
+                event_sink.emit(
+                    "page_finished",
+                    stage="convert",
+                    file_id=source.file_id,
+                    filename=source.filename,
+                    status=source.conversion_status,
+                )
         return
 
     original_path = os.environ.get("PATH", "")
     os.environ["PATH"] = str(odafc_exe.parent) + os.pathsep + original_path
     try:
         for source in source_files:
+            if event_sink is not None:
+                event_sink.emit(
+                    "page_started",
+                    stage="convert",
+                    file_id=source.file_id,
+                    filename=source.filename,
+                    sheet_order=source.sheet_order,
+                )
             source.conversion_version = convert_version
             source.conversion_audit = audit_before_load
             if source.skip_reason:
                 source.conversion_status = "skipped"
                 source.conversion_detail = source.skip_reason
+                if event_sink is not None:
+                    event_sink.emit(
+                        "page_finished",
+                        stage="convert",
+                        file_id=source.file_id,
+                        filename=source.filename,
+                        status=source.conversion_status,
+                    )
                 continue
             if not source.valid_dwg_header:
                 source.conversion_status = "failed_invalid_header"
                 source.conversion_detail = "Non-standard DWG header."
+                if event_sink is not None:
+                    event_sink.emit(
+                        "warning",
+                        stage="convert",
+                        file_id=source.file_id,
+                        filename=source.filename,
+                        message=source.conversion_detail,
+                    )
+                    event_sink.emit(
+                        "page_finished",
+                        stage="convert",
+                        file_id=source.file_id,
+                        filename=source.filename,
+                        status=source.conversion_status,
+                    )
                 continue
 
             sha_prefix = source.sha256[:8]
@@ -103,5 +151,22 @@ def convert_source_files(
                     except OSError:
                         pass
                 logger.warning("Failed to convert %s: %s", source.filename, source.conversion_detail)
+                if event_sink is not None:
+                    event_sink.emit(
+                        "warning",
+                        stage="convert",
+                        file_id=source.file_id,
+                        filename=source.filename,
+                        message=source.conversion_detail,
+                    )
+            if event_sink is not None:
+                event_sink.emit(
+                    "page_finished",
+                    stage="convert",
+                    file_id=source.file_id,
+                    filename=source.filename,
+                    status=source.conversion_status,
+                    dxf_path=source.dxf_path,
+                )
     finally:
         os.environ["PATH"] = original_path
