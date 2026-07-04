@@ -8,6 +8,9 @@ import pandas as pd
 import streamlit as st
 
 from dwg_audit.report import load_report_frames
+from dwg_audit.ui.actions import discover_project_outputs
+from dwg_audit.ui.actions import run_ui_analysis
+from dwg_audit.utils.config import load_config
 
 
 ISSUE_STATUS_OPTIONS = ("open", "ignored", "resolved", "false_positive")
@@ -104,8 +107,14 @@ def _persist_issue_status(project_dir: Path, issue_id: str, status: str) -> None
     frame.to_json(json_path, orient="records", force_ascii=False, indent=2)
 
 
-def _project_dirs(root: Path) -> list[Path]:
-    return sorted([path for path in root.iterdir() if path.is_dir() and (path / "manifest.json").exists()])
+def _default_project_index(project_dirs: list[Path]) -> int:
+    preferred = st.session_state.get("selected_project_name")
+    if not preferred:
+        return 0
+    for index, project_dir in enumerate(project_dirs):
+        if project_dir.name == preferred:
+            return index
+    return 0
 
 
 def _summary_metrics(manifest: dict[str, Any], frames: dict[str, pd.DataFrame]) -> dict[str, int]:
@@ -175,154 +184,231 @@ def _pair_detail(pair_row: pd.Series) -> None:
         st.json(evidence)
 
 
+def _render_analyze_tab(artifacts_root: Path) -> Path:
+    st.subheader("Project Import")
+    st.caption("Select an input project directory, choose an output artifacts root, and optionally rerun audit immediately after analysis.")
+
+    with st.form("analyze_project_form"):
+        input_root_text = st.text_input("Input Project Directory", value=st.session_state.get("ui_input_root", ""))
+        output_root_text = st.text_input("Output Artifacts Root", value=st.session_state.get("ui_output_root", str(artifacts_root)))
+        config_path_text = st.text_input("Config Path", value=st.session_state.get("ui_config_path", ""))
+        include_audit = st.checkbox("Run Audit After Analyze", value=st.session_state.get("ui_include_audit", True))
+        submitted = st.form_submit_button("Analyze Project")
+
+    with st.expander("Resolved Config Preview", expanded=False):
+        try:
+            config_preview = load_config(Path(config_path_text).expanduser() if config_path_text.strip() else None)
+            st.json(config_preview)
+        except Exception as exc:
+            st.warning(str(exc))
+
+    if submitted:
+        st.session_state["ui_input_root"] = input_root_text
+        st.session_state["ui_output_root"] = output_root_text
+        st.session_state["ui_config_path"] = config_path_text
+        st.session_state["ui_include_audit"] = include_audit
+
+        if not input_root_text.strip():
+            st.error("Input Project Directory is required.")
+            return artifacts_root
+
+        try:
+            result = run_ui_analysis(
+                Path(input_root_text),
+                Path(output_root_text),
+                Path(config_path_text) if config_path_text.strip() else None,
+                include_audit=include_audit,
+            )
+        except Exception as exc:
+            st.error(str(exc))
+            return artifacts_root
+
+        project_count = len(result.project_dirs)
+        audit_count = len(result.audit_dirs)
+        st.session_state["artifacts_root"] = str(result.output_root)
+        if result.project_dirs:
+            st.session_state["selected_project_name"] = result.project_dirs[0].name
+        st.success(
+            f"Analysis completed. Projects={project_count}, audit_runs={audit_count}, output={result.output_root}"
+        )
+        if result.run_summary_path is not None:
+            st.caption(f"Run summary: {result.run_summary_path}")
+        return result.output_root
+
+    return artifacts_root
+
+
 def main() -> None:
     st.set_page_config(page_title="DWG Audit", layout="wide")
     st.title("DWG Audit Viewer")
 
-    with st.sidebar:
-        artifacts_root = Path(st.text_input("Artifacts root", value="artifacts"))
-        if not artifacts_root.exists():
-            st.info("Provide an artifacts directory produced by `dwg-audit analyze-project`.")
-            return
-        project_dirs = _project_dirs(artifacts_root)
-        if not project_dirs:
-            st.warning("No project artifact directories found.")
-            return
-        selected = st.selectbox("Project", project_dirs, format_func=lambda path: path.name)
-
-    manifest = json.loads((selected / "manifest.json").read_text(encoding="utf-8"))
-    frames = load_report_frames(selected)
-    metrics = _summary_metrics(manifest, frames)
-
-    summary_tab, issues_tab, pairs_tab, files_tab, reports_tab = st.tabs(
-        ["Summary", "Issues", "Pairs", "Files", "Reports"]
+    artifacts_root = Path(st.text_input("Artifacts Root", value=st.session_state.get("artifacts_root", "artifacts")))
+    analyze_tab, summary_tab, issues_tab, pairs_tab, files_tab, reports_tab = st.tabs(
+        ["Analyze", "Summary", "Issues", "Pairs", "Files", "Reports"]
     )
 
-    with summary_tab:
-        metric_cols = st.columns(4)
-        metric_cols[0].metric("Files", metrics["files"])
-        metric_cols[1].metric("Valid DWG", metrics["valid_dwg"])
-        metric_cols[2].metric("Pairs", metrics["pairs"])
-        metric_cols[3].metric("Issues", metrics["issues"])
-        st.json(
-            {
-                "project_name": manifest["project_name"],
-                "input_root": manifest.get("input_root"),
-                "warnings": manifest.get("warnings", []),
-            }
+    with analyze_tab:
+        artifacts_root = _render_analyze_tab(artifacts_root)
+
+    project_dirs = discover_project_outputs(artifacts_root)
+    selected: Path | None = None
+    if project_dirs:
+        selected = st.selectbox(
+            "Project",
+            project_dirs,
+            index=_default_project_index(project_dirs),
+            format_func=lambda path: path.name,
         )
+        st.session_state["selected_project_name"] = selected.name
+
+    manifest: dict[str, Any] = {}
+    frames: dict[str, pd.DataFrame] = {}
+    metrics = {"files": 0, "valid_dwg": 0, "pairs": 0, "issues": 0}
+    if selected is not None:
+        manifest = json.loads((selected / "manifest.json").read_text(encoding="utf-8"))
+        frames = load_report_frames(selected)
+        metrics = _summary_metrics(manifest, frames)
+
+    with summary_tab:
+        if selected is None:
+            st.info("No project artifacts found yet. Use the Analyze tab to import and process a project directory.")
+        else:
+            metric_cols = st.columns(4)
+            metric_cols[0].metric("Files", metrics["files"])
+            metric_cols[1].metric("Valid DWG", metrics["valid_dwg"])
+            metric_cols[2].metric("Pairs", metrics["pairs"])
+            metric_cols[3].metric("Issues", metrics["issues"])
+            st.json(
+                {
+                    "project_name": manifest["project_name"],
+                    "input_root": manifest.get("input_root"),
+                    "warnings": manifest.get("warnings", []),
+                }
+            )
 
     with issues_tab:
-        issues = frames.get("issues", pd.DataFrame())
-        if issues.empty:
-            st.info("No issues available yet. Run `dwg-audit run-audit` for this project.")
+        if selected is None:
+            st.info("No project selected.")
         else:
-            filter_cols = st.columns(5)
-            severity_options = sorted(issues["severity"].dropna().astype(str).unique().tolist()) if "severity" in issues.columns else []
-            rule_options = sorted(issues["rule_id"].dropna().astype(str).unique().tolist()) if "rule_id" in issues.columns else []
-            status_options = sorted(issues["status"].dropna().astype(str).unique().tolist()) if "status" in issues.columns else []
-            severities = filter_cols[0].multiselect("Severity", severity_options)
-            rules = filter_cols[1].multiselect("Rule", rule_options)
-            statuses = filter_cols[2].multiselect("Status", status_options)
-            sheet_query = filter_cols[3].text_input("Sheet No")
-            value_query = filter_cols[4].text_input("Value")
-            sort_key = st.selectbox("Sort By", ["severity", "confidence", "sheet_no"])
+            issues = frames.get("issues", pd.DataFrame())
+            if issues.empty:
+                st.info("No issues available yet. Analyze with audit enabled or run `dwg-audit run-audit` for this project.")
+            else:
+                filter_cols = st.columns(5)
+                severity_options = sorted(issues["severity"].dropna().astype(str).unique().tolist()) if "severity" in issues.columns else []
+                rule_options = sorted(issues["rule_id"].dropna().astype(str).unique().tolist()) if "rule_id" in issues.columns else []
+                status_options = sorted(issues["status"].dropna().astype(str).unique().tolist()) if "status" in issues.columns else []
+                severities = filter_cols[0].multiselect("Severity", severity_options)
+                rules = filter_cols[1].multiselect("Rule", rule_options)
+                statuses = filter_cols[2].multiselect("Status", status_options)
+                sheet_query = filter_cols[3].text_input("Sheet No")
+                value_query = filter_cols[4].text_input("Value")
+                sort_key = st.selectbox("Sort By", ["severity", "confidence", "sheet_no"])
 
-            filtered = _sort_issues(
-                _filter_issues(
-                    issues,
-                    severities=severities,
-                    rules=rules,
-                    statuses=statuses,
-                    sheet_query=sheet_query,
-                    value_query=value_query,
-                ),
-                sort_key,
-            )
+                filtered = _sort_issues(
+                    _filter_issues(
+                        issues,
+                        severities=severities,
+                        rules=rules,
+                        statuses=statuses,
+                        sheet_query=sheet_query,
+                        value_query=value_query,
+                    ),
+                    sort_key,
+                )
 
-            display_columns = [
-                column
-                for column in ("issue_id", "severity", "rule_id", "status", "confidence", "title", "left_value", "right_value")
-                if column in filtered.columns
-            ]
-            st.dataframe(filtered[display_columns] if display_columns else filtered, use_container_width=True)
+                display_columns = [
+                    column
+                    for column in ("issue_id", "severity", "rule_id", "status", "confidence", "title", "left_value", "right_value")
+                    if column in filtered.columns
+                ]
+                st.dataframe(filtered[display_columns] if display_columns else filtered, use_container_width=True)
 
-            issue_ids = filtered["issue_id"].astype(str).tolist()
-            if issue_ids:
-                selected_issue_id = st.selectbox("Issue Detail", issue_ids)
-                issue_row = filtered[filtered["issue_id"].astype(str) == selected_issue_id].iloc[0]
-                _issue_detail(issue_row)
-                new_status = st.selectbox("Update Status", ISSUE_STATUS_OPTIONS, index=ISSUE_STATUS_OPTIONS.index(str(issue_row.get("status") or "open")))
-                if st.button("Save Issue Status"):
-                    _persist_issue_status(selected, selected_issue_id, new_status)
-                    st.success(f"Saved {selected_issue_id} -> {new_status}. Reload the page to refresh tables.")
+                issue_ids = filtered["issue_id"].astype(str).tolist()
+                if issue_ids:
+                    selected_issue_id = st.selectbox("Issue Detail", issue_ids)
+                    issue_row = filtered[filtered["issue_id"].astype(str) == selected_issue_id].iloc[0]
+                    _issue_detail(issue_row)
+                    new_status = st.selectbox("Update Status", ISSUE_STATUS_OPTIONS, index=ISSUE_STATUS_OPTIONS.index(str(issue_row.get("status") or "open")))
+                    if st.button("Save Issue Status"):
+                        _persist_issue_status(selected, selected_issue_id, new_status)
+                        st.success(f"Saved {selected_issue_id} -> {new_status}. Reload the page to refresh tables.")
 
     with pairs_tab:
-        pairs = frames.get("pairs", pd.DataFrame())
-        if pairs.empty:
-            st.info("No pairs available yet.")
+        if selected is None:
+            st.info("No project selected.")
         else:
-            filter_cols = st.columns(3)
-            pair_statuses = sorted(pairs["status"].dropna().astype(str).unique().tolist()) if "status" in pairs.columns else []
-            confidence_buckets = sorted(pairs["confidence_bucket"].dropna().astype(str).unique().tolist()) if "confidence_bucket" in pairs.columns else []
-            selected_statuses = filter_cols[0].multiselect("Pair Status", pair_statuses)
-            selected_buckets = filter_cols[1].multiselect("Confidence Bucket", confidence_buckets)
-            value_query = filter_cols[2].text_input("Pair Value Search")
-            filtered = pairs.copy()
-            if selected_statuses:
-                filtered = filtered[filtered["status"].astype(str).isin(selected_statuses)]
-            if selected_buckets and "confidence_bucket" in filtered.columns:
-                filtered = filtered[filtered["confidence_bucket"].astype(str).isin(selected_buckets)]
-            if value_query.strip():
-                needle = value_query.strip().lower()
-                filtered = filtered[
-                    filtered.apply(
-                        lambda row: needle in f"{row.get('left_value', '')},{row.get('right_value', '')}".lower(),
-                        axis=1,
+            pairs = frames.get("pairs", pd.DataFrame())
+            if pairs.empty:
+                st.info("No pairs available yet.")
+            else:
+                filter_cols = st.columns(3)
+                pair_statuses = sorted(pairs["status"].dropna().astype(str).unique().tolist()) if "status" in pairs.columns else []
+                confidence_buckets = sorted(pairs["confidence_bucket"].dropna().astype(str).unique().tolist()) if "confidence_bucket" in pairs.columns else []
+                selected_statuses = filter_cols[0].multiselect("Pair Status", pair_statuses)
+                selected_buckets = filter_cols[1].multiselect("Confidence Bucket", confidence_buckets)
+                value_query = filter_cols[2].text_input("Pair Value Search")
+                filtered = pairs.copy()
+                if selected_statuses:
+                    filtered = filtered[filtered["status"].astype(str).isin(selected_statuses)]
+                if selected_buckets and "confidence_bucket" in filtered.columns:
+                    filtered = filtered[filtered["confidence_bucket"].astype(str).isin(selected_buckets)]
+                if value_query.strip():
+                    needle = value_query.strip().lower()
+                    filtered = filtered[
+                        filtered.apply(
+                            lambda row: needle in f"{row.get('left_value', '')},{row.get('right_value', '')}".lower(),
+                            axis=1,
+                        )
+                    ]
+                filtered = filtered.sort_values(by=["confidence"], ascending=[False]) if "confidence" in filtered.columns else filtered
+                display_columns = [
+                    column
+                    for column in (
+                        "pair_id",
+                        "left_value",
+                        "right_value",
+                        "confidence",
+                        "status",
+                        "confidence_bucket",
+                        "line_group_id",
                     )
+                    if column in filtered.columns
                 ]
-            filtered = filtered.sort_values(by=["confidence"], ascending=[False]) if "confidence" in filtered.columns else filtered
-            display_columns = [
-                column
-                for column in (
-                    "pair_id",
-                    "left_value",
-                    "right_value",
-                    "confidence",
-                    "status",
-                    "confidence_bucket",
-                    "line_group_id",
-                )
-                if column in filtered.columns
-            ]
-            st.dataframe(filtered[display_columns] if display_columns else filtered, use_container_width=True)
-            pair_ids = filtered["pair_id"].astype(str).tolist() if "pair_id" in filtered.columns else []
-            if pair_ids:
-                selected_pair_id = st.selectbox("Pair Detail", pair_ids)
-                pair_row = filtered[filtered["pair_id"].astype(str) == selected_pair_id].iloc[0]
-                _pair_detail(pair_row)
+                st.dataframe(filtered[display_columns] if display_columns else filtered, use_container_width=True)
+                pair_ids = filtered["pair_id"].astype(str).tolist() if "pair_id" in filtered.columns else []
+                if pair_ids:
+                    selected_pair_id = st.selectbox("Pair Detail", pair_ids)
+                    pair_row = filtered[filtered["pair_id"].astype(str) == selected_pair_id].iloc[0]
+                    _pair_detail(pair_row)
 
     with files_tab:
-        st.dataframe(pd.DataFrame(manifest["source_files"]), use_container_width=True)
+        if selected is None:
+            st.info("No project selected.")
+        else:
+            st.dataframe(pd.DataFrame(manifest["source_files"]), use_container_width=True)
 
     with reports_tab:
-        audit_dir = selected / "audit"
-        for filename in ("audit_report.md", "audit_report.html", "issues.json", "issues.xlsx"):
-            path = audit_dir / filename
-            if not path.exists():
-                continue
-            mime = {
-                ".md": "text/markdown",
-                ".html": "text/html",
-                ".json": "application/json",
-                ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            }.get(path.suffix.lower(), "application/octet-stream")
-            st.download_button(
-                label=f"Download {filename}",
-                data=path.read_bytes(),
-                file_name=filename,
-                mime=mime,
-            )
+        if selected is None:
+            st.info("No project selected.")
+        else:
+            audit_dir = selected / "audit"
+            for filename in ("audit_report.md", "audit_report.html", "issues.json", "issues.xlsx"):
+                path = audit_dir / filename
+                if not path.exists():
+                    continue
+                mime = {
+                    ".md": "text/markdown",
+                    ".html": "text/html",
+                    ".json": "application/json",
+                    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                }.get(path.suffix.lower(), "application/octet-stream")
+                st.download_button(
+                    label=f"Download {filename}",
+                    data=path.read_bytes(),
+                    file_name=filename,
+                    mime=mime,
+                )
 
 
 if __name__ == "__main__":
