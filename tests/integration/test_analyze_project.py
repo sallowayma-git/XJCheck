@@ -115,6 +115,7 @@ def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
 
     run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
     findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    page_findings_dir = findings_dir / "page_findings"
     findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
 
     pages = pd.read_parquet(findings_dir / "pages.parquet")
@@ -131,6 +132,10 @@ def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
     assert page_primary["07 屏端子图.dwg"] is True
     assert page_roles["08 封面.dwg"] == "skip"
     assert page_primary["08 封面.dwg"] is False
+    assert page_findings_dir.is_dir()
+    assert findings_payload["page_findings_count"] == len(findings_payload["page_findings"]) == len(pages)
+    assert len(list(page_findings_dir.glob("*.json"))) == len(pages)
+    assert len(list(page_findings_dir.glob("*.md"))) == len(pages)
 
     assert set(line_groups["sheet_id"].tolist()) == {
         sheet_by_file["04 回路图.dwg"],

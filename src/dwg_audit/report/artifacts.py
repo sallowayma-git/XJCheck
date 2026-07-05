@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections import defaultdict
 import json
 import re
 from dataclasses import fields
@@ -53,8 +54,10 @@ def write_project_artifacts(artifacts: ProjectArtifacts, output_dir: Path, confi
     project_slug = _slugify(artifacts.scan.manifest.project_id)
     project_dir = output_dir / project_slug
     findings_dir = project_dir / "findings"
+    page_findings_dir = findings_dir / "page_findings"
     project_dir.mkdir(parents=True, exist_ok=True)
     findings_dir.mkdir(parents=True, exist_ok=True)
+    page_findings_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_path = project_dir / "manifest.json"
     manifest_path.write_text(
@@ -77,6 +80,16 @@ def write_project_artifacts(artifacts: ProjectArtifacts, output_dir: Path, confi
     _frame(artifacts.extraction_warnings, ExtractionWarning).to_parquet(findings_dir / "extraction_warnings.parquet", index=False)
 
     findings_payload = _build_findings_payload(artifacts, config=config)
+    for page_finding in findings_payload["page_findings"]:
+        sheet_id = str(page_finding["sheet_id"])
+        (page_findings_dir / f"{sheet_id}.json").write_text(
+            json.dumps(page_finding, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (page_findings_dir / f"{sheet_id}.md").write_text(
+            _build_page_finding_markdown(page_finding),
+            encoding="utf-8",
+        )
     (findings_dir / "findings.json").write_text(json.dumps(findings_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (findings_dir / "findings.md").write_text(_build_findings_markdown(findings_payload), encoding="utf-8")
     return project_dir
@@ -381,6 +394,236 @@ def _build_one_to_many_review_table(pairs: list[Pair], config: dict | None = Non
     }
 
 
+def _per_sheet_counts(records: list[Any], sheet_attr: str = "sheet_id") -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for record in records:
+        sheet_id = getattr(record, sheet_attr, None)
+        if sheet_id:
+            counts[str(sheet_id)] += 1
+    return dict(counts)
+
+
+def _per_sheet_orientation_counts(line_groups: list[LineGroup]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for group in line_groups:
+        if not group.sheet_id:
+            continue
+        orientation = group.orientation or "horizontal"
+        counts[str(group.sheet_id)][str(orientation)] += 1
+    return {sheet_id: dict(orientation_counts) for sheet_id, orientation_counts in counts.items()}
+
+
+def _page_route_target(page: SheetRecord, *, table_like: bool) -> str:
+    if page.audit_role == "skip":
+        return "SkipExtractor"
+    if table_like:
+        return "TableExtractor (planned)"
+    if page.sheet_category == "二次原理图":
+        return "WireDiagramExtractor"
+    if page.sheet_category == "元件接线图":
+        return "ComponentDiagramExtractor"
+    if page.sheet_category == "屏端子图":
+        return "TerminalDiagramExtractor"
+    return "LayoutOnlyExtractor"
+
+
+def _page_type_confidence(page: SheetRecord) -> float:
+    title = page.sheet_title or page.filename or ""
+    category = page.sheet_category or ""
+    if category in {"封面/目录", "屏面布置图", "屏端子图", "元件接线图", "背板接线图"} and category.replace("图", "")[:2] in title:
+        return 0.98
+    if category == "二次原理图":
+        if any(keyword in title for keyword in ("回路", "信号", "保护", "出口", "操作", "开入", "控制")):
+            return 0.9
+        return 0.75
+    if category:
+        return 0.7
+    return 0.25
+
+
+def _dominant_orientation(orientation_counts: dict[str, int]) -> str:
+    if not orientation_counts:
+        return "none"
+    if len(orientation_counts) == 1:
+        return next(iter(orientation_counts))
+    ordered = sorted(orientation_counts.items(), key=lambda item: (-item[1], item[0]))
+    if len(ordered) >= 2 and ordered[0][1] == ordered[1][1]:
+        return "mixed"
+    return ordered[0][0]
+
+
+def _page_high_confidence_signals(
+    *,
+    page: SheetRecord,
+    dominant_orientation: str,
+    non_discard_pair_count: int,
+    high_confidence_pair_count: int,
+    line_group_count: int,
+    issue_count: int,
+) -> list[str]:
+    signals: list[str] = []
+    if page.audit_role == "skip":
+        signals.append("Configured as a non-audit page and excluded from downstream pairing.")
+    else:
+        signals.append(f"Current audit role is `{page.audit_role}`.")
+    if line_group_count:
+        signals.append(f"Line groups formed: {line_group_count}.")
+    if dominant_orientation != "none":
+        signals.append(f"Dominant line-group orientation: {dominant_orientation}.")
+    if non_discard_pair_count:
+        signals.append(f"Non-discard pairs retained for review: {non_discard_pair_count}.")
+    if high_confidence_pair_count:
+        signals.append(f"High-confidence pairs available: {high_confidence_pair_count}.")
+    if issue_count:
+        signals.append(f"Current audit issues on this page: {issue_count}.")
+    return signals
+
+
+def _page_open_questions(
+    *,
+    page: SheetRecord,
+    table_like: bool,
+    line_group_count: int,
+    pair_count: int,
+    non_discard_pair_count: int,
+    high_confidence_pair_count: int,
+) -> list[str]:
+    questions: list[str] = []
+    if page.audit_role == "secondary":
+        questions.append("Current audit role keeps this page out of downstream pair/audit generation by default.")
+    if page.audit_role == "supplemental" and line_group_count == 0:
+        questions.append("This supplemental page is included, but the current extractor still produced no usable line groups.")
+    if pair_count > 0 and high_confidence_pair_count == 0:
+        questions.append("All current pairs still require manual review; high-confidence confirmation is not established yet.")
+    if page.sheet_category == "元件接线图" and non_discard_pair_count > 0 and high_confidence_pair_count == 0:
+        questions.append("Component-page semantics are partially understood, but the remaining mappings still need manual verification.")
+    if table_like:
+        questions.append("The page looks table-heavy, but the current pipeline still lacks a dedicated table extractor and cell-mapping path.")
+    if page.sheet_category is None:
+        questions.append("Page category is unresolved and still depends on fallback routing.")
+    return questions
+
+
+def _page_recognition_strategy(page: SheetRecord, *, table_like: bool, route_target: str) -> str:
+    if table_like:
+        return (
+            f"Current classification inferred `{page.sheet_category or 'unknown'}` from filename/title heuristics, "
+            f"but the geometry still looks table-heavy; route target is `{route_target}` until a dedicated table path lands."
+        )
+    return (
+        f"Current classification inferred `{page.sheet_category or 'unknown'}` from filename / .prj / title keywords "
+        f"and routed the page to `{route_target}` with audit role `{page.audit_role}`."
+    )
+
+
+def _page_number_matching_strategy(page: SheetRecord, *, dominant_orientation: str, route_target: str) -> str:
+    if route_target == "WireDiagramExtractor":
+        return "Use horizontal line groups and left/right endpoint windows to score nearby numeric texts."
+    if route_target == "ComponentDiagramExtractor":
+        if dominant_orientation == "vertical":
+            return "Use vertical line groups, top/bottom endpoint windows, scoped suffix parsing, and block-aware candidate filters."
+        return "Use component-page line groups with scoped candidate rules while keeping horizontal pages conservative."
+    if route_target == "TerminalDiagramExtractor":
+        return "Use terminal-page endpoint windows with wider geometry tolerances and keep low-confidence candidates visible for review."
+    if route_target == "SkipExtractor":
+        return "No number matching is attempted because the page is currently marked as non-audit."
+    if route_target.startswith("TableExtractor"):
+        return "Table-oriented mapping is still pending; current output only preserves page-level evidence and open questions."
+    return "Only layout-level evidence is preserved for now; no dedicated number matching strategy is active on this page."
+
+
+def _build_page_findings(artifacts: ProjectArtifacts) -> list[dict[str, Any]]:
+    text_counts = _per_sheet_counts(artifacts.texts)
+    line_counts = _per_sheet_counts(artifacts.lines)
+    block_counts = _per_sheet_counts(artifacts.blocks)
+    polyline_counts = _per_sheet_counts(artifacts.polylines)
+    line_group_counts = _per_sheet_counts(artifacts.line_groups)
+    terminal_candidate_counts = _per_sheet_counts(artifacts.terminal_candidates)
+    pair_candidate_counts = _per_sheet_counts(artifacts.pair_candidates)
+    pair_counts = _per_sheet_counts(artifacts.pairs)
+    issue_counts = _per_sheet_counts(artifacts.issues)
+    orientation_counts = _per_sheet_orientation_counts(artifacts.line_groups)
+    non_discard_pairs = _per_sheet_counts([pair for pair in artifacts.pairs if pair.status != "discard"])
+    high_confidence_pairs = _per_sheet_counts([pair for pair in artifacts.pairs if _high_confidence_pair(pair)])
+
+    page_findings: list[dict[str, Any]] = []
+    for page in artifacts.scan.pages:
+        sheet_id = page.sheet_id
+        polyline_count = polyline_counts.get(sheet_id, 0)
+        line_group_count = line_group_counts.get(sheet_id, 0)
+        table_like = polyline_count >= 20 and line_group_count == 0
+        route_target = _page_route_target(page, table_like=table_like)
+        orientation_summary = orientation_counts.get(sheet_id, {})
+        dominant_orientation = _dominant_orientation(orientation_summary)
+        non_discard_pair_count = non_discard_pairs.get(sheet_id, 0)
+        high_confidence_pair_count = high_confidence_pairs.get(sheet_id, 0)
+        pair_count = pair_counts.get(sheet_id, 0)
+        issue_count = issue_counts.get(sheet_id, 0)
+
+        page_findings.append(
+            {
+                "sheet_id": page.sheet_id,
+                "filename": page.filename,
+                "sheet_no": page.sheet_no,
+                "sheet_order": page.sheet_order,
+                "sheet_title": page.sheet_title,
+                "page_type": page.sheet_category or "unknown",
+                "page_type_confidence": round(_page_type_confidence(page), 2),
+                "audit_role": page.audit_role,
+                "route_target": route_target,
+                "layout_summary": {
+                    "layout_name": page.layout_name,
+                    "drawing_units": page.drawing_units,
+                    "page_no_source": page.page_no_source,
+                    "extent_bbox": list(page.extent_bbox) if page.extent_bbox else None,
+                    "frame_bbox": list(page.frame_bbox) if page.frame_bbox else None,
+                    "title_block_bbox": list(page.title_block_bbox) if page.title_block_bbox else None,
+                    "audit_area_bbox": list(page.audit_area_bbox) if page.audit_area_bbox else None,
+                },
+                "structure_summary": {
+                    "text_count": text_counts.get(sheet_id, 0),
+                    "line_count": line_counts.get(sheet_id, 0),
+                    "block_count": block_counts.get(sheet_id, 0),
+                    "polyline_count": polyline_count,
+                    "line_group_count": line_group_count,
+                    "terminal_candidate_count": terminal_candidate_counts.get(sheet_id, 0),
+                    "pair_candidate_count": pair_candidate_counts.get(sheet_id, 0),
+                    "pair_count": pair_count,
+                    "non_discard_pair_count": non_discard_pair_count,
+                    "high_confidence_pair_count": high_confidence_pair_count,
+                    "issue_count": issue_count,
+                    "orientation_counts": orientation_summary,
+                    "dominant_line_group_orientation": dominant_orientation,
+                    "table_like_geometry": table_like,
+                },
+                "recognition_strategy": _page_recognition_strategy(page, table_like=table_like, route_target=route_target),
+                "number_matching_strategy": _page_number_matching_strategy(
+                    page,
+                    dominant_orientation=dominant_orientation,
+                    route_target=route_target,
+                ),
+                "high_confidence_signals": _page_high_confidence_signals(
+                    page=page,
+                    dominant_orientation=dominant_orientation,
+                    non_discard_pair_count=non_discard_pair_count,
+                    high_confidence_pair_count=high_confidence_pair_count,
+                    line_group_count=line_group_count,
+                    issue_count=issue_count,
+                ),
+                "open_questions": _page_open_questions(
+                    page=page,
+                    table_like=table_like,
+                    line_group_count=line_group_count,
+                    pair_count=pair_count,
+                    non_discard_pair_count=non_discard_pair_count,
+                    high_confidence_pair_count=high_confidence_pair_count,
+                ),
+                "warnings": list(page.warnings),
+            }
+        )
+    return page_findings
+
+
 def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = None) -> dict[str, Any]:
     manifest = artifacts.scan.manifest
     primary_pages = [page for page in artifacts.scan.pages if page.audit_role == "primary"]
@@ -389,6 +632,7 @@ def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = N
     skipped_pages = [page for page in artifacts.scan.pages if page.audit_role == "skip"]
     failed = [item for item in manifest.source_files if item.conversion_status.startswith("failed")]
     converted = [item for item in manifest.source_files if item.conversion_status in {"converted", "cached"}]
+    page_findings = _build_page_findings(artifacts)
     return {
         "project_name": manifest.project_name,
         "project_id": manifest.project_id,
@@ -423,6 +667,8 @@ def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = N
             "extraction_warnings": len(artifacts.extraction_warnings),
         },
         "pair_evidence_summary": _build_pair_findings_summary(artifacts.pairs),
+        "page_findings_count": len(page_findings),
+        "page_findings": page_findings,
         "one_to_many_review_table": _build_one_to_many_review_table(artifacts.pairs, config=config),
         "failed_files": [
             {
@@ -441,6 +687,7 @@ def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = N
             "findings": [
                 "findings.md",
                 "findings.json",
+                "page_findings/",
                 "pages.parquet",
                 "texts.parquet",
                 "blocks.parquet",
@@ -464,6 +711,76 @@ def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = N
             ],
         },
     }
+
+
+def _build_page_finding_markdown(page_finding: dict[str, Any]) -> str:
+    lines = [
+        f"# Page Findings `{page_finding['sheet_id']}`",
+        "",
+        f"- Filename: `{_display_value(page_finding.get('filename'))}`",
+        f"- SheetNo: `{_display_value(page_finding.get('sheet_no'))}`",
+        f"- SheetOrder: `{_display_value(page_finding.get('sheet_order'))}`",
+        f"- Title: `{_display_value(page_finding.get('sheet_title'))}`",
+        f"- PageType: `{_display_value(page_finding.get('page_type'))}`",
+        f"- PageTypeConfidence: `{_format_confidence(page_finding.get('page_type_confidence'))}`",
+        f"- AuditRole: `{_display_value(page_finding.get('audit_role'))}`",
+        f"- RouteTarget: `{_display_value(page_finding.get('route_target'))}`",
+        "",
+        "## Layout Summary",
+        "",
+    ]
+    layout_summary = page_finding.get("layout_summary", {})
+    for key in ("layout_name", "drawing_units", "page_no_source", "extent_bbox", "frame_bbox", "title_block_bbox", "audit_area_bbox"):
+        lines.append(f"- {key}: `{_stringify_summary_value(layout_summary.get(key))}`")
+    lines.extend(["", "## Structure Summary", ""])
+    structure_summary = page_finding.get("structure_summary", {})
+    for key in (
+        "text_count",
+        "line_count",
+        "block_count",
+        "polyline_count",
+        "line_group_count",
+        "terminal_candidate_count",
+        "pair_candidate_count",
+        "pair_count",
+        "non_discard_pair_count",
+        "high_confidence_pair_count",
+        "issue_count",
+        "dominant_line_group_orientation",
+        "table_like_geometry",
+    ):
+        lines.append(f"- {key}: `{_stringify_summary_value(structure_summary.get(key))}`")
+    lines.extend(
+        [
+            "",
+            "## Recognition Strategy",
+            "",
+            page_finding.get("recognition_strategy", ""),
+            "",
+            "## Number Matching Strategy",
+            "",
+            page_finding.get("number_matching_strategy", ""),
+            "",
+            "## High Confidence Signals",
+            "",
+        ]
+    )
+    high_confidence_signals = page_finding.get("high_confidence_signals", [])
+    if high_confidence_signals:
+        lines.extend(f"- {signal}" for signal in high_confidence_signals)
+    else:
+        lines.append("- None recorded yet.")
+    lines.extend(["", "## Open Questions", ""])
+    open_questions = page_finding.get("open_questions", [])
+    if open_questions:
+        lines.extend(f"- {question}" for question in open_questions)
+    else:
+        lines.append("- No open questions recorded.")
+    warnings = page_finding.get("warnings", [])
+    if warnings:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- {warning}" for warning in warnings)
+    return "\n".join(lines) + "\n"
 
 
 def _build_findings_markdown(payload: dict[str, Any]) -> str:

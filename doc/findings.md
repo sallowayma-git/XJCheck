@@ -1546,3 +1546,84 @@ second-set 新 audit 结果：
   - 在 `apps/desktop` 下通过
 
 这部分补丁不改变 pair / issue 生成逻辑，但显著提升了“当前 vertical 证据到底是什么意思”的可读性，为后续人工复核和桌面端交付都补上了可解释性。 
+
+## 46. 2026-07-05 `page_findings/` 已落地为正式产物，second-set 24 页全部可输出页级文档
+
+这一轮没有继续去改候选/配对逻辑，而是先补了任务书中一个非常明确但此前一直缺失的正式交付物：
+
+- `findings/page_findings/<sheet_id>.json`
+- `findings/page_findings/<sheet_id>.md`
+
+对应实现已进入 [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)，并补了：
+
+- 每页 `page_type`
+- `page_type_confidence`
+- `layout_summary`
+- `structure_summary`
+- `recognition_strategy`
+- `number_matching_strategy`
+- `high_confidence_signals`
+- `open_questions`
+
+同时项目级 [findings.json](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py) 现在也会显式带出：
+
+- `page_findings_count`
+- `page_findings`
+
+### 46.1 回归与真实样本验证
+
+这一批不是只停在代码层，而是已经补了测试和真实样本实跑：
+
+- 单元 / 集成回归：
+  - `python -m pytest -q tests/unit/test_report_artifacts.py tests/integration/test_analyze_project.py`
+  - `16 passed`
+- 全量回归：
+  - `python -m pytest -q`
+  - `106 passed`
+- second-set 真实 `analyze-project`：
+  - 产物目录：[phase10_page_findings_second/2_2](/F:/workspace/XJToolkit/.tmp/phase10_page_findings_second/2_2)
+
+实跑结果已确认：
+
+- 第二套样本 `24` 页全部生成了页级 findings。
+- `findings/page_findings/` 下共有：
+  - `24` 个 `.json`
+  - `24` 个 `.md`
+- 页级文档已能写清：
+  - 当前页型
+  - 当前 route target
+  - 当前识别策略
+  - 当前数字匹配策略
+  - 当前高置信信号
+  - 当前未理解区域 / open questions
+
+例如 [S0004.md](/F:/workspace/XJToolkit/.tmp/phase10_page_findings_second/2_2/findings/page_findings/S0004.md) 已能明确写出：
+
+- `PageType = 二次原理图`
+- `RouteTarget = WireDiagramExtractor`
+- `Layout Summary`
+- `Structure Summary`
+- `Recognition Strategy`
+- `Number Matching Strategy`
+
+### 46.2 这轮补齐了什么，没补齐什么
+
+这轮真正补齐的是“页级证据产物”，不是“真正的页级分类器 / 路由器主链”。
+
+也就是说，当前仓库现在已经不再只有项目级 `findings.md/json`，而是会为每页沉淀一份独立理解文档；这对人工复核、并行审图和后续多 Agent 分工都更贴近任务书。
+
+但更深一层的结构性缺口仍然存在：
+
+- 当前 `page_type`、`page_type_confidence` 与 `route_target` 仍主要来自现有 `sheet_category / audit_role` 和几何启发式总结，不是真正独立的 Page Classification Layer。
+- 当前主流水线仍然是统一的：
+  - `line_groups -> terminal_candidates -> pairs`
+- 仓库里依然没有真正的：
+  - `PageRouter`
+  - `TableExtractor`
+  - 三列表格高置信映射入规则引擎
+
+所以这一轮的工程意义更准确地说是：
+
+- 先把任务书要求的页级交付物补成正式产物；
+- 再用这些页级产物把“当前是怎么理解每一页的、还没理解什么”显式暴露出来；
+- 为下一轮真正推进 `Page Classification / Router / TableExtractor` 留出更清晰的证据基础。

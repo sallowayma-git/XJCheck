@@ -67,12 +67,31 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     )
 
     project_dir = write_project_artifacts(ProjectArtifacts(scan=scan), tmp_path)
+    findings_dir = project_dir / "findings"
+    page_findings_dir = findings_dir / "page_findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    page_finding_payload = json.loads((page_findings_dir / "S0001.json").read_text(encoding="utf-8"))
+    page_finding_text = (page_findings_dir / "S0001.md").read_text(encoding="utf-8")
 
     assert (project_dir / "manifest.json").exists()
-    assert (project_dir / "findings" / "findings.md").exists()
-    assert (project_dir / "findings" / "findings.json").exists()
-    assert (project_dir / "findings" / "polylines.parquet").exists()
-    assert (project_dir / "findings" / "extraction_warnings.parquet").exists()
+    assert (findings_dir / "findings.md").exists()
+    assert (findings_dir / "findings.json").exists()
+    assert (findings_dir / "polylines.parquet").exists()
+    assert (findings_dir / "extraction_warnings.parquet").exists()
+    assert page_findings_dir.exists()
+    assert (page_findings_dir / "S0001.json").exists()
+    assert (page_findings_dir / "S0001.md").exists()
+    assert findings_payload["page_findings_count"] == 1
+    assert len(findings_payload["page_findings"]) == 1
+    assert findings_payload["page_findings"][0]["sheet_id"] == "S0001"
+    assert findings_payload["page_findings"][0]["audit_role"] == "skip"
+    assert page_finding_payload["sheet_id"] == "S0001"
+    assert page_finding_payload["filename"] == "01.dwg"
+    assert page_finding_payload["audit_role"] == "skip"
+    assert page_finding_payload["route_target"] == "SkipExtractor"
+    assert page_finding_payload["structure_summary"]["pair_count"] == 0
+    assert "# Page Findings `S0001`" in page_finding_text
+    assert "- RouteTarget: `SkipExtractor`" in page_finding_text
 
 
 def test_write_project_artifacts_records_one_to_many_review_table(tmp_path: Path) -> None:
