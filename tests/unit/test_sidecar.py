@@ -166,6 +166,61 @@ def test_render_project_preview_writes_svg_with_issue_highlight(tmp_path: Path) 
     assert "sheet=01" in svg
 
 
+def test_render_project_preview_prefers_explicit_line_group_override(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    artifact_dir = tmp_path / "artifacts" / "demo_project"
+    _write_preview_project_output(artifact_dir)
+
+    line_groups_path = artifact_dir / "findings" / "line_groups.parquet"
+    line_groups = pd.read_parquet(line_groups_path)
+    line_groups = pd.concat(
+        [
+            line_groups,
+            pd.DataFrame(
+                [
+                    {
+                        "line_group_id": "G2",
+                        "sheet_id": "S1",
+                        "file_id": "F1",
+                        "start_x": 10.0,
+                        "start_y": 50.0,
+                        "end_x": 90.0,
+                        "end_y": 50.0,
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+    line_groups.to_parquet(line_groups_path, index=False)
+
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path / "input"),
+        artifact_dir=str(artifact_dir),
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=1,
+        metadata={"demo": True},
+    )
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        line_group_id="G2",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    svg = Path(preview["preview_path"]).read_text(encoding="utf-8")
+    assert "x1=\"12.4\" y1=\"32.4\" x2=\"92.4\" y2=\"32.4\" stroke=\"#d11f1f\"" in svg
+
+
 def test_update_issue_status_syncs_state_store_and_audit_files(tmp_path: Path) -> None:
     state_db = tmp_path / "desktop_state.db"
     artifact_dir = tmp_path / "artifacts" / "demo_project"

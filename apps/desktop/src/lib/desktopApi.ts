@@ -67,7 +67,12 @@ export const desktopApi = {
     }
   },
 
-  async renderPreview(projectId: string, issueId: string | null, sheetId: string | null = null): Promise<PreviewPayload> {
+  async renderPreview(
+    projectId: string,
+    issueId: string | null,
+    sheetId: string | null = null,
+    lineGroupId: string | null = null,
+  ): Promise<PreviewPayload> {
     if (!isTauri()) {
       return getMockPreview(projectId, issueId)
     }
@@ -77,6 +82,7 @@ export const desktopApi = {
         projectId,
         issueId,
         sheetId,
+        lineGroupId,
       })
       return normalizePreviewPayload(payload)
     } catch (error) {

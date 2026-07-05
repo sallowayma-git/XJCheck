@@ -124,6 +124,7 @@ fn desktop_render_preview(
     project_id: String,
     issue_id: Option<String>,
     sheet_id: Option<String>,
+    line_group_id: Option<String>,
 ) -> Result<Value, String> {
     let state_db = default_state_db_path()?;
     let mut args = vec![
@@ -141,6 +142,10 @@ fn desktop_render_preview(
     }
     if let Some(value) = sheet_id {
         args.push("--sheet-id".to_string());
+        args.push(value);
+    }
+    if let Some(value) = line_group_id {
+        args.push("--line-group-id".to_string());
         args.push(value);
     }
     run_python_json_owned(args)

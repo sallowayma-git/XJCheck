@@ -17,6 +17,7 @@ def render_project_preview(
     project_id: str,
     sheet_id: str | None = None,
     issue_id: str | None = None,
+    line_group_id: str | None = None,
     output_dir: Path | None = None,
     state_db_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -59,7 +60,7 @@ def render_project_preview(
 
     sheet_lines = lines[lines["sheet_id"].astype(str) == sheet_id] if not lines.empty else pd.DataFrame()
     sheet_texts = texts[texts["sheet_id"].astype(str) == sheet_id] if not texts.empty else pd.DataFrame()
-    highlight = _resolve_highlight(issue_row, line_groups)
+    highlight = _resolve_highlight(issue_row, line_groups, line_group_id=line_group_id)
 
     target_dir = (output_dir or artifact_dir / "cache" / "previews").expanduser().resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -186,7 +187,20 @@ def _build_svg(
     return "\n".join(svg_lines) + "\n"
 
 
-def _resolve_highlight(issue_row: pd.Series | None, line_groups: pd.DataFrame) -> dict[str, Any] | None:
+def _resolve_highlight(
+    issue_row: pd.Series | None,
+    line_groups: pd.DataFrame,
+    *,
+    line_group_id: str | None = None,
+) -> dict[str, Any] | None:
+    if line_group_id and not line_groups.empty:
+        matches = line_groups[line_groups["line_group_id"].astype(str) == line_group_id]
+        if not matches.empty:
+            row = matches.iloc[0]
+            return {
+                "start": (float(row["start_x"]), float(row["start_y"])),
+                "end": (float(row["end_x"]), float(row["end_y"])),
+            }
     if issue_row is None:
         return None
     evidence = _decode_jsonish(issue_row.get("evidence"))

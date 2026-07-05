@@ -805,6 +805,36 @@
 
 - `apps/desktop` 前端构建再次通过：`npm run build`
 
+## 33. 2026-07-05 evidence ref 点击已能把 `line_group_id` 传到预览高亮
+
+上一轮 `evidence_refs` 点击入口虽然已经能切到相关页，但高亮仍然沿用“当前 issue 自己的 `line_group_id / evidence`”，这意味着：
+
+- 点击 related ref 时，往往只是切页
+- 不一定会高亮到该 ref 真正关联的那条线组
+
+本轮把这条链路往下再穿了一层：
+
+- Python `render_project_preview()` 新增可选 `line_group_id`
+- CLI `render-preview` 新增 `--line-group-id`
+- Tauri Rust `desktop_render_preview` 新增透传 `line_group_id`
+- 前端 `desktopApi.renderPreview()` 新增 `lineGroupId` 参数
+- 结果页点击某条 `evidence ref` 时，如果该 ref 带有 `line_group_id`，前端会把：
+  - `sheet_id`
+  - `line_group_id`
+  一起传给 `render-preview`
+
+当前行为边界：
+
+- 对于 evidence ref 点击：
+  - 若 ref 自带 `line_group_id`，当前预览会优先高亮该线组
+  - 若只是切到其他相关页但没有具体线组，则仍然只做页级切换
+- 这让结果页从“只能切页”提升为“在有结构化 ref 线组信息时，也能跟着切高亮目标”
+
+验证情况：
+
+- `apps/desktop` 前端构建通过：`npm run build`
+- Python 回归通过：`python -m pytest -q tests/unit/test_sidecar.py tests/unit/test_cli.py`
+
 ## 32. 2026-07-05 结果页补 evidence refs 点击入口与预览重生成控制
 
 在上一轮把 `Preview source` 下拉接出来后，结果页仍然有两个明显缺口：

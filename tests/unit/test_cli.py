@@ -251,18 +251,24 @@ def test_analyze_session_cli_emits_final_result_line(monkeypatch, tmp_path: Path
 def test_render_preview_cli_returns_preview_payload(monkeypatch, tmp_path: Path) -> None:
     runner = CliRunner()
     preview_path = tmp_path / "preview.svg"
+    captured: dict[str, object] = {}
 
-    monkeypatch.setattr(
-        "dwg_audit.cli.render_project_preview",
-        lambda **kwargs: {"project_id": "demo-project", "preview_path": str(preview_path)},
+    def fake_render_project_preview(**kwargs):
+        captured.update(kwargs)
+        return {"project_id": "demo-project", "preview_path": str(preview_path)}
+
+    monkeypatch.setattr("dwg_audit.cli.render_project_preview", fake_render_project_preview)
+
+    result = runner.invoke(
+        app,
+        ["render-preview", "--project-id", "demo-project", "--issue-id", "I1", "--line-group-id", "G2"],
     )
-
-    result = runner.invoke(app, ["render-preview", "--project-id", "demo-project", "--issue-id", "I1"])
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["project_id"] == "demo-project"
     assert payload["preview_path"] == str(preview_path)
+    assert captured["line_group_id"] == "G2"
 
 
 def test_set_issue_status_cli_returns_updated_payload(monkeypatch) -> None:

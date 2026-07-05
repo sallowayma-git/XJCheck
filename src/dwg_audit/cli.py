@@ -229,6 +229,7 @@ def render_preview(
     project_id: str = typer.Option(..., "--project-id"),
     sheet_id: str | None = typer.Option(None, "--sheet-id"),
     issue_id: str | None = typer.Option(None, "--issue-id"),
+    line_group_id: str | None = typer.Option(None, "--line-group-id"),
     output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False, dir_okay=True, resolve_path=True),
     state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
 ) -> None:
@@ -237,6 +238,7 @@ def render_preview(
             project_id=project_id,
             sheet_id=sheet_id,
             issue_id=issue_id,
+            line_group_id=line_group_id,
             output_dir=output_dir,
             state_db_path=state_db,
         )

@@ -40,6 +40,7 @@ function App() {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [selectedPreviewSheetId, setSelectedPreviewSheetId] = useState<string | null>(null)
+  const [selectedPreviewLineGroupId, setSelectedPreviewLineGroupId] = useState<string | null>(null)
   const [previewGeneration, setPreviewGeneration] = useState(0)
   const [issueSearch, setIssueSearch] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
@@ -167,6 +168,7 @@ function App() {
       const initialIssue = loaded.issues[0] ?? null
       setSelectedIssueId(initialIssue?.issue_id ?? null)
       setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
+      setSelectedPreviewLineGroupId(initialIssue?.line_group_id ?? null)
       setPreviewSrc(null)
       startTransition(() => setScreen("result"))
     } catch (error) {
@@ -436,6 +438,9 @@ function App() {
       if (selectedPreviewSheetId !== null) {
         setSelectedPreviewSheetId(null)
       }
+      if (selectedPreviewLineGroupId !== null) {
+        setSelectedPreviewLineGroupId(null)
+      }
       return
     }
 
@@ -443,13 +448,17 @@ function App() {
       if (selectedPreviewSheetId !== selectedIssue.sheet_id) {
         setSelectedPreviewSheetId(selectedIssue.sheet_id)
       }
+      if (selectedPreviewLineGroupId !== selectedIssue.line_group_id) {
+        setSelectedPreviewLineGroupId(selectedIssue.line_group_id)
+      }
       return
     }
 
     if (!selectedPreviewSheetId || !previewOptions.some((option) => option.sheetId === selectedPreviewSheetId)) {
       setSelectedPreviewSheetId(previewOptions[0].sheetId)
+      setSelectedPreviewLineGroupId(resolvePreviewLineGroupForSheet(selectedIssue, previewOptions[0].sheetId))
     }
-  }, [previewOptions, selectedIssue, selectedPreviewSheetId])
+  }, [previewOptions, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId])
 
   useEffect(() => {
     if (!selectedIssue) {
@@ -479,7 +488,7 @@ function App() {
     setIsRefreshingPreview(true)
 
     void desktopApi
-      .renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId)
+      .renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId, selectedPreviewLineGroupId)
       .then((preview) => {
         if (cancelled) {
           return
@@ -501,7 +510,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [previewGeneration, result?.run.project_id, screen, selectedIssue, selectedPreviewSheetId, selectedProjectId])
+  }, [previewGeneration, result?.run.project_id, screen, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId, selectedProjectId])
 
   async function handleIssueStatusSave() {
     const projectId = result?.run.project_id ?? selectedProjectId
@@ -945,6 +954,7 @@ function App() {
                             onClick={() => {
                               if (entry.sheetId) {
                                 setSelectedPreviewSheetId(entry.sheetId)
+                                setSelectedPreviewLineGroupId(entry.lineGroupId)
                               }
                             }}
                             disabled={!entry.sheetId}
@@ -961,7 +971,14 @@ function App() {
                   <div className="detail-grid">
                     <label className="field compact-field">
                       <span>Preview source</span>
-                      <select value={selectedPreviewSheetId ?? ""} onChange={(event) => setSelectedPreviewSheetId(event.target.value || null)}>
+                      <select
+                        value={selectedPreviewSheetId ?? ""}
+                        onChange={(event) => {
+                          const nextSheetId = event.target.value || null
+                          setSelectedPreviewSheetId(nextSheetId)
+                          setSelectedPreviewLineGroupId(resolvePreviewLineGroupForSheet(selectedIssue, nextSheetId))
+                        }}
+                      >
                         {previewOptions.length ? (
                           previewOptions.map((option) => (
                             <option key={option.sheetId} value={option.sheetId}>
@@ -1262,7 +1279,7 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
 
 function buildEvidenceRefEntries(
   issue: IssueSummary | null,
-): Array<{ key: string; sheetId: string | null; title: string; subtitle: string }> {
+): Array<{ key: string; sheetId: string | null; lineGroupId: string | null; title: string; subtitle: string }> {
   if (!issue) {
     return []
   }
@@ -1288,6 +1305,7 @@ function buildEvidenceRefEntries(
     return {
       key: `${sheetId ?? "no-sheet"}:${pairId ?? lineGroupId ?? index}`,
       sheetId,
+      lineGroupId,
       title: titleBits.join(" · "),
       subtitle: subtitleBits.join(" · ") || "No extra reference detail",
     }
@@ -1303,6 +1321,13 @@ function formatEvidenceCoord(value: unknown): string | null {
     return null
   }
   return `coord (${x.toFixed(1)}, ${y.toFixed(1)})`
+}
+
+function resolvePreviewLineGroupForSheet(issue: IssueSummary | null, sheetId: string | null): string | null {
+  if (!issue || !sheetId) {
+    return null
+  }
+  return issue.sheet_id === sheetId ? issue.line_group_id : null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
