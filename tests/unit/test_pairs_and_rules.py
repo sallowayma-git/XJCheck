@@ -350,6 +350,66 @@ def test_rules_only_emit_low_confidence_for_complete_pairs() -> None:
     assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P2" for issue in issues)
 
 
+def test_rules_aggregate_complementary_missing_side_pairs() -> None:
+    pairs = [
+        Pair(
+            "P1",
+            "G1",
+            "S1",
+            "F1",
+            "PC1",
+            None,
+            "723",
+            0.82,
+            "review",
+            "missing left candidate",
+            [],
+            "review",
+            {},
+            right_text_id="T723",
+            right_coord_x=44.0,
+            right_coord_y=20.0,
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S1",
+            "F1",
+            "PC2",
+            "723",
+            None,
+            0.83,
+            "review",
+            "missing right candidate",
+            [],
+            "review",
+            {},
+            left_text_id="T723",
+            left_coord_x=48.0,
+            left_coord_y=20.2,
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 10, 20, 40, 20, 30, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 48, 20.1, 90, 20.1, 42, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "08 测控1开入回路图1.dwg", 8, "08", "测控1开入回路图1", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    missing_side = [issue for issue in issues if issue.rule_id == "R-PAIR-MISSING-SIDE"]
+    assert len(missing_side) == 1
+    issue = missing_side[0]
+    assert issue.title == "互补半链待复核"
+    assert issue.primary_pair_id == "P1"
+    assert issue.related_pair_ids == ["P2"]
+    assert issue.evidence["chain_kind"] == "complementary_half_pair"
+    assert issue.evidence["shared_text_id"] == "T723"
+    assert issue.evidence["bridge_gap"] == 8.0
+
+
 def test_rules_detect_duplicate_same_line_from_close_terminal_candidates() -> None:
     pair = Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.91, "review", "ambiguous", [], "review", {})
     groups = [LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"])]
@@ -423,3 +483,39 @@ def test_rules_cluster_duplicate_missing_reciprocal_and_keep_duplicate_pair_issu
     assert len(duplicates) == 1
     assert duplicates[0].evidence["occurrences"] == 2
     assert duplicates[0].related_pair_ids == ["P2"]
+
+
+def test_build_pairs_supports_vertical_group_side_labels() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=60.0,
+            start_y=80.0,
+            end_x=60.0,
+            end_y=40.0,
+            length=40.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "20 元件接线图2.dwg", 20, "20", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "top", "T1", "101", "101", 0.96, "accepted", None, 60.0, 80.0, 0.5, 4.0, 60.5, 84.0),
+        TerminalCandidate("C0002", "G0001", "S0001", "F0001", "bottom", "T2", "202", "202", 0.95, "accepted", None, 60.0, 40.0, 0.5, 4.0, 59.5, 36.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.status == "pass"
+    assert pair.left_value == "101"
+    assert pair.right_value == "202"
+    assert pair.evidence["line_orientation"] == "vertical"
+    assert pair.evidence["left_side_label"] == "top"
+    assert pair.evidence["right_side_label"] == "bottom"

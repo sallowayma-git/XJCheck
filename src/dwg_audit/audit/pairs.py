@@ -30,8 +30,9 @@ def build_pairs(
     pair_candidates: list[PairCandidate] = []
     pairs: list[Pair] = []
     for group in line_groups:
-        left = _accepted_sorted(by_group_side[(group.line_group_id, "left")])[:top_k]
-        right = _accepted_sorted(by_group_side[(group.line_group_id, "right")])[:top_k]
+        left_side, right_side = _pair_side_labels(group)
+        left = _accepted_sorted(by_group_side[(group.line_group_id, left_side)])[:top_k]
+        right = _accepted_sorted(by_group_side[(group.line_group_id, right_side)])[:top_k]
         group_pair_candidates: list[PairCandidate] = []
 
         if not left or not right:
@@ -41,7 +42,7 @@ def build_pairs(
                 rationale = "missing numeric candidates on both sides"
                 status = "discard"
             else:
-                rationale = "missing left candidate" if not left else "missing right candidate"
+                rationale = f"missing {left_side} candidate" if not left else f"missing {right_side} candidate"
                 status = "review"
             single = PairCandidate(
                 pair_candidate_id=pair_candidate_ids.next(),
@@ -111,7 +112,7 @@ def build_pairs(
                         right_value=right_item.value,
                         score=score,
                         status="candidate",
-                        rationale=f"left={left_item.value} right={right_item.value} score={score:.3f}",
+                        rationale=f"{left_side}={left_item.value} {right_side}={right_item.value} score={score:.3f}",
                         left_text_id=left_item.text_id,
                         right_text_id=right_item.text_id,
                         pair_key=_pair_key(left_item.value, right_item.value),
@@ -178,6 +179,12 @@ def _accepted_sorted(candidates: list[TerminalCandidate]) -> list[TerminalCandid
     return sorted(accepted, key=lambda item: item.score, reverse=True)
 
 
+def _pair_side_labels(group: LineGroup) -> tuple[str, str]:
+    if group.orientation == "vertical":
+        return "top", "bottom"
+    return "left", "right"
+
+
 def _bucket_for_status(status: str) -> str:
     if status == "pass":
         return "high"
@@ -201,14 +208,18 @@ def _pair_evidence(
     selected: PairCandidate,
     alternative_ids: list[str] | None,
 ) -> dict[str, object]:
+    left_side, right_side = _pair_side_labels(group)
     return {
         "filename": sheet.filename if sheet else None,
         "sheet_no": sheet.sheet_no if sheet else None,
         "sheet_order": sheet.sheet_order if sheet else None,
         "sheet_title": sheet.sheet_title if sheet else None,
         "line_group_id": group.line_group_id,
+        "line_orientation": group.orientation,
         "line_start": [group.start_x, group.start_y],
         "line_end": [group.end_x, group.end_y],
+        "left_side_label": left_side,
+        "right_side_label": right_side,
         "selected_pair_candidate_id": selected.pair_candidate_id,
         "selected_left_candidate_id": selected.left_candidate_id,
         "selected_right_candidate_id": selected.right_candidate_id,

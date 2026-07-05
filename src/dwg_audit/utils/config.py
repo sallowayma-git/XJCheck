@@ -71,6 +71,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
                 "single_char_reject_layers": ["DIM", "MARK"],
             }
         },
+        "元件接线图": {
+            "geometry": {
+                "line_group_orientation": "auto",
+            }
+        },
         "屏端子图": {
             "geometry": {
                 "endpoint_search_radius_x": 30.0,

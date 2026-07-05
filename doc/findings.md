@@ -1104,3 +1104,149 @@
 - 后续更可能还需要：
   - 更精细的 bridge 触发条件
   - 或者把“同值互补链 `?->X / X->?`”作为 line-group / pair 后处理收口逻辑单独处理
+
+## 40. 2026-07-05 `元件接线图2` 已进入纵向主链，second-set `20` 从 `0 pair` 提升到 `55 pair`
+
+这一轮把 `元件接线图` 的方向问题真正落到了代码里，而不是停留在只读判断。
+
+### 40.1 实现范围
+
+本轮修改集中在三层：
+
+- [line_groups.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/line_groups.py)
+  - 新增 `horizontal / vertical / auto` 的 line-group orientation 选择
+  - `元件接线图` 通过 [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py) 中：
+    - `page_category_overrides["元件接线图"].geometry.line_group_orientation = "auto"`
+    自动根据页内有效线段数量选择主方向
+  - vertical 线组输出为：
+    - `start = top`
+    - `end = bottom`
+    - `orientation = "vertical"`
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+  - vertical 线组的候选 side 改为 `top / bottom`
+  - 评分从横向 `dx` 语义切换为纵向 `dy` 语义
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - 继续保留 `left_value / right_value` 字段兼容下游
+  - 但在 evidence 中补充：
+    - `line_orientation`
+    - `left_side_label`
+    - `right_side_label`
+
+### 40.2 测试与真实样本结果
+
+新增并通过：
+
+- vertical line-group 单测
+- vertical `top/bottom` candidate 单测
+- vertical pair/evidence 单测
+- `20 元件接线图2.dwg` 风格集成测试
+
+全量回归：
+
+- `python -m pytest -q`
+  - `97 passed`
+
+second-set 新实跑目录：
+
+- [phase7_vertical_component_second/2_2](/F:/workspace/XJToolkit/.tmp/phase7_vertical_component_second/2_2)
+
+关键结果：
+
+- `19 元件接线图1.dwg`
+  - 保持 `39 line_groups / 39 pairs / 12 issues`
+  - orientation 仍为 `horizontal`
+- `20 元件接线图2.dwg`
+  - 旧：`0 line_groups / 0 pairs / 0 issues`
+  - 新：`55 line_groups / 55 pairs / 55 issues`
+  - `line_groups.orientation` 全为 `vertical`
+- `primary` 页单字符一侧 pair
+  - 继续保持 `0`
+
+### 40.3 新暴露出的下一层问题
+
+`20` 现在已经不再是“没进主链”，而是“进来了但候选质量还偏粗”。
+
+我在新产物里看到的前几条 pair 典型是：
+
+- `1 -> 1`
+- `1 -> 2`
+
+而且大多停在 `review / low-confidence`，说明下一步重点应该转成：
+
+- vertical 页的候选过滤
+- `DIM / MARK` 单字符在 `元件接线图` 上是否也需要更细的降权
+- 或者 vertical 页专用的搜索窗口 / 评分策略
+
+也就是说，`20` 的阻塞已经从“没有 pair”推进成“pair 太粗”，这是实质性前进。
+
+## 41. 2026-07-05 `08/12` 的互补 missing-side 已做成 issue 聚合，issue 总量明显下降
+
+前一轮只读判断认为，`08/12` 更适合做“issue 聚合”，而不是直接补写 pair。本轮已经按这个思路实现了一版保守收口。
+
+### 41.1 实现方式
+
+本轮在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 的 `R-PAIR-MISSING-SIDE` 里新增了互补半链聚合：
+
+- 只处理 `status != discard` 的 missing-side pair
+- 匹配模式为同页：
+  - `? -> X`
+  - `X -> ?`
+- 核心锚点条件：
+  - `right_text_id == left_text_id`
+- 额外几何护栏：
+  - 两段线都必须是 `horizontal`
+  - `bridge_gap <= inline_numeric_bridge_gap`
+  - `Y` 偏差 `<= inline_numeric_bridge_y_tolerance`
+
+命中后：
+
+- 不改写 pair 本体
+- 不伪造新的 `X -> X`
+- 只把两条单侧 issue 聚成一条：
+  - title: `互补半链待复核`
+  - evidence:
+    - `chain_kind = complementary_half_pair`
+    - `shared_text_id`
+    - `shared_value`
+    - `bridge_gap`
+    - `bridge_y_delta`
+
+### 41.2 回归与真实收益
+
+新增单测覆盖：
+
+- 两条互补 missing-side pair 应聚成 1 条 issue
+- `primary_pair_id / related_pair_ids / evidence` 应保留两条原始 pair 的追踪关系
+
+second-set 新 audit 结果：
+
+- [phase7_vertical_component_second/2_2/audit](/F:/workspace/XJToolkit/.tmp/phase7_vertical_component_second/2_2/audit)
+
+关键变化：
+
+- `08 测控1开入回路图1.dwg`
+  - 旧：`96 issues`
+  - 新：`49 issues`
+  - 其中：
+    - `47` 条为聚合后的 `互补半链待复核`
+    - `1` 条保留为尾项 missing-side
+    - `1` 条低置信 pair
+- `12 测控2开入回路图1.dwg`
+  - 旧：`89 issues`
+  - 新：`48 issues`
+  - 其中：
+    - `41` 条为聚合后的 `互补半链待复核`
+    - `7` 条保留为尾项 missing-side
+
+### 41.3 这个实现的边界
+
+这版聚合是保守的：
+
+- 它改善了 review 噪声密度
+- 但没有改变 pair 数量，也没有假装问题已经自动修复
+
+因此它适合作为当前阶段的“报告层收口”，但不等于几何层已经彻底理解了这些页。若后续继续推进，仍然值得考虑：
+
+- 更精细的 inline bridge 触发条件
+- 是否把类似聚合扩展到 vertical 页型
+- 是否在 UI / report 上为“互补半链”提供更显式的展示语义

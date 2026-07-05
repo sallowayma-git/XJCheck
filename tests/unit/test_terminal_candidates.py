@@ -287,3 +287,38 @@ def test_build_terminal_candidates_keeps_terminal_suffix_pattern_rejected_on_non
     assert rejected.status == "rejected"
     assert rejected.rejection_reason == "not_numeric"
     assert rejected.value is None
+
+
+def test_build_terminal_candidates_supports_top_bottom_on_vertical_component_group() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=60.0,
+            start_y=80.0,
+            end_x=60.0,
+            end_y=40.0,
+            length=40.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "101", "101", True, "TEXT", 0.0, 2.5, 60.5, 84.0, 59.5, 83.0, 63.0, 86.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "202", "202", True, "TEXT", 0.0, 2.5, 59.5, 36.0, 58.5, 35.0, 62.0, 38.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG)
+
+    top_candidate = next(item for item in candidates if item.side == "top" and item.text_id == "T1")
+    bottom_candidate = next(item for item in candidates if item.side == "bottom" and item.text_id == "T2")
+
+    assert top_candidate.status == "accepted"
+    assert top_candidate.rank == 1
+    assert top_candidate.score > 0.0
+    assert bottom_candidate.status == "accepted"
+    assert bottom_candidate.rank == 1
+    assert bottom_candidate.score > 0.0

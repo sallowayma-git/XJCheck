@@ -156,6 +156,7 @@ class LineGroup:
     wire_candidate_score: float
     member_line_ids: list[str] = field(default_factory=list)
     layer_hints: list[str] = field(default_factory=list)
+    orientation: str = "horizontal"
 
 
 @dataclass(slots=True)

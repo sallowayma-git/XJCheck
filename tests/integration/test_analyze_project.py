@@ -388,3 +388,54 @@ def test_analyze_project_does_not_expand_insert_virtual_entities_on_primary_page
     assert primary_sheet["audit_role"] == "primary"
     assert len(line_groups[line_groups["sheet_id"] == primary_sheet_id]) == 0
     assert len(pairs[pairs["sheet_id"] == primary_sheet_id]) == 0
+
+
+def test_analyze_project_extracts_vertical_component_pairs_on_component_page(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "20 元件接线图2.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="COMP_COL")
+        block.add_line((60, 80), (60, 40), dxfattribs={"layer": "CONNECT"})
+        block.add_text("101", dxfattribs={"insert": (60, 84), "height": 2.5, "layer": "TEXT"})
+        block.add_text("202", dxfattribs={"insert": (60, 36), "height": 2.5, "layer": "TEXT"})
+        msp.add_blockref("COMP_COL", (0, 0))
+        msp.add_text("20/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    component_sheet = pages[pages["filename"] == "20 元件接线图2.dwg"].iloc[0]
+    component_sheet_id = component_sheet["sheet_id"]
+    component_groups = line_groups[line_groups["sheet_id"] == component_sheet_id]
+    component_pairs = pairs[pairs["sheet_id"] == component_sheet_id]
+
+    assert component_sheet["audit_role"] == "supplemental"
+    assert len(component_groups) == 1
+    assert component_groups.iloc[0]["orientation"] == "vertical"
+    assert len(component_pairs) == 1
+    assert component_pairs.iloc[0]["left_value"] == "101"
+    assert component_pairs.iloc[0]["right_value"] == "202"

@@ -48,8 +48,28 @@ def build_issues(
 
 def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
+    aggregated_pair_ids: set[str] = set()
+    for pair, related_pair, evidence in _complementary_half_pair_matches(context):
+        aggregated_pair_ids.add(pair.pair_id)
+        aggregated_pair_ids.add(related_pair.pair_id)
+        issues.append(
+            context.issue_factory.build(
+                "R-PAIR-MISSING-SIDE",
+                "review",
+                pair,
+                "Complementary half-pairs share a text anchor and likely belong to one broken wire chain.",
+                title="互补半链待复核",
+                explanation="两条单侧配对共享同一个数字文本锚点，且几何上表现为被 inline 数字切开的相邻线段，通常需要作为同一条连接链一起复核。",
+                recommended_action="优先检查共享数字附近是否存在被切断的同一根导线，再决定是否调整桥接阈值或保留为真实单侧缺失。",
+                related_pairs=[pair, related_pair],
+                extra=evidence,
+            )
+        )
+
     for pair in context.pairs:
         if pair.status == "discard":
+            continue
+        if pair.pair_id in aggregated_pair_ids:
             continue
         if pair.left_value and pair.right_value:
             continue
@@ -65,6 +85,108 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
             )
         )
     return issues
+
+
+def _complementary_half_pair_matches(
+    context: RuleContext,
+) -> list[tuple[Pair, Pair, dict[str, object]]]:
+    missing_left: list[Pair] = []
+    missing_right_by_key = defaultdict(list)
+    for pair in context.pairs:
+        if pair.status == "discard":
+            continue
+        if pair.left_value is None and pair.right_value and pair.right_text_id:
+            missing_left.append(pair)
+            continue
+        if pair.right_value is None and pair.left_value and pair.left_text_id:
+            key = (pair.sheet_id, pair.left_text_id, pair.left_value)
+            missing_right_by_key[key].append(pair)
+
+    inline_gap = float(context.config.get("geometry", {}).get("inline_numeric_bridge_gap", 13.0))
+    inline_y_tol = float(context.config.get("geometry", {}).get("inline_numeric_bridge_y_tolerance", 4.0))
+    used_pair_ids: set[str] = set()
+    matches: list[tuple[Pair, Pair, dict[str, object]]] = []
+
+    for pair in missing_left:
+        if pair.pair_id in used_pair_ids:
+            continue
+        key = (pair.sheet_id, pair.right_text_id, pair.right_value)
+        candidates = [item for item in missing_right_by_key.get(key, []) if item.pair_id not in used_pair_ids]
+        if not candidates:
+            continue
+
+        compatible: list[tuple[float, Pair, dict[str, object]]] = []
+        for candidate in candidates:
+            evidence = _complementary_half_pair_evidence(
+                pair,
+                candidate,
+                context.group_map,
+                inline_gap=inline_gap,
+                inline_y_tol=inline_y_tol,
+            )
+            if evidence is None:
+                continue
+            compatible.append((float(evidence["bridge_gap"]), candidate, evidence))
+        if not compatible:
+            continue
+
+        compatible.sort(key=lambda item: item[0])
+        _, related_pair, evidence = compatible[0]
+        primary_pair, secondary_pair = _order_half_pairs(pair, related_pair, context.group_map)
+        used_pair_ids.add(primary_pair.pair_id)
+        used_pair_ids.add(secondary_pair.pair_id)
+        matches.append((primary_pair, secondary_pair, evidence))
+    return matches
+
+
+def _complementary_half_pair_evidence(
+    missing_left: Pair,
+    missing_right: Pair,
+    group_map: dict[str, LineGroup],
+    *,
+    inline_gap: float,
+    inline_y_tol: float,
+) -> dict[str, object] | None:
+    left_group = group_map.get(missing_left.line_group_id)
+    right_group = group_map.get(missing_right.line_group_id)
+    if left_group is None or right_group is None:
+        return None
+    if left_group.orientation != "horizontal" or right_group.orientation != "horizontal":
+        return None
+
+    bridge_gap = right_group.start_x - left_group.end_x
+    if bridge_gap < 0 or bridge_gap > inline_gap:
+        return None
+
+    left_anchor_y = missing_left.right_coord_y
+    right_anchor_y = missing_right.left_coord_y
+    if left_anchor_y is None or right_anchor_y is None:
+        return None
+    bridge_y_delta = abs(left_anchor_y - right_anchor_y)
+    if bridge_y_delta > inline_y_tol:
+        return None
+
+    return {
+        "chain_kind": "complementary_half_pair",
+        "shared_text_id": missing_left.right_text_id,
+        "shared_value": missing_left.right_value,
+        "bridge_gap": round(bridge_gap, 4),
+        "bridge_y_delta": round(bridge_y_delta, 4),
+    }
+
+
+def _order_half_pairs(
+    first: Pair,
+    second: Pair,
+    group_map: dict[str, LineGroup],
+) -> tuple[Pair, Pair]:
+    first_group = group_map.get(first.line_group_id)
+    second_group = group_map.get(second.line_group_id)
+    if first_group is None or second_group is None:
+        return first, second
+    if first_group.start_x <= second_group.start_x:
+        return first, second
+    return second, first
 
 
 def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import re
 from collections import defaultdict
 
@@ -12,6 +11,9 @@ from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.ids import IdFactory
+
+
+_ORIENTATION_VERTICAL = "vertical"
 
 
 class TextSpatialIndex:
@@ -63,7 +65,8 @@ def build_terminal_candidates(
         radius_y = profile["radius_y"]
         min_height = profile["min_height"]
         max_height = profile["max_height"]
-        for side, endpoint in (("left", (group.start_x, group.start_y)), ("right", (group.end_x, group.end_y))):
+        orientation = group.orientation if group.orientation in {"horizontal", "vertical"} else "horizontal"
+        for side, endpoint in _endpoints_for_group(group):
             bbox = (
                 endpoint[0] - radius_x,
                 endpoint[1] - radius_y,
@@ -75,8 +78,8 @@ def build_terminal_candidates(
                 dy = text.insert_y - endpoint[1]
                 value = _candidate_numeric_value(text, profile["numeric_suffix_patterns"])
                 within_height = min_height <= text.height <= max_height
-                vertical_alignment_score = round(max(0.0, 1.0 - min(abs(dy) / max(radius_y, 1.0), 1.0)), 4)
-                horizontal_side_score = _horizontal_side_score(dx, radius_x, side)
+                vertical_alignment_score = _cross_axis_alignment_score(dx, dy, radius_x, radius_y, orientation)
+                horizontal_side_score = _side_alignment_score(dx, dy, radius_x, radius_y, side, orientation)
                 text_type_score = 1.0 if value is not None else 0.0
                 height_score = 1.0 if within_height else 0.0
                 if value is None:
@@ -102,6 +105,7 @@ def build_terminal_candidates(
                         radius_y,
                         text.height,
                         side,
+                        orientation=orientation,
                         layer=text.layer,
                         value=value,
                         deprioritized_layers=profile["deprioritized_layers"],
@@ -141,6 +145,12 @@ def build_terminal_candidates(
     return results
 
 
+def _endpoints_for_group(group: LineGroup) -> tuple[tuple[str, tuple[float, float]], tuple[str, tuple[float, float]]]:
+    if group.orientation == _ORIENTATION_VERTICAL:
+        return (("top", (group.start_x, group.start_y)), ("bottom", (group.end_x, group.end_y)))
+    return (("left", (group.start_x, group.start_y)), ("right", (group.end_x, group.end_y)))
+
+
 def _candidate_score(
     dx: float,
     dy: float,
@@ -149,6 +159,7 @@ def _candidate_score(
     height: float,
     side: str,
     *,
+    orientation: str,
     layer: str,
     value: str,
     deprioritized_layers: set[str],
@@ -157,8 +168,11 @@ def _candidate_score(
     single_char_penalty: float,
     derived_numeric_penalty: float,
 ) -> float:
-    distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * 0.55 - min(abs(dy) / max(radius_y, 1.0), 1.0) * 0.35
-    side_bonus = 0.05 if (side == "left" and dx <= 0) or (side == "right" and dx >= 0) else 0.0
+    if orientation == _ORIENTATION_VERTICAL:
+        distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * 0.35 - min(abs(dy) / max(radius_y, 1.0), 1.0) * 0.55
+    else:
+        distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * 0.55 - min(abs(dy) / max(radius_y, 1.0), 1.0) * 0.35
+    side_bonus = _side_bonus(dx, dy, side, orientation)
     height_bonus = 0.05 if 1.8 <= height <= 3.5 else 0.0
     penalty = 0.0
     normalized_layer = layer.upper()
@@ -171,6 +185,37 @@ def _candidate_score(
     return round(max(0.0, min(1.0, distance_term + side_bonus + height_bonus - penalty)), 4)
 
 
+def _cross_axis_alignment_score(
+    dx: float,
+    dy: float,
+    radius_x: float,
+    radius_y: float,
+    orientation: str,
+) -> float:
+    if orientation == _ORIENTATION_VERTICAL:
+        return round(max(0.0, 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0)), 4)
+    return round(max(0.0, 1.0 - min(abs(dy) / max(radius_y, 1.0), 1.0)), 4)
+
+
+def _side_alignment_score(
+    dx: float,
+    dy: float,
+    radius_x: float,
+    radius_y: float,
+    side: str,
+    orientation: str,
+) -> float:
+    if orientation == _ORIENTATION_VERTICAL:
+        return _vertical_side_score(dy, radius_y, side)
+    return _horizontal_side_score(dx, radius_x, side)
+
+
+def _side_bonus(dx: float, dy: float, side: str, orientation: str) -> float:
+    if orientation == _ORIENTATION_VERTICAL:
+        return 0.05 if (side == "top" and dy >= -2.5) or (side == "bottom" and dy <= 2.5) else 0.0
+    return 0.05 if (side == "left" and dx <= 0) or (side == "right" and dx >= 0) else 0.0
+
+
 def _horizontal_side_score(dx: float, radius_x: float, side: str) -> float:
     if (side == "left" and dx > 2.5) or (side == "right" and dx < -2.5):
         return 0.0
@@ -178,6 +223,16 @@ def _horizontal_side_score(dx: float, radius_x: float, side: str) -> float:
         normalized = 1.0 - min(max(dx, 0.0) / max(radius_x, 1.0), 1.0)
     else:
         normalized = 1.0 - min(max(-dx, 0.0) / max(radius_x, 1.0), 1.0)
+    return round(max(0.0, min(1.0, normalized)), 4)
+
+
+def _vertical_side_score(dy: float, radius_y: float, side: str) -> float:
+    if (side == "top" and dy < -2.5) or (side == "bottom" and dy > 2.5):
+        return 0.0
+    if side == "top":
+        normalized = 1.0 - min(max(-dy, 0.0) / max(radius_y, 1.0), 1.0)
+    else:
+        normalized = 1.0 - min(max(dy, 0.0) / max(radius_y, 1.0), 1.0)
     return round(max(0.0, min(1.0, normalized)), 4)
 
 

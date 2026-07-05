@@ -92,3 +92,33 @@ def test_build_line_groups_bridges_gap_just_above_previous_threshold() -> None:
     assert len(groups) == 1
     assert groups[0].start_x == 32.5
     assert groups[0].end_x == 145.0
+
+
+def test_build_line_groups_uses_vertical_orientation_for_component_pages() -> None:
+    lines = [
+        LineEntity("L1", "S1", "F1", "H1", "LINE", "WIRE", 60.0, 80.0, 60.0, 40.0, 40.0, -90.0, 60.0, 40.0, 60.0, 80.0),
+    ]
+    sheets = [
+        SheetRecord(
+            sheet_id="S1",
+            file_id="F1",
+            filename="20 元件接线图2.dwg",
+            sheet_order=20,
+            sheet_no="20",
+            sheet_title="元件接线图2",
+            sheet_category="元件接线图",
+            audit_role="supplemental",
+            page_no_source="filename",
+            is_primary_audit_candidate=True,
+            audit_area_bbox=(0.0, 0.0, 120.0, 120.0),
+        )
+    ]
+
+    groups = build_line_groups(lines, sheets, DEFAULT_CONFIG, [])
+
+    assert len(groups) == 1
+    assert groups[0].orientation == "vertical"
+    assert groups[0].start_x == 60.0
+    assert groups[0].end_x == 60.0
+    assert groups[0].start_y == 80.0
+    assert groups[0].end_y == 40.0
