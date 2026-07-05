@@ -75,6 +75,249 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert (project_dir / "findings" / "extraction_warnings.parquet").exists()
 
 
+def test_write_project_artifacts_records_one_to_many_review_table(tmp_path: Path) -> None:
+    sources = [
+        SourceFileRecord(
+            file_id="F0001",
+            path="C:/demo/04.dwg",
+            filename="04.dwg",
+            ext=".dwg",
+            sha256="abc",
+            size_bytes=10,
+            sheet_order=4,
+            detected_page_no="04",
+            detected_from="filename",
+            sheet_title="交流回路图1",
+            sheet_category="二次原理图",
+            skip_reason=None,
+            valid_dwg_header=True,
+            conversion_status="converted",
+        ),
+        SourceFileRecord(
+            file_id="F0002",
+            path="C:/demo/05.dwg",
+            filename="05.dwg",
+            ext=".dwg",
+            sha256="def",
+            size_bytes=10,
+            sheet_order=5,
+            detected_page_no="05",
+            detected_from="filename",
+            sheet_title="交流回路图2",
+            sheet_category="二次原理图",
+            skip_reason=None,
+            valid_dwg_header=True,
+            conversion_status="converted",
+        ),
+    ]
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-03T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=2,
+            sheet_count=2,
+            valid_dwg_files=2,
+            invalid_dwg_files=0,
+            source_files=sources,
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord("S0001", "F0001", "04.dwg", 4, "04", "交流回路图1", "二次原理图", "primary", "filename", True),
+            SheetRecord("S0002", "F0002", "05.dwg", 5, "05", "交流回路图2", "二次原理图", "primary", "filename", True),
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id="PC1",
+            left_value="101",
+            right_value="201",
+            confidence=0.97,
+            status="pass",
+            rationale="ok",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="high",
+            evidence={"filename": "04.dwg", "sheet_no": "04", "sheet_order": 4},
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id="G0002",
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id="PC2",
+            left_value="101",
+            right_value="202",
+            confidence=0.96,
+            status="pass",
+            rationale="ok",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="high",
+            evidence={"filename": "05.dwg", "sheet_no": "05", "sheet_order": 5},
+        ),
+        Pair(
+            pair_id="P0003",
+            line_group_id="G0003",
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id="PC3",
+            left_value="201",
+            right_value="101",
+            confidence=0.95,
+            status="pass",
+            rationale="reverse reference",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="high",
+            evidence={"filename": "05.dwg", "sheet_no": "05", "sheet_order": 5},
+        ),
+    ]
+
+    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan, pairs=pairs), tmp_path)
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
+    findings_text = (project_dir / "findings" / "findings.md").read_text(encoding="utf-8")
+
+    table = findings_payload["one_to_many_review_table"]
+    assert table["cluster_count"] == 1
+    assert table["branch_cluster_count"] == 0
+    assert table["review_cluster_count"] == 0
+    assert table["conflict_cluster_count"] == 1
+    assert table["clusters"][0]["cluster_id"] == "OTM:101"
+    assert table["clusters"][0]["left_value"] == "101"
+    assert table["clusters"][0]["classification"] == "conflict"
+    assert table["clusters"][0]["classification_reason"] == "cross_page_multi_target"
+    assert table["clusters"][0]["right_values"] == ["201", "202"]
+    assert table["clusters"][0]["cross_page"] is True
+    assert table["clusters"][0]["reciprocal_pair_count"] == 1
+    assert table["clusters"][0]["pairs"][0]["location"]["sheet_no"] == "04"
+    assert table["clusters"][0]["pairs"][0]["pair_id"] == "P0001"
+    assert "## 一对多簇复核表" in findings_text
+    assert "ConflictClusters: `1`" in findings_text
+    assert "`101` -> `201, 202` (classification=conflict, reason=cross_page_multi_target, cross_page=True" in findings_text
+
+
+def test_write_project_artifacts_marks_same_sheet_one_to_many_as_review(tmp_path: Path) -> None:
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-03T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[
+                SourceFileRecord(
+                    file_id="F0001",
+                    path="C:/demo/04.dwg",
+                    filename="04.dwg",
+                    ext=".dwg",
+                    sha256="abc",
+                    size_bytes=10,
+                    sheet_order=4,
+                    detected_page_no="04",
+                    detected_from="filename",
+                    sheet_title="交流回路图1",
+                    sheet_category="二次原理图",
+                    skip_reason=None,
+                    valid_dwg_header=True,
+                    conversion_status="converted",
+                )
+            ],
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[SheetRecord("S0001", "F0001", "04.dwg", 4, "04", "交流回路图1", "二次原理图", "primary", "filename", True)],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    pairs = [
+        Pair("P0001", "G0001", "S0001", "F0001", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "04.dwg", "sheet_no": "04", "sheet_order": 4}),
+        Pair("P0002", "G0002", "S0001", "F0001", "PC2", "101", "202", 0.74, "review", "weak evidence", [], "review", {"filename": "04.dwg", "sheet_no": "04", "sheet_order": 4}),
+    ]
+
+    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan, pairs=pairs), tmp_path)
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
+
+    table = findings_payload["one_to_many_review_table"]
+    assert table["cluster_count"] == 1
+    assert table["branch_cluster_count"] == 0
+    assert table["review_cluster_count"] == 1
+    assert table["conflict_cluster_count"] == 0
+    assert table["clusters"][0]["classification"] == "review"
+    assert table["clusters"][0]["classification_reason"] == "weak_evidence"
+
+
+def test_write_project_artifacts_marks_allowlisted_one_to_many_as_branch(tmp_path: Path) -> None:
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-03T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[
+                SourceFileRecord(
+                    file_id="F0001",
+                    path="C:/demo/04.dwg",
+                    filename="04.dwg",
+                    ext=".dwg",
+                    sha256="abc",
+                    size_bytes=10,
+                    sheet_order=4,
+                    detected_page_no="04",
+                    detected_from="filename",
+                    sheet_title="交流回路图1",
+                    sheet_category="二次原理图",
+                    skip_reason=None,
+                    valid_dwg_header=True,
+                    conversion_status="converted",
+                )
+            ],
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[SheetRecord("S0001", "F0001", "04.dwg", 4, "04", "交流回路图1", "二次原理图", "primary", "filename", True)],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    pairs = [
+        Pair("P0001", "G0001", "S0001", "F0001", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "04.dwg", "sheet_no": "04", "sheet_order": 4}),
+        Pair("P0002", "G0002", "S0001", "F0001", "PC2", "101", "202", 0.96, "pass", "ok", [], "high", {"filename": "04.dwg", "sheet_no": "04", "sheet_order": 4}),
+    ]
+
+    project_dir = write_project_artifacts(
+        ProjectArtifacts(scan=scan, pairs=pairs),
+        tmp_path,
+        config={"rules": {"one_to_many_branch_left_values": ["101"]}},
+    )
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
+
+    table = findings_payload["one_to_many_review_table"]
+    assert table["cluster_count"] == 1
+    assert table["branch_cluster_count"] == 1
+    assert table["review_cluster_count"] == 0
+    assert table["conflict_cluster_count"] == 0
+    assert table["clusters"][0]["classification"] == "branch"
+    assert table["clusters"][0]["classification_reason"] == "allowlisted_branch"
+
+
 def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path: Path) -> None:
     source = SourceFileRecord(
         file_id="F0001",
@@ -144,6 +387,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
             "sheet_order": 4,
             "line_start": [10.0, 20.0],
             "line_end": [40.0, 20.0],
+            "one_to_many_classification": "conflict",
         },
         title="跨页配对冲突",
         summary="数字 101 在不同跨页位置出现冲突配对。",
@@ -251,6 +495,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "## 异常清单" in report_text
     assert "### `I0001` 跨页配对冲突" in report_text
     assert "- Location: file=04.dwg, sheet_no=04, sheet_order=4, line_group=G0001, line_start=[10.0, 20.0], line_end=[40.0, 20.0]" in report_text
+    assert "- OneToManyTriage: `conflict`" in report_text
     assert "- Summary: 数字 101 在不同跨页位置出现冲突配对。" in report_text
     assert "- Explanation: 同一线号在高置信 pair 中关联到了不一致的目标数字。" in report_text
     assert "- RecommendedAction: 优先复核 04.dwg 上对应线端的跨页引用。" in report_text
@@ -319,6 +564,7 @@ def test_write_audit_outputs_adds_evidence_display_to_html_and_excel(tmp_path: P
                 "line_group_id": "G0001",
                 "left_value": "101",
                 "right_value": "201",
+                "one_to_many_classification": "conflict",
             }
         ],
         title="跨页配对冲突",
@@ -339,5 +585,7 @@ def test_write_audit_outputs_adds_evidence_display_to_html_and_excel(tmp_path: P
     assert "evidence_display" in html
     assert "ref1: filename=04.dwg, sheet_no=04, sheet_order=4" in html
     assert "evidence_display" in excel_issues.columns
+    assert "one_to_many_classification" in excel_issues.columns
     assert "filename=04.dwg" in excel_issues.loc[0, "evidence_display"]
     assert "left_value=101" in excel_issues.loc[0, "evidence_display"]
+    assert excel_issues.loc[0, "one_to_many_classification"] == "conflict"

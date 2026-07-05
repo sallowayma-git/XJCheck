@@ -49,7 +49,7 @@ def _slugify(value: str) -> str:
     return slug or "project"
 
 
-def write_project_artifacts(artifacts: ProjectArtifacts, output_dir: Path) -> Path:
+def write_project_artifacts(artifacts: ProjectArtifacts, output_dir: Path, config: dict | None = None) -> Path:
     project_slug = _slugify(artifacts.scan.manifest.project_id)
     project_dir = output_dir / project_slug
     findings_dir = project_dir / "findings"
@@ -76,7 +76,7 @@ def write_project_artifacts(artifacts: ProjectArtifacts, output_dir: Path) -> Pa
     _frame(artifacts.pairs, Pair).to_parquet(findings_dir / "pairs.parquet", index=False)
     _frame(artifacts.extraction_warnings, ExtractionWarning).to_parquet(findings_dir / "extraction_warnings.parquet", index=False)
 
-    findings_payload = _build_findings_payload(artifacts)
+    findings_payload = _build_findings_payload(artifacts, config=config)
     (findings_dir / "findings.json").write_text(json.dumps(findings_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (findings_dir / "findings.md").write_text(_build_findings_markdown(findings_payload), encoding="utf-8")
     return project_dir
@@ -235,7 +235,122 @@ def _build_pair_findings_summary(pairs: list[Pair]) -> dict[str, Any]:
     }
 
 
-def _build_findings_payload(artifacts: ProjectArtifacts) -> dict[str, Any]:
+def _complete_pair(pair: Pair) -> bool:
+    return pair.status != "discard" and bool(pair.left_value) and bool(pair.right_value)
+
+
+def _high_confidence_pair(pair: Pair) -> bool:
+    return pair.status == "pass" or pair.confidence_bucket == "high"
+
+
+def _configured_one_to_many_branch_left_values(config: dict | None) -> set[str]:
+    if not config:
+        return set()
+    configured = config.get("rules", {}).get("one_to_many_branch_left_values", [])
+    return {str(value) for value in configured if value is not None}
+
+
+def _one_to_many_cluster_sort_key(cluster: dict[str, Any]) -> tuple[int, int, str]:
+    classification_order = {"conflict": 0, "review": 1, "branch": 2}
+    return (
+        classification_order.get(str(cluster.get("classification")), 99),
+        -int(cluster.get("distinct_right_count", 0)),
+        str(cluster.get("left_value", "")),
+    )
+
+
+def _build_one_to_many_review_table(pairs: list[Pair], config: dict | None = None) -> dict[str, Any]:
+    complete_pairs = [pair for pair in pairs if _complete_pair(pair)]
+    pair_lookup = {(pair.left_value, pair.right_value) for pair in complete_pairs}
+    branch_allowlist = _configured_one_to_many_branch_left_values(config)
+    left_to_pairs: dict[str, list[Pair]] = {}
+    for pair in complete_pairs:
+        left_to_pairs.setdefault(pair.left_value, []).append(pair)
+
+    clusters: list[dict[str, Any]] = []
+    for left_value, linked_pairs in left_to_pairs.items():
+        right_values = sorted({pair.right_value for pair in linked_pairs if pair.right_value})
+        if len(right_values) <= 1:
+            continue
+
+        sheet_ids = sorted({pair.sheet_id for pair in linked_pairs if pair.sheet_id})
+        sheet_nos = sorted({pair.evidence.get("sheet_no") for pair in linked_pairs if pair.evidence.get("sheet_no")})
+        filenames = sorted({pair.evidence.get("filename") for pair in linked_pairs if pair.evidence.get("filename")})
+        pair_rows = []
+        reciprocal_pair_count = 0
+        high_confidence_pair_count = 0
+        for pair in sorted(linked_pairs, key=lambda item: ((item.evidence or {}).get("sheet_order", 0), item.right_value or "", item.pair_id)):
+            reciprocal = bool(pair.left_value and pair.right_value and (pair.right_value, pair.left_value) in pair_lookup)
+            if reciprocal:
+                reciprocal_pair_count += 1
+            if _high_confidence_pair(pair):
+                high_confidence_pair_count += 1
+            pair_rows.append(
+                {
+                    "pair_id": pair.pair_id,
+                    "sheet_id": pair.sheet_id,
+                    "line_group_id": pair.line_group_id,
+                    "right_value": pair.right_value,
+                    "filename": pair.evidence.get("filename"),
+                    "sheet_no": pair.evidence.get("sheet_no"),
+                    "sheet_order": pair.evidence.get("sheet_order"),
+                    "status": pair.status,
+                    "confidence": pair.confidence,
+                    "confidence_bucket": pair.confidence_bucket,
+                    "has_reciprocal": reciprocal,
+                    "location": {
+                        "filename": pair.evidence.get("filename"),
+                        "sheet_no": pair.evidence.get("sheet_no"),
+                        "sheet_order": pair.evidence.get("sheet_order"),
+                        "line_start": pair.evidence.get("line_start"),
+                        "line_end": pair.evidence.get("line_end"),
+                    },
+                    "summary": _pair_evidence_summary(pair),
+                }
+            )
+
+        cross_page = len(sheet_ids) > 1
+        if left_value in branch_allowlist:
+            classification = "branch"
+            classification_reason = "allowlisted_branch"
+        elif cross_page and high_confidence_pair_count == len(linked_pairs):
+            classification = "conflict"
+            classification_reason = "cross_page_multi_target"
+        else:
+            classification = "review"
+            classification_reason = "weak_evidence"
+        clusters.append(
+            {
+                "cluster_id": f"OTM:{left_value}",
+                "left_value": left_value,
+                "classification": classification,
+                "classification_reason": classification_reason,
+                "distinct_right_count": len(right_values),
+                "pair_count": len(linked_pairs),
+                "right_values": right_values,
+                "sheet_ids": sheet_ids,
+                "sheet_nos": sheet_nos,
+                "filenames": filenames,
+                "cross_page": cross_page,
+                "high_confidence_pair_count": high_confidence_pair_count,
+                "reciprocal_pair_count": reciprocal_pair_count,
+                "status_counts": _count_labels([pair.status for pair in linked_pairs]),
+                "confidence_bucket_counts": _count_labels([pair.confidence_bucket for pair in linked_pairs]),
+                "pairs": pair_rows,
+            }
+        )
+
+    ordered_clusters = sorted(clusters, key=_one_to_many_cluster_sort_key)
+    return {
+        "cluster_count": len(ordered_clusters),
+        "branch_cluster_count": sum(1 for cluster in ordered_clusters if cluster["classification"] == "branch"),
+        "review_cluster_count": sum(1 for cluster in ordered_clusters if cluster["classification"] == "review"),
+        "conflict_cluster_count": sum(1 for cluster in ordered_clusters if cluster["classification"] == "conflict"),
+        "clusters": ordered_clusters,
+    }
+
+
+def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = None) -> dict[str, Any]:
     manifest = artifacts.scan.manifest
     primary_pages = [page for page in artifacts.scan.pages if page.audit_role == "primary"]
     supplemental_pages = [page for page in artifacts.scan.pages if page.audit_role == "supplemental"]
@@ -277,6 +392,7 @@ def _build_findings_payload(artifacts: ProjectArtifacts) -> dict[str, Any]:
             "extraction_warnings": len(artifacts.extraction_warnings),
         },
         "pair_evidence_summary": _build_pair_findings_summary(artifacts.pairs),
+        "one_to_many_review_table": _build_one_to_many_review_table(artifacts.pairs, config=config),
         "failed_files": [
             {
                 "filename": item.filename,
@@ -321,6 +437,7 @@ def _build_findings_payload(artifacts: ProjectArtifacts) -> dict[str, Any]:
 
 def _build_findings_markdown(payload: dict[str, Any]) -> str:
     pair_summary = payload["pair_evidence_summary"]
+    one_to_many_table = payload["one_to_many_review_table"]
     lines = [
         "# Findings",
         "",
@@ -385,6 +502,30 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             f"(status={item['status']}, bucket={_display_value(item['confidence_bucket'], default='unknown')}, "
             f"conf={_format_confidence(item['confidence'])}): {item['summary']}"
         )
+    lines.extend(
+        [
+            "",
+            "## 一对多簇复核表",
+            "",
+            f"- ClusterCount: `{one_to_many_table['cluster_count']}`",
+            f"- BranchClusters: `{one_to_many_table['branch_cluster_count']}`",
+            f"- ReviewClusters: `{one_to_many_table['review_cluster_count']}`",
+            f"- ConflictClusters: `{one_to_many_table['conflict_cluster_count']}`",
+            "",
+        ]
+    )
+    if one_to_many_table["clusters"]:
+        for cluster in one_to_many_table["clusters"][:5]:
+            lines.append(
+                f"- `{cluster['left_value']}` -> `{', '.join(cluster['right_values'])}` "
+                f"(classification={cluster['classification']}, reason={cluster['classification_reason']}, "
+                f"cross_page={cluster['cross_page']}, "
+                f"sheets={json.dumps(cluster['sheet_nos'], ensure_ascii=False)}, "
+                f"high_confidence_pairs={cluster['high_confidence_pair_count']}/{cluster['pair_count']}, "
+                f"reciprocal_pairs={cluster['reciprocal_pair_count']}/{cluster['pair_count']})"
+            )
+    else:
+        lines.append("- 当前没有发现完整 pair 形成的一对多簇。")
     lines.extend(["", "## 关键观察", ""])
     for item in payload["key_observations"]:
         lines.append(f"- {item}")
@@ -552,6 +693,7 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
     if _is_blank_value(title):
         title = row.get("message")
     evidence = row.get("evidence_display") or _evidence_display(row)
+    triage = row.get("one_to_many_classification")
     details = [
         f"### `{_display_value(row.get('issue_id'))}` {_display_value(title)}",
         "",
@@ -568,6 +710,8 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
         ),
         f"- Evidence: {_display_value(evidence)}",
     ]
+    if not _is_blank_value(triage):
+        details.append(f"- OneToManyTriage: `{triage}`")
     for label, key in (
         ("Summary", "summary"),
         ("Explanation", "explanation"),
@@ -585,6 +729,11 @@ def _prepare_report_frame(frame: pd.DataFrame) -> pd.DataFrame:
         return frame
     report_frame = frame.copy()
     report_frame["evidence_display"] = report_frame.apply(_evidence_display, axis=1)
+    if "rule_id" in report_frame.columns:
+        report_frame["one_to_many_classification"] = report_frame.apply(
+            lambda row: _display_value(_read_evidence_key(row, "one_to_many_classification"), default=""),
+            axis=1,
+        )
     return report_frame
 
 

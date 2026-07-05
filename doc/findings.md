@@ -586,3 +586,44 @@
 - 这一步还没有实现“自动识别合法 branch”，只是把表达方式从“默认判错”收紧为“默认待复核，允许项目配置声明 branch”。
 - 这样更符合任务书 `10.8` 的保守语义，也避免继续把 `R-ONE-TO-MANY` 当作粗粒度错误数量来追指标。
 - 下一步若要真正把 `branch` 做稳，需要补“一对多簇复核表”和项目先验，而不是继续只在 severity 上调参。
+
+## 25. 2026-07-05 findings 产物补充一对多簇复核表
+
+为了把后续 `branch / review / conflict` 校准建立在稳定证据上，本轮在 `findings.json / findings.md` 里新增了“一对多簇复核表”。
+
+当前表结构直接基于 `pairs.parquet` 的完整 pair 构建，不依赖历史 `issues.json`：
+
+- 以 `left_value` 聚类，只保留“同一左值对应多个不同右值”的簇。
+- 每个簇记录：
+  - `cluster_id`
+  - `right_values`
+  - `sheet_ids / sheet_nos / filenames`
+  - `classification / classification_reason`
+  - `status_counts / confidence_bucket_counts`
+  - `reciprocal_pair_count`
+  - 每条边的 `pair_id / confidence / status / summary`
+- 当前分类规则是：
+  - `branch`：命中 `rules.one_to_many_branch_left_values`
+  - `conflict`：跨页且簇内 pair 当前都属于高置信
+  - `review`：其余情况默认保守进入复核
+
+直接结论：
+
+- 这张表不是最终规则输出，而是“可稳定复核的证据底表”。
+- 它的意义在于：后续要不要把某些簇升成 `branch`，或者把哪些跨页簇真正收敛成 `conflict`，终于可以直接基于 findings 产物抽样，而不必反复依赖临时 issue 数量。
+
+## 26. 2026-07-05 报告与 UI 显式展示 one_to_many_classification
+
+在上一轮规则收口后，`one_to_many_classification` 虽然已经写进 issue evidence，但还只是“藏在 JSON 里”的状态，不满足“结果页可见”的要求。
+
+本轮继续把这层信息显式露到现有展示链：
+
+- `audit_report.md` 在 issue 详情里新增 `OneToManyTriage`
+- `audit_report.html / issues.xlsx` 的 issues 表新增 `one_to_many_classification` 列
+- Streamlit UI 的 Issues 表和 issue detail 也会直接显示该字段
+- Streamlit UI 的 Summary 页会直接展示 findings 里的“一对多簇复核表”
+
+直接结论：
+
+- 到这一步，当前 CLI / report / UI 三条现有结果链都已经能看见 `conflict / review / branch` 这类一对多语义标签，不再要求用户手动翻 raw evidence JSON。
+- 这仍然不等于最终桌面端结果页已完成，但至少“结构现象 + 风险分级”已经开始进入实际展示层，而不是停留在规则内部。

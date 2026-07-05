@@ -94,7 +94,7 @@ def analyze_input_root(
             issues=[],
             extraction_warnings=extraction_warnings,
         )
-        project_dir = write_project_artifacts(artifacts, output_path)
+        project_dir = write_project_artifacts(artifacts, output_path, config=config)
         written.append(project_dir)
         if event_sink is not None:
             event_sink.emit(
