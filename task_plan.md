@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 18
+Phase 19
 
 ## Phases
 
@@ -131,10 +131,17 @@ Phase 18
 - [x] 复跑 targeted pytest、full pytest，以及 first-set 当前头部 `analyze-project + run-audit`
 - **Status:** complete
 
+### Phase 19: Audit Disposition Contract
+- [x] 重新按当前头部代码审计 `audit_disposition` 是否仍是最近分类合同缺口
+- [x] 在 `PageClassification -> PageRouter -> pipeline -> findings/report` 贯通 `audit_disposition`
+- [x] 让下游纳入审计判断显式基于 `audit_disposition=audit_required`
+- [x] 复跑 targeted pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
+- **Status:** complete
+
 ## Key Questions
 1. continuation 现在已有显式 `pair_kind=continuation`，但 candidate 侧仍没有独立 `continuation_channel`；下一步是否需要把 `n###` / bridge 提示也提升为 candidate 级通道？
 2. semantic-row 当前已经有 candidate `semantic_channel`，但 pair / issue 还不会显式写出“哪一侧被 semantic guard 抑制”；是否需要补 `suppressed_candidate_refs` 这类最小证据合同？
-3. `audit_disposition` 仍未作为独立字段落盘，当前只有 `audit_role + route_target` 组合；是否需要对齐任务书契约？
+3. `audit_disposition` 已落盘并接管下游准入；下一步是否需要继续把 `audit_role` 的旧叙事降到纯扫描元数据，而不是继续在 findings 里并列强调？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
 ## Decisions Made
@@ -161,6 +168,7 @@ Phase 18
 | `page_findings` 对 `TableExtractor` 的说明不能继续写成 “still pending”，必须反映当前是否真的产出了 `table_mapping` | 任务书要求页级记录说明当前识别器和数字匹配策略，不能故意滞后于代码现状 |
 | terminal 语义列的第一步不该先扩成新大表，而应先把 candidate `channel` 变成稳定合同，再让 PairBuilder 明确只消费 `terminal_numeric_channel` | 这能最小风险地把任务书 7.4 的“语义旁路”从隐式规则升级为可落盘运行态 |
 | continuation 的第一步不该先扩大规则覆盖面，而应先把已识别出的 continuation 关系升级成显式 `pair_kind`，并让它稳定保留为 review 证据、旁路 ordinary audit | 这能最小风险地把任务书第 9 章“continuation 不能等价于 ordinary pair”落实到当前真实样本主链 |
+| `audit_disposition` 的最小闭环应优先做成“分类输出 + pipeline 准入合同 + findings 落盘”，而不是先大改 `audit_role` 扫描策略 | 这能最小风险地补齐任务书第 4/5 层合同，同时避免和仍在演进的 continuation / semantic 语义切片互相缠绕 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

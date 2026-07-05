@@ -500,6 +500,32 @@ def _page_route_target(page: SheetRecord, *, table_like: bool) -> str:
     return "LayoutOnlyExtractor"
 
 
+def _page_audit_disposition(
+    page: SheetRecord,
+    *,
+    classification: PageClassification | None = None,
+    route_target: str | None = None,
+) -> str:
+    if classification is not None and classification.audit_disposition:
+        return classification.audit_disposition
+    explicit_disposition = getattr(page, "audit_disposition", None)
+    if explicit_disposition:
+        return str(explicit_disposition)
+    resolved_route_target = route_target or _page_route_target(page, table_like=False)
+    if page.audit_role == "skip" or resolved_route_target == "SkipExtractor":
+        return "skip_stable"
+    if page.audit_role == "supplemental":
+        return "audit_required"
+    if resolved_route_target in {
+        "WireDiagramExtractor",
+        "ComponentDiagramExtractor",
+        "TerminalDiagramExtractor",
+        "TableExtractor",
+    }:
+        return "audit_required"
+    return "classify_only"
+
+
 def _page_type_confidence(page: SheetRecord) -> float:
     explicit_confidence = getattr(page, "page_type_confidence", None)
     if explicit_confidence is not None:
@@ -531,6 +557,7 @@ def _dominant_orientation(orientation_counts: dict[str, int]) -> str:
 def _page_high_confidence_signals(
     *,
     page: SheetRecord,
+    audit_disposition: str,
     dominant_orientation: str,
     non_discard_pair_count: int,
     high_confidence_pair_count: int,
@@ -539,10 +566,10 @@ def _page_high_confidence_signals(
     table_mapping_count: int,
 ) -> list[str]:
     signals: list[str] = []
-    if page.audit_role == "skip":
+    if audit_disposition == "skip_stable":
         signals.append("Configured as a non-audit page and excluded from downstream pairing.")
     else:
-        signals.append(f"Current audit role is `{page.audit_role}`.")
+        signals.append(f"Current audit disposition is `{audit_disposition}` (scan role: `{page.audit_role}`).")
     if table_mapping_count:
         signals.append(f"Structured table mappings recovered: {table_mapping_count}.")
     if line_group_count:
@@ -561,6 +588,7 @@ def _page_high_confidence_signals(
 def _page_open_questions(
     *,
     page: SheetRecord,
+    audit_disposition: str,
     table_like: bool,
     route_target: str,
     line_group_count: int,
@@ -570,10 +598,10 @@ def _page_open_questions(
     table_mapping_count: int,
 ) -> list[str]:
     questions: list[str] = []
-    if page.audit_role == "secondary":
-        questions.append("Current audit role keeps this page out of downstream pair/audit generation by default.")
-    if page.audit_role == "supplemental" and line_group_count == 0:
-        questions.append("This supplemental page is included, but the current extractor still produced no usable line groups.")
+    if audit_disposition == "classify_only":
+        questions.append("Current audit disposition keeps this page in classification-only mode by default.")
+    if audit_disposition == "audit_required" and page.audit_role == "supplemental" and line_group_count == 0:
+        questions.append("This audit-required supplemental page is included, but the current extractor still produced no usable line groups.")
     if pair_count > 0 and high_confidence_pair_count == 0:
         questions.append("All current pairs still require manual review; high-confidence confirmation is not established yet.")
     if page.sheet_category == "元件接线图" and non_discard_pair_count > 0 and high_confidence_pair_count == 0:
@@ -587,7 +615,14 @@ def _page_open_questions(
     return questions
 
 
-def _page_recognition_strategy(page: SheetRecord, *, table_like: bool, route_target: str, table_mapping_count: int) -> str:
+def _page_recognition_strategy(
+    page: SheetRecord,
+    *,
+    audit_disposition: str,
+    table_like: bool,
+    route_target: str,
+    table_mapping_count: int,
+) -> str:
     if route_target == "TableExtractor":
         if table_mapping_count:
             return (
@@ -605,7 +640,8 @@ def _page_recognition_strategy(page: SheetRecord, *, table_like: bool, route_tar
         )
     return (
         f"Current classification inferred `{page.sheet_category or 'unknown'}` from filename / .prj / title keywords "
-        f"and routed the page to `{route_target}` with audit role `{page.audit_role}`."
+        f"and routed the page to `{route_target}` with audit disposition `{audit_disposition}` "
+        f"(scan role `{page.audit_role}`)."
     )
 
 
@@ -684,6 +720,11 @@ def _build_page_findings(
             grid_heavy = False
             classification_features = {}
             route_target = _page_route_target(page, table_like=table_like)
+        audit_disposition = _page_audit_disposition(
+            page,
+            classification=classification,
+            route_target=route_target,
+        )
         orientation_summary = orientation_counts.get(sheet_id, {})
         dominant_orientation = _dominant_orientation(orientation_summary)
         non_discard_pair_count = non_discard_pairs.get(sheet_id, 0)
@@ -704,6 +745,7 @@ def _build_page_findings(
                 "page_subtype": page_subtype,
                 "page_type_confidence": page_type_confidence,
                 "audit_role": page.audit_role,
+                "audit_disposition": audit_disposition,
                 "route_target": route_target,
                 "grid_heavy": grid_heavy,
                 "classification_features": classification_features,
@@ -738,6 +780,7 @@ def _build_page_findings(
                 },
                 "recognition_strategy": _page_recognition_strategy(
                     page,
+                    audit_disposition=audit_disposition,
                     table_like=table_like,
                     route_target=route_target,
                     table_mapping_count=table_mapping_count,
@@ -750,6 +793,7 @@ def _build_page_findings(
                 ),
                 "high_confidence_signals": _page_high_confidence_signals(
                     page=page,
+                    audit_disposition=audit_disposition,
                     dominant_orientation=dominant_orientation,
                     non_discard_pair_count=non_discard_pair_count,
                     high_confidence_pair_count=high_confidence_pair_count,
@@ -759,6 +803,7 @@ def _build_page_findings(
                 ),
                 "open_questions": _page_open_questions(
                     page=page,
+                    audit_disposition=audit_disposition,
                     table_like=table_like,
                     route_target=route_target,
                     line_group_count=line_group_count,
@@ -810,6 +855,11 @@ def _build_findings_payload(
         page_classifications=page_classifications,
         table_mappings=table_mappings,
     )
+    disposition_counts = _count_labels(
+        [item.get("audit_disposition") for item in page_findings],
+        missing_label="unknown",
+    )
+    included_audit_pages = sum(1 for item in page_findings if item.get("audit_disposition") == "audit_required")
     persisted_findings_artifacts = [
         "findings.md",
         "findings.json",
@@ -839,13 +889,14 @@ def _build_findings_payload(
         "invalid_dwg_files": manifest.invalid_dwg_files,
         "primary_audit_pages": len(primary_pages),
         "supplemental_audit_pages": len(supplemental_pages),
-        "included_audit_pages": len(primary_pages) + len(supplemental_pages),
+        "included_audit_pages": included_audit_pages,
         "audit_page_counts": {
             "primary": len(primary_pages),
             "supplemental": len(supplemental_pages),
             "secondary": len(secondary_pages),
             "skip": len(skipped_pages),
         },
+        "audit_disposition_counts": disposition_counts,
         "converted_pages": len(converted),
         "failed_pages": len(failed),
         "sidecars": [record_dict(sidecar) for sidecar in manifest.sidecars],
@@ -904,6 +955,7 @@ def _build_page_finding_markdown(page_finding: dict[str, Any]) -> str:
         f"- PageType: `{_display_value(page_finding.get('page_type'))}`",
         f"- PageTypeConfidence: `{_format_confidence(page_finding.get('page_type_confidence'))}`",
         f"- AuditRole: `{_display_value(page_finding.get('audit_role'))}`",
+        f"- AuditDisposition: `{_display_value(page_finding.get('audit_disposition'))}`",
         f"- RouteTarget: `{_display_value(page_finding.get('route_target'))}`",
         "",
         "## Layout Summary",
@@ -991,6 +1043,7 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             "## 抽取统计",
             "",
             f"- AuditPageCounts: `{json.dumps(payload['audit_page_counts'], ensure_ascii=False, sort_keys=True)}`",
+            f"- AuditDispositionCounts: `{json.dumps(payload['audit_disposition_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- Texts: `{payload['stats']['texts']}`",
             f"- Lines: `{payload['stats']['lines']}`",
             f"- Blocks: `{payload['stats']['blocks']}`",

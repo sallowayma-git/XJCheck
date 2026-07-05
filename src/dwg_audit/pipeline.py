@@ -12,6 +12,7 @@ from dwg_audit.ingest import convert_source_files
 from dwg_audit.ingest import discover_project_roots
 from dwg_audit.ingest import scan_project
 from dwg_audit.page_classifier import classify_pages
+from dwg_audit.page_router import disposition_requires_audit
 from dwg_audit.page_router import enrich_pages_from_classifications
 from dwg_audit.page_router import route_supports_table
 from dwg_audit.report import write_project_artifacts
@@ -19,6 +20,12 @@ from dwg_audit.extract import extract_cad_artifacts
 
 
 def _is_downstream_audit_page(page) -> bool:
+    disposition = getattr(page, "audit_disposition", None)
+    if disposition is not None:
+        return (
+            disposition_requires_audit(disposition)
+            and page.audit_area_bbox is not None
+        )
     return (
         page.is_primary_audit_candidate
         and page.audit_area_bbox is not None

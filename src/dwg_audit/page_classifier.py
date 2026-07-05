@@ -29,6 +29,12 @@ _TABLE_MIN_HORIZONTAL_RATIO = 0.6
 _GRID_HEAVY_MIN_BAND = 8
 _GRID_HEAVY_MIN_HORIZONTAL_RATIO = 0.7
 _VERTICAL_COMPONENT_MIN_VERTICAL_RATIO = 0.55
+_AUDIT_ROUTE_TARGETS = {
+    "WireDiagramExtractor",
+    "ComponentDiagramExtractor",
+    "TerminalDiagramExtractor",
+    "TableExtractor",
+}
 
 
 def classify_pages(
@@ -202,6 +208,8 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
         confidence = 0.3
         route_target = "LayoutOnlyExtractor"
 
+    audit_disposition = _infer_audit_disposition(page, route_target)
+
     return PageClassification(
         sheet_id=page.sheet_id,
         page_type=page_type,
@@ -211,7 +219,18 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
         grid_heavy=grid_heavy,
         route_target=route_target,
         features=features,
+        audit_disposition=audit_disposition,
     )
+
+
+def _infer_audit_disposition(page: SheetRecord, route_target: str) -> str:
+    if page.audit_role == "skip" or route_target == "SkipExtractor":
+        return "skip_stable"
+    if page.audit_role == "supplemental":
+        return "audit_required"
+    if route_target in _AUDIT_ROUTE_TARGETS:
+        return "audit_required"
+    return "classify_only"
 
 
 def classification_to_dict(classification: PageClassification) -> dict[str, Any]:

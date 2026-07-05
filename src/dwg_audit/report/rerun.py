@@ -102,6 +102,9 @@ def _sheet_record(row: pd.Series) -> SheetRecord:
         frame_bbox=_json_bbox(row.get("frame_bbox")),
         title_block_bbox=_json_bbox(row.get("title_block_bbox")),
         audit_area_bbox=_json_bbox(row.get("audit_area_bbox")),
+        page_type_confidence=_nullable_float(row.get("page_type_confidence")),
+        route_target=_nullable_str(row.get("route_target")),
+        audit_disposition=_nullable_str(row.get("audit_disposition")),
     )
 
 

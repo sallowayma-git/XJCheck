@@ -83,9 +83,11 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert findings_payload["page_findings"][0]["sheet_id"] == "S0001"
     assert findings_payload["page_findings"][0]["file_id"] == "F0001"
     assert findings_payload["page_findings"][0]["audit_role"] == "skip"
+    assert findings_payload["page_findings"][0]["audit_disposition"] == "skip_stable"
     assert findings_payload["page_findings"][0]["filename"] == "01.dwg"
     assert findings_payload["page_findings"][0]["route_target"] == "SkipExtractor"
     assert findings_payload["page_findings"][0]["structure_summary"]["pair_count"] == 0
+    assert findings_payload["audit_disposition_counts"] == {"skip_stable": 1}
     assert "page_findings/" not in findings_payload["artifacts"]["findings"]
 
 
@@ -159,9 +161,11 @@ def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path
     assert page_finding_payload["file_id"] == "F0001"
     assert page_finding_payload["filename"] == "01.dwg"
     assert page_finding_payload["audit_role"] == "skip"
+    assert page_finding_payload["audit_disposition"] == "skip_stable"
     assert page_finding_payload["route_target"] == "SkipExtractor"
     assert page_finding_payload["structure_summary"]["pair_count"] == 0
     assert "# Page Findings `S0001`" in page_finding_text
+    assert "- AuditDisposition: `skip_stable`" in page_finding_text
     assert "- RouteTarget: `SkipExtractor`" in page_finding_text
 
 
@@ -267,6 +271,7 @@ def test_write_project_artifacts_summarizes_terminal_candidate_channels(tmp_path
     findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
 
     channel_counts = findings_payload["page_findings"][0]["structure_summary"]["terminal_candidate_channel_counts"]
+    assert findings_payload["page_findings"][0]["audit_disposition"] == "audit_required"
     assert channel_counts == {
         "noise_channel": 1,
         "semantic_channel": 1,
@@ -344,6 +349,7 @@ def test_write_project_artifacts_summarizes_continuation_pair_kinds(tmp_path: Pa
     findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
 
     assert findings_payload["pair_evidence_summary"]["pair_kind_counts"] == {"continuation": 1}
+    assert findings_payload["page_findings"][0]["audit_disposition"] == "audit_required"
     assert findings_payload["page_findings"][0]["structure_summary"]["pair_kind_counts"] == {"continuation": 1}
 
 
@@ -740,6 +746,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert findings_payload["pair_evidence_summary"]["pairs_with_evidence"] == 3
     assert findings_payload["pair_evidence_summary"]["review_pairs"] == 1
     assert findings_payload["pair_evidence_summary"]["confidence_bucket_counts"] == {"high": 1, "low": 1, "review": 1}
+    assert findings_payload["audit_disposition_counts"] == {"audit_required": 1}
     assert findings_payload["pair_evidence_summary"]["examples"][0]["summary"] == (
         "filename=04.dwg, sheet_no=04, sheet_order=4, line_group=G0001, left_value=101, right_value=201"
     )
@@ -747,6 +754,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "## Pair Evidence 摘要" in findings_text
     assert "## 待复核 Pair 概览" in findings_text
     assert "## 代表性 Pair 证据" in findings_text
+    assert "AuditDispositionCounts: `{\"audit_required\": 1}`" in findings_text
     assert "ConfidenceBuckets: `{\"high\": 1, \"low\": 1, \"review\": 1}`" in findings_text
     assert "ReviewPairs: `1`" in findings_text
     assert "filename=04.dwg, sheet_no=04, sheet_order=4, line_group=G0001, left_value=101, right_value=201" in findings_text

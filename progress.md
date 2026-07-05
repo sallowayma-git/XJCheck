@@ -698,3 +698,26 @@
   - `issues.json` 中 continuation 相关 issue 数为 `0`
 - 本轮本地提交：
   - `d177a00` `Add explicit terminal semantic candidate channels`
+
+## Session Update 2026-07-06 (Phase 19)
+- 先按任务书与当前头部代码重新核对了 `audit_disposition`：
+  - 任务书要求页级分类结果必须显式给出 `audit_required / classify_only / skip_stable`
+  - 当前代码此前仍只有 `audit_role + route_target`，pipeline 也仍由 `is_primary_audit_candidate` 控制下游准入
+- 本轮只推进这一条最小分类合同闭环：
+  - `SheetRecord` / `PageClassification` 新增 `audit_disposition`
+  - `page_classifier.py` 现在与 `route_target` 一起产出 disposition
+  - `page_router.py` 回填 disposition，并让 `is_primary_audit_candidate` 跟随它同步
+  - `pipeline.py` 的 `_is_downstream_audit_page()` 现在优先看 `audit_disposition == "audit_required"`
+  - `report/artifacts.py` 与 `report/rerun.py` 现在会在 `pages.parquet`、`findings.json`、`page_findings` markdown/json 中透出 disposition，并新增 `audit_disposition_counts`
+- 本轮新增验证：
+  - `python -m pytest -q tests/unit/test_page_classifier.py tests/unit/test_report_artifacts.py tests/integration/test_analyze_project.py -k "audit_disposition or classify_pages or write_project_artifacts or includes_supplemental_pages_in_downstream_audit or routes_table_like_page_to_table_extractor or can_include_backplate_pages_as_supplemental_audit"` -> `19 passed`
+  - `python -m pytest -q` -> `148 passed`
+  - `python -m dwg_audit.cli analyze-project --input test\\变压器测控柜(2圈变，2台测控) --output .tmp\\phase22_audit_disposition_second` + `run-audit` -> 真实样本通过
+- 第二套真实样本新证据：
+  - `pages.parquet` 的 `route_target` 分布保持 `13/2/4/2/3`
+  - `pages.parquet` / `findings.json` 现在显式带 `audit_disposition`
+  - `audit_disposition_counts = {'audit_required': 19, 'classify_only': 2, 'skip_stable': 3}`
+  - `included_audit_pages = 19`
+  - `17/18` 背板页现在稳定表现为 `route_target=LayoutOnlyExtractor`、`audit_disposition=classify_only`
+  - `19/20` 元件页、`21-24` 端子页保持 `audit_disposition=audit_required`
+  - 第二套 `issue_count` 保持 `697`，没有因这条合同收口引入额外回退

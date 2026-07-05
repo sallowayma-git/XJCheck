@@ -108,6 +108,7 @@ def test_classify_pages_marks_grid_heavy_wire_diagram() -> None:
     assert classification.grid_heavy is True
     assert classification.page_type == "二次原理图"
     assert classification.page_subtype == "grid_heavy_wire_diagram"
+    assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "WireDiagramExtractor"
     assert classification.features["grid_band_count"] >= 8
 
@@ -145,6 +146,7 @@ def test_classify_pages_marks_table_like_page() -> None:
 
     assert classification.table_like is True
     assert classification.page_type == "表格型图"
+    assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "TableExtractor"
 
 
@@ -164,6 +166,7 @@ def test_classify_pages_marks_vertical_component_page() -> None:
 
     assert classification.page_type == "元件接线图"
     assert classification.page_subtype == "vertical_component"
+    assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "ComponentDiagramExtractor"
 
 
@@ -183,6 +186,7 @@ def test_classify_pages_vertical_component_takes_priority_over_grid_heavy() -> N
 
     # 应判为 vertical_component，而不是 grid_heavy_wire_diagram
     assert classification.page_subtype == "vertical_component"
+    assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "ComponentDiagramExtractor"
 
 
@@ -202,6 +206,7 @@ def test_classify_pages_horizontal_component_takes_priority_over_grid_heavy() ->
 
     assert classification.page_type == "元件接线图"
     assert classification.page_subtype == "horizontal_component"
+    assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "ComponentDiagramExtractor"
 
 
@@ -236,6 +241,7 @@ def test_classify_pages_component_takes_priority_over_table_like_geometry() -> N
 
     assert classification.page_type == "元件接线图"
     assert classification.page_subtype == "horizontal_component"
+    assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "ComponentDiagramExtractor"
 
 
@@ -252,6 +258,7 @@ def test_classify_pages_skips_non_audit_page() -> None:
     classification = classifications["S1"]
 
     assert classification.route_target == "SkipExtractor"
+    assert classification.audit_disposition == "skip_stable"
 
 
 def test_classify_pages_features_contain_grid_band_count() -> None:
@@ -265,3 +272,20 @@ def test_classify_pages_features_contain_grid_band_count() -> None:
     assert "grid_band_count" in classification.features
     assert classification.features["grid_band_count"] == 5
     assert "horizontal_line_ratio" in classification.features
+
+
+def test_classify_pages_marks_layout_page_as_classify_only() -> None:
+    """背板/布置类页面默认只做分类，不进入配对审计。"""
+    sheet = _make_sheet(
+        filename="17 背板接线图1.dwg",
+        sheet_title="背板接线图1",
+        sheet_category="背板接线图",
+        audit_role="secondary",
+    )
+
+    classifications = classify_pages([sheet], [], [], [], [], DEFAULT_CONFIG)
+    classification = classifications["S1"]
+
+    assert classification.page_type == "背板接线图"
+    assert classification.route_target == "LayoutOnlyExtractor"
+    assert classification.audit_disposition == "classify_only"

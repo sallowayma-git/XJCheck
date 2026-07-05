@@ -72,6 +72,7 @@ class SheetRecord:
     audit_area_bbox: BBox | None = None
     page_type_confidence: float | None = None
     route_target: str | None = None
+    audit_disposition: str | None = None
 
 
 @dataclass(slots=True)
@@ -271,6 +272,7 @@ class PageClassification:
     grid_heavy: bool
     route_target: str
     features: dict[str, Any] = field(default_factory=dict)
+    audit_disposition: str = "classify_only"
 
 
 @dataclass(slots=True)

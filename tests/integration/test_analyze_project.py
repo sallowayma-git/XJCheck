@@ -123,14 +123,18 @@ def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
     pairs = pd.read_parquet(findings_dir / "pairs.parquet")
 
     page_roles = {row["filename"]: row["audit_role"] for _, row in pages.iterrows()}
+    page_dispositions = {row["filename"]: row["audit_disposition"] for _, row in pages.iterrows()}
     page_primary = {row["filename"]: bool(row["is_primary_audit_candidate"]) for _, row in pages.iterrows()}
     sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
 
     assert page_roles["04 回路图.dwg"] == "primary"
+    assert page_dispositions["04 回路图.dwg"] == "audit_required"
     assert page_primary["04 回路图.dwg"] is True
     assert page_roles["07 屏端子图.dwg"] == "supplemental"
+    assert page_dispositions["07 屏端子图.dwg"] == "audit_required"
     assert page_primary["07 屏端子图.dwg"] is True
     assert page_roles["08 封面.dwg"] == "skip"
+    assert page_dispositions["08 封面.dwg"] == "skip_stable"
     assert page_primary["08 封面.dwg"] is False
     assert findings_payload["page_findings_count"] == len(findings_payload["page_findings"]) == len(pages)
     assert not page_findings_dir.exists()
@@ -153,6 +157,10 @@ def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
         "secondary": 0,
         "skip": 1,
         "supplemental": 1,
+    }
+    assert findings_payload["audit_disposition_counts"] == {
+        "audit_required": 2,
+        "skip_stable": 1,
     }
 
 
@@ -244,8 +252,10 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
     wire_page = page_findings["04 回路图.dwg"]
 
     assert wire_page["page_type"] == "二次原理图"
+    assert wire_page["audit_disposition"] == "audit_required"
     assert wire_page["route_target"] == "WireDiagramExtractor"
     assert table_page["page_type"] == "表格型图"
+    assert table_page["audit_disposition"] == "audit_required"
     assert table_page["route_target"] == "TableExtractor"
     assert table_page["structure_summary"]["table_mapping_count"] == 3
     assert table_page["structure_summary"]["three_column_table"] is True
@@ -320,11 +330,13 @@ def test_analyze_project_can_include_backplate_pages_as_supplemental_audit(
     line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
 
     page_roles = {row["filename"]: row["audit_role"] for _, row in pages.iterrows()}
+    page_dispositions = {row["filename"]: row["audit_disposition"] for _, row in pages.iterrows()}
     page_primary = {row["filename"]: bool(row["is_primary_audit_candidate"]) for _, row in pages.iterrows()}
     sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
 
     assert page_roles["04 回路图.dwg"] == "primary"
     assert page_roles["17 背板接线图1.dwg"] == "supplemental"
+    assert page_dispositions["17 背板接线图1.dwg"] == "audit_required"
     assert page_primary["17 背板接线图1.dwg"] is True
     assert set(line_groups["sheet_id"].tolist()) == {
         sheet_by_file["04 回路图.dwg"],
@@ -339,6 +351,7 @@ def test_analyze_project_can_include_backplate_pages_as_supplemental_audit(
         "skip": 0,
         "supplemental": 1,
     }
+    assert findings_payload["audit_disposition_counts"] == {"audit_required": 2}
 
 
 def test_analyze_project_applies_terminal_page_numeric_suffix_override(

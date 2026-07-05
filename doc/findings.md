@@ -3096,3 +3096,80 @@ Batch 2 已完成的端子页是：
 1. 继续用总 issue 数升降评估 continuation 切片成败
 2. 回到桌面端 / Tauri / preview 交互细节
 3. 在没有显式 relation contract 的前提下，继续只在 `candidates.py` 里堆更多全局阈值
+
+## 63. 2026-07-06 `phase22_audit_disposition_second`：`audit_disposition` 已进入分类、准入和 findings 合同
+
+这一轮只收口一条最近的分类合同缺口：
+
+- 任务书第 4/5 层要求页级分类结果除了 `page_type` 之外，还要显式提供 `audit_disposition`
+- 当前代码此前只有 `audit_role + route_target`
+- pipeline 也还是靠 `is_primary_audit_candidate` 决定哪些页进入下游审计
+
+### 63.1 本轮代码变化
+
+- [models.py](/F:/workspace/XJToolkit/src/dwg_audit/domain/models.py)
+  - `SheetRecord` 新增：
+    - `audit_disposition`
+  - `PageClassification` 新增：
+    - `audit_disposition`
+- [page_classifier.py](/F:/workspace/XJToolkit/src/dwg_audit/page_classifier.py)
+  - 分类结果现在会同时给出：
+    - `audit_required`
+    - `classify_only`
+    - `skip_stable`
+  - 最小判定保持保守：
+    - `SkipExtractor` -> `skip_stable`
+    - `supplemental` 或真实审计型 route -> `audit_required`
+    - 其余 layout-only 页 -> `classify_only`
+- [page_router.py](/F:/workspace/XJToolkit/src/dwg_audit/page_router.py)
+  - `enrich_pages_from_classifications()` 现在会把 `audit_disposition` 回填到 `SheetRecord`
+  - `is_primary_audit_candidate` 现在跟随 `audit_disposition == audit_required` 同步
+- [pipeline.py](/F:/workspace/XJToolkit/src/dwg_audit/pipeline.py)
+  - `_is_downstream_audit_page()` 现在优先按 `audit_disposition` 决定下游纳入，而不是继续只看 scan 阶段旧字段
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+  - `findings.json` / `page_findings` 现在显式落：
+    - `audit_disposition`
+    - `audit_disposition_counts`
+  - findings markdown 与 page findings markdown 也会显示这一字段
+- [rerun.py](/F:/workspace/XJToolkit/src/dwg_audit/report/rerun.py)
+  - `run-audit --findings` 回放 `pages.parquet` 时会把 `audit_disposition` 读回运行态
+
+### 63.2 定向与全量测试结果
+
+- `python -m pytest -q tests/unit/test_page_classifier.py tests/unit/test_report_artifacts.py tests/integration/test_analyze_project.py -k "audit_disposition or classify_pages or write_project_artifacts or includes_supplemental_pages_in_downstream_audit or routes_table_like_page_to_table_extractor or can_include_backplate_pages_as_supplemental_audit"`
+  - `19 passed`
+- `python -m pytest -q`
+  - `148 passed`
+
+### 63.3 第二套真实样本 rerun 结果
+
+- [phase22_audit_disposition_second/2_2](/F:/workspace/XJToolkit/.tmp/phase22_audit_disposition_second/2_2)
+- `pages.parquet` / `findings.json` 现在显式给出：
+  - `audit_disposition_counts = {'audit_required': 19, 'classify_only': 2, 'skip_stable': 3}`
+  - `included_audit_pages = 19`
+- `route_target` 分布保持不变：
+  - `WireDiagramExtractor: 13`
+  - `ComponentDiagramExtractor: 2`
+  - `TerminalDiagramExtractor: 4`
+  - `LayoutOnlyExtractor: 2`
+  - `SkipExtractor: 3`
+- 关键页当前表现：
+  - `17 测控1装置背板.dwg` -> `LayoutOnlyExtractor + classify_only`
+  - `19 元件接线图1.dwg` -> `ComponentDiagramExtractor + audit_required`
+  - `21 左侧端子图1.dwg` -> `TerminalDiagramExtractor + audit_required`
+  - `01 封面.dwg` -> `SkipExtractor + skip_stable`
+- `run-audit` 总 issue 保持：
+  - `697`
+
+### 63.4 这轮对任务书主链的真正意义
+
+这轮补的不是单纯字段名，而是把“页级分类结果决定后续准入”这件事变成了显式合同：
+
+- **`audit_disposition`：已完成并落盘**
+- **pipeline 用 classifier-produced disposition 接管下游准入：已完成**
+- **findings / page findings / pages.parquet 中可见 disposition：已完成**
+
+所以，这条现在不应再被描述为“只有 `audit_role + route_target` 的近似实现”。更准确的状态已经变成：
+
+- **分类级 `audit_disposition` 合同：已完成**
+- **剩余最近缺口重新收敛到 continuation / bridge / semantic 关系解释，而不再是页级准入字段缺失**

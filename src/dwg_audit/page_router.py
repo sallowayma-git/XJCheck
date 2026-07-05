@@ -66,6 +66,10 @@ def route_supports_table(route_target: str | None) -> bool:
     return route_target == "TableExtractor"
 
 
+def disposition_requires_audit(audit_disposition: str | None) -> bool:
+    return audit_disposition == "audit_required"
+
+
 def enrich_pages_with_routing(
     pages: list[SheetRecord],
     lines: list[LineEntity],
@@ -91,7 +95,7 @@ def enrich_pages_from_classifications(
     pages: list[SheetRecord],
     classifications: dict[str, PageClassification],
 ) -> None:
-    """用 PageClassifier 输出回填 route_target / page_type_confidence。
+    """用 PageClassifier 输出回填 route_target / page_type_confidence / audit_disposition。
 
     pipeline 在 extract 之后调用此函数，让真实几何特征驱动的路由覆盖 scan 阶段的粗推断。
     """
@@ -101,3 +105,5 @@ def enrich_pages_from_classifications(
             continue
         page.route_target = classification.route_target
         page.page_type_confidence = classification.page_type_confidence
+        page.audit_disposition = classification.audit_disposition
+        page.is_primary_audit_candidate = disposition_requires_audit(classification.audit_disposition)
