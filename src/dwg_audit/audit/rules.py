@@ -148,7 +148,11 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
                     explanation="同一左侧数字在不同页映射到了不同右侧数字，存在跨页一致性冲突。",
                     recommended_action="核对相关页的引用关系、页号和重复配对来源。",
                     related_pairs=linked_pairs,
-                    extra={"conflicting_values": sorted(rights), "sheet_ids": sorted(sheet_ids)},
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "conflict",
+                    },
                 )
             )
     return issues
@@ -157,22 +161,54 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
 def _run_one_to_many(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     graph, left_to_pairs, _ = _graph_maps(_high_confidence_pairs(context))
+    branch_allowlist = _one_to_many_branch_left_values(context.config)
     for left_value, rights in graph.left_to_rights.items():
         linked_pairs = left_to_pairs[left_value]
-        if len(rights) > 1:
-            first = linked_pairs[0]
+        if len(rights) <= 1:
+            continue
+
+        sheet_ids = {pair.sheet_id for pair in linked_pairs}
+        if len(sheet_ids) > 1:
+            continue
+
+        first = linked_pairs[0]
+        if left_value in branch_allowlist:
             issues.append(
                 context.issue_factory.build(
                     "R-ONE-TO-MANY",
-                    "high",
+                    "low",
                     pair=first,
-                    message=f"Left value {left_value} maps to multiple right values.",
-                    title="一对多配对",
-                    explanation="同一左值对应多个右值，需要人工确认是否属于合法分支还是错误配对。",
+                    message=f"Left value {left_value} fans out to multiple right values under an allowed branch rule.",
+                    title="一对多合法分支",
+                    explanation="该左值命中了项目允许的一对多配置，作为结构现象保留可见，但默认不记为错误。",
+                    recommended_action="若该左值不应再允许分支，请移除项目配置并重新复核相关配对。",
                     related_pairs=linked_pairs,
-                    extra={"conflicting_values": sorted(rights)},
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "branch",
+                    },
                 )
             )
+            continue
+
+        issues.append(
+            context.issue_factory.build(
+                "R-ONE-TO-MANY",
+                "review",
+                pair=first,
+                message=f"Left value {left_value} maps to multiple right values and requires review.",
+                title="一对多待复核",
+                explanation="同一左值对应多个右值，但当前缺少足够证据判定为合法分支或明确冲突，默认保守进入 review。",
+                recommended_action="人工核对相关页上下文、反向引用和项目允许分支规则，再决定是否升级为 branch 或 conflict。",
+                related_pairs=linked_pairs,
+                extra={
+                    "conflicting_values": sorted(rights),
+                    "sheet_ids": sorted(sheet_ids),
+                    "one_to_many_classification": "review",
+                },
+            )
+        )
     return issues
 
 
@@ -268,6 +304,11 @@ def _graph_maps(
     return summary, left_to_pairs, right_to_pairs
 
 
+def _one_to_many_branch_left_values(config: dict) -> set[str]:
+    configured = config.get("rules", {}).get("one_to_many_branch_left_values", [])
+    return {str(value) for value in configured if value is not None}
+
+
 def _ambiguous_candidate_groups(
     terminal_candidates: list[TerminalCandidate],
     duplicate_delta: float,
@@ -326,8 +367,8 @@ _RULES = [
     AuditRule(
         rule_id="R-ONE-TO-MANY",
         name="One To Many",
-        description="One left-side value maps to multiple right-side values.",
-        severity_default="high",
+        description="One left-side value maps to multiple right-side values and must be triaged as branch or review.",
+        severity_default="review",
         runner=_run_one_to_many,
         input_tables=("pairs",),
         output_issue_type="one_to_many",

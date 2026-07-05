@@ -108,7 +108,7 @@ def test_rules_detect_cross_page_conflict() -> None:
     issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
 
     assert any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
-    assert any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
+    assert not any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
     conflict = next(issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT")
     assert conflict.severity == "critical"
     assert conflict.evidence["filename"] == "a.dwg"
@@ -117,6 +117,7 @@ def test_rules_detect_cross_page_conflict() -> None:
     assert conflict.evidence["line_start"] == [0, 0]
     assert conflict.evidence["line_end"] == [10, 0]
     assert sorted(conflict.evidence["conflicting_values"]) == ["201", "202"]
+    assert conflict.evidence["one_to_many_classification"] == "conflict"
     assert conflict.evidence_refs[0]["filename"] == "a.dwg"
 
 
@@ -260,6 +261,53 @@ def test_rules_ignore_low_confidence_pairs_for_cross_page_conflict() -> None:
 
     assert not any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
     assert any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" for issue in issues)
+
+
+def test_rules_emit_one_to_many_review_for_same_sheet_multi_target() -> None:
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"}),
+        Pair("P2", "G2", "S1", "F1", "PC2", "101", "202", 0.96, "pass", "ok", [], "high", {"filename": "a.dwg"}),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 20, 0, 30, 0, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert review.severity == "review"
+    assert review.title == "一对多待复核"
+    assert review.related_pair_ids == ["P2"]
+    assert review.evidence["conflicting_values"] == ["201", "202"]
+    assert review.evidence["one_to_many_classification"] == "review"
+
+
+def test_rules_emit_one_to_many_branch_when_left_value_allowlisted() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    config["rules"]["one_to_many_branch_left_values"] = ["101"]
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"}),
+        Pair("P2", "G2", "S1", "F1", "PC2", "101", "202", 0.96, "pass", "ok", [], "high", {"filename": "a.dwg"}),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 20, 0, 30, 0, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, config)
+
+    branch = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert branch.severity == "minor"
+    assert branch.title == "一对多合法分支"
+    assert branch.evidence["one_to_many_classification"] == "branch"
+    assert branch.related_pair_ids == ["P2"]
 
 
 def test_rules_skip_discard_pairs_for_pair_quality_issues() -> None:

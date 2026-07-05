@@ -210,38 +210,11 @@ def test_rerun_audit_from_findings_matches_golden_snapshot(tmp_path: Path) -> No
                 {"pair_id": "P0002", "filename": "05.dwg", "sheet_no": "05"},
             ],
         },
-        {
-            "rule_id": "R-ONE-TO-MANY",
-            "severity": "critical",
-            "title": "一对多配对",
-            "primary_pair_id": "P0001",
-            "related_pair_ids": ["P0002"],
-            "sheet_ids": ["S0001", "S0002"],
-            "values": ["101", "201", "202"],
-            "evidence": {
-                "filename": "04.dwg",
-                "sheet_no": "04",
-                "sheet_order": 4,
-                "line_start": [0, 0],
-                "line_end": [30, 0],
-                "conflicting_values": ["201", "202"],
-                "pair_evidence": {
-                    "filename": "04.dwg",
-                    "sheet_no": "04",
-                    "sheet_order": 4,
-                    "selected_score": 0.97,
-                },
-            },
-            "evidence_refs": [
-                {"pair_id": "P0001", "filename": "04.dwg", "sheet_no": "04"},
-                {"pair_id": "P0002", "filename": "05.dwg", "sheet_no": "05"},
-            ],
-        },
     ]
 
     report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
     assert "R-CROSS-PAGE-CONFLICT" in report_text
-    assert "R-ONE-TO-MANY" in report_text
+    assert "R-ONE-TO-MANY" not in report_text
     assert "sheet_order=4" in report_text
     assert "line_group=G0001" in report_text
 

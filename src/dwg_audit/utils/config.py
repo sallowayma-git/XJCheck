@@ -88,6 +88,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "R-DUPLICATE-PAIR",
         ],
         "reciprocal_required": False,
+        "one_to_many_branch_left_values": [],
     },
     "report": {
         "include_low_confidence_pairs": True,
