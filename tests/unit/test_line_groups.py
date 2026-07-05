@@ -122,3 +122,34 @@ def test_build_line_groups_uses_vertical_orientation_for_component_pages() -> No
     assert groups[0].end_x == 60.0
     assert groups[0].start_y == 80.0
     assert groups[0].end_y == 40.0
+
+
+def test_build_line_groups_filters_component_vertical_length_outlier() -> None:
+    lines = [
+        LineEntity("L0", "S1", "F1", "H0", "LINE", "WIRE", 25.0, 290.0, 25.0, 5.0, 285.0, -90.0, 25.0, 5.0, 25.0, 290.0),
+        LineEntity("L1", "S1", "F1", "H1", "LINE", "WIRE", 60.0, 80.0, 60.0, 40.0, 40.0, -90.0, 60.0, 40.0, 60.0, 80.0),
+        LineEntity("L2", "S1", "F1", "H2", "LINE", "WIRE", 100.0, 80.0, 100.0, 40.0, 40.0, -90.0, 100.0, 40.0, 100.0, 80.0),
+        LineEntity("L3", "S1", "F1", "H3", "LINE", "WIRE", 140.0, 80.0, 140.0, 40.0, 40.0, -90.0, 140.0, 40.0, 140.0, 80.0),
+        LineEntity("L4", "S1", "F1", "H4", "LINE", "WIRE", 180.0, 80.0, 180.0, 40.0, 40.0, -90.0, 180.0, 40.0, 180.0, 80.0),
+        LineEntity("L5", "S1", "F1", "H5", "LINE", "WIRE", 220.0, 80.0, 220.0, 40.0, 40.0, -90.0, 220.0, 40.0, 220.0, 80.0),
+    ]
+    sheets = [
+        SheetRecord(
+            sheet_id="S1",
+            file_id="F1",
+            filename="20 元件接线图2.dwg",
+            sheet_order=20,
+            sheet_no="20",
+            sheet_title="元件接线图2",
+            sheet_category="元件接线图",
+            audit_role="supplemental",
+            page_no_source="filename",
+            is_primary_audit_candidate=True,
+            audit_area_bbox=(0.0, 0.0, 240.0, 300.0),
+        )
+    ]
+
+    groups = build_line_groups(lines, sheets, DEFAULT_CONFIG, [])
+
+    assert len(groups) == 5
+    assert all("L0" not in group.member_line_ids for group in groups)

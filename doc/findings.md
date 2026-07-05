@@ -1250,3 +1250,124 @@ second-set 新 audit 结果：
 - 更精细的 inline bridge 触发条件
 - 是否把类似聚合扩展到 vertical 页型
 - 是否在 UI / report 上为“互补半链”提供更显式的展示语义
+
+## 42. 2026-07-05 `元件接线图2` 的 vertical 噪声已先做“共享锚点去重 + 超长线过滤”，issue 从 55 降到 27
+
+上一轮把 `20 元件接线图2.dwg` 拉进了主链，但主结果仍然是：
+
+- `55 line_groups / 55 pairs / 55 issues`
+- 其中几乎清一色是 `1 -> 2`
+
+这一轮继续只看真实产物，主线程与两个只读子代理都得出了同一结论：这页的首要问题不是“候选分数略低”，而是**同一文本锚点被两根相邻竖线同时复用**。
+
+### 42.1 噪声结构已经很清楚
+
+以 [phase7_vertical_component_second/2_2](/F:/workspace/XJToolkit/.tmp/phase7_vertical_component_second/2_2) 的 findings 为证：
+
+- `20` 的 accepted candidate 一共有 `110` 个：
+  - `top = 55`
+  - `bottom = 55`
+- `110/110` 全都来自：
+  - `layer = 0`
+  - `text_len = 1`
+  - value 只有：
+    - `1`
+    - `2`
+- 其中 `54` 根短竖线并不是独立单元，而是 `27` 组相邻双线：
+  - `x` 间距稳定约 `5`
+  - `length` 基本都是 `15`
+  - 每组双线复用同一对 `top/bottom text_id`
+
+主线程实查到的典型复用模式：
+
+- `T2512 / T2511` 同时被 `G0707` 和 `G0710` 命中
+- `T2467 / T2466` 同时被 `G0708` 和 `G0711` 命中
+
+这就解释了为什么上一轮会稳定产生：
+
+- `54` 条 `1 -> 2`
+- `1` 条 `1 -> 1`
+
+而且都不是“多候选竞争选错”，而是每个 group-side 本来就只剩 1 个 accepted。
+
+### 42.2 本轮实现：先去重共享锚点，再摘掉长线离群点
+
+本轮在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 增加了 vertical component 页专用后处理：
+
+- 只对：
+  - `sheet_category == 元件接线图`
+  - `group.orientation == vertical`
+  生效
+- 同一：
+  - `sheet_id`
+  - `side`
+  - `text_id`
+  若被多个 line_group 同时 accepted：
+  - 只保留距离端点最近的一条
+  - 其余改为：
+    - `status = rejected`
+    - `rejection_reason = shared_text_anchor_reused`
+
+同时在 [line_groups.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/line_groups.py) 增加了一个很窄的 vertical outlier 过滤：
+
+- 只对 `元件接线图 + vertical` 生效
+- 用该页 vertical candidate 的长度中位数做基准
+- 过滤 `> 3x median` 的极端长线
+
+这样做的目标不是“彻底理解页语义”，而是先把这页最确定的两类噪声打掉：
+
+- 一类是共享文本锚点的成对重复
+- 一类是 `G0706` 这种明显不像真实端子线的超长边框线
+
+### 42.3 测试与真实收益
+
+新增并通过：
+
+- 共享 `text_id` 的 vertical component candidate 去重单测
+- vertical component 长线离群过滤单测
+
+全量回归：
+
+- `python -m pytest -q`
+  - `99 passed`
+
+新的 second-set 实跑目录：
+
+- [phase8_vertical_dedupe_longline_second/2_2](/F:/workspace/XJToolkit/.tmp/phase8_vertical_dedupe_longline_second/2_2)
+
+与上一轮 [phase7_vertical_component_second/2_2](/F:/workspace/XJToolkit/.tmp/phase7_vertical_component_second/2_2) 对照：
+
+- `19 元件接线图1.dwg`
+  - 保持 `39 line_groups / 39 pairs / 12 issues`
+- `20 元件接线图2.dwg`
+  - 旧：`55 line_groups / 55 pairs / 55 issues`
+  - 新：`54 line_groups / 54 pairs / 27 issues`
+  - 其中：
+    - `shared_text_anchor_reused` 拒收了 `54` 个复用候选
+    - `1 -> 1` 长线离群 pair 已消失
+    - 剩余 `27` 条 issue 全是 `1 -> 2` 的 `R-PAIR-LOW-CONFIDENCE`
+- `08 / 12`
+  - 仍保持：
+    - `49`
+    - `48`
+    条 issue，没有回退
+
+### 42.4 还剩下的真正下一步
+
+`20` 现在已经从“重复扩散 + 离群线混入”推进到了更纯粹的一层：
+
+- 剩余的 `27` 条 `1 -> 2`，本质上是每组竖线模板里，局部 pin 号仍然压过了更长的上下文标签
+
+主线程这轮实查到的另一条重要事实是：在很多端点窗口里，`1/2` 旁边其实同时存在更长的 `TEXT` 标签，例如：
+
+- `3-21CD43`
+- `3-21n419`
+- `1-21CD53`
+- `1-21n427`
+
+但它们当前都因为“不被数值化”而落到 `not_numeric`。这说明下一步最值得继续推进的是：
+
+- `元件接线图` 页专用的 suffix/value 派生规则
+- 或者“单字符 pin 号遇到更长 TEXT 标签时”的上下文降权 / 拒收
+
+也就是说，`20` 的问题已经从“重复复用导致虚胖”推进成了“真实标签理解还不够深”，这比上一轮更接近可用状态。

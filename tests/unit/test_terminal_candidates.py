@@ -322,3 +322,51 @@ def test_build_terminal_candidates_supports_top_bottom_on_vertical_component_gro
     assert bottom_candidate.status == "accepted"
     assert bottom_candidate.rank == 1
     assert bottom_candidate.score > 0.0
+
+
+def test_build_terminal_candidates_dedupes_shared_text_anchor_on_vertical_component_page() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=60.0,
+            start_y=80.0,
+            end_x=60.0,
+            end_y=40.0,
+            length=40.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        ),
+        LineGroup(
+            line_group_id="G2",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=65.0,
+            start_y=80.0,
+            end_x=65.0,
+            end_y=40.0,
+            length=40.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L2"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "20 元件接线图2.dwg", 20, "20", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1", "1", True, "0", 0.0, 2.5, 61.8, 83.8, 60.8, 82.8, 63.8, 85.8),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "2", "2", True, "0", 0.0, 2.5, 61.9, 36.2, 60.9, 35.2, 63.9, 38.2),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    accepted = [item for item in candidates if item.status == "accepted"]
+    rejected = [item for item in candidates if item.rejection_reason == "shared_text_anchor_reused"]
+
+    assert {(item.line_group_id, item.side) for item in accepted} == {("G1", "top"), ("G1", "bottom")}
+    assert {(item.line_group_id, item.side) for item in rejected} == {("G2", "top"), ("G2", "bottom")}

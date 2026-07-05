@@ -52,6 +52,7 @@ def build_terminal_candidates(
 
     indexes = {sheet_id: TextSpatialIndex(sheet_texts) for sheet_id, sheet_texts in by_sheet_texts.items()}
     sheet_map = {sheet.sheet_id: sheet for sheet in sheets or []}
+    group_map = {group.line_group_id: group for group in line_groups}
     candidate_ids = IdFactory("C")
 
     results: list[TerminalCandidate] = []
@@ -141,6 +142,7 @@ def build_terminal_candidates(
                         height_score=height_score,
                     )
                 )
+    _dedupe_shared_text_anchors(results, group_map, sheet_map)
     _assign_candidate_ranks(results)
     return results
 
@@ -246,6 +248,34 @@ def _assign_candidate_ranks(candidates: list[TerminalCandidate]) -> None:
         ranked_candidates.sort(key=lambda item: item.score, reverse=True)
         for index, candidate in enumerate(ranked_candidates, start=1):
             candidate.rank = index
+
+
+def _dedupe_shared_text_anchors(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> None:
+    by_anchor = defaultdict(list)
+    for candidate in candidates:
+        if candidate.status != "accepted" or not candidate.value:
+            continue
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        if group is None or sheet is None:
+            continue
+        if group.orientation != _ORIENTATION_VERTICAL or sheet.sheet_category != "元件接线图":
+            continue
+        by_anchor[(candidate.sheet_id, candidate.side, candidate.text_id)].append(candidate)
+
+    for shared_candidates in by_anchor.values():
+        if len(shared_candidates) <= 1:
+            continue
+        shared_candidates.sort(key=lambda item: (item.distance_x + item.distance_y, -item.score, item.candidate_id))
+        for candidate in shared_candidates[1:]:
+            candidate.status = "rejected"
+            candidate.rejection_reason = "shared_text_anchor_reused"
+            candidate.value = None
+            candidate.rank = None
 
 
 def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, object]:

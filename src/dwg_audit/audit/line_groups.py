@@ -51,6 +51,7 @@ def build_line_groups(
         sheet_texts = by_sheet_texts.get(sheet_id, [])
         orientation = _resolve_orientation(sheet_lines, sheet, config, tol, min_length)
         candidates = _line_candidates(sheet_lines, sheet, orientation, tol, min_length)
+        candidates = _filter_component_vertical_length_outliers(candidates, sheet, orientation)
 
         candidates.sort(key=lambda item: (round(item["cross_axis"], 3), item["start_axis"]))
         active: list[dict] = []
@@ -174,6 +175,23 @@ def _line_candidates(
             continue
         candidates.append(candidate)
     return candidates
+
+
+def _filter_component_vertical_length_outliers(
+    candidates: list[dict[str, object]],
+    sheet: SheetRecord,
+    orientation: str,
+) -> list[dict[str, object]]:
+    if orientation != _ORIENTATION_VERTICAL or sheet.sheet_category != "元件接线图":
+        return candidates
+    lengths = sorted(float(candidate["line"].length) for candidate in candidates)
+    if len(lengths) < 5:
+        return candidates
+    median_length = lengths[len(lengths) // 2]
+    threshold = median_length * 3.0
+    if threshold <= 0:
+        return candidates
+    return [candidate for candidate in candidates if float(candidate["line"].length) <= threshold]
 
 
 def _normalize_line_candidate(
