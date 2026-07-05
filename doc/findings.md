@@ -974,3 +974,133 @@
   - 参数力度是否足够
   - 是否需要按页型进一步加强
   - 是否还存在当前 bridge 逻辑没覆盖到的几何断裂模式
+
+## 37. 2026-07-05 主回路页单字符 `DIM/MARK` 已在 primary 页直接拒收，second-set 相关噪声从 56 对降到 0
+
+在上一轮复核里已经确认：当前代码虽然有 `DIM/MARK` 单字符 penalty，但在 second-set 主回路页里仍然留下了大量“单字符一侧”的 selected pair。实际统计显示：
+
+- 在 [phase6_supplemental_default_second/2_2](/F:/workspace/XJToolkit/.tmp/phase6_supplemental_default_second/2_2) 中，
+  - `primary` 页带单字符一侧的 pair 共有 `56` 个
+  - 其中包含典型模式：
+    - `6 -> 719`
+    - `4 -> 717`
+    - `2 -> 715`
+    - `1 -> 1`
+
+本轮做了更明确的主链收口：
+
+- 在 [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py) 增加：
+  - `page_category_overrides["二次原理图"].text.single_char_reject_layers = ["DIM", "MARK"]`
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 增加 `single_char_layer_filtered` 拒收路径：
+  - 对 `二次原理图` 页上的单字符 `DIM/MARK` 纯数字，直接不再进入 accepted candidate
+  - `屏端子图` 仍保持原有宽松策略，不会把真实单字符端子号一起误杀
+
+回归与实跑结果：
+
+- 单测新增并通过：
+  - `primary` 页：单字符 `DIM` 候选应被 reject
+  - `屏端子图`：单字符 `MARK` 候选仍可 accepted
+- second-set 实跑对照目录：
+  - 旧基线：[phase6_supplemental_default_second/2_2](/F:/workspace/XJToolkit/.tmp/phase6_supplemental_default_second/2_2)
+  - 单字符过滤后：[phase6_primary_single_char_filter_second/2_2](/F:/workspace/XJToolkit/.tmp/phase6_primary_single_char_filter_second/2_2)
+- 对照结论：
+  - `primary` 页“单字符一侧 pair”从 `56` 直接降到 `0`
+  - `04 / 05 / 08 / 12` 里原先那批 `6/4/2 -> 7xx` selected pair 不再出现
+
+这条规则的定位很清楚：
+
+- 它是“把明显不可信的单字符主回路候选从主链里剔掉”
+- 不是对 `08/12` 大量互补 missing-side 的主修复手段
+- 那一类热点仍然主要受 `inline numeric bridge` 覆盖范围影响
+
+## 38. 2026-07-05 `元件接线图` 已支持受控 `INSERT` 展开，`19` 从 0 pair 提升到 39 pair，`20` 仍暴露出方向问题
+
+子代理和主线程的结论已经一致：第二套 `19/20` 的根因不能混为一谈。
+
+### 38.1 当前结论
+
+- `19 元件接线图1.dwg`
+  - 主因是 `INSERT` 内容此前没有被展开到 `lines/texts`
+  - 修正后已经能进入主链
+- `20 元件接线图2.dwg`
+  - 即使展开 `INSERT`，仍然因为主体几何是竖线端子桩、候选搜索仍按 `left/right` 语义，继续停在 `0 line_groups / 0 pairs`
+
+### 38.2 实现方式
+
+本轮在 [cad_extract.py](/F:/workspace/XJToolkit/src/dwg_audit/extract/cad_extract.py) 做了结构化收口：
+
+- 抽取层新增统一 `_extract_graphic_entity(...)`
+- `INSERT` 现在可以通过 `virtual_entities()` 展开块内：
+  - `LINE`
+  - `LWPOLYLINE`
+  - `POLYLINE`
+  - `TEXT`
+  - `MTEXT`
+  - `ATTRIB / ATTDEF`
+- 但这个展开不是全局开启，而是受 [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py) 中：
+  - `extract.insert_virtual_entity_categories = ["元件接线图"]`
+  控制
+
+这样做的原因是：全局展开 `INSERT` 会把 `04-16` 这类主回路页的抽取量整体抬高，不利于当前稳定性；把它先收口到 `元件接线图`，既能救 `19`，又不强行改变主回路页的主链行为。
+
+### 38.3 测试与第二套实跑证据
+
+新增集成测试并通过：
+
+- `元件接线图` 页面默认会从 block 虚拟实体中抽出 line_group / pair
+- `二次原理图` 页面默认不会因为 block 虚拟实体而自动引入同类候选线
+
+新的 second-set 实跑目录：
+
+- [phase6_component_insert_gap13_second_scoped/2_2](/F:/workspace/XJToolkit/.tmp/phase6_component_insert_gap13_second_scoped/2_2)
+
+与旧基线 [phase6_supplemental_default_second/2_2](/F:/workspace/XJToolkit/.tmp/phase6_supplemental_default_second/2_2) 对照：
+
+- `19 元件接线图1.dwg`
+  - 旧：`0 line_groups / 0 pairs / 0 issues`
+  - 新：`39 line_groups / 39 pairs / 12 issues`
+- `20 元件接线图2.dwg`
+  - 旧：`0 / 0 / 0`
+  - 新：仍是 `0 / 0 / 0`
+- `04-16` 主回路页的 line_group 数量回到了原来量级，没有保留“全局 block 展开”那种整体暴涨副作用
+
+### 38.4 还没解决的下一步
+
+`20` 现在留下来的问题已经更明确了，不再是“抽不到块内实体”，而是：
+
+- 现有 [line_groups.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/line_groups.py) 只认水平线
+- 现有 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 只认 `left/right` 端点
+
+也就是说，下一步若要继续推进 `20`，应该新增 `元件接线图` 的方向感知 grouping / `top-bottom` 候选搜索，而不是继续在 `extract` 层兜圈子。
+
+## 39. 2026-07-05 `inline_numeric_bridge_gap` 已从 12.0 提到 13.0，但 second-set `08/12` 大盘改善仍有限
+
+子代理对 `08 / 12 / 21` 的只读分析给出一个很具体的判断：
+
+- `08 / 12` 的主噪声大量来自“同一根线被 inline 数字切成两段”
+- 一批典型 gap 落在 `12.5 ~ 12.75`
+- 当前 `12.0` 会刚好漏掉它们
+
+基于这个证据，本轮把 [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py) 中：
+
+- `geometry.inline_numeric_bridge_gap`
+  - `12.0 -> 13.0`
+
+并补了单测，覆盖“略高于旧阈值的 gap 现在可以桥接”。
+
+不过 second-set scoped 实跑结果说明，这条参数调优虽然方向正确，但还不是决定性收口：
+
+- `08 测控1开入回路图1.dwg`
+  - 旧：`95 issues`
+  - 新：`96 issues`
+- `12 测控2开入回路图1.dwg`
+  - 旧：`89 issues`
+  - 新：`89 issues`
+
+这说明：
+
+- `13.0` 这一步没有造成回退性爆炸，属于可接受的小调
+- 但 `08/12` 的 missing-side 主问题并没有被这一个参数单独解决
+- 后续更可能还需要：
+  - 更精细的 bridge 触发条件
+  - 或者把“同值互补链 `?->X / X->?`”作为 line-group / pair 后处理收口逻辑单独处理

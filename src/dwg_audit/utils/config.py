@@ -45,7 +45,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "min_wire_length": 12.0,
         "line_y_tolerance": 1.8,
         "line_gap_tolerance": 4.0,
-        "inline_numeric_bridge_gap": 12.0,
+        "inline_numeric_bridge_gap": 13.0,
         "inline_numeric_bridge_y_tolerance": 4.0,
         "endpoint_search_radius_x": 18.0,
         "endpoint_search_radius_y": 7.0,
@@ -60,8 +60,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "deprioritized_layer_penalty": 0.03,
         "single_char_penalty_layers": ["DIM", "MARK"],
         "single_char_penalty": 0.12,
+        "single_char_reject_layers": [],
+    },
+    "extract": {
+        "insert_virtual_entity_categories": ["元件接线图"],
     },
     "page_category_overrides": {
+        "二次原理图": {
+            "text": {
+                "single_char_reject_layers": ["DIM", "MARK"],
+            }
+        },
         "屏端子图": {
             "geometry": {
                 "endpoint_search_radius_x": 30.0,

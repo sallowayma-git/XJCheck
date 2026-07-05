@@ -113,6 +113,74 @@ def test_build_terminal_candidates_deprioritizes_dim_single_character_numeric_te
     assert left_dim_candidate.rank == 2
 
 
+def test_build_terminal_candidates_rejects_dim_single_character_numeric_text_on_primary_page() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=10.0,
+            start_y=20.0,
+            end_x=90.0,
+            end_y=20.0,
+            length=80.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "04 回路图.dwg", 4, "04", "回路图", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "721", "721", True, "TEXT", 0.0, 2.5, 6.5, 20.0, 6.5, 19.0, 12.0, 22.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "6", "6", True, "DIM", 0.0, 2.5, 8.0, 20.0, 8.0, 19.0, 12.0, 22.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    accepted = next(item for item in candidates if item.text_id == "T1")
+    rejected = next(item for item in candidates if item.text_id == "T2")
+
+    assert accepted.status == "accepted"
+    assert accepted.rank == 1
+    assert rejected.status == "rejected"
+    assert rejected.rejection_reason == "single_char_layer_filtered"
+    assert rejected.rank is None
+
+
+def test_build_terminal_candidates_keeps_single_character_mark_candidate_on_terminal_page() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=10.0,
+            start_y=20.0,
+            end_x=90.0,
+            end_y=20.0,
+            length=80.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "6", "6", True, "MARK", 0.0, 2.5, 8.0, 20.0, 8.0, 19.0, 12.0, 22.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    accepted = next(item for item in candidates if item.text_id == "T1")
+
+    assert accepted.status == "accepted"
+    assert accepted.rejection_reason is None
+    assert accepted.rank == 1
+
+
 def test_build_terminal_candidates_accepts_terminal_page_suffix_value_patterns() -> None:
     line_groups = [
         LineGroup(

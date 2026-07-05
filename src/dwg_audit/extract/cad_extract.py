@@ -335,6 +335,236 @@ def _append_line(
     )
 
 
+def _extract_graphic_entity(
+    entity,
+    *,
+    sheet: SheetRecord,
+    numeric_pattern: re.Pattern[str],
+    text_ids: IdFactory,
+    line_ids: IdFactory,
+    block_ids: IdFactory,
+    polyline_ids: IdFactory,
+    sheet_texts: list[TextItem],
+    sheet_lines: list[LineEntity],
+    sheet_blocks: list[BlockRecord],
+    sheet_polylines: list[PolylineRecord],
+    synthetic_handle: str | None = None,
+    capture_block_record: bool = False,
+    expand_virtual_insert: bool = False,
+) -> None:
+    dxftype = entity.dxftype()
+    handle = synthetic_handle or str(getattr(entity.dxf, "handle", "") or f"virtual:{dxftype}")
+    layer = str(getattr(entity.dxf, "layer", "0") or "0")
+
+    if dxftype == "TEXT":
+        insert = entity.dxf.insert
+        _append_text(
+            sheet_texts,
+            text_ids,
+            numeric_pattern,
+            sheet,
+            handle,
+            dxftype,
+            layer,
+            entity.dxf.text,
+            float(insert.x),
+            float(insert.y),
+            float(entity.dxf.height),
+            float(entity.dxf.rotation),
+        )
+        return
+
+    if dxftype == "MTEXT":
+        insert = entity.dxf.insert
+        _append_text(
+            sheet_texts,
+            text_ids,
+            numeric_pattern,
+            sheet,
+            handle,
+            dxftype,
+            layer,
+            entity.plain_text(),
+            float(insert.x),
+            float(insert.y),
+            float(entity.dxf.char_height or 0.0),
+            0.0,
+        )
+        return
+
+    if dxftype in {"ATTRIB", "ATTDEF"}:
+        insert = entity.dxf.insert
+        _append_text(
+            sheet_texts,
+            text_ids,
+            numeric_pattern,
+            sheet,
+            handle,
+            dxftype,
+            layer,
+            entity.dxf.text,
+            float(insert.x),
+            float(insert.y),
+            float(entity.dxf.height),
+            float(entity.dxf.rotation),
+        )
+        return
+
+    if dxftype == "LINE":
+        start = entity.dxf.start
+        end = entity.dxf.end
+        _append_line(
+            sheet_lines,
+            line_ids,
+            sheet,
+            handle,
+            dxftype,
+            layer,
+            float(start.x),
+            float(start.y),
+            float(end.x),
+            float(end.y),
+        )
+        return
+
+    if dxftype == "LWPOLYLINE":
+        points = [(float(x), float(y)) for x, y, *_ in entity.get_points("xy")]
+        if not points:
+            return
+        bbox = _polyline_bbox(points)
+        sheet_polylines.append(
+            PolylineRecord(
+                polyline_id=polyline_ids.next(),
+                sheet_id=sheet.sheet_id,
+                file_id=sheet.file_id,
+                handle=handle,
+                source_entity_type=dxftype,
+                layer=layer,
+                vertex_count=len(points),
+                is_closed=bool(entity.closed),
+                bbox_min_x=bbox[0],
+                bbox_min_y=bbox[1],
+                bbox_max_x=bbox[2],
+                bbox_max_y=bbox[3],
+            )
+        )
+        if entity.closed and len(points) > 1:
+            points.append(points[0])
+        for index, (start, end) in enumerate(zip(points, points[1:], strict=False)):
+            _append_line(
+                sheet_lines,
+                line_ids,
+                sheet,
+                f"{handle}:{index}",
+                dxftype,
+                layer,
+                start[0],
+                start[1],
+                end[0],
+                end[1],
+            )
+        return
+
+    if dxftype == "POLYLINE":
+        points = [(float(vertex.dxf.location.x), float(vertex.dxf.location.y)) for vertex in entity.vertices]
+        if not points:
+            return
+        bbox = _polyline_bbox(points)
+        is_closed = bool(entity.is_closed)
+        sheet_polylines.append(
+            PolylineRecord(
+                polyline_id=polyline_ids.next(),
+                sheet_id=sheet.sheet_id,
+                file_id=sheet.file_id,
+                handle=handle,
+                source_entity_type=dxftype,
+                layer=layer,
+                vertex_count=len(points),
+                is_closed=is_closed,
+                bbox_min_x=bbox[0],
+                bbox_min_y=bbox[1],
+                bbox_max_x=bbox[2],
+                bbox_max_y=bbox[3],
+            )
+        )
+        if is_closed and len(points) > 1:
+            points.append(points[0])
+        for index, (start, end) in enumerate(zip(points, points[1:], strict=False)):
+            _append_line(
+                sheet_lines,
+                line_ids,
+                sheet,
+                f"{handle}:{index}",
+                dxftype,
+                layer,
+                start[0],
+                start[1],
+                end[0],
+                end[1],
+            )
+        return
+
+    if dxftype == "INSERT":
+        insert = entity.dxf.insert
+        if capture_block_record:
+            attributes = {attrib.dxf.tag: _normalize_text(attrib.dxf.text) for attrib in entity.attribs}
+            sheet_blocks.append(
+                BlockRecord(
+                    block_id=block_ids.next(),
+                    sheet_id=sheet.sheet_id,
+                    file_id=sheet.file_id,
+                    handle=handle,
+                    name=str(entity.dxf.name),
+                    layer=layer,
+                    insert_x=float(insert.x),
+                    insert_y=float(insert.y),
+                    rotation_deg=float(entity.dxf.rotation),
+                    attributes_json=json.dumps(attributes, ensure_ascii=False, sort_keys=True),
+                )
+            )
+            for index, attrib in enumerate(entity.attribs):
+                _extract_graphic_entity(
+                    attrib,
+                    sheet=sheet,
+                    numeric_pattern=numeric_pattern,
+                    text_ids=text_ids,
+                    line_ids=line_ids,
+                    block_ids=block_ids,
+                    polyline_ids=polyline_ids,
+                    sheet_texts=sheet_texts,
+                    sheet_lines=sheet_lines,
+                sheet_blocks=sheet_blocks,
+                sheet_polylines=sheet_polylines,
+                synthetic_handle=f"{handle}:ATTRIB:{index}",
+                capture_block_record=False,
+                expand_virtual_insert=expand_virtual_insert,
+            )
+
+        if expand_virtual_insert:
+            try:
+                virtual_entities = list(entity.virtual_entities())
+            except Exception:
+                virtual_entities = []
+            for index, virtual in enumerate(virtual_entities):
+                _extract_graphic_entity(
+                    virtual,
+                    sheet=sheet,
+                    numeric_pattern=numeric_pattern,
+                    text_ids=text_ids,
+                    line_ids=line_ids,
+                    block_ids=block_ids,
+                    polyline_ids=polyline_ids,
+                    sheet_texts=sheet_texts,
+                    sheet_lines=sheet_lines,
+                    sheet_blocks=sheet_blocks,
+                    sheet_polylines=sheet_polylines,
+                    synthetic_handle=f"{handle}:VIRTUAL:{index}",
+                    capture_block_record=False,
+                    expand_virtual_insert=expand_virtual_insert,
+                )
+        return
+
+
 def _polyline_bbox(points: list[tuple[float, float]]) -> tuple[float, float, float, float]:
     xs = [point[0] for point in points]
     ys = [point[1] for point in points]
@@ -408,181 +638,27 @@ def extract_cad_artifacts(
         sheet_lines: list[LineEntity] = []
         sheet_blocks: list[BlockRecord] = []
         sheet_polylines: list[PolylineRecord] = []
+        expand_virtual_insert = sheet.sheet_category in {
+            str(item)
+            for item in config.get("extract", {}).get("insert_virtual_entity_categories", [])
+        }
 
         for entity in msp:
-            dxftype = entity.dxftype()
-            handle = entity.dxf.handle
-            layer = entity.dxf.layer
-
-            if dxftype == "TEXT":
-                insert = entity.dxf.insert
-                _append_text(
-                    sheet_texts,
-                    text_ids,
-                    numeric_pattern,
-                    sheet,
-                    handle,
-                    dxftype,
-                    layer,
-                    entity.dxf.text,
-                    float(insert.x),
-                    float(insert.y),
-                    float(entity.dxf.height),
-                    float(entity.dxf.rotation),
-                )
-            elif dxftype == "MTEXT":
-                insert = entity.dxf.insert
-                _append_text(
-                    sheet_texts,
-                    text_ids,
-                    numeric_pattern,
-                    sheet,
-                    handle,
-                    dxftype,
-                    layer,
-                    entity.plain_text(),
-                    float(insert.x),
-                    float(insert.y),
-                    float(entity.dxf.char_height or 0.0),
-                    0.0,
-                )
-            elif dxftype == "ATTRIB":
-                insert = entity.dxf.insert
-                _append_text(
-                    sheet_texts,
-                    text_ids,
-                    numeric_pattern,
-                    sheet,
-                    handle,
-                    dxftype,
-                    layer,
-                    entity.dxf.text,
-                    float(insert.x),
-                    float(insert.y),
-                    float(entity.dxf.height),
-                    float(entity.dxf.rotation),
-                )
-            elif dxftype == "LINE":
-                start = entity.dxf.start
-                end = entity.dxf.end
-                _append_line(
-                    sheet_lines,
-                    line_ids,
-                    sheet,
-                    handle,
-                    dxftype,
-                    layer,
-                    float(start.x),
-                    float(start.y),
-                    float(end.x),
-                    float(end.y),
-                )
-            elif dxftype == "LWPOLYLINE":
-                points = [(float(x), float(y)) for x, y, *_ in entity.get_points("xy")]
-                if not points:
-                    continue
-                bbox = _polyline_bbox(points)
-                sheet_polylines.append(
-                    PolylineRecord(
-                        polyline_id=polyline_ids.next(),
-                        sheet_id=sheet.sheet_id,
-                        file_id=sheet.file_id,
-                        handle=handle,
-                        source_entity_type=dxftype,
-                        layer=layer,
-                        vertex_count=len(points),
-                        is_closed=bool(entity.closed),
-                        bbox_min_x=bbox[0],
-                        bbox_min_y=bbox[1],
-                        bbox_max_x=bbox[2],
-                        bbox_max_y=bbox[3],
-                    )
-                )
-                if entity.closed and len(points) > 1:
-                    points.append(points[0])
-                for index, (start, end) in enumerate(zip(points, points[1:], strict=False)):
-                    _append_line(
-                        sheet_lines,
-                        line_ids,
-                        sheet,
-                        f"{handle}:{index}",
-                        dxftype,
-                        layer,
-                        start[0],
-                        start[1],
-                        end[0],
-                        end[1],
-                    )
-            elif dxftype == "POLYLINE":
-                points = [(float(vertex.dxf.location.x), float(vertex.dxf.location.y)) for vertex in entity.vertices]
-                if not points:
-                    continue
-                bbox = _polyline_bbox(points)
-                is_closed = bool(entity.is_closed)
-                sheet_polylines.append(
-                    PolylineRecord(
-                        polyline_id=polyline_ids.next(),
-                        sheet_id=sheet.sheet_id,
-                        file_id=sheet.file_id,
-                        handle=handle,
-                        source_entity_type=dxftype,
-                        layer=layer,
-                        vertex_count=len(points),
-                        is_closed=is_closed,
-                        bbox_min_x=bbox[0],
-                        bbox_min_y=bbox[1],
-                        bbox_max_x=bbox[2],
-                        bbox_max_y=bbox[3],
-                    )
-                )
-                if is_closed and len(points) > 1:
-                    points.append(points[0])
-                for index, (start, end) in enumerate(zip(points, points[1:], strict=False)):
-                    _append_line(
-                        sheet_lines,
-                        line_ids,
-                        sheet,
-                        f"{handle}:{index}",
-                        dxftype,
-                        layer,
-                        start[0],
-                        start[1],
-                        end[0],
-                        end[1],
-                    )
-            elif dxftype == "INSERT":
-                insert = entity.dxf.insert
-                attributes = {attrib.dxf.tag: _normalize_text(attrib.dxf.text) for attrib in entity.attribs}
-                sheet_blocks.append(
-                    BlockRecord(
-                        block_id=block_ids.next(),
-                        sheet_id=sheet.sheet_id,
-                        file_id=sheet.file_id,
-                        handle=handle,
-                        name=str(entity.dxf.name),
-                        layer=layer,
-                        insert_x=float(insert.x),
-                        insert_y=float(insert.y),
-                        rotation_deg=float(entity.dxf.rotation),
-                        attributes_json=json.dumps(attributes, ensure_ascii=False, sort_keys=True),
-                    )
-                )
-                for index, attrib in enumerate(entity.attribs):
-                    attrib_insert = attrib.dxf.insert
-                    _append_text(
-                        sheet_texts,
-                        text_ids,
-                        numeric_pattern,
-                        sheet,
-                        f"{handle}:ATTRIB:{index}",
-                        "ATTRIB",
-                        layer,
-                        attrib.dxf.text,
-                        float(attrib_insert.x),
-                        float(attrib_insert.y),
-                        float(attrib.dxf.height),
-                        float(attrib.dxf.rotation),
-                    )
+            _extract_graphic_entity(
+                entity,
+                sheet=sheet,
+                numeric_pattern=numeric_pattern,
+                text_ids=text_ids,
+                line_ids=line_ids,
+                block_ids=block_ids,
+                polyline_ids=polyline_ids,
+                sheet_texts=sheet_texts,
+                sheet_lines=sheet_lines,
+                sheet_blocks=sheet_blocks,
+                sheet_polylines=sheet_polylines,
+                capture_block_record=True,
+                expand_virtual_insert=expand_virtual_insert,
+            )
 
         extent = _extent_bbox(sheet_texts, sheet_lines, sheet_blocks)
         if extent is not None:

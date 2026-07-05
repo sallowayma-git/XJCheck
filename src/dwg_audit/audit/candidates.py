@@ -87,6 +87,13 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "height_out_of_range"
                     score = 0.0
+                elif (
+                    len(value.strip()) == 1
+                    and text.layer.upper() in profile["single_char_reject_layers"]
+                ):
+                    status = "rejected"
+                    reason = "single_char_layer_filtered"
+                    score = 0.0
                 else:
                     score = _candidate_score(
                         dx,
@@ -198,6 +205,7 @@ def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, obj
         "deprioritized_layer_penalty": float(text_config.get("deprioritized_layer_penalty", 0.0)),
         "single_char_penalty_layers": {str(item).upper() for item in text_config.get("single_char_penalty_layers", [])},
         "single_char_penalty": float(text_config.get("single_char_penalty", 0.0)),
+        "single_char_reject_layers": {str(item).upper() for item in text_config.get("single_char_reject_layers", [])},
         "numeric_suffix_patterns": [],
         "derived_numeric_penalty": 0.0,
     }
@@ -223,6 +231,8 @@ def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, obj
             profile["single_char_penalty_layers"] = {str(item).upper() for item in text_override.get("single_char_penalty_layers", [])}
         if "single_char_penalty" in text_override:
             profile["single_char_penalty"] = float(text_override.get("single_char_penalty", profile["single_char_penalty"]))
+        if "single_char_reject_layers" in text_override:
+            profile["single_char_reject_layers"] = {str(item).upper() for item in text_override.get("single_char_reject_layers", [])}
         profile["numeric_suffix_patterns"] = _compile_patterns(text_override.get("numeric_suffix_patterns", []))
         profile["derived_numeric_penalty"] = float(text_override.get("derived_numeric_penalty", profile["derived_numeric_penalty"]))
     return profile
