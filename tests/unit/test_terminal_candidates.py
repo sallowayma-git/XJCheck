@@ -77,3 +77,36 @@ def test_build_terminal_candidates_accepts_numeric_text_inside_line_endpoint_win
     assert right_candidate.rejection_reason is None
     assert left_candidate.score > 0.0
     assert right_candidate.score > 0.0
+
+
+def test_build_terminal_candidates_deprioritizes_dim_single_character_numeric_text() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=10.0,
+            start_y=20.0,
+            end_x=90.0,
+            end_y=20.0,
+            length=80.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "721", "721", True, "TEXT", 0.0, 2.5, 6.5, 20.0, 6.5, 19.0, 12.0, 22.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "6", "6", True, "DIM", 0.0, 2.5, 8.0, 20.0, 8.0, 19.0, 12.0, 22.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG)
+
+    left_text_candidate = next(item for item in candidates if item.side == "left" and item.text_id == "T1")
+    left_dim_candidate = next(item for item in candidates if item.side == "left" and item.text_id == "T2")
+
+    assert left_text_candidate.status == "accepted"
+    assert left_dim_candidate.status == "accepted"
+    assert left_text_candidate.score > left_dim_candidate.score
+    assert left_text_candidate.rank == 1
+    assert left_dim_candidate.rank == 2

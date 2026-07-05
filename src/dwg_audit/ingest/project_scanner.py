@@ -64,9 +64,10 @@ def _infer_category(title: str) -> str | None:
     rules = [
         ("封面/目录", ("封面", "目录")),
         ("屏面布置图", ("屏面布置",)),
-        ("二次原理图", ("回路图", "回路", "信号", "保护", "出口", "操作")),
-        ("背板接线图", ("背板", "接线图")),
         ("屏端子图", ("端子图",)),
+        ("元件接线图", ("元件接线图",)),
+        ("背板接线图", ("背板",)),
+        ("二次原理图", ("回路图", "回路", "信号", "保护", "出口", "操作", "开入", "控制")),
     ]
     for category, keywords in rules:
         if any(keyword in title for keyword in keywords):
@@ -74,11 +75,41 @@ def _infer_category(title: str) -> str | None:
     return None
 
 
-def _infer_audit_role(category: str | None, title: str, skip_reason: str | None) -> str:
+def _normalize_category(category: str | None, title: str) -> str | None:
+    overrides = [
+        ("封面/目录", ("封面", "目录")),
+        ("屏面布置图", ("屏面布置",)),
+        ("屏端子图", ("端子图",)),
+        ("元件接线图", ("元件接线图",)),
+        ("背板接线图", ("背板",)),
+    ]
+    for normalized, keywords in overrides:
+        if any(keyword in title for keyword in keywords):
+            return normalized
+    return category
+
+
+def _infer_audit_role(category: str | None, title: str, skip_reason: str | None, config: dict) -> str:
     if skip_reason:
         return "skip"
-    audit_keywords = ("回路", "信号", "保护", "出口", "操作")
-    if category == "二次原理图" or any(keyword in title for keyword in audit_keywords):
+    project_config = config.get("project", {})
+    primary_categories = {str(item) for item in project_config.get("audit_primary_categories", ["二次原理图"])}
+    secondary_categories = {
+        str(item)
+        for item in project_config.get(
+            "audit_secondary_categories",
+            ["背板接线图", "元件接线图", "屏端子图", "屏面布置图", "封面/目录"],
+        )
+    }
+    primary_keywords = tuple(str(item) for item in project_config.get("audit_primary_title_keywords", []))
+    secondary_keywords = tuple(str(item) for item in project_config.get("audit_secondary_title_keywords", []))
+    if category in primary_categories:
+        return "primary"
+    if category in secondary_categories:
+        return "secondary"
+    if any(keyword in title for keyword in secondary_keywords):
+        return "secondary"
+    if any(keyword in title for keyword in primary_keywords):
         return "primary"
     return "secondary"
 
@@ -138,7 +169,7 @@ def scan_project(input_path: Path, config: dict) -> ProjectScanResult:
             page_no = prj_entry.page_no or page_no
             page_source = "prj"
 
-        category = prj_entry.category if prj_entry else _infer_category(title)
+        category = _normalize_category(prj_entry.category if prj_entry else _infer_category(title), title)
         skip_reason = _should_skip(title, dwg_path.name, category, config)
         valid_header = _valid_dwg_header(dwg_path)
         if valid_header:
@@ -173,7 +204,7 @@ def scan_project(input_path: Path, config: dict) -> ProjectScanResult:
         )
         source_files.append(source_file)
 
-        audit_role = _infer_audit_role(category, title, skip_reason)
+        audit_role = _infer_audit_role(category, title, skip_reason, config)
         pages.append(
             SheetRecord(
                 sheet_id=sheet_ids.next(),

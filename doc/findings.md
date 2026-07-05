@@ -284,3 +284,102 @@
 
 - 后续优化优先级应先从“候选质量”和“导线粒度”下手，而不是继续放宽召回。
 - 页型策略必须从启发式关键词判断升级为更可解释的白名单 / 黑名单 / review 机制，否则会持续出现“该进的不进、该排的不排”的结构性偏差。
+
+## 17. 2026-07-05 第二套样本完整基线补跑
+
+对第二套 `变压器测控柜(2圈变，2台测控)` 已直接补跑完整 `analyze-project + run-audit`，产物位于：
+
+- [second_project_baseline](/F:/workspace/XJToolkit/.tmp/second_project_baseline)
+
+当前得到的真实基线如下：
+
+- `file_count=24`
+- `sheet_count=24`
+- `converted_pages=21`
+  - 另外 `3` 页为正常跳过：`01 封面`、`02 目录`、`03 屏面布置图`
+- `primary_audit_pages=13`
+- `line_groups=672`
+- `pair_count=672`
+- `issue_count=921`
+- `pair_status = {'review': 464, 'discard': 208, 'pass': 0}`
+- `issue_rules = {'R-PAIR-LOW-CONFIDENCE': 464, 'R-PAIR-MISSING-SIDE': 457}`
+
+页型覆盖补充事实：
+
+- `17-18` 装置背板在第二套样本中当前是 `secondary`，`pair_count=0`、`issue_count=0`。
+- `19-24` 元件接线图 / 左右侧端子图也全部是 `secondary`，`pair_count=0`、`issue_count=0`。
+
+直接结论：
+
+- 第二套样本并不存在 `.prj` 不可解析或 DWG 大量损坏的问题；它已经可以作为完整基线继续压测算法。
+- 第二套样本上的主要瓶颈仍然是 `low_confidence + missing_side`，说明问题确实集中在候选和线组，而不是输入损坏。
+- 第二套样本当前没有出现第一套那种“背板误入 primary”的现象，说明页型误判并不是全局统一，而是样本相关规则缺口。
+
+## 18. 2026-07-05 候选降权 + inline 数字断线重连回归
+
+本轮围绕两项高优先级问题先做了最小可回归整改：
+
+1. `DIM/MARK` 层单字符数字降权，但不直接删除候选。
+2. 在线组阶段增加“gap 中存在 inline 数字时允许桥接”的逻辑。
+
+对第一套样本重新实跑后的结果，相比旧基线：
+
+- 旧基线 `baseline_v2`：
+  - `pair_status = {'discard': 317, 'review': 239, 'pass': 29}`
+  - `issue_rules = {'R-PAIR-LOW-CONFIDENCE': 239, 'R-PAIR-MISSING-SIDE': 231, 'R-DUPLICATE-PAIR': 8, 'R-CROSS-PAGE-CONFLICT': 2, 'R-ONE-TO-MANY': 2}`
+  - `pass_single_char = 29`
+- 只做单字符降权后：
+  - `pair_status = {'discard': 320, 'review': 265, 'pass': 0}`
+  - `issue_rules = {'R-PAIR-LOW-CONFIDENCE': 265, 'R-PAIR-MISSING-SIDE': 231}`
+  - `pass_single_char = 0`
+- 再叠加 inline 数字断线重连后：
+  - `line_groups: 585 -> 560`
+  - `pair_count: 585 -> 560`
+  - `pair_status = {'discard': 302, 'review': 258, 'pass': 0}`
+  - `issue_rules = {'R-PAIR-LOW-CONFIDENCE': 258, 'R-PAIR-MISSING-SIDE': 227}`
+  - `pass_single_char = 0`
+
+直接结论：
+
+- 单字符降权已经成功消除了“假高置信 pass”。
+- inline 数字断线重连开始产生正向效果：线组数下降、`discard` 下降、`missing_side` 从 `231` 降到 `227`。
+- 当前 `pass` 仍为 `0`，说明这两步主要完成的是“纠偏”和“去伪高置信”，还没有把真正可靠的高置信 pair 重新抬起来；下一轮应继续做候选分层与页型约束，而不是急着把阈值放松回去。
+
+## 19. 2026-07-05 页型策略显式化回归
+
+本轮已把页型判定从“类别 + 标题关键词混杂”改成“类别优先、标题兜底”：
+
+- `二次原理图` 明确作为 `primary`
+- `背板接线图 / 元件接线图 / 屏端子图` 明确作为 `secondary`
+- `元件接线图` 不再因为 `.prj` 使用了粗粒度 `背板接线图` 桶而混在一起
+
+对两套样本重跑后的关键结果如下：
+
+第一套保护柜样本：
+
+- 修正前（已含单字符降权 + inline bridge，但页型策略未修）：
+  - `primary_pages=17`
+  - `pair_status = {'discard': 302, 'review': 258}`
+  - `issue_rules = {'R-PAIR-LOW-CONFIDENCE': 258, 'R-PAIR-MISSING-SIDE': 227}`
+  - `17-20` 背板图仍误入 `primary`，共产生 `7` 个 pair、`4` 个 issue
+- 修正后：
+  - `primary_pages=13`
+  - `pair_status = {'discard': 297, 'review': 256}`
+  - `issue_rules = {'R-PAIR-LOW-CONFIDENCE': 256, 'R-PAIR-MISSING-SIDE': 225}`
+  - `17-20` 背板图已全部退出主审计链，`pair_count=0`、`issue_count=0`
+  - `21-23` 现明确标注为 `元件接线图`
+
+第二套测控柜样本：
+
+- 修正前后 `primary_pages` 都为 `13`
+- `pair_status` 保持 `{'review': 464, 'discard': 208}`
+- `issue_rules` 保持 `{'R-PAIR-LOW-CONFIDENCE': 464, 'R-PAIR-MISSING-SIDE': 457}`
+- 变化主要体现在页型语义更准确：
+  - `19-20` 不再显示为笼统 `背板接线图`
+  - 现在明确归类为 `元件接线图`
+
+直接结论：
+
+- 第一套样本里“背板图误入 primary”已被直接修正，而且这不是纯粹分类美化，而是实际减少了无效审计对象与 issue 噪音。
+- 第二套样本此前本就没有背板误入问题，因此页型修正主要改善的是“类别语义正确性”，没有引入回归。
+- 当前页型策略已经从“关键词泄漏”升级为“显式决策”，后续若要把元件接线图或端子图纳入审计，应走新的显式策略分支，而不是再放任标题关键词把它们偷偷带进主链。

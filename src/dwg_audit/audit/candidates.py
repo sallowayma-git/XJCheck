@@ -51,6 +51,11 @@ def build_terminal_candidates(
     radius_y = float(config.get("geometry", {}).get("endpoint_search_radius_y", 7.0))
     min_height = float(config.get("text", {}).get("min_text_height", 1.0))
     max_height = float(config.get("text", {}).get("max_text_height", 8.0))
+    text_config = config.get("text", {})
+    deprioritized_layers = {str(item).upper() for item in text_config.get("deprioritized_layers", [])}
+    deprioritized_layer_penalty = float(text_config.get("deprioritized_layer_penalty", 0.0))
+    single_char_penalty_layers = {str(item).upper() for item in text_config.get("single_char_penalty_layers", [])}
+    single_char_penalty = float(text_config.get("single_char_penalty", 0.0))
 
     results: list[TerminalCandidate] = []
     for group in line_groups:
@@ -81,7 +86,20 @@ def build_terminal_candidates(
                     reason = "height_out_of_range"
                     score = 0.0
                 else:
-                    score = _candidate_score(dx, dy, radius_x, radius_y, text.height, side)
+                    score = _candidate_score(
+                        dx,
+                        dy,
+                        radius_x,
+                        radius_y,
+                        text.height,
+                        side,
+                        layer=text.layer,
+                        value=text.normalized_text,
+                        deprioritized_layers=deprioritized_layers,
+                        deprioritized_layer_penalty=deprioritized_layer_penalty,
+                        single_char_penalty_layers=single_char_penalty_layers,
+                        single_char_penalty=single_char_penalty,
+                    )
                     status = "accepted"
                     reason = None
                 results.append(
@@ -113,11 +131,32 @@ def build_terminal_candidates(
     return results
 
 
-def _candidate_score(dx: float, dy: float, radius_x: float, radius_y: float, height: float, side: str) -> float:
+def _candidate_score(
+    dx: float,
+    dy: float,
+    radius_x: float,
+    radius_y: float,
+    height: float,
+    side: str,
+    *,
+    layer: str,
+    value: str,
+    deprioritized_layers: set[str],
+    deprioritized_layer_penalty: float,
+    single_char_penalty_layers: set[str],
+    single_char_penalty: float,
+) -> float:
     distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * 0.55 - min(abs(dy) / max(radius_y, 1.0), 1.0) * 0.35
     side_bonus = 0.05 if (side == "left" and dx <= 0) or (side == "right" and dx >= 0) else 0.0
     height_bonus = 0.05 if 1.8 <= height <= 3.5 else 0.0
-    return round(max(0.0, min(1.0, distance_term + side_bonus + height_bonus)), 4)
+    penalty = 0.0
+    normalized_layer = layer.upper()
+    normalized_value = value.strip()
+    if normalized_layer in deprioritized_layers:
+        penalty += deprioritized_layer_penalty
+    if len(normalized_value) == 1 and normalized_layer in single_char_penalty_layers:
+        penalty += single_char_penalty
+    return round(max(0.0, min(1.0, distance_term + side_bonus + height_bonus - penalty)), 4)
 
 
 def _horizontal_side_score(dx: float, radius_x: float, side: str) -> float:

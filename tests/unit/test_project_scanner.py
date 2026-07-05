@@ -44,6 +44,52 @@ def test_scan_project_marks_non_primary_pages_as_secondary(tmp_path: Path) -> No
     assert result.pages[0].is_primary_audit_candidate is False
 
 
+def test_scan_project_keeps_backplate_pages_secondary_even_with_protection_keywords(tmp_path: Path) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "17 差动保护背板图.dwg").write_bytes(b"AC1018data")
+
+    result = scan_project(project, DEFAULT_CONFIG)
+
+    assert result.pages[0].sheet_category == "背板接线图"
+    assert result.pages[0].audit_role == "secondary"
+    assert result.pages[0].is_primary_audit_candidate is False
+
+
+def test_scan_project_splits_component_wiring_from_backplate_category(tmp_path: Path) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "21 元件接线图1.dwg").write_bytes(b"AC1018data")
+
+    result = scan_project(project, DEFAULT_CONFIG)
+
+    assert result.pages[0].sheet_category == "元件接线图"
+    assert result.pages[0].audit_role == "secondary"
+    assert result.pages[0].is_primary_audit_candidate is False
+
+
+def test_scan_project_normalizes_prj_backplate_bucket_for_component_wiring(tmp_path: Path, sample_terminal_xml: str) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "demo.prj").write_text(
+        (
+            "$BEGIN CONTENT OF PRJ\r\n"
+            "背板接线图:\r\n"
+            "21 元件接线图1.dwg<>\r\n"
+            "$END CONTENT OF PRJ\r\n"
+            "$EOF\r\n"
+        ),
+        encoding="gbk",
+    )
+    (project / "LdDzbInfo.xml").write_text(sample_terminal_xml, encoding="utf-8")
+    (project / "21 元件接线图1.dwg").write_bytes(b"AC1018data")
+
+    result = scan_project(project, DEFAULT_CONFIG)
+
+    assert result.pages[0].sheet_category == "元件接线图"
+    assert result.pages[0].audit_role == "secondary"
+
+
 def test_scan_project_marks_skipped_pages_as_skip(tmp_path: Path) -> None:
     project = tmp_path / "projectA"
     project.mkdir()
