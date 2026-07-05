@@ -863,3 +863,35 @@
 验证情况：
 
 - `apps/desktop` 前端构建再次通过：`npm run build`
+
+## 34. 2026-07-05 Tauri 原生构建已完成真实编译与 NSIS 打包
+
+前几轮桌面端 `M9` 的主要不确定点已经从“代码是否能原生编译”收口到“本机原生构建链是否真的打通”。本轮把这条链做了端到端实跑，结论是：
+
+- `src-tauri` 的 Rust 工程现在可以通过真实 `cargo check`
+- `tauri build` 已能完成前端打包、Rust release 编译、`dwg_audit_desktop.exe` 生成和 NSIS 安装包输出
+- 之前阻塞编译的 `icon.ico` 资源问题已经消除
+
+本轮实际发现与处理如下：
+
+- 旧的 `apps/desktop/src-tauri/icons/icon.png` 实际仍是 `343x361`，不是正方形；由它派生出来的 `icon.ico` 也不可靠，这正是此前 `failed to parse icon ... failed to fill whole buffer` 的根因。
+- 先基于 `apps/desktop/src/assets/hero.png` 生成了一个透明底 `512x512` 的 square source，再通过官方命令：
+  - `npx tauri icon src-tauri/icons/icon-source-square.png --output src-tauri/icons`
+  重建了 `icon.ico / icon.png / 32x32 / 64x64 / 128x128 / icns / appx / android / ios` 整套图标资源。
+- 重新跑：
+  - `cargo check --manifest-path src-tauri\\Cargo.toml`
+  已通过。
+- 第一次、第二次 `npm run tauri:build` 都没有再卡在工程代码，而是卡在 Tauri bundler 下载 NSIS 资源时的 `timeout: global`。
+- 手动把 NSIS 资源预热到本机缓存后，再次 `npm run tauri:build` 已通过，并产出：
+  - `apps/desktop/src-tauri/target/release/dwg_audit_desktop.exe`
+  - `apps/desktop/src-tauri/target/release/bundle/nsis/DWG Audit Desktop_0.1.0_x64-setup.exe`
+
+直接结论：
+
+- 桌面端当前不再只是“前端能 build、Rust 代码理论可编译”，而是已经有真实的 Windows 原生可执行文件和 NSIS 安装包。
+- `M9` 原生桥接这一块的风险已经从“架构/代码未闭环”下降到“首次 bundler 依赖下载可能受网络影响”。这属于环境预热问题，不再是应用代码阻塞。
+
+当前剩余与后续意义：
+
+- `src-tauri` 的 `Cargo.toml / capabilities / tauri.conf / Cargo.lock / gen/schemas / icons` 已形成一组可提交的原生桌面收口改动。
+- 这让主线程可以把重心从“Tauri 是否能落地”转回任务书主线中的 DWG findings / audit 质量整改，而不是继续卡在桌面外壳可用性不确定上。

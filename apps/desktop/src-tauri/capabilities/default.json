@@ -7,7 +7,7 @@
   ],
   "permissions": [
     "core:default",
-    "event:default",
+    "core:event:default",
     "dialog:allow-open"
   ]
 }
