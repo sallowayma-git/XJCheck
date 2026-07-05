@@ -57,6 +57,10 @@ def build_pairs(
                 rationale=rationale,
                 left_text_id=left_item.text_id if left_item else None,
                 right_text_id=right_item.text_id if right_item else None,
+                pair_key=_pair_key(left_item.value if left_item else None, right_item.value if right_item else None),
+                left_score=left_item.score if left_item else 0.0,
+                right_score=right_item.score if right_item else 0.0,
+                wire_score=group.wire_candidate_score,
             )
             pair_candidates.append(single)
             confidence = single.score
@@ -83,6 +87,11 @@ def build_pairs(
                     left_coord_y=left_item.text_insert_y if left_item else None,
                     right_coord_x=right_item.text_insert_x if right_item else None,
                     right_coord_y=right_item.text_insert_y if right_item else None,
+                    pair_key=single.pair_key,
+                    left_score=single.left_score,
+                    right_score=single.right_score,
+                    wire_score=single.wire_score,
+                    ambiguity_gap=single.ambiguity_gap,
                 )
             )
             continue
@@ -105,16 +114,25 @@ def build_pairs(
                         rationale=f"left={left_item.value} right={right_item.value} score={score:.3f}",
                         left_text_id=left_item.text_id,
                         right_text_id=right_item.text_id,
+                        pair_key=_pair_key(left_item.value, right_item.value),
+                        left_score=left_item.score,
+                        right_score=right_item.score,
+                        wire_score=group.wire_candidate_score,
                     )
                 )
 
         group_pair_candidates.sort(key=lambda item: item.score, reverse=True)
+        ambiguity_gap = None
+        if len(group_pair_candidates) > 1:
+            ambiguity_gap = round(group_pair_candidates[0].score - group_pair_candidates[1].score, 4)
         for index, candidate in enumerate(group_pair_candidates):
             candidate.status = "selected" if index == 0 else "alternative"
+            if index == 0:
+                candidate.ambiguity_gap = ambiguity_gap
         pair_candidates.extend(group_pair_candidates)
         selected = group_pair_candidates[0]
         alternative_ids = [item.pair_candidate_id for item in group_pair_candidates[1:]]
-        ambiguous = len(group_pair_candidates) > 1 and abs(group_pair_candidates[0].score - group_pair_candidates[1].score) < 0.08
+        ambiguous = ambiguity_gap is not None and ambiguity_gap < 0.08
         status = "pass" if selected.score >= high_threshold and not ambiguous else "review"
         if selected.score < review_threshold:
             status = "discard"
@@ -145,6 +163,11 @@ def build_pairs(
                 left_coord_y=_candidate_coord(terminal_candidates, selected.left_candidate_id, "y"),
                 right_coord_x=_candidate_coord(terminal_candidates, selected.right_candidate_id, "x"),
                 right_coord_y=_candidate_coord(terminal_candidates, selected.right_candidate_id, "y"),
+                pair_key=selected.pair_key,
+                left_score=selected.left_score,
+                right_score=selected.right_score,
+                wire_score=selected.wire_score,
+                ambiguity_gap=selected.ambiguity_gap,
             )
         )
     return pair_candidates, pairs
@@ -168,6 +191,10 @@ def _pair_score(left_score: float, right_score: float, wire_score: float) -> flo
     return round(score, 4)
 
 
+def _pair_key(left_value: str | None, right_value: str | None) -> str:
+    return f"{left_value or '?'}->{right_value or '?'}"
+
+
 def _pair_evidence(
     group: LineGroup,
     sheet: SheetRecord | None,
@@ -188,6 +215,13 @@ def _pair_evidence(
         "selected_left_text_id": selected.left_text_id,
         "selected_right_text_id": selected.right_text_id,
         "selected_score": selected.score,
+        "pair_key": selected.pair_key,
+        "score_breakdown": {
+            "left_score": selected.left_score,
+            "right_score": selected.right_score,
+            "wire_score": selected.wire_score,
+            "ambiguity_gap": selected.ambiguity_gap,
+        },
         "alternative_pair_candidate_ids": alternative_ids or [],
     }
 

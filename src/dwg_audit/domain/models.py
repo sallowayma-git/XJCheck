@@ -199,6 +199,11 @@ class PairCandidate:
     rationale: str
     left_text_id: str | None = None
     right_text_id: str | None = None
+    pair_key: str | None = None
+    left_score: float | None = None
+    right_score: float | None = None
+    wire_score: float | None = None
+    ambiguity_gap: float | None = None
 
 
 @dataclass(slots=True)
@@ -224,6 +229,11 @@ class Pair:
     left_coord_y: float | None = None
     right_coord_x: float | None = None
     right_coord_y: float | None = None
+    pair_key: str | None = None
+    left_score: float | None = None
+    right_score: float | None = None
+    wire_score: float | None = None
+    ambiguity_gap: float | None = None
 
 
 @dataclass(slots=True)

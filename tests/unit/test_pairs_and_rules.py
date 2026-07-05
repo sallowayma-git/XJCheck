@@ -57,6 +57,10 @@ def test_build_pairs_marks_missing_side_as_review() -> None:
     assert pairs[0].left_text_id == "T1"
     assert pairs[0].left_coord_x is None
     assert pairs[0].left_candidate_id == "C0001"
+    assert pairs[0].pair_key == "101->?"
+    assert pairs[0].left_score == 0.95
+    assert pairs[0].right_score == 0.0
+    assert pairs[0].wire_score == 0.9
 
 
 def test_build_pairs_discards_line_group_without_numeric_candidates() -> None:
@@ -160,6 +164,18 @@ def test_build_pairs_keeps_selected_and_alternative_traceability() -> None:
     assert pair.right_coord_x == 90.0
     assert pair.right_coord_y == 20.0
     assert pair.confidence > 0.92
+    assert pair.pair_key == "101->201"
+    assert pair.left_score == 0.96
+    assert pair.right_score == 0.95
+    assert pair.wire_score == 0.9
+    assert pair.ambiguity_gap is not None
+    assert pair.evidence["pair_key"] == "101->201"
+    assert pair.evidence["score_breakdown"] == {
+        "left_score": 0.96,
+        "right_score": 0.95,
+        "wire_score": 0.9,
+        "ambiguity_gap": pair.ambiguity_gap,
+    }
 
 
 def test_build_pairs_marks_strong_unambiguous_pair_as_pass() -> None:
