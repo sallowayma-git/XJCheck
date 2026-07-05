@@ -14,6 +14,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "skip_globs": ["*~1.DWG", "*.bak", "*.lck"],
         "audit_primary_categories": ["二次原理图"],
         "audit_secondary_categories": ["背板接线图", "元件接线图", "屏端子图", "屏面布置图", "封面/目录"],
+        "audit_supplemental_categories": [],
         "audit_primary_title_keywords": ["回路", "信号", "保护", "出口", "操作", "开入", "控制"],
         "audit_secondary_title_keywords": ["背板", "端子图", "元件接线图", "接线图", "布置", "封面", "目录", "标牌"],
     },

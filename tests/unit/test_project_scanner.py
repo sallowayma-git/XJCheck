@@ -90,6 +90,25 @@ def test_scan_project_normalizes_prj_backplate_bucket_for_component_wiring(tmp_p
     assert result.pages[0].audit_role == "secondary"
 
 
+def test_scan_project_can_promote_secondary_category_to_supplemental_audit(tmp_path: Path) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "21 元件接线图1.dwg").write_bytes(b"AC1018data")
+    config = {
+        **DEFAULT_CONFIG,
+        "project": {
+            **DEFAULT_CONFIG["project"],
+            "audit_supplemental_categories": ["元件接线图"],
+        },
+    }
+
+    result = scan_project(project, config)
+
+    assert result.pages[0].sheet_category == "元件接线图"
+    assert result.pages[0].audit_role == "supplemental"
+    assert result.pages[0].is_primary_audit_candidate is True
+
+
 def test_scan_project_marks_skipped_pages_as_skip(tmp_path: Path) -> None:
     project = tmp_path / "projectA"
     project.mkdir()

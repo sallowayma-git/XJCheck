@@ -94,6 +94,7 @@ def _infer_audit_role(category: str | None, title: str, skip_reason: str | None,
         return "skip"
     project_config = config.get("project", {})
     primary_categories = {str(item) for item in project_config.get("audit_primary_categories", ["二次原理图"])}
+    supplemental_categories = {str(item) for item in project_config.get("audit_supplemental_categories", [])}
     secondary_categories = {
         str(item)
         for item in project_config.get(
@@ -105,6 +106,8 @@ def _infer_audit_role(category: str | None, title: str, skip_reason: str | None,
     secondary_keywords = tuple(str(item) for item in project_config.get("audit_secondary_title_keywords", []))
     if category in primary_categories:
         return "primary"
+    if category in supplemental_categories:
+        return "supplemental"
     if category in secondary_categories:
         return "secondary"
     if any(keyword in title for keyword in secondary_keywords):
@@ -216,7 +219,7 @@ def scan_project(input_path: Path, config: dict) -> ProjectScanResult:
                 sheet_category=category,
                 audit_role=audit_role,
                 page_no_source=page_source,
-                is_primary_audit_candidate=audit_role == "primary",
+                is_primary_audit_candidate=audit_role in {"primary", "supplemental"},
                 source_refs=source_file.sidecar_refs.copy(),
                 warnings=warnings.copy(),
             )

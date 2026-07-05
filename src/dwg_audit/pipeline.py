@@ -16,8 +16,7 @@ from dwg_audit.extract import extract_cad_artifacts
 
 def _is_downstream_audit_page(page) -> bool:
     return (
-        page.audit_role == "primary"
-        and page.is_primary_audit_candidate
+        page.is_primary_audit_candidate
         and page.audit_area_bbox is not None
     )
 
