@@ -15,6 +15,7 @@ from dwg_audit.domain.models import ExtractionWarning
 from dwg_audit.domain.models import Issue
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
+from dwg_audit.domain.models import PageClassification
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import PairCandidate
 from dwg_audit.domain.models import PolylineRecord
@@ -50,14 +51,23 @@ def _slugify(value: str) -> str:
     return slug or "project"
 
 
-def write_project_artifacts(artifacts: ProjectArtifacts, output_dir: Path, config: dict | None = None) -> Path:
+def write_project_artifacts(
+    artifacts: ProjectArtifacts,
+    output_dir: Path,
+    config: dict | None = None,
+    *,
+    page_classifications: dict[str, PageClassification] | None = None,
+    table_mappings: list[dict[str, Any]] | None = None,
+) -> Path:
     project_slug = _slugify(artifacts.scan.manifest.project_id)
     project_dir = output_dir / project_slug
     findings_dir = project_dir / "findings"
+    persist_page_findings = bool((config or {}).get("runtime", {}).get("persist_page_findings_files", False))
     page_findings_dir = findings_dir / "page_findings"
     project_dir.mkdir(parents=True, exist_ok=True)
     findings_dir.mkdir(parents=True, exist_ok=True)
-    page_findings_dir.mkdir(parents=True, exist_ok=True)
+    if persist_page_findings:
+        page_findings_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_path = project_dir / "manifest.json"
     manifest_path.write_text(
@@ -79,17 +89,23 @@ def write_project_artifacts(artifacts: ProjectArtifacts, output_dir: Path, confi
     _frame(artifacts.pairs, Pair).to_parquet(findings_dir / "pairs.parquet", index=False)
     _frame(artifacts.extraction_warnings, ExtractionWarning).to_parquet(findings_dir / "extraction_warnings.parquet", index=False)
 
-    findings_payload = _build_findings_payload(artifacts, config=config)
-    for page_finding in findings_payload["page_findings"]:
-        sheet_id = str(page_finding["sheet_id"])
-        (page_findings_dir / f"{sheet_id}.json").write_text(
-            json.dumps(page_finding, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        (page_findings_dir / f"{sheet_id}.md").write_text(
-            _build_page_finding_markdown(page_finding),
-            encoding="utf-8",
-        )
+    findings_payload = _build_findings_payload(
+        artifacts,
+        config=config,
+        page_classifications=page_classifications,
+        table_mappings=table_mappings,
+    )
+    if persist_page_findings:
+        for page_finding in findings_payload["page_findings"]:
+            sheet_id = str(page_finding["sheet_id"])
+            (page_findings_dir / f"{sheet_id}.json").write_text(
+                json.dumps(page_finding, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            (page_findings_dir / f"{sheet_id}.md").write_text(
+                _build_page_finding_markdown(page_finding),
+                encoding="utf-8",
+            )
     (findings_dir / "findings.json").write_text(json.dumps(findings_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (findings_dir / "findings.md").write_text(_build_findings_markdown(findings_payload), encoding="utf-8")
     return project_dir
@@ -414,6 +430,9 @@ def _per_sheet_orientation_counts(line_groups: list[LineGroup]) -> dict[str, dic
 
 
 def _page_route_target(page: SheetRecord, *, table_like: bool) -> str:
+    explicit_route = getattr(page, "route_target", None)
+    if explicit_route:
+        return str(explicit_route)
     if page.audit_role == "skip":
         return "SkipExtractor"
     if table_like:
@@ -428,6 +447,9 @@ def _page_route_target(page: SheetRecord, *, table_like: bool) -> str:
 
 
 def _page_type_confidence(page: SheetRecord) -> float:
+    explicit_confidence = getattr(page, "page_type_confidence", None)
+    if explicit_confidence is not None:
+        return float(explicit_confidence)
     title = page.sheet_title or page.filename or ""
     category = page.sheet_category or ""
     if category in {"封面/目录", "屏面布置图", "屏端子图", "元件接线图", "背板接线图"} and category.replace("图", "")[:2] in title:
@@ -532,7 +554,11 @@ def _page_number_matching_strategy(page: SheetRecord, *, dominant_orientation: s
     return "Only layout-level evidence is preserved for now; no dedicated number matching strategy is active on this page."
 
 
-def _build_page_findings(artifacts: ProjectArtifacts) -> list[dict[str, Any]]:
+def _build_page_findings(
+    artifacts: ProjectArtifacts,
+    *,
+    page_classifications: dict[str, PageClassification] | None = None,
+) -> list[dict[str, Any]]:
     text_counts = _per_sheet_counts(artifacts.texts)
     line_counts = _per_sheet_counts(artifacts.lines)
     block_counts = _per_sheet_counts(artifacts.blocks)
@@ -551,8 +577,23 @@ def _build_page_findings(artifacts: ProjectArtifacts) -> list[dict[str, Any]]:
         sheet_id = page.sheet_id
         polyline_count = polyline_counts.get(sheet_id, 0)
         line_group_count = line_group_counts.get(sheet_id, 0)
-        table_like = polyline_count >= 20 and line_group_count == 0
-        route_target = _page_route_target(page, table_like=table_like)
+        classification = (page_classifications or {}).get(sheet_id)
+        if classification is not None:
+            page_type = classification.page_type
+            page_subtype = classification.page_subtype
+            page_type_confidence = classification.page_type_confidence
+            route_target = classification.route_target
+            table_like = classification.table_like
+            grid_heavy = classification.grid_heavy
+            classification_features = classification.features
+        else:
+            page_type = page.sheet_category or "unknown"
+            page_subtype = None
+            page_type_confidence = round(_page_type_confidence(page), 2)
+            table_like = polyline_count >= 20 and line_group_count == 0
+            grid_heavy = False
+            classification_features = {}
+            route_target = _page_route_target(page, table_like=table_like)
         orientation_summary = orientation_counts.get(sheet_id, {})
         dominant_orientation = _dominant_orientation(orientation_summary)
         non_discard_pair_count = non_discard_pairs.get(sheet_id, 0)
@@ -563,14 +604,18 @@ def _build_page_findings(artifacts: ProjectArtifacts) -> list[dict[str, Any]]:
         page_findings.append(
             {
                 "sheet_id": page.sheet_id,
+                "file_id": page.file_id,
                 "filename": page.filename,
                 "sheet_no": page.sheet_no,
                 "sheet_order": page.sheet_order,
                 "sheet_title": page.sheet_title,
-                "page_type": page.sheet_category or "unknown",
-                "page_type_confidence": round(_page_type_confidence(page), 2),
+                "page_type": page_type,
+                "page_subtype": page_subtype,
+                "page_type_confidence": page_type_confidence,
                 "audit_role": page.audit_role,
                 "route_target": route_target,
+                "grid_heavy": grid_heavy,
+                "classification_features": classification_features,
                 "layout_summary": {
                     "layout_name": page.layout_name,
                     "drawing_units": page.drawing_units,
@@ -624,7 +669,31 @@ def _build_page_findings(artifacts: ProjectArtifacts) -> list[dict[str, Any]]:
     return page_findings
 
 
-def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = None) -> dict[str, Any]:
+def _build_table_extraction_summary(table_mappings: list[dict[str, Any]] | None) -> dict[str, Any]:
+    if not table_mappings:
+        return {
+            "table_pages": 0,
+            "three_column_pages": 0,
+            "total_mappings": 0,
+            "mappings": [],
+        }
+    three_column_pages = sum(1 for item in table_mappings if item.get("three_column"))
+    total_mappings = sum(len(item.get("mappings", [])) for item in table_mappings)
+    return {
+        "table_pages": len(table_mappings),
+        "three_column_pages": three_column_pages,
+        "total_mappings": total_mappings,
+        "mappings": table_mappings,
+    }
+
+
+def _build_findings_payload(
+    artifacts: ProjectArtifacts,
+    config: dict | None = None,
+    *,
+    page_classifications: dict[str, PageClassification] | None = None,
+    table_mappings: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     manifest = artifacts.scan.manifest
     primary_pages = [page for page in artifacts.scan.pages if page.audit_role == "primary"]
     supplemental_pages = [page for page in artifacts.scan.pages if page.audit_role == "supplemental"]
@@ -632,7 +701,26 @@ def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = N
     skipped_pages = [page for page in artifacts.scan.pages if page.audit_role == "skip"]
     failed = [item for item in manifest.source_files if item.conversion_status.startswith("failed")]
     converted = [item for item in manifest.source_files if item.conversion_status in {"converted", "cached"}]
-    page_findings = _build_page_findings(artifacts)
+    page_findings = _build_page_findings(artifacts, page_classifications=page_classifications)
+    persisted_findings_artifacts = [
+        "findings.md",
+        "findings.json",
+        "pages.parquet",
+        "texts.parquet",
+        "blocks.parquet",
+        "lines.parquet",
+        "polylines.parquet",
+        "line_groups.parquet",
+        "terminal_candidates.parquet",
+        "pair_candidates.parquet",
+        "pairs.parquet",
+        "extraction_warnings.parquet",
+        "source_files.parquet",
+        "sidecars.parquet",
+        "terminal_strips.parquet",
+    ]
+    if bool((config or {}).get("runtime", {}).get("persist_page_findings_files", False)):
+        persisted_findings_artifacts.insert(2, "page_findings/")
     return {
         "project_name": manifest.project_name,
         "project_id": manifest.project_id,
@@ -669,6 +757,7 @@ def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = N
         "pair_evidence_summary": _build_pair_findings_summary(artifacts.pairs),
         "page_findings_count": len(page_findings),
         "page_findings": page_findings,
+        "table_extraction_summary": _build_table_extraction_summary(table_mappings),
         "one_to_many_review_table": _build_one_to_many_review_table(artifacts.pairs, config=config),
         "failed_files": [
             {
@@ -684,24 +773,7 @@ def _build_findings_payload(artifacts: ProjectArtifacts, config: dict | None = N
             "sheet_no 与 sheet_order 分离保存，避免重复页号覆盖。",
         ],
         "artifacts": {
-            "findings": [
-                "findings.md",
-                "findings.json",
-                "page_findings/",
-                "pages.parquet",
-                "texts.parquet",
-                "blocks.parquet",
-                "lines.parquet",
-                "polylines.parquet",
-                "line_groups.parquet",
-                "terminal_candidates.parquet",
-                "pair_candidates.parquet",
-                "pairs.parquet",
-                "extraction_warnings.parquet",
-                "source_files.parquet",
-                "sidecars.parquet",
-                "terminal_strips.parquet",
-            ],
+            "findings": persisted_findings_artifacts,
             "audit": [
                 "issues.parquet",
                 "issues.json",

@@ -173,6 +173,24 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
       right_value: issue.right_value ?? null,
       evidence: issue.evidence ?? {},
     })),
+    page_findings: Array.isArray(result.page_findings)
+      ? result.page_findings.map((pageFinding) => ({
+          ...pageFinding,
+          file_id: pageFinding.file_id ?? null,
+          sheet_no: pageFinding.sheet_no ?? null,
+          sheet_order: Number(pageFinding.sheet_order ?? 0),
+          page_type_confidence: Number(pageFinding.page_type_confidence ?? 0),
+          layout_summary: pageFinding.layout_summary ?? {},
+          structure_summary: pageFinding.structure_summary ?? {},
+          high_confidence_signals: Array.isArray(pageFinding.high_confidence_signals)
+            ? pageFinding.high_confidence_signals.map(String)
+            : [],
+          open_questions: Array.isArray(pageFinding.open_questions)
+            ? pageFinding.open_questions.map(String)
+            : [],
+          warnings: Array.isArray(pageFinding.warnings) ? pageFinding.warnings.map(String) : [],
+        }))
+      : [],
   }
 }
 

@@ -170,14 +170,17 @@ def _store_project_run(
     include_audit: bool,
 ) -> dict[str, Any]:
     manifest = json.loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
     frames = load_report_frames(project_dir)
     pairs = frames.get("pairs", pd.DataFrame())
     issues = frames.get("issues", pd.DataFrame())
     issue_payload = _issue_payloads(issues)
+    page_findings = findings_payload.get("page_findings", [])
     run_id = f"{session_id}:{manifest['project_id']}"
     metadata = {
         "include_audit": include_audit,
         "manifest_warnings": manifest.get("warnings", []),
+        "page_findings_count": int(findings_payload.get("page_findings_count", len(page_findings))),
         "artifacts": {
             "project_dir": str(project_dir),
             "findings_dir": str(project_dir / "findings"),
@@ -198,6 +201,7 @@ def _store_project_run(
         metadata=metadata,
     )
     store.replace_issue_summaries(run_id, issue_payload)
+    store.replace_page_findings(run_id, page_findings)
     return {
         "run_id": run_id,
         "project_id": str(manifest["project_id"]),

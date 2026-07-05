@@ -166,6 +166,57 @@ class DesktopStateStore:
                 ],
             )
 
+    def replace_page_findings(self, run_id: str, page_findings: list[dict[str, Any]]) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM page_findings WHERE run_id = ?", (run_id,))
+            conn.executemany(
+                """
+                INSERT INTO page_findings (
+                    run_id,
+                    sheet_id,
+                    file_id,
+                    filename,
+                    sheet_no,
+                    sheet_order,
+                    sheet_title,
+                    page_type,
+                    page_type_confidence,
+                    audit_role,
+                    route_target,
+                    layout_summary_json,
+                    structure_summary_json,
+                    recognition_strategy,
+                    number_matching_strategy,
+                    high_confidence_signals_json,
+                    open_questions_json,
+                    warnings_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        run_id,
+                        str(item.get("sheet_id") or ""),
+                        str(item.get("file_id") or ""),
+                        str(item.get("filename") or ""),
+                        str(item.get("sheet_no") or ""),
+                        int(item.get("sheet_order") or 0),
+                        str(item.get("sheet_title") or ""),
+                        str(item.get("page_type") or ""),
+                        float(item.get("page_type_confidence") or 0.0),
+                        str(item.get("audit_role") or ""),
+                        str(item.get("route_target") or ""),
+                        json.dumps(item.get("layout_summary") or {}, ensure_ascii=False, sort_keys=True),
+                        json.dumps(item.get("structure_summary") or {}, ensure_ascii=False, sort_keys=True),
+                        str(item.get("recognition_strategy") or ""),
+                        str(item.get("number_matching_strategy") or ""),
+                        json.dumps(item.get("high_confidence_signals") or [], ensure_ascii=False, sort_keys=True),
+                        json.dumps(item.get("open_questions") or [], ensure_ascii=False, sort_keys=True),
+                        json.dumps(item.get("warnings") or [], ensure_ascii=False, sort_keys=True),
+                    )
+                    for item in page_findings
+                ],
+            )
+
     def list_recent_projects(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
@@ -237,6 +288,15 @@ class DesktopStateStore:
                 """,
                 (run_row["run_id"],),
             ).fetchall()
+            page_rows = conn.execute(
+                """
+                SELECT *
+                FROM page_findings
+                WHERE run_id = ?
+                ORDER BY sheet_order ASC, sheet_id ASC
+                """,
+                (run_row["run_id"],),
+            ).fetchall()
         return {
             "run": _row_to_run(run_row),
             "issues": [
@@ -267,6 +327,28 @@ class DesktopStateStore:
                     "values": json.loads(row["values_json"] or "[]"),
                 }
                 for row in issue_rows
+            ],
+            "page_findings": [
+                {
+                    "sheet_id": row["sheet_id"],
+                    "file_id": row["file_id"] or None,
+                    "filename": row["filename"],
+                    "sheet_no": row["sheet_no"] or None,
+                    "sheet_order": int(row["sheet_order"]),
+                    "sheet_title": row["sheet_title"],
+                    "page_type": row["page_type"],
+                    "page_type_confidence": float(row["page_type_confidence"]),
+                    "audit_role": row["audit_role"],
+                    "route_target": row["route_target"],
+                    "layout_summary": json.loads(row["layout_summary_json"] or "{}"),
+                    "structure_summary": json.loads(row["structure_summary_json"] or "{}"),
+                    "recognition_strategy": row["recognition_strategy"],
+                    "number_matching_strategy": row["number_matching_strategy"],
+                    "high_confidence_signals": json.loads(row["high_confidence_signals_json"] or "[]"),
+                    "open_questions": json.loads(row["open_questions_json"] or "[]"),
+                    "warnings": json.loads(row["warnings_json"] or "[]"),
+                }
+                for row in page_rows
             ],
         }
 
@@ -337,6 +419,7 @@ class DesktopStateStore:
                     (session_id,),
                 ).fetchall()
             ]
+            conn.execute("DELETE FROM page_findings WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM issue_summaries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             deleted = conn.execute("DELETE FROM runs WHERE session_id = ?", (session_id,)).rowcount
         return int(deleted or len(run_ids))
@@ -394,6 +477,28 @@ class DesktopStateStore:
                     sheet_ids_json TEXT NOT NULL DEFAULT '[]',
                     values_json TEXT NOT NULL DEFAULT '[]',
                     PRIMARY KEY (run_id, issue_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS page_findings (
+                    run_id TEXT NOT NULL,
+                    sheet_id TEXT NOT NULL,
+                    file_id TEXT NOT NULL DEFAULT '',
+                    filename TEXT NOT NULL,
+                    sheet_no TEXT NOT NULL DEFAULT '',
+                    sheet_order INTEGER NOT NULL DEFAULT 0,
+                    sheet_title TEXT NOT NULL DEFAULT '',
+                    page_type TEXT NOT NULL DEFAULT '',
+                    page_type_confidence REAL NOT NULL DEFAULT 0.0,
+                    audit_role TEXT NOT NULL DEFAULT '',
+                    route_target TEXT NOT NULL DEFAULT '',
+                    layout_summary_json TEXT NOT NULL DEFAULT '{}',
+                    structure_summary_json TEXT NOT NULL DEFAULT '{}',
+                    recognition_strategy TEXT NOT NULL DEFAULT '',
+                    number_matching_strategy TEXT NOT NULL DEFAULT '',
+                    high_confidence_signals_json TEXT NOT NULL DEFAULT '[]',
+                    open_questions_json TEXT NOT NULL DEFAULT '[]',
+                    warnings_json TEXT NOT NULL DEFAULT '[]',
+                    PRIMARY KEY (run_id, sheet_id)
                 );
                 """
             )

@@ -63,6 +63,10 @@ def test_analyze_session_emits_events_and_stores_project_result(monkeypatch, tmp
     assert result["issues"][0]["issue_type"] == "pair_low_confidence"
     assert result["issues"][0]["summary"] == "Low confidence pair"
     assert result["issues"][0]["evidence_refs"] == [{"pair_id": "P2", "filename": "01.dwg", "sheet_no": "01"}]
+    assert result["page_findings"][0]["sheet_id"] == "S1"
+    assert result["page_findings"][0]["page_type"] == "二次原理图"
+    assert result["page_findings"][0]["route_target"] == "WireDiagramExtractor"
+    assert result["page_findings"][0]["open_questions"] == ["Need manual review for ambiguous right-side labels."]
 
     lines = [json.loads(line) for line in stream.getvalue().splitlines()]
     assert lines[0]["event"] == "run_started"
@@ -306,6 +310,37 @@ def _write_project_output(project_dir: Path) -> None:
                 "project_id": "demo-project",
                 "sheet_count": 1,
                 "file_count": 1,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (findings / "findings.json").write_text(
+        json.dumps(
+            {
+                "page_findings_count": 1,
+                "page_findings": [
+                    {
+                        "sheet_id": "S1",
+                        "file_id": "F1",
+                        "filename": "01.dwg",
+                        "sheet_no": "01",
+                        "sheet_order": 1,
+                        "sheet_title": "交流回路图1",
+                        "page_type": "二次原理图",
+                        "page_type_confidence": 0.9,
+                        "audit_role": "primary",
+                        "route_target": "WireDiagramExtractor",
+                        "layout_summary": {"layout_name": "Model"},
+                        "structure_summary": {"line_group_count": 2, "pair_count": 2},
+                        "recognition_strategy": "Use wire-diagram routing.",
+                        "number_matching_strategy": "Use horizontal line groups and endpoint windows.",
+                        "high_confidence_signals": ["Two non-discard pairs found."],
+                        "open_questions": ["Need manual review for ambiguous right-side labels."],
+                        "warnings": [],
+                    }
+                ],
             },
             ensure_ascii=False,
             indent=2,

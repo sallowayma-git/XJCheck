@@ -46,9 +46,30 @@ export type IssueSummary = {
   evidence: Record<string, unknown>
 }
 
+export type PageFindingSummary = {
+  sheet_id: string
+  file_id: string | null
+  filename: string
+  sheet_no: string | null
+  sheet_order: number
+  sheet_title: string
+  page_type: string
+  page_type_confidence: number
+  audit_role: string
+  route_target: string
+  layout_summary: Record<string, unknown>
+  structure_summary: Record<string, unknown>
+  recognition_strategy: string
+  number_matching_strategy: string
+  high_confidence_signals: string[]
+  open_questions: string[]
+  warnings: string[]
+}
+
 export type ProjectResult = {
   run: ProjectRun
   issues: IssueSummary[]
+  page_findings: PageFindingSummary[]
 }
 
 export type PreviewPayload = {

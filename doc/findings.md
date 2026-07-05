@@ -1627,3 +1627,123 @@ second-set 新 audit 结果：
 - 先把任务书要求的页级交付物补成正式产物；
 - 再用这些页级产物把“当前是怎么理解每一页的、还没理解什么”显式暴露出来；
 - 为下一轮真正推进 `Page Classification / Router / TableExtractor` 留出更清晰的证据基础。
+
+## 47. 2026-07-06 任务书已改为“内部 findings 运行态”，`page_findings` 默认不再落盘
+
+用户随后又明确修正了任务书语义，这一点必须覆盖掉上一轮“默认页级落盘”的假设：
+
+- `5.1` 阶段 A 的输出，不再把 `findings/` 目录视为默认交付物
+- `5.1.1` 页级并行审图要求，补了“内部运行态、可清理、不长期保留”
+- `6` Findings 数据规范，明确它是内部 SSoT，而不是最终交付物
+- `page_findings` 从“默认页级文件”改成“内存 / SQLite / 按需落盘记录”
+
+这意味着：
+
+- `findings` 仍然是系统内部最重要的结构化状态；
+- 但正式产品默认不应该把它当作用户长期持有的输出目录；
+- 尤其 `page_findings/<sheet_id>.md|json` 不应再默认每次都落盘，而应按调试 / 回归 / 研发分析需要显式开启。
+
+## 48. 2026-07-06 `page_findings` 运行态已开始接到 SQLite / sidecar，而不是继续强化默认落盘
+
+为对齐这条新语义，当前代码已经先做了两步收口：
+
+- 默认仍会生成项目级 `findings.md/json` 与 parquet 调试材料，保持现有 CLI / regression 工作流可用；
+- `page_findings/` 目录不再默认写出；
+- 只有显式开启：
+  - `runtime.persist_page_findings_files = true`
+  才会把每页 `md/json` 真正落盘出来；
+- 同时桌面端运行态已经开始把 `page_findings` 接到 SQLite / sidecar，而不是只依赖文件目录：
+  - [state_store.py](/F:/workspace/XJToolkit/src/dwg_audit/desktop/state_store.py) 新增 `page_findings` 表
+  - [sidecar.py](/F:/workspace/XJToolkit/src/dwg_audit/desktop/sidecar.py) 在 `analyze-session` 后把 `findings.json.page_findings` 载入 SQLite
+  - [types.ts](/F:/workspace/XJToolkit/apps/desktop/src/types.ts) / [desktopApi.ts](/F:/workspace/XJToolkit/apps/desktop/src/lib/desktopApi.ts) / [mockData.ts](/F:/workspace/XJToolkit/apps/desktop/src/lib/mockData.ts) 已把 `ProjectResult.page_findings` 视为正式运行态字段
+
+当前验证状态：
+
+- `python -m pytest -q tests/unit/test_report_artifacts.py tests/unit/test_project_scanner.py tests/integration/test_analyze_project.py`
+  - `25 passed`
+- `python -m pytest -q`
+  - `107 passed`
+- `apps/desktop`
+  - `npm run build` 通过
+
+直接结论：
+
+- 当前实现已经开始向“内部运行态 + 按需持久化”收口；
+- 后续更值得继续推进的不是“再落更多默认页级文件”，而是把桌面端 / sidecar / SQLite 的内部状态承载彻底打通。
+
+## 49. 2026-07-06 Batch 1 页级并行审图已补齐 `S0008`：4 张强网格化开入页都不该切到 `TableExtractor`
+
+按照用户指定的页级并行工作流，本轮第一批 `Sheet Analyst` 已经补齐 4 张强网格化页面：
+
+- [S0008.md](/F:/workspace/XJToolkit/doc/page_findings/batch1/S0008.md)
+- [S0009.md](/F:/workspace/XJToolkit/doc/page_findings/batch1/S0009.md)
+- [S0012.md](/F:/workspace/XJToolkit/doc/page_findings/batch1/S0012.md)
+- [S0013.md](/F:/workspace/XJToolkit/doc/page_findings/batch1/S0013.md)
+
+当前最重要的结论已经非常稳定：
+
+- 这 4 张页都不是 `TableExtractor` 的目标页。
+- 它们本质上仍是：
+  - 三列重复
+  - 横向导线主证据
+  - `BINARY INPUT 1/2` 模板化很强的二次原理图
+- `S0008/S0012` 只是首页变体，多了一段 `GD/DC/KLP` 顶部引导带，并没有改变主识别器。
+
+### 49.1 这批页的问题分层
+
+按 Findings Integrator 的角度，当前可以先收口成 4 类：
+
+- 分类问题：
+  - 当前不是主要矛盾。
+  - 这 4 页都继续支持 `WireDiagramExtractor`，不该被推进 `TableExtractor`。
+- 抽取 / 线组问题：
+  - 主问题是同一物理行被小符号块切成左右两个半段。
+  - 需要做 `row-band clustering`、`split-row merge`、`cross-symbol-block merge`。
+- 配对问题：
+  - 当前大量 `missing left/right candidate` 其实是镜像半配对，不是真正缺字。
+  - 需要做 `duplicate-half-pair collapse` 与同 y / 同数字 / 短块分隔的合并去重。
+- 专用脚本库问题：
+  - 这批页值得进入“页型专用脚本库”，但脚本名不应叫 `TableExtractor`，而应是：
+    - `binary_input_grid`
+    - 或 `wire_grid_binary_input`
+
+### 49.2 已稳定出现的共性规则
+
+这 4 页共同暴露出的结构事实已经很一致：
+
+- 主体审计区都是三列稳定列带。
+- 主要回路行都按 y 方向近似等间距重复。
+- 主证据数字都来自导线端点附近的自由文本数字，而不是块内文本。
+- `BI xx`、`QDxx`、`GDxx` 更像语义标签 / 行标签，不应直接作为端子号。
+- 首页常见顶部引导带 / 公共线 / 电源头，尾页常见尾线 / 告警说明行，都应从普通 pair 主链分流。
+
+因此更正确的脚本方向应是：
+
+1. 先按 `BINARY INPUT` 页型识别出三列 + 行带骨架。
+2. 在每个 row band 里合并被符号块切开的水平段。
+3. 只把稳定列锚点附近的纯数字当 numeric candidate 主源。
+4. 把 `BI / QD / GD` 之类文本单独记为行语义，不参与端子数字竞争。
+5. 对顶部 / 底部非标准带单独分流，不进入普通 pair 主链。
+
+### 49.3 当前最值得进入开发 backlog 的事项
+
+基于这 4 页，当前 backlog 可以先明确收敛为：
+
+- `P0`：为 `BINARY INPUT 1/2` 页面新增 `row-band clustering`
+- `P0`：新增 `cross-symbol-block merge`，把同一物理行的左右半段并回一个逻辑回路
+- `P0`：新增 `duplicate-half-pair collapse`，收口镜像 `missing-left/right`
+- `P1`：把 `BI xx / QDxx / GDxx` 从 numeric candidate 主链剥离，改为语义标签通道
+- `P1`：对 `S0008/S0012` 这类首页顶部引导带、以及尾页尾线 / 告警说明行加页型特定抑制 / 分流
+- `P2`：在页级 findings / SQLite 里补更直接的页型子标签，例如 `binary_input_first_page` / `binary_input_middle_page`
+
+### 49.4 当前暂不该做的事
+
+这 4 页也反过来说明，以下方向当前不该优先：
+
+- 不应把这批页误判成表格页后直接推进 `TableExtractor`
+- 不应继续扩大块内文本权重去抢数字主源
+- 不应只拧全局 `gap` 常数来试图解决这类模板页
+
+换句话说，这一批并发页审已经把方向从“是不是表格页”收口成了更具体的一句：
+
+- 这是一类 `WireDiagramExtractor` 仍然正确、但必须加页型子策略的“重复行带开入回路页”。

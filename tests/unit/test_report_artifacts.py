@@ -70,22 +70,92 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     findings_dir = project_dir / "findings"
     page_findings_dir = findings_dir / "page_findings"
     findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
-    page_finding_payload = json.loads((page_findings_dir / "S0001.json").read_text(encoding="utf-8"))
-    page_finding_text = (page_findings_dir / "S0001.md").read_text(encoding="utf-8")
 
     assert (project_dir / "manifest.json").exists()
     assert (findings_dir / "findings.md").exists()
     assert (findings_dir / "findings.json").exists()
     assert (findings_dir / "polylines.parquet").exists()
     assert (findings_dir / "extraction_warnings.parquet").exists()
-    assert page_findings_dir.exists()
-    assert (page_findings_dir / "S0001.json").exists()
-    assert (page_findings_dir / "S0001.md").exists()
+    assert not page_findings_dir.exists()
     assert findings_payload["page_findings_count"] == 1
     assert len(findings_payload["page_findings"]) == 1
     assert findings_payload["page_findings"][0]["sheet_id"] == "S0001"
+    assert findings_payload["page_findings"][0]["file_id"] == "F0001"
     assert findings_payload["page_findings"][0]["audit_role"] == "skip"
+    assert findings_payload["page_findings"][0]["filename"] == "01.dwg"
+    assert findings_payload["page_findings"][0]["route_target"] == "SkipExtractor"
+    assert findings_payload["page_findings"][0]["structure_summary"]["pair_count"] == 0
+    assert "page_findings/" not in findings_payload["artifacts"]["findings"]
+
+
+def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path: Path) -> None:
+    source = SourceFileRecord(
+        file_id="F0001",
+        path="C:/demo/01.dwg",
+        filename="01.dwg",
+        ext=".dwg",
+        sha256="abc",
+        size_bytes=10,
+        sheet_order=1,
+        detected_page_no="01",
+        detected_from="filename",
+        sheet_title="封面",
+        sheet_category="封面/目录",
+        skip_reason="matched skip keyword: 封面",
+        valid_dwg_header=True,
+        conversion_status="skipped",
+    )
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-03T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[source],
+            sidecars=[SidecarInfo("prj", None, "missing", None, ["No .prj sidecar found."])],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord(
+                "S0001",
+                "F0001",
+                "01.dwg",
+                1,
+                "01",
+                "封面",
+                "封面/目录",
+                "skip",
+                "filename",
+                False,
+            )
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+
+    project_dir = write_project_artifacts(
+        ProjectArtifacts(scan=scan),
+        tmp_path,
+        config={"runtime": {"persist_page_findings_files": True}},
+    )
+    findings_dir = project_dir / "findings"
+    page_findings_dir = findings_dir / "page_findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    page_finding_payload = json.loads((page_findings_dir / "S0001.json").read_text(encoding="utf-8"))
+    page_finding_text = (page_findings_dir / "S0001.md").read_text(encoding="utf-8")
+
+    assert page_findings_dir.exists()
+    assert (page_findings_dir / "S0001.json").exists()
+    assert (page_findings_dir / "S0001.md").exists()
+    assert "page_findings/" in findings_payload["artifacts"]["findings"]
     assert page_finding_payload["sheet_id"] == "S0001"
+    assert page_finding_payload["file_id"] == "F0001"
     assert page_finding_payload["filename"] == "01.dwg"
     assert page_finding_payload["audit_role"] == "skip"
     assert page_finding_payload["route_target"] == "SkipExtractor"

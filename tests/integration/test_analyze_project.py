@@ -132,10 +132,9 @@ def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
     assert page_primary["07 屏端子图.dwg"] is True
     assert page_roles["08 封面.dwg"] == "skip"
     assert page_primary["08 封面.dwg"] is False
-    assert page_findings_dir.is_dir()
     assert findings_payload["page_findings_count"] == len(findings_payload["page_findings"]) == len(pages)
-    assert len(list(page_findings_dir.glob("*.json"))) == len(pages)
-    assert len(list(page_findings_dir.glob("*.md"))) == len(pages)
+    assert not page_findings_dir.exists()
+    assert "page_findings/" not in findings_payload["artifacts"]["findings"]
 
     assert set(line_groups["sheet_id"].tolist()) == {
         sheet_by_file["04 回路图.dwg"],

@@ -140,6 +140,34 @@ const mockProjectResults: Record<string, ProjectResult> = {
       },
     },
     issues: mockIssues,
+    page_findings: [
+      {
+        sheet_id: "S0005",
+        file_id: "F0005",
+        filename: "05 差动保护回路图.dwg",
+        sheet_no: "05",
+        sheet_order: 5,
+        sheet_title: "差动保护回路图",
+        page_type: "二次原理图",
+        page_type_confidence: 0.9,
+        audit_role: "primary",
+        route_target: "WireDiagramExtractor",
+        layout_summary: {
+          layout_name: "Model",
+          page_no_source: "filename",
+        },
+        structure_summary: {
+          line_group_count: 1,
+          pair_count: 1,
+          issue_count: 1,
+        },
+        recognition_strategy: "Use wire-diagram routing with horizontal line grouping.",
+        number_matching_strategy: "Use endpoint windows around horizontal line groups.",
+        high_confidence_signals: ["Primary audit page with direct line evidence."],
+        open_questions: ["Competing right-side candidates still require manual review."],
+        warnings: [],
+      },
+    ],
   },
 }
 
