@@ -14,6 +14,7 @@ from dwg_audit.utils.ids import IdFactory
 
 
 _ORIENTATION_VERTICAL = "vertical"
+_ORIENTATION_GRID = "grid"
 
 
 class TextSpatialIndex:
@@ -66,15 +67,11 @@ def build_terminal_candidates(
         radius_y = profile["radius_y"]
         min_height = profile["min_height"]
         max_height = profile["max_height"]
-        orientation = group.orientation if group.orientation in {"horizontal", "vertical"} else "horizontal"
+        orientation = group.orientation if group.orientation in {"horizontal", "vertical", "grid"} else "horizontal"
         profile = _orientation_scoped_profile(profile, sheet, orientation)
+        terminal_strip_mode = _is_terminal_strip_mode(sheet, orientation)
         for side, endpoint in _endpoints_for_group(group):
-            bbox = (
-                endpoint[0] - radius_x,
-                endpoint[1] - radius_y,
-                endpoint[0] + radius_x,
-                endpoint[1] + radius_y,
-            )
+            bbox = _candidate_search_bbox(group, endpoint, radius_x, radius_y, terminal_strip_mode=terminal_strip_mode)
             for text in index.query(bbox):
                 dx = text.insert_x - endpoint[0]
                 dy = text.insert_y - endpoint[1]
@@ -84,7 +81,16 @@ def build_terminal_candidates(
                 horizontal_side_score = _side_alignment_score(dx, dy, radius_x, radius_y, side, orientation)
                 text_type_score = 1.0 if value is not None else 0.0
                 height_score = 1.0 if within_height else 0.0
-                if value is None:
+                if _matches_terminal_strip_bypass_pattern(
+                    text,
+                    sheet,
+                    orientation,
+                    profile["terminal_strip_bypass_patterns"],
+                ):
+                    status = "rejected"
+                    reason = "terminal_strip_bypass_text"
+                    score = 0.0
+                elif value is None:
                     status = "rejected"
                     reason = "not_numeric"
                     score = 0.0
@@ -109,7 +115,12 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "block_internal_pin_number"
                     score = 0.0
+                elif _is_terminal_strip_column_filtered(text, group, side, sheet, orientation):
+                    status = "rejected"
+                    reason = "terminal_strip_column_filtered"
+                    score = 0.0
                 else:
+                    is_block_internal = ":VIRTUAL:" in text.handle.upper() and orientation == _ORIENTATION_GRID
                     score = _candidate_score(
                         dx,
                         dy,
@@ -125,6 +136,11 @@ def build_terminal_candidates(
                         single_char_penalty_layers=profile["single_char_penalty_layers"],
                         single_char_penalty=profile["single_char_penalty"],
                         derived_numeric_penalty=profile["derived_numeric_penalty"] if not text.is_numeric_candidate else 0.0,
+                        block_internal_numeric_penalty=profile["block_internal_numeric_penalty"],
+                        is_block_internal=is_block_internal,
+                        terminal_strip_mode=terminal_strip_mode,
+                        horizontal_distance_weight=profile["terminal_strip_distance_x_weight"],
+                        cross_axis_distance_weight=profile["terminal_strip_distance_y_weight"],
                     )
                     status = "accepted"
                     reason = None
@@ -151,17 +167,43 @@ def build_terminal_candidates(
                         horizontal_side_score=horizontal_side_score,
                         text_type_score=text_type_score,
                         height_score=height_score,
+                        source_block_name=text.source_block_name,
                     )
                 )
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
+    _apply_terminal_strip_row_lock(results, group_map, sheet_map)
+    _apply_terminal_short_bridge_roles(results, group_map, sheet_map)
     _prefer_derived_numeric_on_vertical_component_page(results, group_map, sheet_map)
     _assign_candidate_ranks(results)
     return results
 
 
+def _candidate_search_bbox(
+    group: LineGroup,
+    endpoint: tuple[float, float],
+    radius_x: float,
+    radius_y: float,
+    *,
+    terminal_strip_mode: bool,
+) -> tuple[float, float, float, float]:
+    if terminal_strip_mode:
+        min_x = min(group.start_x, group.end_x) - radius_x
+        max_x = max(group.start_x, group.end_x) + radius_x
+        min_y = min(group.start_y, group.end_y) - radius_y
+        max_y = max(group.start_y, group.end_y) + radius_y
+        return (min_x, min_y, max_x, max_y)
+    return (
+        endpoint[0] - radius_x,
+        endpoint[1] - radius_y,
+        endpoint[0] + radius_x,
+        endpoint[1] + radius_y,
+    )
+
+
 def _endpoints_for_group(group: LineGroup) -> tuple[tuple[str, tuple[float, float]], tuple[str, tuple[float, float]]]:
     if group.orientation == _ORIENTATION_VERTICAL:
         return (("top", (group.start_x, group.start_y)), ("bottom", (group.end_x, group.end_y)))
+    # horizontal 和 grid 都走 left/right 端点语义
     return (("left", (group.start_x, group.start_y)), ("right", (group.end_x, group.end_y)))
 
 
@@ -181,10 +223,18 @@ def _candidate_score(
     single_char_penalty_layers: set[str],
     single_char_penalty: float,
     derived_numeric_penalty: float,
+    block_internal_numeric_penalty: float = 0.0,
+    is_block_internal: bool = False,
+    terminal_strip_mode: bool = False,
+    horizontal_distance_weight: float = 0.55,
+    cross_axis_distance_weight: float = 0.35,
 ) -> float:
     if orientation == _ORIENTATION_VERTICAL:
         distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * 0.35 - min(abs(dy) / max(radius_y, 1.0), 1.0) * 0.55
+    elif terminal_strip_mode:
+        distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * horizontal_distance_weight - min(abs(dy) / max(radius_y, 1.0), 1.0) * cross_axis_distance_weight
     else:
+        # horizontal 和 grid 都走水平距离语义
         distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * 0.55 - min(abs(dy) / max(radius_y, 1.0), 1.0) * 0.35
     side_bonus = _side_bonus(dx, dy, side, orientation)
     height_bonus = 0.05 if 1.8 <= height <= 3.5 else 0.0
@@ -196,6 +246,8 @@ def _candidate_score(
     if len(normalized_value) == 1 and normalized_layer in single_char_penalty_layers:
         penalty += single_char_penalty
     penalty += derived_numeric_penalty
+    if is_block_internal and block_internal_numeric_penalty != 0.0:
+        penalty += block_internal_numeric_penalty
     return round(max(0.0, min(1.0, distance_term + side_bonus + height_bonus - penalty)), 4)
 
 
@@ -208,6 +260,7 @@ def _cross_axis_alignment_score(
 ) -> float:
     if orientation == _ORIENTATION_VERTICAL:
         return round(max(0.0, 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0)), 4)
+    # horizontal 和 grid 都看 dy（垂直对齐）
     return round(max(0.0, 1.0 - min(abs(dy) / max(radius_y, 1.0), 1.0)), 4)
 
 
@@ -221,12 +274,14 @@ def _side_alignment_score(
 ) -> float:
     if orientation == _ORIENTATION_VERTICAL:
         return _vertical_side_score(dy, radius_y, side)
+    # horizontal 和 grid 都看 dx（左右侧对齐）
     return _horizontal_side_score(dx, radius_x, side)
 
 
 def _side_bonus(dx: float, dy: float, side: str, orientation: str) -> float:
     if orientation == _ORIENTATION_VERTICAL:
         return 0.05 if (side == "top" and dy >= -2.5) or (side == "bottom" and dy <= 2.5) else 0.0
+    # horizontal 和 grid 都看 dx 方向
     return 0.05 if (side == "left" and dx <= 0) or (side == "right" and dx >= 0) else 0.0
 
 
@@ -290,6 +345,71 @@ def _dedupe_shared_text_anchors(
             candidate.rank = None
 
 
+def _apply_terminal_strip_row_lock(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> None:
+    by_group_side = defaultdict(list)
+    for candidate in candidates:
+        if candidate.status != "accepted" or not candidate.value:
+            continue
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        if group is None or sheet is None:
+            continue
+        if not _is_terminal_strip_mode(sheet, group.orientation):
+            continue
+        by_group_side[(candidate.line_group_id, candidate.side)].append(candidate)
+
+    for terminal_candidates in by_group_side.values():
+        if len(terminal_candidates) <= 1:
+            continue
+        min_distance_y = min(candidate.distance_y for candidate in terminal_candidates)
+        keep_threshold = min_distance_y + 1.5
+        for candidate in terminal_candidates:
+            if candidate.distance_y <= keep_threshold:
+                continue
+            candidate.status = "rejected"
+            candidate.rejection_reason = "terminal_row_locked"
+            candidate.value = None
+            candidate.rank = None
+
+
+def _apply_terminal_short_bridge_roles(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> None:
+    by_group = defaultdict(list)
+    for candidate in candidates:
+        if candidate.status != "accepted" or not candidate.value:
+            continue
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        if group is None or sheet is None:
+            continue
+        if not _is_terminal_short_bridge_group(group, sheet):
+            continue
+        by_group[candidate.line_group_id].append(candidate)
+
+    for line_group_id, grouped_candidates in by_group.items():
+        group = group_map.get(line_group_id)
+        if group is None:
+            continue
+        preferred_columns = _terminal_short_bridge_preferred_columns(grouped_candidates, group)
+        if preferred_columns is None:
+            continue
+        for candidate in grouped_candidates:
+            target_x = preferred_columns.get(candidate.side)
+            if target_x is None:
+                _reject_candidate(candidate, "terminal_short_bridge_single_column")
+                continue
+            if abs(candidate.text_insert_x - target_x) <= 4.0:
+                continue
+            _reject_candidate(candidate, "terminal_short_bridge_role_filtered")
+
+
 def _prefer_derived_numeric_on_vertical_component_page(
     candidates: list[TerminalCandidate],
     group_map: dict[str, LineGroup],
@@ -335,6 +455,10 @@ def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, obj
         "numeric_suffix_patterns": [],
         "derived_numeric_penalty": 0.0,
         "virtual_single_char_reject_blocks": {str(item).upper() for item in text_config.get("virtual_single_char_reject_blocks", [])},
+        "block_internal_numeric_penalty": float(text_config.get("block_internal_numeric_penalty", 0.0)),
+        "terminal_strip_bypass_patterns": [],
+        "terminal_strip_distance_x_weight": float(text_config.get("terminal_strip_distance_x_weight", 0.55)),
+        "terminal_strip_distance_y_weight": float(text_config.get("terminal_strip_distance_y_weight", 0.35)),
     }
     category = sheet.sheet_category if sheet is not None else None
     override = config.get("page_category_overrides", {}).get(category or "", {})
@@ -366,6 +490,12 @@ def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, obj
             profile["virtual_single_char_reject_blocks"] = {
                 str(item).upper() for item in text_override.get("virtual_single_char_reject_blocks", [])
             }
+        if "terminal_strip_bypass_patterns" in text_override:
+            profile["terminal_strip_bypass_patterns"] = _compile_patterns(text_override.get("terminal_strip_bypass_patterns", []))
+        if "terminal_strip_distance_x_weight" in text_override:
+            profile["terminal_strip_distance_x_weight"] = float(text_override.get("terminal_strip_distance_x_weight", profile["terminal_strip_distance_x_weight"]))
+        if "terminal_strip_distance_y_weight" in text_override:
+            profile["terminal_strip_distance_y_weight"] = float(text_override.get("terminal_strip_distance_y_weight", profile["terminal_strip_distance_y_weight"]))
     return profile
 
 
@@ -407,6 +537,155 @@ def _candidate_numeric_value(text: TextItem, patterns: list[re.Pattern[str]]) ->
             return match.group(match.lastindex or 1)
         return match.group(0)
     return None
+
+
+def _is_terminal_strip_mode(sheet: SheetRecord | None, orientation: str) -> bool:
+    return sheet is not None and sheet.sheet_category == "屏端子图" and orientation != _ORIENTATION_VERTICAL
+
+
+def _matches_terminal_strip_bypass_pattern(
+    text: TextItem,
+    sheet: SheetRecord | None,
+    orientation: str,
+    patterns: list[re.Pattern[str]],
+) -> bool:
+    if not patterns or not _is_terminal_strip_mode(sheet, orientation):
+        return False
+    normalized = text.normalized_text.strip()
+    return any(pattern.search(normalized) for pattern in patterns)
+
+
+def _is_terminal_strip_column_filtered(
+    text: TextItem,
+    group: LineGroup,
+    side: str,
+    sheet: SheetRecord | None,
+    orientation: str,
+) -> bool:
+    if not _is_terminal_strip_mode(sheet, orientation):
+        return False
+    layout_mode = _terminal_strip_layout_mode(sheet)
+    if layout_mode is None:
+        return False
+    if not (70.0 <= group.length <= 80.0):
+        return False
+    if group.start_x >= 300.0:
+        return False
+    offset = text.insert_x - min(group.start_x, group.end_x)
+    allowed = _terminal_strip_allowed_offset_range(layout_mode, side)
+    if allowed is None:
+        return False
+    min_offset, max_offset = allowed
+    return not (min_offset <= offset <= max_offset)
+    return False
+
+
+def _is_terminal_short_bridge_group(group: LineGroup, sheet: SheetRecord | None) -> bool:
+    return (
+        sheet is not None
+        and sheet.sheet_category == "屏端子图"
+        and group.orientation != _ORIENTATION_VERTICAL
+        and 70.0 <= group.length <= 80.0
+        and min(group.start_x, group.end_x) >= 300.0
+    )
+
+
+def _terminal_strip_layout_mode(sheet: SheetRecord | None) -> str | None:
+    if sheet is None or sheet.sheet_category != "屏端子图":
+        return None
+    filename = (sheet.filename or "").strip()
+    title = (sheet.sheet_title or "").strip()
+    combined = f"{filename} {title}"
+    if "左侧" in combined:
+        return "left_terminal"
+    if "右侧" in combined:
+        return "right_terminal"
+    return None
+
+
+def _terminal_strip_allowed_offset_range(layout_mode: str, side: str) -> tuple[float, float] | None:
+    if layout_mode == "left_terminal":
+        if side == "left":
+            return (22.5, 25.5)
+        if side == "right":
+            return (29.5, 32.5)
+        return None
+    if layout_mode == "right_terminal":
+        if side == "left":
+            return (24.5, 28.5)
+        if side == "right":
+            return (47.0, 50.5)
+        return None
+    return None
+
+
+def _terminal_short_bridge_preferred_columns(
+    candidates: list[TerminalCandidate],
+    group: LineGroup,
+) -> dict[str, float] | None:
+    clusters = _cluster_terminal_short_bridge_columns(candidates)
+    if not clusters:
+        return None
+
+    derived_clusters = [cluster["center_x"] for cluster in clusters if cluster["has_derived_numeric"]]
+    if len(derived_clusters) >= 2:
+        return {"left": min(derived_clusters), "right": max(derived_clusters)}
+    if len(derived_clusters) == 1:
+        centers = [cluster["center_x"] for cluster in clusters]
+        if len(centers) > 1:
+            if derived_clusters[0] == min(centers):
+                return {"left": derived_clusters[0], "right": None}
+            if derived_clusters[0] == max(centers):
+                return {"left": None, "right": derived_clusters[0]}
+        preferred_side = _nearest_terminal_side(group, derived_clusters[0])
+        other_side = "right" if preferred_side == "left" else "left"
+        return {preferred_side: derived_clusters[0], other_side: None}
+
+    if len(clusters) == 1:
+        preferred_side = _nearest_terminal_side(group, clusters[0]["center_x"])
+        other_side = "right" if preferred_side == "left" else "left"
+        return {preferred_side: clusters[0]["center_x"], other_side: None}
+
+    centers = [cluster["center_x"] for cluster in clusters]
+    return {"left": min(centers), "right": max(centers)}
+
+
+def _cluster_terminal_short_bridge_columns(candidates: list[TerminalCandidate]) -> list[dict[str, object]]:
+    unique_candidates: dict[str, TerminalCandidate] = {}
+    for candidate in candidates:
+        unique_candidates.setdefault(candidate.text_id, candidate)
+
+    ordered = sorted(unique_candidates.values(), key=lambda item: item.text_insert_x)
+    clusters: list[dict[str, object]] = []
+    for candidate in ordered:
+        is_derived_numeric = candidate.text.strip() != (candidate.value or "").strip()
+        if not clusters or abs(candidate.text_insert_x - float(clusters[-1]["center_x"])) > 4.0:
+            clusters.append(
+                {
+                    "center_x": candidate.text_insert_x,
+                    "has_derived_numeric": is_derived_numeric,
+                }
+            )
+            continue
+        last = clusters[-1]
+        last["center_x"] = round((float(last["center_x"]) + candidate.text_insert_x) / 2.0, 4)
+        last["has_derived_numeric"] = bool(last["has_derived_numeric"]) or is_derived_numeric
+    return clusters
+
+
+def _nearest_terminal_side(group: LineGroup, x_coord: float) -> str:
+    left_edge = min(group.start_x, group.end_x)
+    right_edge = max(group.start_x, group.end_x)
+    if abs(x_coord - left_edge) <= abs(right_edge - x_coord):
+        return "left"
+    return "right"
+
+
+def _reject_candidate(candidate: TerminalCandidate, reason: str) -> None:
+    candidate.status = "rejected"
+    candidate.rejection_reason = reason
+    candidate.value = None
+    candidate.rank = None
 
 
 def _is_virtual_block_internal_pin_candidate(

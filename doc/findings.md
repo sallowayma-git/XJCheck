@@ -1747,3 +1747,738 @@ second-set 新 audit 结果：
 换句话说，这一批并发页审已经把方向从“是不是表格页”收口成了更具体的一句：
 
 - 这是一类 `WireDiagramExtractor` 仍然正确、但必须加页型子策略的“重复行带开入回路页”。
+
+## 49. 2026-07-06 PageClassifier + Router 真正执行路由 + grid-aware 子模式 + TableExtractor 雏形 + R-SHEET-PAGE-MISMATCH
+
+本轮按任务书第 4-5 层和第 9 章要求，把当前最大的结构性缺口做了实质性落地。
+
+### 49.1 新增 PageClassifier 模块（任务书第 4 层）
+
+此前页型判定只靠文件名/sidecar 关键词，没有独立几何分类器。本轮新增 `src/dwg_audit/page_classifier.py`，基于 extract 后的真实几何特征判定页型：
+
+- 特征计算：`horizontal_line_ratio`、`vertical_line_ratio`、`grid_band_count`（按 y 聚类水平线带）、`polyline_density`、`block_density`
+- 分类规则（优先级从高到低）：
+  1. `skip` 页 → `SkipExtractor`
+  2. `table_like`（多 polyline + 水平线占优但不 grid_heavy）→ `TableExtractor`
+  3. `元件接线图 + vertical_ratio >= 0.55` → `vertical_component`（优先于 grid_heavy，因为元件接线图的 grid 特征来自端子桩而非导线）
+  4. `grid_heavy`（grid_band_count >= 8 且 horizontal_ratio >= 0.7）→ `grid_heavy_wire_diagram`
+  5. 其余沿用 `sheet_category`
+
+第二套样本 24 页实跑确认：
+- S0008/S0009/S0012/S0013 全部正确判为 `grid_heavy_wire_diagram`（bands=20, h_ratio>0.93）
+- S0021-S0024 端子图正确判为 `TerminalDiagramExtractor`
+- S0017/S0018 背板图正确判为 `LayoutOnlyExtractor`
+
+### 49.2 Page Router 真正参与执行路由（任务书第 5 层）
+
+此前 `page_router.py` 的 `enrich_pages_with_routing` / `route_supports_pairing` 从未被调用，`pipeline.py` 无差别让所有审计页走同一条 PairBuilder。本轮：
+
+- `pipeline.py` 在 extract 之后调用 `classify_pages` + `enrich_pages_from_classifications`
+- 按 `route_target` 分流：
+  - `TableExtractor` 页走 `extract_table_pairs`
+  - 其余纳入审计的页（primary + supplemental）走 `build_line_groups → build_terminal_candidates → build_pairs`
+- `page_router.py` 去掉 `"TableExtractor (planned)"` 占位，改为真实 `"TableExtractor"`
+
+### 49.3 grid-aware 行带子模式（救 S0009 类页面）
+
+按 S0009 analyst 建议，在 `line_groups.py` 新增 `orientation = "grid"` 支持：
+
+- `_resolve_orientation` 在 `classification.grid_heavy == True` 时返回 `"grid"`
+- 新增 `_build_grid_row_bands`：按 y 容差聚类水平线成行带，再在行带内做共线合并
+- grid 行带的端点仍用 left/right 语义（行带是水平的），候选搜索和配对逻辑复用 horizontal 链
+- 对 grid 页启用块内数字降权（`block_internal_numeric_penalty`，对应 analyst 建议④）
+- evidence 里补 `row_band_id`
+
+第二套样本实跑确认：
+- line_groups orientation 从 `horizontal: 1147` 变成 `grid: 658, horizontal: 499`
+- 658 个线组走了 grid 行带聚类
+- R-PAIR-LOW-CONFIDENCE 从 37 降到 27（-10）
+- 总 issue 从 406 降到 400（-6）
+
+### 49.4 TableExtractor 雏形（任务书第 4 章 113-121 行）
+
+新增 `src/dwg_audit/audit/table_extractor.py`，实现三列表格最小骨架：
+
+- 表格骨架识别：从长水平/竖直线推断网格线
+- 行列识别：按 y 聚类水平网格线 → 行；按 x 聚类竖直网格线 → 列
+- 三列模式检测：单元格列数 == 3 时生成高置信映射
+- 列间映射：中列 → 右列（或中列 → 左列）作为高置信 Pair
+- 输出 Pair `confidence = 0.95, status = pass, evidence.source = table_mapping`
+
+规则引擎已支持 table_mapping Pair 作为高置信信源参与跨页校验（`_high_confidence_pairs` 接受 `evidence.source == "table_mapping"`）。
+
+当前两套样本没有真正的表格页，但路径已通，单元测试覆盖三列映射。
+
+### 49.5 R-SHEET-PAGE-MISMATCH 规则（任务书第 9 章）
+
+新增 `R-SHEET-PAGE-MISMATCH` 规则：
+- 触发条件：文件名页码与标题栏页码不一致
+- 输出：major，evidence 含 `filename_page_no`、`title_block_page_no`
+- 已注册到 `_RULES` 和 `DEFAULT_CONFIG["rules"]["enable"]`
+
+当前两套样本页码一致，未触发该规则，但单元测试覆盖了触发场景。
+
+### 49.6 配置与文档对齐
+
+- `DEFAULT_CONFIG` 新增：`grid_band_y_tolerance`、`grid_min_band_count`、`block_internal_numeric_penalty`
+- `configs/default.yml` 同步成 `DEFAULT_CONFIG` 的完整 dump（修复了此前严重过时问题）
+- `report/artifacts.py` 的 `page_findings` 现在消费 `PageClassification`，输出 `page_subtype`、`grid_heavy`、`classification_features`
+- findings.json 新增 `table_extraction_summary`
+
+### 49.7 测试覆盖
+
+新增 15 个测试，全量 122 passed：
+- `test_page_classifier.py`：grid_heavy 判定、table_like 判定、vertical_component 优先级
+- `test_table_extractor.py`：三列映射、非三列跳过、line_group_id 为 None
+- `test_line_groups.py`：grid orientation 行带聚类、inline 数字桥接
+- `test_pairs_and_rules.py`：R-SHEET-PAGE-MISMATCH 触发/不触发、table_mapping 跨页冲突
+
+### 49.8 当前边界与下一步
+
+本轮没做的（明确边界）：
+- 没改置信度公式（6 项加权）——这是下一轮
+- 没实现任意列数 TableExtractor——只做三列
+- 没碰桌面端/Tauri——本轮纯 Python 主链
+
+下一步优先级：
+1. 置信度公式校准（任务书第 8 章 6 项加权）
+2. grid-aware 子模式的列锚点统计（analyst 建议③）
+3. sidecar/desktop 的 `run_failed`、`purge-session` 暴露
+4. TableExtractor 任意列数支持
+
+## 50. 2026-07-06 Batch 2 `S0019` 证明：`元件接线图1` 不是普通导线页，而是 `horizontal_component_block_pin`
+
+Batch 2 第一张已完成页审的元件页是：
+
+- [S0019.md](/F:/workspace/XJToolkit/doc/page_findings/batch2/S0019.md)
+- [S0019.json](/F:/workspace/XJToolkit/doc/page_findings/batch2/S0019.json)
+
+这页给出的关键信号和 `S0020` 非常不同：
+
+- 当前 `39` 个 `line_group` 全为 horizontal；
+- 当前 `92` 个 accepted terminal candidates 几乎全部来自 `KK1P / KK2P / KK3P / CD-WSK-H-J-G` 的 `INSERT` 虚拟文本；
+- 当前 non-discard pair 主体是：
+  - `2 -> 4`
+  - `1 -> 3`
+  - `1 -> 5`
+  - `2 -> 2`
+  - `1 -> 1`
+
+这说明：
+
+- 这页不是“自由文本主导”的普通导线页；
+- 也不是 `S0020` 那种 `vertical_component` 页；
+- 它更像一类：
+  - `horizontal_component_block_pin`
+
+### 50.1 真正的主问题
+
+主问题不是“系统看不到数字”，而是“系统只看到了块内引脚号，还没把块外语义接上去”。
+
+换句话说：
+
+- 导线逻辑本身仍然有价值：
+  - 短水平 stub 确实能定位到 pin / block
+- 但数字匹配主源应该换成：
+  - `block pin evidence`
+  - 而不是普通端点自由文本
+
+当前 failure mode 已很明确：
+
+- 把 block internal pin pairing 当成 external wiring pairing
+- 同一虚拟 text 双端复用，产生：
+  - `1 -> 1`
+  - `2 -> 2`
+- 顶部附件块被误读成低价值的内部脚位对，例如：
+  - `7 -> 6`
+
+### 50.2 对开发 backlog 的直接影响
+
+这页最值得推动的不是全局阈值，而是一个新的元件页子策略：
+
+- `horizontal_component_block_pin`
+
+其最小能力集应是：
+
+1. 保留 `source_block_name / pin_slot / virtual_handle` 级别的证据；
+2. 为 `KK1P / KK2P / KK3P / CD-WSK-H-J-G` 建立 block pin template；
+3. 把 `same virtual text on both ends` 单独标成：
+   - `self_pair_from_same_virtual_text`
+   - 或 `internal_single_pin_stub`
+4. 把 `1-21n103 / 1-21GD19 / HD1 / K-5 / JD6` 等外围文本从 `not_numeric` 废弃流中救出来，进入语义通道。
+
+直接结论：
+
+- `S0019` 证明了“元件接线图”至少还要继续拆成：
+  - `horizontal_component_block_pin`
+  - `vertical_component`
+
+## 51. 2026-07-06 Batch 2 `S0021` 证明：左侧端子图的主问题不是表格识别，而是 `terminal_strip_column_mode`
+
+Batch 2 已完成的端子页是：
+
+- [S0021.md](/F:/workspace/XJToolkit/doc/page_findings/batch2/S0021.md)
+- [S0021.json](/F:/workspace/XJToolkit/doc/page_findings/batch2/S0021.json)
+
+这页再次把“看起来很规整”和“应该进表格提取器”区分开了：
+
+- `135` 个 `line_group` 全为 horizontal；
+- 主结构是 4 组固定 span 家族：
+  - `40-115`
+  - `127.5-202.5`
+  - `217.5-292.5`
+  - `310-385`
+- accepted candidates 高度集中在固定的：
+  - 局部序号列
+  - 端子代号列
+  - 说明/续接列
+- `table_like_geometry=False`
+
+所以这页的主问题不是“没有表格链路”，而是“已经进入 TerminalDiagramExtractor，但还没有列带感知模式”。
+
+### 51.1 当前为什么已经能进主链
+
+这页之所以现在就能以 `supplemental` 进入主链，不是因为结果已经足够完美，而是因为它已经满足三条低风险条件：
+
+1. 页型稳定：
+   - `屏端子图`
+   - `route_target=TerminalDiagramExtractor`
+2. 主链可穿透：
+   - `433` 条文本
+   - `135` 个 `line_group`
+   - `1494` 个 terminal candidate
+   - `877` 个 pair candidate
+3. 失败区域集中：
+   - review 主要落在左半下段 `DK/KLP/ZKK/UA/UB/UC/UN/3U0` 语义区
+
+这说明它现在更适合作为“补充证据页”参与主链，而不是继续被挡在页外。
+
+### 51.2 真正的 backlog 是什么
+
+当前最值得推进的页型子策略应是：
+
+- `terminal_strip_column_mode`
+
+它的最小能力集应是：
+
+1. 先按 span 家族分 strip；
+2. 再按 `y` 步长锁行；
+3. 将列角色拆开：
+   - 局部序号列
+   - 端子代号列
+   - 语义列
+4. 提升 `\\d+-\\d+n(\\d+)` 这类端子代号的抽值优先级；
+5. 将以下文本旁路，不再参与普通 numeric ranking：
+   - `未定义.*回路图`
+   - `说明`
+   - `上接`
+   - `下接`
+   - strip 标题
+
+### 51.3 直接结论
+
+`S0021` 证明了一点：
+
+- 对端子图来说，导线主要负责锁定行；
+- 真正的数字匹配主源是：
+  - 端子列带
+  - 端子代号正则抽值
+  - 而不是统一邻近窗口
+
+所以 Batch 2 到当前为止已经把 backlog 再往前推了一层：
+
+- Batch 1：
+  - `binary_input_grid`
+- Batch 2：
+  - `horizontal_component_block_pin`
+  - `terminal_strip_column_mode`
+
+## 52. 2026-07-06 `horizontal_component_block_pin` 第一刀已落地：`S0019` 的块内引脚对不再主导 non-discard 结果
+
+基于 Batch 2 的 `S0019` 页审结论，本轮先落了 `horizontal_component_block_pin` 的第一步，不是试图一次做完整模板化，而是先把最扭曲结果的两类噪声明确降级：
+
+- `block_internal_pin_pair`
+- `self_pair_from_same_virtual_text`
+
+### 52.1 代码层变化
+
+当前已实现的最小能力包括：
+
+1. `TerminalCandidate` 现在显式保留 `source_block_name`；
+2. `Pair` evidence 现在透传：
+   - `selected_left_source_block_name`
+   - `selected_right_source_block_name`
+3. horizontal 元件页（以及真实样本里同等语义的 non-vertical component 页）新增两道 guard：
+   - 同一虚拟 text 命中线段两端时，直接标成 `self_pair_from_same_virtual_text`
+   - 左右两端都来自同一 block，且值都是单字符 pin 时，直接标成 `block_internal_pin_pair`
+4. `line_groups.py` 新增约束：
+   - `元件接线图` 不走 `grid` 模式
+   - 仍只在 `horizontal / vertical component` 之间决策
+
+### 52.2 为什么还要补“元件页不进 grid”
+
+第一次真实样本复跑暴露出一个很关键的中间问题：
+
+- `S0019` 虽然本质是 horizontal component 页，但在 page classifier 接入后被判成了 `grid_heavy`
+- 这让它走进了 `grid` line-group 逻辑，导致第一版 horizontal guard 根本没触发
+
+所以这一轮同时把边界收紧为：
+
+- `元件接线图` 即使有强网格感，也不该走 `grid-aware wire` 链
+- 它们应该只在：
+  - `horizontal_component`
+  - `vertical_component`
+ 之间切分
+
+这和 Batch 2 的页审结论是一致的。
+
+### 52.3 真实样本验证结果
+
+针对第二套样本重新实跑：
+
+- 目录：
+  - [phase12_horizontal_component_guard_second_v2/2_2](/F:/workspace/XJToolkit/.tmp/phase12_horizontal_component_guard_second_v2/2_2)
+
+关键结果：
+
+- `19 元件接线图1.dwg`
+  - `line_groups.orientation`
+    - `grid: 39 -> horizontal: 39`
+  - `pair_status`
+    - `39 discard`
+    - `0 review`
+    - `0 pass`
+  - rationale 分布：
+    - `block_internal_pin_pair: 29`
+    - `self_pair_from_same_virtual_text: 8`
+    - `missing numeric candidates on both sides: 2`
+- `20 元件接线图2.dwg`
+  - 保持：
+    - `vertical: 54`
+    - `24 review`
+    - `30 discard`
+  - 没被这轮 horizontal guard 误伤
+
+直接结论：
+
+- 这一步虽然还没把 `S0019` 变成“能正确抽出外部连线语义”，
+- 但已经成功把最误导人的一层结果从“看起来像真的 pair”改成了“显式的内部引脚噪声分类”，
+- 这正是 `horizontal_component_block_pin` 应有的第一阶段行为。
+
+### 52.4 当前仍未完成的部分
+
+这轮还没有做的，是 `S0019` 真正下一层的模板化：
+
+- 还没建立 `KK1P / KK2P / KK3P / CD-WSK-H-J-G` 的 block pin template
+- 还没把 `1-21n103 / 1-21GD19 / HD1 / K-5 / JD6` 这类外围标签正式接成语义通道
+- 还没把 `discard` 的 block pin evidence 升级成更结构化的 “single-ended pin record / block pin mapping”
+
+因此这轮的意义应理解为：
+
+- 先把假的 pair 打碎
+- 再在下一轮把真的 block-pin-to-semantic 映射接起来
+
+## 53. 2026-07-06 `terminal_strip_column_mode` 第一刀已落地：`S0021` 从“几乎全 discard”切到“标准端子行可见 review”
+
+基于 Batch 2 的 `S0021` 页审结论，这一轮没有先扩大 regex，也没有先做一张大黑名单，而是把第一刀放在 `candidates.py` 的端子页候选层：
+
+- `屏端子图` 不再只靠左右端点小窗找候选，而是改成 `line-span query`
+- terminal 页 horizontal 候选新增专用打分：
+  - 降低 x 方向惩罚
+  - 提高同 row 候选得分
+- 新增三条端子页专用 rejection path：
+  - `terminal_row_locked`
+  - `terminal_strip_bypass_text`
+  - `terminal_strip_column_filtered`
+
+这刀的目标很明确：
+
+- 先把固定列带里的“上下相邻多行竞争”打掉
+- 让 `21 -> 211`、`69 -> 318` 这类标准端子行先从 `discard` 翻成可见的 `review`
+- 暂时不去碰 `DK/KLP/ZKK` 语义区和 `310-385` 短桥接列带的专用解释
+
+### 53.1 第二套真实样本结果
+
+对第二套样本重新实跑：
+
+- 产物目录：
+  - [phase13_terminal_strip_column_mode_second/2_2](/F:/workspace/XJToolkit/.tmp/phase13_terminal_strip_column_mode_second/2_2)
+
+关键结果：
+
+- `21 左侧端子图1.dwg / S0021`
+  - `pair_status`
+    - 旧：`discard:108 / review:27`
+    - 新：`discard:18 / review:117`
+  - 旧的 `ambiguous candidate ordering` 已基本退出主导
+  - 当前主导 rationale 变成标准端子行的显式 pair，例如：
+    - `21 -> 211`
+    - `69 -> 318`
+    - `20 -> 210`
+  - 当前 issue 分布：
+    - `R-PAIR-LOW-CONFIDENCE: 90`
+    - `R-PAIR-MISSING-SIDE: 27`
+    - `R-DUPLICATE-SAME-LINE: 9`
+
+直接结论：
+
+- 这页已经从“系统几乎看不见真实 pair”推进到“系统能看到大量真实 pair，但仍需继续提置信/去重”。
+- 这正符合 `terminal_strip_column_mode` 的第一阶段目标。
+
+### 53.2 为什么第二套总体 issue 反而变多
+
+第二套样本总体 issue 从上一版的 `398` 提高到 `597`，这不是简单回退，而是一个可解释的显性化副作用：
+
+- 旧版里，很多标准端子行直接停在 `discard`
+- 这一版里，这些行被翻成了 `review`
+- 因此它们现在会正式进入 audit 规则链，主要体现为：
+  - `R-PAIR-LOW-CONFIDENCE`
+  - 少量 `R-DUPLICATE-SAME-LINE`
+
+换句话说：
+
+- 旧版更像“看不见问题”
+- 新版更像“先把真实 pair 显示出来，再继续压重复和提置信”
+
+### 53.3 第一套样本未回退
+
+为了确认这刀不是只对第二套过拟合，又补跑了第一套：
+
+- 产物目录：
+  - [phase13_terminal_strip_column_mode_first](/F:/workspace/XJToolkit/.tmp/phase13_terminal_strip_column_mode_first)
+
+结果：
+
+- 第一套总 issue 为 `446`
+- 相比 Phase 11 记录的 `461` 没有回退，反而略有下降
+
+这说明：
+
+- 当前这刀虽然主要是为 `S0021` 服务，
+- 但在第一套端子页上也没有造成明显副作用。
+
+### 53.4 当前剩余缺口
+
+这轮之后，端子图方向的 backlog 也更清晰了：
+
+- `23 右侧端子图1.dwg` 仍然是：
+  - `discard:130`
+- `24 右侧端子图2.dwg` 仍然是：
+  - `review:55 / discard:37`
+- `S0021` 自身仍有两块未解决区域：
+  - `310-385` 的短桥接列带
+  - `DK/KLP/ZKK` 与 `UA/UB/UC/UN/3U0` 的语义区
+
+所以更准确的下一步不是“继续加全局正则”，而是：
+
+1. 为右侧端子图补一个 mirrored 的 `terminal_strip_column_mode`
+2. 为 `310-385` 短桥接列带补单独列角色解释
+3. 再决定 `DK/KLP/ZKK` 这类语义右端是进入 pair、语义通道，还是继续只做备注
+
+## 54. 2026-07-06 `右侧端子图` mirrored terminal-strip 已落地：`S0023` 不再整页候选饥饿
+
+在 `S0021` 的左侧端子图首刀之后，下一块最突出的缺口是：
+
+- `23 右侧端子图1.dwg`
+
+上一版真实样本里，这页是：
+
+- `discard:130`
+- 且全部 rationale 都是：
+  - `missing numeric candidates on both sides`
+
+但进一步核对 `terminal_candidates.parquet` 后已确认，这不是“页里没有数字”，而是“数字全被列带 gate 误过滤掉了”。
+
+### 54.1 真正的问题是什么
+
+当前样本已经证明，右侧端子图不能直接复用左侧端子图的列偏移。
+
+左侧端子图 `S0021` 的稳定列带是：
+
+- `start_x + 23.5`
+- `start_x + 31.0`
+
+而右侧端子图 `S0023` / `S0024` 的稳定列带则是：
+
+- `start_x + 26.0` 左右的派生端子列
+- `start_x + 48.5` 左右的纯数字列
+
+典型样本：
+
+- `S0023`
+  - `[40,115] -> 66.0 / 88.5`
+  - `[130,205] -> 156.0 / 178.5`
+  - `[222.5,297.5] -> 248.5 / 271.0`
+- `S0024`
+  - `[35,110] -> 61.0 / 83.5`
+
+所以旧版的问题不是没抽到对象，而是：
+
+- 把右侧端子图按左侧端子图的列偏移规则过滤
+- 结果把 `1-21n132`、`1-21n231`、`20`、`45` 这类本来很合理的文本全部打成：
+  - `terminal_strip_column_filtered`
+
+### 54.2 这轮代码变化
+
+这一轮继续保持小切片，仍然只改端子页候选层，而不去碰 pair 规则层：
+
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+  - `terminal_strip_layout_mode`
+    - 现在会区分：
+      - `left_terminal`
+      - `right_terminal`
+  - `terminal_strip_allowed_offset_range`
+    - `left_terminal`
+      - left: `22.5..25.5`
+      - right: `29.5..32.5`
+    - `right_terminal`
+      - left: `24.5..28.5`
+      - right: `47.0..50.5`
+
+也就是说：
+
+- 左侧端子图继续保持原来的列角色；
+- 右侧端子图改成 mirrored 的列角色；
+- `310-385` 这类短桥接列带仍先排除在专用 gate 之外，避免这一轮过拟合。
+
+### 54.3 第二套真实样本结果
+
+对第二套样本重新实跑：
+
+- 产物目录：
+  - [phase14_right_terminal_mirror_second/2_2](/F:/workspace/XJToolkit/.tmp/phase14_right_terminal_mirror_second/2_2)
+
+关键结果：
+
+- `23 右侧端子图1.dwg / S0023`
+  - 旧：
+    - `discard:130`
+  - 新：
+    - `review:114`
+    - `discard:16`
+  - 当前开始稳定产出 mirrored pair，例如：
+    - `132 -> 20`
+    - `229 -> 45`
+    - `228 -> 44`
+    - `227 -> 43`
+
+- `24 右侧端子图2.dwg / S0024`
+  - 旧：
+    - `review:55 / discard:37`
+    - 且经常左右两边选到同一文本
+  - 新：
+    - `review:54 / discard:38`
+    - 但 pair 结构已更合理，开始稳定产出：
+      - `421 -> 45`
+      - `417 -> 41`
+      - `418 -> 40`
+
+直接结论：
+
+- `S0023` 的主要问题已经从“完全看不见真实 pair”推进到“能看到大量真实 pair，但仍偏低置信”；
+- `S0024` 也从“同一文本双侧复用”推进到“mirrored 列角色基本成立”。
+
+### 54.4 为什么 issue 又上升
+
+这一轮之后，第二套总体 issue 从 `597` 提高到 `654`，第一套总体 issue 也从 `446` 提高到 `559`。
+
+这同样不应简单理解为回退，而是右侧端子页被显性化后的自然结果：
+
+- 旧版里，右侧端子图的大量真实 pair 直接停在 `discard`
+- 新版里，这些 pair 被翻成了 `review`
+- 因此它们正式进入规则链，主要表现为：
+  - `R-PAIR-LOW-CONFIDENCE`
+  - 少量 `R-PAIR-MISSING-SIDE`
+
+所以当前状态更准确地说是：
+
+- 旧版：右侧端子页大量“隐身”
+- 新版：右侧端子页大量“可见但待收敛”
+
+### 54.5 当前剩余缺口
+
+这轮之后，端子图方向的 backlog 再次收口：
+
+1. `310-385` 的短桥接列带仍未进入专用解释
+2. `DK/KLP/ZKK/CLP` 等语义列是否应进入 pair，仍未决定
+3. 右侧端子图虽然能出 pair，但大量仍停在 `review`
+4. 端子图下一阶段的核心不再是“扩大召回”，而是：
+   - 去重
+   - 提置信
+   - 分离“标准端子行”和“语义设备行”
+
+## 55. 2026-07-06 `310-385` 短桥接带已从假双侧配对收口为列角色规则
+
+在 `phase14` 之后，端子图最明显的结构性噪声已经收敛到一类很具体的问题：
+
+- `S0021` 的 `310-385` 区段会产出：
+  - `110 -> 110`
+  - `109 -> 109`
+  - `328 -> 328`
+- `S0024` 的同区段会产出整列：
+  - `10 -> 10`
+  - `9 -> 9`
+  - `...`
+  - `1 -> 1`
+
+这类 pair 的共同点不是“数值抽不到”，而是候选层把短桥接带里的：
+
+- 延续列
+- 局部序号列
+- 单列 continuation
+
+全都一起塞进了左右两侧排序。
+
+### 55.1 真实版面已经足够证明：这里不是普通双侧端子带
+
+并发子代理和主线程对真实产物的复核现在已经对齐：
+
+- 第二套 `S0021 / 21 左侧端子图1.dwg`
+  - `x≈311`
+    - `1-21n109/110`
+  - `x≈333.5`
+    - `73..81`
+  - `x≈341`
+    - `3-21n322..330`
+  - 这不是普通的左右端子对，更像：
+    - 左延续列
+    - 中间局部序号列
+    - 右延续列
+
+- 第二套 `S0024 / 24 右侧端子图2.dwg`
+  - `x≈359`
+    - `10..1`
+  - 旁边只有 `未定义...` 说明文字
+  - 这不是双侧端子带，而是“单列局部序号带”
+
+- 第一套 `S0027 / 26 右侧端子图1.dwg`
+  - `x≈351`
+    - `5n628 / 3-2n428 / 1-2n428 ...`
+  - `x≈374`
+    - `9..1`
+  - `x≈381`
+    - `1-2n420 / 1-2n110 / 3-2n108 ...`
+  - 这再次证明：
+    - 右侧端子页家族里稳定存在“延续列 - 局部序号列 - 延续列”的短桥接模式
+
+所以这里的首要目标不是继续放宽召回，而是把局部序号列从普通 pair 候选里拆出去。
+
+### 55.2 本轮代码收口
+
+本轮继续保持小切片，只动候选层：
+
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+  - 在 `terminal_strip_row_lock` 之后新增短桥接带角色收口
+  - 触发范围：
+    - `屏端子图`
+    - horizontal line group
+    - `length 70..80`
+    - `start_x >= 300`
+  - 行内按 numeric x 列聚类
+  - 若同一行存在两个 derived continuation 列：
+    - 左侧只保留最左 derived 列
+    - 右侧只保留最右 derived 列
+  - 若同一行只剩一个 derived continuation 列：
+    - 按其相对列序决定是 left 还是 right 单侧 continuation
+  - 若整行只有一根 numeric 列：
+    - 只保留更合理的一侧
+    - 另一侧改成 `missing side`
+
+新增 rejection path：
+
+- `terminal_short_bridge_role_filtered`
+- `terminal_short_bridge_single_column`
+
+这刀的目标很窄：
+
+- 不再让局部序号列参与左右两侧普通排名
+- 不再让同一根 numeric 列同时喂给左右两侧
+- 先把假双侧 `X -> X` 压掉，再决定是否引入 specialized continuation semantics
+
+### 55.3 回归与真实样本结果
+
+针对本轮切片，先跑了候选 / 端子 / router 支撑回归：
+
+- `python -m pytest -q tests/unit/test_terminal_candidates.py -k "short_bridge or mirrored_right_terminal or row_locks_terminal_strip"`
+  - `4 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "mirrored_right_terminal_strip_candidates or row_locks_terminal_strip_candidates"`
+  - `2 passed`
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py tests/unit/test_line_groups.py tests/unit/test_page_classifier.py tests/unit/test_table_extractor.py`
+  - `40 passed`
+
+然后对两套真实样本重新实跑：
+
+- 第二套：
+  - [phase15_terminal_short_bridge_second/2_2](/F:/workspace/XJToolkit/.tmp/phase15_terminal_short_bridge_second/2_2)
+- 第一套：
+  - [phase15_terminal_short_bridge_first](/F:/workspace/XJToolkit/.tmp/phase15_terminal_short_bridge_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+关键结果：
+
+- 第二套总体 issue：
+  - `654 -> 648`
+- 第一套总体 issue：
+  - `559 -> 518`
+
+- `S0021`
+  - 旧：
+    - `110 -> 110`
+    - `109 -> 109`
+    - `328 -> 328`
+  - 新：
+    - `110 -> 330`
+    - `109 -> 329`
+    - `? -> 328..322`
+  - 也就是说，这个区段已经从“假双侧自配对”转成了“少量 bridge pair + 大量单侧 continuation”
+
+- `S0024`
+  - 旧：
+    - `10 -> 10 .. 1 -> 1`
+  - 新：
+    - 全部变成 `missing left candidate`
+  - 这和真实版面是一致的：这里只有单列局部序号，不该硬凑双侧 pair
+
+- `S0027`
+  - 旧：
+    - 大量 `628 -> 628`、`427 -> 427`、`216 -> 216`
+  - 新：
+    - 大量变成单侧 continuation：
+      - `628 -> ?`
+      - `? -> 5`
+      - `427 -> ?`
+      - `216 -> ?`
+  - 但双延续列同值仍残留：
+    - `420 -> 420`
+    - `110 -> 110`
+    - `109 -> 109`
+    - `430 -> 430`
+    - `419 -> 419`
+
+直接结论：
+
+- 这轮已经成功解决“同一列被左右两侧同时吃掉”的主问题；
+- 但对于“双延续列、同值、不同 text_id”的 continuation pair，系统还缺 specialized semantics。
+
+### 55.4 现在剩下的端子页 backlog 更清楚了
+
+短桥接带这刀落地后，端子图方向的 backlog 进一步收口成三件事：
+
+1. 语义列分流
+   - `DK/KLP/ZKK/CLP`
+   - `UA/UB/UC/UN/3U0`
+   - `AC230V`
+   - `Shielding layer`
+   - `说明 / 上接 / 未定义...`
+
+2. 双延续列同值 continuation 的 specialized semantics
+   - `420 -> 420`
+   - `110 -> 110`
+   - `109 -> 109`
+   - 这类 pair 不再是“同一列双吃”，但也未必是普通端子 pair
+
+3. 端子页 review pair 的提置信
+   - 当前最该做的已不是继续放宽窗口
+   - 而是：
+     - 语义旁路
+     - continuation-aware pairing
+     - review / discard 的结构性降噪

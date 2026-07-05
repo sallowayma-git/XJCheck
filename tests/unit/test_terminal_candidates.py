@@ -1,4 +1,5 @@
 from dwg_audit.audit.candidates import build_terminal_candidates
+from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
@@ -559,3 +560,267 @@ def test_build_terminal_candidates_extracts_hd_suffix_on_vertical_component_page
     assert top_candidate.value == "5"
     assert bottom_candidate.status == "accepted"
     assert bottom_candidate.value == "502"
+
+
+def test_build_terminal_candidates_row_locks_terminal_strip_candidates_to_same_row() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=127.5,
+            start_y=45.0,
+            end_x=202.5,
+            end_y=45.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("L0", "S1", "F1", "H1", "TEXT", "21", "21", True, "TEXT", 0.0, 2.5, 150.998, 46.0, 149.0, 44.0, 153.0, 48.0),
+        TextItem("L1", "S1", "F1", "H2", "TEXT", "22", "22", True, "TEXT", 0.0, 2.5, 150.998, 41.0, 149.0, 39.0, 153.0, 43.0),
+        TextItem("L2", "S1", "F1", "H3", "TEXT", "20", "20", True, "TEXT", 0.0, 2.5, 150.998, 51.0, 149.0, 49.0, 153.0, 53.0),
+        TextItem("R0", "S1", "F1", "H4", "TEXT", "3-21n211", "3-21n211", False, "TEXT", 0.0, 2.5, 158.5, 46.0, 156.0, 44.0, 162.0, 48.0),
+        TextItem("R1", "S1", "F1", "H5", "TEXT", "3-21n212", "3-21n212", False, "TEXT", 0.0, 2.5, 158.5, 41.0, 156.0, 39.0, 162.0, 43.0),
+        TextItem("R2", "S1", "F1", "H6", "TEXT", "3-21n210", "3-21n210", False, "TEXT", 0.0, 2.5, 158.5, 51.0, 156.0, 49.0, 162.0, 53.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    pair_candidates, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    accepted = [item for item in candidates if item.status == "accepted"]
+    row_locked = [item for item in candidates if item.rejection_reason == "terminal_row_locked"]
+    pair = pairs[0]
+
+    assert {(item.text_id, item.rank) for item in accepted} == {("L0", 1), ("R0", 1)}
+    assert {item.text_id for item in row_locked} == {"L1", "L2", "R1", "R2"}
+    assert len(pair_candidates) == 1
+    assert pair.left_value == "21"
+    assert pair.right_value == "211"
+    assert pair.status == "review"
+    assert "ambiguous" not in pair.rationale
+    assert pair.confidence > 0.75
+
+
+def test_build_terminal_candidates_bypasses_terminal_strip_annotation_text() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=40.0,
+            start_y=200.0,
+            end_x=115.0,
+            end_y=200.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "说明", "说明", False, "TEXT", 0.0, 2.5, 88.5, 200.0, 86.0, 198.0, 92.0, 202.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "上接3-21QD24/72", "上接3-21QD24/72", False, "TEXT", 0.0, 2.5, 88.5, 205.0, 86.0, 203.0, 98.0, 207.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    for text_id in {"T1", "T2"}:
+        rejected = next(item for item in candidates if item.text_id == text_id)
+        assert rejected.status == "rejected"
+        assert rejected.rejection_reason == "terminal_strip_bypass_text"
+
+
+def test_build_terminal_candidates_supports_mirrored_right_terminal_strip_columns() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=40.0,
+            start_y=48.5,
+            end_x=115.0,
+            end_y=48.5,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "23 右侧端子图1.dwg", 23, "23", "右侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("L0", "S1", "F1", "H1", "TEXT", "1-21n132", "1-21n132", False, "TEXT", 0.0, 2.5, 66.0, 48.5, 63.0, 46.5, 70.0, 50.5),
+        TextItem("L1", "S1", "F1", "H2", "TEXT", "1-21n231", "1-21n231", False, "TEXT", 0.0, 2.5, 66.0, 43.5, 63.0, 41.5, 70.0, 45.5),
+        TextItem("R0", "S1", "F1", "H3", "TEXT", "20", "20", True, "TEXT", 0.0, 2.5, 88.5, 48.5, 86.0, 46.5, 92.0, 50.5),
+        TextItem("R1", "S1", "F1", "H4", "TEXT", "21", "21", True, "TEXT", 0.0, 2.5, 88.5, 43.5, 86.0, 41.5, 92.0, 45.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    pair_candidates, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    accepted = [item for item in candidates if item.status == "accepted"]
+    row_locked = [item for item in candidates if item.rejection_reason == "terminal_row_locked"]
+    pair = pairs[0]
+
+    assert {(item.text_id, item.rank) for item in accepted} == {("L0", 1), ("R0", 1)}
+    assert {item.text_id for item in row_locked} == {"L1", "R1"}
+    assert len(pair_candidates) == 1
+    assert pair.left_value == "132"
+    assert pair.right_value == "20"
+    assert pair.status == "review"
+    assert "ambiguous" not in pair.rationale
+
+
+def test_build_terminal_candidates_splits_left_terminal_short_bridge_roles() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=310.0,
+            start_y=225.0,
+            end_x=385.0,
+            end_y=225.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("L0", "S1", "F1", "H1", "TEXT", "1-21n110", "1-21n110", False, "TEXT", 0.0, 3.0, 311.0, 226.0, 308.0, 224.0, 315.0, 228.0),
+        TextItem("M0", "S1", "F1", "H2", "TEXT", "81", "81", True, "TEXT", 0.0, 3.0, 333.5, 226.0, 331.0, 224.0, 336.0, 228.0),
+        TextItem("R0", "S1", "F1", "H3", "TEXT", "3-21n330", "3-21n330", False, "TEXT", 0.0, 3.0, 341.0, 226.0, 338.0, 224.0, 345.0, 228.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    left_candidate = next(item for item in candidates if item.text_id == "L0" and item.side == "left")
+    right_candidate = next(item for item in candidates if item.text_id == "R0" and item.side == "right")
+    middle_left = next(item for item in candidates if item.text_id == "M0" and item.side == "left")
+    mirrored_left = next(item for item in candidates if item.text_id == "R0" and item.side == "left")
+    mirrored_right = next(item for item in candidates if item.text_id == "L0" and item.side == "right")
+    pair = pairs[0]
+
+    assert left_candidate.status == "accepted"
+    assert left_candidate.value == "110"
+    assert left_candidate.rank == 1
+    assert right_candidate.status == "accepted"
+    assert right_candidate.value == "330"
+    assert right_candidate.rank == 1
+    assert middle_left.status == "rejected"
+    assert middle_left.rejection_reason == "terminal_short_bridge_role_filtered"
+    assert mirrored_left.status == "rejected"
+    assert mirrored_left.rejection_reason == "terminal_short_bridge_role_filtered"
+    assert mirrored_right.status == "rejected"
+    assert mirrored_right.rejection_reason == "terminal_short_bridge_role_filtered"
+    assert pair.left_value == "110"
+    assert pair.right_value == "330"
+    assert "ambiguous" not in pair.rationale
+
+
+def test_build_terminal_candidates_keeps_single_numeric_column_one_sided_on_short_bridge() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=310.0,
+            start_y=220.0,
+            end_x=385.0,
+            end_y=220.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "24 右侧端子图2.dwg", 24, "24", "右侧端子图2", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T0", "S1", "F1", "H1", "TEXT", "10", "10", True, "TEXT", 0.0, 3.0, 359.25, 221.0, 357.0, 219.0, 362.0, 223.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    left_candidate = next(item for item in candidates if item.text_id == "T0" and item.side == "left")
+    right_candidate = next(item for item in candidates if item.text_id == "T0" and item.side == "right")
+    pair = pairs[0]
+
+    assert left_candidate.status == "rejected"
+    assert left_candidate.rejection_reason == "terminal_short_bridge_single_column"
+    assert right_candidate.status == "accepted"
+    assert right_candidate.value == "10"
+    assert right_candidate.rank == 1
+    assert pair.left_value is None
+    assert pair.right_value == "10"
+    assert pair.status == "review"
+    assert pair.rationale == "missing left candidate"
+
+
+def test_build_terminal_candidates_assigns_single_derived_bridge_column_to_its_visual_side() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=310.0,
+            start_y=235.0,
+            end_x=385.0,
+            end_y=235.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("M0", "S1", "F1", "H1", "TEXT", "79", "79", True, "TEXT", 0.0, 3.0, 333.5, 236.0, 331.0, 234.0, 336.0, 238.0),
+        TextItem("R0", "S1", "F1", "H2", "TEXT", "3-21n328", "3-21n328", False, "TEXT", 0.0, 3.0, 341.0, 236.0, 338.0, 234.0, 345.0, 238.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    middle_left = next(item for item in candidates if item.text_id == "M0" and item.side == "left")
+    middle_right = next(item for item in candidates if item.text_id == "M0" and item.side == "right")
+    derived_left = next(item for item in candidates if item.text_id == "R0" and item.side == "left")
+    derived_right = next(item for item in candidates if item.text_id == "R0" and item.side == "right")
+    pair = pairs[0]
+
+    assert middle_left.status == "rejected"
+    assert middle_left.rejection_reason == "terminal_short_bridge_role_filtered"
+    assert middle_right.status == "rejected"
+    assert middle_right.rejection_reason == "terminal_short_bridge_role_filtered"
+    assert derived_left.status == "rejected"
+    assert derived_left.rejection_reason == "terminal_short_bridge_single_column"
+    assert derived_right.status == "accepted"
+    assert derived_right.value == "328"
+    assert pair.left_value is None
+    assert pair.right_value == "328"
+    assert pair.rationale == "missing left candidate"
