@@ -284,9 +284,19 @@ def _decode_jsonish(value: object) -> Any:
         return None
     if isinstance(value, str):
         try:
-            return json.loads(value)
+            return _normalize_jsonish(json.loads(value))
         except json.JSONDecodeError:
             return value
+    return _normalize_jsonish(value)
+
+
+def _normalize_jsonish(value: Any) -> Any:
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
+        value = value.tolist()
+    if isinstance(value, dict):
+        return {str(key): _normalize_jsonish(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_jsonish(item) for item in value]
     return value
 
 

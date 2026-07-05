@@ -260,13 +260,25 @@ def _decode_jsonish(value: object) -> Any:
     if isinstance(value, float) and pd.isna(value):
         return {}
     if isinstance(value, dict):
-        return value
+        return _normalize_jsonish(value)
+    if isinstance(value, list):
+        return _normalize_jsonish(value)
     if isinstance(value, str):
         try:
-            return json.loads(value)
+            return _normalize_jsonish(json.loads(value))
         except json.JSONDecodeError:
             return {}
-    return {}
+    return _normalize_jsonish(value)
+
+
+def _normalize_jsonish(value: Any) -> Any:
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
+        value = value.tolist()
+    if isinstance(value, dict):
+        return {str(key): _normalize_jsonish(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_jsonish(item) for item in value]
+    return value
 
 
 def _string_value(value: object) -> str:

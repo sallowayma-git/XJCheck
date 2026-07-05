@@ -12,6 +12,7 @@ from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
+from dwg_audit.report.artifacts import _issue_frame
 from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
 
@@ -61,7 +62,7 @@ def rerun_audit_from_findings(
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
-    issues_frame = _issues_frame(issues)
+    issues_frame = _issue_frame(issues)
     issues_frame.to_parquet(audit_dir / "issues.parquet", index=False)
     issues_frame.to_json(audit_dir / "issues.json", orient="records", force_ascii=False, indent=2)
     export_existing_reports(project_dir)
@@ -171,43 +172,6 @@ def _terminal_candidate(row: pd.Series) -> TerminalCandidate:
         height_score=_nullable_float(row.get("height_score")),
         rank=_nullable_int(row.get("rank")),
     )
-
-
-def _issues_frame(issues: list[Any]) -> pd.DataFrame:
-    rows = []
-    for issue in issues:
-        row = issue.__dict__.copy() if hasattr(issue, "__dict__") else {}
-        if not row:
-            row = {
-                "issue_id": issue.issue_id,
-                "rule_id": issue.rule_id,
-                "severity": issue.severity,
-                "status": issue.status,
-                "confidence": issue.confidence,
-                "message": issue.message,
-                "sheet_id": issue.sheet_id,
-                "file_id": issue.file_id,
-                "pair_id": issue.pair_id,
-                "line_group_id": issue.line_group_id,
-                "left_value": issue.left_value,
-                "right_value": issue.right_value,
-                "evidence": issue.evidence,
-                "issue_type": issue.issue_type,
-                "title": issue.title,
-                "summary": issue.summary,
-                "explanation": issue.explanation,
-                "recommended_action": issue.recommended_action,
-                "primary_pair_id": issue.primary_pair_id,
-                "related_pair_ids": issue.related_pair_ids,
-                "sheet_ids": issue.sheet_ids,
-                "values": issue.values,
-                "evidence_refs": issue.evidence_refs,
-            }
-        for key, value in list(row.items()):
-            if isinstance(value, (list, tuple, dict)):
-                row[key] = json.dumps(value, ensure_ascii=False)
-        rows.append(row)
-    return pd.DataFrame(rows)
 
 
 def _nullable_str(value: object) -> str | None:

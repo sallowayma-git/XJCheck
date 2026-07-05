@@ -200,32 +200,34 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
             "line_group_id": "G0001",
             "left_value": "101",
             "right_value": "201",
-            "evidence": json.dumps(
-                {
-                    "filename": "04.dwg",
-                    "sheet_no": "04",
-                    "sheet_order": 4,
-                    "line_start": [10.0, 20.0],
-                    "line_end": [40.0, 20.0],
-                },
-                ensure_ascii=False,
-            ),
+            "evidence": {
+                "filename": "04.dwg",
+                "sheet_no": "04",
+                "sheet_order": 4,
+                "line_start": [10.0, 20.0],
+                "line_end": [40.0, 20.0],
+            },
             "issue_type": None,
             "title": "跨页配对冲突",
             "summary": None,
             "explanation": None,
             "recommended_action": None,
             "primary_pair_id": None,
-            "related_pair_ids": "[]",
-            "sheet_ids": "[]",
-            "values": "[]",
-            "evidence_refs": "[]",
+            "related_pair_ids": [],
+            "sheet_ids": [],
+            "values": [],
+            "evidence_refs": [],
         }
     ]
 
     issues_frame = pd.read_parquet(audit_dir / "issues.parquet")
     assert issues_frame.loc[0, "rule_id"] == "R-CROSS-PAGE-CONFLICT"
-    assert issues_frame.loc[0, "evidence"] == json.dumps(issue.evidence, ensure_ascii=False)
+    evidence = issues_frame.loc[0, "evidence"]
+    assert evidence["filename"] == issue.evidence["filename"]
+    assert evidence["sheet_no"] == issue.evidence["sheet_no"]
+    assert evidence["sheet_order"] == issue.evidence["sheet_order"]
+    assert evidence["line_start"].tolist() == issue.evidence["line_start"]
+    assert evidence["line_end"].tolist() == issue.evidence["line_end"]
 
 
 def test_rerun_audit_from_findings_copies_outputs_to_output_dir(tmp_path: Path, monkeypatch) -> None:

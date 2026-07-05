@@ -29,6 +29,7 @@ from dwg_audit.domain.models import TextItem
 from dwg_audit.domain.models import record_dict
 
 _REPORT_FORMATS = ("md", "html", "xlsx")
+_ISSUE_STRUCTURED_COLUMNS = ("evidence", "related_pair_ids", "sheet_ids", "values", "evidence_refs")
 
 
 def _frame(records: list[Any], cls: type) -> pd.DataFrame:
@@ -44,6 +45,26 @@ def _frame(records: list[Any], cls: type) -> pd.DataFrame:
                 row[key] = json.dumps(value, ensure_ascii=False)
         serialized.append(row)
     return pd.DataFrame(serialized, columns=columns)
+
+
+def _restore_jsonish_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    restored = frame.copy()
+    for column in columns:
+        if column not in restored.columns:
+            continue
+        restored[column] = restored[column].apply(_decode_jsonish)
+    return restored
+
+
+def _issue_frame(issues: list[Issue]) -> pd.DataFrame:
+    frame = _restore_jsonish_columns(_frame(issues, Issue), _ISSUE_STRUCTURED_COLUMNS)
+    if "evidence" in frame.columns:
+        frame["evidence"] = frame["evidence"].apply(
+            lambda value: None if isinstance(value, dict) and not value else value
+        )
+    return frame
 
 
 def _slugify(value: str) -> str:
@@ -122,7 +143,7 @@ def write_audit_outputs(
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
-    issues_frame = _frame(issues, Issue)
+    issues_frame = _issue_frame(issues)
     issues_frame.to_parquet(audit_dir / "issues.parquet", index=False)
     issues_frame.to_json(audit_dir / "issues.json", orient="records", force_ascii=False, indent=2)
 
@@ -137,6 +158,7 @@ def write_audit_outputs(
 
 
 def _stringify_summary_value(value: Any) -> str:
+    value = _normalize_jsonish_value(value)
     if isinstance(value, str):
         return value
     if isinstance(value, (list, tuple, dict)):
@@ -145,6 +167,7 @@ def _stringify_summary_value(value: Any) -> str:
 
 
 def _is_blank_value(value: Any) -> bool:
+    value = _normalize_jsonish_value(value)
     if value is None:
         return True
     if isinstance(value, str) and not value.strip():
@@ -1000,9 +1023,20 @@ def _decode_jsonish(raw: Any) -> Any:
     if isinstance(raw, (list, tuple, dict)) and not raw:
         return None
     try:
-        return json.loads(raw) if isinstance(raw, str) else raw
+        decoded = json.loads(raw) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
         return None
+    return _normalize_jsonish_value(decoded)
+
+
+def _normalize_jsonish_value(value: Any) -> Any:
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
+        value = value.tolist()
+    if isinstance(value, dict):
+        return {str(key): _normalize_jsonish_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_jsonish_value(item) for item in value]
+    return value
 
 
 def _read_evidence_key(row: pd.Series, key: str) -> Any:
@@ -1018,6 +1052,7 @@ def _read_evidence_key(row: pd.Series, key: str) -> Any:
 
 
 def _format_evidence_part(value: Any) -> str:
+    value = _normalize_jsonish_value(value)
     if isinstance(value, (dict, list, tuple)):
         return json.dumps(value, ensure_ascii=False)
     return str(value)

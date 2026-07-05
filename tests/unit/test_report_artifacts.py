@@ -571,7 +571,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "rationale=right side has competing numeric candidates" in findings_text
 
     assert issues_payload[0]["issue_id"] == "I0001"
-    assert json.loads(issues_payload[0]["evidence"])["filename"] == "04.dwg"
+    assert issues_payload[0]["evidence"]["filename"] == "04.dwg"
 
     assert "## 审计概览" in report_text
     assert "SeverityCounts: `{\"critical\": 1}`" in report_text
