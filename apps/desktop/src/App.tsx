@@ -1,3 +1,5 @@
+import { isTauri } from "@tauri-apps/api/core"
+import { getCurrentWindow } from "@tauri-apps/api/window"
 import { startTransition, useDeferredValue, useEffect, useEffectEvent, useMemo, useState } from "react"
 
 import "./App.css"
@@ -22,14 +24,22 @@ type ProcessState = {
   completedProjects: RecentProject[]
 }
 
+type LaunchImportStatusTone = "info" | "ready" | "warn"
+
+type LaunchImportStatus = {
+  tone: LaunchImportStatusTone
+  message: string
+}
+
 function App() {
   const [screen, setScreen] = useState<Screen>("launch")
-  const [inputRoot, setInputRoot] = useState("F:\\workspace\\XJToolkit\\test\\110kV变压器保护柜")
+  const [inputRoot, setInputRoot] = useState("")
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [result, setResult] = useState<ProjectResult | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
+  const [selectedPreviewSheetId, setSelectedPreviewSheetId] = useState<string | null>(null)
   const [issueSearch, setIssueSearch] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [ruleFilter, setRuleFilter] = useState("all")
@@ -37,8 +47,11 @@ function App() {
   const [triageFilter, setTriageFilter] = useState("all")
   const [issueStatusDraft, setIssueStatusDraft] = useState("open")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isPickingDirectory, setIsPickingDirectory] = useState(false)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [isDropTargetActive, setIsDropTargetActive] = useState(false)
+  const [launchImportStatus, setLaunchImportStatus] = useState<LaunchImportStatus | null>(null)
   const deferredIssueSearch = useDeferredValue(issueSearch)
   const [processState, setProcessState] = useState<ProcessState>({
     sessionId: null,
@@ -71,19 +84,88 @@ function App() {
     void refreshRecentProjects()
   }, [refreshRecentProjects])
 
+  const applyImportedInputRoot = useEffectEvent((nextPath: string, source: "picker" | "drop") => {
+    setInputRoot(nextPath)
+    setLoadError(null)
+    setLaunchImportStatus({
+      tone: "ready",
+      message: source === "picker" ? "Native folder selected. Ready to launch the sidecar run." : "Dropped folder captured. Ready to launch the sidecar run.",
+    })
+  })
+
+  const handleDroppedPaths = useEffectEvent((paths: string[]) => {
+    setIsDropTargetActive(false)
+    const droppedPath = pickDroppedInputRoot(paths)
+    if (!droppedPath) {
+      setLoadError("Drop a single project folder. Dragging individual DWG files or multiple paths is not supported yet.")
+      setLaunchImportStatus({
+        tone: "warn",
+        message: "Drop one project folder at a time so the desktop shell can pass a clean root to the Python sidecar.",
+      })
+      return
+    }
+    applyImportedInputRoot(droppedPath, "drop")
+  })
+
+  useEffect(() => {
+    if (screen !== "launch" || !isTauri()) {
+      setIsDropTargetActive(false)
+      return
+    }
+
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    void getCurrentWindow()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "enter" || event.payload.type === "over") {
+          setIsDropTargetActive(true)
+          setLaunchImportStatus({
+            tone: "info",
+            message: "Release to stage this project folder as the next analysis input.",
+          })
+          return
+        }
+        if (event.payload.type === "leave") {
+          setIsDropTargetActive(false)
+          return
+        }
+        if (event.payload.type === "drop") {
+          handleDroppedPaths(event.payload.paths)
+        }
+      })
+      .then((dispose) => {
+        if (disposed) {
+          dispose()
+          return
+        }
+        unlisten = dispose
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "Failed to subscribe to native drag-and-drop events."
+        setLoadError(message)
+      })
+
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [handleDroppedPaths, screen])
+
   const loadProjectResult = useEffectEvent(async (projectId: string) => {
     setLoadError(null)
     try {
+      setIssueSearch("")
+      setSeverityFilter("all")
+      setRuleFilter("all")
+      setStatusFilter("all")
+      setTriageFilter("all")
       const loaded = await desktopApi.loadResult(projectId)
       setResult(loaded)
       const initialIssue = loaded.issues[0] ?? null
       setSelectedIssueId(initialIssue?.issue_id ?? null)
-      if (initialIssue) {
-        const preview = await desktopApi.renderPreview(projectId, initialIssue.issue_id)
-        setPreviewSrc(preview.preview_src)
-      } else {
-        setPreviewSrc(null)
-      }
+      setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
+      setPreviewSrc(null)
       startTransition(() => setScreen("result"))
     } catch (error) {
       const message = error instanceof Error ? error.message : `Failed to load project ${projectId}.`
@@ -192,8 +274,17 @@ function App() {
   })
 
   async function handleAnalyzeClick() {
-    if (!inputRoot.trim()) {
+    const normalizedInputRoot = inputRoot.trim()
+    if (!normalizedInputRoot) {
       setLoadError("Project directory is required.")
+      return
+    }
+    if (isLikelyProjectFilePath(normalizedInputRoot)) {
+      setLoadError("Select the project folder instead of a single DWG/DXF sidecar file.")
+      setLaunchImportStatus({
+        tone: "warn",
+        message: "This path looks like a file. Choose the project directory so scanning, sidecars and page ordering stay intact.",
+      })
       return
     }
     setLoadError(null)
@@ -214,7 +305,7 @@ function App() {
     })
 
     try {
-      const payload = await desktopApi.analyzeSession({ inputRoot }, handleEvent)
+      const payload = await desktopApi.analyzeSession({ inputRoot: normalizedInputRoot }, handleEvent)
       await refreshRecentProjects()
       if (payload.projects[0]) {
         setSelectedProjectId(payload.projects[0].project_id)
@@ -226,6 +317,29 @@ function App() {
       setScreen("launch")
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  async function handlePickDirectoryClick() {
+    if (!isTauri()) {
+      setLaunchImportStatus({
+        tone: "info",
+        message: "Browser preview cannot open the native picker. Run the Tauri shell or type a path manually here.",
+      })
+      return
+    }
+
+    setIsPickingDirectory(true)
+    try {
+      const selected = await desktopApi.pickProjectDirectory(inputRoot)
+      if (selected) {
+        applyImportedInputRoot(selected, "picker")
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to open the native directory picker."
+      setLoadError(message)
+    } finally {
+      setIsPickingDirectory(false)
     }
   }
 
@@ -289,11 +403,14 @@ function App() {
   }, [result?.issues])
 
   const selectedIssue = useMemo(() => {
-    if (!result || !selectedIssueId) {
-      return result?.issues[0] ?? null
+    if (!filteredIssues.length) {
+      return null
     }
-    return result.issues.find((issue) => issue.issue_id === selectedIssueId) ?? result.issues[0] ?? null
-  }, [result, selectedIssueId])
+    if (!selectedIssueId) {
+      return filteredIssues[0] ?? null
+    }
+    return filteredIssues.find((issue) => issue.issue_id === selectedIssueId) ?? filteredIssues[0] ?? null
+  }, [filteredIssues, selectedIssueId])
 
   const summaryProject =
     result?.run ??
@@ -301,10 +418,82 @@ function App() {
     recentProjects[0] ??
     null
   const inputHealth = describeInputRoot(inputRoot)
+  const previewOptions = useMemo(() => buildPreviewOptions(selectedIssue), [selectedIssue])
+  const activePreviewOption =
+    previewOptions.find((option) => option.sheetId === selectedPreviewSheetId) ??
+    previewOptions[0] ??
+    null
 
   useEffect(() => {
     setIssueStatusDraft(selectedIssue?.status ?? "open")
   }, [selectedIssue?.issue_id, selectedIssue?.status])
+
+  useEffect(() => {
+    if (!selectedIssue) {
+      if (selectedPreviewSheetId !== null) {
+        setSelectedPreviewSheetId(null)
+      }
+      return
+    }
+
+    if (!previewOptions.length) {
+      if (selectedPreviewSheetId !== selectedIssue.sheet_id) {
+        setSelectedPreviewSheetId(selectedIssue.sheet_id)
+      }
+      return
+    }
+
+    if (!selectedPreviewSheetId || !previewOptions.some((option) => option.sheetId === selectedPreviewSheetId)) {
+      setSelectedPreviewSheetId(previewOptions[0].sheetId)
+    }
+  }, [previewOptions, selectedIssue, selectedPreviewSheetId])
+
+  useEffect(() => {
+    if (!selectedIssue) {
+      if (selectedIssueId !== null) {
+        setSelectedIssueId(null)
+      }
+      return
+    }
+    if (selectedIssue.issue_id !== selectedIssueId) {
+      setSelectedIssueId(selectedIssue.issue_id)
+    }
+  }, [selectedIssue, selectedIssueId])
+
+  useEffect(() => {
+    const projectId = result?.run.project_id ?? selectedProjectId
+    if (screen !== "result") {
+      return
+    }
+    if (!projectId || !selectedIssue) {
+      setPreviewSrc(null)
+      return
+    }
+
+    let cancelled = false
+
+    void desktopApi
+      .renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId)
+      .then((preview) => {
+        if (cancelled) {
+          return
+        }
+        setPreviewSrc(preview.preview_src)
+        setLoadError(null)
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return
+        }
+        const message = error instanceof Error ? error.message : `Failed to render preview for ${selectedIssue.issue_id}.`
+        setLoadError(message)
+        setPreviewSrc(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [result?.run.project_id, screen, selectedIssue, selectedPreviewSheetId, selectedProjectId])
 
   async function handleIssueStatusSave() {
     const projectId = result?.run.project_id ?? selectedProjectId
@@ -385,27 +574,35 @@ function App() {
 
         {screen === "launch" && (
           <section className="launch-grid">
-            <article className="launch-card dropzone">
+            <article className={`launch-card dropzone ${isDropTargetActive ? "dropzone-active" : ""}`}>
               <p className="eyebrow">Input</p>
               <h3>Import project directory</h3>
               <p>
-                Desktop shell should support drag-and-drop folder import and native directory selection. This skeleton keeps the input explicit so the sidecar contract stays visible.
+                Pick a project folder natively or drop it onto this card. The shell will keep the project root explicit, then hand it to the existing Python sidecar pipeline unchanged.
               </p>
               <div className={`input-health ${inputHealth.tone}`}>
                 <strong>{inputHealth.title}</strong>
                 <span>{inputHealth.detail}</span>
               </div>
+              {launchImportStatus ? <p className={`drop-status ${launchImportStatus.tone}`}>{launchImportStatus.message}</p> : null}
               <label className="field">
                 <span>Project directory</span>
-                <input value={inputRoot} onChange={(event) => setInputRoot(event.target.value)} placeholder="Select a folder to analyze" />
+                <input
+                  value={inputRoot}
+                  onChange={(event) => {
+                    setInputRoot(event.target.value)
+                    setLaunchImportStatus(null)
+                  }}
+                  placeholder="Select a folder to analyze"
+                />
               </label>
               {loadError ? <p className="error-note">{loadError}</p> : null}
               <div className="button-row">
                 <button type="button" className="primary-button" disabled={!inputRoot.trim() || isAnalyzing} onClick={() => void handleAnalyzeClick()}>
                   {isAnalyzing ? "Analyzing..." : "Start analysis"}
                 </button>
-                <button type="button" className="ghost-button">
-                  Native folder picker
+                <button type="button" className="ghost-button" disabled={isPickingDirectory || isAnalyzing} onClick={() => void handlePickDirectoryClick()}>
+                  {isPickingDirectory ? "Opening picker..." : "Native folder picker"}
                 </button>
               </div>
             </article>
@@ -609,17 +806,6 @@ function App() {
                       className={issue.issue_id === selectedIssue?.issue_id ? "selected-row" : ""}
                       onClick={() => {
                         setSelectedIssueId(issue.issue_id)
-                        void desktopApi
-                          .renderPreview(result?.run.project_id ?? selectedProjectId ?? "project-alpha", issue.issue_id)
-                          .then((preview) => {
-                            setPreviewSrc(preview.preview_src)
-                            setLoadError(null)
-                          })
-                          .catch((error) => {
-                            const message = error instanceof Error ? error.message : `Failed to render preview for ${issue.issue_id}.`
-                            setLoadError(message)
-                            setPreviewSrc(null)
-                          })
                       }}
                     >
                       <td>{issue.severity}</td>
@@ -736,6 +922,26 @@ function App() {
                     <span>Evidence refs</span>
                     <pre>{JSON.stringify(selectedIssue.evidence_refs, null, 2)}</pre>
                   </div>
+                  <div className="detail-grid">
+                    <label className="field compact-field">
+                      <span>Preview source</span>
+                      <select value={selectedPreviewSheetId ?? ""} onChange={(event) => setSelectedPreviewSheetId(event.target.value || null)}>
+                        {previewOptions.length ? (
+                          previewOptions.map((option) => (
+                            <option key={option.sheetId} value={option.sheetId}>
+                              {option.label}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No related sheet references</option>
+                        )}
+                      </select>
+                    </label>
+                    <div className="detail-block">
+                      <span>Active preview</span>
+                      <strong>{activePreviewOption?.caption ?? selectedIssue.sheet_id ?? "-"}</strong>
+                    </div>
+                  </div>
                   <div className="detail-block">
                     <span>Review status</span>
                     <div className="status-editor">
@@ -752,7 +958,15 @@ function App() {
                     </div>
                   </div>
                   <div className="preview-shell">
-                    {previewSrc ? <img src={previewSrc} alt="Issue preview" className="preview-image" /> : <div className="preview-empty">Preview will be supplied by render-preview.</div>}
+                    {previewSrc ? (
+                      <img src={previewSrc} alt="Issue preview" className="preview-image" />
+                    ) : (
+                      <div className="preview-empty">
+                        {previewOptions.length
+                          ? "Preview is being rendered for the selected sheet reference."
+                          : "Preview will be supplied by render-preview."}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -884,11 +1098,18 @@ function describeInputRoot(inputRoot: string): { title: string; detail: string; 
   if (!value) {
     return {
       title: "Project path required",
-      detail: "Enter a local project directory before starting the sidecar run.",
+      detail: "Use the native picker, drag a folder onto this card, or paste a local project directory before starting the sidecar run.",
       tone: "warn",
     }
   }
   if (/^[a-zA-Z]:\\/.test(value) || value.startsWith("\\\\")) {
+    if (isLikelyProjectFilePath(value)) {
+      return {
+        title: "Folder expected",
+        detail: "This looks like a file path. Switch to the project directory so scanning, sidecars and recent-project recall stay aligned.",
+        tone: "warn",
+      }
+    }
     return {
       title: "Input looks ready",
       detail: "Absolute Windows path detected. The shell can pass this directly to the Python sidecar.",
@@ -897,9 +1118,98 @@ function describeInputRoot(inputRoot: string): { title: string; detail: string; 
   }
   return {
     title: "Manual verification suggested",
-    detail: "This does not look like an absolute Windows directory yet. Native folder-picker wiring is still pending.",
+    detail: "This is not an absolute Windows path yet. Use the picker or drop a folder to avoid mistyping the project root.",
     tone: "warn",
   }
+}
+
+function isLikelyProjectFilePath(value: string): boolean {
+  const leaf = value.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? ""
+  return /\.(dwg|dxf|prj|xml|json|md|txt|svg|png|jpg|jpeg|xlsx|html)$/i.test(leaf)
+}
+
+function pickDroppedInputRoot(paths: string[]): string | null {
+  if (paths.length !== 1) {
+    return null
+  }
+  const candidate = paths[0]?.trim()
+  if (!candidate || isLikelyProjectFilePath(candidate)) {
+    return null
+  }
+  return candidate
+}
+
+function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: string; label: string; caption: string }> {
+  if (!issue) {
+    return []
+  }
+
+  const options = new Map<string, { sheetId: string; label: string; caption: string }>()
+
+  const addOption = (
+    sheetId: string | null | undefined,
+    prefix: string,
+    meta?: {
+      sheetNo?: string | null
+      filename?: string | null
+    },
+  ) => {
+    const normalized = sheetId?.trim()
+    if (!normalized || options.has(normalized)) {
+      return
+    }
+
+    const bits = [prefix]
+    const captionBits = []
+    if (meta?.sheetNo) {
+      bits.push(`sheet ${meta.sheetNo}`)
+      captionBits.push(`sheet ${meta.sheetNo}`)
+    }
+    if (meta?.filename) {
+      bits.push(meta.filename)
+      captionBits.push(meta.filename)
+    }
+    if (!captionBits.length) {
+      captionBits.push(normalized)
+    }
+
+    options.set(normalized, {
+      sheetId: normalized,
+      label: bits.join(" · "),
+      caption: captionBits.join(" · "),
+    })
+  }
+
+  addOption(issue.sheet_id, "Issue sheet", {
+    sheetNo: issue.sheet_no || null,
+    filename: issue.filename || null,
+  })
+
+  for (const ref of issue.evidence_refs) {
+    const record = isRecord(ref) ? ref : null
+    addOption(readString(record?.sheet_id), "Evidence ref", {
+      sheetNo: readString(record?.sheet_no),
+      filename: readString(record?.filename),
+    })
+  }
+
+  for (const relatedSheetId of issue.sheet_ids) {
+    addOption(relatedSheetId, "Related sheet")
+  }
+
+  if (!options.size && issue.sheet_id) {
+    addOption(issue.sheet_id, "Issue sheet")
+  }
+
+  return Array.from(options.values())
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null
 }
 
 export default App

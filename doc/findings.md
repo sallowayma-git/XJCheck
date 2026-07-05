@@ -735,3 +735,72 @@
 - `python -m pytest -q tests/unit/test_state_store.py tests/unit/test_sidecar.py tests/unit/test_cli.py`
 - `python -m pytest -q`
 - `apps/desktop` 前端构建通过：`npm run build`
+
+## 30. 2026-07-05 桌面端启动页补齐原生文件夹选择与拖拽导入
+
+此前 `apps/desktop` 的启动页虽然已经有输入框和按钮，但“Native folder picker” 只是占位文案，`.dropzone` 也只有样式，没有真实原生导入能力。
+
+本轮把启动页的高优先级原生入口补齐到了真实链路：
+
+- 前端新增 `desktopApi.pickProjectDirectory()`，在 Tauri 环境下通过 `@tauri-apps/plugin-dialog` 打开系统目录选择器。
+- Rust 侧已注册 `tauri-plugin-dialog`，并在 capability 中补 `dialog:allow-open`，不再只是 React 单边假接线。
+- 启动页现在支持：
+  - 原生文件夹选择
+  - 窗口级拖拽导入目录
+  - 拖拽悬停 / 接收状态提示
+  - 基于路径形态的最小输入校验，避免把单个 `DWG / DXF / prj / xml` 文件误当项目根
+- 结果页顺手补了两项交互收口：
+  - 切换项目时重置旧的 issue 筛选条件，避免“项目已切换但表格空白”这类伪空状态
+  - 当前选中 issue 改为跟随 `filteredIssues`，并由 effect 统一刷新预览，避免右侧详情仍操作已被筛掉的隐藏项
+
+同步文档状态：
+
+- [apps/desktop/README.md](/F:/workspace/XJToolkit/apps/desktop/README.md) 已去掉“native directory picker / drag-and-drop 仍是 placeholder”的旧表述
+- 当前 limitations 仍明确保留：
+  - 本机缺 `cargo`，因此 Tauri/Rust 端到端编译仍未验证
+  - 结果页尚未完成多证据切换、多 reference 预览切换与预览重生成控制
+
+验证情况：
+
+- `apps/desktop` 前端构建通过：`npm run build`
+- 由于当前机器仍无 Rust toolchain，`src-tauri` 侧只完成代码接入，未做原生编译验收
+
+## 31. 2026-07-05 结果页补齐预览来源切换，开始利用 `sheet_id / evidence_refs`
+
+在上一轮 issue payload 加厚后，桌面端虽然已经能拿到：
+
+- `sheet_id`
+- `sheet_ids`
+- `evidence_refs`
+- `related_pair_ids`
+
+但结果页实际仍只会对当前 issue 渲染一张默认预览，无法显式切换到相关页或 evidence ref 对应页，这和任务书里“更完整复核”方向还差一步。
+
+本轮先不改 Python 预览生成逻辑，而是复用 `render-preview --sheet-id` 已有能力，把前端预览切换入口接出来：
+
+- `App.tsx` 现在会从当前 issue 的：
+  - `sheet_id`
+  - `evidence_refs[].sheet_id`
+  - `sheet_ids[]`
+  聚合出 `previewOptions`
+- 结果页新增 `Preview source` 下拉选择
+- 切换选项后，前端会以 `issue_id + sheet_id` 重新请求 `renderPreview`
+- 当前激活的预览来源会在结果页显式展示，不再只有一张“默认图”
+
+顺手补的两项交互修正：
+
+- 切项目时会清空旧的 issue 筛选条件，避免新项目被旧筛选误过滤成空表
+- 当前选中 issue 现在跟随 `filteredIssues` 自动收口，避免右侧详情和状态保存仍指向已隐藏 issue
+
+直接结论：
+
+- 桌面端结果页现在已经不再只是“有 preview 区域”，而是开始利用结构化 evidence 在多相关页之间切换复核视角。
+- 这仍然不是最终形态；当前还缺：
+  - evidence refs 的更友好列表化展示
+  - preview 失败重试 / 重生成控制
+  - 多 evidence point 的红框切换
+  - Rust/Tauri 原生端到端编译验收
+
+验证情况：
+
+- `apps/desktop` 前端构建再次通过：`npm run build`

@@ -1,5 +1,6 @@
 import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
+import { open } from "@tauri-apps/plugin-dialog"
 import type { UnlistenFn } from "@tauri-apps/api/event"
 
 import { emitMockAnalyzeSessionEvents, getMockPreview, getMockProjectResult, getMockRecentProjects } from "./mockData"
@@ -98,6 +99,27 @@ export const desktopApi = {
       return await this.loadResult(projectId)
     } catch (error) {
       throw toDesktopError(`Failed to update native issue status for ${issueId}.`, error)
+    }
+  },
+
+  async pickProjectDirectory(defaultPath?: string | null): Promise<string | null> {
+    if (!isTauri()) {
+      return null
+    }
+
+    try {
+      const selected = await open({
+        title: "Select DWG project directory",
+        directory: true,
+        multiple: false,
+        defaultPath: defaultPath?.trim() || undefined,
+      })
+      if (Array.isArray(selected)) {
+        return typeof selected[0] === "string" ? selected[0] : null
+      }
+      return typeof selected === "string" ? selected : null
+    } catch (error) {
+      throw toDesktopError("Failed to open native directory picker.", error)
     }
   },
 }

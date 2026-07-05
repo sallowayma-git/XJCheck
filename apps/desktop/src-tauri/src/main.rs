@@ -241,6 +241,7 @@ fn default_local_app_data_dir() -> Result<PathBuf, String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             desktop_analyze_session,
             desktop_list_recent_projects,
