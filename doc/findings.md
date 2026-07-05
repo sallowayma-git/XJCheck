@@ -804,3 +804,32 @@
 验证情况：
 
 - `apps/desktop` 前端构建再次通过：`npm run build`
+
+## 32. 2026-07-05 结果页补 evidence refs 点击入口与预览重生成控制
+
+在上一轮把 `Preview source` 下拉接出来后，结果页仍然有两个明显缺口：
+
+- `evidence_refs` 还是原始 JSON，不是人工复核友好的入口
+- 即使前端重复调用 `render-preview`，浏览器也可能继续复用同一路径图片缓存，因为当前预览文件名固定为 `"{sheet_id}_{issue_id}.svg"`
+
+本轮继续把这两点收口：
+
+- `Evidence refs` 现在会渲染成可点击列表，而不是只显示 JSON 文本
+- 每条 ref 至少会显示：
+  - `sheet_no / sheet_id`
+  - `filename`
+  - `pair_id / line_group_id`
+  - `coord`（如果 evidence ref 里存在）
+- 点击某条 ref 后，会把当前结果页的 `selectedPreviewSheetId` 切到该 ref 对应页，并复用现有 `render-preview --sheet-id` 重新生成预览
+- 结果页新增 `Regenerate preview` 按钮
+- `desktopApi.renderPreview()` 返回的 `preview_src` 现在会自动附带 cache-bust 查询参数，避免“后端已重写 SVG，但前端仍显示旧图”的伪失败
+
+边界说明：
+
+- 这一轮 `evidence_ref` 的定位仍然是“切到相关页复核”，不是“精确跳到 ref 专属红框”
+- 原因是当前 Python `render_project_preview()` 的高亮逻辑仍只基于当前 issue 的 `evidence / line_group_id`，还没有消费某一条 `evidence_ref` 的专属高亮数据
+- 因此当前实现是保守且真实的：先把页级切换和显式重生成做稳，再考虑 ref 级高亮
+
+验证情况：
+
+- `apps/desktop` 前端构建再次通过：`npm run build`

@@ -40,6 +40,7 @@ function App() {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [selectedPreviewSheetId, setSelectedPreviewSheetId] = useState<string | null>(null)
+  const [previewGeneration, setPreviewGeneration] = useState(0)
   const [issueSearch, setIssueSearch] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [ruleFilter, setRuleFilter] = useState("all")
@@ -48,6 +49,7 @@ function App() {
   const [issueStatusDraft, setIssueStatusDraft] = useState("open")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isPickingDirectory, setIsPickingDirectory] = useState(false)
+  const [isRefreshingPreview, setIsRefreshingPreview] = useState(false)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isDropTargetActive, setIsDropTargetActive] = useState(false)
@@ -419,6 +421,7 @@ function App() {
     null
   const inputHealth = describeInputRoot(inputRoot)
   const previewOptions = useMemo(() => buildPreviewOptions(selectedIssue), [selectedIssue])
+  const evidenceRefEntries = useMemo(() => buildEvidenceRefEntries(selectedIssue), [selectedIssue])
   const activePreviewOption =
     previewOptions.find((option) => option.sheetId === selectedPreviewSheetId) ??
     previewOptions[0] ??
@@ -463,14 +466,17 @@ function App() {
   useEffect(() => {
     const projectId = result?.run.project_id ?? selectedProjectId
     if (screen !== "result") {
+      setIsRefreshingPreview(false)
       return
     }
     if (!projectId || !selectedIssue) {
       setPreviewSrc(null)
+      setIsRefreshingPreview(false)
       return
     }
 
     let cancelled = false
+    setIsRefreshingPreview(true)
 
     void desktopApi
       .renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId)
@@ -480,6 +486,7 @@ function App() {
         }
         setPreviewSrc(preview.preview_src)
         setLoadError(null)
+        setIsRefreshingPreview(false)
       })
       .catch((error) => {
         if (cancelled) {
@@ -488,12 +495,13 @@ function App() {
         const message = error instanceof Error ? error.message : `Failed to render preview for ${selectedIssue.issue_id}.`
         setLoadError(message)
         setPreviewSrc(null)
+        setIsRefreshingPreview(false)
       })
 
     return () => {
       cancelled = true
     }
-  }, [result?.run.project_id, screen, selectedIssue, selectedPreviewSheetId, selectedProjectId])
+  }, [previewGeneration, result?.run.project_id, screen, selectedIssue, selectedPreviewSheetId, selectedProjectId])
 
   async function handleIssueStatusSave() {
     const projectId = result?.run.project_id ?? selectedProjectId
@@ -511,6 +519,13 @@ function App() {
     } finally {
       setIsSavingIssueStatus(false)
     }
+  }
+
+  function handlePreviewRegenerateClick() {
+    if (!selectedIssue) {
+      return
+    }
+    setPreviewGeneration((current) => current + 1)
   }
 
   return (
@@ -920,7 +935,28 @@ function App() {
                   </div>
                   <div className="detail-block">
                     <span>Evidence refs</span>
-                    <pre>{JSON.stringify(selectedIssue.evidence_refs, null, 2)}</pre>
+                    {evidenceRefEntries.length ? (
+                      <div className="evidence-ref-list">
+                        {evidenceRefEntries.map((entry) => (
+                          <button
+                            key={entry.key}
+                            type="button"
+                            className={`evidence-ref-card ${entry.sheetId && entry.sheetId === selectedPreviewSheetId ? "active" : ""}`}
+                            onClick={() => {
+                              if (entry.sheetId) {
+                                setSelectedPreviewSheetId(entry.sheetId)
+                              }
+                            }}
+                            disabled={!entry.sheetId}
+                          >
+                            <strong>{entry.title}</strong>
+                            <span>{entry.subtitle}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <strong>-</strong>
+                    )}
                   </div>
                   <div className="detail-grid">
                     <label className="field compact-field">
@@ -940,6 +976,26 @@ function App() {
                     <div className="detail-block">
                       <span>Active preview</span>
                       <strong>{activePreviewOption?.caption ?? selectedIssue.sheet_id ?? "-"}</strong>
+                    </div>
+                  </div>
+                  <div className="detail-grid">
+                    <div className="detail-block">
+                      <span>Preview controls</span>
+                      <div className="button-row">
+                        <button type="button" className="ghost-button" disabled={!selectedIssue || isRefreshingPreview} onClick={() => handlePreviewRegenerateClick()}>
+                          {isRefreshingPreview ? "Rendering..." : "Regenerate preview"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="detail-block">
+                      <span>Preview state</span>
+                      <strong>
+                        {isRefreshingPreview
+                          ? "Rendering current preview source"
+                          : activePreviewOption
+                            ? `Ready: ${activePreviewOption.caption}`
+                            : "Waiting for selectable preview source"}
+                      </strong>
                     </div>
                   </div>
                   <div className="detail-block">
@@ -1202,6 +1258,51 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
   }
 
   return Array.from(options.values())
+}
+
+function buildEvidenceRefEntries(
+  issue: IssueSummary | null,
+): Array<{ key: string; sheetId: string | null; title: string; subtitle: string }> {
+  if (!issue) {
+    return []
+  }
+
+  return issue.evidence_refs.map((ref, index) => {
+    const record = isRecord(ref) ? ref : null
+    const sheetId = readString(record?.sheet_id)
+    const sheetNo = readString(record?.sheet_no)
+    const filename = readString(record?.filename)
+    const pairId = readString(record?.pair_id)
+    const lineGroupId = readString(record?.line_group_id)
+    const coord = formatEvidenceCoord(record?.coord)
+
+    const titleBits = [`Ref ${index + 1}`]
+    if (sheetNo) {
+      titleBits.push(`sheet ${sheetNo}`)
+    } else if (sheetId) {
+      titleBits.push(sheetId)
+    }
+
+    const subtitleBits = [filename, pairId, lineGroupId, coord].filter((value): value is string => Boolean(value))
+
+    return {
+      key: `${sheetId ?? "no-sheet"}:${pairId ?? lineGroupId ?? index}`,
+      sheetId,
+      title: titleBits.join(" · "),
+      subtitle: subtitleBits.join(" · ") || "No extra reference detail",
+    }
+  })
+}
+
+function formatEvidenceCoord(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length < 2) {
+    return null
+  }
+  const [x, y] = value
+  if (typeof x !== "number" || typeof y !== "number") {
+    return null
+  }
+  return `coord (${x.toFixed(1)}, ${y.toFixed(1)})`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

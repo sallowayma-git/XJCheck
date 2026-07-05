@@ -171,9 +171,10 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
 }
 
 function normalizePreviewPayload(payload: Omit<PreviewPayload, "preview_src"> & { preview_src?: string | null }): PreviewPayload {
+  const rawPreviewSrc = payload.preview_src ?? (payload.preview_path ? convertFileSrc(payload.preview_path) : null)
   return {
     ...payload,
-    preview_src: payload.preview_src ?? (payload.preview_path ? convertFileSrc(payload.preview_path) : null),
+    preview_src: rawPreviewSrc ? withCacheBust(rawPreviewSrc) : null,
   }
 }
 
@@ -182,4 +183,9 @@ function toDesktopError(prefix: string, error: unknown): Error {
     return new Error(`${prefix} ${error.message}`)
   }
   return new Error(prefix)
+}
+
+function withCacheBust(src: string): string {
+  const separator = src.includes("?") ? "&" : "?"
+  return `${src}${separator}v=${Date.now()}`
 }
