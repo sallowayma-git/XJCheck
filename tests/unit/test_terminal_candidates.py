@@ -824,3 +824,89 @@ def test_build_terminal_candidates_assigns_single_derived_bridge_column_to_its_v
     assert pair.left_value is None
     assert pair.right_value == "328"
     assert pair.rationale == "missing left candidate"
+
+
+def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic_row() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=127.5,
+            start_y=255.0,
+            end_x=202.5,
+            end_y=255.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("S0", "S1", "F1", "H1", "TEXT", "3", "3", True, "TEXT", 0.0, 3.0, 151.75, 256.0, 149.5, 254.0, 154.0, 258.0),
+        TextItem("S1", "S1", "F1", "H2", "TEXT", "3-21KLP2-1", "3-21KLP2-1", False, "TEXT", 0.0, 3.0, 128.5, 256.0, 124.5, 254.0, 132.5, 258.0),
+        TextItem("S2", "S1", "F1", "H3", "TEXT", "1-21n108", "1-21n108", False, "TEXT", 0.0, 3.0, 158.5, 256.0, 155.0, 254.0, 162.0, 258.0),
+        TextItem("S3", "S1", "F1", "H4", "TEXT", "+", "+", False, "TEXT", 0.0, 2.5, 91.0, 256.25, 90.0, 255.0, 92.0, 257.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    local_numeric = next(item for item in candidates if item.text_id == "S0" and item.side == "left")
+    continuation = next(item for item in candidates if item.text_id == "S2" and item.side == "right")
+    pair = pairs[0]
+
+    assert local_numeric.status == "rejected"
+    assert local_numeric.rejection_reason == "terminal_semantic_local_numeric"
+    assert continuation.status == "accepted"
+    assert continuation.value == "108"
+    assert pair.left_value is None
+    assert pair.right_value == "108"
+    assert pair.rationale == "missing left candidate"
+
+
+def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic_ac_row() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=215.0,
+            start_y=220.0,
+            end_x=290.0,
+            end_y=220.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "24 右侧端子图2.dwg", 24, "24", "右侧端子图2", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("A0", "S1", "F1", "H1", "TEXT", "AC230V L", "AC230V L", False, "TEXT", 0.0, 2.5, 216.0, 221.25, 212.0, 220.0, 220.0, 223.0),
+        TextItem("A1", "S1", "F1", "H2", "TEXT", "3-21n511", "3-21n511", False, "TEXT", 0.0, 3.0, 241.0, 221.0, 238.0, 219.0, 245.0, 223.0),
+        TextItem("A2", "S1", "F1", "H3", "TEXT", "1", "1", True, "TEXT", 0.0, 3.0, 264.25, 221.0, 262.0, 219.0, 267.0, 223.0),
+        TextItem("A3", "S1", "F1", "H4", "TEXT", "AK-1", "AK-1", False, "TEXT", 0.0, 2.5, 241.0, 221.0, 238.0, 219.0, 245.0, 223.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    continuation = next(item for item in candidates if item.text_id == "A1" and item.side == "left")
+    local_numeric = next(item for item in candidates if item.text_id == "A2" and item.side == "right")
+    pair = pairs[0]
+
+    assert local_numeric.status == "rejected"
+    assert local_numeric.rejection_reason == "terminal_semantic_local_numeric"
+    assert continuation.status == "accepted"
+    assert continuation.value == "511"
+    assert pair.left_value == "511"
+    assert pair.right_value is None
+    assert pair.rationale == "missing right candidate"

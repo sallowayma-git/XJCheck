@@ -4,7 +4,7 @@
 根据 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 持续推进桌面端与审计主链开发，先提交已暂存的结果页增强改动，再补齐 Tauri 桌面端 `M9` 的高价值缺口，同时把关键发现持续沉淀到 [doc/findings.md](/F:/workspace/XJToolkit/doc/findings.md)。
 
 ## Current Phase
-Phase 12
+Phase 13
 
 ## Phases
 
@@ -88,11 +88,18 @@ Phase 12
 - [x] 在第一套、第二套真实样本上复跑 analyze + audit，确认 `X -> X` 假双侧配对显著下降
 - **Status:** complete
 
+### Phase 13: Terminal Semantic-Row Local-Numeric Guard
+- [x] 用并发子代理和真实产物确认 `DK/KLP/ZKK/CLP`、`UA/UB/UC/UN/3U0`、`AC230V`、`Shielding layer` 等语义行会把局部小数字误推成普通 pair
+- [x] 在 `candidates.py` 增加 terminal semantic-row local-numeric suppression，并补齐窄单测
+- [x] 复跑 targeted pytest 与两套真实样本 audit，对比 Phase 15 / Phase 16 的页级 tradeoff
+- [x] 把“低置信 pair 降低、missing-side 显性化上升”的结论写回 findings / progress / plan
+- **Status:** complete
+
 ## Key Questions
 1. Batch 1 的强网格化开入回路页，最终会沉淀成 `WireDiagramExtractor` 的 `binary_input_grid` 子模式，还是需要一个介于 wire/table 之间的新路由标签？
 2. 在 `findings` 已明确转成内部运行态后，下一步是否优先把 sidecar / SQLite 真正接成页级记录的承载层？
 3. Batch 2 是否应优先先落 `S0019` 的 `horizontal_component_block_pin`，还是先落 `S0021` 的 `terminal_strip_column_mode`？
-4. 端子页的 `DK/KLP/ZKK/CLP`、`UA/UB/UC/UN/3U0` 等语义列，下一步是走语义通道、旁注通道，还是部分参与 specialized pairing？
+4. 端子页的语义行小数字在被旁路后，下一步应直接进入语义通道，还是先给 `missing-side` / continuation 做 specialized pair 语义？
 
 ## Decisions Made
 | Decision | Rationale |
@@ -135,6 +142,11 @@ Phase 12
   - `19 元件接线图1.dwg` 已从 `0 pair` 提升到 `39 pair / 12 issue`
   - `20 元件接线图2.dwg` 仍是 `0 pair`，下一步重点是竖线 / `top-bottom` 方向感知，而不是继续在 `INSERT` 展开层兜圈子
 - `08/12` 上的 `inline_numeric_bridge_gap 13.0` 没有带来明显 issue 总量改善，后续更可能需要互补链级别的后处理，而不只是继续拧一个 gap 常数。
+- 最新 `phase16_terminal_semantic_rows_{second,first}` 实跑已确认：
+  - 第二套总体 issue `648 -> 697`，但构成从 `LOW-CONFIDENCE: 267 -> 203`、`MISSING-SIDE: 381 -> 494` 转移
+  - 第一套总体 issue `518 -> 487`，同样表现为 `LOW-CONFIDENCE` 明显下降、`MISSING-SIDE` 显性化上升
+  - 子代理只读复核认为这批被打掉的 `417->41`、`132->20`、`105->10`、`214->2` 更像语义行局部序号，而不是必须保留的 ordinary terminal pair
+  - 所以下一步更适合做 continuation / semantic channel 的 specialized 解释，而不是立刻回滚这条候选层护栏
 - 最新 `phase7_vertical_component_second` 实跑已确认：
   - `20 元件接线图2.dwg` 进入 `55 line_groups / 55 pairs / 55 issues`，orientation 全为 `vertical`
   - `08 测控1开入回路图1.dwg` issue 总量 `96 -> 49`，其中 `47` 条变为“互补半链待复核”

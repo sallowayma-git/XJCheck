@@ -2482,3 +2482,111 @@ Batch 2 已完成的端子页是：
      - 语义旁路
      - continuation-aware pairing
      - review / discard 的结构性降噪
+
+## 56. 2026-07-06 `terminal_semantic_local_numeric` 已落地：语义行里的局部小数字不再默认参与 ordinary pair
+
+在 `phase15` 的短桥接带收口之后，端子页剩下的一类稳定噪声已经很明确：
+
+- 行内同时有 `n###` 导出端子文本；
+- 同时夹着 `DK/KLP/ZKK/CLP`、`UA/UB/UC/UN/3U0`、`AC230V`、`Shielding layer`、`CZ/AK` 之类语义文本；
+- 旁边还挂着一个 `1..44` 的局部小数字；
+- 当前系统会把这个小数字继续当 ordinary terminal，一路形成 `403 -> 10`、`602 -> 4`、`132 -> 20`、`417 -> 41` 这类低置信 pair。
+
+### 56.1 本轮代码收口
+
+本轮继续只动安全写面：
+
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+  - 新增 `_TERMINAL_SEMANTIC_ROW_PATTERNS`
+  - 新增 `_apply_terminal_semantic_row_local_numeric_filter(...)`
+  - 在 short-bridge 角色收口之后、rank 赋值之前执行
+- [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py)
+  - 补两条窄单测：
+    - `KLP` 语义行压掉 `3 -> 108` 左侧小数字
+    - `AC230V` / `AK` 语义行压掉 `602 -> 4` 右侧小数字
+
+当前 rejection path：
+
+- `terminal_semantic_local_numeric`
+
+触发条件刻意保持很窄：
+
+- 仅 `屏端子图`
+- 仅普通端子带 `start_x < 300`
+- 仅 horizontal / non-vertical line group
+- 行内必须先命中语义 marker
+- 被压掉的必须是 `text == value`、纯数字、且长度 `<= 2` 的 accepted local numeric
+
+### 56.2 回归与真实样本结果
+
+支撑回归：
+
+- `python -m pytest -q tests/unit/test_terminal_candidates.py -k "semantic or short_bridge or mirrored_right_terminal or row_locks_terminal_strip"`
+  - `6 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "mirrored_right_terminal_strip_candidates or row_locks_terminal_strip_candidates"`
+  - `2 passed`
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py tests/unit/test_line_groups.py tests/unit/test_page_classifier.py tests/unit/test_table_extractor.py`
+  - `40 passed`
+
+真实样本 `run-audit`：
+
+- 第二套：
+  - [phase16_terminal_semantic_rows_second/2_2](/F:/workspace/XJToolkit/.tmp/phase16_terminal_semantic_rows_second/2_2)
+  - 总 issue：`648 -> 697`
+  - 但构成变为：
+    - `R-PAIR-LOW-CONFIDENCE: 267 -> 203`
+    - `R-PAIR-MISSING-SIDE: 381 -> 494`
+- 第一套：
+  - [phase16_terminal_semantic_rows_first](/F:/workspace/XJToolkit/.tmp/phase16_terminal_semantic_rows_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+  - 总 issue：`518 -> 487`
+  - 构成变为：
+    - `R-PAIR-LOW-CONFIDENCE: 143 -> 84`
+    - `R-PAIR-MISSING-SIDE: 374 -> 402`
+
+这说明这刀的主要效果不是“直接减少全部 issue”，而是把一批原本会冒充 ordinary pair 的低置信双侧配对，改写成更保守的单侧缺失。
+
+### 56.3 关键页上的具体变化
+
+- 第二套 `S0021`
+  - `11 -> 708`、`9 -> 707`、`6 -> 704`、`20 -> 132` 这类语义行 pair 被改成 `missing left candidate`
+  - 页级 issue `118 -> 113`
+  - `LOW-CONFIDENCE -14`，`MISSING-SIDE +9`
+- 第二套 `S0022`
+  - `41 -> 417`、`10 -> 403`、`4 -> 509` 一类 pair 被改成单侧 continuation
+  - 页级 issue `42 -> 72`
+  - `LOW-CONFIDENCE -12`，`MISSING-SIDE +42`
+- 第二套 `S0023 / S0024`
+  - `132 -> 20`、`114 -> 4`、`417 -> 41`、`414 -> 36` 等 mirrored pair 被拆成单侧缺失
+  - 这批变化主要来自含 `DK/KLP/ZK/CLP/CZ/GND` 的语义行
+- 第一套 `S0025`
+  - 页级 issue `140 -> 107`
+  - 典型变化是 `14 -> 411`、`1 -> 103`、`1 -> 214` 被收口成 `missing left candidate`
+- 第一套 `S0027`
+  - 页级 issue `114 -> 129`
+  - 但被打掉的多是 `210 -> 6`、`103 -> 1`、`702 -> 4` 这类 `DK/DC/IA'/3U0` 语义行小数字 pair
+- 第一套 `S0028`
+  - 页级 issue `34 -> 21`
+  - `Shielding layer` / `B code` 一类语义行上的局部小数字明显被收口
+
+### 56.4 并发子代理复核结论
+
+并发子代理对 `S0021 / S0024 / S0027` 做了只读复核，结论偏正面：
+
+- `S0024 / G1121 / 421 -> 44`
+- `S0027 / G0852 / 105 -> 10`
+- `S0027 / G1004 / 214 -> 2`
+
+这些最像“可能误杀”的例子，复核后依然更像语义行里的局部序号，而不像必须保留的 ordinary terminal pair，因为同组同时存在：
+
+- `CLP / KK / DK / CZ-E / GND`
+- `IA' / IB' / IC' / 3U0`
+- 或 `n###` continuation 文本
+
+直接结论：
+
+- 当前这条规则更像“净收益”，不建议立刻回滚。
+- 它的副作用不是抽不到数字，而是把原先的假 ordinary pair 显性化成 `missing-side`。
+- 因此端子页的下一步重点已经更清楚：
+  1. continuation / semantic row 的 specialized pair 语义
+  2. `missing-side` 中哪些应转为“语义旁注”而不是 issue
+  3. 是否把 `DK/KLP/ZKK/CLP` 这类语义列真正送入单独通道，而不是继续让它们只以 rejection marker 身份存在

@@ -15,6 +15,15 @@ from dwg_audit.utils.ids import IdFactory
 
 _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
+_TERMINAL_SEMANTIC_ROW_PATTERNS = (
+    re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
+    re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
+    re.compile(r"^AC230V(?:\s+[LN])?$", re.IGNORECASE),
+    re.compile(r"^Shielding layer$", re.IGNORECASE),
+    re.compile(r"^B code\s*[+-]$", re.IGNORECASE),
+    re.compile(r"^(?:CZ|AK)-", re.IGNORECASE),
+    re.compile(r"^(?!.*n\d{3,}$).*(?:DK|KLP|(?:K)?ZKK|CLP|KK-|ZK-).*$", re.IGNORECASE),
+)
 
 
 class TextSpatialIndex:
@@ -173,6 +182,7 @@ def build_terminal_candidates(
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
     _apply_terminal_strip_row_lock(results, group_map, sheet_map)
     _apply_terminal_short_bridge_roles(results, group_map, sheet_map)
+    _apply_terminal_semantic_row_local_numeric_filter(results, group_map, sheet_map)
     _prefer_derived_numeric_on_vertical_component_page(results, group_map, sheet_map)
     _assign_candidate_ranks(results)
     return results
@@ -410,6 +420,32 @@ def _apply_terminal_short_bridge_roles(
             _reject_candidate(candidate, "terminal_short_bridge_role_filtered")
 
 
+def _apply_terminal_semantic_row_local_numeric_filter(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> None:
+    by_group = defaultdict(list)
+    for candidate in candidates:
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        if group is None or sheet is None:
+            continue
+        if not _is_terminal_semantic_filter_group(group, sheet):
+            continue
+        by_group[candidate.line_group_id].append(candidate)
+
+    for grouped_candidates in by_group.values():
+        if not _has_terminal_semantic_row_marker(grouped_candidates):
+            continue
+        for candidate in grouped_candidates:
+            if candidate.status != "accepted" or not candidate.value:
+                continue
+            if not _is_terminal_semantic_local_numeric_candidate(candidate):
+                continue
+            _reject_candidate(candidate, "terminal_semantic_local_numeric")
+
+
 def _prefer_derived_numeric_on_vertical_component_page(
     candidates: list[TerminalCandidate],
     group_map: dict[str, LineGroup],
@@ -590,6 +626,16 @@ def _is_terminal_short_bridge_group(group: LineGroup, sheet: SheetRecord | None)
     )
 
 
+def _is_terminal_semantic_filter_group(group: LineGroup, sheet: SheetRecord | None) -> bool:
+    return (
+        sheet is not None
+        and sheet.sheet_category == "屏端子图"
+        and group.orientation != _ORIENTATION_VERTICAL
+        and 70.0 <= group.length <= 80.0
+        and min(group.start_x, group.end_x) < 300.0
+    )
+
+
 def _terminal_strip_layout_mode(sheet: SheetRecord | None) -> str | None:
     if sheet is None or sheet.sheet_category != "屏端子图":
         return None
@@ -679,6 +725,20 @@ def _nearest_terminal_side(group: LineGroup, x_coord: float) -> str:
     if abs(x_coord - left_edge) <= abs(right_edge - x_coord):
         return "left"
     return "right"
+
+
+def _has_terminal_semantic_row_marker(candidates: list[TerminalCandidate]) -> bool:
+    for candidate in candidates:
+        normalized = candidate.text.strip()
+        if any(pattern.search(normalized) for pattern in _TERMINAL_SEMANTIC_ROW_PATTERNS):
+            return True
+    return False
+
+
+def _is_terminal_semantic_local_numeric_candidate(candidate: TerminalCandidate) -> bool:
+    text = candidate.text.strip()
+    value = (candidate.value or "").strip()
+    return text == value and value.isdigit() and len(value) <= 2
 
 
 def _reject_candidate(candidate: TerminalCandidate, reason: str) -> None:

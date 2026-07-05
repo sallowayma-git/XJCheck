@@ -455,6 +455,31 @@
   - `task_plan.md`
   - `progress.md`
 
+### Phase 16: Terminal Semantic-Row Guard
+- **Status:** complete
+- Actions taken:
+  - 复用并发子代理 `Cicero` 做只读误杀复核，专门检查 `S0021 / S0024 / S0027` 上 `terminal_semantic_local_numeric` 是否误伤真实 ordinary pair。
+  - 在 `src/dwg_audit/audit/candidates.py` 新增 `_TERMINAL_SEMANTIC_ROW_PATTERNS` 与 `_apply_terminal_semantic_row_local_numeric_filter(...)`。
+  - 将该过滤挂在短桥接列带角色收口之后、候选 rank 赋值之前，只对 `屏端子图 + 普通端子带 + 单/双字符本地数字` 生效。
+  - 在 `tests/unit/test_terminal_candidates.py` 补两条单测，固定：
+    - `KLP` 语义行会把 `3 -> 108` 左侧小数字压成 `missing left candidate`
+    - `AC230V / AK` 语义行会把 `602 -> 4` 右侧小数字压成 `missing right candidate`
+  - 复跑 targeted pytest，并补跑两套真实样本 audit：
+    - `.tmp/phase16_terminal_semantic_rows_second/2_2`
+    - `.tmp/phase16_terminal_semantic_rows_first/...`
+  - 关键结果：
+    - 第二套总 issue `648 -> 697`
+    - 第一套总 issue `518 -> 487`
+    - 第二套构成从 `LOW-CONFIDENCE 267 -> 203`、`MISSING-SIDE 381 -> 494`
+    - 第一套构成从 `LOW-CONFIDENCE 143 -> 84`、`MISSING-SIDE 374 -> 402`
+    - 子代理复核结论偏正面：`421->44`、`105->10`、`214->2` 这类最像误杀的例子，仍更像语义行局部序号，而不像应保留的 ordinary terminal pair
+- Files created/modified:
+  - `src/dwg_audit/audit/candidates.py`
+  - `tests/unit/test_terminal_candidates.py`
+  - `doc/findings.md`
+  - `task_plan.md`
+  - `progress.md`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -534,6 +559,11 @@
 | Second-set phase15 short-bridge audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase15_terminal_short_bridge_second\\2_2\\findings` | 验证第二套短桥接切片对总体审计的真实影响 | 通过，第二套总 issue `654 -> 648` | ✓ |
 | First-set phase15 short-bridge analyze | `python -m dwg_audit.cli analyze-project --input test\\110kV变压器保护柜 --output .tmp\\phase15_terminal_short_bridge_first` | 验证第一套右侧端子短桥接带同步收口 | 通过，`S0027` 大量 `628/427/216 -> same-value self-pair` 转为单侧 continuation | ✓ |
 | First-set phase15 short-bridge audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase15_terminal_short_bridge_first\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings` | 验证第一套短桥接切片对总体审计的真实影响 | 通过，第一套总 issue `559 -> 518` | ✓ |
+| Phase 16 semantic-row candidate unit pytest | `python -m pytest -q tests/unit/test_terminal_candidates.py -k "semantic or short_bridge or mirrored_right_terminal or row_locks_terminal_strip"` | 验证语义行小数字抑制与既有端子页护栏同时保持通过 | `6 passed, 17 deselected` | ✓ |
+| Phase 16 terminal integration subset | `python -m pytest -q tests/integration/test_analyze_project.py -k "mirrored_right_terminal_strip_candidates or row_locks_terminal_strip_candidates"` | 验证 mirrored / row-lock analyze 链未被语义行护栏误伤 | `2 passed, 10 deselected` | ✓ |
+| Phase 16 support pytest | `python -m pytest -q tests/unit/test_pairs_and_rules.py tests/unit/test_line_groups.py tests/unit/test_page_classifier.py tests/unit/test_table_extractor.py` | 验证语义行候选切片不误伤 pairs / grid / table 支撑链 | `40 passed` | ✓ |
+| Second-set phase16 semantic-row audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase16_terminal_semantic_rows_second\\2_2\\findings` | 验证第二套语义行护栏对真实审计的影响 | 通过，第二套总 issue `648 -> 697`，`LOW-CONFIDENCE 267 -> 203` | ✓ |
+| First-set phase16 semantic-row audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase16_terminal_semantic_rows_first\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings` | 验证第一套语义行护栏对真实审计的影响 | 通过，第一套总 issue `518 -> 487`，`LOW-CONFIDENCE 143 -> 84` | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
