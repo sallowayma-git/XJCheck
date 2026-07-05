@@ -263,6 +263,129 @@ def test_rules_ignore_low_confidence_pairs_for_cross_page_conflict() -> None:
     assert any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" for issue in issues)
 
 
+def test_build_pairs_tags_same_value_terminal_continuation_semantics() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=310.0,
+            start_y=235.0,
+            end_x=385.0,
+            end_y=235.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "27 右侧端子图2.dwg", 27, "27", "右侧端子图2", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "left", "T1", "3-2n420", "420", 0.84, "accepted", None, 310.0, 235.0, 23.0, 1.0, 333.0, 236.0),
+        TerminalCandidate("C0002", "G0001", "S0001", "F0001", "right", "T2", "1-2n420", "420", 0.83, "accepted", None, 385.0, 235.0, 24.0, 1.0, 361.0, 236.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value == "420"
+    assert pair.right_value == "420"
+    assert pair.evidence["semantic_kind"] == "continuation_same_value"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["selected_left_raw_text"] == "3-2n420"
+    assert pair.evidence["selected_right_raw_text"] == "1-2n420"
+    assert pair.evidence["selected_left_is_derived_numeric"] is True
+    assert pair.evidence["selected_right_is_derived_numeric"] is True
+
+
+def test_build_pairs_keeps_plain_same_value_terminal_pair_as_ordinary() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=310.0,
+            start_y=235.0,
+            end_x=385.0,
+            end_y=235.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "27 右侧端子图2.dwg", 27, "27", "右侧端子图2", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "left", "T1", "420", "420", 0.84, "accepted", None, 310.0, 235.0, 23.0, 1.0, 333.0, 236.0),
+        TerminalCandidate("C0002", "G0001", "S0001", "F0001", "right", "T2", "420", "420", 0.83, "accepted", None, 385.0, 235.0, 24.0, 1.0, 361.0, 236.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert "semantic_kind" not in pair.evidence
+    assert pair.evidence.get("ordinary_pair_eligible", True) is True
+    assert pair.evidence["selected_left_is_derived_numeric"] is False
+    assert pair.evidence["selected_right_is_derived_numeric"] is False
+
+
+def test_rules_skip_terminal_continuation_same_value_pairs_from_ordinary_audit() -> None:
+    pairs = [
+        Pair(
+            "P1",
+            "G1",
+            "S1",
+            "F1",
+            "PC1",
+            "420",
+            "420",
+            0.81,
+            "review",
+            "ambiguous candidate ordering",
+            [],
+            "review",
+            {
+                "filename": "27.dwg",
+                "semantic_kind": "continuation_same_value",
+                "ordinary_pair_eligible": False,
+            },
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S2",
+            "F2",
+            "PC2",
+            "420",
+            "421",
+            0.97,
+            "pass",
+            "ok",
+            [],
+            "high",
+            {"filename": "28.dwg"},
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 310, 235, 385, 235, 75, 0.9, ["L1"], ["WIRE"], orientation="horizontal"),
+        LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "27 右侧端子图2.dwg", 27, "27", "右侧端子图2", "屏端子图", "supplemental", "filename", True),
+        SheetRecord("S2", "F2", "28 回路图.dwg", 28, "28", "回路图", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P1" for issue in issues)
+    assert not any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
+
 def test_rules_emit_one_to_many_review_for_same_sheet_multi_target() -> None:
     pairs = [
         Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"}),

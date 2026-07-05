@@ -194,6 +194,8 @@ def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:
     for pair in context.pairs:
         if pair.status == "discard":
             continue
+        if not _ordinary_pair_eligible(pair):
+            continue
         if not pair.left_value or not pair.right_value:
             continue
         if pair.confidence >= context.high_threshold and pair.status == "pass":
@@ -221,6 +223,8 @@ def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
         pair = pair_by_group.get(line_group_id)
         if pair is None or pair.status == "discard":
             continue
+        if not _ordinary_pair_eligible(pair):
+            continue
         top_values = [candidate.value for candidate in candidates[:2] if candidate.value]
         top_scores = [candidate.score for candidate in candidates[:2]]
         issues.append(
@@ -238,6 +242,8 @@ def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
 
     if not ambiguous_groups and not context.terminal_candidates:
         for pair in context.pairs:
+            if not _ordinary_pair_eligible(pair):
+                continue
             if pair.left_value and pair.right_value and pair.left_value == pair.right_value:
                 issues.append(
                     context.issue_factory.build(
@@ -362,6 +368,8 @@ def _run_missing_reciprocal(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     graph, _, _ = _graph_maps(_high_confidence_pairs(context))
     for pair in context.pairs:
+        if not _ordinary_pair_eligible(pair):
+            continue
         if not pair.left_value or not pair.right_value:
             continue
         if (pair.right_value, pair.left_value) not in graph.pair_lookup:
@@ -407,6 +415,7 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
     return [
         pair
         for pair in context.pairs
+        if _ordinary_pair_eligible(pair)
         if pair.left_value
         and pair.right_value
         and (
@@ -414,6 +423,10 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
             or pair.evidence.get("source") == "table_mapping"
         )
     ]
+
+
+def _ordinary_pair_eligible(pair: Pair) -> bool:
+    return pair.evidence.get("ordinary_pair_eligible", True) is not False
 
 
 def _run_sheet_page_mismatch(context: RuleContext) -> list[Issue]:

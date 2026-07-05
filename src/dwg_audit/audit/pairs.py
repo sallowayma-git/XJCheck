@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -8,6 +9,8 @@ from dwg_audit.domain.models import PairCandidate
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.utils.ids import IdFactory
+
+_CONTINUATION_SUFFIX_PATTERN = re.compile(r"(?i)n\d{3,}$")
 
 
 def build_pairs(
@@ -222,7 +225,7 @@ def _pair_evidence(
     left_side, right_side = _pair_side_labels(group)
     left_candidate = candidate_map.get(selected.left_candidate_id or "")
     right_candidate = candidate_map.get(selected.right_candidate_id or "")
-    return {
+    evidence = {
         "filename": sheet.filename if sheet else None,
         "sheet_no": sheet.sheet_no if sheet else None,
         "sheet_order": sheet.sheet_order if sheet else None,
@@ -239,6 +242,10 @@ def _pair_evidence(
         "selected_right_candidate_id": selected.right_candidate_id,
         "selected_left_text_id": selected.left_text_id,
         "selected_right_text_id": selected.right_text_id,
+        "selected_left_raw_text": left_candidate.text if left_candidate else None,
+        "selected_right_raw_text": right_candidate.text if right_candidate else None,
+        "selected_left_is_derived_numeric": _is_derived_numeric_candidate(left_candidate, selected.left_value),
+        "selected_right_is_derived_numeric": _is_derived_numeric_candidate(right_candidate, selected.right_value),
         "selected_left_source_block_name": left_candidate.source_block_name if left_candidate else None,
         "selected_right_source_block_name": right_candidate.source_block_name if right_candidate else None,
         "selected_score": selected.score,
@@ -251,6 +258,16 @@ def _pair_evidence(
         },
         "alternative_pair_candidate_ids": alternative_ids or [],
     }
+    evidence.update(
+        _terminal_continuation_semantics(
+            group=group,
+            sheet=sheet,
+            selected=selected,
+            left_candidate=left_candidate,
+            right_candidate=right_candidate,
+        )
+    )
+    return evidence
 
 
 def _apply_component_pair_guards(
@@ -306,3 +323,46 @@ def _candidate_coord(
             continue
         return candidate.text_insert_x if axis == "x" else candidate.text_insert_y
     return None
+
+
+def _terminal_continuation_semantics(
+    *,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> dict[str, object]:
+    if sheet is None or sheet.sheet_category != "屏端子图":
+        return {}
+    if group.orientation != "horizontal":
+        return {}
+    if not (70.0 <= group.length <= 80.0):
+        return {}
+    if min(group.start_x, group.end_x) < 300.0:
+        return {}
+    if not selected.left_value or selected.left_value != selected.right_value:
+        return {}
+    if not selected.left_text_id or not selected.right_text_id or selected.left_text_id == selected.right_text_id:
+        return {}
+    if not _is_derived_numeric_candidate(left_candidate, selected.left_value):
+        return {}
+    if not _is_derived_numeric_candidate(right_candidate, selected.right_value):
+        return {}
+    left_raw = (left_candidate.text if left_candidate else "").strip()
+    right_raw = (right_candidate.text if right_candidate else "").strip()
+    if not _CONTINUATION_SUFFIX_PATTERN.search(left_raw):
+        return {}
+    if not _CONTINUATION_SUFFIX_PATTERN.search(right_raw):
+        return {}
+    return {
+        "semantic_kind": "continuation_same_value",
+        "ordinary_pair_eligible": False,
+        "continuation_kind": "terminal_same_value_bridge",
+    }
+
+
+def _is_derived_numeric_candidate(candidate: TerminalCandidate | None, value: str | None) -> bool:
+    if candidate is None or not value:
+        return False
+    return candidate.text.strip() != value.strip()
