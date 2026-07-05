@@ -295,6 +295,8 @@ def test_build_pairs_tags_same_value_terminal_continuation_semantics() -> None:
     assert pair.right_value == "420"
     assert pair.evidence["semantic_kind"] == "continuation_same_value"
     assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["selected_left_channel"] == "terminal_numeric_channel"
+    assert pair.evidence["selected_right_channel"] == "terminal_numeric_channel"
     assert pair.evidence["selected_left_raw_text"] == "3-2n420"
     assert pair.evidence["selected_right_raw_text"] == "1-2n420"
     assert pair.evidence["selected_left_is_derived_numeric"] is True
@@ -333,6 +335,97 @@ def test_build_pairs_keeps_plain_same_value_terminal_pair_as_ordinary() -> None:
     assert pair.evidence.get("ordinary_pair_eligible", True) is True
     assert pair.evidence["selected_left_is_derived_numeric"] is False
     assert pair.evidence["selected_right_is_derived_numeric"] is False
+
+
+def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=0.0,
+            start_y=0.0,
+            end_x=75.0,
+            end_y=0.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T1",
+            "KLP2",
+            "2",
+            0.99,
+            "accepted",
+            None,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            20.0,
+            0.0,
+            channel="semantic_channel",
+        ),
+        TerminalCandidate(
+            "C0002",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T2",
+            "108",
+            "108",
+            0.81,
+            "accepted",
+            None,
+            0.0,
+            0.0,
+            2.0,
+            1.0,
+            22.0,
+            0.0,
+            channel="terminal_numeric_channel",
+        ),
+        TerminalCandidate(
+            "C0003",
+            "G0001",
+            "S0001",
+            "F0001",
+            "right",
+            "T3",
+            "208",
+            "208",
+            0.82,
+            "accepted",
+            None,
+            75.0,
+            0.0,
+            2.0,
+            1.0,
+            53.0,
+            0.0,
+            channel="terminal_numeric_channel",
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value == "108"
+    assert pair.right_value == "208"
+    assert pair.evidence["selected_left_channel"] == "terminal_numeric_channel"
 
 
 def test_rules_skip_terminal_continuation_same_value_pairs_from_ordinary_audit() -> None:

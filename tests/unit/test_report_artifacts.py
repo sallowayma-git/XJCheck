@@ -11,6 +11,7 @@ from dwg_audit.domain.models import ProjectScanResult
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SidecarInfo
 from dwg_audit.domain.models import SourceFileRecord
+from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.report.artifacts import write_audit_outputs
 from dwg_audit.report.artifacts import write_project_artifacts
 
@@ -162,6 +163,115 @@ def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path
     assert page_finding_payload["structure_summary"]["pair_count"] == 0
     assert "# Page Findings `S0001`" in page_finding_text
     assert "- RouteTarget: `SkipExtractor`" in page_finding_text
+
+
+def test_write_project_artifacts_summarizes_terminal_candidate_channels(tmp_path: Path) -> None:
+    source = SourceFileRecord(
+        file_id="F0001",
+        path="C:/demo/21.dwg",
+        filename="21.dwg",
+        ext=".dwg",
+        sha256="abc",
+        size_bytes=10,
+        sheet_order=21,
+        detected_page_no="21",
+        detected_from="filename",
+        sheet_title="左侧端子图1",
+        sheet_category="屏端子图",
+        skip_reason=None,
+        valid_dwg_header=True,
+        conversion_status="converted",
+    )
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-06T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[source],
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord("S0001", "F0001", "21.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G1",
+            "S0001",
+            "F0001",
+            "left",
+            "T1",
+            "108",
+            "108",
+            0.9,
+            "accepted",
+            None,
+            100.0,
+            200.0,
+            2.0,
+            1.0,
+            channel="terminal_numeric_channel",
+        ),
+        TerminalCandidate(
+            "C0002",
+            "G1",
+            "S0001",
+            "F0001",
+            "right",
+            "T2",
+            "KLP",
+            None,
+            0.0,
+            "rejected",
+            "not_numeric",
+            120.0,
+            200.0,
+            3.0,
+            1.0,
+            channel="semantic_channel",
+            channel_detail="terminal_semantic_marker",
+        ),
+        TerminalCandidate(
+            "C0003",
+            "G1",
+            "S0001",
+            "F0001",
+            "right",
+            "T3",
+            "1",
+            None,
+            0.0,
+            "rejected",
+            "block_internal_pin_number",
+            130.0,
+            200.0,
+            4.0,
+            1.0,
+            channel="noise_channel",
+            channel_detail="block_internal_pin_number",
+        ),
+    ]
+
+    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan, terminal_candidates=candidates), tmp_path)
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
+
+    channel_counts = findings_payload["page_findings"][0]["structure_summary"]["terminal_candidate_channel_counts"]
+    assert channel_counts == {
+        "noise_channel": 1,
+        "semantic_channel": 1,
+        "terminal_numeric_channel": 1,
+    }
 
 
 def test_write_project_artifacts_records_one_to_many_review_table(tmp_path: Path) -> None:

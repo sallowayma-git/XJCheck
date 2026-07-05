@@ -648,3 +648,28 @@
   1. terminal 语义列缺少显式 `semantic_channel`
   2. `continuation_same_value` 还没有独立 channel / status
   3. `audit_disposition` 仍未作为独立合同字段落盘
+
+## Session Update 2026-07-06 (Phase 17)
+- 先收口并本地提交了上一刀 `phase16`：
+  - `4506488` `Prove table extractor routing with synthetic project`
+- 在当前头部代码上把 terminal 语义列升级成显式 candidate channel：
+  - `TerminalCandidate` 新增 `channel / channel_detail`
+  - `build_terminal_candidates()` 会把 terminal 语义标签落到 `semantic_channel`
+  - 明显噪声对象落到 `noise_channel`
+  - PairBuilder 现在显式只消费 `terminal_numeric_channel`
+- `pair.evidence` 现在会透出：
+  - `selected_left_channel / selected_right_channel`
+  - `selected_left_channel_detail / selected_right_channel_detail`
+- `page_findings.structure_summary` 现在会按页汇总：
+  - `terminal_candidate_channel_counts`
+- 本轮新增验证：
+  - `python -m pytest -q tests/unit/test_terminal_candidates.py -k "semantic or fjl or single_char"` -> `7 passed`
+  - `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation_same_value or terminal_numeric_channel_candidates"` -> `2 passed`
+  - `python -m pytest -q tests/unit/test_report_artifacts.py -k "page_findings or terminal_candidate_channels"` -> `2 passed`
+  - `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or table_like_page_to_table_extractor or component or supplemental"` -> `11 passed`
+  - `python -m pytest -q` -> `145 passed`
+  - `python -m dwg_audit.cli analyze-project --input test\\变压器测控柜(2圈变，2台测控) --output .tmp\\phase20_semantic_channel_second` + `run-audit` -> route 分布保持 `13/2/4/2/3`，总 issue 保持 `697`
+- 当前 second-set 真实样本还新增了可见运行态证据：
+  - `S0021.structure_summary.terminal_candidate_channel_counts = {'terminal_numeric_channel': 1689, 'semantic_channel': 1055, 'noise_channel': 244}`
+  - 全项目 `terminal_candidates.parquet` 已带 `channel / channel_detail`
+  - `semantic_channel` 主要细分为 `terminal_strip_bypass_text`、`not_numeric`、`terminal_semantic_local_numeric`

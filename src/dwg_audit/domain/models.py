@@ -188,6 +188,8 @@ class TerminalCandidate:
     height_score: float | None = None
     rank: int | None = None
     source_block_name: str | None = None
+    channel: str = "terminal_numeric_channel"
+    channel_detail: str | None = None
 
 
 @dataclass(slots=True)

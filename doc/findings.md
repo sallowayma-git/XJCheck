@@ -2890,3 +2890,100 @@ Batch 2 已完成的端子页是：
 
 - **真实样本暂无命中：已证明**
 - **独立 extractor + high-confidence source：已用 synthetic 项目级闭环证明**
+
+## 61. 2026-07-06 `phase20_semantic_channel_second`：terminal 语义列已经从隐式 rejection 升级成显式 candidate channel
+
+这轮只推进一个很窄的切片：
+
+- 不先发明新的 relation 表；
+- 先把任务书 7.4 里的 terminal 语义旁路落成稳定运行态合同；
+- 让 PairBuilder 明确只消费 `terminal_numeric_channel`。
+
+### 61.1 本轮代码变化
+
+- [models.py](/F:/workspace/XJToolkit/src/dwg_audit/domain/models.py)
+  - `TerminalCandidate` 新增：
+    - `channel`
+    - `channel_detail`
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+  - terminal 页的语义标签不再只体现在 `rejection_reason`：
+    - `KLP/DK/ZKK/CLP/UA/UB/UC/UN/3U0/AC230V` 一类文本现在会落到 `semantic_channel`
+    - 明显噪声如 `block_internal_pin_number`、`single_char_layer_filtered` 会落到 `noise_channel`
+    - `terminal_semantic_local_numeric` 现在会显式把局部小数字改写到 `semantic_channel`
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - `_accepted_sorted()` 现在显式只消费 `channel == terminal_numeric_channel` 的 accepted candidates
+  - `pair.evidence` 现在会带：
+    - `selected_left_channel / selected_right_channel`
+    - `selected_left_channel_detail / selected_right_channel_detail`
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+  - `page_findings.structure_summary` 新增：
+    - `terminal_candidate_channel_counts`
+- [rerun.py](/F:/workspace/XJToolkit/src/dwg_audit/report/rerun.py)
+  - `run-audit --findings` 现在会把 `terminal_candidates.parquet` 里的 `channel / channel_detail` 读回运行态
+
+### 61.2 定向与全量测试结果
+
+- `python -m pytest -q tests/unit/test_terminal_candidates.py -k "semantic or fjl or single_char"`
+  - `7 passed`
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation_same_value or terminal_numeric_channel_candidates"`
+  - `2 passed`
+- `python -m pytest -q tests/unit/test_report_artifacts.py -k "page_findings or terminal_candidate_channels"`
+  - `2 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or table_like_page_to_table_extractor or component or supplemental"`
+  - `11 passed`
+- `python -m pytest -q`
+  - `145 passed`
+
+### 61.3 第二套真实样本 rerun 结果
+
+- [phase20_semantic_channel_second/2_2](/F:/workspace/XJToolkit/.tmp/phase20_semantic_channel_second/2_2)
+- route 分布保持不变：
+  - `WireDiagramExtractor: 13`
+  - `ComponentDiagramExtractor: 2`
+  - `TerminalDiagramExtractor: 4`
+  - `LayoutOnlyExtractor: 2`
+  - `SkipExtractor: 3`
+- `run-audit` 总 issue 保持：
+  - `697`
+- 默认仍不落盘 `findings/page_findings/` 目录
+
+新的强证据是：terminal 语义列终于在 findings 运行态里可见了。
+
+以 `S0021 / 21 左侧端子图1.dwg` 为例：
+
+- `structure_summary.terminal_candidate_channel_counts` 现在是：
+  - `terminal_numeric_channel: 1689`
+  - `semantic_channel: 1055`
+  - `noise_channel: 244`
+
+全项目 `terminal_candidates.parquet` 现在也已经有：
+
+- `channel`
+- `channel_detail`
+
+当前 second-set 的 `semantic_channel` 主要由这几类构成：
+
+- `terminal_strip_bypass_text: 2808`
+- `not_numeric: 776`
+- `terminal_semantic_local_numeric: 201`
+
+### 61.4 这轮对任务书主链的真正意义
+
+这轮的价值不是让 issue 数下降，而是把任务书 7.4 的一句关键合同真正落地了：
+
+- **terminal 语义列不再只是“被拒掉的数字”。**
+- **它们现在是有显式通道名的运行态对象。**
+- **普通 PairBuilder 也第一次被代码层明确约束为只消费 `terminal_numeric_channel`。**
+
+因此，这条现在不应再被描述为“只有 rejection guard，没有显式语义通道”。更准确的状态已经变成：
+
+- **candidate 级 `semantic_channel`：已完成**
+- **pair / issue 级 continuation / semantic 解释：仍部分完成**
+
+### 61.5 当前还剩的最近缺口
+
+这轮之后，terminal 方向最接近任务书主链的剩余缺口进一步收敛为：
+
+1. `continuation_same_value` 还只存在于 `pair.evidence`，没有 candidate / pair 顶层 `continuation_channel`
+2. semantic-row 虽然已有 `semantic_channel`，但 `missing-side` pair / issue 还不会显式告诉你“哪一侧是被 semantic guard 抑制的”
+3. `audit_disposition` 仍未作为独立字段落盘

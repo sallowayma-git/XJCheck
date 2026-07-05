@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 16
+Phase 17
 
 ## Phases
 
@@ -116,9 +116,16 @@ Phase 16
 - [x] 复跑 targeted pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
 - **Status:** complete
 
+### Phase 17: Terminal Semantic Channel Contract
+- [x] 将 terminal 语义列从纯 `rejection_reason` 升级为显式 candidate `channel`
+- [x] 让 PairBuilder 显式只消费 `terminal_numeric_channel`
+- [x] 在 `page_findings` 结构摘要中按页汇总 terminal candidate channel counts
+- [x] 复跑 targeted pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
+- **Status:** complete
+
 ## Key Questions
-1. terminal 页语义列是否应该升级成显式 `semantic_channel`，而不是继续仅靠 rejection guard + `missing-side` 显性化？
-2. `continuation_same_value` 目前已被打标签并旁路 ordinary audit；下一步是否需要单独 pair status / channel，而不是继续沿用 `review` 状态壳？
+1. `continuation_same_value` 目前已被打标签并旁路 ordinary audit；下一步是否需要给 candidate / pair 都补显式 `continuation_channel`，而不是继续只靠 `semantic_kind + ordinary_pair_eligible`？
+2. semantic-row 当前已经有 candidate `semantic_channel`，但 pair / issue 还不会显式写出“哪一侧被 semantic guard 抑制”；是否需要补 `suppressed_candidate_refs` 这类最小证据合同？
 3. `audit_disposition` 仍未作为独立字段落盘，当前只有 `audit_role + route_target` 组合；是否需要对齐任务书契约？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
@@ -144,6 +151,7 @@ Phase 16
 | 元件接线图必须先保 `ComponentDiagramExtractor` 身份，不能再被 `grid_heavy/table_like` 抢走路由 | 这是当前两套真实样本里“页级分类 + 路由闭环”最短路径上的核心缺口 |
 | 在真实样本暂无稳定表格页命中的前提下，`TableExtractor` 的 MVP 证明应改用隔离 synthetic `analyze-project` 集成测试，而不是继续等待假阳性真实页 | 任务书明确允许真实样本不足时用隔离合成/变异样本补足验证 |
 | `page_findings` 对 `TableExtractor` 的说明不能继续写成 “still pending”，必须反映当前是否真的产出了 `table_mapping` | 任务书要求页级记录说明当前识别器和数字匹配策略，不能故意滞后于代码现状 |
+| terminal 语义列的第一步不该先扩成新大表，而应先把 candidate `channel` 变成稳定合同，再让 PairBuilder 明确只消费 `terminal_numeric_channel` | 这能最小风险地把任务书 7.4 的“语义旁路”从隐式规则升级为可落盘运行态 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

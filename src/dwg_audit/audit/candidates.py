@@ -15,6 +15,9 @@ from dwg_audit.utils.ids import IdFactory
 
 _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
+_CHANNEL_TERMINAL_NUMERIC = "terminal_numeric_channel"
+_CHANNEL_SEMANTIC = "semantic_channel"
+_CHANNEL_NOISE = "noise_channel"
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
     re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
@@ -90,12 +93,20 @@ def build_terminal_candidates(
                 horizontal_side_score = _side_alignment_score(dx, dy, radius_x, radius_y, side, orientation)
                 text_type_score = 1.0 if value is not None else 0.0
                 height_score = 1.0 if within_height else 0.0
-                if _matches_terminal_strip_bypass_pattern(
+                matched_terminal_strip_bypass = _matches_terminal_strip_bypass_pattern(
                     text,
                     sheet,
                     orientation,
                     profile["terminal_strip_bypass_patterns"],
-                ):
+                )
+                channel, channel_detail = _candidate_channel_hint(
+                    text=text,
+                    value=value,
+                    sheet=sheet,
+                    orientation=orientation,
+                    matched_terminal_strip_bypass=matched_terminal_strip_bypass,
+                )
+                if matched_terminal_strip_bypass:
                     status = "rejected"
                     reason = "terminal_strip_bypass_text"
                     score = 0.0
@@ -114,6 +125,8 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "single_char_layer_filtered"
                     score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
                 elif _is_virtual_block_internal_pin_candidate(
                     text,
                     value,
@@ -124,6 +137,8 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "block_internal_pin_number"
                     score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
                 elif _is_terminal_strip_column_filtered(text, group, side, sheet, orientation):
                     status = "rejected"
                     reason = "terminal_strip_column_filtered"
@@ -177,6 +192,8 @@ def build_terminal_candidates(
                         text_type_score=text_type_score,
                         height_score=height_score,
                         source_block_name=text.source_block_name,
+                        channel=channel,
+                        channel_detail=channel_detail if status == "accepted" else (reason or channel_detail),
                     )
                 )
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
@@ -444,6 +461,7 @@ def _apply_terminal_semantic_row_local_numeric_filter(
             if not _is_terminal_semantic_local_numeric_candidate(candidate):
                 continue
             _reject_candidate(candidate, "terminal_semantic_local_numeric")
+            candidate.channel = _CHANNEL_SEMANTIC
 
 
 def _prefer_derived_numeric_on_vertical_component_page(
@@ -729,8 +747,7 @@ def _nearest_terminal_side(group: LineGroup, x_coord: float) -> str:
 
 def _has_terminal_semantic_row_marker(candidates: list[TerminalCandidate]) -> bool:
     for candidate in candidates:
-        normalized = candidate.text.strip()
-        if any(pattern.search(normalized) for pattern in _TERMINAL_SEMANTIC_ROW_PATTERNS):
+        if _looks_like_terminal_semantic_marker(candidate.text):
             return True
     return False
 
@@ -746,6 +763,7 @@ def _reject_candidate(candidate: TerminalCandidate, reason: str) -> None:
     candidate.rejection_reason = reason
     candidate.value = None
     candidate.rank = None
+    candidate.channel_detail = reason
 
 
 def _is_virtual_block_internal_pin_candidate(
@@ -765,3 +783,30 @@ def _is_virtual_block_internal_pin_candidate(
         return False
     source_block_name = (text.source_block_name or "").upper()
     return source_block_name in reject_blocks
+
+
+def _candidate_channel_hint(
+    *,
+    text: TextItem,
+    value: str | None,
+    sheet: SheetRecord | None,
+    orientation: str,
+    matched_terminal_strip_bypass: bool,
+) -> tuple[str, str | None]:
+    if (
+        sheet is not None
+        and sheet.sheet_category == "屏端子图"
+        and (
+            matched_terminal_strip_bypass
+            or _looks_like_terminal_semantic_marker(text.text)
+        )
+    ):
+        return _CHANNEL_SEMANTIC, "terminal_semantic_marker"
+    if value is not None:
+        return _CHANNEL_TERMINAL_NUMERIC, None
+    return _CHANNEL_NOISE, "not_numeric"
+
+
+def _looks_like_terminal_semantic_marker(text: str) -> bool:
+    normalized = text.strip()
+    return any(pattern.search(normalized) for pattern in _TERMINAL_SEMANTIC_ROW_PATTERNS)

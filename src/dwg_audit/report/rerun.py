@@ -171,6 +171,9 @@ def _terminal_candidate(row: pd.Series) -> TerminalCandidate:
         text_type_score=_nullable_float(row.get("text_type_score")),
         height_score=_nullable_float(row.get("height_score")),
         rank=_nullable_int(row.get("rank")),
+        source_block_name=_nullable_str(row.get("source_block_name")),
+        channel=_nullable_str(row.get("channel")) or "terminal_numeric_channel",
+        channel_detail=_nullable_str(row.get("channel_detail")),
     )
 
 

@@ -862,8 +862,12 @@ def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic
 
     assert local_numeric.status == "rejected"
     assert local_numeric.rejection_reason == "terminal_semantic_local_numeric"
+    assert local_numeric.channel == "semantic_channel"
+    assert local_numeric.channel_detail == "terminal_semantic_local_numeric"
+    assert next(item for item in candidates if item.text_id == "S1").channel == "semantic_channel"
     assert continuation.status == "accepted"
     assert continuation.value == "108"
+    assert continuation.channel == "terminal_numeric_channel"
     assert pair.left_value is None
     assert pair.right_value == "108"
     assert pair.rationale == "missing left candidate"
@@ -905,8 +909,12 @@ def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic
 
     assert local_numeric.status == "rejected"
     assert local_numeric.rejection_reason == "terminal_semantic_local_numeric"
+    assert local_numeric.channel == "semantic_channel"
+    assert local_numeric.channel_detail == "terminal_semantic_local_numeric"
+    assert next(item for item in candidates if item.text_id == "A0").channel == "semantic_channel"
     assert continuation.status == "accepted"
     assert continuation.value == "511"
+    assert continuation.channel == "terminal_numeric_channel"
     assert pair.left_value == "511"
     assert pair.right_value is None
     assert pair.rationale == "missing right candidate"

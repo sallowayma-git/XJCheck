@@ -442,6 +442,16 @@ def _per_sheet_counts(records: list[Any], sheet_attr: str = "sheet_id") -> dict[
     return dict(counts)
 
 
+def _per_sheet_candidate_channel_counts(candidates: list[TerminalCandidate]) -> dict[str, dict[str, int]]:
+    counts: dict[str, Counter[str]] = defaultdict(Counter)
+    for candidate in candidates:
+        if not candidate.sheet_id:
+            continue
+        channel = candidate.channel or "unknown"
+        counts[str(candidate.sheet_id)][str(channel)] += 1
+    return {sheet_id: dict(channel_counts) for sheet_id, channel_counts in counts.items()}
+
+
 def _per_sheet_orientation_counts(line_groups: list[LineGroup]) -> dict[str, dict[str, int]]:
     counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for group in line_groups:
@@ -614,6 +624,7 @@ def _build_page_findings(
     polyline_counts = _per_sheet_counts(artifacts.polylines)
     line_group_counts = _per_sheet_counts(artifacts.line_groups)
     terminal_candidate_counts = _per_sheet_counts(artifacts.terminal_candidates)
+    terminal_candidate_channel_counts = _per_sheet_candidate_channel_counts(artifacts.terminal_candidates)
     pair_candidate_counts = _per_sheet_counts(artifacts.pair_candidates)
     pair_counts = _per_sheet_counts(artifacts.pairs)
     issue_counts = _per_sheet_counts(artifacts.issues)
@@ -690,6 +701,7 @@ def _build_page_findings(
                     "polyline_count": polyline_count,
                     "line_group_count": line_group_count,
                     "terminal_candidate_count": terminal_candidate_counts.get(sheet_id, 0),
+                    "terminal_candidate_channel_counts": terminal_candidate_channel_counts.get(sheet_id, {}),
                     "pair_candidate_count": pair_candidate_counts.get(sheet_id, 0),
                     "pair_count": pair_count,
                     "non_discard_pair_count": non_discard_pair_count,

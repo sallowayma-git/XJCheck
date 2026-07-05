@@ -187,7 +187,13 @@ def build_pairs(
 
 
 def _accepted_sorted(candidates: list[TerminalCandidate]) -> list[TerminalCandidate]:
-    accepted = [item for item in candidates if item.status == "accepted" and item.value]
+    accepted = [
+        item
+        for item in candidates
+        if item.status == "accepted"
+        and item.value
+        and item.channel == "terminal_numeric_channel"
+    ]
     return sorted(accepted, key=lambda item: item.score, reverse=True)
 
 
@@ -244,6 +250,10 @@ def _pair_evidence(
         "selected_right_text_id": selected.right_text_id,
         "selected_left_raw_text": left_candidate.text if left_candidate else None,
         "selected_right_raw_text": right_candidate.text if right_candidate else None,
+        "selected_left_channel": left_candidate.channel if left_candidate else None,
+        "selected_right_channel": right_candidate.channel if right_candidate else None,
+        "selected_left_channel_detail": left_candidate.channel_detail if left_candidate else None,
+        "selected_right_channel_detail": right_candidate.channel_detail if right_candidate else None,
         "selected_left_is_derived_numeric": _is_derived_numeric_candidate(left_candidate, selected.left_value),
         "selected_right_is_derived_numeric": _is_derived_numeric_candidate(right_candidate, selected.right_value),
         "selected_left_source_block_name": left_candidate.source_block_name if left_candidate else None,
