@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 19
+Phase 20
 
 ## Phases
 
@@ -138,10 +138,17 @@ Phase 19
 - [x] 复跑 targeted pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
 - **Status:** complete
 
+### Phase 20: Single-Sided Terminal Continuation Semantics
+- [x] 重新按任务书与当前头部真实样本确认“单侧 continuation”是最近关系语义缺口
+- [x] 在 `pairs.py` 把端子页单侧 short-bridge / derived numeric half-pair 提升成显式 `pair_kind=continuation`
+- [x] 让 `rules.py` 对这类 pair 旁路普通 `R-PAIR-MISSING-SIDE`
+- [x] 复跑 targeted pytest、full pytest，以及 first/second-set 当前头部 `analyze-project + run-audit`
+- **Status:** complete
+
 ## Key Questions
-1. continuation 现在已有显式 `pair_kind=continuation`，但 candidate 侧仍没有独立 `continuation_channel`；下一步是否需要把 `n###` / bridge 提示也提升为 candidate 级通道？
-2. semantic-row 当前已经有 candidate `semantic_channel`，但 pair / issue 还不会显式写出“哪一侧被 semantic guard 抑制”；是否需要补 `suppressed_candidate_refs` 这类最小证据合同？
-3. `audit_disposition` 已落盘并接管下游准入；下一步是否需要继续把 `audit_role` 的旧叙事降到纯扫描元数据，而不是继续在 findings 里并列强调？
+1. candidate 侧仍没有独立 `continuation_channel`；下一步是否需要把当前 pair 层 continuation 提示前移成稳定候选通道？
+2. `bridge_mapping` 仍未显式建模；`110 -> 330` 这类短桥接列关系是否应单独脱离 ordinary pair？
+3. `semantic_channel` 已完成候选旁路，但 pair / issue / report 仍缺 `semantic_mapping` 或 `suppressed_candidate_refs` 级证据；下一步先补哪一层最合适？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
 ## Decisions Made
@@ -169,6 +176,7 @@ Phase 19
 | terminal 语义列的第一步不该先扩成新大表，而应先把 candidate `channel` 变成稳定合同，再让 PairBuilder 明确只消费 `terminal_numeric_channel` | 这能最小风险地把任务书 7.4 的“语义旁路”从隐式规则升级为可落盘运行态 |
 | continuation 的第一步不该先扩大规则覆盖面，而应先把已识别出的 continuation 关系升级成显式 `pair_kind`，并让它稳定保留为 review 证据、旁路 ordinary audit | 这能最小风险地把任务书第 9 章“continuation 不能等价于 ordinary pair”落实到当前真实样本主链 |
 | `audit_disposition` 的最小闭环应优先做成“分类输出 + pipeline 准入合同 + findings 落盘”，而不是先大改 `audit_role` 扫描策略 | 这能最小风险地补齐任务书第 4/5 层合同，同时避免和仍在演进的 continuation / semantic 语义切片互相缠绕 |
+| 单侧 terminal half-pair 的下一刀应先落 pair 级 continuation，而不是先重构候选通道或直接发明 `bridge_mapping` | 这能复用现有 `pair_kind / ordinary_pair_eligible` 骨架，最小风险地把 `? -> 328`、`10 -> ?` 这类关系从普通 `R-PAIR-MISSING-SIDE` 中分流出去 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

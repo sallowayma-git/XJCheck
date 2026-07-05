@@ -69,6 +69,8 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
     for pair in context.pairs:
         if pair.status == "discard":
             continue
+        if getattr(pair, "pair_kind", "ordinary_pair") == "continuation":
+            continue
         if pair.pair_id in aggregated_pair_ids:
             continue
         if pair.left_value and pair.right_value:

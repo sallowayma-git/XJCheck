@@ -360,14 +360,39 @@ def _terminal_continuation_semantics(
     left_candidate: TerminalCandidate | None,
     right_candidate: TerminalCandidate | None,
 ) -> dict[str, object]:
+    if not _is_terminal_continuation_scope(group=group, sheet=sheet):
+        return {}
+    same_value_continuation = _same_value_terminal_continuation_semantics(
+        selected=selected,
+        left_candidate=left_candidate,
+        right_candidate=right_candidate,
+    )
+    if same_value_continuation:
+        return same_value_continuation
+    return _single_sided_terminal_continuation_semantics(
+        group=group,
+        selected=selected,
+        left_candidate=left_candidate,
+        right_candidate=right_candidate,
+    )
+
+
+def _is_terminal_continuation_scope(*, group: LineGroup, sheet: SheetRecord | None) -> bool:
     if sheet is None or sheet.sheet_category != "屏端子图":
-        return {}
+        return False
     if group.orientation != "horizontal":
-        return {}
+        return False
     if not (70.0 <= group.length <= 80.0):
-        return {}
-    if min(group.start_x, group.end_x) < 300.0:
-        return {}
+        return False
+    return True
+
+
+def _same_value_terminal_continuation_semantics(
+    *,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> dict[str, object]:
     if not selected.left_value or selected.left_value != selected.right_value:
         return {}
     if not selected.left_text_id or not selected.right_text_id or selected.left_text_id == selected.right_text_id:
@@ -387,6 +412,45 @@ def _terminal_continuation_semantics(
         "semantic_kind": "continuation_same_value",
         "ordinary_pair_eligible": False,
         "continuation_kind": "terminal_same_value_bridge",
+    }
+
+
+def _single_sided_terminal_continuation_semantics(
+    *,
+    group: LineGroup,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> dict[str, object]:
+    if bool(selected.left_value) == bool(selected.right_value):
+        return {}
+    selected_candidate = left_candidate if selected.left_value else right_candidate
+    selected_value = selected.left_value if selected.left_value else selected.right_value
+    if not selected_candidate or not selected_value:
+        return {}
+
+    missing_side = "left" if not selected.left_value else "right"
+    continuation_kind = f"terminal_missing_{missing_side}_continuation"
+    selected_raw = selected_candidate.text.strip()
+    if (
+        _is_derived_numeric_candidate(selected_candidate, selected_value)
+        and _CONTINUATION_SUFFIX_PATTERN.search(selected_raw)
+    ):
+        return {
+            "pair_kind": "continuation",
+            "semantic_kind": "continuation_single_sided",
+            "ordinary_pair_eligible": False,
+            "continuation_kind": continuation_kind,
+            "continuation_missing_side": missing_side,
+        }
+    if min(group.start_x, group.end_x) < 300.0:
+        return {}
+    return {
+        "pair_kind": "continuation",
+        "semantic_kind": "continuation_single_sided",
+        "ordinary_pair_eligible": False,
+        "continuation_kind": continuation_kind,
+        "continuation_missing_side": missing_side,
     }
 
 

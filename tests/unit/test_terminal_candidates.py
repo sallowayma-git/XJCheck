@@ -776,7 +776,8 @@ def test_build_terminal_candidates_keeps_single_numeric_column_one_sided_on_shor
     assert pair.left_value is None
     assert pair.right_value == "10"
     assert pair.status == "review"
-    assert pair.rationale == "missing left candidate"
+    assert pair.pair_kind == "continuation"
+    assert pair.rationale == "missing left candidate; continuation relation"
 
 
 def test_build_terminal_candidates_assigns_single_derived_bridge_column_to_its_visual_side() -> None:
@@ -823,7 +824,8 @@ def test_build_terminal_candidates_assigns_single_derived_bridge_column_to_its_v
     assert derived_right.value == "328"
     assert pair.left_value is None
     assert pair.right_value == "328"
-    assert pair.rationale == "missing left candidate"
+    assert pair.pair_kind == "continuation"
+    assert pair.rationale == "missing left candidate; continuation relation"
 
 
 def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic_row() -> None:
@@ -870,7 +872,8 @@ def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic
     assert continuation.channel == "terminal_numeric_channel"
     assert pair.left_value is None
     assert pair.right_value == "108"
-    assert pair.rationale == "missing left candidate"
+    assert pair.pair_kind == "continuation"
+    assert pair.rationale == "missing left candidate; continuation relation"
 
 
 def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic_ac_row() -> None:
@@ -917,4 +920,5 @@ def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic
     assert continuation.channel == "terminal_numeric_channel"
     assert pair.left_value == "511"
     assert pair.right_value is None
-    assert pair.rationale == "missing right candidate"
+    assert pair.pair_kind == "continuation"
+    assert pair.rationale == "missing right candidate; continuation relation"

@@ -720,4 +720,37 @@
   - `included_audit_pages = 19`
   - `17/18` 背板页现在稳定表现为 `route_target=LayoutOnlyExtractor`、`audit_disposition=classify_only`
   - `19/20` 元件页、`21-24` 端子页保持 `audit_disposition=audit_required`
-  - 第二套 `issue_count` 保持 `697`，没有因这条合同收口引入额外回退
+- 第二套 `issue_count` 保持 `697`，没有因这条合同收口引入额外回退
+
+## Session Update 2026-07-06 (Phase 20)
+- 先汇总两条只读子代理审查，确认当前最近缺口不是再做分类字段，而是把端子页里的单侧 continuation / short-bridge half-pair 从普通 `missing-side` 里分流出去。
+- 在 `src/dwg_audit/audit/pairs.py` 把 terminal continuation 语义从“同值双侧特例”扩到“单侧已知”的最小闭环：
+  - 新增 `屏端子图 + horizontal + 75mm 左右短线` 的 continuation scope
+  - 对命中 `n###` 派生数值的单侧 pair，显式落 `pair_kind=continuation`
+  - 对 `x>=300` 的短桥接列单侧 pair（例如 `? -> 10`）也显式落 `pair_kind=continuation`
+  - evidence 新增 `continuation_missing_side`
+- 在 `src/dwg_audit/audit/rules.py` 让 `pair_kind=continuation` 旁路普通 `R-PAIR-MISSING-SIDE`。
+- 补齐并通过本轮测试：
+  - `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation or terminal_numeric_channel_candidates"` -> `6 passed`
+  - `python -m pytest -q tests/unit/test_terminal_candidates.py -k "short_bridge or semantic_row or semantic_ac_row"` -> `4 passed`
+  - `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or supplemental or table_like_page_to_table_extractor"` -> `11 passed`
+  - `python -m pytest -q tests/unit/test_report_artifacts.py -k "pair_kind or page_findings or terminal_candidate_channels"` -> `3 passed`
+  - `python -m pytest -q` -> `151 passed`
+- 真实样本 rerun：
+  - 第二套：[phase23_single_sided_continuation_second](/F:/workspace/XJToolkit/.tmp/phase23_single_sided_continuation_second)
+  - 第一套：[phase23_single_sided_continuation_first](/F:/workspace/XJToolkit/.tmp/phase23_single_sided_continuation_first)
+- 第二套 current-head 新证据：
+  - `pair_kind_counts: ordinary_pair 1211 -> 1034, continuation 0 -> 177`
+  - `issue_count: 697 -> 520`
+  - `R-PAIR-MISSING-SIDE: 494 -> 317`
+  - `R-PAIR-LOW-CONFIDENCE: 203 -> 203`（未误伤普通 low-confidence 链）
+  - 端子页 ordinary missing-side pair `245 -> 68`
+  - continuation 只出现在 `S0021-S0024` 端子页
+- 第一套 current-head 新证据：
+  - `pair_kind_counts: continuation 6 -> 171`
+  - `issue_count: 512 -> 347`
+  - `R-PAIR-MISSING-SIDE: 432 -> 267`
+  - `R-PAIR-LOW-CONFIDENCE: 79 -> 79`
+  - continuation 只出现在端子页 `S0025/S0027/S0028`
+- 本轮遇到一个非代码问题：
+  - 第一次执行 `analyze-project --input test\\变压器测控柜(2圈变，2台测控)` 时，PowerShell 把未加引号的括号路径拆开；补上引号后重跑成功。

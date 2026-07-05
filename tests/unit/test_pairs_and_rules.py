@@ -341,6 +341,82 @@ def test_build_pairs_keeps_plain_same_value_terminal_pair_as_ordinary() -> None:
     assert pair.evidence["selected_right_is_derived_numeric"] is False
 
 
+def test_build_pairs_tags_single_sided_terminal_continuation_from_derived_numeric() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=310.0,
+            start_y=235.0,
+            end_x=385.0,
+            end_y=235.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "right", "T1", "3-21n328", "328", 0.86, "accepted", None, 341.0, 236.0, 7.0, 1.0, 341.0, 236.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value is None
+    assert pair.right_value == "328"
+    assert pair.pair_kind == "continuation"
+    assert pair.status == "review"
+    assert pair.rationale == "missing left candidate; continuation relation"
+    assert pair.evidence["semantic_kind"] == "continuation_single_sided"
+    assert pair.evidence["pair_kind"] == "continuation"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["continuation_kind"] == "terminal_missing_left_continuation"
+    assert pair.evidence["continuation_missing_side"] == "left"
+    assert pair.evidence["selected_right_raw_text"] == "3-21n328"
+
+
+def test_build_pairs_tags_single_sided_terminal_continuation_from_short_bridge_band() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=310.0,
+            start_y=220.0,
+            end_x=385.0,
+            end_y=220.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "24 右侧端子图2.dwg", 24, "24", "右侧端子图2", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "right", "T1", "10", "10", 0.83, "accepted", None, 359.25, 221.0, 5.0, 1.0, 359.25, 221.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value is None
+    assert pair.right_value == "10"
+    assert pair.pair_kind == "continuation"
+    assert pair.status == "review"
+    assert pair.rationale == "missing left candidate; continuation relation"
+    assert pair.evidence["semantic_kind"] == "continuation_single_sided"
+    assert pair.evidence["continuation_kind"] == "terminal_missing_left_continuation"
+
+
 def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None:
     groups = [
         LineGroup(
@@ -484,6 +560,61 @@ def test_rules_skip_terminal_continuation_same_value_pairs_from_ordinary_audit()
 
     assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P1" for issue in issues)
     assert not any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
+
+
+def test_rules_skip_single_sided_terminal_continuation_pairs_from_missing_side_audit() -> None:
+    pairs = [
+        Pair(
+            pair_id="P1",
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            selected_pair_candidate_id="PC1",
+            left_value=None,
+            right_value="328",
+            confidence=0.86,
+            status="review",
+            rationale="missing left candidate; continuation relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "21.dwg",
+                "pair_kind": "continuation",
+                "semantic_kind": "continuation_single_sided",
+                "ordinary_pair_eligible": False,
+                "continuation_kind": "terminal_missing_left_continuation",
+            },
+            pair_kind="continuation",
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S2",
+            "F2",
+            "PC2",
+            "420",
+            "421",
+            0.97,
+            "pass",
+            "ok",
+            [],
+            "high",
+            {"filename": "28.dwg"},
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 310, 235, 385, 235, 75, 0.9, ["L1"], ["WIRE"], orientation="horizontal"),
+        LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True),
+        SheetRecord("S2", "F2", "28 回路图.dwg", 28, "28", "回路图", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-PAIR-MISSING-SIDE" and issue.pair_id == "P1" for issue in issues)
+    assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P1" for issue in issues)
 
 def test_rules_emit_one_to_many_review_for_same_sheet_multi_target() -> None:
     pairs = [

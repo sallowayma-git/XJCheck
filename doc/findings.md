@@ -3173,3 +3173,129 @@ Batch 2 已完成的端子页是：
 
 - **分类级 `audit_disposition` 合同：已完成**
 - **剩余最近缺口重新收敛到 continuation / bridge / semantic 关系解释，而不再是页级准入字段缺失**
+
+## 64. 2026-07-06 `phase23_single_sided_continuation_{second,first}`：端子页单侧 half-pair 已从普通 `missing-side` 升级成显式 continuation
+
+这一轮只推进一个很窄的关系语义切片：
+
+- 不先重构 candidate 四通道；
+- 不直接发明 `bridge_mapping`；
+- 先把任务书第 9 章里最典型的 `? -> 328`、`10 -> ?` 这类端子页单侧 half-pair，从普通 `R-PAIR-MISSING-SIDE` 分流出去。
+
+### 64.1 本轮代码变化
+
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - continuation 语义从“同值双侧特例”扩成两段：
+    - `continuation_same_value`
+    - `continuation_single_sided`
+  - 对 `屏端子图 + horizontal + 70-80` 的短线，若只命中单侧：
+    - 命中 `n###` 派生 numeric 时，显式落 `pair_kind=continuation`
+    - 位于右侧短桥接列带（`x>=300`）的单列数字，也显式落 `pair_kind=continuation`
+  - evidence 新增：
+    - `continuation_missing_side`
+    - `continuation_kind=terminal_missing_left/right_continuation`
+- [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py)
+  - `R-PAIR-MISSING-SIDE` 现在会跳过 `pair_kind=continuation`
+- [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py)
+  - 新增单侧 derived continuation 和短桥单列 continuation 断言
+  - 新增规则层“不再出普通 missing-side issue”断言
+- [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py)
+  - 现有 `? -> 328`、`? -> 108`、`511 -> ?`、`? -> 10` 样例已改成断言 `pair_kind=continuation`
+
+### 64.2 定向与全量测试结果
+
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation or terminal_numeric_channel_candidates"`
+  - `6 passed`
+- `python -m pytest -q tests/unit/test_terminal_candidates.py -k "short_bridge or semantic_row or semantic_ac_row"`
+  - `4 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or supplemental or table_like_page_to_table_extractor"`
+  - `11 passed`
+- `python -m pytest -q tests/unit/test_report_artifacts.py -k "pair_kind or page_findings or terminal_candidate_channels"`
+  - `3 passed`
+- `python -m pytest -q`
+  - `151 passed`
+
+### 64.3 第二套真实样本 rerun 结果
+
+- [phase23_single_sided_continuation_second/2_2](/F:/workspace/XJToolkit/.tmp/phase23_single_sided_continuation_second/2_2)
+
+当前头部第二套样本的最关键变化：
+
+- `pair_kind_counts`
+  - 旧：`{'ordinary_pair': 1211}`
+  - 新：`{'ordinary_pair': 1034, 'continuation': 177}`
+- `issue_count`
+  - `697 -> 520`
+- `R-PAIR-MISSING-SIDE`
+  - `494 -> 317`
+- `R-PAIR-LOW-CONFIDENCE`
+  - 保持 `203`
+- 四张端子页里的 ordinary 单侧缺边 pair
+  - `245 -> 68`
+
+新增 continuation 只出现在第二套的端子页：
+
+- `S0021 / 21 左侧端子图1.dwg`
+- `S0022 / 22 左侧端子图2.dwg`
+- `S0023 / 23 右侧端子图1.dwg`
+- `S0024 / 24 右侧端子图2.dwg`
+
+代表性新语义现在已经是：
+
+- `? -> 708`
+- `? -> 328`
+- `? -> 108`
+- `? -> 10`
+
+它们不再继续伪装成 ordinary `missing-side` pair。
+
+### 64.4 第一套真实样本 rerun 结果
+
+- [phase23_single_sided_continuation_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA](/F:/workspace/XJToolkit/.tmp/phase23_single_sided_continuation_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+当前头部第一套样本的最关键变化：
+
+- `pair_kind_counts`
+  - 旧：`{'ordinary_pair': 1111, 'continuation': 6}`
+  - 新：`{'ordinary_pair': 946, 'continuation': 171}`
+- `issue_count`
+  - `512 -> 347`
+- `R-PAIR-MISSING-SIDE`
+  - `432 -> 267`
+- `R-PAIR-LOW-CONFIDENCE`
+  - 保持 `79`
+
+新增 continuation 同样只出现在端子页：
+
+- `S0025 / 24 左侧端子图1.dwg`
+- `S0027 / 26 右侧端子图1.dwg`
+- `S0028 / 27 右侧端子图2.dwg`
+
+说明这轮没有把普通回路图或网格页的 half-pair 一起误收成 continuation。
+
+### 64.5 这轮对任务书主链的真正意义
+
+任务书第 9 章最关键的一句是：
+
+- `continuation` 不能直接等价为普通 pair，像 `? -> 328`、`110 -> 330`、`10 -> ?` 这类更可能是续接或桥接记录。
+
+这轮真正补齐的是其中最小、但最常见的一半：
+
+- **单侧 terminal continuation：已完成到 pair 级显式语义**
+- **普通 `R-PAIR-MISSING-SIDE` 已不再吞掉这类端子页记录**
+- **continuation 仍保持 review 证据，不制造 ordinary hard conflict**
+
+因此，这条现在不应再被描述为“只有 same-value continuation 特例”。更准确的状态已经变成：
+
+- **same-value continuation：已完成**
+- **single-sided continuation：已完成**
+- **bridge_mapping：仍未完成**
+- **candidate 级 `continuation_channel`：仍未完成**
+
+### 64.6 这轮之后最近的剩余缺口
+
+在 `phase23` 之后，最接近任务书主链的剩余缺口进一步收敛为：
+
+1. candidate 侧仍没有独立 `continuation_channel`
+2. `110 -> 330` 这类短桥接列关系仍是 ordinary pair，还没有显式 `bridge_mapping`
+3. `semantic_channel` 虽已完成候选旁路，但 pair / issue / report 仍缺 `semantic_mapping` 或 `suppressed_candidate_refs` 级证据
