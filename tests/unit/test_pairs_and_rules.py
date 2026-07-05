@@ -279,6 +279,27 @@ def test_rules_skip_discard_pairs_for_pair_quality_issues() -> None:
 
     assert all(issue.pair_id != "P1" for issue in issues)
     assert any(issue.rule_id == "R-PAIR-MISSING-SIDE" and issue.pair_id == "P2" for issue in issues)
+    assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P2" for issue in issues)
+
+
+def test_rules_only_emit_low_confidence_for_complete_pairs() -> None:
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.80, "review", "ambiguous candidate ordering", [], "review", {}),
+        Pair("P2", "G2", "S1", "F1", "PC2", "102", None, 0.80, "review", "missing right candidate", [], "review", {}),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 10, 0, 20, 0, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P1" for issue in issues)
+    assert any(issue.rule_id == "R-PAIR-MISSING-SIDE" and issue.pair_id == "P2" for issue in issues)
+    assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P2" for issue in issues)
 
 
 def test_rules_detect_duplicate_same_line_from_close_terminal_candidates() -> None:

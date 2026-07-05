@@ -527,3 +527,44 @@
 - 但它的代价也非常明确：review / issue 量会显著放大，因此当前仍不应把 `屏端子图` 直接纳入默认主审计。
 - 当前最合理的状态是：把这条能力保留在页型 override 中，作为后续继续攻 terminal 页时的实验默认，而不是把它误表述成“端子图已完成支持”。
 - 当前代码默认配置已把 `屏端子图 -> endpoint_search_radius_x = 30` 写入 `page_category_overrides`；由于 `audit_supplemental_categories` 默认仍为空，这不会改变当前主审计链，只会改善后续针对 terminal 页的实验/补跑基线。
+
+## 23. 2026-07-05 Missing-Side / Low-Confidence 语义收口
+
+本轮把 `R-PAIR-MISSING-SIDE` 与 `R-PAIR-LOW-CONFIDENCE` 的边界按任务书原文收紧：
+
+- `R-PAIR-MISSING-SIDE`：一端有可靠数字，另一端没有可靠数字
+- `R-PAIR-LOW-CONFIDENCE`：左右端都有数字，但 pair confidence 处于 review 区间
+
+直接实现变化：
+
+- 对于缺任一侧数字的 `review pair`，不再额外生成一条 `R-PAIR-LOW-CONFIDENCE`
+- `R-PAIR-LOW-CONFIDENCE` 只保留给“双侧都有值但仍不够高置信”的 pair
+
+直接结论：
+
+- 这一步不会改变 `pairs.parquet` 里的 `status=review` 分布
+- 它只会减少 issue 层的重复表达，让“单侧缺失”不再被同时记成“低置信度”
+
+按当前 `pairs.parquet` 结构推导的真实降噪幅度如下：
+
+- 第一套主 baseline `[page_strategy_first](/F:/workspace/XJToolkit/.tmp/page_strategy_first)`：
+  - `review_pairs = 256`
+  - 其中 `missing_side_review_pairs = 225`
+  - 理论 issue 数从 `481 -> 256`，净减 `225`
+- 第二套主 baseline `[page_strategy_second](/F:/workspace/XJToolkit/.tmp/page_strategy_second)`：
+  - `review_pairs = 464`
+  - 其中 `missing_side_review_pairs = 457`
+  - 理论 issue 数从 `921 -> 464`，净减 `457`
+- 第一套 terminal suffix 试跑 `[terminal_suffix_first](/F:/workspace/XJToolkit/.tmp/terminal_suffix_first)`：
+  - 理论 issue 数从 `531 -> 281`，净减 `250`
+- 第二套 terminal suffix 试跑 `[terminal_suffix_second](/F:/workspace/XJToolkit/.tmp/terminal_suffix_second)`：
+  - 理论 issue 数从 `949 -> 478`，净减 `471`
+- 第一套 terminal radius30 试跑 `[terminal_radius30_first](/F:/workspace/XJToolkit/.tmp/terminal_radius30_first)`：
+  - 理论 issue 数从 `1265 -> 648`，净减 `617`
+- 第二套 terminal radius30 试跑 `[terminal_radius30_second](/F:/workspace/XJToolkit/.tmp/terminal_radius30_second)`：
+  - 理论 issue 数从 `1805 -> 906`，净减 `899`
+
+说明：
+
+- 上述数字按 `pairs.parquet` 的 `review pair` 结构推导，不依赖历史 `issues.json` 是否在其他轮次被重跑覆盖。
+- 这一步让后续 terminal 页实验的 issue 统计更可读，因为新增的 `review` 将更多表示“真实单侧缺失”，而不是“缺失 + 低置信度”双重重复。

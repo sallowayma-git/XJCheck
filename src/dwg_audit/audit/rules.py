@@ -72,6 +72,8 @@ def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:
     for pair in context.pairs:
         if pair.status == "discard":
             continue
+        if not pair.left_value or not pair.right_value:
+            continue
         if pair.confidence >= context.high_threshold and pair.status == "pass":
             continue
         issues.append(
