@@ -293,7 +293,10 @@ def test_build_pairs_tags_same_value_terminal_continuation_semantics() -> None:
     pair = pairs[0]
     assert pair.left_value == "420"
     assert pair.right_value == "420"
+    assert pair.pair_kind == "continuation"
+    assert pair.status == "review"
     assert pair.evidence["semantic_kind"] == "continuation_same_value"
+    assert pair.evidence["pair_kind"] == "continuation"
     assert pair.evidence["ordinary_pair_eligible"] is False
     assert pair.evidence["selected_left_channel"] == "terminal_numeric_channel"
     assert pair.evidence["selected_right_channel"] == "terminal_numeric_channel"
@@ -331,6 +334,7 @@ def test_build_pairs_keeps_plain_same_value_terminal_pair_as_ordinary() -> None:
     _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
 
     pair = pairs[0]
+    assert pair.pair_kind == "ordinary_pair"
     assert "semantic_kind" not in pair.evidence
     assert pair.evidence.get("ordinary_pair_eligible", True) is True
     assert pair.evidence["selected_left_is_derived_numeric"] is False
@@ -431,23 +435,25 @@ def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None
 def test_rules_skip_terminal_continuation_same_value_pairs_from_ordinary_audit() -> None:
     pairs = [
         Pair(
-            "P1",
-            "G1",
-            "S1",
-            "F1",
-            "PC1",
-            "420",
-            "420",
-            0.81,
-            "review",
-            "ambiguous candidate ordering",
-            [],
-            "review",
-            {
+            pair_id="P1",
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            selected_pair_candidate_id="PC1",
+            left_value="420",
+            right_value="420",
+            confidence=0.81,
+            status="review",
+            rationale="ambiguous candidate ordering",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
                 "filename": "27.dwg",
+                "pair_kind": "continuation",
                 "semantic_kind": "continuation_same_value",
                 "ordinary_pair_eligible": False,
             },
+            pair_kind="continuation",
         ),
         Pair(
             "P2",

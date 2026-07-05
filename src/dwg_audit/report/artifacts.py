@@ -217,6 +217,12 @@ def _pair_evidence_mapping(payload: Any) -> dict[str, Any]:
 def _pair_semantics_parts(payload: Any) -> list[str]:
     evidence = _pair_evidence_mapping(payload)
     parts: list[str] = []
+    pair_kind = evidence.get("pair_kind")
+    if not _is_blank_value(pair_kind):
+        parts.append(f"pair_kind={pair_kind}")
+    continuation_kind = evidence.get("continuation_kind")
+    if not _is_blank_value(continuation_kind):
+        parts.append(f"continuation_kind={continuation_kind}")
     orientation = evidence.get("line_orientation")
     if not _is_blank_value(orientation):
         parts.append(f"orientation={orientation}")
@@ -275,6 +281,7 @@ def _pair_review_sort_key(pair: Pair) -> tuple[int, int, float, str]:
 def _build_pair_example(pair: Pair) -> dict[str, Any]:
     return {
         "pair_id": pair.pair_id,
+        "pair_kind": pair.pair_kind,
         "status": pair.status,
         "confidence": pair.confidence,
         "confidence_bucket": pair.confidence_bucket,
@@ -289,6 +296,7 @@ def _build_pair_example(pair: Pair) -> dict[str, Any]:
 def _build_pair_findings_summary(pairs: list[Pair]) -> dict[str, Any]:
     status_counts: dict[str, int] = {}
     confidence_bucket_counts: dict[str, int] = {}
+    pair_kind_counts: dict[str, int] = {}
     with_evidence = 0
     examples: list[dict[str, Any]] = []
     review_examples: list[dict[str, Any]] = []
@@ -298,6 +306,8 @@ def _build_pair_findings_summary(pairs: list[Pair]) -> dict[str, Any]:
         status_counts[pair.status] = status_counts.get(pair.status, 0) + 1
         bucket = pair.confidence_bucket or "unknown"
         confidence_bucket_counts[bucket] = confidence_bucket_counts.get(bucket, 0) + 1
+        pair_kind = pair.pair_kind or "ordinary_pair"
+        pair_kind_counts[pair_kind] = pair_kind_counts.get(pair_kind, 0) + 1
         if pair.evidence:
             with_evidence += 1
         if len(examples) >= 5:
@@ -311,6 +321,7 @@ def _build_pair_findings_summary(pairs: list[Pair]) -> dict[str, Any]:
         "total_pairs": len(pairs),
         "pairs_with_evidence": with_evidence,
         "review_pairs": len(review_pairs),
+        "pair_kind_counts": dict(sorted(pair_kind_counts.items())),
         "status_counts": dict(sorted(status_counts.items())),
         "confidence_bucket_counts": dict(sorted(confidence_bucket_counts.items())),
         "examples": examples,
@@ -450,6 +461,16 @@ def _per_sheet_candidate_channel_counts(candidates: list[TerminalCandidate]) -> 
         channel = candidate.channel or "unknown"
         counts[str(candidate.sheet_id)][str(channel)] += 1
     return {sheet_id: dict(channel_counts) for sheet_id, channel_counts in counts.items()}
+
+
+def _per_sheet_pair_kind_counts(pairs: list[Pair]) -> dict[str, dict[str, int]]:
+    counts: dict[str, Counter[str]] = defaultdict(Counter)
+    for pair in pairs:
+        if not pair.sheet_id:
+            continue
+        pair_kind = pair.pair_kind or "ordinary_pair"
+        counts[str(pair.sheet_id)][str(pair_kind)] += 1
+    return {sheet_id: dict(pair_kind_counts) for sheet_id, pair_kind_counts in counts.items()}
 
 
 def _per_sheet_orientation_counts(line_groups: list[LineGroup]) -> dict[str, dict[str, int]]:
@@ -625,6 +646,7 @@ def _build_page_findings(
     line_group_counts = _per_sheet_counts(artifacts.line_groups)
     terminal_candidate_counts = _per_sheet_counts(artifacts.terminal_candidates)
     terminal_candidate_channel_counts = _per_sheet_candidate_channel_counts(artifacts.terminal_candidates)
+    pair_kind_counts = _per_sheet_pair_kind_counts(artifacts.pairs)
     pair_candidate_counts = _per_sheet_counts(artifacts.pair_candidates)
     pair_counts = _per_sheet_counts(artifacts.pairs)
     issue_counts = _per_sheet_counts(artifacts.issues)
@@ -704,6 +726,7 @@ def _build_page_findings(
                     "terminal_candidate_channel_counts": terminal_candidate_channel_counts.get(sheet_id, {}),
                     "pair_candidate_count": pair_candidate_counts.get(sheet_id, 0),
                     "pair_count": pair_count,
+                    "pair_kind_counts": pair_kind_counts.get(sheet_id, {}),
                     "non_discard_pair_count": non_discard_pair_count,
                     "high_confidence_pair_count": high_confidence_pair_count,
                     "table_mapping_count": table_mapping_count,
@@ -982,6 +1005,7 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             "## Pair Evidence 摘要",
             "",
             f"- PairsWithEvidence: `{pair_summary['pairs_with_evidence']}/{pair_summary['total_pairs']}`",
+            f"- PairKindCounts: `{json.dumps(pair_summary['pair_kind_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- StatusCounts: `{json.dumps(pair_summary['status_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ConfidenceBuckets: `{json.dumps(pair_summary['confidence_bucket_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ReviewPairs: `{pair_summary['review_pairs']}`",

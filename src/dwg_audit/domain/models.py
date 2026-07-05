@@ -242,6 +242,7 @@ class Pair:
     right_score: float | None = None
     wire_score: float | None = None
     ambiguity_gap: float | None = None
+    pair_kind: str = "ordinary_pair"
 
 
 @dataclass(slots=True)

@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 17
+Phase 18
 
 ## Phases
 
@@ -123,8 +123,16 @@ Phase 17
 - [x] 复跑 targeted pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
 - **Status:** complete
 
+### Phase 18: Continuation Pair-Kind Contract
+- [x] 重新按当前头部代码审计“continuation / audit_disposition”两条最近缺口，确认本轮只做 continuation 语义收口
+- [x] 把 continuation 从 `pair.evidence` 隐式标签升级为显式 `pair_kind` 合同
+- [x] 让 continuation 不再伪装成 ordinary `pass/discard`，而是稳定保留为 review 证据并旁路 ordinary audit
+- [x] 在 findings 运行态中补 `pair_kind_counts`，让 continuation 在页级/项目级摘要可见
+- [x] 复跑 targeted pytest、full pytest，以及 first-set 当前头部 `analyze-project + run-audit`
+- **Status:** complete
+
 ## Key Questions
-1. `continuation_same_value` 目前已被打标签并旁路 ordinary audit；下一步是否需要给 candidate / pair 都补显式 `continuation_channel`，而不是继续只靠 `semantic_kind + ordinary_pair_eligible`？
+1. continuation 现在已有显式 `pair_kind=continuation`，但 candidate 侧仍没有独立 `continuation_channel`；下一步是否需要把 `n###` / bridge 提示也提升为 candidate 级通道？
 2. semantic-row 当前已经有 candidate `semantic_channel`，但 pair / issue 还不会显式写出“哪一侧被 semantic guard 抑制”；是否需要补 `suppressed_candidate_refs` 这类最小证据合同？
 3. `audit_disposition` 仍未作为独立字段落盘，当前只有 `audit_role + route_target` 组合；是否需要对齐任务书契约？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
@@ -152,6 +160,7 @@ Phase 17
 | 在真实样本暂无稳定表格页命中的前提下，`TableExtractor` 的 MVP 证明应改用隔离 synthetic `analyze-project` 集成测试，而不是继续等待假阳性真实页 | 任务书明确允许真实样本不足时用隔离合成/变异样本补足验证 |
 | `page_findings` 对 `TableExtractor` 的说明不能继续写成 “still pending”，必须反映当前是否真的产出了 `table_mapping` | 任务书要求页级记录说明当前识别器和数字匹配策略，不能故意滞后于代码现状 |
 | terminal 语义列的第一步不该先扩成新大表，而应先把 candidate `channel` 变成稳定合同，再让 PairBuilder 明确只消费 `terminal_numeric_channel` | 这能最小风险地把任务书 7.4 的“语义旁路”从隐式规则升级为可落盘运行态 |
+| continuation 的第一步不该先扩大规则覆盖面，而应先把已识别出的 continuation 关系升级成显式 `pair_kind`，并让它稳定保留为 review 证据、旁路 ordinary audit | 这能最小风险地把任务书第 9 章“continuation 不能等价于 ordinary pair”落实到当前真实样本主链 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

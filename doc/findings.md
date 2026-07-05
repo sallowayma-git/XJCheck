@@ -2987,3 +2987,112 @@ Batch 2 已完成的端子页是：
 1. `continuation_same_value` 还只存在于 `pair.evidence`，没有 candidate / pair 顶层 `continuation_channel`
 2. semantic-row 虽然已有 `semantic_channel`，但 `missing-side` pair / issue 还不会显式告诉你“哪一侧是被 semantic guard 抑制的”
 3. `audit_disposition` 仍未作为独立字段落盘
+
+## 62. 2026-07-06 任务书完成度审计刷新：在 `phase20` 之后，continuation 比 `audit_disposition` 更像语义主链断点
+
+在当前头部代码上重新核对任务书 7.4 与第 9 章之后，最接近主链的两个缺口其实是：
+
+1. continuation 仍只是 `pair.evidence` 里的局部补丁，而不是显式关系类型。
+2. `audit_disposition` 仍未作为独立字段落盘。
+
+这两条都是真缺口，但性质不同：
+
+- `audit_disposition` 更像“分类合同收口”；
+- continuation 则直接关系到“系统是否还在把续接/桥接关系误当 ordinary pair”。
+
+考虑到任务书第 9 章明确要求：
+
+- 进入规则前至少区分 `ordinary_pair / continuation / bridge_mapping / semantic_mapping`
+- `continuation` 默认只进 review 证据，不直接制造 hard conflict
+
+而当前真实样本里第一套恰好已经存在稳定的 continuation 证据，所以这一轮主线程先收口 continuation，而不是先改 `audit_disposition`。
+
+### 62.1 本轮代码变化
+
+- [models.py](/F:/workspace/XJToolkit/src/dwg_audit/domain/models.py)
+  - `Pair` 新增：
+    - `pair_kind`
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - 普通 pair 现在默认显式写 `pair_kind = ordinary_pair`
+  - `continuation_same_value` 现在不只写 `semantic_kind`，而是显式写：
+    - `pair_kind = continuation`
+    - `continuation_kind = terminal_same_value_bridge`
+  - continuation 关系不再保留 `pass/discard` 外观，而是统一保留为 `review` 证据
+- [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py)
+  - `_ordinary_pair_eligible()` 现在会直接旁路非 `ordinary_pair`
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+  - `pair_evidence_summary` 新增：
+    - `pair_kind_counts`
+  - `page_findings.structure_summary` 新增：
+    - `pair_kind_counts`
+  - findings Markdown 现在也会显示：
+    - `PairKindCounts`
+- [rerun.py](/F:/workspace/XJToolkit/src/dwg_audit/report/rerun.py)
+  - `run-audit --findings` 现在会从 parquet 回放：
+    - `pair_kind`
+
+### 62.2 定向与全量测试结果
+
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation or terminal_numeric_channel_candidates"`
+  - `3 passed`
+- `python -m pytest -q tests/unit/test_report_artifacts.py -k "continuation or pair_kind or page_findings or terminal_candidate_channels"`
+  - `4 passed`
+- `python -m pytest -q tests/unit/test_terminal_candidates.py -k "semantic or fjl or single_char"`
+  - `7 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or table_like_page_to_table_extractor or supplemental"`
+  - `11 passed`
+- `python -m pytest -q`
+  - `147 passed`
+
+### 62.3 第一套真实样本 rerun 结果
+
+- [phase21_continuation_contract_first](/F:/workspace/XJToolkit/.tmp/phase21_continuation_contract_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+当前头部真实样本已经能给出下面这些强证据：
+
+- `pair_evidence_summary.pair_kind_counts`
+  - `{'continuation': 6, 'ordinary_pair': 1111}`
+- `S0027 / 26 右侧端子图1.dwg`
+  - `structure_summary.pair_kind_counts = {'ordinary_pair': 156, 'continuation': 6}`
+- `pairs.parquet` 中 continuation 关系共有 `6` 条
+  - 全部 `pair_kind = continuation`
+  - 全部 `status = review`
+  - 全部位于 `S0027`
+- `issues.json` 中 continuation 相关 issue 数
+  - `0`
+
+也就是说，第一套样本里原先那批 `420 -> 420 / 110 -> 110 / 109 -> 109 / 430 -> 430 / 419 -> 419` 已经不再只是“ordinary pair + evidence 备注”，而是当前运行态里显式存在的 continuation 关系。
+
+### 62.4 这轮对任务书主链的真正意义
+
+这轮真正补齐的不是一个字段名，而是任务书第 9 章里这条语义边界：
+
+- **continuation 不能直接等价为 ordinary pair。**
+
+在当前头部代码和真实样本里，这条现在已经前进到了：
+
+- `pair_kind=continuation`：已完成
+- continuation 从 ordinary audit 旁路：已完成
+- continuation 保留为 review 证据、而不是 hard conflict：已完成
+
+因此，continuation 这条现在不应再被描述为“只有 `ordinary_pair_eligible=False` 的临时旁路”。更准确的状态已经变成：
+
+- **pair 级 continuation 语义：已部分完成，且有真实样本强证据**
+- **candidate 级 `continuation_channel`：仍未完成**
+
+### 62.5 这轮之后最接近主链的剩余缺口
+
+在 `phase21` 之后，离任务书主链最近的剩余缺口进一步收敛为：
+
+1. candidate 侧仍没有独立 `continuation_channel`；当前 continuation 仍是“先走 numeric，再在 pair 层改写语义”
+2. 单侧 continuation / bridge 记录（例如 `? -> 328`、`110 -> 330`）还没有形成同等明确的 specialized pair-kind
+3. semantic-row 虽然已有 candidate `semantic_channel`，但 `missing-side` pair / issue 还不会显式写出“哪一侧被 semantic guard 抑制”
+4. `audit_disposition` 仍未作为独立字段落盘
+
+### 62.6 本轮之后仍不该优先的方向
+
+以下方向这时继续投入，都会偏离任务书主链：
+
+1. 继续用总 issue 数升降评估 continuation 切片成败
+2. 回到桌面端 / Tauri / preview 交互细节
+3. 在没有显式 relation contract 的前提下，继续只在 `candidates.py` 里堆更多全局阈值

@@ -426,6 +426,8 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
 
 
 def _ordinary_pair_eligible(pair: Pair) -> bool:
+    if getattr(pair, "pair_kind", "ordinary_pair") != "ordinary_pair":
+        return False
     return pair.evidence.get("ordinary_pair_eligible", True) is not False
 
 

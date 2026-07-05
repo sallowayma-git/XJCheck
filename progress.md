@@ -673,3 +673,28 @@
   - `S0021.structure_summary.terminal_candidate_channel_counts = {'terminal_numeric_channel': 1689, 'semantic_channel': 1055, 'noise_channel': 244}`
   - 全项目 `terminal_candidates.parquet` 已带 `channel / channel_detail`
   - `semantic_channel` 主要细分为 `terminal_strip_bypass_text`、`not_numeric`、`terminal_semantic_local_numeric`
+
+## Session Update 2026-07-06 (Phase 18)
+- 先重新按当前头部代码做了一次任务书审计，重点重判了两条最近缺口：
+  - `continuation` 还只是 `pair.evidence` 里的隐式标签
+  - `audit_disposition` 仍是合同缺口，但当前更像“字段收口”，而不是语义主链断点
+- 本轮因此只推进 continuation 语义收口：
+  - `Pair` 新增 `pair_kind`
+  - continuation 关系现在会显式落 `pair_kind=continuation`
+  - `_ordinary_pair_eligible()` 现在会直接旁路非 `ordinary_pair`
+  - continuation 不再保留 `pass/discard` 外观，而是统一保留为 `review` 证据
+  - `pair_evidence_summary` 和 `page_findings.structure_summary` 现在会输出 `pair_kind_counts`
+  - findings Markdown 摘要也会显示 `PairKindCounts`
+- 本轮新增验证：
+  - `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation or terminal_numeric_channel_candidates"` -> `3 passed`
+  - `python -m pytest -q tests/unit/test_report_artifacts.py -k "continuation or pair_kind or page_findings or terminal_candidate_channels"` -> `4 passed`
+  - `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or table_like_page_to_table_extractor or supplemental"` -> `11 passed`
+  - `python -m pytest -q` -> `147 passed`
+  - `python -m dwg_audit.cli analyze-project --input test\\110kV变压器保护柜 --output .tmp\\phase21_continuation_contract_first` + `run-audit` -> 第一套真实样本 continuation 已显式落盘
+- 第一套 current-head 新证据：
+  - `pair_evidence_summary.pair_kind_counts = {'continuation': 6, 'ordinary_pair': 1111}`
+  - `S0027.structure_summary.pair_kind_counts = {'ordinary_pair': 156, 'continuation': 6}`
+  - `pairs.parquet` 中 6 条 continuation 全部为 `status=review`
+  - `issues.json` 中 continuation 相关 issue 数为 `0`
+- 本轮本地提交：
+  - `d177a00` `Add explicit terminal semantic candidate channels`

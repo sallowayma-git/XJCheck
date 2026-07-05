@@ -69,6 +69,13 @@ def build_pairs(
             )
             pair_candidates.append(single)
             confidence = single.score
+            evidence = _pair_evidence(group, sheet_map.get(group.sheet_id), single, None, candidate_map)
+            pair_kind = _pair_kind_from_evidence(evidence)
+            status, rationale = _apply_special_pair_semantics(
+                status=status,
+                rationale=rationale,
+                pair_kind=pair_kind,
+            )
             pairs.append(
                 Pair(
                     pair_id=pair_ids.next(),
@@ -83,7 +90,7 @@ def build_pairs(
                     rationale=rationale,
                     alternative_pair_candidate_ids=[],
                     confidence_bucket=_bucket_for_status(status),
-                    evidence=_pair_evidence(group, sheet_map.get(group.sheet_id), single, None, candidate_map),
+                    evidence=evidence,
                     left_candidate_id=single.left_candidate_id,
                     right_candidate_id=single.right_candidate_id,
                     left_text_id=single.left_text_id,
@@ -97,6 +104,7 @@ def build_pairs(
                     right_score=single.right_score,
                     wire_score=single.wire_score,
                     ambiguity_gap=single.ambiguity_gap,
+                    pair_kind=pair_kind,
                 )
             )
             continue
@@ -152,6 +160,13 @@ def build_pairs(
             selected=selected,
             candidate_map=candidate_map,
         )
+        evidence = _pair_evidence(group, sheet_map.get(group.sheet_id), selected, alternative_ids, candidate_map)
+        pair_kind = _pair_kind_from_evidence(evidence)
+        status, rationale = _apply_special_pair_semantics(
+            status=status,
+            rationale=rationale,
+            pair_kind=pair_kind,
+        )
 
         pairs.append(
             Pair(
@@ -167,7 +182,7 @@ def build_pairs(
                 rationale=rationale,
                 alternative_pair_candidate_ids=alternative_ids,
                 confidence_bucket=_bucket_for_status(status),
-                evidence=_pair_evidence(group, sheet_map.get(group.sheet_id), selected, alternative_ids, candidate_map),
+                evidence=evidence,
                 left_candidate_id=selected.left_candidate_id,
                 right_candidate_id=selected.right_candidate_id,
                 left_text_id=selected.left_text_id,
@@ -181,6 +196,7 @@ def build_pairs(
                 right_score=selected.right_score,
                 wire_score=selected.wire_score,
                 ambiguity_gap=selected.ambiguity_gap,
+                pair_kind=pair_kind,
             )
         )
     return pair_candidates, pairs
@@ -267,6 +283,7 @@ def _pair_evidence(
             "ambiguity_gap": selected.ambiguity_gap,
         },
         "alternative_pair_candidate_ids": alternative_ids or [],
+        "pair_kind": "ordinary_pair",
     }
     evidence.update(
         _terminal_continuation_semantics(
@@ -366,10 +383,31 @@ def _terminal_continuation_semantics(
     if not _CONTINUATION_SUFFIX_PATTERN.search(right_raw):
         return {}
     return {
+        "pair_kind": "continuation",
         "semantic_kind": "continuation_same_value",
         "ordinary_pair_eligible": False,
         "continuation_kind": "terminal_same_value_bridge",
     }
+
+
+def _pair_kind_from_evidence(evidence: dict[str, object]) -> str:
+    pair_kind = evidence.get("pair_kind")
+    if isinstance(pair_kind, str) and pair_kind.strip():
+        return pair_kind.strip()
+    return "ordinary_pair"
+
+
+def _apply_special_pair_semantics(
+    *,
+    status: str,
+    rationale: str,
+    pair_kind: str,
+) -> tuple[str, str]:
+    if pair_kind != "continuation":
+        return status, rationale
+    if "continuation" not in rationale:
+        rationale = f"{rationale}; continuation relation"
+    return "review", rationale
 
 
 def _is_derived_numeric_candidate(candidate: TerminalCandidate | None, value: str | None) -> bool:

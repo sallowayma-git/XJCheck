@@ -274,6 +274,79 @@ def test_write_project_artifacts_summarizes_terminal_candidate_channels(tmp_path
     }
 
 
+def test_write_project_artifacts_summarizes_continuation_pair_kinds(tmp_path: Path) -> None:
+    source = SourceFileRecord(
+        file_id="F0001",
+        path="C:/demo/26.dwg",
+        filename="26.dwg",
+        ext=".dwg",
+        sha256="abc",
+        size_bytes=10,
+        sheet_order=26,
+        detected_page_no="26",
+        detected_from="filename",
+        sheet_title="右侧端子图1",
+        sheet_category="屏端子图",
+        skip_reason=None,
+        valid_dwg_header=True,
+        conversion_status="converted",
+    )
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-06T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[source],
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord("S0001", "F0001", "26.dwg", 26, "26", "右侧端子图1", "屏端子图", "supplemental", "filename", True)
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id="PC1",
+            left_value="420",
+            right_value="420",
+            confidence=0.88,
+            status="review",
+            rationale="continuation relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "26.dwg",
+                "sheet_no": "26",
+                "sheet_order": 26,
+                "line_group_id": "G0001",
+                "pair_kind": "continuation",
+                "continuation_kind": "terminal_same_value_bridge",
+                "line_orientation": "horizontal",
+            },
+            pair_kind="continuation",
+        )
+    ]
+
+    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan, pairs=pairs), tmp_path)
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
+
+    assert findings_payload["pair_evidence_summary"]["pair_kind_counts"] == {"continuation": 1}
+    assert findings_payload["page_findings"][0]["structure_summary"]["pair_kind_counts"] == {"continuation": 1}
+
+
 def test_write_project_artifacts_records_one_to_many_review_table(tmp_path: Path) -> None:
     sources = [
         SourceFileRecord(
@@ -698,6 +771,48 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "- Summary: 数字 101 在不同跨页位置出现冲突配对。" in report_text
     assert "- Explanation: 同一线号在高置信 pair 中关联到了不一致的目标数字。" in report_text
     assert "- RecommendedAction: 优先复核 04.dwg 上对应线端的跨页引用。" in report_text
+
+
+def test_write_audit_outputs_shows_continuation_pair_semantics(tmp_path: Path) -> None:
+    continuation_pair = Pair(
+        pair_id="P0001",
+        line_group_id="G0001",
+        sheet_id="S0001",
+        file_id="F0001",
+        selected_pair_candidate_id="PC1",
+        left_value="420",
+        right_value="420",
+        confidence=0.88,
+        status="review",
+        rationale="continuation relation",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="review",
+        evidence={
+            "filename": "26.dwg",
+            "sheet_no": "26",
+            "sheet_order": 26,
+            "line_group_id": "G0001",
+            "line_start": [325.0, 145.0],
+            "line_end": [400.0, 145.0],
+            "pair_kind": "continuation",
+            "continuation_kind": "terminal_same_value_bridge",
+            "line_orientation": "horizontal",
+        },
+        pair_kind="continuation",
+    )
+
+    audit_dir = write_audit_outputs(
+        tmp_path / "project",
+        issues=[],
+        pairs=[continuation_pair],
+        source_files=[],
+        project_name="Demo 项目",
+        formats=["md"],
+    )
+    report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+
+    assert "pair_kind=continuation" in report_text
+    assert "continuation_kind=terminal_same_value_bridge" in report_text
 
 
 def test_write_audit_outputs_respects_requested_report_formats(tmp_path: Path) -> None:

@@ -144,6 +144,7 @@ def _pair(row: pd.Series) -> Pair:
         left_coord_y=_nullable_float(row.get("left_coord_y")),
         right_coord_x=_nullable_float(row.get("right_coord_x")),
         right_coord_y=_nullable_float(row.get("right_coord_y")),
+        pair_kind=_nullable_str(row.get("pair_kind")) or "ordinary_pair",
     )
 
 
