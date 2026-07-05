@@ -67,6 +67,7 @@ def build_terminal_candidates(
         min_height = profile["min_height"]
         max_height = profile["max_height"]
         orientation = group.orientation if group.orientation in {"horizontal", "vertical"} else "horizontal"
+        profile = _orientation_scoped_profile(profile, sheet, orientation)
         for side, endpoint in _endpoints_for_group(group):
             bbox = (
                 endpoint[0] - radius_x,
@@ -143,6 +144,7 @@ def build_terminal_candidates(
                     )
                 )
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
+    _prefer_derived_numeric_on_vertical_component_page(results, group_map, sheet_map)
     _assign_candidate_ranks(results)
     return results
 
@@ -278,6 +280,35 @@ def _dedupe_shared_text_anchors(
             candidate.rank = None
 
 
+def _prefer_derived_numeric_on_vertical_component_page(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> None:
+    by_group_side = defaultdict(list)
+    for candidate in candidates:
+        if candidate.status != "accepted" or not candidate.value:
+            continue
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        if group is None or sheet is None:
+            continue
+        if group.orientation != _ORIENTATION_VERTICAL or sheet.sheet_category != "元件接线图":
+            continue
+        by_group_side[(candidate.line_group_id, candidate.side)].append(candidate)
+
+    for grouped_candidates in by_group_side.values():
+        has_derived_numeric = any(candidate.text.strip() != (candidate.value or "").strip() for candidate in grouped_candidates)
+        if not has_derived_numeric:
+            continue
+        for candidate in grouped_candidates:
+            if candidate.text.strip() == (candidate.value or "").strip():
+                candidate.status = "rejected"
+                candidate.rejection_reason = "superseded_by_derived_numeric"
+                candidate.value = None
+                candidate.rank = None
+
+
 def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, object]:
     geometry = config.get("geometry", {})
     text_config = config.get("text", {})
@@ -321,6 +352,20 @@ def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, obj
         profile["numeric_suffix_patterns"] = _compile_patterns(text_override.get("numeric_suffix_patterns", []))
         profile["derived_numeric_penalty"] = float(text_override.get("derived_numeric_penalty", profile["derived_numeric_penalty"]))
     return profile
+
+
+def _orientation_scoped_profile(
+    profile: dict[str, object],
+    sheet: SheetRecord | None,
+    orientation: str,
+) -> dict[str, object]:
+    scoped = dict(profile)
+    if sheet is None:
+        return scoped
+    if sheet.sheet_category == "元件接线图" and orientation != _ORIENTATION_VERTICAL:
+        scoped["numeric_suffix_patterns"] = []
+        scoped["derived_numeric_penalty"] = 0.0
+    return scoped
 
 
 def _compile_patterns(patterns: object) -> list[re.Pattern[str]]:

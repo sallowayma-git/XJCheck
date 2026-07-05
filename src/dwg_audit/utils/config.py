@@ -74,7 +74,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "元件接线图": {
             "geometry": {
                 "line_group_orientation": "auto",
-            }
+            },
+            "text": {
+                "numeric_suffix_patterns": [
+                    r"(?i)n(?P<value>\d{3,})$",
+                    r"(?i)(?:CD|GD|ZK-?)(?P<value>\d{1,3})$",
+                ],
+                "derived_numeric_penalty": -0.18,
+            },
         },
         "屏端子图": {
             "geometry": {

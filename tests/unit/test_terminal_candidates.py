@@ -370,3 +370,118 @@ def test_build_terminal_candidates_dedupes_shared_text_anchor_on_vertical_compon
 
     assert {(item.line_group_id, item.side) for item in accepted} == {("G1", "top"), ("G1", "bottom")}
     assert {(item.line_group_id, item.side) for item in rejected} == {("G2", "top"), ("G2", "bottom")}
+
+
+def test_build_terminal_candidates_extracts_component_suffix_values_on_vertical_page() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=60.0,
+            start_y=80.0,
+            end_x=60.0,
+            end_y=40.0,
+            length=40.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "20 元件接线图2.dwg", 20, "20", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "3-21CD43", "3-21CD43", False, "TEXT", 0.0, 3.0, 56.5, 84.1, 55.0, 82.0, 60.0, 86.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "3-21n419", "3-21n419", False, "TEXT", 0.0, 3.0, 56.5, 33.5, 55.0, 31.5, 60.0, 35.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    top_candidate = next(item for item in candidates if item.side == "top" and item.text_id == "T1")
+    bottom_candidate = next(item for item in candidates if item.side == "bottom" and item.text_id == "T2")
+
+    assert top_candidate.status == "accepted"
+    assert top_candidate.value == "43"
+    assert top_candidate.rank == 1
+    assert bottom_candidate.status == "accepted"
+    assert bottom_candidate.value == "419"
+    assert bottom_candidate.rank == 1
+
+
+def test_build_terminal_candidates_prefers_component_suffix_values_over_single_char_numeric() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=60.0,
+            start_y=80.0,
+            end_x=60.0,
+            end_y=40.0,
+            length=40.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "20 元件接线图2.dwg", 20, "20", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1", "1", True, "0", 0.0, 2.5, 61.8, 83.8, 60.8, 82.8, 63.8, 85.8),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "2", "2", True, "0", 0.0, 2.5, 61.9, 36.2, 60.9, 35.2, 63.9, 38.2),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "3-21CD43", "3-21CD43", False, "TEXT", 0.0, 3.0, 56.5, 84.1, 55.0, 82.0, 60.0, 86.0),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "3-21n419", "3-21n419", False, "TEXT", 0.0, 3.0, 56.5, 33.5, 55.0, 31.5, 60.0, 35.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    derived_top = next(item for item in candidates if item.text_id == "T3")
+    derived_bottom = next(item for item in candidates if item.text_id == "T4")
+    suppressed_top = next(item for item in candidates if item.text_id == "T1")
+    suppressed_bottom = next(item for item in candidates if item.text_id == "T2")
+
+    assert derived_top.status == "accepted"
+    assert derived_top.value == "43"
+    assert derived_top.rank == 1
+    assert derived_bottom.status == "accepted"
+    assert derived_bottom.value == "419"
+    assert derived_bottom.rank == 1
+    assert suppressed_top.status == "rejected"
+    assert suppressed_top.rejection_reason == "superseded_by_derived_numeric"
+    assert suppressed_bottom.status == "rejected"
+    assert suppressed_bottom.rejection_reason == "superseded_by_derived_numeric"
+
+
+def test_build_terminal_candidates_keeps_component_suffix_patterns_disabled_on_horizontal_component_page() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=10.0,
+            start_y=20.0,
+            end_x=90.0,
+            end_y=20.0,
+            length=80.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "19 元件接线图1.dwg", 19, "19", "元件接线图1", "元件接线图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1-21n717", "1-21n717", False, "TEXT", 0.0, 3.0, 8.0, 20.0, 7.0, 18.0, 14.0, 22.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    rejected = next(item for item in candidates if item.text_id == "T1")
+    assert rejected.status == "rejected"
+    assert rejected.rejection_reason == "not_numeric"

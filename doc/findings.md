@@ -1371,3 +1371,68 @@ second-set 新 audit 结果：
 - 或者“单字符 pin 号遇到更长 TEXT 标签时”的上下文降权 / 拒收
 
 也就是说，`20` 的问题已经从“重复复用导致虚胖”推进成了“真实标签理解还不够深”，这比上一轮更接近可用状态。
+
+## 43. 2026-07-05 `元件接线图2` 的 suffix 派生已收口到 vertical 专用，`27` 条 review 中有 `24` 条变成具体语义值
+
+上一轮结论已经说明：`20 元件接线图2.dwg` 剩余的 `27` 条低置信 pair，并不都是“没有长文本可用”，而是很多端点窗口里虽然同时存在更长的 `TEXT`，但当前没有被数值化。
+
+这轮实现没有走“全局放宽 suffix 规则”的路线，而是做了两个更窄的收口：
+
+- 在 [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py) 给 `元件接线图` 增加受控 `numeric_suffix_patterns`：
+  - `n(?P<value>\d{3,})$`
+  - `(?:CD|GD|ZK-?)(?P<value>\d{1,3})$`
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 做两层额外护栏：
+  - 只有 `group.orientation == vertical` 的 `元件接线图` 才启用这些 suffix 派生
+  - 若同一端点已经命中派生数值，则同侧原始单字符数值会被改成 `superseded_by_derived_numeric`
+
+这样做的原因很明确：
+
+- 更早的宽放版本会让 `19 元件接线图1.dwg` 出现回退风险。
+- 当前真正需要这类派生的是 `20` 的 vertical 模板页，而不是整个 `元件接线图` 类别。
+
+### 43.1 测试与实跑证据
+
+新增并通过：
+
+- vertical component suffix 提取单测
+- 派生值压过单字符 pin 号单测
+- horizontal component 页禁用 suffix 派生单测
+- 集成测试：`20 元件接线图2.dwg` 风格页面应产出 `43 -> 419`
+
+当前全量回归：
+
+- `python -m pytest -q`
+  - `103 passed`
+
+当前 second-set 新实跑目录：
+
+- [phase8_component_suffix_scoped_second_rerun/2_2](/F:/workspace/XJToolkit/.tmp/phase8_component_suffix_scoped_second_rerun/2_2)
+
+与上一轮 [phase8_vertical_dedupe_longline_second/2_2](/F:/workspace/XJToolkit/.tmp/phase8_vertical_dedupe_longline_second/2_2) 对照：
+
+- `19 元件接线图1.dwg`
+  - `39 pairs / 12 non-discard / 12 issues`
+  - `12` 条非 discard pair 完全不变
+- `20 元件接线图2.dwg`
+  - 保持 `54 pairs / 27 non-discard / 27 issues`
+  - 其中 `24/27` 条从泛化 `1 -> 2` 变成了更具体的值，例如：
+    - `43 -> 419`
+    - `53 -> 427`
+    - `38 -> 416`
+    - `3 -> 113`
+    - `2 -> 112`
+  - 仍剩 `3` 条 `1 -> 2`，对应线组：
+    - `G0706`
+    - `G0712`
+    - `G0718`
+- `08 / 12`
+  - 仍保持：
+    - `49`
+    - `48`
+    条 issue，没有回退
+
+### 43.2 当前最重要的工程结论
+
+- suffix 派生本身是有效的，但必须保持“`元件接线图 + vertical` 专用”这个收口。
+- 这一轮已经证明，继续扩大规则作用域并不是当前最优先路径；更好的方向是只盯剩余 `3` 条 `1 -> 2` 的具体上下文。
+- 从收益上看，这轮已经把 `20` 从“27 条同质化噪声”推进成了“只剩 3 条待专项解释的 residual pattern”，这是明显更接近可复核状态的真实进展。
