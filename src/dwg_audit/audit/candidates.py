@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import defaultdict
 
 from shapely.geometry import box
 from shapely.strtree import STRtree
 
 from dwg_audit.domain.models import LineGroup
+from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.ids import IdFactory
@@ -40,28 +42,27 @@ def build_terminal_candidates(
     line_groups: list[LineGroup],
     texts: list[TextItem],
     config: dict,
+    sheets: list[SheetRecord] | None = None,
 ) -> list[TerminalCandidate]:
     by_sheet_texts = defaultdict(list)
     for text in texts:
         by_sheet_texts[text.sheet_id].append(text)
 
     indexes = {sheet_id: TextSpatialIndex(sheet_texts) for sheet_id, sheet_texts in by_sheet_texts.items()}
+    sheet_map = {sheet.sheet_id: sheet for sheet in sheets or []}
     candidate_ids = IdFactory("C")
-    radius_x = float(config.get("geometry", {}).get("endpoint_search_radius_x", 18.0))
-    radius_y = float(config.get("geometry", {}).get("endpoint_search_radius_y", 7.0))
-    min_height = float(config.get("text", {}).get("min_text_height", 1.0))
-    max_height = float(config.get("text", {}).get("max_text_height", 8.0))
-    text_config = config.get("text", {})
-    deprioritized_layers = {str(item).upper() for item in text_config.get("deprioritized_layers", [])}
-    deprioritized_layer_penalty = float(text_config.get("deprioritized_layer_penalty", 0.0))
-    single_char_penalty_layers = {str(item).upper() for item in text_config.get("single_char_penalty_layers", [])}
-    single_char_penalty = float(text_config.get("single_char_penalty", 0.0))
 
     results: list[TerminalCandidate] = []
     for group in line_groups:
         index = indexes.get(group.sheet_id)
         if index is None:
             continue
+        sheet = sheet_map.get(group.sheet_id)
+        profile = _candidate_profile(config, sheet)
+        radius_x = profile["radius_x"]
+        radius_y = profile["radius_y"]
+        min_height = profile["min_height"]
+        max_height = profile["max_height"]
         for side, endpoint in (("left", (group.start_x, group.start_y)), ("right", (group.end_x, group.end_y))):
             bbox = (
                 endpoint[0] - radius_x,
@@ -72,12 +73,13 @@ def build_terminal_candidates(
             for text in index.query(bbox):
                 dx = text.insert_x - endpoint[0]
                 dy = text.insert_y - endpoint[1]
+                value = _candidate_numeric_value(text, profile["numeric_suffix_patterns"])
                 within_height = min_height <= text.height <= max_height
                 vertical_alignment_score = round(max(0.0, 1.0 - min(abs(dy) / max(radius_y, 1.0), 1.0)), 4)
                 horizontal_side_score = _horizontal_side_score(dx, radius_x, side)
-                text_type_score = 1.0 if text.is_numeric_candidate else 0.0
+                text_type_score = 1.0 if value is not None else 0.0
                 height_score = 1.0 if within_height else 0.0
-                if not text.is_numeric_candidate:
+                if value is None:
                     status = "rejected"
                     reason = "not_numeric"
                     score = 0.0
@@ -94,11 +96,12 @@ def build_terminal_candidates(
                         text.height,
                         side,
                         layer=text.layer,
-                        value=text.normalized_text,
-                        deprioritized_layers=deprioritized_layers,
-                        deprioritized_layer_penalty=deprioritized_layer_penalty,
-                        single_char_penalty_layers=single_char_penalty_layers,
-                        single_char_penalty=single_char_penalty,
+                        value=value,
+                        deprioritized_layers=profile["deprioritized_layers"],
+                        deprioritized_layer_penalty=profile["deprioritized_layer_penalty"],
+                        single_char_penalty_layers=profile["single_char_penalty_layers"],
+                        single_char_penalty=profile["single_char_penalty"],
+                        derived_numeric_penalty=profile["derived_numeric_penalty"] if not text.is_numeric_candidate else 0.0,
                     )
                     status = "accepted"
                     reason = None
@@ -111,7 +114,7 @@ def build_terminal_candidates(
                         side=side,
                         text_id=text.text_id,
                         text=text.text,
-                        value=text.normalized_text if status == "accepted" else None,
+                        value=value if status == "accepted" else None,
                         score=score,
                         status=status,
                         rejection_reason=reason,
@@ -145,6 +148,7 @@ def _candidate_score(
     deprioritized_layer_penalty: float,
     single_char_penalty_layers: set[str],
     single_char_penalty: float,
+    derived_numeric_penalty: float,
 ) -> float:
     distance_term = 1.0 - min(abs(dx) / max(radius_x, 1.0), 1.0) * 0.55 - min(abs(dy) / max(radius_y, 1.0), 1.0) * 0.35
     side_bonus = 0.05 if (side == "left" and dx <= 0) or (side == "right" and dx >= 0) else 0.0
@@ -156,6 +160,7 @@ def _candidate_score(
         penalty += deprioritized_layer_penalty
     if len(normalized_value) == 1 and normalized_layer in single_char_penalty_layers:
         penalty += single_char_penalty
+    penalty += derived_numeric_penalty
     return round(max(0.0, min(1.0, distance_term + side_bonus + height_bonus - penalty)), 4)
 
 
@@ -179,3 +184,71 @@ def _assign_candidate_ranks(candidates: list[TerminalCandidate]) -> None:
         ranked_candidates.sort(key=lambda item: item.score, reverse=True)
         for index, candidate in enumerate(ranked_candidates, start=1):
             candidate.rank = index
+
+
+def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, object]:
+    geometry = config.get("geometry", {})
+    text_config = config.get("text", {})
+    profile: dict[str, object] = {
+        "radius_x": float(geometry.get("endpoint_search_radius_x", 18.0)),
+        "radius_y": float(geometry.get("endpoint_search_radius_y", 7.0)),
+        "min_height": float(text_config.get("min_text_height", 1.0)),
+        "max_height": float(text_config.get("max_text_height", 8.0)),
+        "deprioritized_layers": {str(item).upper() for item in text_config.get("deprioritized_layers", [])},
+        "deprioritized_layer_penalty": float(text_config.get("deprioritized_layer_penalty", 0.0)),
+        "single_char_penalty_layers": {str(item).upper() for item in text_config.get("single_char_penalty_layers", [])},
+        "single_char_penalty": float(text_config.get("single_char_penalty", 0.0)),
+        "numeric_suffix_patterns": [],
+        "derived_numeric_penalty": 0.0,
+    }
+    category = sheet.sheet_category if sheet is not None else None
+    override = config.get("page_category_overrides", {}).get(category or "", {})
+    if not isinstance(override, dict):
+        return profile
+
+    geometry_override = override.get("geometry", {})
+    if isinstance(geometry_override, dict):
+        profile["radius_x"] = float(geometry_override.get("endpoint_search_radius_x", profile["radius_x"]))
+        profile["radius_y"] = float(geometry_override.get("endpoint_search_radius_y", profile["radius_y"]))
+
+    text_override = override.get("text", {})
+    if isinstance(text_override, dict):
+        profile["min_height"] = float(text_override.get("min_text_height", profile["min_height"]))
+        profile["max_height"] = float(text_override.get("max_text_height", profile["max_height"]))
+        if "deprioritized_layers" in text_override:
+            profile["deprioritized_layers"] = {str(item).upper() for item in text_override.get("deprioritized_layers", [])}
+        if "deprioritized_layer_penalty" in text_override:
+            profile["deprioritized_layer_penalty"] = float(text_override.get("deprioritized_layer_penalty", profile["deprioritized_layer_penalty"]))
+        if "single_char_penalty_layers" in text_override:
+            profile["single_char_penalty_layers"] = {str(item).upper() for item in text_override.get("single_char_penalty_layers", [])}
+        if "single_char_penalty" in text_override:
+            profile["single_char_penalty"] = float(text_override.get("single_char_penalty", profile["single_char_penalty"]))
+        profile["numeric_suffix_patterns"] = _compile_patterns(text_override.get("numeric_suffix_patterns", []))
+        profile["derived_numeric_penalty"] = float(text_override.get("derived_numeric_penalty", profile["derived_numeric_penalty"]))
+    return profile
+
+
+def _compile_patterns(patterns: object) -> list[re.Pattern[str]]:
+    if not isinstance(patterns, list):
+        return []
+    compiled: list[re.Pattern[str]] = []
+    for pattern in patterns:
+        if not isinstance(pattern, str) or not pattern.strip():
+            continue
+        compiled.append(re.compile(pattern))
+    return compiled
+
+
+def _candidate_numeric_value(text: TextItem, patterns: list[re.Pattern[str]]) -> str | None:
+    if text.is_numeric_candidate:
+        return text.normalized_text
+    for pattern in patterns:
+        match = pattern.search(text.normalized_text)
+        if not match:
+            continue
+        if "value" in match.groupdict():
+            return match.group("value")
+        if match.groups():
+            return match.group(match.lastindex or 1)
+        return match.group(0)
+    return None

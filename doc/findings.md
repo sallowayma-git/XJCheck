@@ -439,3 +439,53 @@
 补充实现状态：
 
 - 生成型 `findings.json / findings.md` 已补充 `primary_audit_pages / supplemental_audit_pages / included_audit_pages` 三组指标，避免 supplemental 试跑时仍把纳入页数误读成“主审计页数”。
+
+## 21. 2026-07-05 屏端子图候选归一化试跑
+
+针对 `屏端子图` 当前“几何存在但候选全空”的问题，本轮没有先放大搜索窗口，而是先补了一条保守的页型专用候选规则：
+
+- 仅在 `sheet_category = 屏端子图` 时生效
+- 允许把类似 `1-21n110`、`5n602` 这类文本按尾部 `n###` 模式归一化成数值候选
+- 规则入口位于 `build_terminal_candidates`
+- 默认配置通过 `page_category_overrides` 提供，不改变非端子图页型行为
+
+真实试跑产物：
+
+- 第一套：[terminal_suffix_first](/F:/workspace/XJToolkit/.tmp/terminal_suffix_first)
+- 第二套：[terminal_suffix_second](/F:/workspace/XJToolkit/.tmp/terminal_suffix_second)
+
+相对旧的 `屏端子图 supplemental` 试跑结果：
+
+- 第一套旧结果 `[supplemental_terminal_first](/F:/workspace/XJToolkit/.tmp/supplemental_terminal_first)`：
+  - `pair_status = {'discard': 395}`
+  - `accepted_candidates = 0`
+  - `issue_count = 0`
+- 第一套新结果：
+  - `pair_status = {'discard': 370, 'review': 25}`
+  - `accepted_candidates = 43`
+  - `accepted_values` 开始出现：`602 / 108 / 311 / 420 / 110 / 109 / 430 / 419 / 601`
+  - `issue_count = 51`
+
+- 第二套旧结果 `[supplemental_terminal_second](/F:/workspace/XJToolkit/.tmp/supplemental_terminal_second)`：
+  - `pair_status = {'discard': 442}`
+  - `accepted_candidates = 0`
+  - `issue_count = 0`
+- 第二套新结果：
+  - `pair_status = {'discard': 428, 'review': 14}`
+  - `accepted_candidates = 20`
+  - `accepted_values` 开始出现：`110 / 109 / 508`
+  - `issue_count = 28`
+
+结构性变化：
+
+- 第一套 `missing numeric candidates on both sides: 395 -> 370`
+- 第二套 `missing numeric candidates on both sides: 442 -> 428`
+- 新增的问题不再是“完全无候选”，而是开始转成：
+  - `missing left candidate`
+  - `missing right candidate`
+
+直接结论：
+
+- 这一步证明端子图的主问题确实不只是窗口大小，更是“文本数值归一化规则过严”。
+- 页型专用候选归一化已经把一部分端子图从“完全无数字证据”推进到了“存在单侧数字证据、进入 review”。
+- 但当前仍没有把端子图推进到稳定的双侧 pair；说明下一轮还需要继续解决另一侧候选来源，而不是现在就把 `屏端子图` 默认纳入主审计。

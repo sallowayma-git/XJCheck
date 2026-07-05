@@ -219,3 +219,72 @@ def test_analyze_project_can_include_supplemental_categories_in_downstream_audit
         "skip": 0,
         "supplemental": 1,
     }
+
+
+def test_analyze_project_applies_terminal_page_numeric_suffix_override(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "07 屏端子图.dwg").write_bytes(b"AC1018demo")
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "project": {
+                    "audit_supplemental_categories": ["屏端子图"],
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_text("1-21n110", dxfattribs={"insert": (18, 40), "height": 2.5, "layer": "0"})
+        msp.add_text("3-21n210", dxfattribs={"insert": (82, 40), "height": 2.5, "layer": "0"})
+        msp.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    terminal_candidates = pd.read_parquet(findings_dir / "terminal_candidates.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page_roles = {row["filename"]: row["audit_role"] for _, row in pages.iterrows()}
+    sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
+    terminal_sheet_id = sheet_by_file["07 屏端子图.dwg"]
+
+    assert page_roles["07 屏端子图.dwg"] == "supplemental"
+
+    accepted = terminal_candidates[
+        (terminal_candidates["sheet_id"] == terminal_sheet_id)
+        & (terminal_candidates["status"] == "accepted")
+    ]
+    pair = pairs[pairs["sheet_id"] == terminal_sheet_id].iloc[0]
+
+    assert set(accepted["value"].tolist()) == {"110", "210"}
+    assert pair["status"] != "discard"
+    assert pair["left_value"] == "110"
+    assert pair["right_value"] == "210"

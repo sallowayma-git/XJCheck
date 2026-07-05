@@ -69,7 +69,7 @@ def analyze_input_root(
         audit_texts = [text for text in texts if text.sheet_id in audit_sheet_ids]
         audit_lines = [line for line in lines if line.sheet_id in audit_sheet_ids]
         line_groups = build_line_groups(audit_lines, audit_pages, config, audit_texts)
-        terminal_candidates = build_terminal_candidates(line_groups, audit_texts, config)
+        terminal_candidates = build_terminal_candidates(line_groups, audit_texts, config, audit_pages)
         pair_candidates, pairs = build_pairs(line_groups, terminal_candidates, audit_pages, config)
         if event_sink is not None:
             event_sink.emit(

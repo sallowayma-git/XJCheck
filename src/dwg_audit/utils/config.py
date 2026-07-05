@@ -61,6 +61,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "single_char_penalty_layers": ["DIM", "MARK"],
         "single_char_penalty": 0.12,
     },
+    "page_category_overrides": {
+        "屏端子图": {
+            "text": {
+                "numeric_suffix_patterns": [r"(?i)n(?P<value>\d{3,})$"],
+                "derived_numeric_penalty": 0.08,
+            }
+        }
+    },
     "confidence": {
         "high_threshold": 0.92,
         "review_threshold": 0.75,
