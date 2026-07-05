@@ -48,6 +48,7 @@ def rerun_audit_from_findings(
                 project_dir=str(project_dir),
                 issue_id=issue.issue_id,
                 rule_id=issue.rule_id,
+                issue_type=issue.issue_type or issue.rule_id,
                 severity=issue.severity,
                 title=issue.title or issue.message,
                 filename=evidence.get("filename"),
@@ -55,6 +56,7 @@ def rerun_audit_from_findings(
                 left_value=issue.left_value,
                 right_value=issue.right_value,
                 confidence=issue.confidence,
+                one_to_many_classification=evidence.get("one_to_many_classification"),
             )
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)

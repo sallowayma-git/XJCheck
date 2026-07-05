@@ -215,19 +215,36 @@ def _issue_payloads(frame: pd.DataFrame) -> list[dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
     for _, row in frame.iterrows():
         evidence = _decode_jsonish(row.get("evidence"))
+        evidence_refs = _decode_jsonish(row.get("evidence_refs"))
+        related_pair_ids = _decode_jsonish(row.get("related_pair_ids"))
+        sheet_ids = _decode_jsonish(row.get("sheet_ids"))
+        values = _decode_jsonish(row.get("values"))
         payloads.append(
             {
                 "issue_id": row.get("issue_id"),
                 "rule_id": row.get("rule_id"),
-                "title": row.get("title") or row.get("message"),
-                "severity": row.get("severity"),
-                "status": row.get("status"),
+                "issue_type": _string_value(row.get("issue_type")) or _string_value(row.get("rule_id")),
+                "title": _string_value(row.get("title")) or _string_value(row.get("message")),
+                "summary": _string_value(row.get("summary")) or _string_value(row.get("title")) or _string_value(row.get("message")),
+                "explanation": _string_value(row.get("explanation")),
+                "recommended_action": _string_value(row.get("recommended_action")),
+                "severity": _string_value(row.get("severity")),
+                "status": _string_value(row.get("status")),
                 "confidence": float(row.get("confidence") or 0.0),
+                "sheet_id": _string_value(row.get("sheet_id")),
+                "file_id": _string_value(row.get("file_id")),
                 "filename": evidence.get("filename") if isinstance(evidence, dict) else "",
                 "sheet_no": evidence.get("sheet_no") if isinstance(evidence, dict) else "",
-                "left_value": row.get("left_value"),
-                "right_value": row.get("right_value"),
+                "line_group_id": _string_value(row.get("line_group_id")),
+                "left_value": _nullable_string_value(row.get("left_value")),
+                "right_value": _nullable_string_value(row.get("right_value")),
+                "primary_pair_id": _string_value(row.get("primary_pair_id")),
+                "one_to_many_classification": evidence.get("one_to_many_classification") if isinstance(evidence, dict) else "",
                 "evidence": evidence if isinstance(evidence, dict) else {},
+                "evidence_refs": evidence_refs if isinstance(evidence_refs, list) else [],
+                "related_pair_ids": related_pair_ids if isinstance(related_pair_ids, list) else [],
+                "sheet_ids": sheet_ids if isinstance(sheet_ids, list) else [],
+                "values": values if isinstance(values, list) else [],
             }
         )
     return payloads
@@ -246,6 +263,17 @@ def _decode_jsonish(value: object) -> Any:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def _string_value(value: object) -> str:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return ""
+    return str(value)
+
+
+def _nullable_string_value(value: object) -> str | None:
+    text = _string_value(value)
+    return text or None
 
 
 def _persist_issue_status_to_artifacts(project_dir: Path, *, issue_id: str, status: str) -> None:

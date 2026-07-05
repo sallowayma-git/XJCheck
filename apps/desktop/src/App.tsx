@@ -31,6 +31,10 @@ function App() {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [issueSearch, setIssueSearch] = useState("")
+  const [severityFilter, setSeverityFilter] = useState("all")
+  const [ruleFilter, setRuleFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [triageFilter, setTriageFilter] = useState("all")
   const [issueStatusDraft, setIssueStatusDraft] = useState("open")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
@@ -132,14 +136,27 @@ function App() {
           {
             issue_id: event.issue_id,
             rule_id: event.rule_id,
+            issue_type: event.issue_type ?? event.rule_id,
             title: event.title,
+            summary: event.title,
+            explanation: "",
+            recommended_action: "",
             severity: event.severity,
             status: "open",
             confidence: event.confidence ?? 0,
+            sheet_id: null,
+            file_id: null,
             filename: event.filename ?? "",
             sheet_no: event.sheet_no ?? "",
+            line_group_id: null,
             left_value: event.left_value ?? null,
             right_value: event.right_value ?? null,
+            primary_pair_id: null,
+            related_pair_ids: [],
+            sheet_ids: [],
+            values: [event.left_value, event.right_value].filter((value): value is string => Boolean(value)),
+            evidence_refs: [],
+            one_to_many_classification: event.one_to_many_classification ?? null,
             evidence: {},
           },
           ...current.liveIssues,
@@ -215,24 +232,61 @@ function App() {
   const filteredIssues = useMemo(() => {
     const issues = result?.issues ?? []
     const needle = deferredIssueSearch.trim().toLowerCase()
-    if (!needle) {
-      return issues
-    }
-    return issues.filter((issue) =>
-      [
+    return issues.filter((issue) => {
+      if (severityFilter !== "all" && issue.severity !== severityFilter) {
+        return false
+      }
+      if (ruleFilter !== "all" && issue.rule_id !== ruleFilter) {
+        return false
+      }
+      if (statusFilter !== "all" && issue.status !== statusFilter) {
+        return false
+      }
+      const triage = issue.one_to_many_classification ?? readOneToManyClassification(issue)
+      if (triageFilter !== "all" && (triage ?? "") !== triageFilter) {
+        return false
+      }
+      if (!needle) {
+        return true
+      }
+      return [
         issue.issue_id,
         issue.rule_id,
+        issue.issue_type,
         issue.title,
+        issue.summary,
+        issue.explanation,
+        issue.recommended_action,
         issue.filename,
         issue.sheet_no,
         issue.left_value ?? "",
         issue.right_value ?? "",
+        triage ?? "",
+        issue.values.join(" "),
+        issue.related_pair_ids.join(" "),
+        issue.sheet_ids.join(" "),
       ]
         .join(" ")
         .toLowerCase()
-        .includes(needle),
-    )
-  }, [deferredIssueSearch, result?.issues])
+        .includes(needle)
+    })
+  }, [deferredIssueSearch, result?.issues, ruleFilter, severityFilter, statusFilter, triageFilter])
+
+  const issueFilterOptions = useMemo(() => {
+    const issues = result?.issues ?? []
+    return {
+      severities: Array.from(new Set(issues.map((issue) => issue.severity))).sort(),
+      rules: Array.from(new Set(issues.map((issue) => issue.rule_id))).sort(),
+      statuses: Array.from(new Set(issues.map((issue) => issue.status))).sort(),
+      triages: Array.from(
+        new Set(
+          issues
+            .map((issue) => issue.one_to_many_classification ?? readOneToManyClassification(issue))
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort(),
+    }
+  }, [result?.issues])
 
   const selectedIssue = useMemo(() => {
     if (!result || !selectedIssueId) {
@@ -418,7 +472,9 @@ function App() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th>File</th>
                     <th>Rule</th>
+                    <th>Type</th>
                     <th>Title</th>
                     <th>Sheet</th>
                     <th>Pair</th>
@@ -429,7 +485,9 @@ function App() {
                 <tbody>
                   {processState.liveIssues.map((issue) => (
                     <tr key={issue.issue_id}>
+                      <td>{issue.filename || "-"}</td>
                       <td>{issue.rule_id}</td>
+                      <td>{issue.issue_type}</td>
                       <td>{issue.title}</td>
                       <td>{issue.sheet_no}</td>
                       <td>{formatPair(issue)}</td>
@@ -478,6 +536,52 @@ function App() {
                 <span>Filter issues</span>
                 <input value={issueSearch} onChange={(event) => setIssueSearch(event.target.value)} placeholder="Search by rule, sheet or pair" />
               </label>
+              <div className="filter-grid">
+                <label className="field compact-field">
+                  <span>Severity</span>
+                  <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
+                    <option value="all">All</option>
+                    {issueFilterOptions.severities.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field compact-field">
+                  <span>Rule</span>
+                  <select value={ruleFilter} onChange={(event) => setRuleFilter(event.target.value)}>
+                    <option value="all">All</option>
+                    {issueFilterOptions.rules.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field compact-field">
+                  <span>Status</span>
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                    <option value="all">All</option>
+                    {issueFilterOptions.statuses.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field compact-field">
+                  <span>1:N</span>
+                  <select value={triageFilter} onChange={(event) => setTriageFilter(event.target.value)}>
+                    <option value="all">All</option>
+                    {issueFilterOptions.triages.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </article>
 
             <article className="panel issue-table-panel">
@@ -489,6 +593,7 @@ function App() {
                 <thead>
                   <tr>
                     <th>Severity</th>
+                    <th>Type</th>
                     <th>1:N</th>
                     <th>Status</th>
                     <th>Rule</th>
@@ -518,7 +623,8 @@ function App() {
                       }}
                     >
                       <td>{issue.severity}</td>
-                      <td>{readOneToManyClassification(issue.evidence) ?? "-"}</td>
+                      <td>{issue.issue_type}</td>
+                      <td>{issue.one_to_many_classification ?? readOneToManyClassification(issue) ?? "-"}</td>
                       <td>{issue.status}</td>
                       <td>{issue.rule_id}</td>
                       <td>{issue.title}</td>
@@ -547,8 +653,12 @@ function App() {
                       <strong>{selectedIssue.rule_id}</strong>
                     </div>
                     <div className="detail-block">
+                      <span>Issue type</span>
+                      <strong>{selectedIssue.issue_type}</strong>
+                    </div>
+                    <div className="detail-block">
                       <span>1:N triage</span>
-                      <strong>{readOneToManyClassification(selectedIssue.evidence) ?? "-"}</strong>
+                      <strong>{selectedIssue.one_to_many_classification ?? readOneToManyClassification(selectedIssue) ?? "-"}</strong>
                     </div>
                     <div className="detail-block">
                       <span>Severity</span>
@@ -566,6 +676,24 @@ function App() {
                       <span>Sheet</span>
                       <strong>{selectedIssue.sheet_no}</strong>
                     </div>
+                    <div className="detail-block">
+                      <span>Line group</span>
+                      <strong>{selectedIssue.line_group_id ?? "-"}</strong>
+                    </div>
+                  </div>
+                  <div className="detail-block">
+                    <span>Summary</span>
+                    <strong>{selectedIssue.summary || selectedIssue.title}</strong>
+                  </div>
+                  <div className="detail-grid">
+                    <div className="detail-block">
+                      <span>Explanation</span>
+                      <strong>{selectedIssue.explanation || "-"}</strong>
+                    </div>
+                    <div className="detail-block">
+                      <span>Recommended action</span>
+                      <strong>{selectedIssue.recommended_action || "-"}</strong>
+                    </div>
                   </div>
                   <div className="detail-block">
                     <span>Confidence breakdown</span>
@@ -580,11 +708,33 @@ function App() {
                   </div>
                   <div className="detail-block">
                     <span>Evidence chain</span>
-                    <pre>{JSON.stringify(readEvidenceChain(selectedIssue.evidence), null, 2)}</pre>
+                    <pre>{JSON.stringify(readEvidenceChain(selectedIssue), null, 2)}</pre>
                   </div>
                   <div className="detail-block">
                     <span>Raw evidence</span>
                     <pre>{JSON.stringify(selectedIssue.evidence, null, 2)}</pre>
+                  </div>
+                  <div className="detail-grid">
+                    <div className="detail-block">
+                      <span>Related pairs</span>
+                      <strong>{selectedIssue.related_pair_ids.length ? selectedIssue.related_pair_ids.join(", ") : "-"}</strong>
+                    </div>
+                    <div className="detail-block">
+                      <span>Related sheets</span>
+                      <strong>{selectedIssue.sheet_ids.length ? selectedIssue.sheet_ids.join(", ") : "-"}</strong>
+                    </div>
+                    <div className="detail-block">
+                      <span>Observed values</span>
+                      <strong>{selectedIssue.values.length ? selectedIssue.values.join(", ") : "-"}</strong>
+                    </div>
+                    <div className="detail-block">
+                      <span>Primary pair</span>
+                      <strong>{selectedIssue.primary_pair_id ?? "-"}</strong>
+                    </div>
+                  </div>
+                  <div className="detail-block">
+                    <span>Evidence refs</span>
+                    <pre>{JSON.stringify(selectedIssue.evidence_refs, null, 2)}</pre>
                   </div>
                   <div className="detail-block">
                     <span>Review status</span>
@@ -663,8 +813,11 @@ function formatPair(issue: Pick<IssueSummary, "left_value" | "right_value">): st
   return `${issue.left_value ?? "?"} -> ${issue.right_value ?? "?"}`
 }
 
-function readOneToManyClassification(evidence: Record<string, unknown>): string | null {
-  const value = evidence.one_to_many_classification
+function readOneToManyClassification(issue: Pick<IssueSummary, "one_to_many_classification" | "evidence">): string | null {
+  if (typeof issue.one_to_many_classification === "string" && issue.one_to_many_classification.trim()) {
+    return issue.one_to_many_classification
+  }
+  const value = issue.evidence.one_to_many_classification
   return typeof value === "string" && value.trim() ? value : null
 }
 
@@ -683,12 +836,28 @@ function readScoreBreakdown(evidence: Record<string, unknown>): Record<string, n
   return { confidence: Number(evidence.confidence ?? 0) }
 }
 
-function readEvidenceChain(evidence: Record<string, unknown>): Record<string, unknown> {
+function readEvidenceChain(issue: Pick<IssueSummary, "evidence" | "evidence_refs" | "related_pair_ids" | "sheet_ids" | "values" | "primary_pair_id">): Record<string, unknown> {
+  const evidence = issue.evidence
   const chain: Record<string, unknown> = {}
   for (const key of ["filename", "sheet_no", "sheet_order", "line_group_id", "line_start", "line_end", "pair_evidence"]) {
     if (key in evidence) {
       chain[key] = evidence[key]
     }
+  }
+  if (issue.evidence_refs.length) {
+    chain.evidence_refs = issue.evidence_refs
+  }
+  if (issue.related_pair_ids.length) {
+    chain.related_pair_ids = issue.related_pair_ids
+  }
+  if (issue.sheet_ids.length) {
+    chain.sheet_ids = issue.sheet_ids
+  }
+  if (issue.values.length) {
+    chain.values = issue.values
+  }
+  if (issue.primary_pair_id) {
+    chain.primary_pair_id = issue.primary_pair_id
   }
   if (Object.keys(chain).length > 0) {
     return chain

@@ -125,8 +125,23 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
     run: normalizeRecentProject(result.run),
     issues: result.issues.map((issue) => ({
       ...issue,
+      issue_type: issue.issue_type ?? issue.rule_id,
+      summary: issue.summary ?? issue.title ?? "",
+      explanation: issue.explanation ?? "",
+      recommended_action: issue.recommended_action ?? "",
       confidence: Number(issue.confidence ?? 0),
+      sheet_id: issue.sheet_id ?? null,
+      file_id: issue.file_id ?? null,
       left_value: issue.left_value ?? null,
+      line_group_id: issue.line_group_id ?? null,
+      primary_pair_id: issue.primary_pair_id ?? null,
+      related_pair_ids: Array.isArray(issue.related_pair_ids) ? issue.related_pair_ids.map(String) : [],
+      sheet_ids: Array.isArray(issue.sheet_ids) ? issue.sheet_ids.map(String) : [],
+      values: Array.isArray(issue.values) ? issue.values.map(String) : [],
+      evidence_refs: Array.isArray(issue.evidence_refs) ? issue.evidence_refs : [],
+      one_to_many_classification:
+        issue.one_to_many_classification ??
+        (typeof issue.evidence?.one_to_many_classification === "string" ? issue.evidence.one_to_many_classification : null),
       right_value: issue.right_value ?? null,
       evidence: issue.evidence ?? {},
     })),

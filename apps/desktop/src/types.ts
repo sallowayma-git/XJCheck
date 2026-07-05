@@ -22,14 +22,27 @@ export type ProjectRun = RecentProject & {
 export type IssueSummary = {
   issue_id: string
   rule_id: string
+  issue_type: string
   title: string
+  summary: string
+  explanation: string
+  recommended_action: string
   severity: string
   status: IssueStatus
   confidence: number
+  sheet_id: string | null
+  file_id: string | null
   filename: string
   sheet_no: string
+  line_group_id: string | null
   left_value: string | null
   right_value: string | null
+  primary_pair_id: string | null
+  related_pair_ids: string[]
+  sheet_ids: string[]
+  values: string[]
+  evidence_refs: Record<string, unknown>[]
+  one_to_many_classification: string | null
   evidence: Record<string, unknown>
 }
 
@@ -131,6 +144,7 @@ export type IssueFoundEvent = {
   project_dir?: string
   issue_id: string
   rule_id: string
+  issue_type?: string
   severity: string
   title: string
   filename?: string
@@ -138,6 +152,7 @@ export type IssueFoundEvent = {
   left_value?: string | null
   right_value?: string | null
   confidence?: number
+  one_to_many_classification?: string | null
 }
 
 export type AuditFinishedEvent = {

@@ -685,3 +685,53 @@
 - `apps/desktop` 前端构建通过：`npm run build`
 - Python 相关回归通过：`python -m pytest -q tests/unit/test_sidecar.py tests/unit/test_cli.py tests/unit/test_ui_app.py`
 - 本机仍缺 `cargo`，因此原生 Tauri 编译暂未完成验证
+
+## 29. 2026-07-05 桌面端 SQLite issue payload 加厚，结果页支持更细筛选与详情
+
+在原生桥接接通后，桌面端 `load-result` 仍然只返回“轻量 issue 摘要”，这会直接限制结果页与 SQLite 的价值：
+
+- 不能稳定显示 `summary / explanation / recommended_action`
+- 不能直接展示 `evidence_refs / related_pair_ids / sheet_ids / values`
+- 不能按 `issue_type` 或一对多三态做更细筛选
+
+本轮把 `DesktopStateStore` / `desktop.sidecar` 的 issue payload 做厚：
+
+- SQLite `issue_summaries` 新增并兼容迁移：
+  - `issue_type`
+  - `summary`
+  - `explanation`
+  - `recommended_action`
+  - `sheet_id / file_id / line_group_id`
+  - `primary_pair_id`
+  - `one_to_many_classification`
+  - `evidence_refs_json / related_pair_ids_json / sheet_ids_json / values_json`
+- `load-result` 现在会把这些字段以真实对象/数组返回，而不是只剩 `evidence_json`
+- 额外补了一条 migration 回归，覆盖“旧 schema 自动补列后仍能正常 round-trip”
+
+桌面前端同步做了两类收口：
+
+- 结果页筛选：
+  - `Severity`
+  - `Rule`
+  - `Status`
+  - `1:N`
+  - 文本搜索同时覆盖 `issue_type / summary / explanation / recommended_action / related_pair_ids / sheet_ids / values`
+- 结果页详情：
+  - `Issue type`
+  - `Summary`
+  - `Explanation`
+  - `Recommended action`
+  - `Related pairs / Related sheets / Observed values / Primary pair`
+  - `Evidence refs`
+
+过程页也顺手补齐了一部分任务书字段：
+
+- live issue table 新增 `File` 列
+- live issue table 新增 `Type` 列
+- `issue_found` 事件现在会带 `issue_type` 和 `one_to_many_classification`
+
+验证情况：
+
+- `python -m pytest -q tests/unit/test_state_store.py tests/unit/test_sidecar.py tests/unit/test_cli.py`
+- `python -m pytest -q`
+- `apps/desktop` 前端构建通过：`npm run build`

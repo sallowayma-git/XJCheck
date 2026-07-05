@@ -110,31 +110,57 @@ class DesktopStateStore:
                     run_id,
                     issue_id,
                     rule_id,
+                    issue_type,
                     title,
+                    summary,
+                    explanation,
+                    recommended_action,
                     severity,
                     status,
                     confidence,
+                    sheet_id,
+                    file_id,
                     filename,
                     sheet_no,
+                    line_group_id,
                     left_value,
                     right_value,
-                    evidence_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    primary_pair_id,
+                    one_to_many_classification,
+                    evidence_json,
+                    evidence_refs_json,
+                    related_pair_ids_json,
+                    sheet_ids_json,
+                    values_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
                         run_id,
                         str(issue.get("issue_id") or ""),
                         str(issue.get("rule_id") or ""),
+                        str(issue.get("issue_type") or issue.get("rule_id") or ""),
                         str(issue.get("title") or issue.get("message") or ""),
+                        str(issue.get("summary") or issue.get("title") or issue.get("message") or ""),
+                        str(issue.get("explanation") or ""),
+                        str(issue.get("recommended_action") or ""),
                         str(issue.get("severity") or ""),
                         str(issue.get("status") or ""),
                         float(issue.get("confidence") or 0.0),
+                        str(issue.get("sheet_id") or ""),
+                        str(issue.get("file_id") or ""),
                         str(issue.get("filename") or ""),
                         str(issue.get("sheet_no") or ""),
+                        str(issue.get("line_group_id") or ""),
                         str(issue.get("left_value") or ""),
                         str(issue.get("right_value") or ""),
+                        str(issue.get("primary_pair_id") or ""),
+                        str(issue.get("one_to_many_classification") or ""),
                         json.dumps(issue.get("evidence") or {}, ensure_ascii=False, sort_keys=True),
+                        json.dumps(issue.get("evidence_refs") or [], ensure_ascii=False, sort_keys=True),
+                        json.dumps(issue.get("related_pair_ids") or [], ensure_ascii=False, sort_keys=True),
+                        json.dumps(issue.get("sheet_ids") or [], ensure_ascii=False, sort_keys=True),
+                        json.dumps(issue.get("values") or [], ensure_ascii=False, sort_keys=True),
                     )
                     for issue in issues
                 ],
@@ -217,15 +243,28 @@ class DesktopStateStore:
                 {
                     "issue_id": row["issue_id"],
                     "rule_id": row["rule_id"],
+                    "issue_type": row["issue_type"] or row["rule_id"],
                     "title": row["title"],
+                    "summary": row["summary"],
+                    "explanation": row["explanation"],
+                    "recommended_action": row["recommended_action"],
                     "severity": row["severity"],
                     "status": row["status"],
                     "confidence": float(row["confidence"]),
+                    "sheet_id": row["sheet_id"] or None,
+                    "file_id": row["file_id"] or None,
                     "filename": row["filename"],
                     "sheet_no": row["sheet_no"],
+                    "line_group_id": row["line_group_id"] or None,
                     "left_value": row["left_value"] or None,
                     "right_value": row["right_value"] or None,
+                    "primary_pair_id": row["primary_pair_id"] or None,
+                    "one_to_many_classification": row["one_to_many_classification"] or None,
                     "evidence": json.loads(row["evidence_json"] or "{}"),
+                    "evidence_refs": json.loads(row["evidence_refs_json"] or "[]"),
+                    "related_pair_ids": json.loads(row["related_pair_ids_json"] or "[]"),
+                    "sheet_ids": json.loads(row["sheet_ids_json"] or "[]"),
+                    "values": json.loads(row["values_json"] or "[]"),
                 }
                 for row in issue_rows
             ],
@@ -265,15 +304,28 @@ class DesktopStateStore:
         return {
             "issue_id": row["issue_id"],
             "rule_id": row["rule_id"],
+            "issue_type": row["issue_type"] or row["rule_id"],
             "title": row["title"],
+            "summary": row["summary"],
+            "explanation": row["explanation"],
+            "recommended_action": row["recommended_action"],
             "severity": row["severity"],
             "status": row["status"],
             "confidence": float(row["confidence"]),
+            "sheet_id": row["sheet_id"] or None,
+            "file_id": row["file_id"] or None,
             "filename": row["filename"],
             "sheet_no": row["sheet_no"],
+            "line_group_id": row["line_group_id"] or None,
             "left_value": row["left_value"] or None,
             "right_value": row["right_value"] or None,
+            "primary_pair_id": row["primary_pair_id"] or None,
+            "one_to_many_classification": row["one_to_many_classification"] or None,
             "evidence": json.loads(row["evidence_json"] or "{}"),
+            "evidence_refs": json.loads(row["evidence_refs_json"] or "[]"),
+            "related_pair_ids": json.loads(row["related_pair_ids_json"] or "[]"),
+            "sheet_ids": json.loads(row["sheet_ids_json"] or "[]"),
+            "values": json.loads(row["values_json"] or "[]"),
         }
 
     def purge_session(self, session_id: str) -> int:
@@ -319,19 +371,33 @@ class DesktopStateStore:
                     run_id TEXT NOT NULL,
                     issue_id TEXT NOT NULL,
                     rule_id TEXT NOT NULL,
+                    issue_type TEXT NOT NULL DEFAULT '',
                     title TEXT NOT NULL,
+                    summary TEXT NOT NULL DEFAULT '',
+                    explanation TEXT NOT NULL DEFAULT '',
+                    recommended_action TEXT NOT NULL DEFAULT '',
                     severity TEXT NOT NULL,
                     status TEXT NOT NULL,
                     confidence REAL NOT NULL,
+                    sheet_id TEXT NOT NULL DEFAULT '',
+                    file_id TEXT NOT NULL DEFAULT '',
                     filename TEXT NOT NULL,
                     sheet_no TEXT NOT NULL,
+                    line_group_id TEXT NOT NULL DEFAULT '',
                     left_value TEXT NOT NULL,
                     right_value TEXT NOT NULL,
+                    primary_pair_id TEXT NOT NULL DEFAULT '',
+                    one_to_many_classification TEXT NOT NULL DEFAULT '',
                     evidence_json TEXT NOT NULL,
+                    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+                    related_pair_ids_json TEXT NOT NULL DEFAULT '[]',
+                    sheet_ids_json TEXT NOT NULL DEFAULT '[]',
+                    values_json TEXT NOT NULL DEFAULT '[]',
                     PRIMARY KEY (run_id, issue_id)
                 );
                 """
             )
+            _ensure_issue_summary_columns(conn)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -359,3 +425,29 @@ def _row_to_run(row: sqlite3.Row) -> dict[str, Any]:
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _ensure_issue_summary_columns(conn: sqlite3.Connection) -> None:
+    existing = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(issue_summaries)").fetchall()
+    }
+    required = {
+        "issue_type": "TEXT NOT NULL DEFAULT ''",
+        "summary": "TEXT NOT NULL DEFAULT ''",
+        "explanation": "TEXT NOT NULL DEFAULT ''",
+        "recommended_action": "TEXT NOT NULL DEFAULT ''",
+        "sheet_id": "TEXT NOT NULL DEFAULT ''",
+        "file_id": "TEXT NOT NULL DEFAULT ''",
+        "line_group_id": "TEXT NOT NULL DEFAULT ''",
+        "primary_pair_id": "TEXT NOT NULL DEFAULT ''",
+        "one_to_many_classification": "TEXT NOT NULL DEFAULT ''",
+        "evidence_refs_json": "TEXT NOT NULL DEFAULT '[]'",
+        "related_pair_ids_json": "TEXT NOT NULL DEFAULT '[]'",
+        "sheet_ids_json": "TEXT NOT NULL DEFAULT '[]'",
+        "values_json": "TEXT NOT NULL DEFAULT '[]'",
+    }
+    for column, definition in required.items():
+        if column in existing:
+            continue
+        conn.execute(f"ALTER TABLE issue_summaries ADD COLUMN {column} {definition}")

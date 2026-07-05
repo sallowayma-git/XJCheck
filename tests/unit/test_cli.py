@@ -190,15 +190,28 @@ def test_load_result_cli_returns_project_payload(tmp_path: Path) -> None:
             {
                 "issue_id": "I1",
                 "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
                 "title": "Low Confidence",
+                "summary": "Low confidence pair",
+                "explanation": "Pair score is below the automatic pass threshold.",
+                "recommended_action": "Review both endpoint labels.",
                 "severity": "review",
                 "status": "open",
                 "confidence": 0.74,
+                "sheet_id": "S1",
+                "file_id": "F1",
                 "filename": "01.dwg",
                 "sheet_no": "01",
+                "line_group_id": "G1",
                 "left_value": "101",
                 "right_value": "201",
+                "primary_pair_id": "P1",
+                "one_to_many_classification": "review",
                 "evidence": {"filename": "01.dwg"},
+                "evidence_refs": [{"pair_id": "P1", "filename": "01.dwg", "sheet_no": "01"}],
+                "related_pair_ids": ["P2"],
+                "sheet_ids": ["S1"],
+                "values": ["101", "201"],
             }
         ],
     )
@@ -209,6 +222,9 @@ def test_load_result_cli_returns_project_payload(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["run"]["project_id"] == "demo-project"
     assert payload["issues"][0]["issue_id"] == "I1"
+    assert payload["issues"][0]["issue_type"] == "pair_low_confidence"
+    assert payload["issues"][0]["related_pair_ids"] == ["P2"]
+    assert payload["issues"][0]["evidence_refs"] == [{"pair_id": "P1", "filename": "01.dwg", "sheet_no": "01"}]
 
 
 def test_analyze_session_cli_emits_final_result_line(monkeypatch, tmp_path: Path) -> None:

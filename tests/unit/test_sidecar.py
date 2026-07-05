@@ -60,6 +60,9 @@ def test_analyze_session_emits_events_and_stores_project_result(monkeypatch, tmp
     assert result is not None
     assert result["run"]["project_name"] == "Demo Project"
     assert result["issues"][0]["rule_id"] == "R-PAIR-LOW-CONFIDENCE"
+    assert result["issues"][0]["issue_type"] == "pair_low_confidence"
+    assert result["issues"][0]["summary"] == "Low confidence pair"
+    assert result["issues"][0]["evidence_refs"] == [{"pair_id": "P2", "filename": "01.dwg", "sheet_no": "01"}]
 
     lines = [json.loads(line) for line in stream.getvalue().splitlines()]
     assert lines[0]["event"] == "run_started"
@@ -94,15 +97,28 @@ def test_purge_session_removes_workspace_and_state_rows(tmp_path: Path) -> None:
             {
                 "issue_id": "I1",
                 "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
                 "title": "Low Confidence",
+                "summary": "Low confidence pair",
+                "explanation": "Pair score is below the automatic pass threshold.",
+                "recommended_action": "Review both endpoint labels.",
                 "severity": "review",
                 "status": "open",
                 "confidence": 0.74,
+                "sheet_id": "S1",
+                "file_id": "F1",
                 "filename": "01.dwg",
                 "sheet_no": "01",
+                "line_group_id": "G1",
                 "left_value": "101",
                 "right_value": "201",
+                "primary_pair_id": "P2",
+                "one_to_many_classification": "",
                 "evidence": {"filename": "01.dwg"},
+                "evidence_refs": [{"pair_id": "P2", "filename": "01.dwg", "sheet_no": "01"}],
+                "related_pair_ids": ["P3"],
+                "sheet_ids": ["S1"],
+                "values": ["101", "201"],
             }
         ],
     )
@@ -175,15 +191,28 @@ def test_update_issue_status_syncs_state_store_and_audit_files(tmp_path: Path) -
             {
                 "issue_id": "I1",
                 "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
                 "title": "Low Confidence",
+                "summary": "Low confidence pair",
+                "explanation": "Pair score is below the automatic pass threshold.",
+                "recommended_action": "Review both endpoint labels.",
                 "severity": "review",
                 "status": "open",
                 "confidence": 0.74,
+                "sheet_id": "S1",
+                "file_id": "F1",
                 "filename": "01.dwg",
                 "sheet_no": "01",
+                "line_group_id": "G1",
                 "left_value": "101",
                 "right_value": "201",
+                "primary_pair_id": "P1",
+                "one_to_many_classification": "review",
                 "evidence": {"filename": "01.dwg", "sheet_no": "01"},
+                "evidence_refs": [{"pair_id": "P1", "filename": "01.dwg", "sheet_no": "01"}],
+                "related_pair_ids": ["P2"],
+                "sheet_ids": ["S1", "S2"],
+                "values": ["101", "201", "202"],
             }
         ],
     )
@@ -196,9 +225,12 @@ def test_update_issue_status_syncs_state_store_and_audit_files(tmp_path: Path) -
     )
 
     assert payload["status"] == "resolved"
+    assert payload["issue"]["one_to_many_classification"] == "review"
+    assert payload["issue"]["evidence_refs"] == [{"pair_id": "P1", "filename": "01.dwg", "sheet_no": "01"}]
     refreshed = load_project_result(project_id="demo-project", state_db_path=state_db)
     assert refreshed is not None
     assert refreshed["issues"][0]["status"] == "resolved"
+    assert refreshed["issues"][0]["related_pair_ids"] == ["P2"]
 
     audit_frame = pd.read_parquet(artifact_dir / "audit" / "issues.parquet")
     assert audit_frame.loc[audit_frame["issue_id"].astype(str) == "I1", "status"].iloc[0] == "resolved"
@@ -250,14 +282,26 @@ def _write_project_output(project_dir: Path) -> None:
             {
                 "issue_id": "I1",
                 "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
                 "title": "Low Confidence",
                 "message": "Low confidence pair",
+                "summary": "Low confidence pair",
+                "explanation": "Pair score is below the automatic pass threshold.",
+                "recommended_action": "Review both endpoint labels.",
                 "severity": "review",
                 "status": "open",
                 "confidence": 0.74,
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "line_group_id": "G1",
                 "left_value": "102",
                 "right_value": "202",
-                "evidence": json.dumps({"filename": "01.dwg", "sheet_no": "01"}, ensure_ascii=False),
+                "primary_pair_id": "P2",
+                "related_pair_ids": json.dumps(["P3"], ensure_ascii=False),
+                "sheet_ids": json.dumps(["S1"], ensure_ascii=False),
+                "values": json.dumps(["102", "202"], ensure_ascii=False),
+                "evidence_refs": json.dumps([{"pair_id": "P2", "filename": "01.dwg", "sheet_no": "01"}], ensure_ascii=False),
+                "evidence": json.dumps({"filename": "01.dwg", "sheet_no": "01", "one_to_many_classification": "review"}, ensure_ascii=False),
             }
         ]
     ).to_parquet(audit / "issues.parquet", index=False)
