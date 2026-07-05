@@ -146,6 +146,15 @@
   font-size: 0.92rem;
 }
 
+.global-error {
+  border: 1px solid rgba(156, 47, 36, 0.2);
+  background: rgba(156, 47, 36, 0.08);
+  color: #8b241b;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 0.96rem;
+}
+
 .recent-list {
   display: flex;
   flex-direction: column;
@@ -351,6 +360,14 @@
 .metric-card strong {
   font-size: 1.7rem;
   color: #223829;
+}
+
+.compact-metric {
+  min-width: 112px;
+}
+
+.compact-metric strong {
+  font-size: 1.1rem;
 }
 
 .issue-detail {

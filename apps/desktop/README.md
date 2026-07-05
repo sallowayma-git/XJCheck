@@ -7,12 +7,13 @@ Tauri 2 + React + TypeScript desktop-shell scaffold for the local DWG audit work
 - Launch surface with recent projects, input directory field and start-analysis action.
 - Process surface with stage progress, streamed event log and live issue table.
 - Result surface with issue board, issue detail, evidence panel and preview area.
-- Sidecar adapter layer that reserves calls to:
+- Sidecar adapter layer that now targets native calls for:
   - `analyze-session`
   - `list-recent-projects`
   - `load-result`
   - `render-preview`
-- `src-tauri/` bootstrap files for a future native shell.
+  - `set-issue-status`
+- `src-tauri/` command bridge that shells out to the existing Python CLI / sidecar and re-emits JSONL runtime events to the frontend.
 
 ## Frontend commands
 
@@ -25,7 +26,7 @@ npm run check
 
 ## Tauri note
 
-This machine does not currently have the Rust toolchain installed, so native Tauri execution cannot be validated here yet.
+This machine does not currently have the Rust toolchain installed, so native Tauri execution still cannot be validated here end-to-end.
 
 Once Rust is installed, the intended commands are:
 
@@ -36,6 +37,6 @@ npm run tauri:build
 
 ## Current limitations
 
-- The sidecar adapter falls back to mocked data when native Tauri commands are not wired yet.
-- Directory selection, process streaming and preview loading already have interface placeholders, but they still need the final Rust bridge.
-- SQLite-backed recent project data already exists in the Python sidecar; this shell still needs the native bridge to consume it live.
+- Native directory picker and drag-and-drop import are still UI placeholders.
+- The frontend build is validated (`npm run build`), but Rust/Tauri compilation is still unverified on this machine because `cargo` is unavailable.
+- Result review already exposes evidence JSON, one-to-many triage and score breakdown, but richer evidence drawers and preview regeneration controls still need refinement.

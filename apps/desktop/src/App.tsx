@@ -51,10 +51,15 @@ function App() {
   })
 
   const refreshRecentProjects = useEffectEvent(async () => {
-    const projects = await desktopApi.listRecentProjects()
-    setRecentProjects(projects)
-    if (!selectedProjectId && projects[0]) {
-      setSelectedProjectId(projects[0].project_id)
+    try {
+      const projects = await desktopApi.listRecentProjects()
+      setRecentProjects(projects)
+      if (!selectedProjectId && projects[0]) {
+        setSelectedProjectId(projects[0].project_id)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to refresh recent projects."
+      setLoadError(message)
     }
   })
 
@@ -64,13 +69,22 @@ function App() {
 
   const loadProjectResult = useEffectEvent(async (projectId: string) => {
     setLoadError(null)
-    const loaded = await desktopApi.loadResult(projectId)
-    setResult(loaded)
-    const initialIssue = loaded.issues[0] ?? null
-    setSelectedIssueId(initialIssue?.issue_id ?? null)
-    const preview = await desktopApi.renderPreview(projectId, initialIssue?.issue_id ?? null)
-    setPreviewSrc(preview.preview_src)
-    startTransition(() => setScreen("result"))
+    try {
+      const loaded = await desktopApi.loadResult(projectId)
+      setResult(loaded)
+      const initialIssue = loaded.issues[0] ?? null
+      setSelectedIssueId(initialIssue?.issue_id ?? null)
+      if (initialIssue) {
+        const preview = await desktopApi.renderPreview(projectId, initialIssue.issue_id)
+        setPreviewSrc(preview.preview_src)
+      } else {
+        setPreviewSrc(null)
+      }
+      startTransition(() => setScreen("result"))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Failed to load project ${projectId}.`
+      setLoadError(message)
+    }
   })
 
   const handleEvent = useEffectEvent((event: SidecarEvent) => {
@@ -247,6 +261,10 @@ function App() {
     try {
       const updated = await desktopApi.setIssueStatus(projectId, selectedIssue.issue_id, issueStatusDraft)
       setResult(updated)
+      setLoadError(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Failed to update issue ${selectedIssue.issue_id}.`
+      setLoadError(message)
     } finally {
       setIsSavingIssueStatus(false)
     }
@@ -308,6 +326,8 @@ function App() {
             </button>
           </div>
         </header>
+
+        {loadError ? <div className="global-error">{loadError}</div> : null}
 
         {screen === "launch" && (
           <section className="launch-grid">
@@ -469,6 +489,7 @@ function App() {
                 <thead>
                   <tr>
                     <th>Severity</th>
+                    <th>1:N</th>
                     <th>Status</th>
                     <th>Rule</th>
                     <th>Title</th>
@@ -485,10 +506,19 @@ function App() {
                         setSelectedIssueId(issue.issue_id)
                         void desktopApi
                           .renderPreview(result?.run.project_id ?? selectedProjectId ?? "project-alpha", issue.issue_id)
-                          .then((preview) => setPreviewSrc(preview.preview_src))
+                          .then((preview) => {
+                            setPreviewSrc(preview.preview_src)
+                            setLoadError(null)
+                          })
+                          .catch((error) => {
+                            const message = error instanceof Error ? error.message : `Failed to render preview for ${issue.issue_id}.`
+                            setLoadError(message)
+                            setPreviewSrc(null)
+                          })
                       }}
                     >
                       <td>{issue.severity}</td>
+                      <td>{readOneToManyClassification(issue.evidence) ?? "-"}</td>
                       <td>{issue.status}</td>
                       <td>{issue.rule_id}</td>
                       <td>{issue.title}</td>
@@ -517,6 +547,10 @@ function App() {
                       <strong>{selectedIssue.rule_id}</strong>
                     </div>
                     <div className="detail-block">
+                      <span>1:N triage</span>
+                      <strong>{readOneToManyClassification(selectedIssue.evidence) ?? "-"}</strong>
+                    </div>
+                    <div className="detail-block">
                       <span>Severity</span>
                       <strong>{selectedIssue.severity}</strong>
                     </div>
@@ -534,7 +568,22 @@ function App() {
                     </div>
                   </div>
                   <div className="detail-block">
+                    <span>Confidence breakdown</span>
+                    <div className="metric-row">
+                      {Object.entries(readScoreBreakdown(selectedIssue.evidence)).map(([key, value]) => (
+                        <div key={key} className="metric-card compact-metric">
+                          <strong>{formatBreakdownValue(value)}</strong>
+                          <span>{key}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="detail-block">
                     <span>Evidence chain</span>
+                    <pre>{JSON.stringify(readEvidenceChain(selectedIssue.evidence), null, 2)}</pre>
+                  </div>
+                  <div className="detail-block">
+                    <span>Raw evidence</span>
                     <pre>{JSON.stringify(selectedIssue.evidence, null, 2)}</pre>
                   </div>
                   <div className="detail-block">
@@ -612,6 +661,46 @@ function summarizeProgress(event: SidecarEvent): string {
 
 function formatPair(issue: Pick<IssueSummary, "left_value" | "right_value">): string {
   return `${issue.left_value ?? "?"} -> ${issue.right_value ?? "?"}`
+}
+
+function readOneToManyClassification(evidence: Record<string, unknown>): string | null {
+  const value = evidence.one_to_many_classification
+  return typeof value === "string" && value.trim() ? value : null
+}
+
+function readScoreBreakdown(evidence: Record<string, unknown>): Record<string, number | string> {
+  const nested = evidence.pair_evidence
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    const scoreBreakdown = (nested as Record<string, unknown>).score_breakdown
+    if (scoreBreakdown && typeof scoreBreakdown === "object" && !Array.isArray(scoreBreakdown)) {
+      return scoreBreakdown as Record<string, number | string>
+    }
+  }
+  const direct = evidence.score_breakdown
+  if (direct && typeof direct === "object" && !Array.isArray(direct)) {
+    return direct as Record<string, number | string>
+  }
+  return { confidence: Number(evidence.confidence ?? 0) }
+}
+
+function readEvidenceChain(evidence: Record<string, unknown>): Record<string, unknown> {
+  const chain: Record<string, unknown> = {}
+  for (const key of ["filename", "sheet_no", "sheet_order", "line_group_id", "line_start", "line_end", "pair_evidence"]) {
+    if (key in evidence) {
+      chain[key] = evidence[key]
+    }
+  }
+  if (Object.keys(chain).length > 0) {
+    return chain
+  }
+  return evidence
+}
+
+function formatBreakdownValue(value: number | string): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toFixed(2)
+  }
+  return String(value)
 }
 
 function isFailedPageStatus(status: string | null | undefined): boolean {

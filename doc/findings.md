@@ -627,3 +627,61 @@
 
 - 到这一步，当前 CLI / report / UI 三条现有结果链都已经能看见 `conflict / review / branch` 这类一对多语义标签，不再要求用户手动翻 raw evidence JSON。
 - 这仍然不等于最终桌面端结果页已完成，但至少“结构现象 + 风险分级”已经开始进入实际展示层，而不是停留在规则内部。
+
+## 27. 2026-07-05 Tauri 原生桥接接入 Python sidecar / SQLite
+
+此前 `apps/desktop` 虽然已经有 Tauri 2 + React + TypeScript 壳，但 `src-tauri/src/main.rs` 里的 5 个 command 全部还是 stub，桌面端实际只能回退 mock。
+
+本轮把原生桥接接到了现有 Python CLI：
+
+- `desktop_analyze_session`
+  - 调用 `python -m dwg_audit.cli analyze-session`
+  - 把 JSONL 事件逐行转发成 Tauri 事件
+  - 末尾 `run_result` 转回前端需要的 `{ projects }`
+- `desktop_list_recent_projects`
+  - 调用 `python -m dwg_audit.cli list-recent-projects`
+- `desktop_load_result`
+  - 调用 `python -m dwg_audit.cli load-result`
+- `desktop_render_preview`
+  - 调用 `python -m dwg_audit.cli render-preview`
+- `desktop_set_issue_status`
+  - 调用 `python -m dwg_audit.cli set-issue-status`
+
+同时对齐了桌面端本地路径策略：
+
+- workspace root：`%LOCALAPPDATA%/dwg-audit/sessions`
+- state db：`%LOCALAPPDATA%/dwg-audit/desktop_state.db`
+- Rust 侧显式注入 `PYTHONPATH=<repo>/src`，避免依赖“当前环境已 pip install”这一前提
+
+直接结论：
+
+- 到这一步，桌面端最大断点已经不再是“没有 native bridge”，而是“本机缺少 Rust toolchain，暂时不能把这条桥真正编译运行起来做端到端验收”。
+- 这属于环境缺口，不再是应用内 command 设计层面的空白。
+
+## 28. 2026-07-05 桌面端停止真实错误回退 mock，并补结果页三态/分数展示
+
+在原生桥接接通后，如果前端仍然“native 报错就静默回退 mock”，会把真实失败伪装成假数据，这和桌面 MVP 的目标相冲突。
+
+本轮继续收口桌面前端行为：
+
+- `desktopApi` 仅在非 Tauri 环境下使用 mock
+- 在 Tauri 环境下，native 调用失败会把错误抛回 UI，而不是偷偷回退 mock
+- `App.tsx` 增加全局错误提示，覆盖：
+  - recent projects 加载失败
+  - analyze-session 失败
+  - result 加载失败
+  - preview 渲染失败
+  - issue status 保存失败
+
+同时把结果页再往任务书要求推进一层：
+
+- issue table 新增 `1:N` 列，直接显示 `branch / review / conflict`
+- issue detail 新增 `1:N triage`
+- issue detail 新增 `Confidence breakdown`
+- issue detail 将 evidence chain 与 raw evidence 分开显示，不再只剩一坨原始 JSON
+
+验证情况：
+
+- `apps/desktop` 前端构建通过：`npm run build`
+- Python 相关回归通过：`python -m pytest -q tests/unit/test_sidecar.py tests/unit/test_cli.py tests/unit/test_ui_app.py`
+- 本机仍缺 `cargo`，因此原生 Tauri 编译暂未完成验证

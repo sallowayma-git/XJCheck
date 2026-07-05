@@ -34,8 +34,7 @@ export const desktopApi = {
         projects: payload.projects.map(normalizeRecentProject),
       }
     } catch (error) {
-      console.warn("Falling back to mock analyze-session flow.", error)
-      return emitMockAnalyzeSessionEvents(request.inputRoot, onEvent)
+      throw toDesktopError("Failed to run native analyze-session.", error)
     } finally {
       unlisten?.()
     }
@@ -50,8 +49,7 @@ export const desktopApi = {
       const projects = await invoke<RecentProject[]>(COMMANDS.listRecentProjects)
       return projects.map(normalizeRecentProject)
     } catch (error) {
-      console.warn("Falling back to mock recent projects.", error)
-      return getMockRecentProjects()
+      throw toDesktopError("Failed to load native recent projects.", error)
     }
   },
 
@@ -64,8 +62,7 @@ export const desktopApi = {
       const result = await invoke<ProjectResult>(COMMANDS.loadResult, { projectId })
       return normalizeProjectResult(result)
     } catch (error) {
-      console.warn("Falling back to mock project result.", error)
-      return applyMockStatusOverrides(getMockProjectResult(projectId))
+      throw toDesktopError(`Failed to load native result for project ${projectId}.`, error)
     }
   },
 
@@ -82,8 +79,7 @@ export const desktopApi = {
       })
       return normalizePreviewPayload(payload)
     } catch (error) {
-      console.warn("Falling back to mock preview.", error)
-      return getMockPreview(projectId, issueId)
+      throw toDesktopError(`Failed to render native preview for project ${projectId}.`, error)
     }
   },
 
@@ -101,9 +97,7 @@ export const desktopApi = {
       })
       return await this.loadResult(projectId)
     } catch (error) {
-      console.warn("Falling back to mock issue-status update.", error)
-      mockIssueStatuses.set(`${projectId}:${issueId}`, status)
-      return applyMockStatusOverrides(getMockProjectResult(projectId))
+      throw toDesktopError(`Failed to update native issue status for ${issueId}.`, error)
     }
   },
 }
@@ -144,4 +138,11 @@ function normalizePreviewPayload(payload: Omit<PreviewPayload, "preview_src"> & 
     ...payload,
     preview_src: payload.preview_src ?? (payload.preview_path ? convertFileSrc(payload.preview_path) : null),
   }
+}
+
+function toDesktopError(prefix: string, error: unknown): Error {
+  if (error instanceof Error) {
+    return new Error(`${prefix} ${error.message}`)
+  }
+  return new Error(prefix)
 }
