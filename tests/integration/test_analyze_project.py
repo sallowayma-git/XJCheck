@@ -78,7 +78,7 @@ def test_analyze_project_records_failures_and_reuses_cached_dxf(
     assert (audit_dir / "audit_report.md").exists()
 
 
-def test_analyze_project_only_emits_primary_pages_into_downstream_audit(
+def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -127,41 +127,46 @@ def test_analyze_project_only_emits_primary_pages_into_downstream_audit(
 
     assert page_roles["04 回路图.dwg"] == "primary"
     assert page_primary["04 回路图.dwg"] is True
-    assert page_roles["07 屏端子图.dwg"] == "secondary"
-    assert page_primary["07 屏端子图.dwg"] is False
+    assert page_roles["07 屏端子图.dwg"] == "supplemental"
+    assert page_primary["07 屏端子图.dwg"] is True
     assert page_roles["08 封面.dwg"] == "skip"
     assert page_primary["08 封面.dwg"] is False
 
-    assert set(line_groups["sheet_id"].tolist()) == {sheet_by_file["04 回路图.dwg"]}
-    assert set(pairs["sheet_id"].tolist()) == {sheet_by_file["04 回路图.dwg"]}
-    assert sheet_by_file["07 屏端子图.dwg"] not in set(line_groups["sheet_id"].tolist())
+    assert set(line_groups["sheet_id"].tolist()) == {
+        sheet_by_file["04 回路图.dwg"],
+        sheet_by_file["07 屏端子图.dwg"],
+    }
+    assert set(pairs["sheet_id"].tolist()) == {
+        sheet_by_file["04 回路图.dwg"],
+        sheet_by_file["07 屏端子图.dwg"],
+    }
     assert sheet_by_file["08 封面.dwg"] not in set(line_groups["sheet_id"].tolist())
     assert findings_payload["primary_audit_pages"] == 1
-    assert findings_payload["supplemental_audit_pages"] == 0
-    assert findings_payload["included_audit_pages"] == 1
+    assert findings_payload["supplemental_audit_pages"] == 1
+    assert findings_payload["included_audit_pages"] == 2
     assert findings_payload["audit_page_counts"] == {
         "primary": 1,
-        "secondary": 1,
+        "secondary": 0,
         "skip": 1,
-        "supplemental": 0,
+        "supplemental": 1,
     }
 
 
-def test_analyze_project_can_include_supplemental_categories_in_downstream_audit(
+def test_analyze_project_can_include_backplate_pages_as_supplemental_audit(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "projectA"
     project.mkdir()
     (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
-    (project / "21 元件接线图1.dwg").write_bytes(b"AC1018demo")
+    (project / "17 背板接线图1.dwg").write_bytes(b"AC1018demo")
 
     config_path = tmp_path / "config.yml"
     config_path.write_text(
         yaml.safe_dump(
             {
                 "project": {
-                    "audit_supplemental_categories": ["元件接线图"],
+                    "audit_supplemental_categories": ["背板接线图"],
                 }
             },
             allow_unicode=True,
@@ -204,11 +209,11 @@ def test_analyze_project_can_include_supplemental_categories_in_downstream_audit
     sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
 
     assert page_roles["04 回路图.dwg"] == "primary"
-    assert page_roles["21 元件接线图1.dwg"] == "supplemental"
-    assert page_primary["21 元件接线图1.dwg"] is True
+    assert page_roles["17 背板接线图1.dwg"] == "supplemental"
+    assert page_primary["17 背板接线图1.dwg"] is True
     assert set(line_groups["sheet_id"].tolist()) == {
         sheet_by_file["04 回路图.dwg"],
-        sheet_by_file["21 元件接线图1.dwg"],
+        sheet_by_file["17 背板接线图1.dwg"],
     }
     assert findings_payload["primary_audit_pages"] == 1
     assert findings_payload["supplemental_audit_pages"] == 1

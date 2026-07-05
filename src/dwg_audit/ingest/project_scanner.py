@@ -19,6 +19,7 @@ from dwg_audit.utils.ids import IdFactory
 
 
 _PAGE_PREFIX_PATTERN = re.compile(r"^(?P<page>\d+)\s+(?P<title>.+?)(?:\.dwg)?$", re.IGNORECASE)
+_DEFAULT_SUPPLEMENTAL_CATEGORIES = {"屏端子图", "元件接线图"}
 
 
 def _sha256(path: Path) -> str:
@@ -107,6 +108,8 @@ def _infer_audit_role(category: str | None, title: str, skip_reason: str | None,
     if category in primary_categories:
         return "primary"
     if category in supplemental_categories:
+        return "supplemental"
+    if category in _DEFAULT_SUPPLEMENTAL_CATEGORIES:
         return "supplemental"
     if category in secondary_categories:
         return "secondary"

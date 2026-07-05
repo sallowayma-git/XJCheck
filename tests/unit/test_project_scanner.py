@@ -32,7 +32,7 @@ def test_scan_project_uses_prj_metadata(tmp_path: Path, sample_text_prj: str, sa
     assert result.terminal_strips[0].style == "左侧"
 
 
-def test_scan_project_marks_non_primary_pages_as_secondary(tmp_path: Path) -> None:
+def test_scan_project_marks_terminal_pages_as_supplemental_by_default(tmp_path: Path) -> None:
     project = tmp_path / "projectA"
     project.mkdir()
     (project / "07 屏端子图.dwg").write_bytes(b"AC1018data")
@@ -40,8 +40,8 @@ def test_scan_project_marks_non_primary_pages_as_secondary(tmp_path: Path) -> No
     result = scan_project(project, DEFAULT_CONFIG)
 
     assert result.pages[0].sheet_category == "屏端子图"
-    assert result.pages[0].audit_role == "secondary"
-    assert result.pages[0].is_primary_audit_candidate is False
+    assert result.pages[0].audit_role == "supplemental"
+    assert result.pages[0].is_primary_audit_candidate is True
 
 
 def test_scan_project_keeps_backplate_pages_secondary_even_with_protection_keywords(tmp_path: Path) -> None:
@@ -64,8 +64,8 @@ def test_scan_project_splits_component_wiring_from_backplate_category(tmp_path: 
     result = scan_project(project, DEFAULT_CONFIG)
 
     assert result.pages[0].sheet_category == "元件接线图"
-    assert result.pages[0].audit_role == "secondary"
-    assert result.pages[0].is_primary_audit_candidate is False
+    assert result.pages[0].audit_role == "supplemental"
+    assert result.pages[0].is_primary_audit_candidate is True
 
 
 def test_scan_project_normalizes_prj_backplate_bucket_for_component_wiring(tmp_path: Path, sample_terminal_xml: str) -> None:
@@ -87,24 +87,25 @@ def test_scan_project_normalizes_prj_backplate_bucket_for_component_wiring(tmp_p
     result = scan_project(project, DEFAULT_CONFIG)
 
     assert result.pages[0].sheet_category == "元件接线图"
-    assert result.pages[0].audit_role == "secondary"
+    assert result.pages[0].audit_role == "supplemental"
+    assert result.pages[0].is_primary_audit_candidate is True
 
 
-def test_scan_project_can_promote_secondary_category_to_supplemental_audit(tmp_path: Path) -> None:
+def test_scan_project_can_promote_backplate_category_to_supplemental_audit(tmp_path: Path) -> None:
     project = tmp_path / "projectA"
     project.mkdir()
-    (project / "21 元件接线图1.dwg").write_bytes(b"AC1018data")
+    (project / "17 背板接线图1.dwg").write_bytes(b"AC1018data")
     config = {
         **DEFAULT_CONFIG,
         "project": {
             **DEFAULT_CONFIG["project"],
-            "audit_supplemental_categories": ["元件接线图"],
+            "audit_supplemental_categories": ["背板接线图"],
         },
     }
 
     result = scan_project(project, config)
 
-    assert result.pages[0].sheet_category == "元件接线图"
+    assert result.pages[0].sheet_category == "背板接线图"
     assert result.pages[0].audit_role == "supplemental"
     assert result.pages[0].is_primary_audit_candidate is True
 

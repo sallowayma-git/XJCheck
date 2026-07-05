@@ -895,3 +895,82 @@
 
 - `src-tauri` 的 `Cargo.toml / capabilities / tauri.conf / Cargo.lock / gen/schemas / icons` 已形成一组可提交的原生桌面收口改动。
 - 这让主线程可以把重心从“Tauri 是否能落地”转回任务书主线中的 DWG findings / audit 质量整改，而不是继续卡在桌面外壳可用性不确定上。
+
+## 35. 2026-07-05 第二套样本已补真实基线，页型补齐后端子页进入主链但元件接线图仍为 0 pair
+
+用户最新反馈指出第二套 `变压器测控柜(2圈变，2台测控)` 需要补完整 findings / audit 基线。主线程与子代理核实后，当前结论应更新为更准确的版本：
+
+- 仓库里已经存在几套第二套样本的完整 `.tmp` 产物，不是完全没有深跑证据，例如：
+  - [page_strategy_second/2_2](/F:/workspace/XJToolkit/.tmp/page_strategy_second/2_2)
+  - [second_project_baseline/2_2](/F:/workspace/XJToolkit/.tmp/second_project_baseline/2_2)
+  - [sample_run_v3_secondset/2_2](/F:/workspace/XJToolkit/.tmp/sample_run_v3_secondset/2_2)
+- 这些产物都包含 `manifest + findings + audit`，且 `.prj` / `LdDzbInfo.xml` 解析状态是好的。
+
+在此基础上，本轮又用当前代码重新实跑了第二套：
+
+- 新实跑目录：
+  - [phase6_supplemental_default_second/2_2](/F:/workspace/XJToolkit/.tmp/phase6_supplemental_default_second/2_2)
+- 命令：
+  - `python -m dwg_audit.cli analyze-project --input test/变压器测控柜(2圈变，2台测控) --output .tmp/phase6_supplemental_default_second`
+  - `python -m dwg_audit.cli run-audit --findings .tmp/phase6_supplemental_default_second/2_2/findings`
+
+这次实跑里，页型策略已经向前推进了一步：
+
+- `17-18` 背板页仍保持 `secondary`，没有再误入审计主链。
+- `19-20` 元件接线图现在是 `supplemental`。
+- `21-24` 左/右侧端子图现在是 `supplemental`。
+- 整体页型计数变为：
+  - `primary=13`
+  - `supplemental=6`
+  - `secondary=2`
+  - `skip=3`
+
+更关键的是，页型放开后的真实效果并不均匀：
+
+- `21-24` 端子页已经实质进入 findings 主链，并产生大量几何/配对：
+  - `21 左侧端子图1.dwg`: `135 line_groups / 135 pairs / 27 issues`
+  - `22 左侧端子图2.dwg`: `85 line_groups / 85 pairs / 7 issues`
+  - `23 右侧端子图1.dwg`: `130 line_groups / 130 pairs / 15 issues`
+  - `24 右侧端子图2.dwg`: `92 line_groups / 92 pairs / 31 issues`
+- 但 `19-20` 元件接线图虽然已经被纳入 `supplemental`，当前仍然：
+  - `0 line_groups / 0 pairs / 0 issues`
+
+直接结论：
+
+- “页型没有纳入审计”已经不再是第二套 `21-24` 端子页的主阻塞；这些页现在已经被真实处理。
+- `19-20` 元件接线图依然完全没有进入 pair 结果，说明下一步真正要打的点不是单纯 `audit_role`，而是这些页的几何/文本模式尚未被当前 `line_groups + terminal_candidates` 理解。
+- 第二套最适合作为后续整改验证页的优先级可以定为：
+  - `08 测控1开入回路图1.dwg`
+  - `12 测控2开入回路图1.dwg`
+  - `21 左侧端子图1.dwg`
+
+## 36. 2026-07-05 候选降权与 inline 数字断线重连已经在当前代码里，但效果还没有闭环
+
+用户最新核验里把以下两件事列为“最该先补”：
+
+- `DIM` 层单字符数字降权 / 剔除
+- 在线组合并阶段跨 inline 数字断线重连
+
+主线程复核当前代码后，结论是这两条并不是完全空白，而是已经有第一轮工程化落地：
+
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 已按图层与单字符组合施加 penalty：
+  - `deprioritized_layers = ["DIM", "MARK"]`
+  - `single_char_penalty_layers = ["DIM", "MARK"]`
+  - `single_char_penalty`
+- [line_groups.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/line_groups.py) 已支持：
+  - `inline_numeric_bridge_gap`
+  - `inline_numeric_bridge_y_tolerance`
+  - `_has_inline_numeric_bridge(...)`
+- 相关单测也已存在并可通过：
+  - [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py)
+  - [test_line_groups.py](/F:/workspace/XJToolkit/tests/unit/test_line_groups.py)
+  - 本轮回归：`python -m pytest -q tests/unit/test_terminal_candidates.py tests/unit/test_line_groups.py` -> `8 passed`
+
+这意味着：
+
+- 当前主线不应再把这两点描述成“完全未实现”。
+- 更准确的表述应是：“第一轮降权与 bridge 逻辑已经在代码里，但从 second-set 实跑结果看，力度和页型适配还不够，尚未把 `? -> 723 / 723 -> ? / 6 -> 721` 这类模式压到可接受水平。”
+- 因此下一步重点不只是“有没有这条规则”，而是：
+  - 参数力度是否足够
+  - 是否需要按页型进一步加强
+  - 是否还存在当前 bridge 逻辑没覆盖到的几何断裂模式
