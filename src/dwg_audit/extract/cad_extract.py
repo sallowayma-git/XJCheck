@@ -272,6 +272,7 @@ def _append_text(
     insert_y: float,
     height: float,
     rotation: float,
+    source_block_name: str | None = None,
 ) -> None:
     text = _normalize_text(raw_text)
     if not text:
@@ -296,6 +297,7 @@ def _append_text(
             bbox_min_y=bbox[1],
             bbox_max_x=bbox[2],
             bbox_max_y=bbox[3],
+            source_block_name=source_block_name,
         )
     )
 
@@ -351,6 +353,7 @@ def _extract_graphic_entity(
     synthetic_handle: str | None = None,
     capture_block_record: bool = False,
     expand_virtual_insert: bool = False,
+    source_block_name: str | None = None,
 ) -> None:
     dxftype = entity.dxftype()
     handle = synthetic_handle or str(getattr(entity.dxf, "handle", "") or f"virtual:{dxftype}")
@@ -371,6 +374,7 @@ def _extract_graphic_entity(
             float(insert.y),
             float(entity.dxf.height),
             float(entity.dxf.rotation),
+            source_block_name,
         )
         return
 
@@ -389,6 +393,7 @@ def _extract_graphic_entity(
             float(insert.y),
             float(entity.dxf.char_height or 0.0),
             0.0,
+            source_block_name,
         )
         return
 
@@ -407,6 +412,7 @@ def _extract_graphic_entity(
             float(insert.y),
             float(entity.dxf.height),
             float(entity.dxf.rotation),
+            source_block_name,
         )
         return
 
@@ -533,12 +539,13 @@ def _extract_graphic_entity(
                     polyline_ids=polyline_ids,
                     sheet_texts=sheet_texts,
                     sheet_lines=sheet_lines,
-                sheet_blocks=sheet_blocks,
-                sheet_polylines=sheet_polylines,
-                synthetic_handle=f"{handle}:ATTRIB:{index}",
-                capture_block_record=False,
-                expand_virtual_insert=expand_virtual_insert,
-            )
+                    sheet_blocks=sheet_blocks,
+                    sheet_polylines=sheet_polylines,
+                    synthetic_handle=f"{handle}:ATTRIB:{index}",
+                    capture_block_record=False,
+                    expand_virtual_insert=expand_virtual_insert,
+                    source_block_name=str(entity.dxf.name),
+                )
 
         if expand_virtual_insert:
             try:
@@ -561,6 +568,7 @@ def _extract_graphic_entity(
                     synthetic_handle=f"{handle}:VIRTUAL:{index}",
                     capture_block_record=False,
                     expand_virtual_insert=expand_virtual_insert,
+                    source_block_name=str(entity.dxf.name),
                 )
         return
 

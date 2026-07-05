@@ -79,8 +79,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
                 "numeric_suffix_patterns": [
                     r"(?i)n(?P<value>\d{3,})$",
                     r"(?i)(?:CD|GD|ZK-?)(?P<value>\d{1,3})$",
+                    r"(?i)HD(?P<value>\d{1,3})$",
                 ],
                 "derived_numeric_penalty": -0.18,
+                "virtual_single_char_reject_blocks": ["FJL-25-2A_Mirror"],
             },
         },
         "屏端子图": {

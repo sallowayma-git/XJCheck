@@ -153,6 +153,35 @@ def _format_pair_label(left_value: Any, right_value: Any) -> str:
     return f"{_display_value(left_value, default='?')} -> {_display_value(right_value, default='?')}"
 
 
+def _pair_evidence_mapping(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    nested = payload.get("pair_evidence")
+    if isinstance(nested, dict):
+        return nested
+    return payload
+
+
+def _pair_semantics_parts(payload: Any) -> list[str]:
+    evidence = _pair_evidence_mapping(payload)
+    parts: list[str] = []
+    orientation = evidence.get("line_orientation")
+    if not _is_blank_value(orientation):
+        parts.append(f"orientation={orientation}")
+    left_side = evidence.get("left_side_label")
+    if not _is_blank_value(left_side):
+        parts.append(f"left_side={left_side}")
+    right_side = evidence.get("right_side_label")
+    if not _is_blank_value(right_side):
+        parts.append(f"right_side={right_side}")
+    return parts
+
+
+def _pair_semantics_summary(payload: Any) -> str:
+    parts = _pair_semantics_parts(payload)
+    return ", ".join(parts) if parts else ""
+
+
 def _pair_evidence_summary(pair: Pair) -> str:
     evidence = pair.evidence or {}
     parts: list[str] = []
@@ -171,6 +200,7 @@ def _pair_evidence_summary(pair: Pair) -> str:
         parts.append(f"left_value={pair.left_value}")
     if pair.right_value:
         parts.append(f"right_value={pair.right_value}")
+    parts.extend(_pair_semantics_parts(evidence))
 
     return ", ".join(parts) if parts else "no evidence"
 
@@ -199,6 +229,7 @@ def _build_pair_example(pair: Pair) -> dict[str, Any]:
         "left_value": pair.left_value,
         "right_value": pair.right_value,
         "rationale": pair.rationale,
+        "line_semantics": _pair_semantics_summary(pair.evidence or {}),
         "summary": _pair_evidence_summary(pair),
     }
 
@@ -487,20 +518,24 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
     )
     if pair_summary["review_examples"]:
         for item in pair_summary["review_examples"]:
+            semantics = item.get("line_semantics")
+            semantics_text = f"; semantics={semantics}" if semantics else ""
             lines.append(
                 f"- `{item['pair_id']}` {_format_pair_label(item['left_value'], item['right_value'])} "
                 f"(status={item['status']}, bucket={_display_value(item['confidence_bucket'], default='unknown')}, "
-                f"conf={_format_confidence(item['confidence'])}): {item['summary']}; "
+                f"conf={_format_confidence(item['confidence'])}): {item['summary']}{semantics_text}; "
                 f"rationale={_display_value(item['rationale'])}"
             )
     else:
         lines.append("- 当前没有待复核 pair。")
     lines.extend(["", "## 代表性 Pair 证据", ""])
     for item in pair_summary["examples"]:
+        semantics = item.get("line_semantics")
+        semantics_text = f"; semantics={semantics}" if semantics else ""
         lines.append(
             f"- `{item['pair_id']}` {_format_pair_label(item['left_value'], item['right_value'])} "
             f"(status={item['status']}, bucket={_display_value(item['confidence_bucket'], default='unknown')}, "
-            f"conf={_format_confidence(item['confidence'])}): {item['summary']}"
+            f"conf={_format_confidence(item['confidence'])}): {item['summary']}{semantics_text}"
         )
     lines.extend(
         [
@@ -675,6 +710,8 @@ def _review_pair_rows(frame: pd.DataFrame) -> list[pd.Series]:
 
 def _format_review_pair_row(row: pd.Series) -> str:
     evidence = row.get("evidence_display") or _evidence_display(row)
+    semantics = _pair_semantics_summary(_decode_jsonish(row.get("evidence")))
+    semantics_text = f", semantics={semantics}" if semantics else ""
     return (
         f"- `{_display_value(row.get('pair_id'))}` {_format_pair_label(row.get('left_value'), row.get('right_value'))} "
         f"(status={_display_value(row.get('status'))}, bucket={_display_value(row.get('confidence_bucket'), default='unknown')}, "
@@ -683,7 +720,7 @@ def _format_review_pair_row(row: pd.Series) -> str:
         f"sheet_no={_display_value(_read_evidence_key(row, 'sheet_no'))}, "
         f"sheet_order={_display_value(_read_evidence_key(row, 'sheet_order'))}, "
         f"line_group={_display_value(row.get('line_group_id'))}, "
-        f"evidence={_display_value(evidence)}, "
+        f"evidence={_display_value(evidence)}{semantics_text}, "
         f"rationale={_display_value(row.get('rationale'))}"
     )
 
@@ -693,6 +730,7 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
     if _is_blank_value(title):
         title = row.get("message")
     evidence = row.get("evidence_display") or _evidence_display(row)
+    semantics = _pair_semantics_summary(_decode_jsonish(row.get("evidence")))
     triage = row.get("one_to_many_classification")
     details = [
         f"### `{_display_value(row.get('issue_id'))}` {_display_value(title)}",
@@ -710,6 +748,8 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
         ),
         f"- Evidence: {_display_value(evidence)}",
     ]
+    if semantics:
+        details.append(f"- LineSemantics: `{semantics}`")
     if not _is_blank_value(triage):
         details.append(f"- OneToManyTriage: `{triage}`")
     for label, key in (

@@ -99,6 +99,16 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "single_char_layer_filtered"
                     score = 0.0
+                elif _is_virtual_block_internal_pin_candidate(
+                    text,
+                    value,
+                    sheet,
+                    orientation,
+                    profile["virtual_single_char_reject_blocks"],
+                ):
+                    status = "rejected"
+                    reason = "block_internal_pin_number"
+                    score = 0.0
                 else:
                     score = _candidate_score(
                         dx,
@@ -324,6 +334,7 @@ def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, obj
         "single_char_reject_layers": {str(item).upper() for item in text_config.get("single_char_reject_layers", [])},
         "numeric_suffix_patterns": [],
         "derived_numeric_penalty": 0.0,
+        "virtual_single_char_reject_blocks": {str(item).upper() for item in text_config.get("virtual_single_char_reject_blocks", [])},
     }
     category = sheet.sheet_category if sheet is not None else None
     override = config.get("page_category_overrides", {}).get(category or "", {})
@@ -351,6 +362,10 @@ def _candidate_profile(config: dict, sheet: SheetRecord | None) -> dict[str, obj
             profile["single_char_reject_layers"] = {str(item).upper() for item in text_override.get("single_char_reject_layers", [])}
         profile["numeric_suffix_patterns"] = _compile_patterns(text_override.get("numeric_suffix_patterns", []))
         profile["derived_numeric_penalty"] = float(text_override.get("derived_numeric_penalty", profile["derived_numeric_penalty"]))
+        if "virtual_single_char_reject_blocks" in text_override:
+            profile["virtual_single_char_reject_blocks"] = {
+                str(item).upper() for item in text_override.get("virtual_single_char_reject_blocks", [])
+            }
     return profile
 
 
@@ -392,3 +407,22 @@ def _candidate_numeric_value(text: TextItem, patterns: list[re.Pattern[str]]) ->
             return match.group(match.lastindex or 1)
         return match.group(0)
     return None
+
+
+def _is_virtual_block_internal_pin_candidate(
+    text: TextItem,
+    value: str,
+    sheet: SheetRecord | None,
+    orientation: str,
+    reject_blocks: set[str],
+) -> bool:
+    if not reject_blocks or sheet is None:
+        return False
+    if sheet.sheet_category != "元件接线图" or orientation != _ORIENTATION_VERTICAL:
+        return False
+    if ":VIRTUAL:" not in text.handle.upper():
+        return False
+    if len(value.strip()) != 1:
+        return False
+    source_block_name = (text.source_block_name or "").upper()
+    return source_block_name in reject_blocks

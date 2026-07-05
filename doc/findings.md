@@ -1436,3 +1436,113 @@ second-set 新 audit 结果：
 - suffix 派生本身是有效的，但必须保持“`元件接线图 + vertical` 专用”这个收口。
 - 这一轮已经证明，继续扩大规则作用域并不是当前最优先路径；更好的方向是只盯剩余 `3` 条 `1 -> 2` 的具体上下文。
 - 从收益上看，这轮已经把 `20` 从“27 条同质化噪声”推进成了“只剩 3 条待专项解释的 residual pattern”，这是明显更接近可复核状态的真实进展。
+
+## 44. 2026-07-05 `FJL` 虚拟块内部引脚号已被剔除，`20` 从 `27` 条 residual review 收敛到 `24`
+
+子代理和主线程这轮把剩余 `3` 条泛化 `1 -> 2` 追到了更具体的根因：它们不是还缺一个 suffix regex，而是 `FJL-25-2A_Mirror` 的 `INSERT` 展开后，块内部固定引脚号 `1/2` 被直接当成 terminal candidate。
+
+这 3 条残余 pair 分别是：
+
+- `G0706`
+- `G0712`
+- `G0718`
+
+共同特征：
+
+- `text.handle` 都是 `:VIRTUAL:` 形式
+- `source_block_name = FJL-25-2A_Mirror`
+- 候选文本就是单字符 `1 / 2`
+- 附近长文本更像器件位号 / 型号，例如：
+  - `LP1 / LP2 / LP3`
+  - `FJL1-2.5/2A`
+
+因此本轮做的不是继续扩 suffix，而是补一条更窄的候选过滤：
+
+- 在 [cad_extract.py](/F:/workspace/XJToolkit/src/dwg_audit/extract/cad_extract.py) 把 `source_block_name` 透传到 [TextItem](/F:/workspace/XJToolkit/src/dwg_audit/domain/models.py)
+- 在 [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py) 为 `元件接线图` 增加：
+  - `virtual_single_char_reject_blocks = ["FJL-25-2A_Mirror"]`
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 增加 `block_internal_pin_number` 拒收路径：
+  - 只对 `元件接线图 + vertical`
+  - 只对 `:VIRTUAL:` 文本
+  - 只对单字符数值
+  - 只对命中白名单块名的情况
+
+### 44.1 顺手补的 `HD#` 窄派生
+
+子代理还发现另一类不同问题：
+
+- `G0736` 顶部有 `HD6`
+- `G0742` 顶部有 `HD5`
+
+它们不是块内伪引脚号，而是当前还没数值化的短标签。所以本轮把：
+
+- `HD(?P<value>\d{1,3})$`
+
+也加入了同一条 `vertical-only` suffix 派生链，但保持和 `FJL` 内部引脚过滤分离，不混成一条模糊规则。
+
+### 44.2 测试与 second-set 实跑结果
+
+新增并通过：
+
+- `FJL` 虚拟块内部 `1/2` 拒收单测
+- `HD#` vertical suffix 提取单测
+- `FJL-25-2A_Mirror` 风格集成测试
+
+当前全量回归：
+
+- `python -m pytest -q`
+  - `106 passed`
+
+当前 second-set 新实跑目录：
+
+- [phase9_virtual_pin_filter_hd_second/2_2](/F:/workspace/XJToolkit/.tmp/phase9_virtual_pin_filter_hd_second/2_2)
+
+关键结果：
+
+- `19 元件接线图1.dwg`
+  - 继续保持 `12` 条非 discard pair，不回退
+- `20 元件接线图2.dwg`
+  - `54 pairs / 24 non-discard / 24 issues`
+  - 旧的 `3` 条 `FJL` 伪 `1 -> 2` 已完全消失
+  - `HD6 -> 504` 与 `HD5 -> 502` 现在分别语义化为：
+    - `6 -> 504`
+    - `5 -> 502`
+- `08 / 12`
+  - 继续保持：
+    - `49`
+    - `48`
+    条 issue，没有回退
+
+### 44.3 当前结论
+
+- 这轮证明，剩余 `3` 条并不是“再补一个 suffix 就能解决”的普通标签理解问题，而是 block virtual expansion 带来的局部伪候选。
+- 对这类问题，最安全的修法是“白名单块名 + virtual 单字符过滤”，而不是全局压制所有单字符 `0` 层文本。
+- `20` 现在已经从“残留 `1 -> 2` 噪声”推进到“24 条都带具体语义值的 residual review”，可解释性比上一轮明显更高。
+
+## 45. 2026-07-05 vertical 语义已显式透传到 report / Streamlit / desktop 展示层
+
+除了继续压降噪声，本轮还把已有 pair evidence 里的 vertical 语义尽量显式带到了展示层，避免人工复核时只能从 `left_value/right_value` 反推端点含义。
+
+当前补丁覆盖：
+
+- [report/artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+  - findings / audit markdown 现在会展示：
+    - `line_orientation`
+    - `left_side_label`
+    - `right_side_label`
+- [ui/app.py](/F:/workspace/XJToolkit/src/dwg_audit/ui/app.py)
+  - Streamlit 的 issue / pair 详情与列表增加了 `line_orientation` 等字段
+- [desktop/preview.py](/F:/workspace/XJToolkit/src/dwg_audit/desktop/preview.py)
+  - 预览标题栏会优先显示 evidence 里的 orientation / side labels
+  - 若 evidence 缺失，则回退读取 `line_groups.orientation`
+- [apps/desktop/src/App.tsx](/F:/workspace/XJToolkit/apps/desktop/src/App.tsx)
+  - desktop 结果页新增 orientation 列与 line semantics 详情
+
+验证结果：
+
+- `python -m compileall src/dwg_audit/report/artifacts.py src/dwg_audit/ui/app.py src/dwg_audit/desktop/preview.py`
+  - 通过
+- `npm run build`
+  - 在 `apps/desktop` 下通过
+
+这部分补丁不改变 pair / issue 生成逻辑，但显著提升了“当前 vertical 证据到底是什么意思”的可读性，为后续人工复核和桌面端交付都补上了可解释性。 

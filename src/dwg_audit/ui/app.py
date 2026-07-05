@@ -54,6 +54,33 @@ def _issue_one_to_many_classification(row: pd.Series) -> str:
     return ""
 
 
+def _pair_evidence_mapping(value: Any) -> dict[str, Any]:
+    payload = _jsonish(value)
+    if not isinstance(payload, dict):
+        return {}
+    nested = payload.get("pair_evidence")
+    if isinstance(nested, dict):
+        return nested
+    return payload
+
+
+def _line_semantics_dict(value: Any) -> dict[str, str]:
+    payload = _pair_evidence_mapping(value)
+    semantics: dict[str, str] = {}
+    for source_key, target_key in (
+        ("line_orientation", "line_orientation"),
+        ("left_side_label", "left_side_label"),
+        ("right_side_label", "right_side_label"),
+    ):
+        raw = payload.get(source_key)
+        if raw is None:
+            continue
+        text = str(raw).strip()
+        if text:
+            semantics[target_key] = text
+    return semantics
+
+
 def _filter_issues(
     issues: pd.DataFrame,
     *,
@@ -172,6 +199,7 @@ def _one_to_many_cluster_rows(findings_payload: dict[str, Any]) -> pd.DataFrame:
 
 def _issue_detail(issue_row: pd.Series) -> None:
     st.subheader(f"Issue {issue_row.get('issue_id')}")
+    semantics = _line_semantics_dict(issue_row.get("evidence"))
     left, right = st.columns([1, 1])
     with left:
         st.write(
@@ -183,6 +211,7 @@ def _issue_detail(issue_row: pd.Series) -> None:
                 "sheet_no": _issue_sheet_no(issue_row),
                 "values": _issue_values_text(issue_row),
                 "one_to_many_classification": _issue_one_to_many_classification(issue_row),
+                **semantics,
             }
         )
     with right:
@@ -207,6 +236,7 @@ def _issue_detail(issue_row: pd.Series) -> None:
 
 def _pair_detail(pair_row: pd.Series) -> None:
     st.subheader(f"Pair {pair_row.get('pair_id')}")
+    semantics = _line_semantics_dict(pair_row.get("evidence"))
     st.write(
         {
             "left_value": pair_row.get("left_value"),
@@ -219,6 +249,7 @@ def _pair_detail(pair_row: pd.Series) -> None:
             "right_text_id": pair_row.get("right_text_id"),
             "left_coord": [pair_row.get("left_coord_x"), pair_row.get("left_coord_y")],
             "right_coord": [pair_row.get("right_coord_x"), pair_row.get("right_coord_y")],
+            **semantics,
         }
     )
     evidence = _jsonish(pair_row.get("evidence"))
@@ -354,6 +385,9 @@ def main() -> None:
             else:
                 issues = issues.copy()
                 issues["one_to_many_classification"] = issues.apply(_issue_one_to_many_classification, axis=1)
+                issues["line_orientation"] = issues["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("line_orientation", "")
+                )
                 filter_cols = st.columns(5)
                 severity_options = sorted(issues["severity"].dropna().astype(str).unique().tolist()) if "severity" in issues.columns else []
                 rule_options = sorted(issues["rule_id"].dropna().astype(str).unique().tolist()) if "rule_id" in issues.columns else []
@@ -386,6 +420,7 @@ def main() -> None:
                         "one_to_many_classification",
                         "status",
                         "confidence",
+                        "line_orientation",
                         "title",
                         "left_value",
                         "right_value",
@@ -412,6 +447,16 @@ def main() -> None:
             if pairs.empty:
                 st.info("No pairs available yet.")
             else:
+                pairs = pairs.copy()
+                pairs["line_orientation"] = pairs["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("line_orientation", "")
+                )
+                pairs["left_side_label"] = pairs["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("left_side_label", "")
+                )
+                pairs["right_side_label"] = pairs["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("right_side_label", "")
+                )
                 filter_cols = st.columns(3)
                 pair_statuses = sorted(pairs["status"].dropna().astype(str).unique().tolist()) if "status" in pairs.columns else []
                 confidence_buckets = sorted(pairs["confidence_bucket"].dropna().astype(str).unique().tolist()) if "confidence_bucket" in pairs.columns else []
@@ -442,6 +487,9 @@ def main() -> None:
                         "status",
                         "confidence_bucket",
                         "line_group_id",
+                        "line_orientation",
+                        "left_side_label",
+                        "right_side_label",
                     )
                     if column in filtered.columns
                 ]

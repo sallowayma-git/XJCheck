@@ -61,12 +61,21 @@ def render_project_preview(
     sheet_lines = lines[lines["sheet_id"].astype(str) == sheet_id] if not lines.empty else pd.DataFrame()
     sheet_texts = texts[texts["sheet_id"].astype(str) == sheet_id] if not texts.empty else pd.DataFrame()
     highlight = _resolve_highlight(issue_row, line_groups, line_group_id=line_group_id)
+    line_semantics = _resolve_line_semantics(issue_row, line_groups, line_group_id=line_group_id)
 
     target_dir = (output_dir or artifact_dir / "cache" / "previews").expanduser().resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}.svg"
     target_path.write_text(
-        _build_svg(page_row, sheet_lines, sheet_texts, extent, highlight=highlight, issue_row=issue_row),
+        _build_svg(
+            page_row,
+            sheet_lines,
+            sheet_texts,
+            extent,
+            highlight=highlight,
+            issue_row=issue_row,
+            line_semantics=line_semantics,
+        ),
         encoding="utf-8",
     )
 
@@ -87,6 +96,7 @@ def _build_svg(
     *,
     highlight: dict[str, Any] | None,
     issue_row: pd.Series | None,
+    line_semantics: dict[str, str] | None,
 ) -> str:
     min_x, min_y, max_x, max_y = extent
     width = max(max_x - min_x, 1.0)
@@ -174,6 +184,14 @@ def _build_svg(
     if issue_row is not None:
         subtitle_parts.append(f"issue={issue_row.get('issue_id')}")
         subtitle_parts.append(f"rule={issue_row.get('rule_id')}")
+    if line_semantics:
+        orientation = line_semantics.get("line_orientation")
+        if orientation:
+            subtitle_parts.append(f"orientation={orientation}")
+        left_side = line_semantics.get("left_side_label")
+        right_side = line_semantics.get("right_side_label")
+        if left_side or right_side:
+            subtitle_parts.append(f"sides={left_side or '?'}->{right_side or '?'}")
     subtitle = html.escape(" | ".join(subtitle_parts))
     svg_lines.extend(
         [
@@ -222,6 +240,37 @@ def _resolve_highlight(
                 "end": (float(row["end_x"]), float(row["end_y"])),
             }
     return None
+
+
+def _resolve_line_semantics(
+    issue_row: pd.Series | None,
+    line_groups: pd.DataFrame,
+    *,
+    line_group_id: str | None = None,
+) -> dict[str, str] | None:
+    semantics: dict[str, str] = {}
+    if issue_row is not None:
+        evidence = _decode_jsonish(issue_row.get("evidence"))
+        if isinstance(evidence, dict):
+            pair_evidence = evidence.get("pair_evidence")
+            source = pair_evidence if isinstance(pair_evidence, dict) else evidence
+            for key in ("line_orientation", "left_side_label", "right_side_label"):
+                value = source.get(key)
+                if value is None:
+                    continue
+                text = str(value).strip()
+                if text:
+                    semantics[key] = text
+    lookup_line_group_id = line_group_id
+    if not lookup_line_group_id and issue_row is not None:
+        lookup_line_group_id = str(issue_row.get("line_group_id") or "")
+    if lookup_line_group_id and not line_groups.empty:
+        matches = line_groups[line_groups["line_group_id"].astype(str) == lookup_line_group_id]
+        if not matches.empty and "orientation" in matches.columns and "line_orientation" not in semantics:
+            orientation = str(matches.iloc[0].get("orientation") or "").strip()
+            if orientation:
+                semantics["line_orientation"] = orientation
+    return semantics or None
 
 
 def _is_point_pair(value: object) -> bool:

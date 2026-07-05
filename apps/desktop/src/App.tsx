@@ -380,6 +380,8 @@ function App() {
         issue.left_value ?? "",
         issue.right_value ?? "",
         triage ?? "",
+        readLineOrientation(issue) ?? "",
+        formatLineSemantics(issue),
         issue.values.join(" "),
         issue.related_pair_ids.join(" "),
         issue.sheet_ids.join(" "),
@@ -815,6 +817,7 @@ function App() {
                   <tr>
                     <th>Severity</th>
                     <th>Type</th>
+                    <th>Orient</th>
                     <th>1:N</th>
                     <th>Status</th>
                     <th>Rule</th>
@@ -834,6 +837,7 @@ function App() {
                     >
                       <td>{issue.severity}</td>
                       <td>{issue.issue_type}</td>
+                      <td>{readLineOrientation(issue) ?? "-"}</td>
                       <td>{issue.one_to_many_classification ?? readOneToManyClassification(issue) ?? "-"}</td>
                       <td>{issue.status}</td>
                       <td>{issue.rule_id}</td>
@@ -867,6 +871,10 @@ function App() {
                       <strong>{selectedIssue.issue_type}</strong>
                     </div>
                     <div className="detail-block">
+                      <span>Line orientation</span>
+                      <strong>{readLineOrientation(selectedIssue) ?? "-"}</strong>
+                    </div>
+                    <div className="detail-block">
                       <span>1:N triage</span>
                       <strong>{selectedIssue.one_to_many_classification ?? readOneToManyClassification(selectedIssue) ?? "-"}</strong>
                     </div>
@@ -890,6 +898,10 @@ function App() {
                       <span>Line group</span>
                       <strong>{selectedIssue.line_group_id ?? "-"}</strong>
                     </div>
+                  </div>
+                  <div className="detail-block">
+                    <span>Line semantics</span>
+                    <strong>{formatLineSemantics(selectedIssue) || "-"}</strong>
                   </div>
                   <div className="detail-block">
                     <span>Summary</span>
@@ -1123,10 +1135,42 @@ function readScoreBreakdown(evidence: Record<string, unknown>): Record<string, n
   return { confidence: Number(evidence.confidence ?? 0) }
 }
 
+function readPairEvidence(issue: Pick<IssueSummary, "evidence">): Record<string, unknown> {
+  const nested = issue.evidence.pair_evidence
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return nested as Record<string, unknown>
+  }
+  return issue.evidence
+}
+
+function readLineOrientation(issue: Pick<IssueSummary, "evidence">): string | null {
+  const value = readPairEvidence(issue).line_orientation
+  return typeof value === "string" && value.trim() ? value : null
+}
+
+function formatLineSemantics(issue: Pick<IssueSummary, "evidence">): string {
+  const evidence = readPairEvidence(issue)
+  const parts: string[] = []
+  const orientation = typeof evidence.line_orientation === "string" && evidence.line_orientation.trim() ? evidence.line_orientation : null
+  const leftSide = typeof evidence.left_side_label === "string" && evidence.left_side_label.trim() ? evidence.left_side_label : null
+  const rightSide = typeof evidence.right_side_label === "string" && evidence.right_side_label.trim() ? evidence.right_side_label : null
+
+  if (orientation) {
+    parts.push(`orientation=${orientation}`)
+  }
+  if (leftSide) {
+    parts.push(`left_side=${leftSide}`)
+  }
+  if (rightSide) {
+    parts.push(`right_side=${rightSide}`)
+  }
+  return parts.join(", ")
+}
+
 function readEvidenceChain(issue: Pick<IssueSummary, "evidence" | "evidence_refs" | "related_pair_ids" | "sheet_ids" | "values" | "primary_pair_id">): Record<string, unknown> {
   const evidence = issue.evidence
   const chain: Record<string, unknown> = {}
-  for (const key of ["filename", "sheet_no", "sheet_order", "line_group_id", "line_start", "line_end", "pair_evidence"]) {
+  for (const key of ["filename", "sheet_no", "sheet_order", "line_group_id", "line_start", "line_end", "pair_evidence", "line_orientation", "left_side_label", "right_side_label"]) {
     if (key in evidence) {
       chain[key] = evidence[key]
     }

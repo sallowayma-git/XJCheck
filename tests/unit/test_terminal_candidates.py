@@ -485,3 +485,77 @@ def test_build_terminal_candidates_keeps_component_suffix_patterns_disabled_on_h
     rejected = next(item for item in candidates if item.text_id == "T1")
     assert rejected.status == "rejected"
     assert rejected.rejection_reason == "not_numeric"
+
+
+def test_build_terminal_candidates_rejects_virtual_fjl_internal_pin_numbers() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=60.0,
+            start_y=135.0,
+            end_x=60.0,
+            end_y=120.0,
+            length=15.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "20 元件接线图2.dwg", 20, "20", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "9E3D:VIRTUAL:1", "TEXT", "1", "1", True, "0", 0.0, 2.5, 61.8, 133.8, 60.8, 132.8, 63.8, 135.8, "FJL-25-2A_Mirror"),
+        TextItem("T2", "S1", "F1", "9E3D:VIRTUAL:0", "TEXT", "2", "2", True, "0", 0.0, 2.5, 61.9, 121.2, 60.9, 120.2, 63.9, 123.2, "FJL-25-2A_Mirror"),
+        TextItem("T3", "S1", "F1", "T3", "TEXT", "LP3", "LP3", False, "TEXT", 0.0, 3.0, 60.2, 149.0, 58.0, 147.0, 66.0, 151.0),
+        TextItem("T4", "S1", "F1", "T4", "TEXT", "FJL1-2.5/2A", "FJL1-2.5/2A", False, "TEXT", 0.0, 3.0, 56.5, 150.5, 55.0, 148.5, 67.0, 152.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    top_pin = next(item for item in candidates if item.text_id == "T1")
+    bottom_pin = next(item for item in candidates if item.text_id == "T2")
+
+    assert top_pin.status == "rejected"
+    assert top_pin.rejection_reason == "block_internal_pin_number"
+    assert bottom_pin.status == "rejected"
+    assert bottom_pin.rejection_reason == "block_internal_pin_number"
+
+
+def test_build_terminal_candidates_extracts_hd_suffix_on_vertical_component_page() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=300.0,
+            start_y=135.0,
+            end_x=300.0,
+            end_y=120.0,
+            length=15.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "20 元件接线图2.dwg", 20, "20", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "HD5", "HD5", False, "TEXT", 0.0, 3.0, 300.2, 139.1, 298.0, 137.1, 304.0, 141.1),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "502", "502", True, "TEXT", 0.0, 2.5, 301.0, 121.0, 300.0, 120.0, 304.0, 123.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    top_candidate = next(item for item in candidates if item.text_id == "T1")
+    bottom_candidate = next(item for item in candidates if item.text_id == "T2")
+
+    assert top_candidate.status == "accepted"
+    assert top_candidate.value == "5"
+    assert bottom_candidate.status == "accepted"
+    assert bottom_candidate.value == "502"

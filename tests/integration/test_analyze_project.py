@@ -505,3 +505,61 @@ def test_analyze_project_prefers_component_suffix_values_on_vertical_component_p
     )
     assert component_pairs.iloc[0]["left_value"] == "43"
     assert component_pairs.iloc[0]["right_value"] == "419"
+
+
+def test_analyze_project_rejects_virtual_fjl_internal_pin_numbers_on_component_page(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "20 元件接线图2.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="FJL-25-2A_Mirror")
+        block.add_line((60, 135), (60, 120), dxfattribs={"layer": "CONNECT"})
+        block.add_text("1", dxfattribs={"insert": (61.8, 133.8), "height": 2.5, "layer": "0"})
+        block.add_text("2", dxfattribs={"insert": (61.9, 121.2), "height": 2.5, "layer": "0"})
+        block.add_text("LP3", dxfattribs={"insert": (60.2, 149.0), "height": 3.0, "layer": "TEXT"})
+        block.add_text("FJL1-2.5/2A", dxfattribs={"insert": (56.5, 150.5), "height": 3.0, "layer": "TEXT"})
+        msp.add_blockref("FJL-25-2A_Mirror", (0, 0))
+        msp.add_text("20/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    terminal_candidates = pd.read_parquet(findings_dir / "terminal_candidates.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    component_sheet = pages[pages["filename"] == "20 元件接线图2.dwg"].iloc[0]
+    component_sheet_id = component_sheet["sheet_id"]
+
+    component_candidates = terminal_candidates[terminal_candidates["sheet_id"] == component_sheet_id]
+    component_pairs = pairs[pairs["sheet_id"] == component_sheet_id]
+
+    assert any(
+        row["rejection_reason"] == "block_internal_pin_number" and row["text"] == "1"
+        for _, row in component_candidates.iterrows()
+    )
+    assert any(
+        row["rejection_reason"] == "block_internal_pin_number" and row["text"] == "2"
+        for _, row in component_candidates.iterrows()
+    )
+    assert len(component_pairs) == 1
+    assert component_pairs.iloc[0]["status"] == "discard"
