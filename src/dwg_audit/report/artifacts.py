@@ -237,7 +237,10 @@ def _build_pair_findings_summary(pairs: list[Pair]) -> dict[str, Any]:
 
 def _build_findings_payload(artifacts: ProjectArtifacts) -> dict[str, Any]:
     manifest = artifacts.scan.manifest
-    primary_pages = [page for page in artifacts.scan.pages if page.is_primary_audit_candidate]
+    primary_pages = [page for page in artifacts.scan.pages if page.audit_role == "primary"]
+    supplemental_pages = [page for page in artifacts.scan.pages if page.audit_role == "supplemental"]
+    secondary_pages = [page for page in artifacts.scan.pages if page.audit_role == "secondary"]
+    skipped_pages = [page for page in artifacts.scan.pages if page.audit_role == "skip"]
     failed = [item for item in manifest.source_files if item.conversion_status.startswith("failed")]
     converted = [item for item in manifest.source_files if item.conversion_status in {"converted", "cached"}]
     return {
@@ -249,6 +252,14 @@ def _build_findings_payload(artifacts: ProjectArtifacts) -> dict[str, Any]:
         "valid_dwg_files": manifest.valid_dwg_files,
         "invalid_dwg_files": manifest.invalid_dwg_files,
         "primary_audit_pages": len(primary_pages),
+        "supplemental_audit_pages": len(supplemental_pages),
+        "included_audit_pages": len(primary_pages) + len(supplemental_pages),
+        "audit_page_counts": {
+            "primary": len(primary_pages),
+            "supplemental": len(supplemental_pages),
+            "secondary": len(secondary_pages),
+            "skip": len(skipped_pages),
+        },
         "converted_pages": len(converted),
         "failed_pages": len(failed),
         "sidecars": [record_dict(sidecar) for sidecar in manifest.sidecars],
@@ -319,6 +330,8 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
         f"有效 DWG 头：`{payload['valid_dwg_files']}`",
         f"无效 DWG 头：`{payload['invalid_dwg_files']}`",
         f"主审计页数：`{payload['primary_audit_pages']}`",
+        f"补充审计页数：`{payload['supplemental_audit_pages']}`",
+        f"纳入审计总页数：`{payload['included_audit_pages']}`",
         f"成功转换页数：`{payload['converted_pages']}`",
         f"转换失败页数：`{payload['failed_pages']}`",
         "",
@@ -332,6 +345,7 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             "",
             "## 抽取统计",
             "",
+            f"- AuditPageCounts: `{json.dumps(payload['audit_page_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- Texts: `{payload['stats']['texts']}`",
             f"- Lines: `{payload['stats']['lines']}`",
             f"- Blocks: `{payload['stats']['blocks']}`",

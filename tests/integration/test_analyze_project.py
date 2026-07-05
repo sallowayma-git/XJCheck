@@ -5,6 +5,7 @@ from pathlib import Path
 
 import ezdxf
 import pandas as pd
+import yaml
 from typer.testing import CliRunner
 
 from dwg_audit.cli import app
@@ -114,6 +115,7 @@ def test_analyze_project_only_emits_primary_pages_into_downstream_audit(
 
     run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
     findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
 
     pages = pd.read_parquet(findings_dir / "pages.parquet")
     line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
@@ -134,3 +136,86 @@ def test_analyze_project_only_emits_primary_pages_into_downstream_audit(
     assert set(pairs["sheet_id"].tolist()) == {sheet_by_file["04 回路图.dwg"]}
     assert sheet_by_file["07 屏端子图.dwg"] not in set(line_groups["sheet_id"].tolist())
     assert sheet_by_file["08 封面.dwg"] not in set(line_groups["sheet_id"].tolist())
+    assert findings_payload["primary_audit_pages"] == 1
+    assert findings_payload["supplemental_audit_pages"] == 0
+    assert findings_payload["included_audit_pages"] == 1
+    assert findings_payload["audit_page_counts"] == {
+        "primary": 1,
+        "secondary": 1,
+        "skip": 1,
+        "supplemental": 0,
+    }
+
+
+def test_analyze_project_can_include_supplemental_categories_in_downstream_audit(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "21 元件接线图1.dwg").write_bytes(b"AC1018demo")
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "project": {
+                    "audit_supplemental_categories": ["元件接线图"],
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_text("101", dxfattribs={"insert": (10, 40), "height": 2.5})
+        msp.add_text("202", dxfattribs={"insert": (90, 40), "height": 2.5})
+        msp.add_line((20, 40), (80, 40))
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+
+    page_roles = {row["filename"]: row["audit_role"] for _, row in pages.iterrows()}
+    page_primary = {row["filename"]: bool(row["is_primary_audit_candidate"]) for _, row in pages.iterrows()}
+    sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
+
+    assert page_roles["04 回路图.dwg"] == "primary"
+    assert page_roles["21 元件接线图1.dwg"] == "supplemental"
+    assert page_primary["21 元件接线图1.dwg"] is True
+    assert set(line_groups["sheet_id"].tolist()) == {
+        sheet_by_file["04 回路图.dwg"],
+        sheet_by_file["21 元件接线图1.dwg"],
+    }
+    assert findings_payload["primary_audit_pages"] == 1
+    assert findings_payload["supplemental_audit_pages"] == 1
+    assert findings_payload["included_audit_pages"] == 2
+    assert findings_payload["audit_page_counts"] == {
+        "primary": 1,
+        "secondary": 0,
+        "skip": 0,
+        "supplemental": 1,
+    }

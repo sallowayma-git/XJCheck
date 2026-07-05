@@ -389,3 +389,53 @@
 - 当前配置已新增 `audit_supplemental_categories` 入口。
 - 默认仍为空，因此两套样本当前行为不变：`元件接线图 / 屏端子图 / 背板图` 仍默认排除在主审计之外。
 - 如果后续要针对某一类页型做试跑，不必再改代码主逻辑，只需显式把类别加入 `audit_supplemental_categories`，对应页会进入 `supplemental` 审计角色并纳入 pair / audit 主链。
+
+## 20. 2026-07-05 Supplemental 页型试跑结论
+
+本轮对两类候选 supplemental 页型分别做了真实试跑：
+
+- `元件接线图`：
+  - 第一套产物：[supplemental_component_first](/F:/workspace/XJToolkit/.tmp/supplemental_component_first)
+  - 第二套产物：[supplemental_component_second](/F:/workspace/XJToolkit/.tmp/supplemental_component_second)
+- `屏端子图`：
+  - 第一套产物：[supplemental_terminal_first](/F:/workspace/XJToolkit/.tmp/supplemental_terminal_first)
+  - 第二套产物：[supplemental_terminal_second](/F:/workspace/XJToolkit/.tmp/supplemental_terminal_second)
+
+相对当前 baseline 的关键对比如下：
+
+- 第一套 baseline `[page_strategy_first](/F:/workspace/XJToolkit/.tmp/page_strategy_first)`：
+  - `included_pages=13`
+  - `line_groups=553`
+  - `pair_status = {'discard': 297, 'review': 256}`
+  - `issue_count=481`
+- 第二套 baseline `[page_strategy_second](/F:/workspace/XJToolkit/.tmp/page_strategy_second)`：
+  - `included_pages=13`
+  - `line_groups=672`
+  - `pair_status = {'discard': 208, 'review': 464}`
+  - `issue_count=921`
+
+把 `元件接线图` 作为 supplemental 纳入后：
+
+- 第一套 `included_pages: 13 -> 16`，但 `line_groups / pairs / issues` 全部不变。
+- 第二套 `included_pages: 13 -> 15`，但 `line_groups / pairs / issues` 全部不变。
+- 逐页结果全部是 `pair_count=0`、`issue_count=0`：
+  - 第一套 `21-23 元件接线图`
+  - 第二套 `19-20 元件接线图`
+
+把 `屏端子图` 作为 supplemental 纳入后：
+
+- 第一套 `included_pages: 13 -> 17`，`line_groups: 553 -> 948`，新增 `395` 个 pair，且全部为 `discard`；`issue_count` 仍为 `481`。
+- 第二套 `included_pages: 13 -> 17`，`line_groups: 672 -> 1114`，新增 `442` 个 pair，且全部为 `discard`；`issue_count` 仍为 `921`。
+- 逐页结果如下：
+  - 第一套 `24-27 端子图` 共新增 `395` 个 pair，`both_present=0`，全部 `discard`
+  - 第二套 `21-24 端子图` 共新增 `442` 个 pair，`both_present=0`，全部 `discard`
+
+直接结论：
+
+- 当前不应把 `元件接线图` 默认加入 `audit_supplemental_categories`。它现在不是“噪音很多”，而是“几乎没有进入可审计几何主链”。
+- 当前也不应把 `屏端子图` 默认加入 `audit_supplemental_categories`。它虽有大量真实线组，但在现有候选与配对策略下只会制造大批 `discard`。
+- 如果后续要优先攻克一个 supplemental 页型，应先做 `屏端子图`，因为它已经暴露出明确的“几何存在、候选不对”问题；`元件接线图` 则更像抽取层尚未真正理解的块驱动页型。
+
+补充实现状态：
+
+- 生成型 `findings.json / findings.md` 已补充 `primary_audit_pages / supplemental_audit_pages / included_audit_pages` 三组指标，避免 supplemental 试跑时仍把纳入页数误读成“主审计页数”。
