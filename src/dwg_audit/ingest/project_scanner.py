@@ -15,6 +15,8 @@ from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.ingest.sidecar_parser import extract_device_name
 from dwg_audit.ingest.sidecar_parser import parse_prj
 from dwg_audit.ingest.sidecar_parser import parse_terminal_xml
+from dwg_audit.page_router import infer_page_type_confidence
+from dwg_audit.page_router import infer_route_target
 from dwg_audit.utils.ids import IdFactory
 
 
@@ -225,6 +227,37 @@ def scan_project(input_path: Path, config: dict) -> ProjectScanResult:
                 is_primary_audit_candidate=audit_role in {"primary", "supplemental"},
                 source_refs=source_file.sidecar_refs.copy(),
                 warnings=warnings.copy(),
+                page_type_confidence=round(
+                    infer_page_type_confidence(
+                        SheetRecord(
+                            sheet_id="",
+                            file_id=source_file.file_id,
+                            filename=dwg_path.name,
+                            sheet_order=source_file.sheet_order,
+                            sheet_no=page_no,
+                            sheet_title=title,
+                            sheet_category=category,
+                            audit_role=audit_role,
+                            page_no_source=page_source,
+                            is_primary_audit_candidate=audit_role in {"primary", "supplemental"},
+                        )
+                    ),
+                    2,
+                ),
+                route_target=infer_route_target(
+                    SheetRecord(
+                        sheet_id="",
+                        file_id=source_file.file_id,
+                        filename=dwg_path.name,
+                        sheet_order=source_file.sheet_order,
+                        sheet_no=page_no,
+                        sheet_title=title,
+                        sheet_category=category,
+                        audit_role=audit_role,
+                        page_no_source=page_source,
+                        is_primary_audit_candidate=audit_role in {"primary", "supplemental"},
+                    )
+                ),
             )
         )
 

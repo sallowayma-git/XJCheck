@@ -70,6 +70,8 @@ class SheetRecord:
     frame_bbox: BBox | None = None
     title_block_bbox: BBox | None = None
     audit_area_bbox: BBox | None = None
+    page_type_confidence: float | None = None
+    route_target: str | None = None
 
 
 @dataclass(slots=True)
@@ -158,6 +160,7 @@ class LineGroup:
     member_line_ids: list[str] = field(default_factory=list)
     layer_hints: list[str] = field(default_factory=list)
     orientation: str = "horizontal"
+    row_band_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -184,6 +187,7 @@ class TerminalCandidate:
     text_type_score: float | None = None
     height_score: float | None = None
     rank: int | None = None
+    source_block_name: str | None = None
 
 
 @dataclass(slots=True)
@@ -247,6 +251,23 @@ class ExtractionWarning:
     code: str
     message: str
     severity: str = "warning"
+
+
+@dataclass(slots=True)
+class PageClassification:
+    """Page Classification Layer 输出（任务书第 4 层）。
+
+    基于几何统计特征判定页型，独立于文件名/sidecar 启发式。
+    """
+
+    sheet_id: str
+    page_type: str
+    page_subtype: str | None
+    page_type_confidence: float
+    table_like: bool
+    grid_heavy: bool
+    route_target: str
+    features: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

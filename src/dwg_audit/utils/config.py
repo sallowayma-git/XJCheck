@@ -49,6 +49,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "inline_numeric_bridge_y_tolerance": 4.0,
         "endpoint_search_radius_x": 18.0,
         "endpoint_search_radius_y": 7.0,
+        "grid_band_y_tolerance": 5.0,
+        "grid_min_band_count": 8,
     },
     "text": {
         "numeric_pattern": r"^[0-9]+$",
@@ -61,6 +63,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "single_char_penalty_layers": ["DIM", "MARK"],
         "single_char_penalty": 0.12,
         "single_char_reject_layers": [],
+        "block_internal_numeric_penalty": -0.15,
     },
     "extract": {
         "insert_virtual_entity_categories": ["元件接线图"],
@@ -91,7 +94,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
             },
             "text": {
                 "numeric_suffix_patterns": [r"(?i)n(?P<value>\d{3,})$"],
-                "derived_numeric_penalty": 0.08,
+                "derived_numeric_penalty": -0.08,
+                "terminal_strip_bypass_patterns": [
+                    r"未定义.*回路图",
+                    r"说明",
+                    r"^上接",
+                    r"^下接",
+                    r"^(?:ZD|3-21UD|3-21ID|3-21GD|3-21QD)$",
+                ],
+                "terminal_strip_distance_x_weight": 0.2,
+                "terminal_strip_distance_y_weight": 0.45,
             }
         }
     },
@@ -109,6 +121,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "R-MANY-TO-ONE",
             "R-MISSING-RECIPROCAL",
             "R-DUPLICATE-PAIR",
+            "R-SHEET-PAGE-MISMATCH",
         ],
         "reciprocal_required": False,
         "one_to_many_branch_left_values": [],
@@ -117,6 +130,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "include_low_confidence_pairs": True,
         "include_candidate_details": True,
         "export_formats": ["xlsx", "html", "md"],
+    },
+    "runtime": {
+        "persist_page_findings_files": False,
     },
 }
 

@@ -1,10 +1,10 @@
-# Task Plan: XJToolkit M9 Desktop Delivery
+# Task Plan: XJToolkit DWG Audit MVP Closure
 
 ## Goal
-根据 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 持续推进桌面端与审计主链开发，先提交已暂存的结果页增强改动，再补齐 Tauri 桌面端 `M9` 的高价值缺口，同时把关键发现持续沉淀到 [doc/findings.md](/F:/workspace/XJToolkit/doc/findings.md)。
+重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 13
+Phase 15
 
 ## Phases
 
@@ -95,11 +95,25 @@ Phase 13
 - [x] 把“低置信 pair 降低、missing-side 显性化上升”的结论写回 findings / progress / plan
 - **Status:** complete
 
+### Phase 14: Taskbook Completion Audit
+- [x] 逐条重读任务书，按“强证据 / 部分实现 / 未完成 / 偏航”重做完成度审计
+- [x] 用并发子代理只读核验“页级分类/路由接管程度”和“TableExtractor 真实闭环程度”
+- [x] 把任务书完成度审计与优先级裁决写回 `doc/findings.md`
+- [x] 明确本轮唯一核心切片是“元件接线图不再误路由成 Wire/Table”
+- **Status:** complete
+
+### Phase 15: Component Route Closure
+- [x] 修正 `page_classifier.py` 中元件接线图对 `grid_heavy/table_like` 的优先级
+- [x] 补元件页优先级单测，避免 horizontal component 再被误判成 wire/table
+- [x] 跑定向 pytest 与两套真实样本 `analyze-project + run-audit`
+- [x] 用真实样本证明 component 页已回到 `ComponentDiagramExtractor`，并确认当前两套样本暂无稳定 table 命中
+- **Status:** complete
+
 ## Key Questions
-1. Batch 1 的强网格化开入回路页，最终会沉淀成 `WireDiagramExtractor` 的 `binary_input_grid` 子模式，还是需要一个介于 wire/table 之间的新路由标签？
-2. 在 `findings` 已明确转成内部运行态后，下一步是否优先把 sidecar / SQLite 真正接成页级记录的承载层？
-3. Batch 2 是否应优先先落 `S0019` 的 `horizontal_component_block_pin`，还是先落 `S0021` 的 `terminal_strip_column_mode`？
-4. 端子页的语义行小数字在被旁路后，下一步应直接进入语义通道，还是先给 `missing-side` / continuation 做 specialized pair 语义？
+1. continuation-aware pairing 应该先把 `420->420 / 110->110 / 109->109` 明确改成哪种结构化语义：branch、continuation 还是 semantic-link？
+2. `issues.json` / `issues.parquet` 中的 `evidence` 和 `evidence_refs` 是否应先收口成真正的结构化对象，再继续扩展更多规则？
+3. 当前两套真实样本已无稳定 table 命中；下一步是否需要隔离合成/变异样本，专门证明 `TableExtractor` 的真实闭环？
+4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
 ## Decisions Made
 | Decision | Rationale |
@@ -119,6 +133,8 @@ Phase 13
 | `S0021` 的第一刀优先放在 `candidates.py` 的 terminal-strip 候选层，而不是先扩大 suffix regex | 当前主问题是固定列带内的多行竞争与 endpoint 语义错位，先做 line-span query + row-lock + 端子页专用打分，能最小风险地把真实 pair 从 discard 翻到 review |
 | `右侧端子图` 应按 mirrored terminal-strip 处理，而不是复用左侧页列偏移 | 当前真实样本已证明右侧页稳定列带是 `start_x+26` 的派生端子列和 `start_x+48.5` 的纯数字列，直接复用左侧页 gate 会把整页候选过滤干净 |
 | `310-385` 短桥接带要按“延续列 / 局部序号列 / 单侧 continuation”处理，而不是继续让同一列参与左右两侧候选排序 | 当前真实样本已经证明，这个区段的主要收益不是扩大召回，而是消除 `110 -> 110`、`10 -> 10` 这类假双侧自配对 |
+| 任务书完成度必须以当前代码 + 当前测试 + 当前真实样本产物审计为准，而不是以桌面端完成度或历史叙事为准 | 用户已明确要求重新回到 DWG 审计 MVP 主链 |
+| 元件接线图必须先保 `ComponentDiagramExtractor` 身份，不能再被 `grid_heavy/table_like` 抢走路由 | 这是当前两套真实样本里“页级分类 + 路由闭环”最短路径上的核心缺口 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -132,6 +148,7 @@ Phase 13
 - 本轮不要触碰其他 agent 正在改的文件内容；若发生重叠，先读清现状再合并。
 - 每个阶段结束后回写 `progress.md`，关键发现回写 `doc/findings.md`。
 - 当前桌面端下一优先级不再是“是否能原生构建”，因为 `cargo check` 与 `tauri build` 都已实跑通过。
+- 当前主线程优先级已经重新收口到任务书主链；桌面端、preview、Tauri 打包都不再是主目标。
 - 当前主线程应把更多注意力切回用户刚补充的 DWG 事实基线：第二套样本实跑、`DIM` 单字符候选降权、跨 inline 数字断线重连、页型策略收口。
 - 第二套样本当前最适合作为后续整改验证的页面已经收敛为：
   - `08 测控1开入回路图1.dwg`
@@ -147,6 +164,11 @@ Phase 13
   - 第一套总体 issue `518 -> 487`，同样表现为 `LOW-CONFIDENCE` 明显下降、`MISSING-SIDE` 显性化上升
   - 子代理只读复核认为这批被打掉的 `417->41`、`132->20`、`105->10`、`214->2` 更像语义行局部序号，而不是必须保留的 ordinary terminal pair
   - 所以下一步更适合做 continuation / semantic channel 的 specialized 解释，而不是立刻回滚这条候选层护栏
+- 最新 `phase17_component_route_closure_{second,first}` 实跑已确认：
+  - 第二套 `S0019/S0020` 已回到 `page_type=元件接线图`、`route_target=ComponentDiagramExtractor`
+  - 第一套 `S0022/S0023/S0024` 已回到 `ComponentDiagramExtractor`，其中 `S0023` 不再是假 `TableExtractor`
+  - 两套样本当前都没有稳定 `TableExtractor` 命中，`table_extraction_summary` 均为 `table_pages=0 / total_mappings=0`
+  - 第二套总 issue 不变，第一套因 `S0023` 重新进入 component 审计链而 `487 -> 517`
 - 最新 `phase7_vertical_component_second` 实跑已确认：
   - `20 元件接线图2.dwg` 进入 `55 line_groups / 55 pairs / 55 issues`，orientation 全为 `vertical`
   - `08 测控1开入回路图1.dwg` issue 总量 `96 -> 49`，其中 `47` 条变为“互补半链待复核”

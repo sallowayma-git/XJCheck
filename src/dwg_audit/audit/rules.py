@@ -409,9 +409,98 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
         for pair in context.pairs
         if pair.left_value
         and pair.right_value
-        and pair.confidence >= context.high_threshold
-        and (pair.status == "pass" or pair.confidence_bucket == "high")
+        and (
+            (pair.confidence >= context.high_threshold and (pair.status == "pass" or pair.confidence_bucket == "high"))
+            or pair.evidence.get("source") == "table_mapping"
+        )
     ]
+
+
+def _run_sheet_page_mismatch(context: RuleContext) -> list[Issue]:
+    """R-SHEET-PAGE-MISMATCH：文件名页码与标题栏页码不一致。
+
+    触发条件：当 page_no_source 包含 filename 和 title_block 两个来源，
+    且两者解析出的页码不一致时，输出 major 级 issue。
+    """
+    issues: list[Issue] = []
+    for sheet in context.sheets:
+        filename_page_no = _extract_filename_page_no(sheet.filename)
+        title_block_page_no = _extract_title_block_page_no(sheet)
+        if filename_page_no is None or title_block_page_no is None:
+            continue
+        if filename_page_no == title_block_page_no:
+            continue
+        issue_id = context.issue_factory.issue_ids.next()
+        evidence = {
+            "filename": sheet.filename,
+            "sheet_no": sheet.sheet_no,
+            "sheet_order": sheet.sheet_order,
+            "filename_page_no": filename_page_no,
+            "title_block_page_no": title_block_page_no,
+            "page_no_source": sheet.page_no_source,
+        }
+        issues.append(
+            Issue(
+                issue_id=issue_id,
+                rule_id="R-SHEET-PAGE-MISMATCH",
+                severity="major",
+                status="open",
+                confidence=0.9,
+                message=f"Filename page no '{filename_page_no}' differs from title block page no '{title_block_page_no}'.",
+                sheet_id=sheet.sheet_id,
+                file_id=sheet.file_id,
+                pair_id=None,
+                line_group_id=None,
+                left_value=None,
+                right_value=None,
+                evidence=evidence,
+                issue_type="sheet_page_mismatch",
+                title="页码不一致",
+                summary=f"文件名页码 {filename_page_no} 与标题栏页码 {title_block_page_no} 不一致。",
+                explanation="文件名推断的页码与标题栏推断的页码不匹配，可能存在命名错误或标题栏填写错误。",
+                recommended_action="核对文件名与标题栏页码，确认哪个是正确的页码并修正另一个。",
+                primary_pair_id=None,
+                related_pair_ids=[],
+                sheet_ids=[sheet.sheet_id] if sheet.sheet_id else [],
+                values=[filename_page_no, title_block_page_no],
+                evidence_refs=[
+                    {
+                        "sheet_id": sheet.sheet_id,
+                        "filename": sheet.filename,
+                        "sheet_no": sheet.sheet_no,
+                        "sheet_order": sheet.sheet_order,
+                    }
+                ],
+            )
+        )
+    return issues
+
+
+def _extract_filename_page_no(filename: str) -> str | None:
+    """从文件名前缀提取页码，例如 '08 测控1开入回路图1.dwg' -> '08'。"""
+    if not filename:
+        return None
+    # 取文件名开头连续数字
+    stripped = filename.strip()
+    digits = ""
+    for char in stripped:
+        if char.isdigit():
+            digits += char
+        else:
+            break
+    return digits if digits else None
+
+
+def _extract_title_block_page_no(sheet: SheetRecord) -> str | None:
+    """从 sheet_no 提取标题栏页码。
+
+    当 page_no_source 标记为 title_block 时，sheet_no 即来自标题栏；
+    当 page_no_source 为 filename 时，sheet_no 也可能来自文件名。
+    这里保守地返回 sheet_no，让上游对比逻辑只在两者都有值时触发。
+    """
+    if sheet.page_no_source not in {"title_block", "filename", "prj"}:
+        return None
+    return sheet.sheet_no
 
 
 def _graph_maps(
@@ -522,5 +611,14 @@ _RULES = [
         runner=_run_duplicate_pair,
         input_tables=("pairs",),
         output_issue_type="duplicate_pair",
+    ),
+    AuditRule(
+        rule_id="R-SHEET-PAGE-MISMATCH",
+        name="Sheet Page Mismatch",
+        description="Filename page number differs from title block page number.",
+        severity_default="major",
+        runner=_run_sheet_page_mismatch,
+        input_tables=("pages",),
+        output_issue_type="sheet_page_mismatch",
     ),
 ]

@@ -2590,3 +2590,177 @@ Batch 2 已完成的端子页是：
   1. continuation / semantic row 的 specialized pair 语义
   2. `missing-side` 中哪些应转为“语义旁注”而不是 issue
   3. 是否把 `DK/KLP/ZKK/CLP` 这类语义列真正送入单独通道，而不是继续让它们只以 rejection marker 身份存在
+
+## 57. 2026-07-06 任务书逐条完成度审计
+
+根据当前工作树、当前测试、当前 `.tmp` 真实样本产物，对 [任务书.md](./任务书.md) 的主链要求做一次重新对齐后的完成度审计。这里不再把“桌面端做了很多”当成功，而只看 DWG 审计 MVP 主链是否被强证据证明。
+
+### 57.1 审计口径
+
+本轮状态标签只分四类：
+
+- `已完成（强证据）`
+- `部分实现但未验证`
+- `明确未完成`
+- `已偏航`
+
+强证据仅接受：
+
+- 当前仓库代码
+- 当前测试
+- 当前 `.tmp` 真实样本产物
+- 当前导出报告 / findings / audit
+
+不接受“文件已经存在”“之前做过”“历史上跑通过”的间接叙述。
+
+### 57.2 主链完成度总表
+
+| 任务书要求 | 当前状态 | 证据 / 结论 |
+|---|---|---|
+| 输入一个项目目录下的多张 DWG，稳定生成结构化 findings 运行态 | 已完成（强证据） | 两套真实样本都能稳定产出 `manifest.json + findings/`，见 `.tmp/phase16_terminal_semantic_rows_{second,first}`。 |
+| findings 默认属于内部运行态，不再把 `page_findings` 当默认正式交付物 | 已完成（强证据） | 最新真实样本产物默认没有 `findings/page_findings/` 目录，但 `findings.json` 仍保留 `page_findings_count/page_findings`。 |
+| 先做页级分类，再决定识别器 | 部分实现但未验证 | `pipeline.py` 已先 `classify_pages()` 再 `enrich_pages_from_classifications()`；`findings.json.page_findings[]` 里也有 `page_type/route_target`。但真实样本里元件页仍被误判成 `WireDiagramExtractor` 或 `TableExtractor`，说明“已接入”不等于“已闭环”。 |
+| Page Router 真实决定 extractor 分流 | 部分实现但未验证 | 当前强证据已能证明：`LayoutOnlyExtractor` 页不会进 PairBuilder，元件页已能稳定命中 `ComponentDiagramExtractor`，端子页已能稳定命中 `TerminalDiagramExtractor`。但 `Wire/Component/Terminal` 仍共享 PairBuilder 主链，不能说已经彻底拆成完全独立 extractor。 |
+| 普通回路图不能继续退化成“所有图同一条几何 pair page” | 部分实现但未验证 | 真实产物已出现 `grid / horizontal / vertical` 三种 `line_group` 形态，说明不是所有页都完全同构；但 `Wire/Component/Terminal` 仍共享同一条 `build_line_groups -> build_terminal_candidates -> build_pairs` 主链，只是内部再分支。 |
+| 普通回路图页型覆盖 | 已完成（强证据） | 两套样本中的 `04-16` 主回路页均稳定产出 `WireDiagramExtractor` 路由和非零 `line_group/pair`。 |
+| 端子图页型覆盖 | 已完成（强证据） | 两套样本中的 `S0021-S0024` / `S0025-S0028` 稳定命中 `TerminalDiagramExtractor`，并产出大量 pair / issue。 |
+| 元件接线图页型覆盖 | 已完成（强证据） | 最新 `phase17_component_route_closure_{second,first}` 中，第二套 `S0019/S0020` 与第一套 `S0022/S0023/S0024` 均已回到 `page_type=元件接线图`、`route_target=ComponentDiagramExtractor`，并保留 component 风格 pair 产物。 |
+| 表格型图页型覆盖，或明确证明真实样本暂无该类命中 | 已完成（强证据） | 最新 `phase17_component_route_closure_{second,first}` 的 `table_extraction_summary` 都是 `table_pages=0 / total_mappings=0`，且两套真实样本都没有稳定 `TableExtractor` 命中；这说明当前两套真实项目里暂无被稳定识别出的表格型页。 |
+| 表格型图要形成独立高置信信源（`table_mapping`） | 部分实现但未验证 | `table_extractor.py`、单测和规则接线都存在，但我在当前 `.tmp` 真实样本产物中没有找到任何 `table_mapping`、`evidence.source=table_mapping` 或非零 `table_extraction_summary`。 |
+| 背板图必须识别但默认不进入配对审计 | 已完成（强证据） | 两套最新真实产物中背板图均为 `LayoutOnlyExtractor` / `line_group_count=0 / pair_count=0`。 |
+| terminal 页语义列应从普通 pair 中正确分流 | 部分实现但未验证 | `terminal_semantic_local_numeric` 已在真实样本上起效，能把 `403->10`、`602->4`、`417->41` 一类伪 ordinary pair 收口为 `missing-side`；但它目前仍是 rejection guard，还没升级成独立“语义通道”。 |
+| continuation 类 pair 需要专用语义，而不是继续误当普通 pair | 明确未完成 | `S0021/S0024/S0027` 的短桥接带虽然已不再 `X->X` 自配对，但 `420->420 / 110->110 / 109->109` 一类双延续列同值 continuation 仍没有专用语义。 |
+| `run-audit` 输出 issue 必须具备可复核证据字段 | 部分实现但未验证 | `issues.json/parquet` 里确实有 `filename/sheet_id/line_group_id/left_value/right_value/rule_id/confidence/evidence_refs`，但 `evidence` 和 `evidence_refs` 当前被序列化成字符串，不是直接结构化对象。证据“存在”，但最终交付形态还不够干净。 |
+| 规则必须基于 findings，不允许直接回读 DWG | 已完成（强证据） | `run-audit` 只消费 `findings/` 产物；`rules.py` 不触碰 DWG/DXF。 |
+| 默认不把 `page_findings` 当长期正式交付 | 已完成（强证据） | 当前默认运行态已满足。 |
+| 不能继续依赖单一大脚本解释所有图种 | 部分实现但未验证 | 方向上已经拆出 `PageClassifier / PageRouter / TableExtractor`，但真实样本还不能证明 component/table 分支已经稳定成立。 |
+| 真实正确样本不应被打出大量 hard error 洪峰 | 已完成（强证据） | 当前两套真实样本的 issue 主要是 `review` 型 `R-PAIR-LOW-CONFIDENCE / R-PAIR-MISSING-SIDE`，没有出现“把整套图当明显错误”的 hard error 洪峰。 |
+
+### 57.3 当前距离主链闭环最近的未完成项
+
+在 `phase17_component_route_closure_{second,first}` 重新读图之后，元件页误路由问题已经明显收口，因此当前最接近任务书主链的剩余未完成项收敛为两条：
+
+1. **continuation-aware pairing 仍未建立专用语义。**
+   - `S0021/S0024/S0027` 里双延续列同值 `420->420 / 110->110 / 109->109` 仍未脱离普通 pair 语义。
+2. **issue 证据虽然完整存在，但导出形态仍偏“字符串包 JSON”。**
+   - `issues.json` / `issues.parquet` 中 `evidence`、`evidence_refs` 仍被序列化成字符串，而不是直接结构化对象。
+
+这两条比“继续做桌面端”更接近任务书主链，也比继续堆 `candidates.py` 阈值更直接回答“审计证据是否可复核、continuation 是否被正确理解”。
+
+### 57.4 本轮不应继续优先的工作
+
+以下工作本身可能有价值，但在当前任务书闭环审计下，不应继续占主优先级：
+
+1. 桌面端 UI / Tauri / preview / 报告交互体验
+2. 继续单纯以总 issue 数升降来评价成功
+3. 在 `candidates.py` 里继续做不回答页型问题的全局阈值堆叠
+4. 把 `TableExtractor` 文件存在本身，当作“表格链已完成”的证明
+5. 把 `page_findings` 默认落盘重新当作正式交付物
+
+### 57.5 因此，本轮唯一合理的核心切片
+
+基于以上审计，本轮主线程已经先完成了：
+
+- **修正并验证“元件接线图不应再被误路由成 Wire/Table”这一页级分类/路由闭环切片。**
+
+下一轮若继续沿任务书最短路径推进，更合适的目标将是：
+
+- continuation-aware pairing 的专用语义；
+- 或 issue 导出中的结构化证据收口。
+
+## 58. 2026-07-06 `phase17_component_route_closure`：元件接线图已从 Wire/Table 误路由中收口
+
+基于 57 节的任务书完成度审计，本轮只推进了一个核心切片：
+
+- 修正页级分类器里“元件接线图先保组件页身份”的优先级；
+- 不再让 `grid_heavy` 或 `table_like` 在真实元件页上抢走路由。
+
+### 58.1 本轮代码变化
+
+本轮只修改页级分类切片：
+
+- [page_classifier.py](/F:/workspace/XJToolkit/src/dwg_audit/page_classifier.py)
+  - `元件接线图` 现在优先判为：
+    - `vertical_component`
+    - 或 `horizontal_component`
+  - 不再先被 `table_like` 或 `grid_heavy` 抢成：
+    - `表格型图`
+    - `二次原理图`
+- [test_page_classifier.py](/F:/workspace/XJToolkit/tests/unit/test_page_classifier.py)
+  - 新增：
+    - horizontal component 优先于 `grid_heavy`
+    - component 优先于 `table_like`
+
+### 58.2 定向测试结果
+
+- `python -m pytest -q tests/unit/test_page_classifier.py tests/unit/test_table_extractor.py tests/unit/test_line_groups.py tests/unit/test_pairs_and_rules.py`
+  - `42 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "component or terminal or page_findings or supplemental"`
+  - `10 passed`
+
+### 58.3 真实样本 rerun 结果
+
+第二套：
+
+- [phase17_component_route_closure_second/2_2](/F:/workspace/XJToolkit/.tmp/phase17_component_route_closure_second/2_2)
+- `S0019 / 19 元件接线图1.dwg`
+  - `page_type = 元件接线图`
+  - `page_subtype = horizontal_component`
+  - `route_target = ComponentDiagramExtractor`
+  - `pair_count = 39`
+- `S0020 / 20 元件接线图2.dwg`
+  - `page_type = 元件接线图`
+  - `route_target = ComponentDiagramExtractor`
+  - `pair_count = 54`
+  - `non_discard_pair_count = 24`
+- 全项目 `route_target` 分布变成：
+  - `WireDiagramExtractor: 13`
+  - `ComponentDiagramExtractor: 2`
+  - `TerminalDiagramExtractor: 4`
+  - `LayoutOnlyExtractor: 2`
+  - `SkipExtractor: 3`
+- `table_extraction_summary`
+  - `table_pages = 0`
+  - `total_mappings = 0`
+
+第一套：
+
+- [phase17_component_route_closure_first](/F:/workspace/XJToolkit/.tmp/phase17_component_route_closure_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- `S0022 / 21 元件接线图1.dwg`
+  - `route_target = ComponentDiagramExtractor`
+  - `pair_count = 47`
+- `S0023 / 22 元件接线图2.dwg`
+  - 不再是假 `TableExtractor`
+  - 现在为：
+    - `page_type = 元件接线图`
+    - `route_target = ComponentDiagramExtractor`
+    - `pair_count = 68`
+    - `non_discard_pair_count = 30`
+- `S0024 / 23 元件接线图3.dwg`
+  - `route_target = ComponentDiagramExtractor`
+  - `pair_count = 36`
+- 全项目 `table_extraction_summary`
+  - `table_pages = 0`
+  - `total_mappings = 0`
+
+### 58.4 对任务书主链的意义
+
+这轮的真正收益不是“issue 变少”，而是：
+
+1. **元件接线图终于被真实样本明确命中到 `ComponentDiagramExtractor`。**
+2. **之前那个假表格页 `S0023` 已被收回，不再拿“文件里有 TableExtractor”冒充表格链完成。**
+3. **当前两套真实项目都没有稳定 `TableExtractor` 命中，因此现在可以更有把握地说：这两套真实样本中暂无被稳定识别出的表格型页。**
+
+### 58.5 下游 audit 影响
+
+- 第二套总 issue：
+  - `697 -> 697`
+  - 说明这刀主要修正的是页型/路由闭环证据，没有扰动现有审计结果。
+- 第一套总 issue：
+  - `487 -> 517`
+  - 原因不是简单回退，而是 `S0023` 从假 `TableExtractor / 0 pair` 回到真实 component 链后，新增了 `30` 条 non-discard pair，正式进入审计主链。
+
+直接结论：
+
+- 从任务书视角看，这个变化是朝正确方向前进，因为它让“元件接线图属于 component 路由”这件事第一次被真实样本严格证明了。
+- 当前仍不能把 `TableExtractor` 视为真实样本闭环能力，但现在至少不会再被假阳性的 `table_like` 页误导。

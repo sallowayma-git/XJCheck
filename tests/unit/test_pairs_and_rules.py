@@ -519,3 +519,224 @@ def test_build_pairs_supports_vertical_group_side_labels() -> None:
     assert pair.evidence["line_orientation"] == "vertical"
     assert pair.evidence["left_side_label"] == "top"
     assert pair.evidence["right_side_label"] == "bottom"
+
+
+def test_build_pairs_discards_same_virtual_text_stub_on_horizontal_component_page() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=60.0,
+            start_y=40.0,
+            end_x=85.0,
+            end_y=40.0,
+            length=25.0,
+            wire_candidate_score=0.92,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "19 元件接线图1.dwg", 19, "19", "元件接线图1", "元件接线图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001", "G0001", "S0001", "F0001", "left", "T1", "2", "2", 0.96, "accepted", None, 60.0, 40.0, 1.0, 0.0,
+            61.5, 40.0, source_block_name="KK1P"
+        ),
+        TerminalCandidate(
+            "C0002", "G0001", "S0001", "F0001", "right", "T1", "2", "2", 0.95, "accepted", None, 85.0, 40.0, 1.0, 0.0,
+            61.5, 40.0, source_block_name="KK1P"
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.status == "discard"
+    assert pair.rationale == "self_pair_from_same_virtual_text"
+    assert pair.evidence["selected_left_source_block_name"] == "KK1P"
+    assert pair.evidence["selected_right_source_block_name"] == "KK1P"
+
+
+def test_build_pairs_discards_same_block_single_digit_internal_pin_pair_on_horizontal_component_page() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=60.0,
+            start_y=40.0,
+            end_x=85.0,
+            end_y=40.0,
+            length=25.0,
+            wire_candidate_score=0.92,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "19 元件接线图1.dwg", 19, "19", "元件接线图1", "元件接线图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001", "G0001", "S0001", "F0001", "left", "T1", "2", "2", 0.96, "accepted", None, 60.0, 40.0, 1.0, 0.0,
+            61.5, 40.0, source_block_name="KK2P"
+        ),
+        TerminalCandidate(
+            "C0002", "G0001", "S0001", "F0001", "right", "T2", "4", "4", 0.95, "accepted", None, 85.0, 40.0, 1.0, 0.0,
+            83.5, 40.0, source_block_name="KK2P"
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.status == "discard"
+    assert pair.rationale == "block_internal_pin_pair"
+    assert pair.evidence["selected_left_source_block_name"] == "KK2P"
+    assert pair.evidence["selected_right_source_block_name"] == "KK2P"
+
+
+def test_build_pairs_keeps_same_block_multi_digit_component_pair() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=0,
+            start_y=0,
+            end_x=100,
+            end_y=0,
+            length=100,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "19 元件接线图1.dwg", 19, "19", "元件接线图1", "元件接线图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001", "G0001", "S0001", "F0001", "left", "T1", "101", "101", 0.96, "accepted", None, 0, 0, 1, 0,
+            10.0, 20.0, source_block_name="COMP_ROW"
+        ),
+        TerminalCandidate(
+            "C0002", "G0001", "S0001", "F0001", "right", "T2", "202", "202", 0.95, "accepted", None, 100, 0, 1, 0,
+            90.0, 20.0, source_block_name="COMP_ROW"
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.status == "pass"
+    assert pair.left_value == "101"
+    assert pair.right_value == "202"
+
+
+def test_build_issues_emits_sheet_page_mismatch_when_filename_and_title_block_differ() -> None:
+    """R-SHEET-PAGE-MISMATCH：文件名页码与标题栏页码不一致时应触发 major issue。"""
+    config = deepcopy(DEFAULT_CONFIG)
+    sheets = [
+        SheetRecord(
+            sheet_id="S0001",
+            file_id="F0001",
+            filename="08 测控1开入回路图1.dwg",
+            sheet_order=8,
+            sheet_no="09",  # 标题栏页码与文件名 08 不一致
+            sheet_title="测控1开入回路图1",
+            sheet_category="二次原理图",
+            audit_role="primary",
+            page_no_source="title_block",
+            is_primary_audit_candidate=True,
+        )
+    ]
+
+    issues = build_issues([], [], sheets, config)
+
+    mismatch_issues = [issue for issue in issues if issue.rule_id == "R-SHEET-PAGE-MISMATCH"]
+    assert len(mismatch_issues) == 1
+    issue = mismatch_issues[0]
+    assert issue.severity == "major"
+    assert issue.issue_type == "sheet_page_mismatch"
+    assert issue.evidence["filename_page_no"] == "08"
+    assert issue.evidence["title_block_page_no"] == "09"
+
+
+def test_build_issues_does_not_emit_sheet_page_mismatch_when_page_numbers_match() -> None:
+    """文件名页码与标题栏页码一致时不应触发 R-SHEET-PAGE-MISMATCH。"""
+    config = deepcopy(DEFAULT_CONFIG)
+    sheets = [
+        SheetRecord(
+            sheet_id="S0001",
+            file_id="F0001",
+            filename="08 测控1开入回路图1.dwg",
+            sheet_order=8,
+            sheet_no="08",  # 一致
+            sheet_title="测控1开入回路图1",
+            sheet_category="二次原理图",
+            audit_role="primary",
+            page_no_source="title_block",
+            is_primary_audit_candidate=True,
+        )
+    ]
+
+    issues = build_issues([], [], sheets, config)
+
+    mismatch_issues = [issue for issue in issues if issue.rule_id == "R-SHEET-PAGE-MISMATCH"]
+    assert len(mismatch_issues) == 0
+
+
+def test_build_issues_treats_table_mapping_pairs_as_high_confidence_source() -> None:
+    """table_mapping Pair 应作为高置信信源参与跨页冲突校验。"""
+    config = deepcopy(DEFAULT_CONFIG)
+    # 两个 table_mapping pair：S1 的 101->102 和 S2 的 101->103
+    # 同一左值 101 跨页映射到不同右值，应触发 R-CROSS-PAGE-CONFLICT
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id=None,
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="101",
+            right_value="102",
+            confidence=0.95,
+            status="pass",
+            rationale="table mapping",
+            confidence_bucket="high",
+            evidence={"source": "table_mapping"},
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id=None,
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id=None,
+            left_value="101",
+            right_value="103",
+            confidence=0.95,
+            status="pass",
+            rationale="table mapping",
+            confidence_bucket="high",
+            evidence={"source": "table_mapping"},
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "t1.dwg", 1, "01", "t1", None, "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "t2.dwg", 2, "02", "t2", None, "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    cross_page_issues = [issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT"]
+    assert len(cross_page_issues) >= 1
+    issue = cross_page_issues[0]
+    assert "101" in issue.values
+    assert issue.evidence["one_to_many_classification"] == "conflict"

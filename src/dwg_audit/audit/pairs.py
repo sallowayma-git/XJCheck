@@ -20,6 +20,7 @@ def build_pairs(
     for candidate in terminal_candidates:
         by_group_side[(candidate.line_group_id, candidate.side)].append(candidate)
 
+    candidate_map = {candidate.candidate_id: candidate for candidate in terminal_candidates}
     sheet_map = {sheet.sheet_id: sheet for sheet in sheets}
     top_k = int(config.get("text", {}).get("top_k_per_side", 3))
     high_threshold = float(config.get("confidence", {}).get("high_threshold", 0.92))
@@ -79,7 +80,7 @@ def build_pairs(
                     rationale=rationale,
                     alternative_pair_candidate_ids=[],
                     confidence_bucket=_bucket_for_status(status),
-                    evidence=_pair_evidence(group, sheet_map.get(group.sheet_id), single, None),
+                    evidence=_pair_evidence(group, sheet_map.get(group.sheet_id), single, None, candidate_map),
                     left_candidate_id=single.left_candidate_id,
                     right_candidate_id=single.right_candidate_id,
                     left_text_id=single.left_text_id,
@@ -140,6 +141,14 @@ def build_pairs(
         rationale = selected.rationale
         if ambiguous:
             rationale += "; ambiguous candidate ordering"
+        status, rationale = _apply_component_pair_guards(
+            status=status,
+            rationale=rationale,
+            group=group,
+            sheet=sheet_map.get(group.sheet_id),
+            selected=selected,
+            candidate_map=candidate_map,
+        )
 
         pairs.append(
             Pair(
@@ -155,7 +164,7 @@ def build_pairs(
                 rationale=rationale,
                 alternative_pair_candidate_ids=alternative_ids,
                 confidence_bucket=_bucket_for_status(status),
-                evidence=_pair_evidence(group, sheet_map.get(group.sheet_id), selected, alternative_ids),
+                evidence=_pair_evidence(group, sheet_map.get(group.sheet_id), selected, alternative_ids, candidate_map),
                 left_candidate_id=selected.left_candidate_id,
                 right_candidate_id=selected.right_candidate_id,
                 left_text_id=selected.left_text_id,
@@ -182,6 +191,7 @@ def _accepted_sorted(candidates: list[TerminalCandidate]) -> list[TerminalCandid
 def _pair_side_labels(group: LineGroup) -> tuple[str, str]:
     if group.orientation == "vertical":
         return "top", "bottom"
+    # horizontal 和 grid 都走 left/right 侧别语义
     return "left", "right"
 
 
@@ -207,8 +217,11 @@ def _pair_evidence(
     sheet: SheetRecord | None,
     selected: PairCandidate,
     alternative_ids: list[str] | None,
+    candidate_map: dict[str, TerminalCandidate],
 ) -> dict[str, object]:
     left_side, right_side = _pair_side_labels(group)
+    left_candidate = candidate_map.get(selected.left_candidate_id or "")
+    right_candidate = candidate_map.get(selected.right_candidate_id or "")
     return {
         "filename": sheet.filename if sheet else None,
         "sheet_no": sheet.sheet_no if sheet else None,
@@ -218,6 +231,7 @@ def _pair_evidence(
         "line_orientation": group.orientation,
         "line_start": [group.start_x, group.start_y],
         "line_end": [group.end_x, group.end_y],
+        "row_band_id": group.row_band_id,
         "left_side_label": left_side,
         "right_side_label": right_side,
         "selected_pair_candidate_id": selected.pair_candidate_id,
@@ -225,6 +239,8 @@ def _pair_evidence(
         "selected_right_candidate_id": selected.right_candidate_id,
         "selected_left_text_id": selected.left_text_id,
         "selected_right_text_id": selected.right_text_id,
+        "selected_left_source_block_name": left_candidate.source_block_name if left_candidate else None,
+        "selected_right_source_block_name": right_candidate.source_block_name if right_candidate else None,
         "selected_score": selected.score,
         "pair_key": selected.pair_key,
         "score_breakdown": {
@@ -235,6 +251,47 @@ def _pair_evidence(
         },
         "alternative_pair_candidate_ids": alternative_ids or [],
     }
+
+
+def _apply_component_pair_guards(
+    *,
+    status: str,
+    rationale: str,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    candidate_map: dict[str, TerminalCandidate],
+) -> tuple[str, str]:
+    if sheet is None or sheet.sheet_category != "元件接线图" or group.orientation != "horizontal":
+        return status, rationale
+
+    left_candidate = candidate_map.get(selected.left_candidate_id or "")
+    right_candidate = candidate_map.get(selected.right_candidate_id or "")
+    if left_candidate is None or right_candidate is None:
+        return status, rationale
+
+    left_value = (selected.left_value or "").strip()
+    right_value = (selected.right_value or "").strip()
+    left_block = (left_candidate.source_block_name or "").strip()
+    right_block = (right_candidate.source_block_name or "").strip()
+
+    if (
+        selected.left_text_id
+        and selected.left_text_id == selected.right_text_id
+        and len(left_value) == 1
+        and left_value == right_value
+    ):
+        return "discard", "self_pair_from_same_virtual_text"
+
+    if (
+        left_block
+        and left_block == right_block
+        and len(left_value) == 1
+        and len(right_value) == 1
+    ):
+        return "discard", "block_internal_pin_pair"
+
+    return status, rationale
 
 
 def _candidate_coord(

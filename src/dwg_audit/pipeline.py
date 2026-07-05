@@ -6,10 +6,14 @@ from pathlib import Path
 from dwg_audit.audit import build_line_groups
 from dwg_audit.audit import build_pairs
 from dwg_audit.audit import build_terminal_candidates
+from dwg_audit.audit.table_extractor import extract_table_pairs
 from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.ingest import convert_source_files
 from dwg_audit.ingest import discover_project_roots
 from dwg_audit.ingest import scan_project
+from dwg_audit.page_classifier import classify_pages
+from dwg_audit.page_router import enrich_pages_from_classifications
+from dwg_audit.page_router import route_supports_table
 from dwg_audit.report import write_project_artifacts
 from dwg_audit.extract import extract_cad_artifacts
 
@@ -64,13 +68,67 @@ def analyze_input_root(
                 warning_count=len(extraction_warnings),
             )
         scan.pages = pages
-        audit_sheet_ids = {page.sheet_id for page in pages if _is_downstream_audit_page(page)}
+
+        # Page Classification Layer（任务书第 4 层）：
+        # 基于 extract 后的真实几何特征判定页型，覆盖 scan 阶段的粗推断。
+        classifications = classify_pages(pages, texts, lines, polylines, blocks, config)
+        enrich_pages_from_classifications(pages, classifications)
+
+        # Page Router Layer（任务书第 5 层）：
+        # 把不同图种分发给不同识别器，而不是所有图都走同一条 PairBuilder。
+        # 分流规则：
+        #   - TableExtractor 页走表格专用链
+        #   - 其余纳入审计的页（primary + supplemental）走 PairBuilder 链
+        #     （supplemental 页即使 route_target 是 LayoutOnlyExtractor，
+        #      用户显式要求纳入审计时仍走 pairing 链，以保留配对证据）
+        table_sheet_ids = {
+            page.sheet_id for page in pages
+            if route_supports_table(page.route_target) and _is_downstream_audit_page(page)
+        }
+        pairing_sheet_ids = {
+            page.sheet_id for page in pages
+            if _is_downstream_audit_page(page) and page.sheet_id not in table_sheet_ids
+        }
+        audit_sheet_ids = pairing_sheet_ids | table_sheet_ids
+
         audit_pages = [page for page in pages if page.sheet_id in audit_sheet_ids]
         audit_texts = [text for text in texts if text.sheet_id in audit_sheet_ids]
         audit_lines = [line for line in lines if line.sheet_id in audit_sheet_ids]
-        line_groups = build_line_groups(audit_lines, audit_pages, config, audit_texts)
-        terminal_candidates = build_terminal_candidates(line_groups, audit_texts, config, audit_pages)
-        pair_candidates, pairs = build_pairs(line_groups, terminal_candidates, audit_pages, config)
+
+        # WireDiagram / Component / Terminal 走 PairBuilder 链
+        pairing_pages = [page for page in audit_pages if page.sheet_id in pairing_sheet_ids]
+        pairing_lines = [line for line in audit_lines if line.sheet_id in pairing_sheet_ids]
+        pairing_texts = [text for text in audit_texts if text.sheet_id in pairing_sheet_ids]
+        pairing_classifications = {
+            sheet_id: classifications[sheet_id]
+            for sheet_id in pairing_sheet_ids
+            if sheet_id in classifications
+        }
+        line_groups = build_line_groups(
+            pairing_lines,
+            pairing_pages,
+            config,
+            pairing_texts,
+            classifications=pairing_classifications,
+        )
+        terminal_candidates = build_terminal_candidates(line_groups, pairing_texts, config, pairing_pages)
+        pair_candidates, pairs = build_pairs(line_groups, terminal_candidates, pairing_pages, config)
+
+        # TableExtractor 链（任务书第 4 章 113-121 行）：
+        # 表格型图走专用抽取器，生成高置信 table_mapping Pair
+        table_pages = [page for page in audit_pages if page.sheet_id in table_sheet_ids]
+        table_texts = [text for text in audit_texts if text.sheet_id in table_sheet_ids]
+        table_lines = [line for line in audit_lines if line.sheet_id in table_sheet_ids]
+        table_polylines = [poly for poly in polylines if poly.sheet_id in table_sheet_ids]
+        table_pairs, table_mappings = extract_table_pairs(
+            table_texts,
+            table_lines,
+            table_polylines,
+            table_pages,
+            config,
+        )
+        pairs.extend(table_pairs)
+
         if event_sink is not None:
             event_sink.emit(
                 "progress",
@@ -80,6 +138,7 @@ def analyze_input_root(
                 terminal_candidate_count=len(terminal_candidates),
                 pair_candidate_count=len(pair_candidates),
                 pair_count=len(pairs),
+                table_pair_count=len(table_pairs),
             )
         artifacts = ProjectArtifacts(
             scan=scan,
@@ -94,7 +153,16 @@ def analyze_input_root(
             issues=[],
             extraction_warnings=extraction_warnings,
         )
-        project_dir = write_project_artifacts(artifacts, output_path, config=config)
+        # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
+        artifacts_page_classifications = classifications
+        artifacts_table_mappings = table_mappings
+        project_dir = write_project_artifacts(
+            artifacts,
+            output_path,
+            config=config,
+            page_classifications=artifacts_page_classifications,
+            table_mappings=artifacts_table_mappings,
+        )
         written.append(project_dir)
         if event_sink is not None:
             event_sink.emit(

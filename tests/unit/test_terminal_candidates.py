@@ -170,7 +170,7 @@ def test_build_terminal_candidates_keeps_single_character_mark_candidate_on_term
         SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
     ]
     texts = [
-        TextItem("T1", "S1", "F1", "H1", "TEXT", "6", "6", True, "MARK", 0.0, 2.5, 8.0, 20.0, 8.0, 19.0, 12.0, 22.0),
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "6", "6", True, "MARK", 0.0, 2.5, 34.0, 20.0, 32.0, 19.0, 36.0, 22.0),
     ]
 
     candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
@@ -814,7 +814,7 @@ def test_build_terminal_candidates_assigns_single_derived_bridge_column_to_its_v
     pair = pairs[0]
 
     assert middle_left.status == "rejected"
-    assert middle_left.rejection_reason == "terminal_short_bridge_role_filtered"
+    assert middle_left.rejection_reason == "terminal_short_bridge_single_column"
     assert middle_right.status == "rejected"
     assert middle_right.rejection_reason == "terminal_short_bridge_role_filtered"
     assert derived_left.status == "rejected"

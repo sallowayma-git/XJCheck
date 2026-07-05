@@ -480,6 +480,41 @@
   - `task_plan.md`
   - `progress.md`
 
+### Phase 17: Taskbook Audit And Component Route Closure
+- **Status:** complete
+- Actions taken:
+  - 重新回到 [任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 做逐条完成度审计，只看当前代码、当前测试和当前 `.tmp` 真实样本产物。
+  - 并发拉起两个只读子代理：
+    - `Linnaeus`：核验页级分类器 / 路由器是否真的接管 `analyze-project`
+    - `Hilbert`：核验 `TableExtractor` 是否已在真实样本中形成独立高置信信源
+  - 主线程确认当前最短闭环切片是“元件接线图不再被误路由成 Wire/Table”，而不是继续扩展桌面端或继续堆全局候选阈值。
+  - 在 `src/dwg_audit/page_classifier.py` 收紧元件页优先级：
+    - `元件接线图` 现在优先保留 `ComponentDiagramExtractor`
+    - 不再先被 `grid_heavy` 或 `table_like` 抢成 `WireDiagramExtractor` / `TableExtractor`
+  - 在 `tests/unit/test_page_classifier.py` 新增两条单测，固定：
+    - horizontal component 优先于 `grid_heavy`
+    - component 页优先于 `table_like`
+  - 复跑定向 pytest：
+    - `tests/unit/test_page_classifier.py tests/unit/test_table_extractor.py tests/unit/test_line_groups.py tests/unit/test_pairs_and_rules.py`
+    - `tests/integration/test_analyze_project.py -k "component or terminal or page_findings or supplemental"`
+  - 对两套真实样本重新执行：
+    - `.tmp/phase17_component_route_closure_second/2_2`
+    - `.tmp/phase17_component_route_closure_first/...`
+    - 并补跑两套 `run-audit`
+  - 关键结果：
+    - 第二套 `S0019/S0020` 已从 `WireDiagramExtractor` 回到 `ComponentDiagramExtractor`
+    - 第一套 `S0022/S0023/S0024` 已从 `Wire/Table` 回到 `ComponentDiagramExtractor`
+    - 第一套 `S0023` 不再是假 `TableExtractor`
+    - 两套真实样本当前都没有稳定 `TableExtractor` 命中，`table_extraction_summary` 均为 `table_pages=0 / total_mappings=0`
+    - 第二套总 issue 维持 `697`
+    - 第一套总 issue `487 -> 517`，原因是 `S0023` 重新进入 component 审计链后新增 `30` 条 non-discard pair
+- Files created/modified:
+  - `src/dwg_audit/page_classifier.py`
+  - `tests/unit/test_page_classifier.py`
+  - `doc/findings.md`
+  - `task_plan.md`
+  - `progress.md`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -564,6 +599,12 @@
 | Phase 16 support pytest | `python -m pytest -q tests/unit/test_pairs_and_rules.py tests/unit/test_line_groups.py tests/unit/test_page_classifier.py tests/unit/test_table_extractor.py` | 验证语义行候选切片不误伤 pairs / grid / table 支撑链 | `40 passed` | ✓ |
 | Second-set phase16 semantic-row audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase16_terminal_semantic_rows_second\\2_2\\findings` | 验证第二套语义行护栏对真实审计的影响 | 通过，第二套总 issue `648 -> 697`，`LOW-CONFIDENCE 267 -> 203` | ✓ |
 | First-set phase16 semantic-row audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase16_terminal_semantic_rows_first\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings` | 验证第一套语义行护栏对真实审计的影响 | 通过，第一套总 issue `518 -> 487`，`LOW-CONFIDENCE 143 -> 84` | ✓ |
+| Phase 17 classifier + route support pytest | `python -m pytest -q tests/unit/test_page_classifier.py tests/unit/test_table_extractor.py tests/unit/test_line_groups.py tests/unit/test_pairs_and_rules.py` | 验证 component 优先级收口不误伤 table / grid / pair / rule 支撑链 | `42 passed` | ✓ |
+| Phase 17 analyze-project integration subset | `python -m pytest -q tests/integration/test_analyze_project.py -k "component or terminal or page_findings or supplemental"` | 验证 component / terminal / page_findings 关键集成链仍通过 | `10 passed, 2 deselected` | ✓ |
+| Second-set phase17 component route analyze | `python -m dwg_audit.cli analyze-project --input test\\变压器测控柜(2圈变，2台测控) --output .tmp\\phase17_component_route_closure_second` | 证明第二套元件页回到 `ComponentDiagramExtractor` | 通过，`S0019/S0020` 已回到 component 路由，且 `table_pages=0` | ✓ |
+| Second-set phase17 component route audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase17_component_route_closure_second\\2_2\\findings` | 验证第二套 route 修正不打断下游审计 | 通过，总 issue 保持 `697` | ✓ |
+| First-set phase17 component route analyze | `python -m dwg_audit.cli analyze-project --input test\\110kV变压器保护柜 --output .tmp\\phase17_component_route_closure_first` | 证明第一套元件页不再被误判成 `Wire/Table` | 通过，`S0022/S0023/S0024` 已回到 component 路由，`table_pages=0` | ✓ |
+| First-set phase17 component route audit | `python -m dwg_audit.cli run-audit --findings .tmp\\phase17_component_route_closure_first\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings` | 验证第一套 route 修正后的真实审计结果 | 通过，总 issue `487 -> 517`，原因是 `S0023` 重新进入 component 审计链 | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
