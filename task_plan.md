@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 15
+Phase 16
 
 ## Phases
 
@@ -109,10 +109,17 @@ Phase 15
 - [x] 用真实样本证明 component 页已回到 `ComponentDiagramExtractor`，并确认当前两套样本暂无稳定 table 命中
 - **Status:** complete
 
+### Phase 16: Taskbook Audit Refresh And TableExtractor Closure Proof
+- [x] 以当前头部代码重新核验真实样本 `page_type / route_target / issue evidence` 证据，纠正旧审计结论
+- [x] 为 `TableExtractor` 补一条 `analyze-project` 级 synthetic 闭环测试，证明表格页会独立命中路由并产出 `table_mapping`
+- [x] 刷新 `page_findings` 中对 `TableExtractor` 的 recognizer / number-matching 描述，避免继续写成 “pending”
+- [x] 复跑 targeted pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
+- **Status:** complete
+
 ## Key Questions
-1. continuation-aware pairing 应该先把 `420->420 / 110->110 / 109->109` 明确改成哪种结构化语义：branch、continuation 还是 semantic-link？
-2. `issues.json` / `issues.parquet` 中的 `evidence` 和 `evidence_refs` 是否应先收口成真正的结构化对象，再继续扩展更多规则？
-3. 当前两套真实样本已无稳定 table 命中；下一步是否需要隔离合成/变异样本，专门证明 `TableExtractor` 的真实闭环？
+1. terminal 页语义列是否应该升级成显式 `semantic_channel`，而不是继续仅靠 rejection guard + `missing-side` 显性化？
+2. `continuation_same_value` 目前已被打标签并旁路 ordinary audit；下一步是否需要单独 pair status / channel，而不是继续沿用 `review` 状态壳？
+3. `audit_disposition` 仍未作为独立字段落盘，当前只有 `audit_role + route_target` 组合；是否需要对齐任务书契约？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
 ## Decisions Made
@@ -135,6 +142,8 @@ Phase 15
 | `310-385` 短桥接带要按“延续列 / 局部序号列 / 单侧 continuation”处理，而不是继续让同一列参与左右两侧候选排序 | 当前真实样本已经证明，这个区段的主要收益不是扩大召回，而是消除 `110 -> 110`、`10 -> 10` 这类假双侧自配对 |
 | 任务书完成度必须以当前代码 + 当前测试 + 当前真实样本产物审计为准，而不是以桌面端完成度或历史叙事为准 | 用户已明确要求重新回到 DWG 审计 MVP 主链 |
 | 元件接线图必须先保 `ComponentDiagramExtractor` 身份，不能再被 `grid_heavy/table_like` 抢走路由 | 这是当前两套真实样本里“页级分类 + 路由闭环”最短路径上的核心缺口 |
+| 在真实样本暂无稳定表格页命中的前提下，`TableExtractor` 的 MVP 证明应改用隔离 synthetic `analyze-project` 集成测试，而不是继续等待假阳性真实页 | 任务书明确允许真实样本不足时用隔离合成/变异样本补足验证 |
+| `page_findings` 对 `TableExtractor` 的说明不能继续写成 “still pending”，必须反映当前是否真的产出了 `table_mapping` | 任务书要求页级记录说明当前识别器和数字匹配策略，不能故意滞后于代码现状 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

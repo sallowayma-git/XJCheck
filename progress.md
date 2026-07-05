@@ -626,3 +626,25 @@
 
 ---
 *Update after completing each phase or encountering errors*
+
+## Session Update 2026-07-06
+- 重新按任务书而不是桌面端叙事做 current-head 审计，纠正了两条旧结论：
+  - `issues.json / issues.parquet` 的 `evidence` 与 `evidence_refs` 现在已经是结构对象
+  - `continuation_same_value` 已进入 pair 语义层，并从 ordinary low-confidence / graph 规则里旁路
+- 用 current-head 真实样本补齐了新的主链基线：
+  - 第一套：[phase18_terminal_continuation_first](/F:/workspace/XJToolkit/.tmp/phase18_terminal_continuation_first)
+  - 第二套：[phase19_table_proof_second](/F:/workspace/XJToolkit/.tmp/phase19_table_proof_second)
+- 新增了 `analyze-project` 级 synthetic 表格页集成测试，证明：
+  - 普通回路页会走 `WireDiagramExtractor`
+  - 表格页会走 `TableExtractor`
+  - 并产出 `table_mapping` 高置信 pair
+- 同时把 `page_findings` 对 `TableExtractor` 页的 `recognition_strategy / number_matching_strategy` 改成反映当前真实行为，而不是继续写成 “pending”。
+- 本轮新增验证：
+  - `python -m pytest -q tests/integration/test_analyze_project.py -k "table_like_page_to_table_extractor or component or terminal or supplemental"` -> `11 passed`
+  - `python -m pytest -q tests/unit/test_table_extractor.py tests/unit/test_report_artifacts.py -k "table or page_findings"` -> `6 passed`
+  - `python -m pytest -q` -> `143 passed`
+  - `python -m dwg_audit.cli analyze-project --input test\\变压器测控柜(2圈变，2台测控) --output .tmp\\phase19_table_proof_second` + `run-audit` -> route 分布维持 `13/2/4/2/3`，`table_pages=0`，总 issue `697`
+- 当前最近的主链缺口已经收口为：
+  1. terminal 语义列缺少显式 `semantic_channel`
+  2. `continuation_same_value` 还没有独立 channel / status
+  3. `audit_disposition` 仍未作为独立合同字段落盘

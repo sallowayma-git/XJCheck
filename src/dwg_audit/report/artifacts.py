@@ -505,12 +505,15 @@ def _page_high_confidence_signals(
     high_confidence_pair_count: int,
     line_group_count: int,
     issue_count: int,
+    table_mapping_count: int,
 ) -> list[str]:
     signals: list[str] = []
     if page.audit_role == "skip":
         signals.append("Configured as a non-audit page and excluded from downstream pairing.")
     else:
         signals.append(f"Current audit role is `{page.audit_role}`.")
+    if table_mapping_count:
+        signals.append(f"Structured table mappings recovered: {table_mapping_count}.")
     if line_group_count:
         signals.append(f"Line groups formed: {line_group_count}.")
     if dominant_orientation != "none":
@@ -528,10 +531,12 @@ def _page_open_questions(
     *,
     page: SheetRecord,
     table_like: bool,
+    route_target: str,
     line_group_count: int,
     pair_count: int,
     non_discard_pair_count: int,
     high_confidence_pair_count: int,
+    table_mapping_count: int,
 ) -> list[str]:
     questions: list[str] = []
     if page.audit_role == "secondary":
@@ -542,18 +547,30 @@ def _page_open_questions(
         questions.append("All current pairs still require manual review; high-confidence confirmation is not established yet.")
     if page.sheet_category == "元件接线图" and non_discard_pair_count > 0 and high_confidence_pair_count == 0:
         questions.append("Component-page semantics are partially understood, but the remaining mappings still need manual verification.")
-    if table_like:
-        questions.append("The page looks table-heavy, but the current pipeline still lacks a dedicated table extractor and cell-mapping path.")
+    if table_like and route_target != "TableExtractor":
+        questions.append("The page looks table-heavy, but it did not route into the dedicated table extractor.")
+    elif route_target == "TableExtractor" and table_mapping_count == 0:
+        questions.append("The page routed into the table extractor, but no stable three-column mappings were recovered yet.")
     if page.sheet_category is None:
         questions.append("Page category is unresolved and still depends on fallback routing.")
     return questions
 
 
-def _page_recognition_strategy(page: SheetRecord, *, table_like: bool, route_target: str) -> str:
+def _page_recognition_strategy(page: SheetRecord, *, table_like: bool, route_target: str, table_mapping_count: int) -> str:
+    if route_target == "TableExtractor":
+        if table_mapping_count:
+            return (
+                f"Current classification routed the page to `{route_target}` and the dedicated table path recovered "
+                f"{table_mapping_count} structured row mappings."
+            )
+        return (
+            f"Current classification routed the page to `{route_target}` because the geometry looks table-heavy, "
+            "but stable row/column mappings have not been recovered yet."
+        )
     if table_like:
         return (
             f"Current classification inferred `{page.sheet_category or 'unknown'}` from filename/title heuristics, "
-            f"but the geometry still looks table-heavy; route target is `{route_target}` until a dedicated table path lands."
+            f"and the geometry also looks table-heavy; route target is `{route_target}`."
         )
     return (
         f"Current classification inferred `{page.sheet_category or 'unknown'}` from filename / .prj / title keywords "
@@ -561,7 +578,13 @@ def _page_recognition_strategy(page: SheetRecord, *, table_like: bool, route_tar
     )
 
 
-def _page_number_matching_strategy(page: SheetRecord, *, dominant_orientation: str, route_target: str) -> str:
+def _page_number_matching_strategy(
+    page: SheetRecord,
+    *,
+    dominant_orientation: str,
+    route_target: str,
+    table_mapping_count: int,
+) -> str:
     if route_target == "WireDiagramExtractor":
         return "Use horizontal line groups and left/right endpoint windows to score nearby numeric texts."
     if route_target == "ComponentDiagramExtractor":
@@ -573,7 +596,9 @@ def _page_number_matching_strategy(page: SheetRecord, *, dominant_orientation: s
     if route_target == "SkipExtractor":
         return "No number matching is attempted because the page is currently marked as non-audit."
     if route_target.startswith("TableExtractor"):
-        return "Table-oriented mapping is still pending; current output only preserves page-level evidence and open questions."
+        if table_mapping_count:
+            return "Use table grid rows/columns and emit middle-column-to-outer-column mappings as high-confidence structured evidence."
+        return "Use the dedicated table path to search for stable row/column cell mappings before falling back to open questions."
     return "Only layout-level evidence is preserved for now; no dedicated number matching strategy is active on this page."
 
 
@@ -581,6 +606,7 @@ def _build_page_findings(
     artifacts: ProjectArtifacts,
     *,
     page_classifications: dict[str, PageClassification] | None = None,
+    table_mappings: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     text_counts = _per_sheet_counts(artifacts.texts)
     line_counts = _per_sheet_counts(artifacts.lines)
@@ -594,6 +620,14 @@ def _build_page_findings(
     orientation_counts = _per_sheet_orientation_counts(artifacts.line_groups)
     non_discard_pairs = _per_sheet_counts([pair for pair in artifacts.pairs if pair.status != "discard"])
     high_confidence_pairs = _per_sheet_counts([pair for pair in artifacts.pairs if _high_confidence_pair(pair)])
+    table_mapping_rows: dict[str, int] = {}
+    table_mapping_flags: dict[str, bool] = {}
+    for item in table_mappings or []:
+        sheet_id = str(item.get("sheet_id") or "")
+        if not sheet_id:
+            continue
+        table_mapping_rows[sheet_id] = len(item.get("mappings", []))
+        table_mapping_flags[sheet_id] = bool(item.get("three_column"))
 
     page_findings: list[dict[str, Any]] = []
     for page in artifacts.scan.pages:
@@ -623,6 +657,7 @@ def _build_page_findings(
         high_confidence_pair_count = high_confidence_pairs.get(sheet_id, 0)
         pair_count = pair_counts.get(sheet_id, 0)
         issue_count = issue_counts.get(sheet_id, 0)
+        table_mapping_count = table_mapping_rows.get(sheet_id, 0)
 
         page_findings.append(
             {
@@ -659,16 +694,24 @@ def _build_page_findings(
                     "pair_count": pair_count,
                     "non_discard_pair_count": non_discard_pair_count,
                     "high_confidence_pair_count": high_confidence_pair_count,
+                    "table_mapping_count": table_mapping_count,
+                    "three_column_table": table_mapping_flags.get(sheet_id, False),
                     "issue_count": issue_count,
                     "orientation_counts": orientation_summary,
                     "dominant_line_group_orientation": dominant_orientation,
                     "table_like_geometry": table_like,
                 },
-                "recognition_strategy": _page_recognition_strategy(page, table_like=table_like, route_target=route_target),
+                "recognition_strategy": _page_recognition_strategy(
+                    page,
+                    table_like=table_like,
+                    route_target=route_target,
+                    table_mapping_count=table_mapping_count,
+                ),
                 "number_matching_strategy": _page_number_matching_strategy(
                     page,
                     dominant_orientation=dominant_orientation,
                     route_target=route_target,
+                    table_mapping_count=table_mapping_count,
                 ),
                 "high_confidence_signals": _page_high_confidence_signals(
                     page=page,
@@ -677,14 +720,17 @@ def _build_page_findings(
                     high_confidence_pair_count=high_confidence_pair_count,
                     line_group_count=line_group_count,
                     issue_count=issue_count,
+                    table_mapping_count=table_mapping_count,
                 ),
                 "open_questions": _page_open_questions(
                     page=page,
                     table_like=table_like,
+                    route_target=route_target,
                     line_group_count=line_group_count,
                     pair_count=pair_count,
                     non_discard_pair_count=non_discard_pair_count,
                     high_confidence_pair_count=high_confidence_pair_count,
+                    table_mapping_count=table_mapping_count,
                 ),
                 "warnings": list(page.warnings),
             }
@@ -724,7 +770,11 @@ def _build_findings_payload(
     skipped_pages = [page for page in artifacts.scan.pages if page.audit_role == "skip"]
     failed = [item for item in manifest.source_files if item.conversion_status.startswith("failed")]
     converted = [item for item in manifest.source_files if item.conversion_status in {"converted", "cached"}]
-    page_findings = _build_page_findings(artifacts, page_classifications=page_classifications)
+    page_findings = _build_page_findings(
+        artifacts,
+        page_classifications=page_classifications,
+        table_mappings=table_mappings,
+    )
     persisted_findings_artifacts = [
         "findings.md",
         "findings.json",

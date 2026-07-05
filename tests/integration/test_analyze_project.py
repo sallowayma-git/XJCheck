@@ -156,6 +156,117 @@ def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
     }
 
 
+def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_table_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "05 回路表格图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 320.0, 320.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
+            msp.add_text("101", dxfattribs={"insert": (10, 200), "height": 2.5})
+            msp.add_text("202", dxfattribs={"insert": (90, 200), "height": 2.5})
+            msp.add_line((20, 200), (80, 200), dxfattribs={"layer": "CONNECT"})
+        else:
+            for index, y in enumerate((60.0, 100.0, 140.0, 180.0, 220.0, 260.0), start=1):
+                msp.add_line((10.0, y), (290.0, y), dxfattribs={"layer": "TABLE"})
+            for index, x in enumerate((10.0, 100.0, 200.0, 290.0), start=1):
+                msp.add_line((x, 60.0), (x, 260.0), dxfattribs={"layer": "TABLE"})
+            for idx in range(20):
+                base_x = 18.0 + (idx % 5) * 48.0
+                base_y = (60.0, 100.0, 140.0, 180.0)[idx // 5]
+                msp.add_lwpolyline(
+                    [
+                        (base_x, base_y),
+                        (base_x + 22.0, base_y),
+                    ],
+                    dxfattribs={"layer": "TABLE"},
+                )
+                for text, x, y in (
+                    ("101", 55.0, 80.0),
+                    ("102", 150.0, 80.0),
+                    ("103", 245.0, 80.0),
+                    ("201", 55.0, 120.0),
+                    ("202", 150.0, 120.0),
+                    ("203", 245.0, 120.0),
+                    ("301", 55.0, 160.0),
+                    ("302", 150.0, 160.0),
+                    ("303", 245.0, 160.0),
+                ):
+                    msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
+    table_page = page_findings["05 回路表格图.dwg"]
+    wire_page = page_findings["04 回路图.dwg"]
+
+    assert wire_page["page_type"] == "二次原理图"
+    assert wire_page["route_target"] == "WireDiagramExtractor"
+    assert table_page["page_type"] == "表格型图"
+    assert table_page["route_target"] == "TableExtractor"
+    assert table_page["structure_summary"]["table_mapping_count"] == 3
+    assert table_page["structure_summary"]["three_column_table"] is True
+    assert "dedicated table path recovered 3 structured row mappings" in table_page["recognition_strategy"]
+    assert "middle-column-to-outer-column mappings as high-confidence structured evidence" in table_page["number_matching_strategy"]
+    assert findings_payload["table_extraction_summary"]["table_pages"] == 1
+    assert findings_payload["table_extraction_summary"]["three_column_pages"] == 1
+    assert findings_payload["table_extraction_summary"]["total_mappings"] == 3
+
+    table_sheet_id = table_page["sheet_id"]
+    wire_sheet_id = wire_page["sheet_id"]
+    assert table_sheet_id not in set(line_groups["sheet_id"].tolist())
+    assert wire_sheet_id in set(line_groups["sheet_id"].tolist())
+
+    table_pairs = pairs[pairs["sheet_id"] == table_sheet_id]
+    assert len(table_pairs) == 3
+    assert table_pairs["line_group_id"].isna().all()
+    first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "table_mapping"
+    assert first_evidence["table_mapping"]["sheet_id"] == table_sheet_id
+
 def test_analyze_project_can_include_backplate_pages_as_supplemental_audit(
     monkeypatch,
     tmp_path: Path,

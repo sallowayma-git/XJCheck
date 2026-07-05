@@ -2764,3 +2764,129 @@ Batch 2 已完成的端子页是：
 
 - 从任务书视角看，这个变化是朝正确方向前进，因为它让“元件接线图属于 component 路由”这件事第一次被真实样本严格证明了。
 - 当前仍不能把 `TableExtractor` 视为真实样本闭环能力，但现在至少不会再被假阳性的 `table_like` 页误导。
+
+## 59. 2026-07-06 任务书完成度审计刷新：以当前头部代码 + `phase18/phase19` 产物为准，覆盖 57 节中过时判断
+
+57 节里的两条关键判断已经被当前头部代码推翻，不能继续当作 SSoT：
+
+1. `issues.json / issues.parquet` 的 `evidence`、`evidence_refs` 现在已经是结构对象，不再是 JSON 字符串。
+2. `continuation_same_value` 已经进入 pair 语义层，并从 ordinary low-confidence / graph 规则里旁路，不再是“完全未开始”。
+
+因此下面这版审计，统一以当前头部代码和下面这些新证据为准：
+
+- 第一套当前头部真实样本：
+  - [phase18_terminal_continuation_first findings.json](/F:/workspace/XJToolkit/.tmp/phase18_terminal_continuation_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings/findings.json)
+  - [phase18_terminal_continuation_first issues.json](/F:/workspace/XJToolkit/.tmp/phase18_terminal_continuation_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/audit/issues.json)
+- 第二套当前头部真实样本：
+  - [phase19_table_proof_second findings.json](/F:/workspace/XJToolkit/.tmp/phase19_table_proof_second/2_2/findings/findings.json)
+  - [phase19_table_proof_second issues.json](/F:/workspace/XJToolkit/.tmp/phase19_table_proof_second/2_2/audit/issues.json)
+- Synthetic 表格页集成证明：
+  - [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+  - 本轮定向 pytest：`11 passed`
+- 当前全量测试：
+  - `python -m pytest -q` -> `143 passed`
+
+### 59.1 更新后的主链完成度总表
+
+| 任务书要求 | 当前状态 | 当前强证据 |
+|---|---|---|
+| 输入项目目录下多张 DWG，稳定生成 findings 运行态 | 已完成（强证据） | `phase18/phase19` 两套真实样本都稳定生成 `manifest.json + findings/`。 |
+| findings 默认属于内部运行态，不把 `page_findings` 当默认正式交付目录 | 已完成（强证据） | 两套最新真实样本都没有 `findings/page_findings/` 目录，且 `artifacts.findings` 列表不含 `page_findings/`。 |
+| 每页都有稳定 `page_type` | 已完成（强证据） | 两套最新 [findings.json](/F:/workspace/XJToolkit/.tmp/phase19_table_proof_second/2_2/findings/findings.json) 的 `page_findings[]` 都有 `page_type`。 |
+| 每页都有稳定 `route_target` | 已完成（强证据） | 两套最新 `pages.parquet` / `page_findings[]` 都有非空 `route_target`；第一套路由分布 `13/3/4/4/4`，第二套 `13/2/4/2/3`。 |
+| Page Router 真实接管 extractor 分流 | 已完成（强证据） | 当前 pipeline 先 `classify_pages()` 再 `enrich_pages_from_classifications()`，并按 `route_supports_pairing / route_supports_table` 分出 pairing 链与 table 链，见 [pipeline.py](/F:/workspace/XJToolkit/src/dwg_audit/pipeline.py:86) 到 [pipeline.py](/F:/workspace/XJToolkit/src/dwg_audit/pipeline.py:164)。 |
+| 普通回路图、元件接线图、端子图、背板图/skip 在真实样本中实际覆盖 | 已完成（强证据） | 第一套、第二套当前头部产物都已实际覆盖并分流到 `Wire / Component / Terminal / LayoutOnly / Skip`。 |
+| 表格型图若真实样本暂无命中，需要明确证明；若要证明 extractor，则可用隔离 synthetic 样本 | 已完成（强证据） | 两套最新真实样本 `table_extraction_summary = 0/0/0`，且无 `TableExtractor` 命中；同时新增 `analyze-project` 级 synthetic 集成测试，证明表格页可命中 `TableExtractor` 并产出 `table_mapping`。 |
+| TableExtractor 要形成独立高置信信源 | 已完成（强证据，synthetic） | 新集成测试证明：表格页 `route_target=TableExtractor`，`table_extraction_summary.table_pages=1`，`pairs.evidence.source=table_mapping`。真实样本当前仍无命中。 |
+| `run-audit` issue 必须具备可复核证据 | 已完成（强证据） | 两套最新 `issues.json` 顶层已有 `rule_id/confidence/sheet_id/line_group_id/left_value/right_value/evidence/evidence_refs`；`filename/sheet_no` 存在于结构化 `evidence/evidence_refs` 中。 |
+| terminal 页语义列应从普通 pair 中分流 | 部分实现但未验证 | 当前已有 `terminal_semantic_local_numeric` 等护栏，能把大量假 ordinary pair 收口为 `missing-side`；但还没有独立 `semantic_channel` 或专用 issue 语义。 |
+| continuation 类 pair 需要专用语义 | 部分实现但未验证 | 当前 `continuation_same_value` 已在 [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py:359) 打标签，并在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py:197) 等处旁路 ordinary audit；但 pair 自身仍借用 `review` 状态壳，没有完全独立 channel。 |
+| 页级分类结果应显式提供 `audit_disposition` | 部分实现但未验证 | 当前落盘的是 `audit_role + route_target`，没有单独 `audit_disposition` 字段。这在功能上接近，但合同仍未完全对齐任务书。 |
+| 不能再依赖单一大脚本解释所有图种 | 部分实现但未验证 | 现在已经有 `PageClassifier / PageRouter / TableExtractor / per-type route`，但 `Wire/Component/Terminal` 仍共享较多 PairBuilder 主链。 |
+
+### 59.2 当前距离主链闭环最近的未完成项
+
+在 `phase18`、`phase19` 之后，当前离任务书主链最近、且最值得继续推进的剩余缺口已经收敛为这 3 条：
+
+1. **terminal 页语义列仍只是 rejection guard，不是显式 `semantic_channel`。**
+   - 现在能把很多假 ordinary pair 打成 `missing-side`，但系统还没有把这些语义列当成“被理解的语义证据”。
+2. **`continuation_same_value` 只是“已打标签并旁路 ordinary audit”，还不是完全独立的 pair/channel 语义。**
+   - 这条已经不再是“未开始”，但也还没到最终完成。
+3. **`audit_disposition` 合同仍未显式落盘。**
+   - 当前 `audit_role + route_target` 足够驱动运行，但任务书要求的字段名和分层语义还没有完整对齐。
+
+### 59.3 本轮之后不应再优先的方向
+
+以下方向此时继续投入，都会偏离“任务书主链证明”：
+
+1. 桌面端 / Tauri / preview 交互细节
+2. 用总 issue 数变化冒充成功
+3. 继续把 `TableExtractor` 说成“未证明”，忽略当前 synthetic 闭环和真实样本无命中的双重证据
+4. 继续把 `issues.evidence` 说成 JSON 字符串
+
+## 60. 2026-07-06 `phase19_table_proof`：在真实样本无表格页命中的前提下，补齐 `TableExtractor` 的任务书级闭环证明
+
+这轮只推进了一个核心切片：
+
+- 不再等待真实样本里出现假阳性的 `TableExtractor` 页；
+- 直接按任务书允许的路径，用隔离 synthetic `analyze-project` 集成测试证明表格页闭环；
+- 同时把 `page_findings` 对 `TableExtractor` 的描述改成反映当前真实行为，而不是继续写成 “pending”。
+
+### 60.1 本轮代码变化
+
+- [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+  - 新增项目级 synthetic 用例：
+    - 同一项目里同时放一个普通回路页和一个表格页
+    - 断言普通页走 `WireDiagramExtractor`
+    - 断言表格页走 `TableExtractor`
+    - 断言 `table_extraction_summary.table_pages = 1`
+    - 断言 `pairs.evidence.source = table_mapping`
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+  - `page_findings` 现在会按页透出：
+    - `table_mapping_count`
+    - `three_column_table`
+  - `TableExtractor` 页的 `recognition_strategy` / `number_matching_strategy` 不再默认写成 “still pending”
+  - 当表格几何存在但未命中表格链时，`open_questions` 会明确提示“看起来像 table-heavy，但没有路由进 table extractor”
+
+### 60.2 定向测试结果
+
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "table_like_page_to_table_extractor or component or terminal or supplemental"`
+  - `11 passed`
+- `python -m pytest -q tests/unit/test_table_extractor.py tests/unit/test_report_artifacts.py -k "table or page_findings"`
+  - `6 passed`
+- `python -m pytest -q`
+  - `143 passed`
+
+### 60.3 当前头部真实样本 rerun 结果
+
+第二套最新 current-head 产物：
+
+- [phase19_table_proof_second/2_2](/F:/workspace/XJToolkit/.tmp/phase19_table_proof_second/2_2)
+- `route_target` 分布保持：
+  - `WireDiagramExtractor: 13`
+  - `ComponentDiagramExtractor: 2`
+  - `TerminalDiagramExtractor: 4`
+  - `LayoutOnlyExtractor: 2`
+  - `SkipExtractor: 3`
+- `table_extraction_summary`
+  - `table_pages = 0`
+  - `three_column_pages = 0`
+  - `total_mappings = 0`
+- `page_findings/` 目录仍未默认落盘
+- `run-audit` 当前输出的 `issues.json`
+  - `evidence` 是 `dict`
+  - `evidence_refs` 是 `list`
+  - `filename/sheet_no` 仍可直接从 `evidence` 读取
+
+### 60.4 这轮对任务书主链的真正意义
+
+这轮的价值不是“制造一个假表格真实样本”，而是把任务书里的这条要求真正补齐了：
+
+- **真实样本当前暂无稳定表格页命中**，这件事现在有 current-head rerun 强证据；
+- **`TableExtractor` 本身不是空壳**，因为它已经有项目级 synthetic `analyze-project` 闭环证明；
+- **页级 findings 对表格页的解释不再滞后于代码现状**。
+
+因此，从任务书角度看，`TableExtractor` 这条现在不应再被归类为“文件存在但未证明”。它更准确的状态已经变成：
+
+- **真实样本暂无命中：已证明**
+- **独立 extractor + high-confidence source：已用 synthetic 项目级闭环证明**
