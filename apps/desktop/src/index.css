@@ -1,0 +1,33 @@
+:root {
+  color: #302618;
+  background: #f8f1e5;
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(191, 145, 88, 0.18), transparent 24%),
+    linear-gradient(180deg, #fbf6ec 0%, #f3eadc 100%);
+}
+
+button,
+input {
+  font: inherit;
+}

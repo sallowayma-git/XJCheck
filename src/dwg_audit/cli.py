@@ -10,6 +10,8 @@ from dwg_audit.desktop import analyze_session as run_desktop_session
 from dwg_audit.desktop import list_recent_projects as load_recent_projects
 from dwg_audit.desktop import load_project_result as load_desktop_project_result
 from dwg_audit.desktop import purge_session as purge_desktop_session
+from dwg_audit.desktop import render_project_preview
+from dwg_audit.desktop import update_issue_status as update_desktop_issue_status
 from dwg_audit.pipeline import analyze_input_root
 from dwg_audit.report import compare_project_regressions
 from dwg_audit.report import export_existing_reports
@@ -184,6 +186,25 @@ def load_result(
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command("set-issue-status")
+def set_issue_status(
+    project_id: str = typer.Option(..., "--project-id"),
+    issue_id: str = typer.Option(..., "--issue-id"),
+    status: str = typer.Option(..., "--status"),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+) -> None:
+    try:
+        payload = update_desktop_issue_status(
+            project_id=project_id,
+            issue_id=issue_id,
+            status=status,
+            state_db_path=state_db,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
 @app.command("purge-session")
 def purge_session(
     session_id: str = typer.Option(..., "--session-id"),
@@ -201,6 +222,27 @@ def purge_session(
             indent=2,
         )
     )
+
+
+@app.command("render-preview")
+def render_preview(
+    project_id: str = typer.Option(..., "--project-id"),
+    sheet_id: str | None = typer.Option(None, "--sheet-id"),
+    issue_id: str | None = typer.Option(None, "--issue-id"),
+    output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False, dir_okay=True, resolve_path=True),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+) -> None:
+    try:
+        payload = render_project_preview(
+            project_id=project_id,
+            sheet_id=sheet_id,
+            issue_id=issue_id,
+            output_dir=output_dir,
+            state_db_path=state_db,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def run() -> None:

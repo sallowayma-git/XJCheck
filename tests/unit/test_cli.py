@@ -32,6 +32,8 @@ def test_help_lists_taskbook_commands() -> None:
     assert "analyze-session" in result.stdout
     assert "list-recent-projects" in result.stdout
     assert "load-result" in result.stdout
+    assert "set-issue-status" in result.stdout
+    assert "render-preview" in result.stdout
     assert "purge-session" in result.stdout
     assert "serve" in result.stdout
 
@@ -228,3 +230,39 @@ def test_analyze_session_cli_emits_final_result_line(monkeypatch, tmp_path: Path
     assert lines[0]["event"] == "run_started"
     assert lines[-1]["event"] == "run_result"
     assert lines[-1]["projects"][0]["project_id"] == "demo-project"
+
+
+def test_render_preview_cli_returns_preview_payload(monkeypatch, tmp_path: Path) -> None:
+    runner = CliRunner()
+    preview_path = tmp_path / "preview.svg"
+
+    monkeypatch.setattr(
+        "dwg_audit.cli.render_project_preview",
+        lambda **kwargs: {"project_id": "demo-project", "preview_path": str(preview_path)},
+    )
+
+    result = runner.invoke(app, ["render-preview", "--project-id", "demo-project", "--issue-id", "I1"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["project_id"] == "demo-project"
+    assert payload["preview_path"] == str(preview_path)
+
+
+def test_set_issue_status_cli_returns_updated_payload(monkeypatch) -> None:
+    runner = CliRunner()
+
+    monkeypatch.setattr(
+        "dwg_audit.cli.update_desktop_issue_status",
+        lambda **kwargs: {"project_id": "demo-project", "issue_id": "I1", "status": "resolved"},
+    )
+
+    result = runner.invoke(
+        app,
+        ["set-issue-status", "--project-id", "demo-project", "--issue-id", "I1", "--status", "resolved"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["issue_id"] == "I1"
+    assert payload["status"] == "resolved"

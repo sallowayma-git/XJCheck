@@ -17,6 +17,8 @@ from dwg_audit.report.rerun import rerun_audit_from_findings
 from dwg_audit.utils.config import load_config
 from dwg_audit.utils.logging import configure_logging
 
+DESKTOP_ISSUE_STATUSES = {"open", "ignored", "resolved", "false_positive"}
+
 
 def default_workspace_root() -> Path:
     local_app_data = Path.home() / "AppData" / "Local"
@@ -104,6 +106,38 @@ def list_recent_projects(*, state_db_path: Path | None = None, limit: int = 20) 
 def load_project_result(*, project_id: str, state_db_path: Path | None = None) -> dict[str, Any] | None:
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
     return store.load_latest_project_result(project_id)
+
+
+def update_issue_status(
+    *,
+    project_id: str,
+    issue_id: str,
+    status: str,
+    state_db_path: Path | None = None,
+) -> dict[str, Any]:
+    normalized_status = status.strip().lower()
+    if normalized_status not in DESKTOP_ISSUE_STATUSES:
+        allowed = ", ".join(sorted(DESKTOP_ISSUE_STATUSES))
+        raise ValueError(f"Unsupported issue status: {status}. Expected one of: {allowed}")
+
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    latest = store.load_latest_project_result(project_id)
+    if latest is None:
+        raise FileNotFoundError(f"No stored result found for project_id={project_id}")
+
+    run = latest["run"]
+    issue = store.update_issue_status(run_id=str(run["run_id"]), issue_id=issue_id, status=normalized_status)
+    if issue is None:
+        raise FileNotFoundError(f"No stored issue found for issue_id={issue_id}")
+
+    _persist_issue_status_to_artifacts(Path(run["artifact_dir"]), issue_id=issue_id, status=normalized_status)
+    return {
+        "project_id": project_id,
+        "run_id": run["run_id"],
+        "issue_id": issue_id,
+        "status": normalized_status,
+        "issue": issue,
+    }
 
 
 def purge_session(
@@ -212,3 +246,21 @@ def _decode_jsonish(value: object) -> Any:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def _persist_issue_status_to_artifacts(project_dir: Path, *, issue_id: str, status: str) -> None:
+    audit_dir = project_dir / "audit"
+    parquet_path = audit_dir / "issues.parquet"
+    json_path = audit_dir / "issues.json"
+    if not parquet_path.exists():
+        return
+
+    frame = pd.read_parquet(parquet_path)
+    if "issue_id" not in frame.columns:
+        return
+    mask = frame["issue_id"].astype(str) == issue_id
+    if not mask.any():
+        return
+    frame.loc[mask, "status"] = status
+    frame.to_parquet(parquet_path, index=False)
+    frame.to_json(json_path, orient="records", force_ascii=False, indent=2)

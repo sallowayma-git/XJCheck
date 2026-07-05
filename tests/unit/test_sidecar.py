@@ -11,6 +11,8 @@ from dwg_audit.desktop.sidecar import analyze_session
 from dwg_audit.desktop.sidecar import load_project_result
 from dwg_audit.desktop.sidecar import list_recent_projects
 from dwg_audit.desktop.sidecar import purge_session
+from dwg_audit.desktop.preview import render_project_preview
+from dwg_audit.desktop.sidecar import update_issue_status
 from dwg_audit.desktop.state_store import DesktopStateStore
 
 
@@ -113,6 +115,97 @@ def test_purge_session_removes_workspace_and_state_rows(tmp_path: Path) -> None:
     assert list_recent_projects(state_db_path=state_db) == []
 
 
+def test_render_project_preview_writes_svg_with_issue_highlight(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    artifact_dir = tmp_path / "artifacts" / "demo_project"
+    _write_preview_project_output(artifact_dir)
+
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path / "input"),
+        artifact_dir=str(artifact_dir),
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=1,
+        metadata={"demo": True},
+    )
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    preview_path = Path(preview["preview_path"])
+    assert preview_path.exists()
+    svg = preview_path.read_text(encoding="utf-8")
+    assert "<svg" in svg
+    assert "stroke=\"#d11f1f\"" in svg
+    assert "sheet=01" in svg
+
+
+def test_update_issue_status_syncs_state_store_and_audit_files(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    artifact_dir = tmp_path / "artifacts" / "demo_project"
+    _write_preview_project_output(artifact_dir)
+
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path / "input"),
+        artifact_dir=str(artifact_dir),
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=1,
+        metadata={"demo": True},
+    )
+    store.replace_issue_summaries(
+        "session-a:demo-project",
+        [
+            {
+                "issue_id": "I1",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "title": "Low Confidence",
+                "severity": "review",
+                "status": "open",
+                "confidence": 0.74,
+                "filename": "01.dwg",
+                "sheet_no": "01",
+                "left_value": "101",
+                "right_value": "201",
+                "evidence": {"filename": "01.dwg", "sheet_no": "01"},
+            }
+        ],
+    )
+
+    payload = update_issue_status(
+        project_id="demo-project",
+        issue_id="I1",
+        status="resolved",
+        state_db_path=state_db,
+    )
+
+    assert payload["status"] == "resolved"
+    refreshed = load_project_result(project_id="demo-project", state_db_path=state_db)
+    assert refreshed is not None
+    assert refreshed["issues"][0]["status"] == "resolved"
+
+    audit_frame = pd.read_parquet(artifact_dir / "audit" / "issues.parquet")
+    assert audit_frame.loc[audit_frame["issue_id"].astype(str) == "I1", "status"].iloc[0] == "resolved"
+    audit_payload = json.loads((artifact_dir / "audit" / "issues.json").read_text(encoding="utf-8"))
+    assert audit_payload[0]["status"] == "resolved"
+
+
 def _write_project_output(project_dir: Path) -> None:
     findings = project_dir / "findings"
     audit = project_dir / "audit"
@@ -165,6 +258,108 @@ def _write_project_output(project_dir: Path) -> None:
                 "left_value": "102",
                 "right_value": "202",
                 "evidence": json.dumps({"filename": "01.dwg", "sheet_no": "01"}, ensure_ascii=False),
+            }
+        ]
+    ).to_parquet(audit / "issues.parquet", index=False)
+
+
+def _write_preview_project_output(project_dir: Path) -> None:
+    findings = project_dir / "findings"
+    audit = project_dir / "audit"
+    findings.mkdir(parents=True, exist_ok=True)
+    audit.mkdir(parents=True, exist_ok=True)
+
+    (project_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "project_name": "Demo Project",
+                "project_id": "demo-project",
+                "sheet_count": 1,
+                "file_count": 1,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    pd.DataFrame(
+        [
+            {
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "filename": "01.dwg",
+                "sheet_order": 1,
+                "sheet_no": "01",
+                "sheet_title": "Demo Sheet",
+                "audit_role": "primary",
+                "page_no_source": "filename",
+                "is_primary_audit_candidate": True,
+                "extent_bbox": json.dumps([0, 0, 120, 80], ensure_ascii=False),
+                "frame_bbox": json.dumps([0, 0, 120, 80], ensure_ascii=False),
+                "audit_area_bbox": json.dumps([0, 0, 120, 80], ensure_ascii=False),
+            }
+        ]
+    ).to_parquet(findings / "pages.parquet", index=False)
+    pd.DataFrame(
+        [
+            {
+                "line_id": "L1",
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "start_x": 10.0,
+                "start_y": 20.0,
+                "end_x": 90.0,
+                "end_y": 20.0,
+            }
+        ]
+    ).to_parquet(findings / "lines.parquet", index=False)
+    pd.DataFrame(
+        [
+            {
+                "text_id": "T1",
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "text": "101",
+                "normalized_text": "101",
+                "is_numeric_candidate": True,
+                "height": 2.5,
+                "insert_x": 15.0,
+                "insert_y": 22.0,
+            }
+        ]
+    ).to_parquet(findings / "texts.parquet", index=False)
+    pd.DataFrame(
+        [
+            {
+                "line_group_id": "G1",
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "start_x": 10.0,
+                "start_y": 20.0,
+                "end_x": 90.0,
+                "end_y": 20.0,
+            }
+        ]
+    ).to_parquet(findings / "line_groups.parquet", index=False)
+    pd.DataFrame(
+        [
+            {
+                "issue_id": "I1",
+                "sheet_id": "S1",
+                "line_group_id": "G1",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "status": "open",
+                "title": "Low Confidence",
+                "evidence": json.dumps(
+                    {
+                        "filename": "01.dwg",
+                        "sheet_no": "01",
+                        "line_start": [10.0, 20.0],
+                        "line_end": [90.0, 20.0],
+                    },
+                    ensure_ascii=False,
+                ),
             }
         ]
     ).to_parquet(audit / "issues.parquet", index=False)

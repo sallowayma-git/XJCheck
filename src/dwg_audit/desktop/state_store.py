@@ -231,6 +231,51 @@ class DesktopStateStore:
             ],
         }
 
+    def update_issue_status(self, *, run_id: str, issue_id: str, status: str) -> dict[str, Any] | None:
+        now = _now_iso()
+        with self._connect() as conn:
+            updated = conn.execute(
+                """
+                UPDATE issue_summaries
+                SET status = ?
+                WHERE run_id = ? AND issue_id = ?
+                """,
+                (status, run_id, issue_id),
+            ).rowcount
+            if not updated:
+                return None
+            conn.execute(
+                """
+                UPDATE runs
+                SET updated_at = ?
+                WHERE run_id = ?
+                """,
+                (now, run_id),
+            )
+            row = conn.execute(
+                """
+                SELECT *
+                FROM issue_summaries
+                WHERE run_id = ? AND issue_id = ?
+                """,
+                (run_id, issue_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "issue_id": row["issue_id"],
+            "rule_id": row["rule_id"],
+            "title": row["title"],
+            "severity": row["severity"],
+            "status": row["status"],
+            "confidence": float(row["confidence"]),
+            "filename": row["filename"],
+            "sheet_no": row["sheet_no"],
+            "left_value": row["left_value"] or None,
+            "right_value": row["right_value"] or None,
+            "evidence": json.loads(row["evidence_json"] or "{}"),
+        }
+
     def purge_session(self, session_id: str) -> int:
         with self._connect() as conn:
             run_ids = [
