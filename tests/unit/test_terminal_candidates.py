@@ -133,8 +133,8 @@ def test_build_terminal_candidates_accepts_terminal_page_suffix_value_patterns()
         SheetRecord("S1", "F1", "07 屏端子图.dwg", 7, "07", "屏端子图", "屏端子图", "supplemental", "filename", True)
     ]
     texts = [
-        TextItem("T1", "S1", "F1", "H1", "TEXT", "1-21n110", "1-21n110", False, "0", 0.0, 2.5, 8.5, 20.0, 8.5, 19.0, 16.0, 22.0),
-        TextItem("T2", "S1", "F1", "H2", "TEXT", "3-21n210", "3-21n210", False, "0", 0.0, 2.5, 91.5, 20.0, 91.5, 19.0, 99.0, 22.0),
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1-21n110", "1-21n110", False, "0", 0.0, 2.5, 36.0, 20.0, 36.0, 19.0, 44.0, 22.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "3-21n210", "3-21n210", False, "0", 0.0, 2.5, 116.0, 20.0, 116.0, 19.0, 124.0, 22.0),
     ]
 
     candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
@@ -150,6 +150,43 @@ def test_build_terminal_candidates_accepts_terminal_page_suffix_value_patterns()
     assert right_candidate.value == "210"
     assert right_candidate.rank == 1
     assert right_candidate.score > 0.0
+
+
+def test_build_terminal_candidates_uses_terminal_page_wider_search_window() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=10.0,
+            start_y=20.0,
+            end_x=90.0,
+            end_y=20.0,
+            length=80.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+        )
+    ]
+    terminal_sheet = [
+        SheetRecord("S1", "F1", "07 屏端子图.dwg", 7, "07", "屏端子图", "屏端子图", "supplemental", "filename", True)
+    ]
+    plain_sheet = [
+        SheetRecord("S1", "F1", "04 回路图.dwg", 4, "04", "回路图", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1-21n110", "1-21n110", False, "0", 0.0, 2.5, 36.0, 20.0, 36.0, 19.0, 44.0, 22.0),
+    ]
+
+    terminal_candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, terminal_sheet)
+    plain_candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, plain_sheet)
+
+    terminal_candidate = next(item for item in terminal_candidates if item.text_id == "T1")
+    plain_candidate = [item for item in plain_candidates if item.text_id == "T1"]
+
+    assert terminal_candidate.status == "accepted"
+    assert terminal_candidate.value == "110"
+    assert plain_candidate == []
 
 
 def test_build_terminal_candidates_keeps_terminal_suffix_pattern_rejected_on_non_terminal_page() -> None:

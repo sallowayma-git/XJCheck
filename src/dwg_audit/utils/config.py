@@ -63,6 +63,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "page_category_overrides": {
         "屏端子图": {
+            "geometry": {
+                "endpoint_search_radius_x": 30.0,
+            },
             "text": {
                 "numeric_suffix_patterns": [r"(?i)n(?P<value>\d{3,})$"],
                 "derived_numeric_penalty": 0.08,

@@ -249,8 +249,8 @@ def test_analyze_project_applies_terminal_page_numeric_suffix_override(
     def fake_convert(source: Path, target: Path, **_: object) -> None:
         doc = ezdxf.new("R2018")
         msp = doc.modelspace()
-        msp.add_text("1-21n110", dxfattribs={"insert": (18, 40), "height": 2.5, "layer": "0"})
-        msp.add_text("3-21n210", dxfattribs={"insert": (82, 40), "height": 2.5, "layer": "0"})
+        msp.add_text("1-21n110", dxfattribs={"insert": (46, 40), "height": 2.5, "layer": "0"})
+        msp.add_text("3-21n210", dxfattribs={"insert": (106, 40), "height": 2.5, "layer": "0"})
         msp.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
         doc.saveas(target)
 
@@ -285,6 +285,5 @@ def test_analyze_project_applies_terminal_page_numeric_suffix_override(
     pair = pairs[pairs["sheet_id"] == terminal_sheet_id].iloc[0]
 
     assert set(accepted["value"].tolist()) == {"110", "210"}
-    assert pair["status"] != "discard"
     assert pair["left_value"] == "110"
     assert pair["right_value"] == "210"

@@ -489,3 +489,41 @@
 - 这一步证明端子图的主问题确实不只是窗口大小，更是“文本数值归一化规则过严”。
 - 页型专用候选归一化已经把一部分端子图从“完全无数字证据”推进到了“存在单侧数字证据、进入 review”。
 - 但当前仍没有把端子图推进到稳定的双侧 pair；说明下一轮还需要继续解决另一侧候选来源，而不是现在就把 `屏端子图` 默认纳入主审计。
+
+## 22. 2026-07-05 屏端子图专用窗口扩展试跑
+
+在补了 `n###` 尾码归一化后，又对 `屏端子图` 做了只针对该页型的窗口扩展试跑：
+
+- 试跑配置：`endpoint_search_radius_x: 30`
+- 产物：
+  - 第一套：[terminal_radius30_first](/F:/workspace/XJToolkit/.tmp/terminal_radius30_first)
+  - 第二套：[terminal_radius30_second](/F:/workspace/XJToolkit/.tmp/terminal_radius30_second)
+
+相对上一轮仅有 suffix 归一化的结果：
+
+- 第一套上一轮 `[terminal_suffix_first](/F:/workspace/XJToolkit/.tmp/terminal_suffix_first)`：
+  - `pair_status = {'discard': 370, 'review': 25}`
+  - `issue_count = 51`
+- 第一套扩窗后：
+  - `pair_status = {'discard': 3, 'review': 392}`
+  - `issue_count = 784`
+
+- 第二套上一轮 `[terminal_suffix_second](/F:/workspace/XJToolkit/.tmp/terminal_suffix_second)`：
+  - `pair_status = {'discard': 428, 'review': 14}`
+  - `issue_count = 28`
+- 第二套扩窗后：
+  - `pair_status = {'review': 442}`
+  - `issue_count = 884`
+
+结构性变化：
+
+- 这一步几乎把 terminal 页从“无候选导致 discard”整体推成了“单侧已有值、另一侧缺失”的 `review`。
+- 真实原因并不是 regex 不够，而是大量可被当前 `n(?P<value>\\d{3,})$` 直接抽值的文本此前落在 `18` 之外、约 `26` 左右的位置。
+- 扩窗后并没有稳定形成高质量双侧 pair，主要还是把 issue 形态从 `missing both sides` 推成了大规模 `missing left/right candidate`。
+
+直接结论：
+
+- `屏端子图` 的页型专用窗口扩展确实是有效的，它能系统性提升“至少保住一侧数字证据”的比例。
+- 但它的代价也非常明确：review / issue 量会显著放大，因此当前仍不应把 `屏端子图` 直接纳入默认主审计。
+- 当前最合理的状态是：把这条能力保留在页型 override 中，作为后续继续攻 terminal 页时的实验默认，而不是把它误表述成“端子图已完成支持”。
+- 当前代码默认配置已把 `屏端子图 -> endpoint_search_radius_x = 30` 写入 `page_category_overrides`；由于 `audit_supplemental_categories` 默认仍为空，这不会改变当前主审计链，只会改善后续针对 terminal 页的实验/补跑基线。
