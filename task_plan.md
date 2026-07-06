@@ -614,12 +614,30 @@ Phase 50
 - **Status:** complete
 
 ### Phase 51: Desktop Exe Workflow Closure
-- [ ] 重新审计 exe 工作流是否仍依赖手工 CLI / 源码路径 / 本机 Python 环境
-- [ ] 明确 sidecar 打包或 runtime 复用策略，不继续扩产品 CLI
+- [x] 重新审计 exe 工作流是否仍依赖手工 CLI / 源码路径 / 本机 Python 环境
+- [x] 明确 sidecar 打包或 runtime 复用策略，不继续扩产品 CLI
 - [ ] 用最小端到端证据证明导入项目、启动分析、查看报告的 exe 主链
-- **Status:** pending
+- **Status:** in_progress
+
+#### Phase 51 Runtime Resolver Slice
+- [x] 审计确认旧 Tauri bridge 固定执行 `python -m dwg_audit.cli`，并用编译时 `CARGO_MANIFEST_DIR/../../..` 找源码根；这只能证明开发态，不能证明安装后的 exe 无源码依赖。
+- [x] 新增 `sidecar_runtime` resolver：优先 `DWG_AUDIT_SIDECAR_EXE`，其次 Tauri resource dir 下的 `dwg-audit-sidecar(.exe)`，最后才是开发源码 Python fallback。
+- [x] release 策略收口：release 运行态不再隐式回退源码路径；只有 debug build 或显式 `DWG_AUDIT_ALLOW_SOURCE_FALLBACK=1` 才允许源码 fallback。
+- [x] Tauri command bridge 继续调用同一组内部 sidecar/CLI 子命令，但产品面不新增 CLI；桌面 README 已记录 runtime contract。
+- [x] 验证结果：
+  - `npm run build` -> passed
+  - `cargo test --manifest-path apps\desktop\src-tauri\Cargo.toml` -> `5 passed`
+  - `cargo test --release --manifest-path apps\desktop\src-tauri\Cargo.toml` -> `5 passed`
+  - `python -m pytest -q tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `7 passed`
+  - `python -m pytest -q` -> `217 passed`
+  - `npm run tauri:build` -> produced `apps/desktop/src-tauri/target/release/bundle/nsis/DWG Audit Desktop_0.1.0_x64-setup.exe`
+- [ ] 下一刀建议：产出并打包真实 `dwg-audit-sidecar` 可执行文件，然后用安装后的 exe 跑一次导入项目、启动分析、加载报告的桌面主链证据。
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | `rg.exe` 启动被 Windows 拒绝访问 | 在 Codex app bundled `rg.exe` 上执行全文检索 | 改用 PowerShell `Select-String` / `Get-ChildItem`，后续本轮不重复同一 `rg` 调用 |
+| `Get-Content` 旧路径失败 | 读取 `src\dwg_audit\execution_service.py` / `src\dwg_audit\sidecar.py` | 当前文件已迁到 `src\dwg_audit\services\execution.py` 与 `src\dwg_audit\desktop\sidecar.py`，后续按新路径读取 |
+| `Select-Object -Index 740..785` 范围参数失败 | 读取本地 Tauri crate 源码片段 | 改用 `Select-Object -Skip ... -First ...` |
+| Tauri `cargo test` 首次失败：`frontendDist` 路径不存在 | 未先生成 `apps/desktop/dist` 时运行 Rust tests | 先执行 `npm run build` 生成 gitignored dist，再跑 cargo test |
+| Windows `link.exe` 间歇性 `LNK1104` 无法打开 test exe 输出 | 重跑 `cargo test` 时链接阶段偶发锁定输出路径 | 查无残留进程后立即重试，同命令通过；记录为 Windows target/linker 临时锁竞争 |

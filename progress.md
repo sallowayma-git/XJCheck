@@ -2068,3 +2068,34 @@
   - `python -m pytest -q` -> `217 passed`
   - `git diff --check` -> no whitespace errors, only CRLF warnings.
 - No `.tmp` artifacts were staged or committed.
+
+## Session Update 2026-07-06 (Phase 51 runtime resolver slice)
+- Started Phase 51 after Phase 50 completion, following the read-only audit -> minimal slice -> test -> commit workflow.
+- Read-only audit:
+  - `run_analysis_workflow()` already centralizes analyze + optional audit for CLI / UI / desktop sidecar.
+  - Python desktop sidecar already stores results, recent projects, preview rendering and issue status updates.
+  - Tauri frontend calls native commands for analyze/list/load/preview/status, but Rust bridge still launched `python -m dwg_audit.cli` directly.
+  - Old Rust bridge resolved repo root from compile-time `CARGO_MANIFEST_DIR/../../..`, so installed exe behavior could still depend on a source checkout and local Python environment.
+- Implementation:
+  - Added `apps/desktop/src-tauri/src/sidecar_runtime.rs`.
+  - Runtime resolution order is now:
+    1. `DWG_AUDIT_SIDECAR_EXE`
+    2. Tauri resource dir candidates `dwg-audit-sidecar.exe`, `dwg-audit-sidecar`, `sidecar/dwg-audit-sidecar.exe`, `sidecar/dwg-audit-sidecar`
+    3. development-only source fallback through `python -m dwg_audit.cli`
+  - Release builds no longer implicitly use the source checkout fallback. Source fallback is allowed only in debug builds or when `DWG_AUDIT_ALLOW_SOURCE_FALLBACK=1` is explicitly set.
+  - Updated `main.rs` command bridge to build sidecar commands through the resolver and to use neutral `DWG audit sidecar` error messages.
+  - Updated `apps/desktop/README.md` with the runtime contract and current limitation: the packaged sidecar executable still has to be produced and bundled before the installer is source-tree independent.
+- Verification:
+  - `npm run build` -> passed
+  - `cargo test --manifest-path apps\desktop\src-tauri\Cargo.toml` -> `5 passed`
+  - `cargo test --release --manifest-path apps\desktop\src-tauri\Cargo.toml` -> `5 passed`
+  - `python -m pytest -q tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `7 passed`
+  - `python -m pytest -q` -> `217 passed`
+  - `npm run tauri:build` -> produced `apps/desktop/src-tauri/target/release/bundle/nsis/DWG Audit Desktop_0.1.0_x64-setup.exe`
+- Notes:
+  - `cargo test` initially failed until `apps/desktop/dist` existed; `npm run build` fixed the Tauri macro `frontendDist` precondition.
+  - Windows linker twice hit intermittent `LNK1104` on the same test exe output; no stuck process was found and immediate retry passed.
+  - Did not modify or stage concurrent external files: `doc/任务书.md`, `doc/page_findings/`, `doc/page_task_queue.md`.
+- Next recommended focus:
+  - Build/package the actual `dwg-audit-sidecar` executable into Tauri resources.
+  - Then run an installed exe-level smoke proof: import project folder, start analysis, load report/result view without relying on source tree or local Python.

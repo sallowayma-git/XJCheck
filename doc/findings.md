@@ -7289,3 +7289,39 @@ fixture 更新：
 - 真实 second-set golden 已从旧 `ordinary_pair` 口径升级到结构化 `table_mapping/pass` 口径。
 - fault-injected mini case 可通过测试 helper 稳定生成 artifact 并参与 suite。
 - 完整 suite 在临时产物上已实证 `3/3` 可通过。
+
+## 104. 2026-07-06 Desktop exe runtime contract：release 不再隐式依赖源码路径
+
+Phase51 的只读审计确认，桌面主链已经有一层共享 service entry：
+
+- `run_analysis_workflow()` 统一承载 analyze + optional audit。
+- Python desktop sidecar 已能写入 session workspace / state DB，并支持 recent projects、load result、preview、issue status。
+- Tauri frontend 已通过 native invoke 调用 analyze/list/load/preview/status。
+
+但旧 Rust command bridge 仍固定执行 `python -m dwg_audit.cli`，并从编译时 `CARGO_MANIFEST_DIR/../../..` 推导源码根。这意味着此前只能证明开发态可用，不能证明安装后的 exe 脱离源码树和本机 Python 环境。
+
+本轮完成的最小 runtime contract 修正：
+
+- 新增 [sidecar_runtime.rs](/F:/workspace/XJToolkit/apps/desktop/src-tauri/src/sidecar_runtime.rs)。
+- Tauri sidecar 解析顺序改为：
+  - `DWG_AUDIT_SIDECAR_EXE`
+  - Tauri resource dir 中的 `dwg-audit-sidecar.exe` / `dwg-audit-sidecar` / `sidecar/dwg-audit-sidecar.exe` / `sidecar/dwg-audit-sidecar`
+  - 开发态 `python -m dwg_audit.cli` fallback
+- release 运行态不再隐式回退源码路径；源码 fallback 只允许 debug build 或显式 `DWG_AUDIT_ALLOW_SOURCE_FALLBACK=1`。
+- Rust command bridge 继续复用内部 sidecar/CLI 子命令，不新增产品 CLI 面。
+- 桌面 README 已记录 runtime contract 和当前限制。
+
+验证：
+
+- `npm run build` -> passed
+- `cargo test --manifest-path apps\desktop\src-tauri\Cargo.toml` -> `5 passed`
+- `cargo test --release --manifest-path apps\desktop\src-tauri\Cargo.toml` -> `5 passed`
+- `python -m pytest -q tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `7 passed`
+- `python -m pytest -q` -> `217 passed`
+- `npm run tauri:build` -> 成功产出 [DWG Audit Desktop_0.1.0_x64-setup.exe](/F:/workspace/XJToolkit/apps/desktop/src-tauri/target/release/bundle/nsis/DWG%20Audit%20Desktop_0.1.0_x64-setup.exe)
+
+当前裁决：
+
+- Phase51 前两条已闭合：exe 工作流依赖点已审计清楚，sidecar runtime 策略已落代码合同。
+- Phase51 还不能标 complete：真实 `dwg-audit-sidecar` 可执行文件尚未产出/进包，仍缺“安装后的 exe 导入项目 -> 启动分析 -> 加载报告”端到端证据。
+- 下一刀应集中在 sidecar executable packaging，而不是继续扩 CLI 或继续改桌面 UI。
