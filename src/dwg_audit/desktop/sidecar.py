@@ -11,11 +11,8 @@ import pandas as pd
 
 from dwg_audit.desktop.state_store import DesktopStateStore
 from dwg_audit.desktop.state_store import default_state_db_path
-from dwg_audit.pipeline import analyze_input_root
 from dwg_audit.report.artifacts import load_report_frames
-from dwg_audit.report.rerun import rerun_audit_from_findings
-from dwg_audit.utils.config import load_config
-from dwg_audit.utils.logging import configure_logging
+from dwg_audit.services import run_analysis_workflow
 
 DESKTOP_ISSUE_STATUSES = {"open", "ignored", "resolved", "false_positive"}
 
@@ -64,21 +61,22 @@ def analyze_session(
         workspace_root=str(session_workspace),
         include_audit=include_audit,
     )
-    config = load_config(resolved_config)
-    logger = configure_logging(session_workspace / "logs" / "desktop_session.log")
-    project_dirs = analyze_input_root(
-        resolved_input,
-        session_workspace,
-        config,
-        logger,
+    result = run_analysis_workflow(
+        input_root=resolved_input,
+        output_root=session_workspace,
+        config_path=resolved_config,
+        include_audit=include_audit,
+        log_path=session_workspace / "logs" / "desktop_session.log",
         event_sink=writer,
+        on_project_artifacts_ready=lambda project_dir: writer.emit(
+            "project_artifacts_ready",
+            session_id=run_session_id,
+            project_dir=str(project_dir),
+        ),
     )
 
     stored_runs: list[dict[str, Any]] = []
-    for project_dir in project_dirs:
-        writer.emit("project_artifacts_ready", session_id=run_session_id, project_dir=str(project_dir))
-        if include_audit:
-            rerun_audit_from_findings(project_dir, config, event_sink=writer)
+    for project_dir in result.project_dirs:
         summary = _store_project_run(
             state_store,
             session_id=run_session_id,

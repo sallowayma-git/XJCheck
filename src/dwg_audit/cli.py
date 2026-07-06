@@ -12,7 +12,6 @@ from dwg_audit.desktop import load_project_result as load_desktop_project_result
 from dwg_audit.desktop import purge_session as purge_desktop_session
 from dwg_audit.desktop import render_project_preview
 from dwg_audit.desktop import update_issue_status as update_desktop_issue_status
-from dwg_audit.pipeline import analyze_input_root
 from dwg_audit.report import compare_project_regressions
 from dwg_audit.report import evaluate_acceptance_project
 from dwg_audit.report import evaluate_acceptance_suite
@@ -21,9 +20,9 @@ from dwg_audit.report import rerun_audit_from_findings
 from dwg_audit.report import write_acceptance_report
 from dwg_audit.report import write_acceptance_suite_report
 from dwg_audit.report import write_regression_report
+from dwg_audit.services import run_analysis_workflow
 from dwg_audit.utils.config import load_config
 from dwg_audit.utils.config import write_default_config
-from dwg_audit.utils.logging import configure_logging
 
 
 app = typer.Typer(add_completion=False, no_args_is_help=True, help="Local DWG audit toolkit.")
@@ -47,12 +46,15 @@ def analyze_project(
     output_path: Path = typer.Option(..., "--output", "-o", file_okay=False, dir_okay=True, resolve_path=True),
     config_path: Path | None = typer.Option(None, "--config", "-c", exists=True, resolve_path=True),
 ) -> None:
-    output_path.mkdir(parents=True, exist_ok=True)
-    logger = configure_logging(output_path / "logs" / "analyze.log")
-    config = load_config(config_path)
-    written = analyze_input_root(input_path, output_path, config, logger)
+    result = run_analysis_workflow(
+        input_root=input_path,
+        output_root=output_path,
+        config_path=config_path,
+        include_audit=False,
+        log_path=output_path / "logs" / "analyze.log",
+    )
     typer.echo("Analysis completed:")
-    for path in written:
+    for path in result.project_dirs:
         typer.echo(f"- {path}")
 
 

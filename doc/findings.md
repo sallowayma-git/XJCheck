@@ -6263,3 +6263,100 @@ suite 当前结果直接为：
 - 不是继续扩 acceptance CLI
 - 而是把当前分析/审计主链进一步收敛为 service/session API
 - 让 CLI 与 exe 复用同一条执行入口
+
+## 88. 2026-07-06 CLI / sidecar / UI 已收敛到单一执行入口
+
+在 section 87 和用户补充边界之后，本轮没有继续新增 `dwg-audit xxx` 产品能力，而是把现有主执行链往 exe 可调用入口收敛。
+
+### 88.1 这轮代码上实际补了什么
+
+新增统一执行服务：
+
+- [execution.py](/F:/workspace/XJToolkit/src/dwg_audit/services/execution.py)
+- [__init__.py](/F:/workspace/XJToolkit/src/dwg_audit/services/__init__.py)
+
+`run_analysis_workflow()` 现在集中负责：
+
+- 输入目录与配置路径校验
+- 输出目录创建
+- `load_config`
+- `configure_logging`
+- `analyze_input_root`
+- 可选 `rerun_audit_from_findings`
+- 返回 `AnalysisRunResult`
+
+三条旧入口现在改为调用同一层：
+
+- [cli.py](/F:/workspace/XJToolkit/src/dwg_audit/cli.py)
+- [sidecar.py](/F:/workspace/XJToolkit/src/dwg_audit/desktop/sidecar.py)
+- [actions.py](/F:/workspace/XJToolkit/src/dwg_audit/ui/actions.py)
+
+这意味着 current-head 的方向已经从“继续堆 CLI 命令”转成：
+
+- CLI 是薄包装
+- Streamlit 内部 UI 是薄包装
+- Tauri sidecar / exe worker 也调用同一条 service 入口
+
+### 88.2 事件与桌面端约束
+
+为了避免抽 service 后削弱桌面端过程页，本轮保留了 `project_artifacts_ready` 时机：
+
+- `run_analysis_workflow()` 支持 `on_project_artifacts_ready`
+- `desktop.sidecar.analyze_session()` 通过回调继续在 audit 前发 `project_artifacts_ready`
+- `event_sink` 继续透传给 analyze 与 audit 阶段
+
+所以这轮不是把桌面端事件流藏进 CLI，而是把 exe 需要的执行语义下沉到 service。
+
+### 88.3 验证结果
+
+定向验证：
+
+- `python -m pytest -q tests\unit\test_execution_service.py tests\unit\test_ui_actions.py tests\unit\test_sidecar.py` -> `10 passed`
+- `python -m pytest -q tests\unit\test_cli.py -k "analyze_session or help_lists_taskbook_commands"` -> `2 passed`
+
+全量验证：
+
+- `python -m pytest -q` -> `179 passed`
+
+真实第二套样本 exe-near session 验证：
+
+- 命令路径：`analyze-session`
+- 输入：`test\变压器测控柜(2圈变，2台测控)`
+- 输出：[phase43_service_session_abs](/F:/workspace/XJToolkit/.tmp/phase43_service_session_abs)
+- 状态库：[desktop_state.db](/F:/workspace/XJToolkit/.tmp/phase43_service_session_abs/desktop_state.db)
+
+结果：
+
+- `sheet_count = 24`
+- `pair_count = 1211`
+- `issue_count = 519`
+- `project_artifacts_ready` 仍出现在 audit 前
+- state store 能通过 `list-recent-projects` 读回项目结果
+
+route status 仍稳定为：
+
+- `WireDiagramExtractor = executed`
+- `ComponentDiagramExtractor = executed`
+- `TerminalDiagramExtractor = executed`
+- `TableExtractor = no_pages_classified`
+- `LayoutOnlyExtractor = classify_only_pages_present`
+- `SkipExtractor = skip_pages_present`
+
+### 88.4 当前裁决
+
+这轮完成的是第一层收敛：
+
+- 共同执行链已经有了 service 入口
+- CLI / UI / sidecar 不再各自拼核心分析流程
+- exe worker 后续可以直接复用 `run_analysis_workflow()`
+
+仍未完全闭环的是第二层：
+
+- desktop sidecar 仍负责状态落库、结果加载、预览、issue 状态更新
+- 这些还没有统一成一个完整的 `SessionService`
+- 终端 JSONL 输出里的中文在当前控制台仍有 mojibake 显示风险，但状态库与文件产物保持正常 UTF-8
+
+所以最近下一条缺口已经不是继续抽 `analyze-project`，而是：
+
+- 把桌面端 session orchestration 继续整理成 exe worker 更稳定消费的 service boundary
+- 同时处理 JSONL 事件输出编码显示风险

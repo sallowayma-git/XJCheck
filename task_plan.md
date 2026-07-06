@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 37
+Phase 38
 
 ## Phases
 
@@ -271,17 +271,24 @@ Phase 37
 - **Status:** complete
 
 ### Phase 37: Single Execution Entry Audit
-- [ ] 重新按用户最新边界审计 `analyze-project / analyze-session / ui.actions.run_ui_analysis` 的共同执行链
-- [ ] 确认哪些逻辑已经共享在 `pipeline.analyze_input_root`，哪些仍散落在 CLI / sidecar / UI 包装层
-- [ ] 选一条最小安全切片，把当前主分析链收敛成 exe 可调用的 service/session entry，而不是继续扩 CLI surface
-- [ ] 为该切片准备非重叠测试与 real-sample 验证路径
+- [x] 重新按用户最新边界审计 `analyze-project / analyze-session / ui.actions.run_ui_analysis` 的共同执行链
+- [x] 确认哪些逻辑已经共享在 `pipeline.analyze_input_root`，哪些仍散落在 CLI / sidecar / UI 包装层
+- [x] 抽出 `run_analysis_workflow()`，把分析 + 可选审计主链收敛成 exe 可调用的 service entry
+- [x] 让 CLI / Streamlit UI / desktop sidecar 复用同一 service entry，并保留 `project_artifacts_ready` 事件时机
+- [x] 复跑 targeted pytest、full pytest，以及第二套真实样本 `analyze-session`
+- **Status:** complete
+
+### Phase 38: Desktop Session Service Boundary
+- [ ] 审计 desktop sidecar 中状态落库、事件输出、结果加载、预览、issue 状态更新的职责边界
+- [ ] 决定是否抽出 `SessionService`，让 exe worker 直接调用，而不是继续让 CLI sidecar 包装承担 orchestration
+- [ ] 单独处理 JSONL 事件输出中文 mojibake 风险，避免终端编码问题影响 Tauri 实时事件消费
+- [ ] 为 session service 准备 unit + real-sample smoke 验证
 - **Status:** in_progress
 
 ## Key Questions
-1. 在第 19 节最小验收 suite proof 已出现之后，当前更近的产品化缺口是不是已经从“再补一个 CLI 能力”转成“抽出单一执行/service entry”？
-2. `pipeline.analyze_input_root` 已被 CLI、sidecar 和 Streamlit UI 共同复用，但 audit 编排、状态落库和事件输出仍分散在包装层；最小安全收敛点应该落在哪一层？
-3. `analyze-project`、`analyze-session` 与 `ui.actions.run_ui_analysis` 之间，哪些职责属于同一条产品执行主链，哪些只是内部调试入口的薄包装？
-4. 下一刀如果要对齐 exe 方向，应优先抽“分析 + 审计单次运行 service”，还是优先抽“带事件与持久化的 session orchestration service”？
+1. `run_analysis_workflow()` 已收敛分析 + 可选审计执行后，desktop sidecar 里剩余的 session orchestration 是否应继续抽成 `SessionService`？
+2. JSONL 事件在当前终端存在中文 mojibake 显示风险；它是终端显示问题、stdout encoding 问题，还是 Tauri 事件消费也会遇到的问题？
+3. 下一刀是否应先稳定 session service 边界，再继续改桌面端前端调用层？
 
 ## Decisions Made
 | Decision | Rationale |
@@ -324,6 +331,7 @@ Phase 37
 | per-type extractor 的最小闭环不需要立刻重写三套完全不同的大算法，但必须有真实不同的执行入口、可测试调用证据，以及 fresh real-sample 的执行摘要 | 这能最小风险地满足“不能继续依赖一条共享大脚本解释所有页型”的任务书要求 |
 | 当 `Wire / Component / Terminal` 已有执行证据后，下一条更近的主链切片不是回到几何调参，而是把 `Table / LayoutOnly / Skip` 的执行或明确未执行状态补到同层级合同 | 否则 route matrix 仍只对三类 audited pair page 强，而对“表格暂无命中”“背板 classify_only”“封面 skip”还停留在间接说明 |
 | `evaluate-acceptance-suite` 只允许作为内部验收 harness 存在，不构成继续扩产品 CLI 的方向许可 | 用户已明确要求产品主链转向 exe 可调用的单一执行入口，CLI 只保留调试/自动化/验收用途 |
+| 第一层 exe 可调用入口应抽成 `run_analysis_workflow()`，而不是先大改 desktop sidecar | 这能让 CLI / UI / sidecar 立刻共享分析 + 可选审计主链，并把更复杂的状态落库与预览职责留给下一轮 session service |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -335,6 +343,7 @@ Phase 37
 | 本轮尝试再拉一个只读 explorer 时命中 agent thread limit | 1 | 停止等待子代理，改为主线程本地直接核对 phase37 rerun 的 `findings.json` 关键字段 |
 | `test_rerun_audit.py` 仍按旧 `issues.json` 形状断言导致 full pytest 失败 | 1 | 同步把 expected JSON 更新为包含新的顶层 `filename / sheet_no / sheet_order / rationale` 字段 |
 | route-specific extractor 首版 fresh rerun 导致两套真实样本 issue 总量异常上升（second `519 -> 606`，first `345 -> 374`） | 1 | 先比对 rule 分布，定位为分路后 `line_group / candidate / pair` 编号在各子链内重新从 1 开始，触发项目内 ID 碰撞；给 `build_line_groups / build_terminal_candidates / build_pairs` 增加可注入 `IdFactory` 后恢复稳定基线 |
+| 第一次 `analyze-session` 真实验证使用相对 `.tmp\phase43_service_session` 路径后，后续核对落点出现歧义 | 1 | 改用预创建的绝对路径 `.tmp\phase43_service_session_abs` 重跑，确认 workspace、state db 和 session 产物都稳定落盘 |
 
 ## Notes
 - 本轮不要触碰其他 agent 正在改的文件内容；若发生重叠，先读清现状再合并。

@@ -14,6 +14,7 @@ from dwg_audit.desktop.sidecar import purge_session
 from dwg_audit.desktop.preview import render_project_preview
 from dwg_audit.desktop.sidecar import update_issue_status
 from dwg_audit.desktop.state_store import DesktopStateStore
+from dwg_audit.services import AnalysisRunResult
 
 
 def test_analyze_session_emits_events_and_stores_project_result(monkeypatch, tmp_path: Path) -> None:
@@ -24,24 +25,25 @@ def test_analyze_session_emits_events_and_stores_project_result(monkeypatch, tmp
     project_dir = workspace_root / "session-a" / "demo_project"
     _write_project_output(project_dir)
 
-    monkeypatch.setattr("dwg_audit.desktop.sidecar.load_config", lambda path: {"demo": True})
-    monkeypatch.setattr("dwg_audit.desktop.sidecar.configure_logging", lambda path: object())
+    def fake_run_analysis_workflow(**kwargs):
+        assert kwargs["input_root"] == input_root.resolve()
+        assert kwargs["output_root"] == (workspace_root / "session-a").resolve()
+        assert kwargs["include_audit"] is True
+        assert kwargs["log_path"] == workspace_root / "session-a" / "logs" / "desktop_session.log"
+        kwargs["event_sink"].emit("progress", stage="pair", pair_count=2)
+        kwargs["on_project_artifacts_ready"](project_dir)
+        kwargs["event_sink"].emit("audit_finished", project_dir=str(project_dir), issue_count=1)
+        return AnalysisRunResult(
+            input_root=kwargs["input_root"],
+            output_root=kwargs["output_root"],
+            project_dirs=[project_dir],
+            audit_dirs=[project_dir / "audit"],
+            config_path=None,
+            run_summary_path=workspace_root / "session-a" / "run_summary.json",
+            config={"demo": True},
+        )
 
-    def fake_analyze_input_root(input_path, output_path, config, logger, *, event_sink=None):
-        assert input_path == input_root.resolve()
-        assert output_path == (workspace_root / "session-a").resolve()
-        if event_sink is not None:
-            event_sink.emit("progress", stage="pair", pair_count=2)
-        return [project_dir]
-
-    def fake_rerun(project_path, config, output_dir=None, *, event_sink=None):
-        assert project_path == project_dir
-        if event_sink is not None:
-            event_sink.emit("audit_finished", project_dir=str(project_path), issue_count=1)
-        return project_path / "audit"
-
-    monkeypatch.setattr("dwg_audit.desktop.sidecar.analyze_input_root", fake_analyze_input_root)
-    monkeypatch.setattr("dwg_audit.desktop.sidecar.rerun_audit_from_findings", fake_rerun)
+    monkeypatch.setattr("dwg_audit.desktop.sidecar.run_analysis_workflow", fake_run_analysis_workflow)
 
     stream = StringIO()
     runs = analyze_session(

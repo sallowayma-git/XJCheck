@@ -1563,3 +1563,42 @@
     - real-correct second-set subsets
   - 下一步不应继续扩 `dwg-audit xxx`
   - 而应转向把 `analyze-project / analyze-session / ui.actions.run_ui_analysis` 共同依赖的执行链收敛成 exe 可调用的单一 service/session entry
+
+## Session Update 2026-07-06 (Phase 37)
+- 按用户最新边界继续推进：
+  - 不再新增产品 CLI surface
+  - 转向把现有能力接到 exe 可调用的执行入口
+- 本轮实现：
+  - 新增 [execution.py](/F:/workspace/XJToolkit/src/dwg_audit/services/execution.py)
+    - `AnalysisRunResult`
+    - `run_analysis_workflow()`
+  - 新增 [__init__.py](/F:/workspace/XJToolkit/src/dwg_audit/services/__init__.py)
+  - [cli.py](/F:/workspace/XJToolkit/src/dwg_audit/cli.py)
+    - `analyze-project` 改成调用 `run_analysis_workflow(include_audit=False)`
+    - 继续保持薄调试入口，不新增新命令
+  - [actions.py](/F:/workspace/XJToolkit/src/dwg_audit/ui/actions.py)
+    - Streamlit 内部 UI 改成复用同一 service
+  - [sidecar.py](/F:/workspace/XJToolkit/src/dwg_audit/desktop/sidecar.py)
+    - `analyze_session()` 改成复用同一 service
+    - 通过 `on_project_artifacts_ready` 保持 audit 前的 `project_artifacts_ready` 事件时机
+- 测试更新：
+  - [test_execution_service.py](/F:/workspace/XJToolkit/tests/unit/test_execution_service.py)
+  - [test_ui_actions.py](/F:/workspace/XJToolkit/tests/unit/test_ui_actions.py)
+  - [test_sidecar.py](/F:/workspace/XJToolkit/tests/unit/test_sidecar.py)
+- 定向验证：
+  - `python -m pytest -q tests\unit\test_execution_service.py tests\unit\test_ui_actions.py tests\unit\test_sidecar.py` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_cli.py -k "analyze_session or help_lists_taskbook_commands"` -> `2 passed`
+- 全量回归：
+  - `python -m pytest -q` -> `179 passed`
+- 真实第二套 exe-near session 验证：
+  - `python -m dwg_audit.cli analyze-session --input "F:\workspace\XJToolkit\test\变压器测控柜(2圈变，2台测控)" --workspace-root "F:\workspace\XJToolkit\.tmp\phase43_service_session_abs\workspace" --session-id phase43-service-second --state-db "F:\workspace\XJToolkit\.tmp\phase43_service_session_abs\desktop_state.db"`
+  - 结果：
+    - `sheet_count = 24`
+    - `pair_count = 1211`
+    - `issue_count = 519`
+    - `project_artifacts_ready` 仍在 audit 前出现
+    - state store 可通过 `list-recent-projects` 读回结果
+- 当前裁决：
+  - 第一层 service entry 已完成：CLI / UI / sidecar 复用同一条分析 + 可选审计执行链
+  - 下一步应继续整理 desktop session orchestration，而不是继续增加 CLI 命令
+  - 终端 JSONL 事件的中文显示存在 mojibake 风险，应作为后续 sidecar 输出层问题单独处理

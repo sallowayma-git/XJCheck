@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dwg_audit.services import AnalysisRunResult
 from dwg_audit.ui.actions import discover_project_outputs
 from dwg_audit.ui.actions import run_ui_analysis
 
@@ -31,39 +32,32 @@ def test_run_ui_analysis_calls_pipeline_and_optional_audit(monkeypatch, tmp_path
 
     calls: dict[str, object] = {}
 
-    def fake_load_config(path):
-        calls["config_path"] = path
-        return {"demo": True}
-
-    def fake_logger(path):
-        calls["log_path"] = path
-        return object()
-
-    def fake_analyze_input_root(input_path, output_path, config, logger):
-        calls["analyze"] = (input_path, output_path, config, logger)
-        return [project_dir]
-
-    def fake_rerun(project_path, config):
-        calls["rerun"] = (project_path, config)
-        audit_dir = project_path / "audit"
+    def fake_run_analysis_workflow(**kwargs):
+        calls["workflow"] = kwargs
+        audit_dir = project_dir / "audit"
         audit_dir.mkdir(exist_ok=True)
-        return audit_dir
+        return AnalysisRunResult(
+            input_root=kwargs["input_root"],
+            output_root=kwargs["output_root"],
+            project_dirs=[project_dir],
+            audit_dirs=[audit_dir],
+            config_path=None,
+            run_summary_path=output_root / "run_summary.json",
+            config={"demo": True},
+        )
 
-    monkeypatch.setattr("dwg_audit.ui.actions.load_config", fake_load_config)
-    monkeypatch.setattr("dwg_audit.ui.actions.configure_logging", fake_logger)
-    monkeypatch.setattr("dwg_audit.ui.actions.analyze_input_root", fake_analyze_input_root)
-    monkeypatch.setattr("dwg_audit.ui.actions.rerun_audit_from_findings", fake_rerun)
+    monkeypatch.setattr("dwg_audit.ui.actions.run_analysis_workflow", fake_run_analysis_workflow)
 
     result = run_ui_analysis(input_root, output_root, include_audit=True)
 
     assert result.project_dirs == [project_dir]
     assert result.audit_dirs == [project_dir / "audit"]
     assert result.run_summary_path == output_root / "run_summary.json"
-    assert calls["config_path"] is None
-    assert calls["log_path"] == output_root / "logs" / "ui_analyze.log"
-    assert calls["analyze"][0] == input_root.resolve()
-    assert calls["analyze"][1] == output_root.resolve()
-    assert calls["rerun"] == (project_dir, {"demo": True})
+    assert calls["workflow"]["input_root"] == input_root.resolve()
+    assert calls["workflow"]["output_root"] == output_root.resolve()
+    assert calls["workflow"]["config_path"] is None
+    assert calls["workflow"]["include_audit"] is True
+    assert calls["workflow"]["log_path"] == output_root / "logs" / "ui_analyze.log"
 
 
 def test_run_ui_analysis_can_skip_audit(monkeypatch, tmp_path: Path) -> None:
@@ -73,13 +67,19 @@ def test_run_ui_analysis_can_skip_audit(monkeypatch, tmp_path: Path) -> None:
     project_dir = output_root / "projectA"
     project_dir.mkdir(parents=True)
 
-    monkeypatch.setattr("dwg_audit.ui.actions.load_config", lambda path: {})
-    monkeypatch.setattr("dwg_audit.ui.actions.configure_logging", lambda path: object())
-    monkeypatch.setattr("dwg_audit.ui.actions.analyze_input_root", lambda *args, **kwargs: [project_dir])
-    monkeypatch.setattr(
-        "dwg_audit.ui.actions.rerun_audit_from_findings",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("rerun should not be called")),
-    )
+    def fake_run_analysis_workflow(**kwargs):
+        assert kwargs["include_audit"] is False
+        return AnalysisRunResult(
+            input_root=kwargs["input_root"],
+            output_root=kwargs["output_root"],
+            project_dirs=[project_dir],
+            audit_dirs=[],
+            config_path=None,
+            run_summary_path=None,
+            config={},
+        )
+
+    monkeypatch.setattr("dwg_audit.ui.actions.run_analysis_workflow", fake_run_analysis_workflow)
 
     result = run_ui_analysis(input_root, output_root, include_audit=False)
 
