@@ -281,6 +281,45 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
         sheet_ids = {pair.sheet_id for pair in linked_pairs}
         if len(rights) > 1 and len(sheet_ids) > 1:
             first = linked_pairs[0]
+            if _is_backplate_virtual_table_scope_review(linked_pairs):
+                table_mappings = [_table_mapping_evidence(pair) for pair in linked_pairs]
+                issues.append(
+                    context.issue_factory.build(
+                        "R-CROSS-PAGE-CONFLICT",
+                        "review",
+                        first,
+                        f"Backplate table endpoint {left_value} maps to multiple scoped terminals across pages.",
+                        title="背板表格作用域待复核",
+                        explanation=(
+                            "同型背板插件表格中的逻辑端在不同背板页或装置作用域下指向不同外部端。"
+                            "这通常表示同一表头/行号模板在不同装置实例中复用，应作为作用域待复核，"
+                            "不直接按全项目同名端子 critical 冲突处理。"
+                        ),
+                        recommended_action="核对背板页、插件块名、表头和行号，确认这些表格行是否属于不同装置作用域。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(rights),
+                            "sheet_ids": sorted(sheet_ids),
+                            "one_to_many_classification": "backplate_table_scope_review",
+                            "table_mapping_mode": "backplate_virtual_table",
+                            "source_block_names": sorted(
+                                {
+                                    str(mapping.get("source_block_name"))
+                                    for mapping in table_mappings
+                                    if mapping.get("source_block_name")
+                                }
+                            ),
+                            "header_prefixes": sorted(
+                                {
+                                    str(mapping.get("header_prefix"))
+                                    for mapping in table_mappings
+                                    if mapping.get("header_prefix")
+                                }
+                            ),
+                        },
+                    )
+                )
+                continue
             issues.append(
                 context.issue_factory.build(
                     "R-CROSS-PAGE-CONFLICT",
@@ -627,6 +666,26 @@ def _high_confidence_source_eligible(pair: Pair) -> bool:
     if _structured_source_kind(pair) in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
         return True
     return _ordinary_pair_eligible(pair)
+
+
+def _is_backplate_virtual_table_scope_review(linked_pairs: list[Pair]) -> bool:
+    if not linked_pairs:
+        return False
+    for pair in linked_pairs:
+        if getattr(pair, "pair_kind", "ordinary_pair") != "table_mapping":
+            return False
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "backplate_virtual_table":
+            return False
+    return True
+
+
+def _table_mapping_evidence(pair: Pair) -> dict[str, object]:
+    evidence = pair.evidence or {}
+    table_mapping = evidence.get("table_mapping")
+    if isinstance(table_mapping, dict):
+        return table_mapping
+    return {}
 
 
 def _ordinary_pair_eligible(pair: Pair) -> bool:

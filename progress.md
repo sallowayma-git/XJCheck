@@ -2123,6 +2123,35 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-06 (Phase 56 backplate table scoped conflict review)
+- Started after commit `03b9f6a`.
+- Read-only recovery:
+  - `git status --short` showed only external/concurrent files before edits: `doc/任务书.md`, `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Four readonly audits were requested; active results converged on rules semantics and true-sample issue misclassification rather than extractor drift.
+  - Phase69 first-set had `66` `critical R-CROSS-PAGE-CONFLICT`, all from `backplate_virtual_table`; second-set had no critical issues.
+- Implementation:
+  - Updated `_run_cross_page_conflict()` in `rules.py` to recognize cross-page `table_mapping` pairs whose table evidence is `mapping_mode=backplate_virtual_table`.
+  - These issues remain visible as `R-CROSS-PAGE-CONFLICT`, but severity is now `review` with `one_to_many_classification=backplate_table_scope_review`.
+  - Generic `table_mapping` and `component_mapping` cross-page conflicts remain critical; no pair generation, extraction, acceptance fixture, or product CLI behavior changed.
+  - Added a rules unit test for `NDY306A-3` style backplate table scope review.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "cross_page or table_mapping or component_mapping or one_to_many or many_to_one or semantic_mapping"` -> `18 passed, 26 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `44 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `227 passed`
+  - Quick audit on phase69 first findings: `issue_count=441`, `critical=0`, `review=435`, `minor=6`, `R-CROSS-PAGE-CONFLICT=66`, all cross-page classifications `backplate_table_scope_review`.
+- Real-sample verification:
+  - first fresh `.tmp/phase70_backplate_scope_first/...`: `pair_count=1586`, `issue_count=441`; severity distribution `review=435`, `minor=6`; `critical=0`.
+  - first pair kinds unchanged: `ordinary_pair=943`, `table_mapping=299`, `component_mapping=138`, `semantic_mapping=103`, `continuation=68`, `wire_component_mapping=32`, `bridge_mapping=3`.
+  - first backplate table relations still present as pass `table_mapping`, including `NDY306A-3 -> 1QD1` and `NDY306A-3 -> 1-2QD1`.
+  - second fresh `.tmp/phase70_backplate_scope_second/2_2`: `pair_count=1637`, `issue_count=285`, all issues `review`; `wire_component_mapping=168`, `covered_input_matrix_ordinary=336`.
+  - second key targets stayed present: `3-21CLP7-1 -> 3-21CD43`, `1-21ZKK-2 -> 1-21n715`.
+  - Fresh second acceptance suite `.tmp/phase70_backplate_scope_acceptance`: required `3/3`, all required cases precision/recall `1.0`.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-06 (Phase 55 CLP strip component mapping and acceptance redline refresh)
 - Started after commit `f201766`.
 - Read-only recovery:

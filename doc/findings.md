@@ -7590,3 +7590,89 @@ fresh second-set 证据：
 
 - CLP strip 已从裸数字 ordinary review 语义升级为结构化 `component_mapping/pass`；本轮 issue_count 下降来自旧 ordinary 噪声被结构化关系覆盖，不是隐藏或删除 component relation。
 - acceptance suite 的 S0020 golden 已跟上结构化口径，但 pair evidence 级 golden 仍未支持；后续如果需要更细验收，应单独扩 evaluator，而不是混入 extractor 切片。
+
+## 109. 2026-07-06 背板虚拟表格跨页作用域：保留 table_mapping，critical 改为 review
+
+只读审计和 phase69 产物核查确认，first-set 剩余 `66` 个 `critical R-CROSS-PAGE-CONFLICT` 全部来自 `backplate_virtual_table`。代表样本：
+
+- `S0018 / 17 差动保护背板图.dwg`
+- `NDY306A-3 -> 1QD1`
+- 同一逻辑表头行在其他背板页还映射到 `1-2QD1`、`3-2QD1`、`5FD1`
+- evidence 中明确有：
+  - `mapping_mode=backplate_virtual_table`
+  - `source_block_name=WBH-812E-E1SA-101` 或 `WBH-813E-E1SH-101`
+  - `header_prefix=NDY306A`
+  - `row_number=3`
+
+裁决：
+
+- 这些关系仍然是有效的结构化 `table_mapping/pass`，必须保留在图关系中参与审计。
+- 但同型背板插件表格的 `header_prefix + row_number` 是局部表格逻辑端，在不同背板页/装置作用域下复用时，不应按“全项目同名左值必须唯一右值”直接打成 critical。
+- 因此本轮只调整 rules 解释：`backplate_virtual_table` 跨页多右值保留为 `R-CROSS-PAGE-CONFLICT`，但 severity 改为 `review`，并标记 `one_to_many_classification=backplate_table_scope_review`。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 中为 `_run_cross_page_conflict()` 增加背板虚拟表格作用域判断。
+- 新增 `_is_backplate_virtual_table_scope_review()` 和 `_table_mapping_evidence()`，只匹配 `pair_kind=table_mapping` 且 `table_mapping.mapping_mode=backplate_virtual_table` 的 linked pairs。
+- 普通 `table_mapping`、`component_mapping` 跨页多右值仍保持原 critical conflict 行为。
+- 在 [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py) 增加 `NDY306A-3` 风格单测，证明背板虚拟表格被重分类为 review，而 generic table mapping 旧测试仍保持 conflict。
+
+fresh first-set 证据：
+
+- `.tmp/phase70_backplate_scope_first/...`
+- `pair_count=1586`
+- `issue_count=441`
+- severity：
+  - `critical=0`
+  - `review=435`
+  - `minor=6`
+- rules：
+  - `R-CROSS-PAGE-CONFLICT=66`
+  - 这 66 条全部为 `backplate_table_scope_review`
+- pair_kind 未漂移：
+  - `ordinary_pair=943`
+  - `table_mapping=299`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `continuation=68`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- 代表 `table_mapping/pass` 仍保留：
+  - `NDY306A-3 -> 1QD1`
+  - `NDY306A-3 -> 1-2QD1`
+
+fresh second-set 证据：
+
+- `.tmp/phase70_backplate_scope_second/2_2`
+- `pair_count=1637`
+- `issue_count=285`
+- severity：全部 `review`
+- `wire_component_mapping=168`
+- `covered_input_matrix_ordinary=336`
+- 代表目标仍命中：
+  - `3-21CLP7-1 -> 3-21CD43`
+  - `1-21ZKK-2 -> 1-21n715`
+
+验收红线：
+
+- `.tmp/phase70_backplate_scope_acceptance`
+- required `3/3`
+- `acceptance_passed=True`
+- case metrics：
+  - fault-injected mini：expected/matched `16/16`
+  - real second component/terminal：expected/matched `18/18`
+  - real second S0024 terminal：expected/matched `6/6`
+  - 三个 case precision/recall 均为 `1.0`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "cross_page or table_mapping or component_mapping or one_to_many or many_to_one or semantic_mapping"` -> `18 passed, 26 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `44 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+- `python -m pytest -q` -> `227 passed`
+
+裁决：
+
+- 本轮没有通过降低召回或移除图关系来让结果“好看”；`issue_count` 与 `pair_count` 均保持不变。
+- 改善点是 severity/解释层：真实正确样本不再因背板表格局部作用域复用出现 critical hard-error 洪峰。
+- 下一刀仍应先只读审计，可在 terminal_header_table 多端 review、terminal bare local numeric、wire inline split 或 Phase51 packaged exe smoke 中选一个独立切片。

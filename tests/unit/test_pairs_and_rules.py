@@ -1647,6 +1647,74 @@ def test_build_issues_treats_table_mapping_pairs_as_high_confidence_source() -> 
     assert issue.evidence["one_to_many_classification"] == "conflict"
 
 
+def test_build_issues_demotes_backplate_virtual_table_cross_page_scope_conflict() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id=None,
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="NDY306A-3",
+            right_value="1QD1",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-812E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                    "row_number": 3,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id=None,
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id=None,
+            left_value="NDY306A-3",
+            right_value="3-2QD1",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-813E-E1SH-101",
+                    "header_prefix": "NDY306A",
+                    "row_number": 3,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "17 差动保护背板图.dwg", 17, "17", "背板图", "背板图", "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "19 低后备保护背板图.dwg", 19, "19", "背板图", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    cross_page_issues = [issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT"]
+    assert len(cross_page_issues) == 1
+    issue = cross_page_issues[0]
+    assert issue.severity == "review"
+    assert issue.title == "背板表格作用域待复核"
+    assert issue.evidence["one_to_many_classification"] == "backplate_table_scope_review"
+    assert issue.evidence["table_mapping_mode"] == "backplate_virtual_table"
+    assert issue.evidence["source_block_names"] == ["WBH-812E-E1SA-101", "WBH-813E-E1SH-101"]
+    assert issue.evidence["header_prefixes"] == ["NDY306A"]
+
+
 def test_build_issues_treats_component_mapping_pairs_as_high_confidence_source() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     pairs = [

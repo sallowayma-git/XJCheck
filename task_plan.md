@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 55
+Phase 56
 
 ## Phases
 
@@ -699,6 +699,23 @@ Phase 55
   - second `S0020` 命中：`3-21CLP7-1 -> 3-21CD43`、`3-21CLP7-2 -> 3-21n419`；旧 `43 -> 419` ordinary rows 为 `discard`
   - Phase54 KK 代表目标与 Phase52 input matrix 红线保持：`5DK-2 -> 5FD25`、`1-2ZKK-2 -> 1-2n719`、`1-21DK2-1 -> ZD8`、`1-21ZKK-2 -> 1-21n715`、`input_matrix_wire_mapping=168`、`covered_input_matrix_ordinary=336`
 - [ ] 下一刀建议：先做只读审计再决定继续 component 残差、terminal header table 规则语义，或回到 Phase51 packaged sidecar/exe smoke；不要把 issue_count 下降当成隐藏关系的目标。
+- **Status:** complete
+
+### Phase 56: Backplate Table Scoped Conflict Review
+- [x] 只读恢复并确认当前外部/并发改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`。
+- [x] 并发审计确认最新真实样本仍有 first-set `66` 个 `critical R-CROSS-PAGE-CONFLICT`，全部来自 `backplate_virtual_table` 同型表头跨背板页复用。
+- [x] 实现目标：不移除 `table_mapping` 入图、不降低召回，只把背板虚拟表格跨装置/跨页作用域复用从全项目 critical conflict 重分类为 `review/backplate_table_scope_review`。
+- [x] 风险门槛：普通 `table_mapping`/`component_mapping` 跨页冲突仍保持 critical；pair_count 与 pair_kind 分布不得变化。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "cross_page or table_mapping or component_mapping or one_to_many or many_to_one or semantic_mapping"` -> `18 passed, 26 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `44 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `227 passed`
+  - first-set fresh `.tmp/phase70_backplate_scope_first/...`: `pair_count=1586`, `issue_count=441`, `critical=0`, `review=435`, `minor=6`, `R-CROSS-PAGE-CONFLICT=66`, all cross-page classifications `backplate_table_scope_review`
+  - first `table_mapping` 代表关系仍保留：`NDY306A-3 -> 1QD1`、`NDY306A-3 -> 1-2QD1`
+  - second-set fresh `.tmp/phase70_backplate_scope_second/2_2`: `pair_count=1637`, `issue_count=285`, `wire_component_mapping=168`, `covered_input_matrix_ordinary=336`
+  - acceptance suite on fresh second -> required `3/3`, all case precision/recall `1.0`
+- [ ] 下一刀建议：继续只读审计后在 terminal header table 多端 review、terminal bare local numeric、或 wire inline split 三者中选一个最小切片；Phase51 packaged sidecar smoke 仍是独立交付链。
 - **Status:** complete
 
 ## Errors Encountered
