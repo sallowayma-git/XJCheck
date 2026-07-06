@@ -41,6 +41,12 @@ _BACKPLATE_ROW_Y_TOL = 2.0
 _BACKPLATE_HEADER_X_TOL = 28.0
 _BACKPLATE_HEADER_Y_SPAN = 90.0
 _BACKPLATE_ENDPOINT_X_TOL = 28.0
+_TERMINAL_HEADER_ROW_X_TOL = 8.0
+_TERMINAL_HEADER_ROW_Y_SPAN = 260.0
+_TERMINAL_HEADER_ENDPOINT_Y_TOL = 1.2
+_TERMINAL_HEADER_ENDPOINT_X_TOL = 80.0
+_TERMINAL_HEADER_MIN_ENDPOINT_HITS = 2
+_TERMINAL_HEADER_MIN_ENDPOINT_ROW_RATIO = 0.5
 
 
 def extract_table_pairs(
@@ -131,6 +137,46 @@ def extract_table_pairs(
                 "sheet_no": sheet.sheet_no,
                 "row_count": len(rows) - 1,
                 "col_count": cell_col_count,
+                "three_column": True,
+                "mappings": mappings,
+            }
+        )
+
+    return table_pairs, table_mappings
+
+
+def extract_terminal_header_table_pairs(
+    texts: list[TextItem],
+    sheets: list[SheetRecord],
+    *,
+    pair_id_factory: IdFactory | None = None,
+) -> tuple[list[Pair], list[dict[str, Any]]]:
+    """Recover header-prefix table mappings inside terminal pages.
+
+    These pages remain terminal diagrams, but a rectangular region can behave
+    like a table: header prefix + row number + same-row terminal endpoint.
+    """
+
+    texts_by_sheet = _group_by_sheet(texts)
+    pair_ids = pair_id_factory or IdFactory("PTM")
+    table_pairs: list[Pair] = []
+    table_mappings: list[dict[str, Any]] = []
+
+    for sheet in sheets:
+        if sheet.sheet_category != "屏端子图":
+            continue
+        mappings = _build_terminal_header_table_mappings(texts_by_sheet.get(sheet.sheet_id, []), sheet)
+        if not mappings:
+            continue
+        for mapping in mappings:
+            table_pairs.extend(_build_table_pairs(mapping, sheet, pair_ids))
+        table_mappings.append(
+            {
+                "sheet_id": sheet.sheet_id,
+                "filename": sheet.filename,
+                "sheet_no": sheet.sheet_no,
+                "row_count": len(mappings),
+                "col_count": 3,
                 "three_column": True,
                 "mappings": mappings,
             }
@@ -375,6 +421,81 @@ def _build_header_semantic_mappings(
     return mappings
 
 
+def _build_terminal_header_table_mappings(
+    texts: list[TextItem],
+    sheet: SheetRecord,
+) -> list[dict[str, Any]]:
+    audit_texts = [text for text in texts if _text_in_audit_area(text, sheet)]
+    headers = [text for text in audit_texts if _looks_like_header_prefix(text.normalized_text)]
+    row_numbers = [text for text in audit_texts if _looks_like_numeric_value(text.normalized_text)]
+    endpoints = [text for text in audit_texts if _looks_like_table_endpoint(text.normalized_text)]
+    if not headers or not row_numbers or not endpoints:
+        return []
+
+    mappings: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for header in sorted(headers, key=lambda item: (-item.insert_y, item.insert_x, item.text_id)):
+        header_prefix = header.normalized_text
+        if not _looks_like_terminal_header_prefix(header_prefix):
+            continue
+
+        header_rows = [
+            row
+            for row in row_numbers
+            if 0.0 < header.insert_y - row.insert_y <= _TERMINAL_HEADER_ROW_Y_SPAN
+            and abs(row.insert_x - header.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+        ]
+        if not header_rows:
+            continue
+        ordered_rows = sorted(header_rows, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
+        if not _terminal_rows_start_at_one(ordered_rows):
+            continue
+        if not _terminal_header_group_has_structure(ordered_rows, endpoints):
+            continue
+
+        for row in ordered_rows:
+            row_number = int(row.normalized_text)
+            row_endpoints = _same_row_terminal_endpoints(row, endpoints)
+            if not row_endpoints:
+                continue
+            logical_endpoint = f"{header_prefix}{row_number}"
+            for endpoint in row_endpoints:
+                dedupe_key = (header.text_id, row.text_id, endpoint.text_id)
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                side_key = "left" if endpoint.insert_x < row.insert_x else "right"
+                mappings.append(
+                    {
+                        "mapping_mode": "terminal_header_table",
+                        "sheet_id": sheet.sheet_id,
+                        "filename": sheet.filename,
+                        "sheet_no": sheet.sheet_no,
+                        "header_prefix": header_prefix,
+                        "header_text_id": header.text_id,
+                        "header_coord": [header.insert_x, header.insert_y],
+                        "row_number": row_number,
+                        "middle_value": row.normalized_text,
+                        "middle_text_id": row.text_id,
+                        "middle_coord": [row.insert_x, row.insert_y],
+                        "logical_endpoint": logical_endpoint,
+                        "left_value": endpoint.normalized_text if side_key == "left" else None,
+                        "right_value": endpoint.normalized_text if side_key == "right" else None,
+                        "left_text_id": endpoint.text_id if side_key == "left" else None,
+                        "right_text_id": endpoint.text_id if side_key == "right" else None,
+                        "left_coord": [endpoint.insert_x, endpoint.insert_y] if side_key == "left" else None,
+                        "right_coord": [endpoint.insert_x, endpoint.insert_y] if side_key == "right" else None,
+                        "row_number_sequence_valid": True,
+                        "column_roles": {
+                            "left": "terminal_endpoint" if side_key == "left" else "empty",
+                            "middle": "row_number",
+                            "right": "terminal_endpoint" if side_key == "right" else "empty",
+                        },
+                    }
+                )
+    return mappings
+
+
 def _build_table_pairs(
     mapping: dict[str, Any],
     sheet: SheetRecord,
@@ -385,7 +506,7 @@ def _build_table_pairs(
     - 数值三列表格：优先生成 中列 -> 右列，若右列缺失则生成 中列 -> 左列
     - 表头型三列表格：为同一行左右两侧接线端分别生成 `logical_endpoint -> endpoint`
     """
-    if mapping.get("mapping_mode") in {"header_semantic_three_column", "backplate_virtual_table"}:
+    if mapping.get("mapping_mode") in {"header_semantic_three_column", "backplate_virtual_table", "terminal_header_table"}:
         return _build_header_semantic_pairs(mapping, sheet, pair_ids)
 
     middle_value = mapping.get("middle_value")
@@ -528,6 +649,8 @@ def _build_header_semantic_pairs(
 def _table_pair_rationale(mapping: dict[str, Any]) -> str:
     if mapping.get("mapping_mode") == "backplate_virtual_table":
         return "Backplate virtual table mapping: normalized block header plus row number associated with external terminal endpoint."
+    if mapping.get("mapping_mode") == "terminal_header_table":
+        return "Terminal header table mapping: synthesized header-row endpoint associated with same-row terminal text."
     return "Header semantic three-column table mapping: synthesized logical endpoint associated with row endpoint text."
 
 
@@ -689,6 +812,48 @@ def _looks_like_table_endpoint(value: str | None) -> bool:
     if not value:
         return False
     return bool(_TERMINAL_ENDPOINT_PATTERN.fullmatch(str(value)))
+
+
+def _looks_like_terminal_header_prefix(value: str | None) -> bool:
+    if not _looks_like_header_prefix(value):
+        return False
+    text = str(value)
+    return bool(re.search(r"(?i)[A-Z]+$", text)) and any(char.isdigit() for char in text)
+
+
+def _terminal_rows_start_at_one(rows: list[TextItem]) -> bool:
+    expected = 1
+    for row in rows:
+        if not row.normalized_text.isdigit():
+            return False
+        value = int(row.normalized_text)
+        if value != expected:
+            return False
+        expected += 1
+    return expected > 2
+
+
+def _terminal_header_group_has_structure(rows: list[TextItem], endpoints: list[TextItem]) -> bool:
+    endpoint_counts = [len(_same_row_terminal_endpoints(row, endpoints)) for row in rows]
+    endpoint_hit_count = sum(endpoint_counts)
+    if endpoint_hit_count < _TERMINAL_HEADER_MIN_ENDPOINT_HITS:
+        return False
+
+    rows_with_endpoint = sum(1 for count in endpoint_counts if count > 0)
+    if any(count >= _TERMINAL_HEADER_MIN_ENDPOINT_HITS for count in endpoint_counts):
+        return True
+    return rows_with_endpoint / len(rows) >= _TERMINAL_HEADER_MIN_ENDPOINT_ROW_RATIO and rows_with_endpoint >= 2
+
+
+def _same_row_terminal_endpoints(row: TextItem, endpoints: list[TextItem]) -> list[TextItem]:
+    same_row = [
+        endpoint
+        for endpoint in endpoints
+        if endpoint.text_id != row.text_id
+        and abs(endpoint.insert_y - row.insert_y) <= _TERMINAL_HEADER_ENDPOINT_Y_TOL
+        and 0.0 < abs(endpoint.insert_x - row.insert_x) <= _TERMINAL_HEADER_ENDPOINT_X_TOL
+    ]
+    return sorted(same_row, key=lambda item: (abs(item.insert_x - row.insert_x), item.insert_x, item.text_id))
 
 
 def _normalize_backplate_header_prefix(value: str | None) -> str | None:

@@ -1692,3 +1692,42 @@
   - Did not stage or edit `doc/page_findings/`
   - Did not stage or edit `doc/page_task_queue.md`
   - Did not stage `doc/任务书.md`, which was already modified outside this slice
+
+## Session Update 2026-07-06 (Phase 42)
+- Completed the terminal header table supplemental mapping closure slice.
+- Implementation goal:
+  - Recover structured terminal-page table mappings from header-prefix blocks while keeping the page on the normal `TerminalDiagramExtractor` route.
+  - Emit `terminal_header_table` `table_mapping` evidence for logical endpoints built from `header_prefix + row_number`, paired to the same-row terminal endpoint.
+  - Preserve the supplemental nature of this path so it does not steal normal terminal, backplate, component, or wire extraction ownership.
+- Key files for the implemented slice:
+  - `src/dwg_audit/audit/table_extractor.py`
+  - `src/dwg_audit/audit/page_extractors.py`
+  - `src/dwg_audit/pipeline.py`
+  - `tests/unit/test_table_extractor.py`
+  - `tests/integration/test_analyze_project.py`
+- Verification:
+  - targeted pytest terminal-header/table-mapping slice -> `8 passed`
+  - `python -m pytest tests/unit/test_table_extractor.py` -> `11 passed`
+  - `python -m pytest -q` -> `189 passed`
+- Second-set analyze/run-audit evidence:
+  - Fresh output after the group-structure gate: `.tmp/phase49_terminal_header_gate_second/2_2`
+  - `table_extraction_summary`: `table_pages=4`, `total_mappings=176`, `mapping_modes={'terminal_header_table': 176}`
+  - Mapped pages:
+    - `S0021-S0024` remain mapped by `terminal_header_table`; the gate narrows sparse/weak groups instead of disabling the feature.
+  - Target sample remains recovered: `S0023 / 23 右侧端子图1.dwg` has `1-21QD1 -> 1-21n116` as `source=table_mapping`, `mapping_mode=terminal_header_table`, `status=pass`, `confidence=0.95`, `confidence_bucket=high`.
+  - `pairs.parquet`: all `176` table-mode pairs are `terminal_header_table`.
+  - Second audit/root-cause evidence: `issue_count=588`, with `candidate_noise=33`, `extractor_missing=24`, `insufficient_evidence=287`, `pairing_wrong=174`, `rule_too_strict=70`.
+- First-set backplate non-regression:
+  - Fresh output: `.tmp/phase49_terminal_header_gate_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - Existing backplate virtual-table path remains present.
+  - `20 非电量保护背板图.dwg` still contains `NKR308A-1 -> 5FD15` with `source=table_mapping`, `mapping_mode=backplate_virtual_table`, `status=pass`, `confidence=0.95`.
+  - First audit issue count after the gate is `390`.
+- Risk control added after code review:
+  - `terminal_header_table` now requires group-level structure evidence before producing mappings.
+  - A sparse header-like negative unit test prevents isolated header/row/endpoint text from becoming high-confidence table evidence.
+- Next nearest slice recommendation:
+  - line-in KLP port mapping, e.g. `3-2KLP1-1 -> 3-2QD2`
+  - or component diagram mapping if the next loop wants to prioritize component-page structured extraction
+- Concurrent/user changes preserved:
+  - Did not stage or modify unrelated `doc/page_findings/` and `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.

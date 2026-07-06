@@ -758,13 +758,21 @@ def _build_page_findings(
         sheet_id = str(item.get("sheet_id") or "")
         if not sheet_id:
             continue
-        table_mapping_rows[sheet_id] = len(item.get("mappings", []))
-        table_mapping_flags[sheet_id] = bool(item.get("three_column"))
         mappings = item.get("mappings", [])
-        logical_examples = []
-        header_prefixes = []
-        mapping_mode_counts: dict[str, int] = {}
-        row_sequence_valid = False
+        table_mapping_rows[sheet_id] = table_mapping_rows.get(sheet_id, 0) + len(mappings)
+        table_mapping_flags[sheet_id] = bool(table_mapping_flags.get(sheet_id) or item.get("three_column"))
+        detail = table_mapping_details.setdefault(
+            sheet_id,
+            {
+                "mapping_modes": {},
+                "header_prefixes": [],
+                "logical_endpoint_examples": [],
+                "row_number_sequence_valid": False,
+            },
+        )
+        logical_examples = detail["logical_endpoint_examples"]
+        header_prefixes = detail["header_prefixes"]
+        mapping_mode_counts = detail["mapping_modes"]
         for mapping in mappings:
             mode = str(mapping.get("mapping_mode") or "unknown")
             mapping_mode_counts[mode] = mapping_mode_counts.get(mode, 0) + 1
@@ -775,13 +783,7 @@ def _build_page_findings(
             if header_prefix and header_prefix not in header_prefixes:
                 header_prefixes.append(str(header_prefix))
             if mapping.get("row_number_sequence_valid"):
-                row_sequence_valid = True
-        table_mapping_details[sheet_id] = {
-            "mapping_modes": mapping_mode_counts,
-            "header_prefixes": header_prefixes,
-            "logical_endpoint_examples": logical_examples,
-            "row_number_sequence_valid": row_sequence_valid,
-        }
+                detail["row_number_sequence_valid"] = True
 
     page_findings: list[dict[str, Any]] = []
     for page in artifacts.scan.pages:
@@ -970,14 +972,24 @@ def _build_table_extraction_summary(
             "table_like_non_routed_pages": table_like_non_routed,
             "mappings": [],
         }
-    three_column_pages = sum(1 for item in table_mappings if item.get("three_column"))
+    mapped_sheet_ids = sorted({str(item.get("sheet_id")) for item in table_mappings if item.get("sheet_id")})
+    mapped_filenames = sorted({str(item.get("filename")) for item in table_mappings if item.get("filename")})
+    mapping_mode_counts: dict[str, int] = {}
+    for item in table_mappings:
+        for mapping in item.get("mappings", []):
+            mode = str(mapping.get("mapping_mode") or "unknown")
+            mapping_mode_counts[mode] = mapping_mode_counts.get(mode, 0) + 1
+    three_column_pages = len({str(item.get("sheet_id")) for item in table_mappings if item.get("sheet_id") and item.get("three_column")})
     total_mappings = sum(len(item.get("mappings", [])) for item in table_mappings)
     return {
         "status": "table_mappings_recovered",
-        "status_reason": f"Recovered {total_mappings} structured table mappings from {len(table_mappings)} routed table page(s).",
-        "table_pages": len(table_mappings),
+        "status_reason": f"Recovered {total_mappings} structured table mappings from {len(mapped_sheet_ids)} page(s).",
+        "table_pages": len(mapped_sheet_ids),
         "three_column_pages": three_column_pages,
         "total_mappings": total_mappings,
+        "mapping_modes": dict(sorted(mapping_mode_counts.items())),
+        "mapped_sheet_ids": mapped_sheet_ids,
+        "mapped_filenames": mapped_filenames,
         "classified_table_pages": len(routed_table_pages),
         "classified_table_sheet_ids": routed_table_sheet_ids,
         "classified_table_filenames": routed_table_filenames,

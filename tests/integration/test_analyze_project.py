@@ -989,6 +989,59 @@ def test_analyze_project_supports_mirrored_right_terminal_strip_candidates(
     assert set(row_locked["text"].tolist()) == {"1-21n231", "21"}
 
 
+def test_analyze_project_emits_terminal_header_table_mappings(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "23 右侧端子图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_line((40.0, 48.5), (115.0, 48.5), dxfattribs={"layer": "CONNECT"})
+        msp.add_text("1-21QD", dxfattribs={"insert": (175.5, 276.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("1-21n116", dxfattribs={"insert": (156.0, 268.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("1", dxfattribs={"insert": (179.25, 268.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("1-21n117", dxfattribs={"insert": (156.0, 263.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("2", dxfattribs={"insert": (179.25, 263.5), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    table_pairs = pairs[pairs["left_value"].astype(str).str.startswith("1-21QD")]
+    assert {
+        (row["left_value"], row["right_value"])
+        for _, row in table_pairs.iterrows()
+    } == {
+        ("1-21QD1", "1-21n116"),
+        ("1-21QD2", "1-21n117"),
+    }
+    first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "table_mapping"
+    assert first_evidence["table_mapping"]["mapping_mode"] == "terminal_header_table"
+
+    page_finding = findings_payload["page_findings"][0]
+    assert page_finding["route_target"] == "TerminalDiagramExtractor"
+    assert page_finding["structure_summary"]["table_mapping_modes"] == {"terminal_header_table": 2}
+    assert findings_payload["table_extraction_summary"]["total_mappings"] == 2
+
+
 def test_analyze_project_extracts_line_groups_from_insert_virtual_entities_on_component_page(
     monkeypatch,
     tmp_path: Path,

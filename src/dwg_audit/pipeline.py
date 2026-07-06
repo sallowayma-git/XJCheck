@@ -130,6 +130,7 @@ def analyze_input_root(
         terminal_candidates = []
         pair_candidates = []
         pairs = []
+        supplemental_table_mappings = []
         route_extractors = (
             ("WireDiagramExtractor", extract_wire_pairs),
             ("ComponentDiagramExtractor", extract_component_pairs),
@@ -160,6 +161,7 @@ def analyze_input_root(
             terminal_candidates.extend(extraction_result.terminal_candidates)
             pair_candidates.extend(extraction_result.pair_candidates)
             pairs.extend(extraction_result.pairs)
+            supplemental_table_mappings.extend(extraction_result.table_mappings)
 
         # TableExtractor 链（任务书第 4 章 113-121 行）：
         # 表格型图走专用抽取器，生成高置信 table_mapping Pair
@@ -167,13 +169,14 @@ def analyze_input_root(
         table_texts = [text for text in audit_texts if text.sheet_id in table_sheet_ids]
         table_lines = [line for line in audit_lines if line.sheet_id in table_sheet_ids]
         table_polylines = [poly for poly in polylines if poly.sheet_id in table_sheet_ids]
-        table_pairs, table_mappings = extract_table_pairs(
+        table_pairs, routed_table_mappings = extract_table_pairs(
             table_texts,
             table_lines,
             table_polylines,
             table_pages,
             config,
         )
+        table_mappings = [*supplemental_table_mappings, *routed_table_mappings]
         if table_pages:
             extractor_runs.append(
                 {
@@ -185,7 +188,7 @@ def analyze_input_root(
                     "terminal_candidate_count": 0,
                     "pair_candidate_count": 0,
                     "pair_count": len(table_pairs),
-                    "table_mapping_count": sum(len(item.get("mappings", [])) for item in table_mappings),
+                    "table_mapping_count": sum(len(item.get("mappings", [])) for item in routed_table_mappings),
                 }
             )
         pairs.extend(table_pairs)

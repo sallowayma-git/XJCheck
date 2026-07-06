@@ -6698,3 +6698,67 @@ route status 仍稳定为：
 - 第三优先：`insufficient_evidence`。这里不是马上写规则，而是补更细的候选/规则 cause hints，或等待人工语义反馈。
 
 因此 Phase 40 的线中元件端口型回路仍是任务书主链缺口，但在当前用户闭环下，下一轮更稳的入口应先用 root-cause 聚合选择最大的症状类，不再凭 issue_count 直觉行动。
+
+## 93. 2026-07-06 任务书完成度复审：表头型端子/表格页是最近主链缺口
+
+本轮重新以当前 `doc/任务书.md` 为准，不用历史实现存在性冒充完成。任务书当前明确要求：
+
+- 表格型图第一版重点支持“表头型三列表格”
+- 表头前缀如 `1-21QD` 与中列行号 `1` 应合成 `1-21QD1`
+- 同行左右接线端如 `1-21n116` 应生成高置信 `table_mapping`
+- 中间列行号本身不能降级为普通端点近邻候选
+- 端子图主信源应是行锁定、列角色、代号和同行对应关系，不应继续只套普通导线端点逻辑
+
+### 93.1 当前强证据已完成
+
+- 页级分类/路由结果已经进入 `pages.parquet`：第二套 `S0023 / 23 右侧端子图1.dwg` 当前可直接看到 `page_type=屏端子图`、`route_target=TerminalDiagramExtractor`、`audit_disposition=audit_required`。
+- `TableExtractor` 已有 synthetic 表头三列表格骨架，也已能对第一套背板表格型真实页输出 `NKR308A-1 -> 5FD15`。
+- `issues.json/parquet` 已有可复核字段和上一轮 root-cause 诊断字段。
+
+### 93.2 当前未完成或证据不足
+
+- 第二套真实 `S0023 / 23 右侧端子图1.dwg` 中，真实文本已存在：
+  - `1-21QD` at approximately `(175.49, 276.0)`
+  - row number `1` at approximately `(179.25, 268.5)`
+  - `1-21n116` at approximately `(156.0, 268.5)`
+- 但该页当前没有 `1-21QD1 -> 1-21n116` 这类 `table_mapping`。
+- 当前 pairs 中可见 ordinary symptom：`116 -> 1`，说明行号仍在裸进入 PairBuilder。
+- 该页不是传统三列表格网格页；它是端子页内部的“表头型列角色区域”。如果整页改路由为纯 `TableExtractor`，会误伤端子页其它区域；如果完全留在 `TerminalDiagramExtractor`，则表头映射永远不会进入 table path。
+
+### 93.3 本轮唯一核心切片
+
+本轮只做 `terminal_header_table` supplemental table extraction：
+
+- 页面仍保持 `TerminalDiagramExtractor` 主路由，不把整页抢成纯表格页。
+- 在 terminal extractor 中识别同页清晰的 `header prefix + row number + same-row terminal endpoint` 区域。
+- 追加高置信 `table_mapping` pair，例如 `1-21QD1 -> 1-21n116`。
+- findings 的 `table_extraction_summary` 和页级结构摘要必须能看到这批真实样本表头映射。
+- 不在本轮重写端子页 ordinary pair，也不试图通过 issue_count 变化证明成功。
+
+本轮不优先处理：
+
+- 线中 KLP 端口型普通回路图
+- `ComponentDiagramExtractor` 的 4/6 输出或长条双端口组件
+- 背板几何表格 S0019/S0020 静默空结果
+- 桌面端、预览、Tauri 或新的产品 CLI
+
+### 93.4 本轮完成证据
+
+已实现 `terminal_header_table` supplemental mapping，并保持端子页主路由为 `TerminalDiagramExtractor`。
+
+最终 gate 后真实样本证据：
+
+- 第二套 fresh 输出：[phase49_terminal_header_gate_second](/F:/workspace/XJToolkit/.tmp/phase49_terminal_header_gate_second/2_2)
+- `table_extraction_summary.status = table_mappings_recovered`
+- `total_mappings = 176`
+- `table_pages = 4`
+- `mapping_mode = terminal_header_table`
+- `S0023 / 23 右侧端子图1.dwg` 中 `1-21QD1 -> 1-21n116` 已恢复为 `pass / confidence=0.95 / source=table_mapping`
+- 第二套 audit `issue_count = 588`，这不是本轮成败指标；其中新增显性化的一对多主要应继续按 `rule_too_strict` / 关系语义处理
+
+非回归证据：
+
+- 第一套 fresh 输出：[phase49_terminal_header_gate_first](/F:/workspace/XJToolkit/.tmp/phase49_terminal_header_gate_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- `20 非电量保护背板图.dwg` 中 `NKR308A-1 -> 5FD15` 仍为 `backplate_virtual_table / pass / confidence=0.95`
+
+为了避免把零散端子文本误提升为高置信表格关系，本轮还补了 group-level 结构证据门槛：同一表头组至少要有足够同行端点命中，且新增 sparse header-like 负向测试。

@@ -506,3 +506,21 @@ Phase 41
     - 端子页语义列旁路 / 语义通道
     - 双延续列同值 continuation 的 specialized pair 语义
     - review pair 的提置信，而不是再放宽普通候选窗口
+
+### Phase 42: Terminal Header Table Supplemental Mapping Closure
+- [x] 实现目标：把端子图中“表头前缀 + 行号 + 同行端子端点”的 supplemental table mapping 收口为 `terminal_header_table`，让端子页在保留 `TerminalDiagramExtractor` 主路由的同时补出稳定 `table_mapping` pass pair。
+- [x] 关键文件：
+  - `src/dwg_audit/audit/table_extractor.py`
+  - `src/dwg_audit/audit/page_extractors.py`
+  - `src/dwg_audit/pipeline.py`
+  - `tests/unit/test_table_extractor.py`
+  - `tests/integration/test_analyze_project.py`
+- [x] 验证命令与结果：
+  - targeted pytest terminal-header/table-mapping slice -> `8 passed`
+  - `python -m pytest -q` -> `189 passed`
+  - second-set fresh `analyze-project + run-audit` evidence: `.tmp/phase49_terminal_header_gate_second/2_2` 产出 `176` 条 `terminal_header_table` 映射，覆盖 `S0021-S0024`，目标 `1-21QD1 -> 1-21n116` 仍为 `pass/confidence=0.95/table_mapping`，audit `issue_count=588`
+  - first-set non-regression evidence: `.tmp/phase49_terminal_header_gate_first/...` 保留背板表格映射，`NKR308A-1 -> 5FD15` 仍为 `backplate_virtual_table/pass/confidence=0.95`
+  - added terminal-header group structure gate and sparse header-like negative test to avoid promoting isolated terminal text into table mappings
+- [ ] 下一刀建议：优先二选一切小片，不独占代码库：
+  - line-in KLP port：补 `3-2KLP1-1 -> 3-2QD2` 这类 line-in component port 映射
+  - component diagram mapping：继续收口元件接线图的结构化 component mapping

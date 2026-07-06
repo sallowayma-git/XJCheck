@@ -1,4 +1,5 @@
 from dwg_audit.audit.table_extractor import extract_table_pairs
+from dwg_audit.audit.table_extractor import extract_terminal_header_table_pairs
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import SheetRecord
@@ -272,6 +273,55 @@ def test_extract_table_pairs_builds_header_semantic_three_column_mappings() -> N
         ("1-21QD2", "1-21n555"),
     }
     assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
+
+
+def test_extract_terminal_header_table_pairs_builds_supplemental_mappings() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 260.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "23 右侧端子图1.dwg"
+    texts = [
+        _make_text("H", 175.5, 276.0, "1-21QD"),
+        _make_text("E1", 156.0, 268.5, "1-21n116"),
+        _make_text("R1", 179.25, 268.5, "1", is_numeric_candidate=True),
+        _make_text("N1", 185.0, 270.0, "未定义EBF8:2_08 测控1开入回路图1"),
+        _make_text("E2", 156.0, 263.5, "1-21n117"),
+        _make_text("R2", 179.25, 263.5, "2", is_numeric_candidate=True),
+    ]
+
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert len(mappings) == 1
+    assert mappings[0]["three_column"] is True
+    assert mappings[0]["mappings"][0]["mapping_mode"] == "terminal_header_table"
+    assert mappings[0]["mappings"][0]["logical_endpoint"] == "1-21QD1"
+    assert mappings[0]["mappings"][0]["left_value"] == "1-21n116"
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1-21QD1", "1-21n116"),
+        ("1-21QD2", "1-21n117"),
+    }
+    assert all(pair.status == "pass" for pair in pairs)
+    assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
+    assert pairs[0].evidence["table_mapping"]["mapping_mode"] == "terminal_header_table"
+
+
+def test_extract_terminal_header_table_pairs_skips_sparse_header_like_group() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 260.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "ordinary terminals.dwg"
+    texts = [
+        _make_text("H", 175.5, 276.0, "1-21QD"),
+        _make_text("R1", 179.25, 268.5, "1", is_numeric_candidate=True),
+        _make_text("E1", 156.0, 268.5, "1-21n116"),
+        _make_text("R2", 179.25, 263.5, "2", is_numeric_candidate=True),
+        _make_text("N1", 130.0, 263.0, "普通端子说明"),
+        _make_text("H2", 80.0, 230.0, "2-31QA"),
+        _make_text("E2", 20.0, 220.0, "1-21n117"),
+    ]
+
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert pairs == []
+    assert mappings == []
 
 
 def test_extract_table_pairs_prefers_numeric_text_when_cell_contains_note() -> None:
