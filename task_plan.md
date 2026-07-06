@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 87
+Phase 88
 
 ## Phases
 
@@ -1217,6 +1217,21 @@ Phase 87
   - second `.tmp/phase87_terminal_header_row_band_display_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`；`I0021` summary now shows `logical=1-21QD1..1-21QD38` and terminal endpoint ranges, Markdown/XLSX evidence display includes `pair_count=76` and no `ref76` flood.
   - first `.tmp/phase87_terminal_header_row_band_display_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`。
 - [ ] 下一刀候选收缩为：packaged sidecar/exe smoke as a separate product slice；若继续规则语义，只做 backplate/component mapping rules semantics 的默认用户视角分层。
+- **Status:** complete
+
+### Phase 88: Grid Row-Band Endpoint Gap Diagnostics
+- [x] 只读恢复并确认当前 HEAD 为 `a8147d6`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 三路只读审计结论：抽取器红线和 terminal-header 展示链已闭合；产品线可独立推进 packaged sidecar/exe smoke；若继续样本误解主线，剩余 `insufficient_evidence` 中最清晰的新靶子是 WireDiagramExtractor 的 grid row-band endpoint gap。
+- [x] 审计样本：first `S0006 / 05 交流回路图2.dwg` 在同一 `row_band_id` 内同时出现 `721->721` 低置信同号短线、`721->?` 或 `?->705` 缺侧线；second `06 直流回路图.dwg`、`12 测控2开入回路图1.dwg` 也存在同类 grid row-band missing-side 症状。旧 root cause 统一为 `insufficient_evidence`，无法指导下一轮 row-band endpoint inference。
+- [x] 实现目标：只在 `services.issue_diagnostics` 中把 WireDiagramExtractor/grid/row_band 的 missing-side 或 same-value low-confidence symptoms 标注为 `pairing_wrong` + `grid_row_band_endpoint_gap`；不改 extractor、PairBuilder、rules、issue_count、pair_count、CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "RootCause or evidence_display"` -> `1 passed, 17 deselected`
+  - `python -m pytest -q` -> `290 passed`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase88_grid_row_band_diagnostics_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；root cause counts become `pairing_wrong=60`, `rule_too_strict=60`, `insufficient_evidence=11`；`05 交流回路图2.dwg` has 22 `grid_row_band_endpoint_gap` samples with row-band context.
+  - second `.tmp/phase88_grid_row_band_diagnostics_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；root cause counts become `pairing_wrong=15`, `rule_too_strict=7`。
+- [ ] 下一刀候选收缩为：grid row-band endpoint inference/aggregation on CT/VT and DC pages；packaged sidecar/exe smoke remains an independent product slice.
 - **Status:** complete
 
 ## Errors Encountered

@@ -9621,3 +9621,45 @@ first 非回归证据：
 
 - Phase87 是 terminal_header_table report projection 质量收口：保留底层 refs，同时把默认用户可见 evidence 压缩为行带区间。
 - 下一轮若走产品线，应独立推进 packaged sidecar/exe smoke；若继续规则语义，只做 backplate/component mapping 默认用户视角分层，不重开已闭环 extractor。
+
+## 141. 2026-07-07 grid row-band：缺侧线与同号短线诊断为行带配对解释缺口
+
+只读审计确认，Phase87 后 terminal-header 区间展示已经闭合，不应重复修改；两套真实样本中剩余 `insufficient_evidence` 的更清晰新靶子是普通回路图的 grid row-band endpoint gap。典型 first `S0006 / 05 交流回路图2.dwg` 中，同一 `row_band_id` 内同时出现低置信同号短线和缺侧线，例如：
+
+- `RBW0014`：`721 -> 721` 低置信同号短线，同时有 `721 -> ?`。
+- `RBW0022`：`? -> 705`，同 row-band 还存在 `705 -> 706` 等相邻端点候选。
+
+这些不是已经闭环的 `input_matrix_wire_mapping`、terminal_header_table 或 component_mapping 问题，也不能先通过隐藏 issue 解决。更准确的当前状态是：findings 已经保留了 `line_orientation=grid`、`row_band_id`、candidate/pair 坐标等证据，但 root-cause 诊断仍写成泛化的 `insufficient_evidence`，无法指导下一轮 row-band-level endpoint inference。
+
+本轮实现：
+
+- 在 [issue_diagnostics.py](/F:/workspace/XJToolkit/src/dwg_audit/services/issue_diagnostics.py) 中为 `_FrameContext` 增加 `line_groups` 索引。
+- 对属于 `line_orientation=grid` 且有 `row_band_id` 的普通 pair 症状，新增窄诊断：
+  - `R-PAIR-MISSING-SIDE` 且只有一侧 endpoint 缺失。
+  - `R-PAIR-LOW-CONFIDENCE` 且左右 endpoint 为同一个数字。
+- 命中后标为 `root_cause=pairing_wrong`，诊断标签包含 `grid_row_band_endpoint_gap` 和 `row_band:<id>`，并把 `row_band_id / line_orientation` 写入 diagnostic context。
+- 不改 `WireDiagramExtractor`、PairBuilder、rules、issue_count、pair_count、CLI/UI 或 acceptance fixtures。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+- `python -m pytest -q tests\unit\test_report_artifacts.py -k "RootCause or evidence_display"` -> `1 passed, 17 deselected`
+- `python -m pytest -q` -> `290 passed`
+
+fresh rules-only 证据：
+
+- first `.tmp/phase88_grid_row_band_diagnostics_first_audit`
+- `pair_count=1581`，`issue_count=131`，pair kind 分布不变。
+- root cause counts 从 Phase87 的 `insufficient_evidence=71, rule_too_strict=60` 变为 `pairing_wrong=60, rule_too_strict=60, insufficient_evidence=11`。
+- `05 交流回路图2.dwg` 中 22 条症状带有 `grid_row_band_endpoint_gap`，并记录 `row_band_id`。
+
+second 非回归证据：
+
+- second `.tmp/phase88_grid_row_band_diagnostics_second_audit`
+- `pair_count=1462`，`issue_count=22`，pair kind 分布不变。
+- root cause counts 从 Phase87 的 `insufficient_evidence=15, rule_too_strict=7` 变为 `pairing_wrong=15, rule_too_strict=7`。
+
+裁决：
+
+- Phase88 是诊断标注闭环：把 grid row-band 的缺侧线 / 同号短线从“证据不足”提升为可行动的行带配对解释缺口。
+- 下一轮若继续样本误解主线，候选应收缩到 CT/VT、直流、测控开入页的 grid row-band endpoint inference / aggregation；packaged sidecar/exe smoke 仍是独立产品切片。

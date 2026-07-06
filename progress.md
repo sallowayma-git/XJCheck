@@ -3202,3 +3202,32 @@
 - Next candidates:
   - packaged sidecar/exe smoke only as a separate product slice.
   - If continuing rules semantics, keep it to backplate/component mapping default user-view layering, not extractor work.
+
+## Session Update 2026-07-07 (Phase 88 grid row-band endpoint gap diagnostics)
+- Started after commit `a8147d6`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned three read-only explorers for taskbook alignment, real-sample mining, and source boundary review. Two recommended packaged sidecar/exe smoke as an independent product slice; the real-sample miner also surfaced grid row-band ordinary missing-side/low-confidence clusters as the clearest remaining sample-understanding gap.
+- Read-only audit conclusions:
+  - Terminal-header interval/row-band reviews already have compact range evidence after Phase87; repeating that slice would be churn.
+  - first `S0006 / 05 交流回路图2.dwg` has repeated grid row-band symptoms: same row bands contain low-confidence same-value short links such as `721 -> 721` plus missing-side pairs such as `721 -> ?` or `? -> 705`.
+  - second `06 直流回路图.dwg` and `12 测控2开入回路图1.dwg` have the same grid row-band endpoint-gap shape.
+  - Old root-cause diagnostics labeled these as `insufficient_evidence`, which did not identify the likely next module: row-band-level pairing / endpoint inference.
+- Implementation:
+  - Added `line_groups` to `_FrameContext` in `services.issue_diagnostics`.
+  - Added a narrow grid row-band diagnostic: `R-PAIR-MISSING-SIDE` with exactly one side missing, or `R-PAIR-LOW-CONFIDENCE` with equal numeric endpoints, gets `root_cause=pairing_wrong` when the pair belongs to a `line_orientation=grid` row band.
+  - Added diagnostic tags/context: `grid_row_band_endpoint_gap`, `row_band:<id>`, `row_band_id`, and `line_orientation`.
+  - Did not change extractor output, pair graph input, issue generation, severity, CLI/UI, acceptance fixtures, or any protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "RootCause or evidence_display"` -> `1 passed, 17 deselected`
+  - `python -m pytest -q` -> `290 passed`
+- Fresh rules-only verification:
+  - first `.tmp/phase88_grid_row_band_diagnostics_first_audit`: `pair_count=1581`, `issue_count=131`; pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`.
+  - first root cause counts changed to `pairing_wrong=60`, `rule_too_strict=60`, `insufficient_evidence=11`; `05 交流回路图2.dwg` has 22 `grid_row_band_endpoint_gap` samples with row-band context.
+  - second `.tmp/phase88_grid_row_band_diagnostics_second_audit`: `pair_count=1462`, `issue_count=22`; pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `semantic_mapping=183`, `continuation=204`, `component_mapping=84`, `bridge_mapping=3`, `table_mapping=174`.
+  - second root cause counts changed to `pairing_wrong=15`, `rule_too_strict=7`.
+- Next candidates:
+  - grid row-band endpoint inference/aggregation on CT/VT and DC pages.
+  - packaged sidecar/exe smoke remains an independent product slice.
