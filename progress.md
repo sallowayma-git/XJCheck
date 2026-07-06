@@ -2549,3 +2549,33 @@
 - Next candidates:
   - Run fresh readonly audit on the remaining largest ordinary missing-side/low-confidence clusters and choose one true system-misunderstanding slice.
   - Keep packaged sidecar/exe smoke separate if the next round returns to productization.
+
+## Session Update 2026-07-07 (Phase 67 schematic wire logic endpoint mapping)
+- Started after commit `2402b9a`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only the Phase67 code/test/plan edits plus protected untracked paths: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Confirmed the stable extractor closures should not be reopened: `input_matrix_wire_mapping`, `small_port_box_component`, `kk_multi_port_component`, `strip_two_port_component(KLP/CLP)`, terminal-header semantic endpoint exclusion/aggregation, and inline DIM guardrail.
+- Read-only audit conclusions:
+  - The second-set largest remaining missing-side cluster was not a terminal-header/table extractor regression.
+  - In `11/16 测控控制回路图2` style schematic pages, logic endpoint labels such as `1-21CD58`, `3-21CD58`, and `1-21UD8` were rejected as `not_numeric/noise_channel`, leaving numeric line-side pairs like `? -> 511`.
+- Implementation:
+  - Added a narrow `wire_logic_endpoint_channel` in `candidates.py`, limited to `二次原理图` horizontal/grid groups and labels matching `^[13]-21[A-Z]{2,4}\d{1,3}$`.
+  - Let `pairs.py` consume that channel only when the opposite side has a real `terminal_numeric_channel` candidate.
+  - Promoted complete logic-endpoint + numeric-endpoint relations to `pair_kind=wire_component_mapping` with `component_submode=schematic_wire_logic_endpoint`.
+  - Kept single-sided logic labels from generating new missing-side review rows.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_logic_endpoint or semantic_marker or single_sided_schematic_logic"` -> `3 passed, 24 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or input_matrix or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `248 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase81_schematic_logic_endpoint_first_v2/...`: `pair_count=1550`, `issue_count=302`; pair_kind unchanged from Phase80; `wire_logic_endpoint_channel=0`.
+  - second fresh `.tmp/phase81_schematic_logic_endpoint_second_v2/2_2`: `pair_count=1460`, `issue_count=58`, `R-PAIR-MISSING-SIDE=48`, `wire_component_mapping=245`.
+  - Targets `1-21CD58 -> 511` and `3-21CD58 -> 511` are now `wire_component_mapping/review`; `11/16 测控控制回路图2` missing-side count is now 0.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+- Next candidates:
+  - Read-only audit of second remaining `R-PAIR-MISSING-SIDE=48`.
+  - Read-only audit of first remaining `R-PAIR-MISSING-SIDE=144`.
+  - Backplate/component/table mapping rules semantics.
+  - Packaged sidecar/exe smoke as a separate M11 productization slice.

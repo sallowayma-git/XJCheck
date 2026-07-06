@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 66
+Phase 67
 
 ## Phases
 
@@ -884,6 +884,23 @@ Phase 66
   - second fresh `.tmp/phase80_inline_wire_chain_guardrail_second/2_2`: `pair_count=1460`, `issue_count=127`, pair_kind unchanged；`complementary_half_pair=0`。
   - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` remain structured pass relationships.
 - [ ] 下一刀候选：优先做只读审计后在剩余 ordinary missing-side/low-confidence 最大簇中选一个真实样本系统误解；若转向产品化，则单独切 Phase51 packaged sidecar/exe smoke。
+- **Status:** complete
+
+### Phase 67: Schematic Wire Logic Endpoint Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `2402b9a`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 Phase80 产物核查确认：second-set 最大剩余簇不是 terminal/header/table 规则问题，而是 `11/16 测控控制回路图2` 等二次原理图中 `1-21CD58`、`3-21CD58`、`1-21UD8` 这类逻辑端编号被 `not_numeric/noise_channel` 拒掉，导致 `? -> 511` ordinary missing-side。
+- [x] 实现目标：在候选层增加窄范围 `wire_logic_endpoint_channel`，只接受二次原理图 horizontal/grid 线组附近形如 `^[13]-21[A-Z]{2,4}\d{1,3}$` 的逻辑端；PairBuilder 只在对侧存在数字候选时消费该通道，并把“逻辑端 + 数字端”升为 `pair_kind=wire_component_mapping` / `component_submode=schematic_wire_logic_endpoint`。
+- [x] 风险门槛：不把普通非数字文本塞回 `terminal_numeric_channel`；逻辑端单侧不得制造新的 missing-side；不触碰 `table_extractor.py`、component/table extractor、rules、CLI/UI；保持端子表语义端 `I0/IA/UA/UB/UC/UN/3U0` 不进入 `table_mapping/pass` endpoint。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_logic_endpoint or semantic_marker or single_sided_schematic_logic"` -> `3 passed, 24 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or input_matrix or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `248 passed`
+  - first fresh `.tmp/phase81_schematic_logic_endpoint_first_v2/...`: `pair_count=1550`, `issue_count=302`, pair_kind unchanged from Phase80；`wire_logic_endpoint_channel=0`，证明第一套未漂移。
+  - second fresh `.tmp/phase81_schematic_logic_endpoint_second_v2/2_2`: `pair_count=1460`, `issue_count=58`; `R-PAIR-MISSING-SIDE=48`；`wire_component_mapping` 从 Phase80 的 `168` 增至 `245`，新增 77 条窄逻辑端结构化关系。
+  - second targets hit: `1-21CD58 -> 511`、`3-21CD58 -> 511` 均为 `wire_component_mapping/review`，`11/16 测控控制回路图2` 的 missing-side 均为 0。
+  - second 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` remain structured pass relationships。
+- [ ] 下一刀候选：继续只读审计 second 剩余 `R-PAIR-MISSING-SIDE=48` 与 first `R-PAIR-MISSING-SIDE=144` 的真实结构；若转产品化，则单独切 Phase51/M11 packaged sidecar/exe smoke。
 - **Status:** complete
 
 ## Errors Encountered

@@ -16,9 +16,11 @@ from dwg_audit.utils.ids import IdFactory
 _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
 _CHANNEL_TERMINAL_NUMERIC = "terminal_numeric_channel"
+_CHANNEL_WIRE_LOGIC_ENDPOINT = "wire_logic_endpoint_channel"
 _CHANNEL_CONTINUATION = "continuation_channel"
 _CHANNEL_SEMANTIC = "semantic_channel"
 _CHANNEL_NOISE = "noise_channel"
+_WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(r"^[13]-21[A-Z]{2,4}\d{1,3}$", re.IGNORECASE)
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
     re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
@@ -90,6 +92,8 @@ def build_terminal_candidates(
                 dx = text.insert_x - endpoint[0]
                 dy = text.insert_y - endpoint[1]
                 value = _candidate_numeric_value(text, profile["numeric_suffix_patterns"])
+                if value is None:
+                    value = _candidate_wire_logic_endpoint_value(text, sheet, orientation)
                 within_height = min_height <= text.height <= max_height
                 vertical_alignment_score = _cross_axis_alignment_score(dx, dy, radius_x, radius_y, orientation)
                 horizontal_side_score = _side_alignment_score(dx, dy, radius_x, radius_y, side, orientation)
@@ -611,6 +615,21 @@ def _candidate_numeric_value(text: TextItem, patterns: list[re.Pattern[str]]) ->
     return None
 
 
+def _candidate_wire_logic_endpoint_value(
+    text: TextItem,
+    sheet: SheetRecord | None,
+    orientation: str,
+) -> str | None:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return None
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return None
+    normalized = text.normalized_text.strip()
+    if not _WIRE_LOGIC_ENDPOINT_PATTERN.fullmatch(normalized):
+        return None
+    return normalized
+
+
 def _is_terminal_strip_mode(sheet: SheetRecord | None, orientation: str) -> bool:
     return sheet is not None and sheet.sheet_category == "屏端子图" and orientation != _ORIENTATION_VERTICAL
 
@@ -888,6 +907,8 @@ def _candidate_channel_hint(
     ):
         return _CHANNEL_SEMANTIC, "terminal_semantic_marker"
     if value is not None:
+        if _candidate_wire_logic_endpoint_value(text, sheet, orientation) == value:
+            return _CHANNEL_WIRE_LOGIC_ENDPOINT, "schematic_wire_logic_endpoint"
         return _CHANNEL_TERMINAL_NUMERIC, None
     return _CHANNEL_NOISE, "not_numeric"
 

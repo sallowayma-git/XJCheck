@@ -8563,3 +8563,74 @@ fresh second-set 非回归证据：
 - 本轮是 rules 诊断边界收口，不是 extractor 重写，也不是通过删除 pair 变好看。
 - `pair_count` 和 `pair_kind` 分布均不变；用户可见 issue 只去掉纯 `DIM` 标注短线造成的假 wire-chain/缺边解释。
 - 下一轮应重新只读审计剩余最大的 ordinary missing-side / low-confidence 簇，再选择一个真实系统误解切片；若转产品化，则 packaged sidecar/exe smoke 独立推进。
+
+## 120. 2026-07-07 schematic wire logic endpoint mapping：测控控制回路逻辑端进入结构化关系
+
+只读审计确认，Phase80 second-set 最大剩余缺边簇集中在 `11/16 测控控制回路图2` 等二次原理图。图上 `1-21CD58`、`3-21CD58`、`1-21UD8` 这类文本不是端子表语义说明，也不是普通噪声；它们是测控控制回路线侧逻辑端编号。旧候选层只接受数字或既有派生数字，因此这些逻辑端被记为 `not_numeric/noise_channel`，对侧数字 `511` 等只能形成 `? -> 511` 普通 missing-side。
+
+本轮实现：
+
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 增加 `wire_logic_endpoint_channel`：
+  - 仅适用于 `sheet_category=二次原理图`。
+  - 仅适用于 horizontal/grid 线组。
+  - 仅接受 `^[13]-21[A-Z]{2,4}\d{1,3}$` 这类测控逻辑端形态。
+- 在 [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py) 中只允许该通道与对侧真实 `terminal_numeric_channel` 配对。
+- 完整配对升级为 `pair_kind=wire_component_mapping`、`component_submode=schematic_wire_logic_endpoint`，并保留逻辑端/数字端的 text id、raw text、side 证据。
+- 单侧逻辑端不会制造新的 `R-PAIR-MISSING-SIDE` review。
+- 本轮不触碰 `table_extractor.py`、component/table extractor、rules、CLI/UI，也不改变 terminal header table 的语义端排除红线。
+
+fresh second-set 证据：
+
+- `.tmp/phase81_schematic_logic_endpoint_second_v2/2_2`
+- `pair_count=1460`
+- `issue_count=58`
+- `R-PAIR-MISSING-SIDE=48`
+- pair_kind：
+  - `ordinary_pair=597`
+  - `wire_component_mapping=245`
+  - `continuation=202`
+  - `table_mapping=174`
+  - `semantic_mapping=157`
+  - `component_mapping=82`
+  - `bridge_mapping=3`
+- `wire_logic_endpoint_channel=665`
+- 目标关系：
+  - `1-21CD58 -> 511`：`wire_component_mapping/review`
+  - `3-21CD58 -> 511`：`wire_component_mapping/review`
+- `11 测控1控制回路图2.dwg` 与 `16 测控2控制回路图2.dwg` 的 missing-side count 均为 0。
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase81_schematic_logic_endpoint_first_v2/...`
+- `pair_count=1550`
+- `issue_count=302`
+- pair_kind 与 Phase80 保持一致：
+  - `ordinary_pair=800`
+  - `table_mapping=299`
+  - `continuation=175`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- `wire_logic_endpoint_channel=0`
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`
+- `1-21QD34 -> 1-21n218` 仍为结构化 pass 关系
+- `3-21QD28 -> 3-21n218` 仍为 `wire_component_mapping/pass`
+- `1-21GD9 -> 1-21n218` 仍为 `table_mapping/pass`
+- `I0/IA/UA/UB/UC/UN/3U0` 等端子表语义说明不得成为 `table_mapping/pass` endpoint 的合同仍有效。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_logic_endpoint or semantic_marker or single_sided_schematic_logic"` -> `3 passed, 24 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or input_matrix or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `248 passed`
+
+裁决：
+
+- 本轮是二次原理图逻辑端候选/关系语义补齐，不是 terminal-header/table extractor 回退，也不是 rules 静音。
+- 已闭合能力不得重开：`input_matrix_wire_mapping`、`small_port_box_component`、`kk_multi_port_component`、`strip_two_port_component(KLP/CLP)`、terminal header semantic endpoint exclusion/aggregation、inline DIM guardrail。
+- 下一轮候选收缩为：second 剩余 `R-PAIR-MISSING-SIDE=48`、first 剩余 `R-PAIR-MISSING-SIDE=144`、backplate/component/table mapping rules semantics；若转产品化，则 packaged sidecar/exe smoke 单独推进。

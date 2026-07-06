@@ -81,6 +81,131 @@ def test_build_terminal_candidates_accepts_numeric_text_inside_line_endpoint_win
     assert right_candidate.score > 0.0
 
 
+def test_build_terminal_candidates_accepts_schematic_logic_endpoint_mapping() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=102.5,
+            start_y=81.96,
+            end_x=152.5,
+            end_y=81.96,
+            length=50.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "11 测控1控制回路图2.dwg",
+            11,
+            "11",
+            "1-21n CONTROL OUTPUT",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1-21CD58", "1-21CD58", False, "TEXT", 0.0, 2.5, 100.0, 83.0, 100.0, 81.5, 111.0, 84.5),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "511", "511", True, "TEXT", 0.0, 2.5, 155.0, 83.0, 155.0, 81.5, 160.0, 84.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    logic_candidate = next(item for item in candidates if item.text_id == "T1")
+    numeric_candidate = next(item for item in candidates if item.text_id == "T2")
+    pair = pairs[0]
+    assert logic_candidate.status == "accepted"
+    assert logic_candidate.value == "1-21CD58"
+    assert logic_candidate.channel == "wire_logic_endpoint_channel"
+    assert logic_candidate.channel_detail == "schematic_wire_logic_endpoint"
+    assert numeric_candidate.channel == "terminal_numeric_channel"
+    assert pair.left_value == "1-21CD58"
+    assert pair.right_value == "511"
+    assert pair.pair_kind == "wire_component_mapping"
+    assert pair.evidence["component_submode"] == "schematic_wire_logic_endpoint"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
+def test_build_terminal_candidates_keeps_schematic_semantic_marker_out_of_logic_endpoint_channel() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=102.5,
+            start_y=81.96,
+            end_x=152.5,
+            end_y=81.96,
+            length=50.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "11 测控1控制回路图2.dwg", 11, "11", "CONTROL", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "I0", "I0", False, "TEXT", 0.0, 2.5, 100.0, 83.0, 100.0, 81.5, 104.0, 84.5),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "511", "511", True, "TEXT", 0.0, 2.5, 155.0, 83.0, 155.0, 81.5, 160.0, 84.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    semantic_marker = next(item for item in candidates if item.text_id == "T1")
+    assert semantic_marker.status == "rejected"
+    assert semantic_marker.rejection_reason == "not_numeric"
+    assert semantic_marker.channel == "noise_channel"
+    assert pairs[0].left_value is None
+    assert pairs[0].right_value == "511"
+
+
+def test_build_pairs_does_not_emit_single_sided_schematic_logic_endpoint_review() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=102.5,
+            start_y=81.96,
+            end_x=152.5,
+            end_y=81.96,
+            length=50.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "11 测控1控制回路图2.dwg", 11, "11", "CONTROL", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1-21CD58", "1-21CD58", False, "TEXT", 0.0, 2.5, 100.0, 83.0, 100.0, 81.5, 111.0, 84.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    logic_candidate = next(item for item in candidates if item.text_id == "T1")
+    assert logic_candidate.status == "accepted"
+    assert logic_candidate.channel == "wire_logic_endpoint_channel"
+    assert pairs[0].status == "discard"
+    assert pairs[0].left_value is None
+    assert pairs[0].right_value is None
+
+
 def test_build_terminal_candidates_deprioritizes_dim_single_character_numeric_text() -> None:
     line_groups = [
         LineGroup(
