@@ -1113,3 +1113,49 @@
   - 下一步更像是二选一：
     - 扩第二套更多页的 scoped 标注 spec
     - 或补 texts / lines 非回退基线量化
+
+## Session Update 2026-07-06 (Phase 29)
+- 先按 current-head 又做了一次任务书裁决，并并发拉了只读子代理复核“最近缺口是否已经转到 texts / lines 非回退量化”。
+- 子代理结论与主线程最终裁决一致：
+  - `No`，更近的缺口仍然是“把真实样本 pair 量化从单页 scoped 证明扩成更有代表性的多页 baseline”
+  - 所以这轮没有继续往 `regression.py` 的 texts / lines 计数方向提交，而是把 acceptance 继续收口到真实样本多页选样
+- 本轮实现：
+  - `src/dwg_audit/report/acceptance.py`
+    - 保留已有 `pair_scope`
+    - 新增 `included_pair_refs = [{filename, pair_key}]`
+    - 让 scope 能按“文件名 + pair_key”精确选样，避免 `101->201` 这类跨页重复 pair_key 被误吞
+    - complete pair 统计改为按 `filename + left_value + right_value` 去重，避免高密度页里的重复 relation 行把 precision 分母放大
+  - `tests/integration/test_acceptance_evaluation.py`
+    - 新增 `pair-ref` scoped acceptance 集成测试
+    - 证明 evaluator 可以只吃指定 `filename + pair_key` 集合，并保持 `precision / recall = 1.0`
+  - 新增真实样本 spec：
+    - `tests/fixtures/acceptance_real_subset/second_set_component_terminal_subset.json`
+    - 覆盖：
+      - `S0020 / 20 元件接线图2.dwg`
+      - `S0024 / 24 右侧端子图2.dwg`
+- 本轮验证：
+  - `python -m pytest -q tests\\unit\\test_regression_metrics.py tests\\unit\\test_cli.py -k "regression or compare_regression"` -> `5 passed`
+  - `python -m pytest -q tests\\integration\\test_acceptance_evaluation.py` -> `3 passed`
+  - `python -m pytest -q` -> `171 passed`
+- 本轮 real-sample fresh rerun：
+  - `python -m dwg_audit.cli analyze-project --input "test\\变压器测控柜(2圈变，2台测控)" --output .tmp\\phase33_regression_second`
+  - `python -m dwg_audit.cli run-audit --findings .tmp\\phase33_regression_second\\2_2\\findings`
+  - current-head rerun 结果保持稳定：
+    - `issue_count = 519`
+    - `route_targets = {Wire: 13, Terminal: 4, Component: 2, LayoutOnly: 2, Skip: 3}`
+    - `audit_dispositions = {audit_required: 19, classify_only: 2, skip_stable: 3}`
+- 本轮 multi-page acceptance：
+  - `python -m dwg_audit.cli evaluate-acceptance --project .tmp\\phase33_regression_second\\2_2 --spec tests\\fixtures\\acceptance_real_subset\\second_set_component_terminal_subset.json --output .tmp\\phase34_real_subset_component_terminal`
+  - 结果：
+    - `expected_pair_count = 13`
+    - `extracted_complete_pair_count = 13`
+    - `matched_pair_count = 13`
+    - `pair_precision = 1.0`
+    - `pair_recall = 1.0`
+    - `acceptance_passed = True`
+- 当前裁决：
+  - real-sample pair baseline 已从“单页 terminal 7 对”扩到“component + terminal 两类页的 13 对”
+  - 这比 Phase 28 更接近任务书里的 “Pair precision 和 recall 有量化指标”
+  - 这一轮之后，最近缺口才更像：
+    - 扩到更多真实页 / 更多 page type 的 pair baseline
+    - 或开始补 texts / lines 非回退量化

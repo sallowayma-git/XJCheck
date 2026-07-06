@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 28
+Phase 29
 
 ## Phases
 
@@ -202,6 +202,15 @@ Phase 28
 - [x] 补 scoped acceptance 集成测试，并新增第二套真实样本 `S0024` 的持久化标注 spec
 - [x] 复跑 targeted pytest、full pytest，并在 current-head 第二套真实产物上执行 scoped acceptance
 - [x] 把“真实样本第一份 precision/recall 基线已出现，下一步转向更多页与 texts/lines 基线”的裁决回写 `doc/findings.md` / `progress.md`
+- **Status:** complete
+
+### Phase 29: Multi-Page Real-Sample Pair Baseline Expansion
+- [x] 重新按 current-head 任务书审计，并用只读子代理复核“最近缺口是否已转到 texts/lines 非回退量化”
+- [x] 确认更近的缺口仍是“把真实样本 pair 量化从单页 scoped 证明扩成更有代表性的多页基线”
+- [x] 让 acceptance scope 支持按 `filename + pair_key` 精确选样，避免高密度真实页被整页普通 pair 分母污染
+- [x] 补 pair-ref scoped acceptance 集成测试，并新增第二套 `S0020 + S0024` 的持久化真实样本 spec
+- [x] 复跑 targeted pytest、full pytest，并在本轮 fresh rerun 的第二套真实产物上执行 multi-page acceptance
+- [x] 把“下一条缺口才更像 texts/lines 基线量化”的裁决回写 `doc/findings.md` / `progress.md`
 - **Status:** complete
 
 ## Key Questions

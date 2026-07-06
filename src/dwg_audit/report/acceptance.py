@@ -134,17 +134,27 @@ def _matched_golden_pairs(pairs: pd.DataFrame, golden_pairs: list[dict[str, Any]
 
 def _extracted_complete_pairs(pairs: pd.DataFrame) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
     for row in _rows(pairs):
         if row.get("status") == "discard":
             continue
         if not _present(row.get("left_value")) or not _present(row.get("right_value")):
             continue
+        key = (
+            _pair_filename(row),
+            str(row.get("left_value") or ""),
+            str(row.get("right_value") or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
         results.append(
             {
-                "filename": _pair_filename(row),
-                "left_value": str(row.get("left_value") or ""),
-                "right_value": str(row.get("right_value") or ""),
+                "filename": key[0],
+                "left_value": key[1],
+                "right_value": key[2],
                 "status": str(row.get("status") or ""),
+                "pair_key": str(row.get("pair_key") or ""),
             }
         )
     return results
@@ -380,19 +390,39 @@ def _scoped_pairs(pairs: pd.DataFrame, pair_scope: dict[str, Any]) -> pd.DataFra
     filenames = {str(value) for value in pair_scope.get("included_filenames", []) if _present(value)}
     sheet_ids = {str(value) for value in pair_scope.get("included_sheet_ids", []) if _present(value)}
     pair_kinds = {str(value) for value in pair_scope.get("pair_kinds", []) if _present(value)}
+    pair_keys = {str(value) for value in pair_scope.get("included_pair_keys", []) if _present(value)}
+    pair_refs = _pair_ref_scope(pair_scope.get("included_pair_refs", []))
     statuses = {str(value) for value in pair_scope.get("statuses", []) if _present(value)}
     filtered: list[dict[str, Any]] = []
     for row in _rows(pairs):
+        filename = _pair_filename(row)
+        pair_key = str(row.get("pair_key") or "")
         if filenames and _pair_filename(row) not in filenames:
             continue
         if sheet_ids and str(row.get("sheet_id") or "") not in sheet_ids:
             continue
         if pair_kinds and str(row.get("pair_kind") or "") not in pair_kinds:
             continue
+        if pair_keys and pair_key not in pair_keys:
+            continue
+        if pair_refs and (filename, pair_key) not in pair_refs:
+            continue
         if statuses and str(row.get("status") or "") not in statuses:
             continue
         filtered.append(row)
     return pd.DataFrame(filtered)
+
+
+def _pair_ref_scope(values: list[dict[str, Any]]) -> set[tuple[str, str]]:
+    refs: set[tuple[str, str]] = set()
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        filename = str(item.get("filename") or "")
+        pair_key = str(item.get("pair_key") or "")
+        if filename and pair_key:
+            refs.add((filename, pair_key))
+    return refs
 
 
 def _rows(frame: pd.DataFrame) -> list[dict[str, Any]]:

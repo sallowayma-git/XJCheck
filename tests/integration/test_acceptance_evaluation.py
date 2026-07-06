@@ -220,3 +220,58 @@ def test_acceptance_evaluation_supports_scoped_pair_metrics(
     assert payload["pair_metrics"]["precision"] == 1.0
     assert payload["pair_metrics"]["recall"] == 1.0
     assert payload["skip_page_metrics"]["expected_count"] == 0
+
+
+def test_acceptance_evaluation_supports_scoped_pair_keys_and_unique_complete_pairs(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    scoped_spec = {
+        "name": "acceptance-mini-scoped-pair-keys",
+        "pair_recall_threshold": 0.9,
+        "pair_scope": {
+            "included_pair_refs": [
+                {"filename": "04 正常回路图A.dwg", "pair_key": "101->201"},
+                {"filename": "04 正常回路图A.dwg", "pair_key": "301->401"},
+                {"filename": "05 正常回路图B.dwg", "pair_key": "301->402"}
+            ],
+            "pair_kinds": ["ordinary_pair"],
+        },
+        "golden_pairs": [
+            {"filename": "04 正常回路图A.dwg", "left_value": "101", "right_value": "201"},
+            {"filename": "04 正常回路图A.dwg", "left_value": "301", "right_value": "401"},
+            {"filename": "05 正常回路图B.dwg", "left_value": "301", "right_value": "402"},
+        ],
+    }
+    spec_path = tmp_path / "scoped_pair_keys_spec.json"
+    spec_path.write_text(json.dumps(scoped_spec, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    runner = CliRunner()
+    acceptance_dir = tmp_path / "acceptance_pair_keys_report"
+    evaluate = runner.invoke(
+        app,
+        [
+            "evaluate-acceptance",
+            "--project",
+            str(project_dir),
+            "--spec",
+            str(spec_path),
+            "--output",
+            str(acceptance_dir),
+        ],
+    )
+    assert evaluate.exit_code == 0, evaluate.output
+
+    payload = json.loads((acceptance_dir / "acceptance_report.json").read_text(encoding="utf-8"))
+    assert payload["acceptance_passed"] is True
+    assert payload["pair_scope"]["included_pair_refs"] == [
+        {"filename": "04 正常回路图A.dwg", "pair_key": "101->201"},
+        {"filename": "04 正常回路图A.dwg", "pair_key": "301->401"},
+        {"filename": "05 正常回路图B.dwg", "pair_key": "301->402"},
+    ]
+    assert payload["pair_metrics"]["expected_pair_count"] == 3
+    assert payload["pair_metrics"]["extracted_complete_pair_count"] == 3
+    assert payload["pair_metrics"]["matched_pair_count"] == 3
+    assert payload["pair_metrics"]["precision"] == 1.0
+    assert payload["pair_metrics"]["recall"] == 1.0

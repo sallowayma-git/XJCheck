@@ -4887,3 +4887,167 @@ scope 明确限制为：
 
 1. 把 real-sample scoped spec 从 `1` 页扩到多页
 2. 把 texts / lines 基线也拉进同一套量化回归里
+
+## 79. 2026-07-06 最近缺口重新裁决：先扩 real-sample pair baseline，再轮到 texts / lines
+
+在 section 78 之后，我先没有直接往 `texts / lines` 量化上冲，而是又按 current-head 做了一次任务书裁决，并并发拉了只读子代理复核一个窄问题：
+
+- 页级分类 / 路由 / `TableExtractor` / terminal semantic / continuation 已有当前证据的前提下
+- 最近缺口是不是已经转到 `M10` 的 `texts / lines` 非回退量化
+
+子代理给出的结论是：`No`。
+
+主线程复核后，同意这个判断。
+
+### 79.1 为什么现在还不该先跳到 texts / lines
+
+因为虽然 `texts / lines` 非回退量化确实仍未完成，但离任务书最近的单一缺口其实还卡在更前一层：
+
+- 真实样本 pair 量化虽然已经从 `0` 变成了 `1` 份持久化 spec
+- 但 section 78 里那份 real-sample baseline 仍只覆盖：
+  - `S0024 / 24 右侧端子图2.dwg`
+  - `7` 条 `ordinary_pair`
+
+这还不足以支撑“真实样本 pair precision / recall 已经有代表性基线”。
+
+而任务书第 15 章里写得很直接：
+
+- `Pair precision 和 recall 有量化指标`
+- `文本抽取不回退`
+- `线段召回不回退`
+
+在这三项里，当前离闭环最近的仍然是第一项的**扩面**，不是后两项。
+
+### 79.2 这轮真正补的不是新规则，而是 acceptance 的精确选样能力
+
+如果继续沿用 section 78 的 scope 粒度，只能按整页筛：
+
+- `included_sheet_ids`
+- `included_filenames`
+- `pair_kinds`
+- `statuses`
+
+问题在于，高密度真实页如 `S0020 / 20 元件接线图2.dwg` 有大量 ordinary full pair，其中一些还是重复 relation 行。
+
+若按整页 scope：
+
+- precision 分母会被整页所有 complete pair 放大
+- 这迫使我们要么一次性标完整页几十条，要么得到被无关 pair 稀释的 precision
+
+所以这轮 acceptance evaluator 又往前收了一小步：
+
+- 代码位置：[acceptance.py](/F:/workspace/XJToolkit/src/dwg_audit/report/acceptance.py)
+- 新增 `included_pair_refs`
+- 格式是：
+  - `{filename, pair_key}`
+
+也就是说，真实样本现在可以按“文件名 + pair_key”精确选样，而不是只能整页吞下。
+
+同时 complete pair 统计也改成按：
+
+- `filename + left_value + right_value`
+
+做去重，避免同一 relation 的重复行把 precision 分母虚增。
+
+### 79.3 这轮新增的真实样本基线
+
+本轮新增的持久化 spec 是：
+
+- [second_set_component_terminal_subset.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_real_subset/second_set_component_terminal_subset.json)
+
+它把 real-sample baseline 从“单页 terminal 7 对”扩到了两类 extractor：
+
+1. `ComponentDiagramExtractor`
+- `S0020 / 20 元件接线图2.dwg`
+- 选入 `6` 对：
+  - `18 -> 404`
+  - `23 -> 407`
+  - `28 -> 410`
+  - `33 -> 413`
+  - `38 -> 416`
+  - `43 -> 419`
+
+2. `TerminalDiagramExtractor`
+- `S0024 / 24 右侧端子图2.dwg`
+- 选入 `7` 对：
+  - `406 -> 20`
+  - `409 -> 25`
+  - `412 -> 30`
+  - `415 -> 35`
+  - `418 -> 40`
+  - `421 -> 45`
+  - `428 -> 55`
+
+合计：
+
+- `13` 对真实样本 `ordinary_pair`
+
+这比 section 78 的单页 `7` 对，更接近“多页 / 多 extractor 的真实样本 pair baseline”。
+
+### 79.4 新增证明
+
+为了避免新 scope 只在真实样本 spec 上“碰巧有用”，我先补了一条 integration test：
+
+- [test_acceptance_evaluation.py](/F:/workspace/XJToolkit/tests/integration/test_acceptance_evaluation.py)
+
+这条测试证明：
+
+- acceptance evaluator 可以只消费显式 `included_pair_refs`
+- 同时避免跨页相同 `pair_key` 的误命中
+
+本轮验证结果：
+
+- `python -m pytest -q tests\unit\test_regression_metrics.py tests\unit\test_cli.py -k "regression or compare_regression"` -> `5 passed`
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `3 passed`
+- `python -m pytest -q` -> `171 passed`
+
+### 79.5 fresh real-sample rerun 与 acceptance 结果
+
+我这轮重新对第二套样本跑了 fresh rerun：
+
+- analyze 输出目录：[phase33_regression_second](/F:/workspace/XJToolkit/.tmp/phase33_regression_second/2_2)
+
+current-head rerun 结果保持稳定：
+
+- `issue_count = 519`
+- `route_targets = {Wire: 13, Terminal: 4, Component: 2, LayoutOnly: 2, Skip: 3}`
+- `audit_dispositions = {audit_required: 19, classify_only: 2, skip_stable: 3}`
+
+然后直接在这份 fresh rerun 上执行新的多页 acceptance：
+
+- 输出目录：[phase34_real_subset_component_terminal](/F:/workspace/XJToolkit/.tmp/phase34_real_subset_component_terminal)
+
+结果如下：
+
+- `expected_pair_count = 13`
+- `extracted_complete_pair_count = 13`
+- `matched_pair_count = 13`
+- `pair_precision = 1.0`
+- `pair_recall = 1.0`
+- `acceptance_passed = True`
+
+这说明：
+
+- 当前 real-sample pair baseline 已经不再只靠单页 terminal 的 `7` 对成立
+- 而是已经扩到了：
+  - `ComponentDiagramExtractor`
+  - `TerminalDiagramExtractor`
+
+两类真实样本页的 `13` 对 baseline
+
+### 79.6 当前裁决
+
+经过这轮之后，“最近缺口”的排序更清楚了：
+
+1. 当前已经明显 stronger 的层
+- real-sample pair baseline 已从 `1` 页扩到多页 / 多 extractor
+- pair precision / recall 的真实样本证据更接近任务书主链
+
+2. 仍未闭环的层
+- 还没有把更多真实页型继续并入 same acceptance family
+- 也还没有把 `texts / lines` 非回退量化补上
+
+所以 current-head 最近的下一条缺口，**现在**才更像是二选一：
+
+1. 继续扩 real-sample pair baseline 到更多页 / 更多 page type
+2. 补 `texts / lines` 非回退量化，让 `M10` 的后两项开始成形
