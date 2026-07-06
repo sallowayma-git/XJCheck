@@ -7258,3 +7258,34 @@ fixture 更新：
 - 真实 second-set 结构化关系验收口径已刷新到 current-head。
 - `fault_injected_acceptance_mini` 仍需要固定 artifact 生成 / alias 绑定，才能让完整 internal suite 一键通过。
 - 这仍是内部 harness，不应继续扩成用户产品 CLI；最终 exe 工作流后续应调用同一 service/session 能力。
+
+补充验证：
+
+- 主线程用现有 `acceptance_mini` 测试生成逻辑在 `.tmp/phase65_fault_injected_run` 临时生成 fault-injected artifact。
+- 随后执行完整 internal suite：
+  - `fault_injected=.tmp/phase65_fault_injected_run/artifacts/project`
+  - `real_second=.tmp/phase63_strip_comma_second/2_2`
+- 结果为 `required_passed_case_count=3/3`、`acceptance_passed=True`。
+- 三个 case 结果：
+  - `fault_injected_acceptance_mini`: expected `16`，matched `16`，precision `1.0`，recall `1.0`
+  - `real_second_component_terminal_subset`: expected `12`，matched `12`，precision `1.0`，recall `1.0`
+  - `real_second_terminal_s0024`: expected `6`，matched `6`，precision `1.0`，recall `1.0`
+
+该 `.tmp` artifact 不应提交。下一步应把现有测试 helper 提炼为 `tests/support` 级 internal harness 支持代码，用测试证明 fault alias 可稳定生成，而不是把运行产物纳入版本库。
+
+随后已完成测试支持闭环：
+
+- 将 acceptance mini 的 fake DXF converter 与生成逻辑提炼到 [acceptance_mini.py](/F:/workspace/XJToolkit/tests/support/acceptance_mini.py)。
+- integration test 现在直接使用当前 [mvp_minimum_suite.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_suite/mvp_minimum_suite.json)，先生成 `fault_injected` artifact，再构造最小 `real_second` 临时 artifact，断言 required case `3/3` 全部通过。
+- 这证明 fault alias 绑定可以稳定复跑，同时没有提交 `.tmp` 产物，也没有新增产品 CLI。
+
+验证：
+
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `5 passed`
+- `python -m pytest -q` -> `217 passed`
+
+到这里，Phase50 的 internal acceptance harness 已完成三件事：
+
+- 真实 second-set golden 已从旧 `ordinary_pair` 口径升级到结构化 `table_mapping/pass` 口径。
+- fault-injected mini case 可通过测试 helper 稳定生成 artifact 并参与 suite。
+- 完整 suite 在临时产物上已实证 `3/3` 可通过。

@@ -1,142 +1,69 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
-import ezdxf
 import pandas as pd
-import yaml
 from typer.testing import CliRunner
 
 from dwg_audit.cli import app
 from dwg_audit.report.acceptance import evaluate_acceptance_project
+from tests.support.acceptance_mini import prepare_acceptance_mini_run
 
 
-def _add_complete_pair(msp, left: str, right: str, y: float) -> None:
-    msp.add_text(left, dxfattribs={"insert": (18.0, y), "height": 2.5, "layer": "TEXT"})
-    msp.add_text(right, dxfattribs={"insert": (82.0, y), "height": 2.5, "layer": "TEXT"})
-    msp.add_line((20.0, y), (80.0, y), dxfattribs={"layer": "CONNECT"})
+def _prepare_real_second_minimum_project(tmp_path: Path) -> Path:
+    project_dir = tmp_path / "real_second_project"
+    findings_dir = project_dir / "findings"
+    audit_dir = project_dir / "audit"
+    findings_dir.mkdir(parents=True)
+    audit_dir.mkdir(parents=True)
 
-
-def _add_missing_right_pair(msp, left: str, y: float) -> None:
-    msp.add_text(left, dxfattribs={"insert": (18.0, y), "height": 2.5, "layer": "TEXT"})
-    msp.add_line((20.0, y), (80.0, y), dxfattribs={"layer": "CONNECT"})
-
-
-def _add_missing_left_pair(msp, right: str, y: float) -> None:
-    msp.add_text(right, dxfattribs={"insert": (82.0, y), "height": 2.5, "layer": "TEXT"})
-    msp.add_line((20.0, y), (80.0, y), dxfattribs={"layer": "CONNECT"})
-
-
-def _add_ambiguous_review_pair(msp, left: str, selected_right: str, alt_right: str, y: float) -> None:
-    msp.add_text(left, dxfattribs={"insert": (18.0, y), "height": 2.5, "layer": "TEXT"})
-    msp.add_text(selected_right, dxfattribs={"insert": (82.0, y), "height": 2.5, "layer": "TEXT"})
-    msp.add_text(alt_right, dxfattribs={"insert": (83.5, y), "height": 2.5, "layer": "TEXT"})
-    msp.add_line((20.0, y), (80.0, y), dxfattribs={"layer": "CONNECT"})
-
-
-def _add_page_no_marker(msp, value: str) -> None:
-    msp.add_text(value, dxfattribs={"insert": (108.0, 12.0), "height": 2.5, "layer": "TITLE"})
-
-
-def _prepare_acceptance_mini_run(
-    monkeypatch,
-    tmp_path: Path,
-) -> tuple[Path, Path]:
-    fixture_root = Path(__file__).resolve().parents[1] / "fixtures" / "acceptance_mini"
-    project = tmp_path / "project"
-    shutil.copytree(fixture_root / "project", project)
-
-    config_path = tmp_path / "config.yml"
-    config_path.write_text(
-        yaml.safe_dump(
-                {
-                    "layout": {
-                        "audit_area": {
-                            "mode": "manual",
-                            "manual_bbox": [0.0, 0.0, 120.0, 320.0],
-                        },
-                        "title_block": {
-                            "mode": "manual",
-                            "manual_bbox": [100.0, 0.0, 120.0, 24.0],
-                        },
-                    }
-                },
-            allow_unicode=True,
-            sort_keys=False,
-        ),
+    (project_dir / "manifest.json").write_text(
+        json.dumps({"project_id": "real-second-minimum", "project_name": "real-second-minimum"}),
         encoding="utf-8",
     )
-
-    fake_exe = tmp_path / "ODAFileConverter.exe"
-    fake_exe.write_text("stub", encoding="utf-8")
-
-    def fake_convert(source: Path, target: Path, **_: object) -> None:
-        doc = ezdxf.new("R2018")
-        msp = doc.modelspace()
-        staged_name = Path(target).name
-        if staged_name.startswith("F0002_"):
-            _add_page_no_marker(msp, "04")
-            for left, right, y in (
-                ("101", "201", 40.0),
-                ("102", "202", 80.0),
-                ("103", "203", 120.0),
-                ("104", "204", 160.0),
-                ("301", "401", 200.0),
-                ("302", "501", 240.0),
-            ):
-                _add_complete_pair(msp, left, right, y)
-        elif staged_name.startswith("F0003_"):
-            _add_page_no_marker(msp, "05")
-            for left, right, y in (
-                ("101", "201", 40.0),
-                ("102", "202", 80.0),
-                ("105", "205", 120.0),
-                ("301", "402", 160.0),
-            ):
-                _add_complete_pair(msp, left, right, y)
-            _add_missing_right_pair(msp, "701", 200.0)
-        elif staged_name.startswith("F0004_"):
-            _add_page_no_marker(msp, "06")
-            for left, right, y in (
-                ("103", "203", 40.0),
-                ("104", "204", 80.0),
-                ("106", "206", 120.0),
-                ("302", "502", 160.0),
-            ):
-                _add_complete_pair(msp, left, right, y)
-            _add_missing_left_pair(msp, "702", 200.0)
-        elif staged_name.startswith("F0005_"):
-            _add_page_no_marker(msp, "07")
-            _add_ambiguous_review_pair(msp, "801", "901", "902", 60.0)
-            _add_ambiguous_review_pair(msp, "802", "903", "904", 120.0)
-        doc.saveas(target)
-
-    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
-    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
-
-    runner = CliRunner()
-    output_dir = tmp_path / "artifacts"
-    analyze = runner.invoke(
-        app,
-        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    (findings_dir / "findings.json").write_text(
+        json.dumps({"page_findings": []}, ensure_ascii=False),
+        encoding="utf-8",
     )
-    assert analyze.exit_code == 0, analyze.output
+    (audit_dir / "issues.json").write_text("[]", encoding="utf-8")
 
-    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
-    project_dir = Path(run_summary[0]["artifact_dir"])
-
-    audit = runner.invoke(app, ["run-audit", "--findings", str(project_dir / "findings")])
-    assert audit.exit_code == 0, audit.output
-    return fixture_root, project_dir
+    rows = [
+        ("20 元件接线图2.dwg", "S0020", "18", "404", "ordinary_pair", "review", "18->404"),
+        ("20 元件接线图2.dwg", "S0020", "23", "407", "ordinary_pair", "review", "23->407"),
+        ("20 元件接线图2.dwg", "S0020", "28", "410", "ordinary_pair", "review", "28->410"),
+        ("20 元件接线图2.dwg", "S0020", "33", "413", "ordinary_pair", "review", "33->413"),
+        ("20 元件接线图2.dwg", "S0020", "38", "416", "ordinary_pair", "review", "38->416"),
+        ("20 元件接线图2.dwg", "S0020", "43", "419", "ordinary_pair", "review", "43->419"),
+        ("24 右侧端子图2.dwg", "S0024", "1-21CD20", "1-21n406", "table_mapping", "pass", "1-21CD20->1-21n406"),
+        ("24 右侧端子图2.dwg", "S0024", "1-21CD25", "1-21n409", "table_mapping", "pass", "1-21CD25->1-21n409"),
+        ("24 右侧端子图2.dwg", "S0024", "1-21CD30", "1-21n412", "table_mapping", "pass", "1-21CD30->1-21n412"),
+        ("24 右侧端子图2.dwg", "S0024", "1-21CD35", "1-21n415", "table_mapping", "pass", "1-21CD35->1-21n415"),
+        ("24 右侧端子图2.dwg", "S0024", "1-21CD40", "1-21n418", "table_mapping", "pass", "1-21CD40->1-21n418"),
+        ("24 右侧端子图2.dwg", "S0024", "1-21CD45", "1-21n421", "table_mapping", "pass", "1-21CD45->1-21n421"),
+    ]
+    pd.DataFrame(
+        [
+            {
+                "filename": filename,
+                "sheet_id": sheet_id,
+                "left_value": left_value,
+                "right_value": right_value,
+                "pair_kind": pair_kind,
+                "status": status,
+                "pair_key": pair_key,
+            }
+            for filename, sheet_id, left_value, right_value, pair_kind, status, pair_key in rows
+        ]
+    ).to_parquet(findings_dir / "pairs.parquet", index=False)
+    return project_dir
 
 
 def test_acceptance_mini_project_produces_quantified_acceptance_report(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    fixture_root, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    fixture_root, project_dir = prepare_acceptance_mini_run(monkeypatch, tmp_path)
     spec_path = fixture_root / "spec.json"
 
     runner = CliRunner()
@@ -177,7 +104,7 @@ def test_acceptance_evaluation_supports_scoped_pair_metrics(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    _, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    _, project_dir = prepare_acceptance_mini_run(monkeypatch, tmp_path)
     scoped_spec = {
         "name": "acceptance-mini-scoped-page",
         "pair_recall_threshold": 0.9,
@@ -228,7 +155,7 @@ def test_acceptance_evaluation_supports_scoped_pair_keys_and_unique_complete_pai
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    _, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    _, project_dir = prepare_acceptance_mini_run(monkeypatch, tmp_path)
     scoped_spec = {
         "name": "acceptance-mini-scoped-pair-keys",
         "pair_recall_threshold": 0.9,
@@ -368,41 +295,9 @@ def test_acceptance_suite_evaluation_summarizes_required_cases(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    fixture_root, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
-    scoped_spec = {
-        "name": "acceptance-mini-second-case",
-        "pair_recall_threshold": 0.9,
-        "pair_scope": {
-            "included_filenames": ["04 正常回路图A.dwg"],
-            "pair_kinds": ["ordinary_pair"],
-        },
-        "golden_pairs": [
-            {"filename": "04 正常回路图A.dwg", "left_value": "101", "right_value": "201"},
-            {"filename": "04 正常回路图A.dwg", "left_value": "102", "right_value": "202"},
-        ],
-    }
-    scoped_spec_path = tmp_path / "scoped_spec.json"
-    scoped_spec_path.write_text(json.dumps(scoped_spec, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    suite_spec = {
-        "name": "acceptance-suite-test",
-        "cases": [
-            {
-                "case_id": "fault_injected_full",
-                "project_alias": "mini",
-                "spec": str((fixture_root / "spec.json").resolve()),
-                "required": True,
-            },
-            {
-                "case_id": "fault_injected_scoped",
-                "project_alias": "mini",
-                "spec": str(scoped_spec_path.resolve()),
-                "required": True,
-            },
-        ],
-    }
-    suite_path = tmp_path / "suite.json"
-    suite_path.write_text(json.dumps(suite_spec, ensure_ascii=False, indent=2), encoding="utf-8")
+    _, fault_injected_project = prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    real_second_project = _prepare_real_second_minimum_project(tmp_path)
+    suite_path = Path(__file__).resolve().parents[1] / "fixtures" / "acceptance_suite" / "mvp_minimum_suite.json"
 
     runner = CliRunner()
     output_dir = tmp_path / "acceptance_suite_report"
@@ -413,7 +308,9 @@ def test_acceptance_suite_evaluation_summarizes_required_cases(
             "--suite",
             str(suite_path),
             "--project-alias",
-            f"mini={project_dir}",
+            f"fault_injected={fault_injected_project}",
+            "--project-alias",
+            f"real_second={real_second_project}",
             "--output",
             str(output_dir),
         ],
@@ -422,16 +319,20 @@ def test_acceptance_suite_evaluation_summarizes_required_cases(
 
     payload = json.loads((output_dir / "acceptance_suite_report.json").read_text(encoding="utf-8"))
     assert payload["acceptance_passed"] is True
-    assert payload["required_case_count"] == 2
-    assert payload["required_passed_case_count"] == 2
-    assert payload["passed_case_count"] == 2
+    assert payload["suite_name"] == "internal-mvp-minimum-acceptance-suite"
+    assert payload["required_case_count"] == 3
+    assert payload["required_passed_case_count"] == 3
+    assert payload["passed_case_count"] == 3
     assert {item["case_id"] for item in payload["cases"]} == {
-        "fault_injected_full",
-        "fault_injected_scoped",
+        "fault_injected_acceptance_mini",
+        "real_second_component_terminal_subset",
+        "real_second_terminal_s0024",
     }
     assert all(item["status"] == "evaluated" for item in payload["cases"])
+    assert all(item["acceptance_passed"] is True for item in payload["cases"])
 
     markdown = (output_dir / "acceptance_suite_report.md").read_text(encoding="utf-8")
     assert "Acceptance Suite Report" in markdown
-    assert "fault_injected_full" in markdown
-    assert "fault_injected_scoped" in markdown
+    assert "fault_injected_acceptance_mini" in markdown
+    assert "real_second_component_terminal_subset" in markdown
+    assert "real_second_terminal_s0024" in markdown

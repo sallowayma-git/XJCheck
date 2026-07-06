@@ -2039,3 +2039,32 @@
     - remaining failure is only the missing `fault_injected` alias.
 - Next recommended focus:
   - Generate or bind stable `fault_injected` artifacts for the internal suite.
+
+## Session Update 2026-07-06 (Phase 50 fault alias proof)
+- Generated a temporary fault-injected acceptance mini artifact under `.tmp/phase65_fault_injected_run` using the existing test helper pattern.
+- Ran the full internal suite with:
+  - `fault_injected=.tmp\phase65_fault_injected_run\artifacts\project`
+  - `real_second=.tmp\phase63_strip_comma_second\2_2`
+- Result:
+  - `required_passed_case_count=3/3`
+  - `acceptance_passed=True`
+  - `fault_injected_acceptance_mini`: expected/matched `16/16`, precision `1.0`, recall `1.0`
+  - `real_second_component_terminal_subset`: expected/matched `12/12`, precision `1.0`, recall `1.0`
+  - `real_second_terminal_s0024`: expected/matched `6/6`, precision `1.0`, recall `1.0`
+- Read-only subagent conclusion:
+  - Do not commit `.tmp` artifacts.
+  - Extract the existing acceptance mini generation helper into `tests/support` and prove suite alias binding in tests.
+- Spawned worker `Bohr` for the tests/support helper extraction slice.
+
+## Session Update 2026-07-06 (Phase 50 tests/support closure)
+- Completed the tests/support acceptance mini helper extraction via worker `Bohr`.
+- Implementation:
+  - Added `tests/support/acceptance_mini.py` with reusable fake DXF converter helpers and `prepare_acceptance_mini_run()`.
+  - Added `tests/support/__init__.py`.
+  - Updated `tests/integration/test_acceptance_evaluation.py` to reuse the helper.
+  - The suite integration test now uses the current `mvp_minimum_suite.json`, generates `fault_injected`, creates a minimal temporary `real_second` artifact, and asserts required `3/3` pass.
+- Verification:
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `5 passed`
+  - `python -m pytest -q` -> `217 passed`
+  - `git diff --check` -> no whitespace errors, only CRLF warnings.
+- No `.tmp` artifacts were staged or committed.
