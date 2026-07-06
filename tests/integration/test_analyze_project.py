@@ -282,6 +282,112 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
     assert first_evidence["table_mapping"]["sheet_id"] == table_sheet_id
 
 
+def test_analyze_project_supports_header_semantic_three_column_table_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "05 回路表格图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 320.0, 320.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
+            msp.add_text("101", dxfattribs={"insert": (10, 200), "height": 2.5})
+            msp.add_text("202", dxfattribs={"insert": (90, 200), "height": 2.5})
+            msp.add_line((20, 200), (80, 200), dxfattribs={"layer": "CONNECT"})
+        else:
+            for y in (60.0, 100.0, 140.0, 180.0):
+                msp.add_line((10.0, y), (290.0, y), dxfattribs={"layer": "TABLE"})
+            for y in (75.0, 165.0):
+                msp.add_line((20.0, y), (80.0, y), dxfattribs={"layer": "TABLE"})
+            for x in (10.0, 100.0, 200.0, 290.0):
+                msp.add_line((x, 60.0), (x, 180.0), dxfattribs={"layer": "TABLE"})
+            for idx in range(20):
+                base_x = 18.0 + (idx % 5) * 48.0
+                base_y = (60.0, 100.0, 140.0, 60.0)[idx // 5]
+                msp.add_lwpolyline(
+                    [
+                        (base_x, base_y),
+                        (base_x + 22.0, base_y),
+                    ],
+                    dxfattribs={"layer": "TABLE"},
+                )
+            for text, x, y in (
+                ("1-21QD", 150.0, 80.0),
+                ("1-21n552", 55.0, 120.0),
+                ("1", 150.0, 120.0),
+                ("1-21n553", 245.0, 120.0),
+                ("1-21n554", 55.0, 160.0),
+                ("2", 150.0, 160.0),
+                ("1-21n555", 245.0, 160.0),
+            ):
+                msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
+    table_page = page_findings["05 回路表格图.dwg"]
+    assert table_page["route_target"] == "TableExtractor"
+    assert table_page["structure_summary"]["table_mapping_count"] == 2
+    assert table_page["structure_summary"]["three_column_table"] is True
+    assert table_page["structure_summary"]["table_mapping_modes"] == {"header_semantic_three_column": 2}
+    assert table_page["structure_summary"]["table_header_prefixes"] == ["1-21QD"]
+    assert table_page["structure_summary"]["table_logical_endpoint_examples"] == ["1-21QD1", "1-21QD2"]
+    assert table_page["structure_summary"]["table_row_number_sequence_valid"] is True
+
+    table_sheet_id = table_page["sheet_id"]
+    table_pairs = pairs[pairs["sheet_id"] == table_sheet_id]
+    assert len(table_pairs) == 4
+    pair_values = {(row["left_value"], row["right_value"]) for _, row in table_pairs.iterrows()}
+    assert pair_values == {
+        ("1-21QD1", "1-21n552"),
+        ("1-21QD1", "1-21n553"),
+        ("1-21QD2", "1-21n554"),
+        ("1-21QD2", "1-21n555"),
+    }
+    first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
+    assert first_evidence["table_mapping"]["mapping_mode"] == "header_semantic_three_column"
+    assert first_evidence["table_mapping"]["logical_endpoint"] in {"1-21QD1", "1-21QD2"}
+
+
 def test_run_audit_emits_mixed_source_conflict_for_table_mapping_vs_wire_pair(
     monkeypatch,
     tmp_path: Path,

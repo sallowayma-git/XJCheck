@@ -4456,3 +4456,122 @@ current-head 上，这条并不是完全空白：
 
 1. 表头型三列表格的逻辑语义端合成与 `table_mapping` 语义增强
 2. M10 / 最小验收场景中的隔离故障注入与 Pair recall 量化证明
+
+## 75. 2026-07-06 表头型三列表格已补齐，并额外完成一轮边界硬化
+
+在 section 74 把 mixed-source consistency 收口之后，我继续按 current-head 任务书推进表格方向最近的功能缺口：
+
+- `表头前缀 + 行号 -> 逻辑语义端`
+- 同一行左右两侧端点分别输出高置信 `table_mapping`
+
+这轮已经不是只补 rule，而是直接把 `TableExtractor` 的 stronger MVP 功能补进 current-head。
+
+### 75.1 当前功能合同
+
+本轮新增能力落在：
+
+- [table_extractor.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/table_extractor.py)
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+- [test_table_extractor.py](/F:/workspace/XJToolkit/tests/unit/test_table_extractor.py)
+- [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+
+当前 `TableExtractor` 现在同时支持两类三列表格：
+
+1. 数值三列表格
+- 继续保留原有 `numeric_three_column`
+- 中列数字与外列数字生成高置信映射
+
+2. 表头型三列表格
+- 首行中列识别 `header_prefix`
+- 后续中列识别连续行号
+- 合成 `logical_endpoint = header_prefix + row_number`
+- 左右两侧 terminal-like 文本分别生成 `table_mapping`
+
+page findings 里也补了表格结构摘要：
+
+- `table_mapping_modes`
+- `table_header_prefixes`
+- `table_logical_endpoint_examples`
+- `table_row_number_sequence_valid`
+
+### 75.2 这轮额外修掉的两个真实风险
+
+并行只读子代理指出，这组改动如果直接停在第一版，会有两个 P1 风险。我在主线程把它们一起收口了：
+
+1. 备注文本误抬升为高置信 `table_mapping`
+- 原始版本只要一侧像端子，另一侧非空文本也会被一起产出 pair
+- 现在 header-semantic 外列只接受 terminal-like 文本；备注侧会保留为空，不再产出 `logical_endpoint -> 备注`
+
+2. numeric fallback 被单元格杂讯打断
+- 原始版本放开所有文本入格后，`_primary_cell_text()` 可能先选到 `NOTE`
+- 现在 numeric 模式会优先选择数值文本，header 模式会分别优先选择 header / row-number / endpoint 文本
+- 这样表头模式失败后，仍能稳定回退到 `numeric_three_column`
+
+### 75.3 新增证明
+
+单元测试新增/覆盖了三类关键边界：
+
+- 单元格同时含 `NOTE + 数字` 时，numeric 模式仍优先选数字
+- 表头语义行一侧是备注、一侧是真端子时，只输出真端子那一侧的 pair
+- 首行像表头但行号序列不成立时，会稳定回退到 `numeric_three_column`
+
+synthetic `analyze-project` 主链证明也已经补上：
+
+- 表格页会独立路由到 `TableExtractor`
+- `table_mapping_modes = {"header_semantic_three_column": 2}`
+- 会生成：
+  - `1-21QD1 -> 1-21n552`
+  - `1-21QD1 -> 1-21n553`
+  - `1-21QD2 -> 1-21n554`
+  - `1-21QD2 -> 1-21n555`
+
+### 75.4 验证结果
+
+定向验证：
+
+- `python -m pytest -q tests\unit\test_table_extractor.py` -> `8 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "table_extractor or header_semantic or mixed_source_conflict"` -> `3 passed`
+
+全量回归：
+
+- `python -m pytest -q` -> `168 passed`
+
+真实样本 rerun：
+
+- 第二套：[phase30_table_header_hardening_second](/F:/workspace/XJToolkit/.tmp/phase30_table_header_hardening_second/2_2)
+- 第一套：[phase30_table_header_hardening_first](/F:/workspace/XJToolkit/.tmp/phase30_table_header_hardening_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+真实样本 current-head 结果保持稳定：
+
+- 第二套总 issue 仍是 `519`
+- 第一套总 issue 仍是 `345`
+- 两套 `table_pages = 0 / total_mappings = 0`
+
+这说明：
+
+- 表头型三列表格能力已经具备功能闭环证明
+- 但 current real samples 里仍然没有稳定命中的真实表格页
+- 这轮改动没有把真实项目误抬成表格页，也没有引入额外 issue 洪峰
+
+### 75.5 当前裁决
+
+到这一轮为止，表格方向可以分成两层来看：
+
+1. 功能层
+- `TableExtractor` 的 stronger MVP 已经补到：
+  - header prefix
+  - row number
+  - logical endpoint
+  - bilateral `table_mapping`
+
+2. 验收层
+- `M10` / 最小验收仍未闭环
+- 当前最明显缺口仍是：
+  - 人工标注 pair precision / recall
+  - 5 张隔离故障注入样本
+  - issue 命中率与误报率的端到端评估
+
+所以当前最近缺口已经不再是 `TableExtractor` 的表头语义功能，而更像是：
+
+1. `M10` 回归验证闭环
+2. 最小验收场景的故障注入与量化评估

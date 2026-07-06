@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 25
+Phase 26
 
 ## Phases
 
@@ -179,6 +179,13 @@ Phase 25
 - [x] 补齐 unit + `analyze-project -> run-audit` 级 synthetic 证明
 - [x] 复跑 targeted pytest、full pytest，以及 first/second-set 当前头部 `analyze-project + run-audit`
 - [x] 把结果回写 `doc/findings.md` / `progress.md`，并准备本地提交
+- **Status:** complete
+
+### Phase 26: Header-Semantic Table Mapping Hardening
+- [x] 为 `TableExtractor` 补齐“表头前缀 + 行号 -> 逻辑语义端”的表头型三列表格抽取
+- [x] 收口单元格主文本选择，避免备注文本破坏 numeric fallback 或被抬成高置信 `table_mapping`
+- [x] 补齐 unit + `analyze-project` synthetic 证明，并复跑 full pytest 与两套真实样本
+- [x] 把“功能已补齐、M10 仍未闭环”的裁决回写 `doc/findings.md` / `progress.md`
 - **Status:** complete
 
 ## Key Questions

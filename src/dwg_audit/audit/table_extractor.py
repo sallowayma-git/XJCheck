@@ -1,19 +1,23 @@
 """TableExtractor 雏形（任务书第 4 章 113-121 行）。
 
-针对表格型图，识别表格骨架、行、列、单元格，并重点支持三列表格：
-左列数字 / 中列数字 / 右列数字。把"中列数字关联左右列数字"视为高置信信源，
-生成 Pair（status=pass, confidence>=0.92），供 RuleEngine 作为独立信源参与跨页校验。
+针对表格型图，识别表格骨架、行、列、单元格，并重点支持两类三列表格：
+- 数值三列表格：左列 / 中列 / 右列数字
+- 表头型三列表格：表头前缀 + 中列行号 + 左右接线端
+
+两者都生成高置信 `table_mapping` Pair，供 RuleEngine 作为独立信源参与跨页校验。
 
 当前实现是最小骨架：
 - 从 polylines + 长水平/竖直线推断表格网格线
 - 按 y 聚类水平网格线 → 行；按 x 聚类竖直网格线 → 列
 - 三列模式检测（列数 == 3）
-- 中列 → 左列、中列 → 右列 映射生成高置信 Pair
+- 命中表头型三列表格时，合成 `logical_endpoint = header_prefix + row_number`
+- 否则回退到中列 → 左/右列的数值三列表格映射
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 from typing import Any
 
 from dwg_audit.domain.models import LineEntity
@@ -29,6 +33,8 @@ _TABLE_MIN_ROWS = 2
 _TABLE_MIN_COLS = 2
 _TABLE_THREE_COLUMN_COUNT = 3
 _TABLE_PAIR_CONFIDENCE = 0.95
+_HEADER_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9\-_/]*[A-Za-z][A-Za-z0-9\-_/]*$")
+_TERMINAL_ENDPOINT_PATTERN = re.compile(r"(?i).*[a-z]\d+$")
 
 
 def extract_table_pairs(
@@ -93,9 +99,7 @@ def extract_table_pairs(
 
         mappings = _build_three_column_mappings(cell_values, cols, rows, sheet)
         for mapping in mappings:
-            pair = _build_table_pair(mapping, sheet, pair_ids)
-            if pair is not None:
-                table_pairs.append(pair)
+            table_pairs.extend(_build_table_pairs(mapping, sheet, pair_ids))
         table_mappings.append(
             {
                 "sheet_id": sheet_id,
@@ -214,11 +218,9 @@ def _assign_texts_to_cells(
     cells: list[dict[str, float]],
     sheet: SheetRecord,
 ) -> dict[tuple[int, int], list[TextItem]]:
-    """把数字文本分配到单元格。"""
+    """把审计区内文本分配到单元格。"""
     cell_values: dict[tuple[int, int], list[TextItem]] = defaultdict(list)
     for text in texts:
-        if not text.is_numeric_candidate:
-            continue
         if not _text_in_audit_area(text, sheet):
             continue
         for cell in cells:
@@ -234,23 +236,32 @@ def _build_three_column_mappings(
     rows: list[float],
     sheet: SheetRecord,
 ) -> list[dict[str, Any]]:
-    """对三列表格，把中列关联左右列生成映射记录。"""
+    """对三列表格生成映射记录。
+
+    优先识别“表头前缀 + 行号”的表头型三列表格；未命中时回退到数值三列表格。
+    """
+    header_mappings = _build_header_semantic_mappings(cell_values, rows, sheet)
+    if header_mappings:
+        return header_mappings
+
     mappings: list[dict[str, Any]] = []
     row_count = len(rows) - 1
     for row_index in range(row_count):
-        left_texts = cell_values.get((row_index, 0), [])
-        middle_texts = cell_values.get((row_index, 1), [])
-        right_texts = cell_values.get((row_index, 2), [])
-        if not middle_texts:
+        left_text = _numeric_cell_text(cell_values.get((row_index, 0), []))
+        middle_text = _numeric_cell_text(cell_values.get((row_index, 1), []))
+        right_text = _numeric_cell_text(cell_values.get((row_index, 2), []))
+        if middle_text is None:
             continue
-        middle_text = middle_texts[0]
         middle_value = middle_text.normalized_text
-        left_value = left_texts[0].normalized_text if left_texts else None
-        right_value = right_texts[0].normalized_text if right_texts else None
+        left_value = left_text.normalized_text if left_text is not None else None
+        right_value = right_text.normalized_text if right_text is not None else None
+        if not _looks_like_numeric_value(middle_value):
+            continue
         if left_value is None and right_value is None:
             continue
         mappings.append(
             {
+                "mapping_mode": "numeric_three_column",
                 "sheet_id": sheet.sheet_id,
                 "filename": sheet.filename,
                 "sheet_no": sheet.sheet_no,
@@ -258,32 +269,106 @@ def _build_three_column_mappings(
                 "left_value": left_value,
                 "middle_value": middle_value,
                 "right_value": right_value,
-                "left_text_id": left_texts[0].text_id if left_texts else None,
+                "left_text_id": left_text.text_id if left_text is not None else None,
                 "middle_text_id": middle_text.text_id,
-                "right_text_id": right_texts[0].text_id if right_texts else None,
-                "left_coord": [left_texts[0].insert_x, left_texts[0].insert_y] if left_texts else None,
+                "right_text_id": right_text.text_id if right_text is not None else None,
+                "left_coord": [left_text.insert_x, left_text.insert_y] if left_text is not None else None,
                 "middle_coord": [middle_text.insert_x, middle_text.insert_y],
-                "right_coord": [right_texts[0].insert_x, right_texts[0].insert_y] if right_texts else None,
+                "right_coord": [right_text.insert_x, right_text.insert_y] if right_text is not None else None,
+                "column_roles": {
+                    "left": "numeric_outer",
+                    "middle": "numeric_center",
+                    "right": "numeric_outer",
+                },
             }
         )
     return mappings
 
 
-def _build_table_pair(
+def _build_header_semantic_mappings(
+    cell_values: dict[tuple[int, int], list[TextItem]],
+    rows: list[float],
+    sheet: SheetRecord,
+) -> list[dict[str, Any]]:
+    row_count = len(rows) - 1
+    if row_count < 2:
+        return []
+
+    header_text = _header_prefix_cell_text(cell_values.get((0, 1), []))
+    header_prefix = header_text.normalized_text if header_text is not None else None
+    if not _looks_like_header_prefix(header_prefix):
+        return []
+
+    mappings: list[dict[str, Any]] = []
+    expected_row_number = 1
+    for row_index in range(1, row_count):
+        left_text = _endpoint_cell_text(cell_values.get((row_index, 0), []))
+        middle_text = _numeric_cell_text(cell_values.get((row_index, 1), []))
+        right_text = _endpoint_cell_text(cell_values.get((row_index, 2), []))
+        if middle_text is None or not _looks_like_numeric_value(middle_text.normalized_text):
+            return []
+
+        row_number = int(middle_text.normalized_text)
+        if row_number != expected_row_number:
+            return []
+        expected_row_number += 1
+
+        left_endpoint_value = left_text.normalized_text if left_text is not None else None
+        right_endpoint_value = right_text.normalized_text if right_text is not None else None
+        if left_endpoint_value is None and right_endpoint_value is None:
+            continue
+
+        logical_endpoint = f"{header_prefix}{row_number}"
+        mappings.append(
+            {
+                "mapping_mode": "header_semantic_three_column",
+                "sheet_id": sheet.sheet_id,
+                "filename": sheet.filename,
+                "sheet_no": sheet.sheet_no,
+                "row_index": row_index,
+                "header_prefix": header_prefix,
+                "header_text_id": header_text.text_id if header_text is not None else None,
+                "header_coord": [header_text.insert_x, header_text.insert_y] if header_text is not None else None,
+                "row_number": row_number,
+                "middle_value": middle_text.normalized_text,
+                "middle_text_id": middle_text.text_id,
+                "middle_coord": [middle_text.insert_x, middle_text.insert_y],
+                "logical_endpoint": logical_endpoint,
+                "left_value": left_endpoint_value,
+                "right_value": right_endpoint_value,
+                "left_text_id": left_text.text_id if left_text is not None else None,
+                "right_text_id": right_text.text_id if right_text is not None else None,
+                "left_coord": [left_text.insert_x, left_text.insert_y] if left_text is not None else None,
+                "right_coord": [right_text.insert_x, right_text.insert_y] if right_text is not None else None,
+                "row_number_sequence_valid": True,
+                "column_roles": {
+                    "left": "terminal_endpoint",
+                    "middle": "row_number",
+                    "right": "terminal_endpoint",
+                },
+            }
+        )
+    return mappings
+
+
+def _build_table_pairs(
     mapping: dict[str, Any],
     sheet: SheetRecord,
     pair_ids: IdFactory,
-) -> Pair | None:
+) -> list[Pair]:
     """把一条三列映射记录转成 Pair。
 
-    优先生成 中列 -> 右列，若右列缺失则生成 中列 -> 左列。
-    Pair.confidence = 0.95, status = pass, evidence.source = table_mapping。
+    - 数值三列表格：优先生成 中列 -> 右列，若右列缺失则生成 中列 -> 左列
+    - 表头型三列表格：为同一行左右两侧接线端分别生成 `logical_endpoint -> endpoint`
     """
+    if mapping.get("mapping_mode") == "header_semantic_three_column":
+        return _build_header_semantic_pairs(mapping, sheet, pair_ids)
+
     middle_value = mapping.get("middle_value")
     right_value = mapping.get("right_value")
     left_value = mapping.get("left_value")
     if middle_value is None:
-        return None
+        return []
     # 优先中列->右列，其次中列->左列
     if right_value is not None:
         left_pair_value = middle_value
@@ -300,7 +385,7 @@ def _build_table_pair(
         left_coord = mapping.get("left_coord")
         right_coord = mapping.get("middle_coord")
     else:
-        return None
+        return []
 
     pair_key = f"{left_pair_value}->{right_pair_value}"
     evidence = {
@@ -321,32 +406,152 @@ def _build_table_pair(
             "ambiguity_gap": None,
         },
     }
-    return Pair(
-        pair_id=pair_ids.next(),
-        line_group_id=None,
-        sheet_id=sheet.sheet_id,
-        file_id=sheet.file_id,
-        selected_pair_candidate_id=None,
-        left_value=left_pair_value,
-        right_value=right_pair_value,
-        confidence=_TABLE_PAIR_CONFIDENCE,
-        status="pass",
-        rationale="Three-column table mapping: middle column associated with outer column as high-confidence source.",
-        alternative_pair_candidate_ids=[],
-        confidence_bucket="high",
-        evidence=evidence,
-        left_text_id=left_text_id,
-        right_text_id=right_text_id,
-        left_coord_x=left_coord[0] if left_coord else None,
-        left_coord_y=left_coord[1] if left_coord else None,
-        right_coord_x=right_coord[0] if right_coord else None,
-        right_coord_y=right_coord[1] if right_coord else None,
-        pair_key=pair_key,
-        left_score=1.0,
-        right_score=1.0,
-        wire_score=1.0,
-        ambiguity_gap=None,
-    )
+    return [
+        Pair(
+            pair_id=pair_ids.next(),
+            line_group_id=None,
+            sheet_id=sheet.sheet_id,
+            file_id=sheet.file_id,
+            selected_pair_candidate_id=None,
+            left_value=left_pair_value,
+            right_value=right_pair_value,
+            confidence=_TABLE_PAIR_CONFIDENCE,
+            status="pass",
+            rationale="Three-column table mapping: middle column associated with outer column as high-confidence source.",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="high",
+            evidence=evidence,
+            left_text_id=left_text_id,
+            right_text_id=right_text_id,
+            left_coord_x=left_coord[0] if left_coord else None,
+            left_coord_y=left_coord[1] if left_coord else None,
+            right_coord_x=right_coord[0] if right_coord else None,
+            right_coord_y=right_coord[1] if right_coord else None,
+            pair_key=pair_key,
+            left_score=1.0,
+            right_score=1.0,
+            wire_score=1.0,
+            ambiguity_gap=None,
+        )
+    ]
+
+
+def _build_header_semantic_pairs(
+    mapping: dict[str, Any],
+    sheet: SheetRecord,
+    pair_ids: IdFactory,
+) -> list[Pair]:
+    logical_endpoint = mapping.get("logical_endpoint")
+    if not logical_endpoint:
+        return []
+
+    pairs: list[Pair] = []
+    for side_key, side_label in (("left_value", "left_endpoint"), ("right_value", "right_endpoint")):
+        endpoint_value = mapping.get(side_key)
+        if not endpoint_value:
+            continue
+        endpoint_text_id = mapping.get("left_text_id") if side_key == "left_value" else mapping.get("right_text_id")
+        endpoint_coord = mapping.get("left_coord") if side_key == "left_value" else mapping.get("right_coord")
+        evidence = {
+            "source": "table_mapping",
+            "filename": sheet.filename,
+            "sheet_no": sheet.sheet_no,
+            "sheet_order": sheet.sheet_order,
+            "sheet_title": sheet.sheet_title,
+            "line_orientation": "table",
+            "row_band_id": None,
+            "left_side_label": "logical_endpoint",
+            "right_side_label": side_label,
+            "table_mapping": mapping,
+            "score_breakdown": {
+                "left_score": 1.0,
+                "right_score": 1.0,
+                "wire_score": 1.0,
+                "ambiguity_gap": None,
+            },
+        }
+        pairs.append(
+            Pair(
+                pair_id=pair_ids.next(),
+                line_group_id=None,
+                sheet_id=sheet.sheet_id,
+                file_id=sheet.file_id,
+                selected_pair_candidate_id=None,
+                left_value=logical_endpoint,
+                right_value=endpoint_value,
+                confidence=_TABLE_PAIR_CONFIDENCE,
+                status="pass",
+                rationale="Header semantic three-column table mapping: synthesized logical endpoint associated with row endpoint text.",
+                alternative_pair_candidate_ids=[],
+                confidence_bucket="high",
+                evidence=evidence,
+                left_text_id=mapping.get("middle_text_id"),
+                right_text_id=endpoint_text_id,
+                left_coord_x=(mapping.get("middle_coord") or [None, None])[0],
+                left_coord_y=(mapping.get("middle_coord") or [None, None])[1],
+                right_coord_x=endpoint_coord[0] if endpoint_coord else None,
+                right_coord_y=endpoint_coord[1] if endpoint_coord else None,
+                pair_key=f"{logical_endpoint}->{endpoint_value}",
+                left_score=1.0,
+                right_score=1.0,
+                wire_score=1.0,
+                ambiguity_gap=None,
+            )
+        )
+    return pairs
+
+
+def _primary_cell_text(texts: list[TextItem]) -> TextItem | None:
+    if not texts:
+        return None
+    return sorted(texts, key=lambda item: (item.insert_y, item.insert_x, item.text_id))[0]
+
+
+def _preferred_cell_text(
+    texts: list[TextItem],
+    *,
+    predicate,
+) -> TextItem | None:
+    preferred = [
+        text
+        for text in sorted(texts, key=lambda item: (item.insert_y, item.insert_x, item.text_id))
+        if predicate(text.normalized_text)
+    ]
+    if preferred:
+        return preferred[0]
+    return _primary_cell_text(texts)
+
+
+def _numeric_cell_text(texts: list[TextItem]) -> TextItem | None:
+    return _preferred_cell_text(texts, predicate=_looks_like_numeric_value)
+
+
+def _header_prefix_cell_text(texts: list[TextItem]) -> TextItem | None:
+    return _preferred_cell_text(texts, predicate=_looks_like_header_prefix)
+
+
+def _endpoint_cell_text(texts: list[TextItem]) -> TextItem | None:
+    preferred = _preferred_cell_text(texts, predicate=_looks_like_table_endpoint)
+    if preferred is not None and _looks_like_table_endpoint(preferred.normalized_text):
+        return preferred
+    return None
+
+
+def _looks_like_numeric_value(value: str | None) -> bool:
+    return bool(value) and str(value).isdigit()
+
+
+def _looks_like_header_prefix(value: str | None) -> bool:
+    if not value or _looks_like_numeric_value(value):
+        return False
+    text = str(value)
+    return bool(_HEADER_PREFIX_PATTERN.fullmatch(text)) and not text[-1].isdigit()
+
+
+def _looks_like_table_endpoint(value: str | None) -> bool:
+    if not value:
+        return False
+    return bool(_TERMINAL_ENDPOINT_PATTERN.fullmatch(str(value)))
 
 
 def _group_by_sheet(items) -> dict[str, list]:

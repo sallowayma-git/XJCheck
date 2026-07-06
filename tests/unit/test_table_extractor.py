@@ -90,6 +90,28 @@ def _make_numeric_text(text_id: str, x: float, y: float, value: str) -> TextItem
     )
 
 
+def _make_text(text_id: str, x: float, y: float, value: str, *, is_numeric_candidate: bool = False) -> TextItem:
+    return TextItem(
+        text_id=text_id,
+        sheet_id="S1",
+        file_id="F1",
+        handle=f"TH{text_id}",
+        entity_type="TEXT",
+        text=value,
+        normalized_text=value,
+        is_numeric_candidate=is_numeric_candidate,
+        layer="TEXT",
+        rotation_deg=0.0,
+        height=2.5,
+        insert_x=x,
+        insert_y=y,
+        bbox_min_x=x - 2,
+        bbox_min_y=y - 2,
+        bbox_max_x=x + 2,
+        bbox_max_y=y + 2,
+    )
+
+
 def test_extract_table_pairs_builds_three_column_mappings() -> None:
     """三列表格应生成中列关联左右列的高置信 Pair。"""
     sheet = _make_sheet()
@@ -193,3 +215,144 @@ def test_extract_table_pairs_pair_has_no_line_group_id() -> None:
 
     assert len(pairs) == 1
     assert pairs[0].line_group_id is None
+
+
+def test_extract_table_pairs_builds_header_semantic_three_column_mappings() -> None:
+    sheet = _make_sheet()
+    lines = [
+        _make_h_grid_line("H1", y=10.0),
+        _make_h_grid_line("H2", y=60.0),
+        _make_h_grid_line("H3", y=110.0),
+        _make_h_grid_line("H4", y=160.0),
+        _make_v_grid_line("V1", x=10.0),
+        _make_v_grid_line("V2", x=100.0),
+        _make_v_grid_line("V3", x=200.0),
+        _make_v_grid_line("V4", x=290.0),
+    ]
+    texts = [
+        _make_text("T1", x=150, y=35, value="1-21QD"),
+        _make_text("T2", x=55, y=85, value="1-21n552"),
+        _make_text("T3", x=150, y=85, value="1", is_numeric_candidate=True),
+        _make_text("T4", x=245, y=85, value="1-21n553"),
+        _make_text("T5", x=55, y=135, value="1-21n554"),
+        _make_text("T6", x=150, y=135, value="2", is_numeric_candidate=True),
+        _make_text("T7", x=245, y=135, value="1-21n555"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, lines, [], [sheet], DEFAULT_CONFIG)
+
+    assert len(mappings) == 1
+    table_mapping = mappings[0]
+    assert table_mapping["three_column"] is True
+    assert len(table_mapping["mappings"]) == 2
+    first_row = table_mapping["mappings"][0]
+    assert first_row["mapping_mode"] == "header_semantic_three_column"
+    assert first_row["header_prefix"] == "1-21QD"
+    assert first_row["row_number"] == 1
+    assert first_row["logical_endpoint"] == "1-21QD1"
+    assert first_row["left_value"] == "1-21n552"
+    assert first_row["right_value"] == "1-21n553"
+    assert first_row["row_number_sequence_valid"] is True
+
+    assert len(pairs) == 4
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {
+        ("1-21QD1", "1-21n552"),
+        ("1-21QD1", "1-21n553"),
+        ("1-21QD2", "1-21n554"),
+        ("1-21QD2", "1-21n555"),
+    }
+    assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
+
+
+def test_extract_table_pairs_prefers_numeric_text_when_cell_contains_note() -> None:
+    sheet = _make_sheet()
+    lines = [
+        _make_h_grid_line("H1", y=10.0),
+        _make_h_grid_line("H2", y=60.0),
+        _make_h_grid_line("H3", y=110.0),
+        _make_h_grid_line("H4", y=160.0),
+        _make_v_grid_line("V1", x=10.0),
+        _make_v_grid_line("V2", x=100.0),
+        _make_v_grid_line("V3", x=200.0),
+        _make_v_grid_line("V4", x=290.0),
+    ]
+    texts = [
+        _make_numeric_text("T1", x=55, y=35, value="101"),
+        _make_text("T2", x=145, y=30, value="NOTE"),
+        _make_numeric_text("T3", x=150, y=35, value="102"),
+        _make_numeric_text("T4", x=245, y=35, value="103"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, lines, [], [sheet], DEFAULT_CONFIG)
+
+    assert len(mappings) == 1
+    assert mappings[0]["mappings"][0]["mapping_mode"] == "numeric_three_column"
+    assert len(pairs) == 1
+    assert (pairs[0].left_value, pairs[0].right_value) == ("102", "103")
+
+
+def test_extract_table_pairs_header_semantic_ignores_non_terminal_note_side() -> None:
+    sheet = _make_sheet()
+    lines = [
+        _make_h_grid_line("H1", y=10.0),
+        _make_h_grid_line("H2", y=60.0),
+        _make_h_grid_line("H3", y=110.0),
+        _make_h_grid_line("H4", y=160.0),
+        _make_v_grid_line("V1", x=10.0),
+        _make_v_grid_line("V2", x=100.0),
+        _make_v_grid_line("V3", x=200.0),
+        _make_v_grid_line("V4", x=290.0),
+    ]
+    texts = [
+        _make_text("T1", x=150, y=35, value="1-21QD"),
+        _make_text("T2", x=55, y=85, value="备注"),
+        _make_text("T3", x=150, y=85, value="1", is_numeric_candidate=True),
+        _make_text("T4", x=245, y=85, value="1-21n553"),
+        _make_text("T5", x=55, y=135, value="1-21n554"),
+        _make_text("T6", x=150, y=135, value="2", is_numeric_candidate=True),
+        _make_text("T7", x=245, y=135, value="1-21n555"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, lines, [], [sheet], DEFAULT_CONFIG)
+
+    assert len(mappings) == 1
+    assert len(mappings[0]["mappings"]) == 2
+    assert mappings[0]["mappings"][0]["left_value"] is None
+    assert mappings[0]["mappings"][0]["right_value"] == "1-21n553"
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {
+        ("1-21QD1", "1-21n553"),
+        ("1-21QD2", "1-21n554"),
+        ("1-21QD2", "1-21n555"),
+    }
+
+
+def test_extract_table_pairs_falls_back_to_numeric_mode_when_header_sequence_invalid() -> None:
+    sheet = _make_sheet()
+    lines = [
+        _make_h_grid_line("H1", y=10.0),
+        _make_h_grid_line("H2", y=60.0),
+        _make_h_grid_line("H3", y=110.0),
+        _make_h_grid_line("H4", y=160.0),
+        _make_v_grid_line("V1", x=10.0),
+        _make_v_grid_line("V2", x=100.0),
+        _make_v_grid_line("V3", x=200.0),
+        _make_v_grid_line("V4", x=290.0),
+    ]
+    texts = [
+        _make_numeric_text("T1", x=55, y=35, value="100"),
+        _make_text("T2", x=145, y=30, value="1-21QD"),
+        _make_numeric_text("T3", x=150, y=35, value="101"),
+        _make_numeric_text("T4", x=245, y=35, value="102"),
+        _make_numeric_text("T5", x=55, y=85, value="200"),
+        _make_numeric_text("T6", x=150, y=85, value="103"),
+        _make_numeric_text("T7", x=245, y=85, value="104"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, lines, [], [sheet], DEFAULT_CONFIG)
+
+    assert len(mappings) == 1
+    assert mappings[0]["mappings"][0]["mapping_mode"] == "numeric_three_column"
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {("101", "102"), ("103", "104")}

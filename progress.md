@@ -981,3 +981,45 @@
   - 第三类一致性现在不再只是“table_mapping 进入通用 graph”
   - 而是有了显式 mixed-source rule + synthetic analyze/audit 证明
   - 同时真实样本在“暂无稳定表格页命中”的前提下没有回退
+
+## Session Update 2026-07-06 (Phase 26)
+- 继续按任务书 current-head 审计后，主线程把最近功能缺口推进到更强的表头型三列表格语义：
+  - `表头前缀 + 行号 -> 逻辑语义端`
+  - 同一行左右两侧端点分别生成高置信 `table_mapping`
+- 在 `src/dwg_audit/audit/table_extractor.py` 完成最小功能闭环：
+  - 支持识别表头型三列表格
+  - 合成 `logical_endpoint`
+  - 为左右两侧接线端分别输出 `table_mapping`
+  - 保留数值三列表格 fallback
+- 接入两个只读子代理做并行复核后，又补了一轮边界硬化：
+  - 避免单元格里的备注文本抢占 numeric 主文本
+  - 避免表头语义模式把非端子说明文本也抬成高置信 pair
+  - 只让 terminal-like 外列文本进入 header-semantic pair 输出
+- 本轮新增/通过验证：
+  - `python -m pytest -q tests\unit\test_table_extractor.py` -> `8 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "table_extractor or header_semantic or mixed_source_conflict"` -> `3 passed`
+  - `python -m pytest -q` -> `168 passed`
+- synthetic 主链证明：
+  - `test_analyze_project_supports_header_semantic_three_column_table_mapping` 已证明：
+    - 表格页会走 `TableExtractor`
+    - `table_mapping_modes = {"header_semantic_three_column": 2}`
+    - 可生成 `1-21QD1 -> 1-21n552`、`1-21QD1 -> 1-21n553`、`1-21QD2 -> ...`
+- 真实样本 rerun：
+  - 第二套：[phase30_table_header_hardening_second](/F:/workspace/XJToolkit/.tmp/phase30_table_header_hardening_second/2_2)
+  - 第一套：[phase30_table_header_hardening_first](/F:/workspace/XJToolkit/.tmp/phase30_table_header_hardening_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 两套 current-head 新证据：
+  - 第二套 `issue_count = 519`，规则分布保持：
+    - `R-PAIR-MISSING-SIDE = 317`
+    - `R-PAIR-LOW-CONFIDENCE = 201`
+    - `R-SEMANTIC-MAPPING-CONFLICT = 1`
+  - 第一套 `issue_count = 345`，规则分布保持：
+    - `R-PAIR-MISSING-SIDE = 267`
+    - `R-PAIR-LOW-CONFIDENCE = 77`
+    - `R-DUPLICATE-PAIR = 1`
+  - 两套真实样本仍是 `table_pages = 0 / total_mappings = 0`，说明这轮改动没有误把现有真实页抬成表格页
+- 当前裁决：
+  - 表头型三列表格的功能合同现在已具备 unit + synthetic `analyze-project` 主链证明
+  - 但 `M10` / 最小验收仍未闭环，尤其是：
+    - 人工标注 pair precision / recall
+    - 5 张隔离故障注入样本
+    - 端到端命中率/误报率评估

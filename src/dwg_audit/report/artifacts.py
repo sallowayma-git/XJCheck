@@ -700,12 +700,35 @@ def _build_page_findings(
     high_confidence_pairs = _per_sheet_counts([pair for pair in artifacts.pairs if _high_confidence_pair(pair)])
     table_mapping_rows: dict[str, int] = {}
     table_mapping_flags: dict[str, bool] = {}
+    table_mapping_details: dict[str, dict[str, Any]] = {}
     for item in table_mappings or []:
         sheet_id = str(item.get("sheet_id") or "")
         if not sheet_id:
             continue
         table_mapping_rows[sheet_id] = len(item.get("mappings", []))
         table_mapping_flags[sheet_id] = bool(item.get("three_column"))
+        mappings = item.get("mappings", [])
+        logical_examples = []
+        header_prefixes = []
+        mapping_mode_counts: dict[str, int] = {}
+        row_sequence_valid = False
+        for mapping in mappings:
+            mode = str(mapping.get("mapping_mode") or "unknown")
+            mapping_mode_counts[mode] = mapping_mode_counts.get(mode, 0) + 1
+            logical_endpoint = mapping.get("logical_endpoint")
+            if logical_endpoint and logical_endpoint not in logical_examples and len(logical_examples) < 3:
+                logical_examples.append(str(logical_endpoint))
+            header_prefix = mapping.get("header_prefix")
+            if header_prefix and header_prefix not in header_prefixes:
+                header_prefixes.append(str(header_prefix))
+            if mapping.get("row_number_sequence_valid"):
+                row_sequence_valid = True
+        table_mapping_details[sheet_id] = {
+            "mapping_modes": mapping_mode_counts,
+            "header_prefixes": header_prefixes,
+            "logical_endpoint_examples": logical_examples,
+            "row_number_sequence_valid": row_sequence_valid,
+        }
 
     page_findings: list[dict[str, Any]] = []
     for page in artifacts.scan.pages:
@@ -741,6 +764,7 @@ def _build_page_findings(
         pair_count = pair_counts.get(sheet_id, 0)
         issue_count = issue_counts.get(sheet_id, 0)
         table_mapping_count = table_mapping_rows.get(sheet_id, 0)
+        table_detail = table_mapping_details.get(sheet_id, {})
 
         page_findings.append(
             {
@@ -782,6 +806,10 @@ def _build_page_findings(
                     "high_confidence_pair_count": high_confidence_pair_count,
                     "table_mapping_count": table_mapping_count,
                     "three_column_table": table_mapping_flags.get(sheet_id, False),
+                    "table_mapping_modes": table_detail.get("mapping_modes", {}),
+                    "table_header_prefixes": table_detail.get("header_prefixes", []),
+                    "table_logical_endpoint_examples": table_detail.get("logical_endpoint_examples", []),
+                    "table_row_number_sequence_valid": table_detail.get("row_number_sequence_valid", False),
                     "issue_count": issue_count,
                     "orientation_counts": orientation_summary,
                     "dominant_line_group_orientation": dominant_orientation,
