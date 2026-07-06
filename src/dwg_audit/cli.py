@@ -15,9 +15,11 @@ from dwg_audit.desktop import update_issue_status as update_desktop_issue_status
 from dwg_audit.pipeline import analyze_input_root
 from dwg_audit.report import compare_project_regressions
 from dwg_audit.report import evaluate_acceptance_project
+from dwg_audit.report import evaluate_acceptance_suite
 from dwg_audit.report import export_existing_reports
 from dwg_audit.report import rerun_audit_from_findings
 from dwg_audit.report import write_acceptance_report
+from dwg_audit.report import write_acceptance_suite_report
 from dwg_audit.report import write_regression_report
 from dwg_audit.utils.config import load_config
 from dwg_audit.utils.config import write_default_config
@@ -157,6 +159,36 @@ def evaluate_acceptance(
     typer.echo(f"- pair_precision: {evaluation['pair_metrics']['precision']}")
     typer.echo(f"- pair_recall: {evaluation['pair_metrics']['recall']}")
     typer.echo(f"- acceptance_passed: {evaluation['acceptance_passed']}")
+    typer.echo(f"- report_dir: {output_path}")
+
+
+@app.command(
+    "evaluate-acceptance-suite",
+    help="Internal acceptance harness for MVP proof over existing project artifacts.",
+)
+def evaluate_acceptance_suite_command(
+    suite: Path = typer.Option(..., "--suite", exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    project_alias: list[str] = typer.Option([], "--project-alias"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", file_okay=False, dir_okay=True, resolve_path=True),
+) -> None:
+    alias_map: dict[str, Path] = {}
+    for item in project_alias:
+        if "=" not in item:
+            raise typer.BadParameter("Each --project-alias must use the form alias=path")
+        alias, raw_path = item.split("=", 1)
+        resolved = Path(raw_path).expanduser().resolve()
+        manifest_path = resolved / "manifest.json"
+        if not manifest_path.exists():
+            raise typer.BadParameter(f"No manifest.json found under {resolved}")
+        alias_map[alias] = resolved
+    if output_path is None:
+        output_path = suite.parent / "acceptance_suite"
+    write_acceptance_suite_report(suite, alias_map, output_path)
+    suite_result = evaluate_acceptance_suite(suite, alias_map)
+    typer.echo("Internal acceptance suite evaluation completed:")
+    typer.echo(f"- required_passed_case_count: {suite_result['required_passed_case_count']}")
+    typer.echo(f"- required_case_count: {suite_result['required_case_count']}")
+    typer.echo(f"- acceptance_passed: {suite_result['acceptance_passed']}")
     typer.echo(f"- report_dir: {output_path}")
 
 

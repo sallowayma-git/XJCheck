@@ -275,3 +275,76 @@ def test_acceptance_evaluation_supports_scoped_pair_keys_and_unique_complete_pai
     assert payload["pair_metrics"]["matched_pair_count"] == 3
     assert payload["pair_metrics"]["precision"] == 1.0
     assert payload["pair_metrics"]["recall"] == 1.0
+
+
+def test_acceptance_suite_evaluation_summarizes_required_cases(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    fixture_root, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    scoped_spec = {
+        "name": "acceptance-mini-second-case",
+        "pair_recall_threshold": 0.9,
+        "pair_scope": {
+            "included_filenames": ["04 正常回路图A.dwg"],
+            "pair_kinds": ["ordinary_pair"],
+        },
+        "golden_pairs": [
+            {"filename": "04 正常回路图A.dwg", "left_value": "101", "right_value": "201"},
+            {"filename": "04 正常回路图A.dwg", "left_value": "102", "right_value": "202"},
+        ],
+    }
+    scoped_spec_path = tmp_path / "scoped_spec.json"
+    scoped_spec_path.write_text(json.dumps(scoped_spec, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    suite_spec = {
+        "name": "acceptance-suite-test",
+        "cases": [
+            {
+                "case_id": "fault_injected_full",
+                "project_alias": "mini",
+                "spec": str((fixture_root / "spec.json").resolve()),
+                "required": True,
+            },
+            {
+                "case_id": "fault_injected_scoped",
+                "project_alias": "mini",
+                "spec": str(scoped_spec_path.resolve()),
+                "required": True,
+            },
+        ],
+    }
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text(json.dumps(suite_spec, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    runner = CliRunner()
+    output_dir = tmp_path / "acceptance_suite_report"
+    evaluate = runner.invoke(
+        app,
+        [
+            "evaluate-acceptance-suite",
+            "--suite",
+            str(suite_path),
+            "--project-alias",
+            f"mini={project_dir}",
+            "--output",
+            str(output_dir),
+        ],
+    )
+    assert evaluate.exit_code == 0, evaluate.output
+
+    payload = json.loads((output_dir / "acceptance_suite_report.json").read_text(encoding="utf-8"))
+    assert payload["acceptance_passed"] is True
+    assert payload["required_case_count"] == 2
+    assert payload["required_passed_case_count"] == 2
+    assert payload["passed_case_count"] == 2
+    assert {item["case_id"] for item in payload["cases"]} == {
+        "fault_injected_full",
+        "fault_injected_scoped",
+    }
+    assert all(item["status"] == "evaluated" for item in payload["cases"])
+
+    markdown = (output_dir / "acceptance_suite_report.md").read_text(encoding="utf-8")
+    assert "Acceptance Suite Report" in markdown
+    assert "fault_injected_full" in markdown
+    assert "fault_injected_scoped" in markdown

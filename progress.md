@@ -1516,3 +1516,50 @@
   - 下一条缺口更像是：
     - `table_like_non_routed_pages` 的解释边界
     - 或回到任务书第 19 节，刷新“真实正确样本 + 故障注入样本”的最小验收闭环
+
+## Session Update 2026-07-06 (Phase 36)
+- 先重新按 [任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 第 19 节与用户新边界做 current-head 裁决：
+  - 当前这一个 `evaluate-acceptance-suite` 可以接受
+  - 但它只能作为内部验收 harness
+  - 不能被继续解释成产品 CLI 扩张方向
+- 本轮实现：
+  - `src/dwg_audit/report/acceptance.py`
+    - 新增 `evaluate_acceptance_suite()`
+    - 新增 `write_acceptance_suite_report()`
+    - 支持 suite 级 json / markdown 汇总
+  - `src/dwg_audit/report/__init__.py`
+    - 导出 suite evaluator / writer
+  - `src/dwg_audit/cli.py`
+    - 新增内部命令 `evaluate-acceptance-suite`
+    - 支持 `--suite`
+    - 支持重复 `--project-alias alias=path`
+    - 支持 `--output`
+  - `tests/fixtures/acceptance_suite/mvp_minimum_suite.json`
+    - 固定 3 个 required case：
+      - `fault_injected_acceptance_mini`
+      - `real_second_component_terminal_subset`
+      - `real_second_terminal_s0024`
+  - `tests/integration/test_acceptance_evaluation.py`
+    - 新增 suite 级集成测试
+- 本轮验证：
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `4 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "route_specific_pair_extractors or routes_table_like_page_to_table_extractor_and_emits_table_mapping"` -> `2 passed`
+  - `python -m pytest -q` -> `177 passed`
+- current-head 验收运行证据：
+  - [phase42_acceptance_suite report](/F:/workspace/XJToolkit/.tmp/phase42_acceptance_suite/acceptance_suite_report.json)
+  - [phase42_real_subset_component_terminal report](/F:/workspace/XJToolkit/.tmp/phase42_real_subset_component_terminal/acceptance_report.json)
+  - [phase42_acceptance_mini project](/F:/workspace/XJToolkit/.tmp/phase42_acceptance_mini/project)
+  - suite 结果为：
+    - `acceptance_passed = true`
+    - `required_passed_case_count = 3`
+    - `required_case_count = 3`
+    - `fault_injected_acceptance_mini = 16/16`
+    - `real_second_component_terminal_subset = 13/13`
+    - `real_second_terminal_s0024 = 7/7`
+- 当前裁决：
+  - 任务书第 19 节现在已经有 current-head internal suite proof
+  - 这条 proof 同时绑定了：
+    - synthetic fault-injected case
+    - real-correct second-set subsets
+  - 下一步不应继续扩 `dwg-audit xxx`
+  - 而应转向把 `analyze-project / analyze-session / ui.actions.run_ui_analysis` 共同依赖的执行链收敛成 exe 可调用的单一 service/session entry

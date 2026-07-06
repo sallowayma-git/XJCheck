@@ -6162,3 +6162,104 @@ current-head 现在新增了两个关键合同：
 
 1. 继续收口 `table_like_non_routed_pages`
 2. 回到任务书第 19 节，刷新最小验收闭环证明，而不是继续扩更多零散功能
+
+## 87. 2026-07-06 第 19 节最小验收闭环已补成 current-head suite proof
+
+在 section 86 之后，我没有继续扩更多产品命令，也没有回去追桌面端表层功能，而是只补任务书第 19 节最近的一条证明缺口：
+
+- 把“真实正确样本 + 隔离故障注入样本”的最小验收
+- 收口成一个 current-head 可重复执行的内部 acceptance suite harness
+
+### 87.1 这轮代码上实际补了什么
+
+代码位置：
+
+- [acceptance.py](/F:/workspace/XJToolkit/src/dwg_audit/report/acceptance.py)
+- [__init__.py](/F:/workspace/XJToolkit/src/dwg_audit/report/__init__.py)
+- [cli.py](/F:/workspace/XJToolkit/src/dwg_audit/cli.py)
+- [test_acceptance_evaluation.py](/F:/workspace/XJToolkit/tests/integration/test_acceptance_evaluation.py)
+- [mvp_minimum_suite.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_suite/mvp_minimum_suite.json)
+
+current-head 现在新增了：
+
+- `evaluate_acceptance_suite()`
+- `write_acceptance_suite_report()`
+- 内部命令 `evaluate-acceptance-suite`
+
+这条命令的定位需要明确写死：
+
+- 它是内部验收 harness
+- 用于证明 MVP 在真实样本子集和故障注入样本上都能稳定跑通
+- 它不是产品主界面
+- 它不构成“继续扩 CLI surface” 的方向许可
+
+### 87.2 suite 资产与 current-head 覆盖面
+
+当前最小 suite 固定为 3 个 required case：
+
+- `fault_injected_acceptance_mini`
+- `real_second_component_terminal_subset`
+- `real_second_terminal_s0024`
+
+对应资产分别来自：
+
+- [acceptance_mini spec](/F:/workspace/XJToolkit/tests/fixtures/acceptance_mini/spec.json)
+- [second_set_component_terminal_subset](/F:/workspace/XJToolkit/tests/fixtures/acceptance_real_subset/second_set_component_terminal_subset.json)
+- [second_set_terminal_s0024](/F:/workspace/XJToolkit/tests/fixtures/acceptance_real_subset/second_set_terminal_s0024.json)
+- [mvp_minimum_suite.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_suite/mvp_minimum_suite.json)
+
+这意味着 current-head 的第 19 节证明现在不再只靠：
+
+- 单个 acceptance case
+- 或零散的 real-sample rerun 描述
+
+而是由一个 suite 把 synthetic fault injection 与 real-correct subset 明确绑在一起。
+
+### 87.3 current-head 验证结果
+
+本轮定向与全量验证结果：
+
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `4 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "route_specific_pair_extractors or routes_table_like_page_to_table_extractor_and_emits_table_mapping"` -> `2 passed`
+- `python -m pytest -q` -> `177 passed`
+
+current-head suite 运行产物位于：
+
+- [phase42_acceptance_suite report](/F:/workspace/XJToolkit/.tmp/phase42_acceptance_suite/acceptance_suite_report.json)
+- [phase42_real_subset_component_terminal report](/F:/workspace/XJToolkit/.tmp/phase42_real_subset_component_terminal/acceptance_report.json)
+- [phase42_acceptance_mini project](/F:/workspace/XJToolkit/.tmp/phase42_acceptance_mini/project)
+
+suite 当前结果直接为：
+
+- `acceptance_passed = true`
+- `required_passed_case_count = 3`
+- `required_case_count = 3`
+
+分 case 结果为：
+
+- `fault_injected_acceptance_mini` -> `16 / 16`, `precision = 1.0`, `recall = 1.0`
+- `real_second_component_terminal_subset` -> `13 / 13`, `precision = 1.0`, `recall = 1.0`
+- `real_second_terminal_s0024` -> `7 / 7`, `precision = 1.0`, `recall = 1.0`
+
+### 87.4 这轮裁决
+
+到这一轮为止，任务书第 19 节更准确的 current-head 说法应该更新成：
+
+1. 已有强证据完成
+
+- 最小验收不再只靠单个 case 或人工叙述
+- synthetic fault-injected mini case 已纳入 suite
+- real-correct second-set subset 已纳入 suite
+- suite 当前可以稳定导出 json / markdown 验收报告
+
+2. 必须显式约束的边界
+
+- `evaluate-acceptance-suite` 只是内部验收入口
+- 后续不得把它当成继续扩产品 CLI 的理由
+- 产品主链应转回 exe 可调用的单一执行入口，而不是继续把能力拆成更多 `dwg-audit xxx`
+
+3. 最近下一条缺口
+
+- 不是继续扩 acceptance CLI
+- 而是把当前分析/审计主链进一步收敛为 service/session API
+- 让 CLI 与 exe 复用同一条执行入口

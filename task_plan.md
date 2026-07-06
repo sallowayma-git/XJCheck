@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 35
+Phase 37
 
 ## Phases
 
@@ -261,13 +261,27 @@ Phase 35
 - [x] 把“全 route matrix 证据已显式落盘且行为未漂移”的结论回写 `doc/findings.md` / `progress.md`，并准备本地提交
 - **Status:** complete
 
+### Phase 36: MVP Acceptance Suite Proof
+- [x] 重新按 current-head 任务书第 19 节审计，确认最近核心切片已收口到“真实正确样本 + 故障注入样本”的最小验收 suite proof
+- [x] 在 `report/acceptance.py` 增加 suite evaluator / writer，并让结果可落盘为 json / markdown
+- [x] 新增内部命令 `evaluate-acceptance-suite`，仅服务验收 harness，不扩成产品主界面
+- [x] 固化 `mvp_minimum_suite.json`，把 fault-injected case 与 second-set real subsets 绑定为同一套 required suite
+- [x] 复跑 targeted pytest、full pytest，并核对 current-head suite 产物通过
+- [x] 把“internal harness only，下一步转向 exe 可调用单一执行入口”的裁决回写 `doc/findings.md` / `progress.md`
+- **Status:** complete
+
+### Phase 37: Single Execution Entry Audit
+- [ ] 重新按用户最新边界审计 `analyze-project / analyze-session / ui.actions.run_ui_analysis` 的共同执行链
+- [ ] 确认哪些逻辑已经共享在 `pipeline.analyze_input_root`，哪些仍散落在 CLI / sidecar / UI 包装层
+- [ ] 选一条最小安全切片，把当前主分析链收敛成 exe 可调用的 service/session entry，而不是继续扩 CLI surface
+- [ ] 为该切片准备非重叠测试与 real-sample 验证路径
+- **Status:** in_progress
+
 ## Key Questions
-1. 在 issue 顶层合同补强后，最近主链缺口更应该先转向 `table_like_non_routed_pages` 的 page/router 解释边界，还是继续收口 per-type extractor 的独立性证明？
-2. 第一套 `S0023 / 22 元件接线图2.dwg` 当前 `table_like_geometry=true` 但仍走 `ComponentDiagramExtractor`，这是否已经是理想解释，还是还需要再收窄 `table_like` 几何判据？
-3. `line_start / line_end` 目前仍主要留在 issue `evidence` 中；考虑到顶层已有 `line_group_id`，这一层是否已经足够满足 MVP，可暂不继续上提？
-4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 `line_groups` 是 `vertical`；是否需要单独收口这一层 subtype 判定？
-5. 在 per-type extractor 入口已可证明之后，下一条更近的任务书缺口是继续收口 `table_like_non_routed_pages` 解释边界，还是进一步把 LayoutOnly / Table 也做成同级执行证据合同？
-6. 在全 route execution contract 已显式落盘后，下一条更近的任务书缺口是继续收口 `table_like_non_routed_pages`，还是转向 `M10` 中“真实正确样本 + 故障注入样本”的最小验收证明刷新？
+1. 在第 19 节最小验收 suite proof 已出现之后，当前更近的产品化缺口是不是已经从“再补一个 CLI 能力”转成“抽出单一执行/service entry”？
+2. `pipeline.analyze_input_root` 已被 CLI、sidecar 和 Streamlit UI 共同复用，但 audit 编排、状态落库和事件输出仍分散在包装层；最小安全收敛点应该落在哪一层？
+3. `analyze-project`、`analyze-session` 与 `ui.actions.run_ui_analysis` 之间，哪些职责属于同一条产品执行主链，哪些只是内部调试入口的薄包装？
+4. 下一刀如果要对齐 exe 方向，应优先抽“分析 + 审计单次运行 service”，还是优先抽“带事件与持久化的 session orchestration service”？
 
 ## Decisions Made
 | Decision | Rationale |
@@ -309,6 +323,7 @@ Phase 35
 | 当 `issues.json` 已经拥有复核证据时，最短主链切片不是“再去降 issue 数”，而是把 `filename / sheet_no / rationale` 提升成顶层稳定字段 | 任务书成功定义要求 run-audit 输出可直接复核；当前缺口在输出合同而不在规则数量 |
 | per-type extractor 的最小闭环不需要立刻重写三套完全不同的大算法，但必须有真实不同的执行入口、可测试调用证据，以及 fresh real-sample 的执行摘要 | 这能最小风险地满足“不能继续依赖一条共享大脚本解释所有页型”的任务书要求 |
 | 当 `Wire / Component / Terminal` 已有执行证据后，下一条更近的主链切片不是回到几何调参，而是把 `Table / LayoutOnly / Skip` 的执行或明确未执行状态补到同层级合同 | 否则 route matrix 仍只对三类 audited pair page 强，而对“表格暂无命中”“背板 classify_only”“封面 skip”还停留在间接说明 |
+| `evaluate-acceptance-suite` 只允许作为内部验收 harness 存在，不构成继续扩产品 CLI 的方向许可 | 用户已明确要求产品主链转向 exe 可调用的单一执行入口，CLI 只保留调试/自动化/验收用途 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

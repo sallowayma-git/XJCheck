@@ -110,6 +110,90 @@ def write_acceptance_report(
     return output_dir
 
 
+def evaluate_acceptance_suite(
+    suite_path: Path,
+    project_aliases: dict[str, Path],
+) -> dict[str, Any]:
+    suite = json.loads(suite_path.read_text(encoding="utf-8"))
+    evaluations: list[dict[str, Any]] = []
+    missing_project_alias_cases: list[dict[str, Any]] = []
+    for case in suite.get("cases", []):
+        case_id = str(case.get("case_id") or "")
+        project_alias = str(case.get("project_alias") or "")
+        required = bool(case.get("required", True))
+        spec_path = _resolve_suite_spec_path(suite_path, case.get("spec"))
+        project_dir = project_aliases.get(project_alias)
+        if project_dir is None:
+            missing_project_alias_cases.append(
+                {
+                    "case_id": case_id,
+                    "project_alias": project_alias,
+                    "required": required,
+                    "spec_path": str(spec_path.resolve()),
+                }
+            )
+            evaluations.append(
+                {
+                    "case_id": case_id,
+                    "project_alias": project_alias,
+                    "required": required,
+                    "project_dir": None,
+                    "spec_path": str(spec_path.resolve()),
+                    "acceptance_passed": False,
+                    "status": "missing_project_alias",
+                    "status_reason": f"No project directory was provided for alias `{project_alias}`.",
+                }
+            )
+            continue
+        evaluation = evaluate_acceptance_project(project_dir, spec_path)
+        evaluations.append(
+            {
+                "case_id": case_id,
+                "project_alias": project_alias,
+                "required": required,
+                "project_dir": str(project_dir.resolve()),
+                "spec_path": str(spec_path.resolve()),
+                "acceptance_passed": bool(evaluation.get("acceptance_passed")),
+                "status": "evaluated",
+                "status_reason": "Acceptance case evaluated successfully.",
+                "evaluation": evaluation,
+            }
+        )
+    required_cases = [item for item in evaluations if bool(item.get("required", True))]
+    required_passed_cases = [item for item in required_cases if bool(item.get("acceptance_passed"))]
+    return {
+        "suite_name": suite.get("name", suite_path.stem),
+        "suite_path": str(suite_path.resolve()),
+        "case_count": len(evaluations),
+        "required_case_count": len(required_cases),
+        "passed_case_count": sum(1 for item in evaluations if bool(item.get("acceptance_passed"))),
+        "required_passed_case_count": len(required_passed_cases),
+        "missing_project_alias_cases": missing_project_alias_cases,
+        "cases": evaluations,
+        "acceptance_passed": (
+            len(required_cases) > 0 and len(required_cases) == len(required_passed_cases)
+        ),
+    }
+
+
+def write_acceptance_suite_report(
+    suite_path: Path,
+    project_aliases: dict[str, Path],
+    output_dir: Path,
+) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    suite_result = evaluate_acceptance_suite(suite_path, project_aliases)
+    (output_dir / "acceptance_suite_report.json").write_text(
+        json.dumps(suite_result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "acceptance_suite_report.md").write_text(
+        _format_acceptance_suite_markdown(suite_result),
+        encoding="utf-8",
+    )
+    return output_dir
+
+
 def _matched_golden_pairs(pairs: pd.DataFrame, golden_pairs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     extracted = {
         (
@@ -344,6 +428,35 @@ def _format_acceptance_markdown(evaluation: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_acceptance_suite_markdown(suite_result: dict[str, Any]) -> str:
+    lines = [
+        "# Acceptance Suite Report",
+        "",
+        f"- Suite: `{suite_result.get('suite_name')}`",
+        f"- Passed: `{suite_result.get('acceptance_passed')}`",
+        f"- Required passed: `{suite_result.get('required_passed_case_count', 0)}` / `{suite_result.get('required_case_count', 0)}`",
+        f"- Total passed: `{suite_result.get('passed_case_count', 0)}` / `{suite_result.get('case_count', 0)}`",
+        "",
+        "## Cases",
+        "",
+    ]
+    for item in suite_result.get("cases", []):
+        lines.append(
+            f"- `{item.get('case_id')}` "
+            f"(alias={item.get('project_alias')}, required={item.get('required')}, status={item.get('status')}, passed={item.get('acceptance_passed')})"
+        )
+        evaluation = item.get("evaluation") or {}
+        if evaluation:
+            pair_metrics = evaluation.get("pair_metrics", {})
+            lines.append(
+                f"  pair_precision={pair_metrics.get('precision')}, pair_recall={pair_metrics.get('recall')}, "
+                f"expected_pairs={pair_metrics.get('expected_pair_count')}, matched_pairs={pair_metrics.get('matched_pair_count')}"
+            )
+        else:
+            lines.append(f"  reason={item.get('status_reason')}")
+    return "\n".join(lines) + "\n"
+
+
 def _safe_ratio(numerator: int, denominator: int) -> float | None:
     if denominator <= 0:
         return None
@@ -382,6 +495,13 @@ def _optional_recall_check(metrics: dict[str, Any]) -> bool:
     if int(metrics.get("expected_count") or 0) <= 0:
         return True
     return float(metrics.get("recall") or 0.0) >= 1.0
+
+
+def _resolve_suite_spec_path(suite_path: Path, raw_value: object) -> Path:
+    candidate = Path(str(raw_value or "")).expanduser()
+    if not candidate.is_absolute():
+        candidate = (suite_path.parent / candidate).resolve()
+    return candidate
 
 
 def _scoped_pairs(pairs: pd.DataFrame, pair_scope: dict[str, Any]) -> pd.DataFrame:
