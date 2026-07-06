@@ -149,12 +149,17 @@ def analyze_input_root(
                 for sheet_id in sheet_ids
                 if sheet_id in classifications
             }
+            extractor_kwargs = {"classifications": route_classifications}
+            if route_target == "ComponentDiagramExtractor":
+                extractor_kwargs["blocks"] = [
+                    block for block in blocks if block.sheet_id in sheet_ids
+                ]
             extraction_result = extractor(
                 route_pages,
                 route_texts,
                 route_lines,
                 config,
-                classifications=route_classifications,
+                **extractor_kwargs,
             )
             extractor_runs.append(extraction_result.execution_record())
             line_groups.extend(extraction_result.line_groups)

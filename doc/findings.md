@@ -6973,3 +6973,95 @@ route status 仍稳定为：
 - `KK2P/KK3P` 多端口组件映射可作为下一个 `ComponentDiagramExtractor` 子模式。
 - 代表目标包括 first `S0022`: `1DK-1 -> ZD9`、`1-2ZKK-6 -> 1-2n721`；second `S0019`: `1-21DK2-1 -> ZD8`、`1-21ZKK-2 -> 1-21n715`。
 - 该切片需要把 `BlockRecord` 传入 component extractor，改动面大于本轮背板正则补齐，适合作为下一轮独立提交。
+
+## 98. 2026-07-06 当前任务书完成度审计：主链仍卡在多端口元件接线图
+
+本轮重新读取当前未提交修改后的 [任务书](/F:/workspace/XJToolkit/doc/任务书.md)。任务书第 31-48 行定义 MVP 成功标准：批量 DWG 输入、每页对象/候选/配对、跨页规则、可复核报告；第 54-66 行要求“通用 CAD 抽取 + 页级分类器 + 规则路由 + 专用脚本库”；第 95-146 行明确 `ComponentDiagramExtractor` 必须支持元件接线图组件实例、`4输出/6输出` 与长条双端口 `component_mapping`；第 1723-1763 行把真实样本、故障注入样本、四类图型覆盖和可复核报告列为最终 MVP 验收。
+
+当前强证据已完成：
+
+| 要求 | 当前证据 |
+|---|---|
+| 批量读取真实项目 DWG 并生成 findings 运行态 | 最新 first 输出 [phase58 first](/F:/workspace/XJToolkit/.tmp/phase58_backplate_route_stable_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA) 为 `28` 页；latest second 输出 [phase58 second](/F:/workspace/XJToolkit/.tmp/phase58_backplate_route_stable_second/2_2) 为 `24` 页；均有 `pages/texts/lines/line_groups/pairs` parquet 与 `findings.json`。 |
+| 每页有 `page_type` 与 `route_target`，且实际分流到不同 extractor | first route 分布：`Wire=13`、`Component=3`、`Terminal=4`、`Table=4`、`Skip=4`；second route 分布：`Wire=13`、`Component=2`、`Terminal=4`、`LayoutOnly=2`、`Skip=3`。 |
+| 普通回路图结构化子模式 | first `wire_component_mapping=32`，已覆盖元件分区型和线中 KLP 端口型；代表映射如 `1-2n218 -> 1-4YD1`、`3-2KLP1-1 -> 3-2QD2` 已在前序 phase 真实 rerun 证明。 |
+| 表头型端子/表格映射 | second `table_mapping=176` 来自端子页 `terminal_header_table`；代表 `1-21QD1 -> 1-21n116` 已为 `pass / confidence=0.95 / pair_kind=table_mapping`。 |
+| 背板表格型图 | first 背板 `table_mapping` 分布为 `S0018=27`、`S0019=72`、`S0020=67`、`S0021=56`；代表 `NDY306A-3 -> 1-2QD1`、`NCZ343A-2 -> 1-4QD17`、`NKR308A-1 -> 5FD15` 均命中。second 普通装置背板保持 `LayoutOnlyExtractor / classify_only`，未误生成 `LAN*` table mapping。 |
+| 长条双端口元件接线图基本路径 | first `S0024` 已输出 `5KLP10-1 -> 5KLP9-1`、`5KLP10-2 -> 5n112`；second `S0020` 自然命中 `3-21KLP* / 1-21KLP*` strip 结构。 |
+| run-audit 可复核证据字段 | latest first/second `issues.parquet` 均包含 `filename / sheet_no / sheet_id / line_group_id / left_value / right_value / rule_id / confidence / rationale / evidence / evidence_refs / root_cause`。 |
+| `page_findings` 不再作为正式默认交付目录 | 当前 `findings.json.page_findings` 是运行态汇总；默认 findings 输出未把 `page_findings/` 当正式交付目录。 |
+
+部分实现但尚未达到任务书完成标准：
+
+| 要求 | 当前状态 | 缺口 |
+|---|---|---|
+| `ComponentDiagramExtractor` 作为元件接线图专用识别器 | 路由已生效，`component_mapping` 已覆盖 `strip_two_port_component` 子类 | first `S0022 / 21 元件接线图1.dwg` 仍 `component_mapping=0`，`47` 条全是 `ordinary_pair discard`；second `S0019 / 19 元件接线图1.dwg` 仍 `component_mapping=0`，`39` 条全是 `ordinary_pair discard`。 |
+| `4输出/6输出` 多端口组件实例 | 任务书第 111-123 行已给出端口布局和样例 | 尚未实现 `KK2P/KK3P` 或同构组件实例抽取，仍不能输出 `1DK-1 -> ZD9`、`1-2ZKK-6 -> 1-2n721`、`1-21ZKK-2 -> 1-21n715`。 |
+| 长条双端口逗号外部端拆分 | 任务书第 135-137 行要求 `5KLP5-1 -> 5KLP3-1` 与 `5KLP5-1 -> 5KLP2-1` 分裂输出 | 当前为安全起见排除逗号端点，避免整串误当端子；尚未实现逗号拆分。 |
+| 端子图列角色与 continuation/semantic 语义 | 已有 `semantic_mapping / continuation / bridge_mapping`，端子表头映射已分流 | 仍需验证普通端子行号、语义列、continuation 不再系统性制造伪普通 pair；这更偏规则语义收敛，而不是当前最短抽取缺口。 |
+| 故障注入验收套件 | 已有内部 acceptance/evaluation 相关测试与 CLI harness | 本轮未重新证明第 19 章“真实样本 + 隔离故障注入样本”的完整验收闭环。 |
+
+明确未完成或仍不能宣称完成：
+
+- 不能宣称元件接线图 MVP 完成，因为 `4输出/6输出` 组件实例仍未产出 `component_mapping`。
+- 不能宣称长条双端口完全完成，因为逗号外部端拆分尚未做。
+- 不能用 issue 总数变化证明成功；latest first issue 为 `453`，second 为 `584`，这些只是症状集合。新增结构化关系会让规则图更可见，短期 issue 数上升并不等价于失败。
+- 不能继续优先投入桌面端、Tauri、预览和新 CLI；当前阻塞在专用识别器主链。
+
+本轮最短闭环裁决：
+
+**下一刀应实现 `KK2P/KK3P` 多端口 `component_mapping`，覆盖元件接线图 `4输出/6输出` 的最小真实样本。**
+
+理由：
+
+- 任务书第 95-124、140-146 行把它列为 `ComponentDiagramExtractor` 的核心 MVP 能力。
+- 当前真实产物已有强反证：first `S0022` 和 second `S0019` 路由正确但抽取仍为普通 discard pair。
+- 并行子代理已只读确认可实现最小模式：使用 `BlockRecord` 锚定 `KK2P/KK3P`，块内端口号结合上方本体文本，按水平行线和外部端 bbox center 生成 `component_mapping`。
+- 该切片比继续处理 terminal/continuation 规则更接近“主链识别器缺口”，也比 UI/报告补全更贴近任务书主线。
+
+## 99. 2026-07-06 `KK2P/KK3P` 多端口元件映射闭环
+
+本轮按 section 98 的裁决实现 `ComponentDiagramExtractor` 第二条专用组件关系：`KK2P/KK3P` 多端口组件映射。
+
+实现边界：
+
+- `pipeline.py` 只在 `ComponentDiagramExtractor` route 下传入同页 `BlockRecord`，没有扩大其它图种或 CLI。
+- `page_extractors.py` 在现有 PairBuilder / strip two-port 后追加 `extract_kk_multi_port_component_pairs(...)`。
+- `component_diagrams.py` 只启用 `KK2P / KK3P`，不启用 `KK1P`。
+- 本体文本取块上方非 block 文本，端口文本取对应 block 的虚拟文本，外部端点按水平支撑线和 bbox center 匹配。
+- 不强配缺失端口；同一 KK block 对同一支撑线同侧 / 同一 endpoint 只允许产出一次，避免 `ZKK-4`、`ZKK-6` 复用同一外部端。
+
+测试验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py` -> `10 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py::test_analyze_project_executes_route_specific_pair_extractors` -> `1 passed`
+- `python -m pytest -q` -> `208 passed`
+
+真实样本验证：
+
+- 第一套 fresh 输出：[phase60 first](/F:/workspace/XJToolkit/.tmp/phase60_kk_multi_port_dedup_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第一套 audit 输出：[phase60 first audit](/F:/workspace/XJToolkit/.tmp/phase60_kk_multi_port_dedup_first/audit)
+- first `pair_kind.component_mapping = 27`，其中 `21 元件接线图1.dwg` 从上一轮 `0` 变为 `17` 条 `kk_multi_port_component`。
+- first 代表命中：
+  - `5DK-2 -> 5FD1`
+  - `5DK-4 -> 5FD25`
+  - `1-2ZKK-2 -> 1-2n721`
+  - `1-2ZKK-4 -> 1-2n719`
+  - 既有 strip 目标 `5KLP10-1 -> 5KLP9-1`、`5KLP10-2 -> 5n112` 保持命中
+- first KK duplicate endpoint check = `0`，audit `issue_count = 463`。
+- 第二套 fresh 输出：[phase60 second](/F:/workspace/XJToolkit/.tmp/phase60_kk_multi_port_dedup_second/2_2)
+- 第二套 audit 输出：[phase60 second audit](/F:/workspace/XJToolkit/.tmp/phase60_kk_multi_port_dedup_second/audit)
+- second `pair_kind.component_mapping = 20`，其中 `19 元件接线图1.dwg` 从上一轮 `0` 变为 `12` 条 `kk_multi_port_component`。
+- second 代表命中：
+  - `1-21DK2-2 -> 1-21GD1`
+  - `1-21DK2-4 -> 1-21GD19`
+  - `1-21ZKK-2 -> 1-21n719`
+  - `1-21ZKK-4 -> 1-21n715`
+  - 既有 strip 目标 `3-21KLP2-1 -> 3-21GD3`、`1-21KLP1-2 -> 1-21n112` 保持命中
+- second KK duplicate endpoint check = `0`，audit `issue_count = 584`。
+
+当前裁决：
+
+- `ComponentDiagramExtractor` 已不再只是普通 PairBuilder 包装，已经覆盖 `strip_two_port_component` 与 `KK2P/KK3P` 多端口两类真实组件结构。
+- 仍不能宣称元件接线图完全完成：逗号外部端拆分仍未做，且 `KK2P/KK3P` 的端口编号真实语义还需要更多人工标注校准。
+- 下一刀更适合做 `strip_two_port_component` 逗号端点拆分，或转向端子图列角色 / continuation 语义复核；不应继续扩产品 CLI。

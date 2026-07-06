@@ -652,6 +652,8 @@ def test_analyze_project_executes_route_specific_pair_extractors(
 
     wire_calls: list[list[str]] = []
     component_calls: list[list[str]] = []
+    component_block_calls: list[list[tuple[str, str]]] = []
+    kk_block_calls: list[list[tuple[str, str]]] = []
     terminal_calls: list[list[str]] = []
 
     from dwg_audit.audit.page_extractors import extract_component_pairs as real_component_extractor
@@ -664,25 +666,43 @@ def test_analyze_project_executes_route_specific_pair_extractors(
 
     def record_component(*args, **kwargs):
         component_calls.append([page.filename for page in args[0]])
+        component_block_calls.append([
+            (block.name, block.sheet_id)
+            for block in kwargs.get("blocks", [])
+        ])
         return real_component_extractor(*args, **kwargs)
 
     def record_terminal(*args, **kwargs):
         terminal_calls.append([page.filename for page in args[0]])
         return real_terminal_extractor(*args, **kwargs)
 
+    def record_kk_component(*args, **kwargs):
+        kk_block_calls.append([
+            (block.name, block.sheet_id)
+            for block in kwargs.get("blocks", [])
+        ])
+        return [], set()
+
     monkeypatch.setattr("dwg_audit.pipeline.extract_wire_pairs", record_wire)
     monkeypatch.setattr("dwg_audit.pipeline.extract_component_pairs", record_component)
     monkeypatch.setattr("dwg_audit.pipeline.extract_terminal_pairs", record_terminal)
+    monkeypatch.setattr(
+        "dwg_audit.audit.page_extractors.component_diagrams.extract_kk_multi_port_component_pairs",
+        record_kk_component,
+        raising=False,
+    )
 
     def fake_convert(source: Path, target: Path, **_: object) -> None:
         doc = ezdxf.new("R2018")
         msp = doc.modelspace()
-        name = Path(source).name
-        if name == "04 回路图.dwg":
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
             msp.add_text("101", dxfattribs={"insert": (10, 40), "height": 2.5})
             msp.add_text("202", dxfattribs={"insert": (90, 40), "height": 2.5})
             msp.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
-        elif name == "19 元件接线图1.dwg":
+            doc.blocks.new(name="WIRE_MARK")
+            msp.add_blockref("WIRE_MARK", (5, 5))
+        elif staged_name.startswith("F0002_"):
             block = doc.blocks.new(name="COMP_ROW")
             block.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
             block.add_text("301", dxfattribs={"insert": (10, 40), "height": 2.5, "layer": "TEXT"})
@@ -694,6 +714,8 @@ def test_analyze_project_executes_route_specific_pair_extractors(
             msp.add_line((127.5, 45.0), (202.5, 45.0), dxfattribs={"layer": "CONNECT"})
             msp.add_text("21", dxfattribs={"insert": (150.998, 46.0), "height": 2.5, "layer": "TEXT"})
             msp.add_text("3-21n211", dxfattribs={"insert": (158.5, 46.0), "height": 2.5, "layer": "TEXT"})
+            doc.blocks.new(name="TERMINAL_MARK")
+            msp.add_blockref("TERMINAL_MARK", (5, 5))
         doc.saveas(target)
 
     monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
@@ -718,6 +740,8 @@ def test_analyze_project_executes_route_specific_pair_extractors(
     assert execution_summary["TerminalDiagramExtractor"]["page_count"] == 1
 
     page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
+    assert component_block_calls == [[("COMP_ROW", page_findings["19 元件接线图1.dwg"]["sheet_id"])]]
+    assert kk_block_calls == component_block_calls
     assert page_findings["04 回路图.dwg"]["executed_extractor"] == "WireDiagramExtractor"
     assert page_findings["19 元件接线图1.dwg"]["executed_extractor"] == "ComponentDiagramExtractor"
     assert page_findings["21 左侧端子图1.dwg"]["executed_extractor"] == "TerminalDiagramExtractor"

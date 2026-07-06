@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
@@ -10,7 +11,12 @@ from dwg_audit.utils.ids import IdFactory
 
 
 _STRIP_BLOCK_NAME = "FJL-25-2A_Mirror"
+_KK_MULTI_PORT_BLOCK_PORTS = {
+    "KK2P": 4,
+    "KK3P": 6,
+}
 _COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?KLP\d+$", re.IGNORECASE)
+_KK_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?[A-Za-z]{1,5}\d*$", re.IGNORECASE)
 _EXTERNAL_ENDPOINT_PATTERN = re.compile(
     r"^(?:\d+(?:-\d+)?[A-Za-z]{1,4}\d+(?:-\d+)?|[A-Za-z]{1,4}\d+(?:-\d+)?)$",
     re.IGNORECASE,
@@ -28,6 +34,15 @@ _TOP_ENDPOINT_Y_MAX_GAP = 9.0
 _BOTTOM_ENDPOINT_Y_MIN_GAP = 1.0
 _BOTTOM_ENDPOINT_Y_MAX_GAP = 9.0
 _VERTICAL_LINE_X_TOL = 4.0
+_KK_PORT_BLOCK_X_TOL = 40.0
+_KK_PORT_BLOCK_Y_TOL = 80.0
+_KK_BODY_X_TOL = 32.0
+_KK_BODY_Y_MIN_GAP = 3.0
+_KK_BODY_Y_MAX_GAP = 36.0
+_KK_HORIZONTAL_LINE_Y_TOL = 4.5
+_KK_HORIZONTAL_LINE_X_TOL = 18.0
+_KK_ENDPOINT_LINE_X_TOL = 26.0
+_KK_ENDPOINT_LINE_Y_TOL = 8.0
 
 
 def extract_strip_two_port_component_pairs(
@@ -96,12 +111,249 @@ def extract_strip_two_port_component_pairs(
     return pairs, consumed_group_ids
 
 
+def extract_kk_multi_port_component_pairs(
+    pages: list[SheetRecord],
+    texts: list[TextItem],
+    line_groups: list[LineGroup],
+    blocks: list[BlockRecord],
+    *,
+    pair_id_factory: IdFactory | None = None,
+) -> tuple[list[Pair], set[str]]:
+    """Recover KK2P/KK3P multi-port component mappings on component diagrams."""
+
+    pair_ids = pair_id_factory or IdFactory("PCM")
+    texts_by_sheet: dict[str, list[TextItem]] = {}
+    for text in texts:
+        texts_by_sheet.setdefault(text.sheet_id, []).append(text)
+    groups_by_sheet: dict[str, list[LineGroup]] = {}
+    for group in line_groups:
+        groups_by_sheet.setdefault(group.sheet_id, []).append(group)
+    blocks_by_sheet: dict[str, list[BlockRecord]] = {}
+    for block in blocks:
+        blocks_by_sheet.setdefault(block.sheet_id, []).append(block)
+
+    pairs: list[Pair] = []
+    consumed_group_ids: set[str] = set()
+    for page in pages:
+        if not _supports_strip_two_port_component(page):
+            continue
+        sheet_texts = texts_by_sheet.get(page.sheet_id, [])
+        sheet_groups = groups_by_sheet.get(page.sheet_id, [])
+        sheet_blocks = blocks_by_sheet.get(page.sheet_id, [])
+        for block in sheet_blocks:
+            port_count = _kk_multi_port_count(block)
+            if port_count is None:
+                continue
+            ports_by_number = _kk_ports_for_block(block, sheet_texts, sheet_blocks, port_count)
+            if not ports_by_number:
+                continue
+            body = _nearest_kk_component_body(block, list(ports_by_number.values()), sheet_texts)
+            if body is None:
+                continue
+            excluded_text_ids = {body.text_id, *(port.text_id for port in ports_by_number.values())}
+            used_endpoint_text_ids: set[str] = set()
+            used_group_sides: set[tuple[str, str]] = set()
+            for port_number in sorted(ports_by_number, key=int):
+                port = ports_by_number[port_number]
+                support_group = _nearest_supporting_horizontal_group(port, sheet_groups)
+                if support_group is None:
+                    continue
+                endpoint = _nearest_kk_external_endpoint(
+                    port,
+                    support_group,
+                    sheet_texts,
+                    excluded_text_ids=excluded_text_ids,
+                )
+                if endpoint is None:
+                    continue
+                endpoint_value = _clean_external_endpoint(endpoint.normalized_text)
+                if not _is_valid_external_endpoint(endpoint_value):
+                    continue
+                endpoint_side = _endpoint_side(port, endpoint)
+                group_side = (support_group.line_group_id, endpoint_side)
+                if endpoint.text_id in used_endpoint_text_ids or group_side in used_group_sides:
+                    continue
+                logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
+                used_endpoint_text_ids.add(endpoint.text_id)
+                used_group_sides.add(group_side)
+                consumed_group_ids.add(support_group.line_group_id)
+                pairs.append(
+                    _build_kk_multi_port_pair(
+                        page=page,
+                        block=block,
+                        body=body,
+                        port=port,
+                        endpoint=endpoint,
+                        endpoint_value=endpoint_value,
+                        support_group=support_group,
+                        pair_ids=pair_ids,
+                        logical_endpoint=logical_endpoint,
+                    )
+                )
+    return pairs, consumed_group_ids
+
+
 def _supports_strip_two_port_component(page: SheetRecord) -> bool:
     return (
         page.sheet_category == "元件接线图"
         and page.page_subtype == "horizontal_component"
         and page.route_target == "ComponentDiagramExtractor"
     )
+
+
+def _kk_multi_port_count(block: BlockRecord) -> int | None:
+    return _KK_MULTI_PORT_BLOCK_PORTS.get((block.name or "").upper())
+
+
+def _kk_ports_for_block(
+    block: BlockRecord,
+    texts: list[TextItem],
+    blocks: list[BlockRecord],
+    port_count: int,
+) -> dict[str, TextItem]:
+    allowed_ports = {str(port_number) for port_number in range(1, port_count + 1)}
+    matching_blocks = [
+        other
+        for other in blocks
+        if other.sheet_id == block.sheet_id and (other.name or "").upper() == (block.name or "").upper()
+    ]
+    candidates_by_number: dict[str, list[TextItem]] = {}
+    for text in texts:
+        if (text.source_block_name or "").upper() != (block.name or "").upper():
+            continue
+        port_number = str(text.normalized_text or "").strip()
+        if port_number not in allowed_ports:
+            continue
+        if abs(text.insert_x - block.insert_x) > _KK_PORT_BLOCK_X_TOL:
+            continue
+        if abs(text.insert_y - block.insert_y) > _KK_PORT_BLOCK_Y_TOL:
+            continue
+        if _nearest_block_to_text(text, matching_blocks) != block:
+            continue
+        candidates_by_number.setdefault(port_number, []).append(text)
+    return {
+        port_number: sorted(items, key=lambda item: (_block_text_distance(block, item), item.text_id))[0]
+        for port_number, items in candidates_by_number.items()
+    }
+
+
+def _nearest_block_to_text(text: TextItem, blocks: list[BlockRecord]) -> BlockRecord | None:
+    if not blocks:
+        return None
+    return sorted(blocks, key=lambda block: (_block_text_distance(block, text), block.block_id))[0]
+
+
+def _block_text_distance(block: BlockRecord, text: TextItem) -> float:
+    center_x, center_y = _text_center(text)
+    return ((center_x - block.insert_x) ** 2) + ((center_y - block.insert_y) ** 2)
+
+
+def _nearest_kk_component_body(
+    block: BlockRecord,
+    ports: list[TextItem],
+    texts: list[TextItem],
+) -> TextItem | None:
+    anchor_x = sum(_text_center(port)[0] for port in ports) / len(ports)
+    top_port_y = max(_text_center(port)[1] for port in ports)
+    candidates = []
+    for text in texts:
+        if text.source_block_name:
+            continue
+        value = str(text.normalized_text or "").strip()
+        if not _KK_COMPONENT_BODY_PATTERN.fullmatch(value):
+            continue
+        center_x, center_y = _text_center(text)
+        if abs(center_x - anchor_x) > _KK_BODY_X_TOL:
+            continue
+        if not (_KK_BODY_Y_MIN_GAP <= center_y - top_port_y <= _KK_BODY_Y_MAX_GAP):
+            continue
+        candidates.append(text)
+    if not candidates:
+        return None
+    return sorted(
+        candidates,
+        key=lambda item: (
+            abs(_text_center(item)[0] - anchor_x),
+            abs(_text_center(item)[1] - block.insert_y),
+            item.text_id,
+        ),
+    )[0]
+
+
+def _nearest_supporting_horizontal_group(port: TextItem, line_groups: list[LineGroup]) -> LineGroup | None:
+    port_x, port_y = _text_center(port)
+    candidates = []
+    for group in line_groups:
+        if group.orientation != "horizontal":
+            continue
+        group_y = (group.start_y + group.end_y) / 2.0
+        if abs(group_y - port_y) > _KK_HORIZONTAL_LINE_Y_TOL:
+            continue
+        min_x = min(group.start_x, group.end_x)
+        max_x = max(group.start_x, group.end_x)
+        x_gap = 0.0 if min_x <= port_x <= max_x else min(abs(port_x - min_x), abs(port_x - max_x))
+        if x_gap > _KK_HORIZONTAL_LINE_X_TOL:
+            continue
+        candidates.append((group, x_gap))
+    if not candidates:
+        return None
+    return sorted(
+        candidates,
+        key=lambda item: (
+            abs(((item[0].start_y + item[0].end_y) / 2.0) - port_y),
+            item[1],
+            -item[0].length,
+            item[0].line_group_id,
+        ),
+    )[0][0]
+
+
+def _nearest_kk_external_endpoint(
+    port: TextItem,
+    support_group: LineGroup,
+    texts: list[TextItem],
+    *,
+    excluded_text_ids: set[str],
+) -> TextItem | None:
+    port_x, _ = _text_center(port)
+    start_distance = abs(support_group.start_x - port_x)
+    end_distance = abs(support_group.end_x - port_x)
+    if start_distance >= end_distance:
+        endpoint_x, endpoint_y = support_group.start_x, support_group.start_y
+    else:
+        endpoint_x, endpoint_y = support_group.end_x, support_group.end_y
+    direction = 1 if endpoint_x >= port_x else -1
+
+    candidates = []
+    for text in texts:
+        if text.text_id in excluded_text_ids:
+            continue
+        if text.source_block_name:
+            continue
+        if text.layer.upper() == "MARK":
+            continue
+        if not _is_valid_external_endpoint(_clean_external_endpoint(text.normalized_text)):
+            continue
+        center_x, center_y = _text_center(text)
+        if direction > 0 and center_x < port_x:
+            continue
+        if direction < 0 and center_x > port_x:
+            continue
+        if abs(center_x - endpoint_x) > _KK_ENDPOINT_LINE_X_TOL:
+            continue
+        if abs(center_y - endpoint_y) > _KK_ENDPOINT_LINE_Y_TOL:
+            continue
+        candidates.append(text)
+    if not candidates:
+        return None
+    return sorted(
+        candidates,
+        key=lambda item: (
+            abs(_text_center(item)[0] - endpoint_x),
+            abs(_text_center(item)[1] - endpoint_y),
+            item.text_id,
+        ),
+    )[0]
 
 
 def _strip_port_pairs(texts: list[TextItem]) -> list[tuple[TextItem, TextItem]]:
@@ -207,6 +459,95 @@ def _is_valid_external_endpoint(value: str | None) -> bool:
     if len(cleaned) <= 1 or cleaned.isdigit():
         return False
     return _EXTERNAL_ENDPOINT_PATTERN.fullmatch(cleaned) is not None
+
+
+def _text_center(text: TextItem) -> tuple[float, float]:
+    return ((text.bbox_min_x + text.bbox_max_x) / 2.0, (text.bbox_min_y + text.bbox_max_y) / 2.0)
+
+
+def _endpoint_side(port: TextItem, endpoint: TextItem) -> str:
+    port_x, _ = _text_center(port)
+    endpoint_x, _ = _text_center(endpoint)
+    return "right" if endpoint_x >= port_x else "left"
+
+
+def _build_kk_multi_port_pair(
+    *,
+    page: SheetRecord,
+    block: BlockRecord,
+    body: TextItem,
+    port: TextItem,
+    endpoint: TextItem,
+    endpoint_value: str,
+    support_group: LineGroup,
+    pair_ids: IdFactory,
+    logical_endpoint: str,
+) -> Pair:
+    port_x, port_y = _text_center(port)
+    endpoint_x, endpoint_y = _text_center(endpoint)
+    body_x, body_y = _text_center(body)
+    evidence = {
+        "source": "component_mapping",
+        "pair_kind": "component_mapping",
+        "submode": "kk_multi_port_component",
+        "component_submode": "kk_multi_port_component",
+        "filename": page.filename,
+        "sheet_no": page.sheet_no,
+        "sheet_order": page.sheet_order,
+        "sheet_title": page.sheet_title,
+        "component_body": body.normalized_text,
+        "component_body_text_id": body.text_id,
+        "component_body_coord": [body_x, body_y],
+        "component_port": port.normalized_text,
+        "component_port_text_id": port.text_id,
+        "component_port_coord": [port_x, port_y],
+        "component_block_id": block.block_id,
+        "component_block_name": block.name,
+        "component_block_coord": [block.insert_x, block.insert_y],
+        "external_endpoint": endpoint_value,
+        "external_endpoint_raw": endpoint.normalized_text,
+        "external_endpoint_text_id": endpoint.text_id,
+        "external_endpoint_coord": [endpoint_x, endpoint_y],
+        "logical_endpoint": logical_endpoint,
+        "line_group_id": support_group.line_group_id,
+        "supporting_line_ids": support_group.member_line_ids,
+        "line_orientation": "kk_multi_port_horizontal",
+        "left_side_label": "component_port",
+        "right_side_label": "external_endpoint",
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_ids.next(),
+        line_group_id=support_group.line_group_id,
+        sheet_id=page.sheet_id,
+        file_id=page.file_id,
+        selected_pair_candidate_id=None,
+        left_value=logical_endpoint,
+        right_value=endpoint_value,
+        confidence=_PAIR_CONFIDENCE,
+        status="pass",
+        rationale="KK multi-port component mapping: component body plus block port associated with horizontal endpoint.",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=port.text_id,
+        right_text_id=endpoint.text_id,
+        left_coord_x=port_x,
+        left_coord_y=port_y,
+        right_coord_x=endpoint_x,
+        right_coord_y=endpoint_y,
+        pair_key=f"{logical_endpoint}->{endpoint_value}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="component_mapping",
+    )
 
 
 def _build_strip_two_port_pair(

@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 41
+Phase 47
 
 ## Phases
 
@@ -568,3 +568,16 @@ Phase 41
   - first-set fresh `analyze-project + run-audit`: `.tmp/phase58_backplate_route_stable_first/...` 产出背板 `table_mapping`：`S0018=27`、`S0019=72`、`S0020=67`、`S0021=56`，代表关系 `NDY306A-3 -> 1-2QD1`、`NCZ343A-2 -> 1-4QD17`、`NDY306A-3 -> 3-2QD1`、`NCZ343A-2 -> 3-4QD17` 均命中
   - second-set fresh `analyze-project + run-audit`: `.tmp/phase58_backplate_route_stable_second/2_2` 中 `S0017/S0018` 普通装置背板保持 `LayoutOnlyExtractor / classify_only`，背板 table mappings `0`，`LAN*` table mappings `0`
 - [ ] 下一刀建议：实现 `KK2P/KK3P` 多端口 `component_mapping`，需要把 `BlockRecord` 传入 `ComponentDiagramExtractor`，代表目标 first `S0022: 1DK-1 -> ZD9`、second `S0019: 1-21ZKK-2 -> 1-21n715`。
+
+### Phase 47: KK Multi-Port Component Mapping
+- [x] 实现目标：为 `ComponentDiagramExtractor` 增加 `KK2P/KK3P` 多端口组件映射，覆盖元件接线图 `4输出/6输出` 最小真实样本。
+- [x] 并发分工：
+  - worker `James` 负责 `component_diagrams.py` 与 `test_component_diagrams.py` 的核心抽取和单测。
+  - worker `Lagrange` 负责 `pipeline.py` / `page_extractors.py` 的 `blocks` 传递与必要集成验证。
+- [x] 风险门槛：不启用 `KK1P`，不强配缺目标端口，不扩大端子/普通回路逻辑，保留 strip two-port 行为不回退。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `10 passed`
+  - `python -m pytest -q` -> `208 passed`
+  - first-set fresh `analyze-project + run-audit`: `.tmp/phase60_kk_multi_port_dedup_first/...` 中 `21 元件接线图1.dwg` 新增 `17` 条 `kk_multi_port_component`，全项目 `component_mapping=27`，重复端点检查 `0`
+  - second-set fresh `analyze-project + run-audit`: `.tmp/phase60_kk_multi_port_dedup_second/2_2` 中 `19 元件接线图1.dwg` 新增 `12` 条 `kk_multi_port_component`，全项目 `component_mapping=20`，重复端点检查 `0`
+- [ ] 下一刀建议：继续补 `strip_two_port_component` 逗号外部端拆分，或进入端子图列角色/continuation 语义复核。

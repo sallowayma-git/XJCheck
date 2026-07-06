@@ -4,12 +4,14 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
 
+from dwg_audit.audit import component_diagrams
 from dwg_audit.audit.candidates import build_terminal_candidates
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
 from dwg_audit.audit.line_groups import build_line_groups
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.table_extractor import extract_terminal_header_table_pairs
 from dwg_audit.audit.wire_components import extract_component_prefixed_signal_pairs
+from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import PageClassification
@@ -71,6 +73,7 @@ def extract_component_pairs(
     lines: list[LineEntity],
     config: dict,
     *,
+    blocks: list[BlockRecord] | None = None,
     classifications: dict[str, PageClassification] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
@@ -79,6 +82,7 @@ def extract_component_pairs(
         pages=pages,
         texts=texts,
         lines=lines,
+        blocks=blocks,
         config=config,
         classifications=classifications,
     )
@@ -129,6 +133,7 @@ def _extract_pairs_for_route(
     pages: list[SheetRecord],
     texts: list[TextItem],
     lines: list[LineEntity],
+    blocks: list[BlockRecord] | None = None,
     config: dict,
     classifications: dict[str, PageClassification] | None = None,
 ) -> PairingExtractionResult:
@@ -179,6 +184,17 @@ def _extract_pairs_for_route(
             line_groups,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
         )
+        kk_extractor = getattr(component_diagrams, "extract_kk_multi_port_component_pairs", None)
+        if callable(kk_extractor):
+            kk_pairs, kk_consumed_group_ids = kk_extractor(
+                pages,
+                texts,
+                line_groups,
+                blocks=blocks or [],
+                pair_id_factory=IdFactory(f"P{id_stem}K"),
+            )
+            component_pairs.extend(kk_pairs)
+            consumed_group_ids.update(kk_consumed_group_ids)
         if component_pairs:
             _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
             pairs.extend(component_pairs)

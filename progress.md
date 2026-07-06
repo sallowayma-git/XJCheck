@@ -1862,3 +1862,44 @@
 - Concurrent/user changes preserved:
   - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
   - Did not revert concurrent/user work.
+
+## Session Update 2026-07-06 (Phase 47 start)
+- Started the `KK2P/KK3P` multi-port component mapping slice, based on taskbook audit section 98.
+- Main-thread coordination decision:
+  - Keep the main thread as scheduler/integrator.
+  - Delegate core extractor/unit-test work to worker `James`.
+  - Delegate `blocks` route plumbing/integration-test work to worker `Lagrange`.
+- Active risk controls:
+  - Do not touch or stage concurrent `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Do not broaden routing/classification.
+  - Do not enable `KK1P` or force unclear component ports.
+  - Preserve existing strip two-port component mappings and backplate table behavior.
+
+## Session Update 2026-07-06 (Phase 47 complete)
+- Completed the `KK2P/KK3P` multi-port component mapping slice with two concurrent workers and main-thread integration review.
+- Implementation:
+  - `component_diagrams.py` now exposes `extract_kk_multi_port_component_pairs(...)`.
+  - `page_extractors.py` appends KK multi-port mappings only inside `ComponentDiagramExtractor`.
+  - `pipeline.py` passes same-sheet `BlockRecord` rows only to component route execution.
+  - Added a safety gate so the same KK block cannot emit duplicate mappings for the same support-line side / endpoint.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `10 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py::test_analyze_project_executes_route_specific_pair_extractors` -> `1 passed`
+  - `python -m pytest -q` -> `208 passed`
+- First-set real-sample evidence:
+  - Fresh output: `.tmp/phase60_kk_multi_port_dedup_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `run-audit` succeeded.
+  - `component_mapping=27`; `21 元件接线图1.dwg` now has `17` KK multi-port mappings.
+  - Representative hits include `5DK-2 -> 5FD1`, `5DK-4 -> 5FD25`, `1-2ZKK-2 -> 1-2n721`, `1-2ZKK-4 -> 1-2n719`.
+  - Existing strip targets remain: `5KLP10-1 -> 5KLP9-1`, `5KLP10-2 -> 5n112`.
+  - KK duplicate endpoint check: `0`; audit issue count: `463`.
+- Second-set real-sample evidence:
+  - Fresh output: `.tmp/phase60_kk_multi_port_dedup_second/2_2`
+  - `run-audit` succeeded.
+  - `component_mapping=20`; `19 元件接线图1.dwg` now has `12` KK multi-port mappings.
+  - Representative hits include `1-21DK2-2 -> 1-21GD1`, `1-21DK2-4 -> 1-21GD19`, `1-21ZKK-2 -> 1-21n719`, `1-21ZKK-4 -> 1-21n715`.
+  - Existing strip targets remain: `3-21KLP2-1 -> 3-21GD3`, `1-21KLP1-2 -> 1-21n112`.
+  - KK duplicate endpoint check: `0`; audit issue count: `584`.
+- Concurrent/user changes preserved:
+  - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.
