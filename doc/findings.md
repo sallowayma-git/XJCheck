@@ -9486,3 +9486,51 @@ second 非回归证据：
 
 - Phase84 是 acceptance golden 口径刷新，把已有结构化 relations/review evidence 纳入最小验收闭环。
 - 下一轮候选收缩为：剩余 table-only shared endpoint 默认展示分层；packaged sidecar/exe smoke 仅作为独立产品化切片。
+
+## 138. 2026-07-07 table-only shared endpoint：默认展示区分表格共享与组件汇合
+
+只读审计确认，Phase84 后 first `.tmp/phase84_acceptance_first_audit` 中仍有 5 条 table-only shared endpoint review：`CD6`、`CD23`、`YD3`、`5FD26`、`5FD27`。这些 issue 的 evidence 已经是 `pair_kinds=["table_mapping"]`，且 table mode 包含 `backplate_virtual_table`；旧 summary/title 却写成 `table/component scopes` 和“结构化端点汇合”，容易把纯表格作用域共享端点误读成 component+table 混合问题。典型样本包括 `I0211 / YD3`、`I0212 / 5FD26`、`I0213 / 5FD27`。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 中让 `_structured_mapping_shared_endpoint_scope_info()` 区分：
+  - `structured_scope_kind=backplate_table_shared_endpoint`：`pair_kinds == ["table_mapping"]` 的纯表格共享端点。
+  - `structured_scope_kind=backplate_table_component_shared_endpoint`：`component_mapping + table_mapping` 的混合汇合。
+- table-only issue 改为标题 `背板表格共享端点待复核`，summary 使用 `Backplate table mappings share endpoint ... across table scopes.`，说明和建议不再提“元件端口”。
+- 保持 `many_to_one_classification=backplate_structured_shared_endpoint_review`，兼容现有 report/UI/acceptance；不聚合、不隐藏、不删除 issue。
+- 增加 unit 覆盖：table-only 文案/`structured_scope_kind` 与 mixed component/table 负例。
+- 不改 `TableExtractor`、`ComponentDiagramExtractor`、`TerminalDiagramExtractor`、PairBuilder、graph input、CLI 或产品 UI。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or backplate_structured or terminal_only_shared_endpoint or non_backplate_structured"` -> `5 passed, 59 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or shared_endpoint or backplate_structured or terminal_header_table"` -> `14 passed, 50 deselected`
+- `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 17 deselected`
+- `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+- `python -m pytest -q` -> `288 passed`
+- Phase85 fresh acceptance suite `.tmp/phase85_table_only_shared_acceptance_suite_fresh`：`required_passed_case_count=4/4`，`acceptance_passed=True`。
+
+fresh rules-only 证据：
+
+- first `.tmp/phase85_table_only_shared_first_audit`
+- `pair_count=1581`，`issue_count=132`，pair kind 分布不变。
+- table-only shared endpoint count 仍为 `5`：
+  - `I0202 CD6`
+  - `I0204 CD23`
+  - `I0211 YD3`
+  - `I0212 5FD26`
+  - `I0213 5FD27`
+- 上述 5 条均已显示 `背板表格共享端点待复核` / `across table scopes` / `structured_scope_kind=backplate_table_shared_endpoint`。
+- mixed component/table review 仍为 `7`，`I0191 / 5KLP8-1` 和 Phase83 component-scope aggregates 仍保留 `backplate_table_component_shared_endpoint`，没有被 table-only 分层吞掉。
+
+second 非回归证据：
+
+- second `.tmp/phase85_table_only_shared_second_audit`
+- `pair_count=1462`，`issue_count=23`，pair kind 分布不变。
+- table-only backplate shared endpoint count 仍为 `0`。
+
+裁决：
+
+- Phase85 是 rules/display 语义分层：让纯表格共享端点不再被默认描述成 component+table 汇合。
+- 下一轮候选收缩为：terminal_header_table interval / multi-endpoint default display layer；packaged sidecar/exe smoke 仍为独立产品切片。

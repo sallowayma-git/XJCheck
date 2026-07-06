@@ -3107,3 +3107,37 @@
 - Next candidates:
   - remaining table-only shared endpoint default display layering.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 85 table-only shared endpoint display layering)
+- Started after commit `be18361`.
+- Read-only recovery:
+  - Reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Ran `planning-with-files` session catchup.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned four read-only explorers for taskbook alignment, real-sample mining, source/verification boundaries, and validation design.
+- Read-only audit conclusions:
+  - Phase84 had closed acceptance golden wording for Phase83 review evidence; the remaining rules/acceptance candidate is table-only shared endpoint default display layering.
+  - first Phase84 audit had five table-only shared endpoint issues: `CD6`, `CD23`, `YD3`, `5FD26`, `5FD27`.
+  - These issues had `pair_kinds=["table_mapping"]` and table modes including `backplate_virtual_table`, but their title/summary still said table/component mixed scopes.
+  - Mixed examples such as `I0191 / 5KLP8-1` and the Phase83 component-scope aggregates must remain distinct component+table reviews.
+- Implementation:
+  - Updated `_structured_mapping_shared_endpoint_scope_info()` in `rules.py` to emit `structured_scope_kind=backplate_table_shared_endpoint` for table-only shared endpoints and `backplate_table_component_shared_endpoint` for mixed component/table endpoints.
+  - Added narrow issue text selection so table-only reviews use `背板表格共享端点待复核` and `across table scopes`, without mentioning component ports.
+  - Kept `many_to_one_classification=backplate_structured_shared_endpoint_review` stable for compatibility with report/UI/acceptance, and did not aggregate or suppress any issue.
+  - Added unit coverage for the table-only display layer and strengthened the mixed component/table guard.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or backplate_structured or terminal_only_shared_endpoint or non_backplate_structured"` -> `5 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or shared_endpoint or backplate_structured or terminal_header_table"` -> `14 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 17 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `288 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite --suite tests\fixtures\acceptance_suite\mvp_minimum_suite.json --project-alias fault_injected=.tmp\phase65_fault_injected_run\artifacts\project --project-alias real_first=.tmp\phase85_table_only_shared_first_project --project-alias real_second=.tmp\phase78_component_vertical_401_second\2_2 --output .tmp\phase85_table_only_shared_acceptance_suite_fresh` -> `required_passed_case_count=4/4`, `acceptance_passed=True`
+- Fresh rules-only verification:
+  - first `.tmp/phase85_table_only_shared_first_audit`: `pair_count=1581`, `issue_count=132`; pair kind distribution unchanged at `ordinary_pair=728`, `table_mapping=299`, `continuation=231`, `component_mapping=150`, `semantic_mapping=119`, `wire_component_mapping=51`, `bridge_mapping=3`.
+  - first table-only shared endpoint reviews count remains `5`; all now have title `背板表格共享端点待复核`, summary `across table scopes`, and `structured_scope_kind=backplate_table_shared_endpoint`.
+  - first mixed component/table structured shared endpoint reviews remain `7`, including `I0191` and Phase83 aggregates, with `structured_scope_kind=backplate_table_component_shared_endpoint`.
+  - second `.tmp/phase85_table_only_shared_second_audit`: `pair_count=1462`, `issue_count=23`; pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`; table-only backplate shared endpoint count remains `0`.
+- Next candidates:
+  - terminal_header_table interval / multi-endpoint default display layer.
+  - packaged sidecar/exe smoke only as a separate product slice.

@@ -3083,8 +3083,84 @@ def test_build_issues_classifies_structured_mapping_shared_endpoint_scope_review
     assert issue.evidence["many_to_one_classification"] == "backplate_structured_shared_endpoint_review"
     assert issue.evidence["shared_endpoint"] == "5FD25"
     assert issue.evidence["pair_kinds"] == ["component_mapping", "table_mapping"]
+    assert issue.evidence["structured_scope_kind"] == "backplate_table_component_shared_endpoint"
     assert issue.evidence["component_submodes"] == ["kk_multi_port_component"]
     assert issue.evidence["table_mapping_modes"] == ["backplate_virtual_table"]
+    assert "table/component scopes" in issue.summary
+
+
+def test_build_issues_labels_table_only_structured_shared_endpoint_scope_review() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            "P0030",
+            "nan",
+            "S0019",
+            "F0019",
+            None,
+            "NDY306A-8",
+            "YD3",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "filename": "18 高后备保护背板图.dwg",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-813E-E1SH-101",
+                    "header_prefix": "NDY306A",
+                    "logical_endpoint": "NDY306A-8",
+                    "right_value": "YD3",
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "P0092",
+            "nan",
+            "S0019",
+            "F0019",
+            None,
+            "NCK316A-29",
+            "YD3",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "filename": "18 高后备保护背板图.dwg",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-813E-E1SH-101",
+                    "header_prefix": "NCK316A",
+                    "logical_endpoint": "NCK316A-29",
+                    "right_value": "YD3",
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0019", "F0019", "18 高后备保护背板图.dwg", 19, "18", "REAR WIRING", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    issue = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert issue.title == "背板表格共享端点待复核"
+    assert issue.summary == "Backplate table mappings share endpoint YD3 across table scopes."
+    assert "元件端口" not in issue.explanation
+    assert "元件端口" not in issue.recommended_action
+    assert issue.evidence["many_to_one_classification"] == "backplate_structured_shared_endpoint_review"
+    assert issue.evidence["structured_scope_kind"] == "backplate_table_shared_endpoint"
+    assert issue.evidence["pair_kinds"] == ["table_mapping"]
+    assert issue.evidence["table_mapping_modes"] == ["backplate_virtual_table"]
+    assert "component_submodes" not in issue.evidence
 
 
 def test_build_issues_clusters_backplate_structured_shared_endpoint_component_scope() -> None:

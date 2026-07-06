@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 84
+Phase 85
 
 ## Phases
 
@@ -1168,6 +1168,24 @@ Phase 84
   - fresh second component/terminal acceptance: `18/18` pairs, precision/recall `1.0`; second terminal S0024 acceptance: `6/6` pairs, precision/recall `1.0`
   - first fresh rules-only audit: `pair_count=1581`, `issue_count=132`, `backplate_structured_shared_endpoint_aggregate_review=4`; second fresh analyze/audit: `pair_count=1462`, `issue_count=23`
 - [ ] 下一刀候选收缩为：剩余 table-only shared endpoint 默认展示分层；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 85: Table-Only Shared Endpoint Display Layering
+- [x] 只读恢复并确认当前 HEAD 为 `be18361`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase84 后剩余 P0 是 table-only shared endpoint 默认展示分层。first `I0202/I0204/I0211/I0212/I0213` 均为 `pair_kinds=["table_mapping"]`，但旧 summary/title 写成 table/component mixed；`I0191` 等 component+table mixed 是负例，必须保留原 mixed 语义。
+- [x] 实现目标：只在 `R-MANY-TO-ONE` 结构化 shared endpoint review 的 issue 文案/evidence 中区分 `backplate_table_shared_endpoint` 与 `backplate_table_component_shared_endpoint`；不改 extractor、PairBuilder、graph input、issue count、pair count、CLI、report/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or backplate_structured or terminal_only_shared_endpoint or non_backplate_structured"` -> `5 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or shared_endpoint or backplate_structured or terminal_header_table"` -> `14 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 17 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `288 passed`
+  - Phase85 fresh acceptance suite `.tmp/phase85_table_only_shared_acceptance_suite_fresh`: `required_passed_case_count=4/4`, `acceptance_passed=True`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase85_table_only_shared_first_audit`: `pair_count=1581`, `issue_count=132`, pair_kind distribution unchanged；5 table-only issues now title `背板表格共享端点待复核`, summary `across table scopes`, `structured_scope_kind=backplate_table_shared_endpoint`。
+  - second `.tmp/phase85_table_only_shared_second_audit`: `pair_count=1462`, `issue_count=23`, pair_kind distribution unchanged；table-only backplate shared endpoint count remains `0`。
+- [ ] 下一刀候选收缩为：terminal_header_table interval / multi-endpoint default display layer；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered

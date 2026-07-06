@@ -770,19 +770,19 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
             )
             if structured_scope_info is not None:
                 sheet_ids = {pair.sheet_id for pair in linked_pairs}
+                issue_text = _structured_mapping_shared_endpoint_issue_text(
+                    right_value,
+                    structured_scope_info,
+                )
                 issues.append(
                     context.issue_factory.build(
                         "R-MANY-TO-ONE",
                         "review",
                         pair=first,
-                        message=f"Backplate structured mappings share endpoint {right_value} across table/component scopes.",
-                        title="背板结构化端点汇合待复核",
-                        explanation=(
-                            "背板虚拟表格与其他结构化 table/component 映射共同指向同一个外部端点。"
-                            "这通常是背板表格、端子表或元件端口在同一物理端子处汇合的作用域现象，"
-                            "应按结构化证据复核，而不是按普通线端多对一直接解释。"
-                        ),
-                        recommended_action="核对共享端点、背板表格行、端子表行和元件端口，确认这些结构化关系是否共同引用同一物理端子。",
+                        message=issue_text["message"],
+                        title=issue_text["title"],
+                        explanation=issue_text["explanation"],
+                        recommended_action=issue_text["recommended_action"],
                         related_pairs=linked_pairs,
                         extra={
                             "conflicting_values": sorted(lefts),
@@ -939,10 +939,15 @@ def _structured_mapping_shared_endpoint_scope_info(
     if "backplate_virtual_table" not in table_modes:
         return None
 
+    structured_scope_kind = (
+        "backplate_table_shared_endpoint"
+        if pair_kinds == {"table_mapping"}
+        else "backplate_table_component_shared_endpoint"
+    )
     result: dict[str, object] = {
         "shared_endpoint": shared_value,
         "pair_kinds": sorted(str(kind) for kind in pair_kinds),
-        "structured_scope_kind": "backplate_shared_endpoint",
+        "structured_scope_kind": structured_scope_kind,
         "logical_endpoints": sorted(logical_endpoints),
     }
     if table_modes:
@@ -956,6 +961,33 @@ def _structured_mapping_shared_endpoint_scope_info(
     if filenames:
         result["filenames"] = sorted(filenames)
     return result
+
+
+def _structured_mapping_shared_endpoint_issue_text(
+    shared_value: str,
+    structured_scope_info: dict[str, object],
+) -> dict[str, str]:
+    if structured_scope_info.get("structured_scope_kind") == "backplate_table_shared_endpoint":
+        return {
+            "message": f"Backplate table mappings share endpoint {shared_value} across table scopes.",
+            "title": "背板表格共享端点待复核",
+            "explanation": (
+                "多个背板虚拟表格或端子表结构化映射共同指向同一个外部端点。"
+                "这通常是表格作用域、表头或行号复用造成的结构化共享端点现象，"
+                "应按表格证据复核，而不是按普通线端多对一直接解释。"
+            ),
+            "recommended_action": "核对共享端点、背板表格行、端子表行、source block 和表头前缀，确认这些表格关系是否共同引用同一物理端子。",
+        }
+    return {
+        "message": f"Backplate structured mappings share endpoint {shared_value} across table/component scopes.",
+        "title": "背板结构化端点汇合待复核",
+        "explanation": (
+            "背板虚拟表格与其他结构化 table/component 映射共同指向同一个外部端点。"
+            "这通常是背板表格、端子表或元件端口在同一物理端子处汇合的作用域现象，"
+            "应按结构化证据复核，而不是按普通线端多对一直接解释。"
+        ),
+        "recommended_action": "核对共享端点、背板表格行、端子表行和元件端口，确认这些结构化关系是否共同引用同一物理端子。",
+    }
 
 
 def _backplate_virtual_table_same_sheet_scope_info(linked_pairs: list[Pair]) -> dict[str, object] | None:
