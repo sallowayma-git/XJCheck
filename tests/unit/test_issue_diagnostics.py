@@ -140,6 +140,61 @@ def test_enrich_issues_with_root_causes_classifies_core_symptoms() -> None:
     assert by_id["I3"]["route_target"] == "ComponentDiagramExtractor"
 
 
+def test_enrich_issues_with_root_causes_classifies_cross_page_table_mapping_as_rule_review() -> None:
+    frames = _diagnostic_frames()
+    frames["pairs"] = pd.concat(
+        [
+            frames["pairs"],
+            pd.DataFrame(
+                [
+                    {
+                        "pair_id": "P4",
+                        "sheet_id": "S1",
+                        "left_value": "NDY306A-3",
+                        "right_value": "1QD1",
+                        "pair_kind": "table_mapping",
+                        "evidence": json.dumps(
+                            {
+                                "source": "table_mapping",
+                                "table_mapping": {
+                                    "mapping_mode": "backplate_virtual_table",
+                                    "header_prefix": "NDY306A",
+                                },
+                            }
+                        ),
+                    },
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+    issues = pd.DataFrame(
+        [
+            {
+                "issue_id": "I4",
+                "rule_id": "R-CROSS-PAGE-CONFLICT",
+                "sheet_id": "S1",
+                "pair_id": "P4",
+                "filename": "17 差动保护背板图.dwg",
+                "sheet_no": "17",
+                "left_value": "NDY306A-3",
+                "right_value": "1QD1",
+                "evidence": {
+                    "one_to_many_classification": "backplate_table_scope_review",
+                    "table_mapping_mode": "backplate_virtual_table",
+                },
+            },
+        ]
+    )
+
+    enriched = enrich_issues_with_root_causes(frames, issues)
+
+    row = enriched.iloc[0]
+    assert row["root_cause"] == "rule_too_strict"
+    assert row["pair_kind"] == "table_mapping"
+    assert "specialized_relation_rule_review" in row["diagnostic_tags"]
+
+
 def test_write_issue_root_cause_audit_persists_summary(tmp_path: Path) -> None:
     project_dir = tmp_path / "project"
     enriched = write_issue_root_cause_audit(project_dir, _diagnostic_frames(), _issues_frame())

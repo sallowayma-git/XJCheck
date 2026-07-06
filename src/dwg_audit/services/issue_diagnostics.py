@@ -193,7 +193,13 @@ def _classify_issue(issue: pd.Series, context: _FrameContext) -> RootCauseDecisi
         )
 
     if pair_kind in _SPECIALIZED_PAIR_KINDS and pair_kind != "ordinary_pair":
-        if rule_id in {"R-SEMANTIC-MAPPING-CONFLICT", "R-TABLE-MAPPING-SOURCE-CONFLICT", "R-ONE-TO-MANY", "R-MANY-TO-ONE"}:
+        if rule_id in {
+            "R-CROSS-PAGE-CONFLICT",
+            "R-SEMANTIC-MAPPING-CONFLICT",
+            "R-TABLE-MAPPING-SOURCE-CONFLICT",
+            "R-ONE-TO-MANY",
+            "R-MANY-TO-ONE",
+        }:
             return RootCauseDecision(
                 "rule_too_strict",
                 0.6,

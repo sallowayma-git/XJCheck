@@ -2931,3 +2931,30 @@
 - Next candidates:
   - backplate/component/table mapping rules semantics.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 79 backplate scope review aggregation)
+- Started after commit `813fed7`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+- Read-only audit conclusions:
+  - Phase78 extractor redlines stayed closed; the next narrow slice was rules/display semantics, not another extractor.
+  - first `.tmp/phase78_component_vertical_401_first_audit` had `R-CROSS-PAGE-CONFLICT=66`, all `table_mapping/review` backplate virtual table scope reviews.
+  - Each issue already carried `one_to_many_classification=backplate_table_scope_review`, `table_mapping_mode=backplate_virtual_table`, `source_block_names`, and `header_prefixes`; the weak part was row-level review fan-out plus diagnostic root cause.
+- Implementation:
+  - Added backplate scope review aggregation in `rule_base.py`, keyed by rule/classification/table mode/header prefixes/source block names.
+  - Aggregated evidence now records `backplate_scope_aggregate_review`, `aggregated_logical_endpoints`, `aggregated_conflicting_values`, `cluster_pair_ids`, and `cluster_sheet_ids`.
+  - Updated `issue_diagnostics.py` so specialized `R-CROSS-PAGE-CONFLICT` issues classify as `rule_too_strict` instead of `insufficient_evidence`.
+  - Did not modify extractors, CLI/UI, pair graph inclusion, or hide/remove any structured `table_mapping`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `7 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `281 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase79_backplate_scope_first_audit`: `issue_count=153`; `R-CROSS-PAGE-CONFLICT` dropped from `66` row-level reviews to `7` scope clusters; cross-page root cause is `rule_too_strict=7`.
+  - first Phase78 findings pair_count remained `1581`; structured `table_mapping=299`, `component_mapping=150`.
+  - second rules-only `.tmp/phase79_backplate_scope_second_audit`: `issue_count=23`; rule counts held at `R-PAIR-MISSING-SIDE=15`, `R-ONE-TO-MANY=6`, `R-SEMANTIC-MAPPING-CONFLICT=1`, `R-MANY-TO-ONE=1`.
+  - second Phase78 findings pair_count remained `1462`; `3-21ZK-4 -> 3-21n401` and `1-21ZK-6 -> 1-21n401` stayed `component_mapping/pass`.
+- Next candidates:
+  - remaining backplate/component/table mapping rules semantics, especially same-sheet scope, many-to-one/shared endpoint, and default user-visible review grouping.
+  - packaged sidecar/exe smoke only as a separate product slice.

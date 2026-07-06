@@ -154,6 +154,16 @@ def cluster_issues(issues: list[Issue]) -> list[Issue]:
     clustered: list[Issue] = []
     index_by_key: dict[tuple[Any, ...], int] = {}
     for issue in issues:
+        if _is_backplate_scope_aggregation_issue(issue):
+            key = _backplate_scope_cluster_key(issue)
+            existing_index = index_by_key.get(key)
+            if existing_index is None:
+                index_by_key[key] = len(clustered)
+                clustered.append(issue)
+                continue
+            clustered[existing_index] = _merge_issue_cluster(clustered[existing_index], issue)
+            continue
+
         if _is_terminal_header_table_aggregation_issue(issue):
             existing_index = _find_terminal_header_table_cluster(clustered, issue)
             if existing_index is None:
@@ -237,6 +247,7 @@ def _merge_issue_cluster(primary: Issue, duplicate: Issue) -> Issue:
     if sheet_ids:
         evidence["cluster_sheet_ids"] = sorted(sheet_ids)
     _merge_terminal_header_table_cluster_evidence(evidence, duplicate.evidence)
+    _merge_backplate_scope_cluster_evidence(evidence, primary, duplicate)
     primary.evidence = evidence
     return primary
 
@@ -316,6 +327,58 @@ def _is_terminal_header_table_aggregation_issue(issue: Issue) -> bool:
         issue.rule_id == "R-MANY-TO-ONE"
         and issue.evidence.get("many_to_one_classification")
         == "terminal_header_table_shared_endpoint_review"
+    )
+
+
+def _is_backplate_scope_aggregation_issue(issue: Issue) -> bool:
+    return (
+        issue.rule_id == "R-CROSS-PAGE-CONFLICT"
+        and issue.evidence.get("one_to_many_classification")
+        == "backplate_table_scope_review"
+        and issue.evidence.get("table_mapping_mode") == "backplate_virtual_table"
+    )
+
+
+def _backplate_scope_cluster_key(issue: Issue) -> tuple[Any, ...]:
+    return (
+        issue.rule_id,
+        issue.evidence.get("one_to_many_classification"),
+        issue.evidence.get("table_mapping_mode"),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_prefixes")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("source_block_names")))),
+    )
+
+
+def _merge_backplate_scope_cluster_evidence(
+    evidence: dict[str, Any],
+    primary: Issue,
+    duplicate: Issue,
+) -> None:
+    if (
+        evidence.get("one_to_many_classification") != "backplate_table_scope_review"
+        or evidence.get("table_mapping_mode") != "backplate_virtual_table"
+    ):
+        return
+
+    evidence["backplate_scope_aggregate_review"] = True
+    evidence["aggregated_logical_endpoints"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_logical_endpoints"))
+        + _as_list(primary.left_value)
+        + _as_list(duplicate.left_value)
+    )
+    evidence["aggregated_conflicting_values"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_conflicting_values"))
+        + _as_list(evidence.get("conflicting_values"))
+        + _as_list(duplicate.evidence.get("aggregated_conflicting_values"))
+        + _as_list(duplicate.evidence.get("conflicting_values"))
+    )
+    evidence["source_block_names"] = _merge_sorted_values(
+        _as_list(evidence.get("source_block_names"))
+        + _as_list(duplicate.evidence.get("source_block_names"))
+    )
+    evidence["header_prefixes"] = _merge_sorted_values(
+        _as_list(evidence.get("header_prefixes"))
+        + _as_list(duplicate.evidence.get("header_prefixes"))
     )
 
 

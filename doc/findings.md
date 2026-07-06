@@ -9238,3 +9238,46 @@ fresh first-set 非回归证据：
 
 - 本轮是 second component vertical `401` 的结构化端点桥接收口，不是放宽普通 endpoint 正则，也不是 rules 静音。
 - 下一轮候选收缩为：backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 132. 2026-07-07 backplate scope review：跨页背板表格 review 从行级噪声聚合为作用域簇
+
+只读审计确认，first `.tmp/phase78_component_vertical_401_first_audit` 中最大的结构化 rules 噪声不是 extractor 缺失，而是背板虚拟表格作用域复用被按每个逻辑端逐条展示：`R-CROSS-PAGE-CONFLICT=66`，全部为 `table_mapping/review`。这些 issue 已有证据字段 `one_to_many_classification=backplate_table_scope_review`、`table_mapping_mode=backplate_virtual_table`、`source_block_names`、`header_prefixes`，但聚类仍按 `left_value` 分散，诊断根因也被标成 `insufficient_evidence`。
+
+本轮实现：
+
+- 在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 增加背板 scope review 聚合，只匹配 `R-CROSS-PAGE-CONFLICT + backplate_table_scope_review + backplate_virtual_table`。
+- 聚合 key 限定为 `rule_id / classification / table_mapping_mode / header_prefixes / source_block_names`，避免跨不同表头或不同背板作用域过度合并。
+- 聚合证据新增 `backplate_scope_aggregate_review`、`aggregated_logical_endpoints`、`aggregated_conflicting_values`，并保留 `cluster_pair_ids`、`cluster_sheet_ids` 和原始 evidence refs。
+- 在 [issue_diagnostics.py](/F:/workspace/XJToolkit/src/dwg_audit/services/issue_diagnostics.py) 将 specialized `R-CROSS-PAGE-CONFLICT` 归因为 `rule_too_strict`，与 `R-ONE-TO-MANY` / `R-MANY-TO-ONE` 的结构化关系诊断一致。
+- 不改 TableExtractor / ComponentDiagramExtractor / PairBuilder，不从图中移除任何 `table_mapping`，不扩 CLI/UI。
+
+fresh rules-only 证据：
+
+- first `.tmp/phase79_backplate_scope_first_audit`
+- `issue_count=153`
+- `R-CROSS-PAGE-CONFLICT=7`
+- `cross_page root_cause={"rule_too_strict": 7}`
+- 典型聚合：
+  - `NDY306A` + `WBH-812E-E1SA-101/WBH-813E-E1SH-101/WBH-814E-E1SA-101`: `cluster_size=8`
+  - `NCK316A` + `WBH-812E-E1SA-101/WBH-813E-E1SH-101`: `cluster_size=12`
+  - `NCZ343A` + `WBH-813E-E1SH-101`: `cluster_size=28`
+- first Phase78 findings pair_count 保持 `1581`，`table_mapping=299`、`component_mapping=150` 未被移除。
+
+second 非回归证据：
+
+- second `.tmp/phase79_backplate_scope_second_audit`
+- `issue_count=23`
+- 规则分布保持：`R-PAIR-MISSING-SIDE=15`、`R-ONE-TO-MANY=6`、`R-SEMANTIC-MAPPING-CONFLICT=1`、`R-MANY-TO-ONE=1`
+- second Phase78 findings pair_count 保持 `1462`
+- `3-21ZK-4 -> 3-21n401` 与 `1-21ZK-6 -> 1-21n401` 仍为 `component_mapping/pass`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `7 passed, 53 deselected`
+- `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+- `python -m pytest -q` -> `281 passed`
+
+裁决：
+
+- 本轮是背板跨页虚拟表格作用域 review 的聚合和诊断口径修正，不是 extractor 补漏，也不是静音规则。
+- 下一轮候选收缩为：backplate/component/table mapping rules semantics 的同页 scope、many-to-one/shared endpoint、默认用户可见 review 分组；packaged sidecar/exe smoke 仍为独立产品切片。

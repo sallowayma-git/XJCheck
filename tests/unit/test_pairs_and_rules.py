@@ -2681,6 +2681,125 @@ def test_build_issues_demotes_backplate_virtual_table_cross_page_scope_conflict(
     assert issue.evidence["header_prefixes"] == ["NDY306A"]
 
 
+def test_build_issues_clusters_backplate_virtual_table_scope_reviews_by_table_scope() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id=None,
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="NDY306A-3",
+            right_value="1QD1",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-812E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                    "row_number": 3,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id=None,
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id=None,
+            left_value="NDY306A-3",
+            right_value="3-2QD1",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-813E-E1SH-101",
+                    "header_prefix": "NDY306A",
+                    "row_number": 3,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            pair_id="P0003",
+            line_group_id=None,
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="NDY306A-5",
+            right_value="1QD5",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-812E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                    "row_number": 5,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            pair_id="P0004",
+            line_group_id=None,
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id=None,
+            left_value="NDY306A-5",
+            right_value="3-2QD5",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-813E-E1SH-101",
+                    "header_prefix": "NDY306A",
+                    "row_number": 5,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "17 差动保护背板图.dwg", 17, "17", "背板图", "背板图", "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "19 低后备保护背板图.dwg", 19, "19", "背板图", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    cross_page_issues = [issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT"]
+    assert len(cross_page_issues) == 1
+    issue = cross_page_issues[0]
+    assert issue.evidence["backplate_scope_aggregate_review"] is True
+    assert issue.evidence["cluster_size"] == 2
+    assert issue.evidence["aggregated_logical_endpoints"] == ["NDY306A-3", "NDY306A-5"]
+    assert issue.evidence["aggregated_conflicting_values"] == [
+        "1QD1",
+        "1QD5",
+        "3-2QD1",
+        "3-2QD5",
+    ]
+    assert issue.evidence["source_block_names"] == ["WBH-812E-E1SA-101", "WBH-813E-E1SH-101"]
+    assert set(issue.evidence["cluster_pair_ids"]) == {"P0001", "P0002", "P0003", "P0004"}
+
+
 def test_build_issues_classifies_same_sheet_backplate_virtual_table_scope_review() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     pairs = [

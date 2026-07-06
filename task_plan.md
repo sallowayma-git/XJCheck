@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 78
+Phase 79
 
 ## Phases
 
@@ -1087,6 +1087,19 @@ Phase 78
   - first fresh `.tmp/phase78_component_vertical_401_first/...` + `.tmp/phase78_component_vertical_401_first_audit`: `pair_count=1581`, `issue_count=212`, `component_mapping=150`；first KLP/ZLP/218 structured redlines held。
   - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` held。
 - [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 79: Backplate Scope Review Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `813fed7`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：first fresh audit 的最大结构化 rules 噪声是 `R-CROSS-PAGE-CONFLICT=66`，全部为 `table_mapping/review` 背板虚拟表格作用域复用；证据中已有 `one_to_many_classification=backplate_table_scope_review`、`table_mapping_mode=backplate_virtual_table`、`source_block_names`、`header_prefixes`，不应写成 extractor 缺失。
+- [x] 实现目标：只在规则聚合 / 诊断层收口，不改 extractor、不移除 `table_mapping` 入图；按 `rule_id + classification + table_mapping_mode + header_prefixes + source_block_names` 聚合背板 cross-page scope review，并把 specialized `R-CROSS-PAGE-CONFLICT` 诊断为 `rule_too_strict`。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `7 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `281 passed`
+  - first rules-only audit `.tmp/phase79_backplate_scope_first_audit`: `issue_count=153`，`R-CROSS-PAGE-CONFLICT=7`，cross-page root cause 全部为 `rule_too_strict`；Phase78 first findings pair_count 保持 `1581`。
+  - second rules-only audit `.tmp/phase79_backplate_scope_second_audit`: `issue_count=23`，规则分布保持 `R-PAIR-MISSING-SIDE=15`、`R-ONE-TO-MANY=6`、`R-SEMANTIC-MAPPING-CONFLICT=1`、`R-MANY-TO-ONE=1`；Phase78 second findings pair_count 保持 `1462`。
+- [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics 的剩余同页 / many-to-one / 默认展示口径；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered
