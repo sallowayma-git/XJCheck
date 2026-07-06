@@ -28,6 +28,8 @@ def build_line_groups(
     config: dict,
     texts: list[TextItem] | None = None,
     classifications: dict[str, PageClassification] | None = None,
+    group_id_factory: IdFactory | None = None,
+    band_id_factory: IdFactory | None = None,
 ) -> list[LineGroup]:
     by_sheet = defaultdict(list)
     for line in lines:
@@ -37,8 +39,8 @@ def build_line_groups(
         if text.is_numeric_candidate:
             by_sheet_texts[text.sheet_id].append(text)
     sheet_map = {sheet.sheet_id: sheet for sheet in sheets}
-    group_ids = IdFactory("G")
-    band_ids = IdFactory("RB")
+    group_ids = group_id_factory or IdFactory("G")
+    band_ids = band_id_factory or IdFactory("RB")
     result: list[LineGroup] = []
 
     tol = float(config.get("geometry", {}).get("horizontal_angle_tolerance_deg", 2.0))

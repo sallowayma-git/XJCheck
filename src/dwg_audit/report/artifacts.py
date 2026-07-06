@@ -696,6 +696,21 @@ def _page_number_matching_strategy(
     return "Only layout-level evidence is preserved for now; no dedicated number matching strategy is active on this page."
 
 
+def _extractor_execution_by_sheet(
+    extractor_runs: list[dict[str, Any]],
+) -> dict[str, str]:
+    execution_by_sheet: dict[str, str] = {}
+    for run in extractor_runs:
+        executed_extractor = str(run.get("executed_extractor") or "")
+        if not executed_extractor:
+            continue
+        for sheet_id in run.get("sheet_ids", []):
+            if sheet_id is None:
+                continue
+            execution_by_sheet[str(sheet_id)] = executed_extractor
+    return execution_by_sheet
+
+
 def _build_page_findings(
     artifacts: ProjectArtifacts,
     *,
@@ -719,6 +734,7 @@ def _build_page_findings(
     table_mapping_rows: dict[str, int] = {}
     table_mapping_flags: dict[str, bool] = {}
     table_mapping_details: dict[str, dict[str, Any]] = {}
+    executed_extractors = _extractor_execution_by_sheet(artifacts.extractor_runs)
     for item in table_mappings or []:
         sheet_id = str(item.get("sheet_id") or "")
         if not sheet_id:
@@ -783,6 +799,7 @@ def _build_page_findings(
         issue_count = issue_counts.get(sheet_id, 0)
         table_mapping_count = table_mapping_rows.get(sheet_id, 0)
         table_detail = table_mapping_details.get(sheet_id, {})
+        executed_extractor = executed_extractors.get(sheet_id)
 
         page_findings.append(
             {
@@ -798,6 +815,7 @@ def _build_page_findings(
                 "audit_role": page.audit_role,
                 "audit_disposition": audit_disposition,
                 "route_target": route_target,
+                "executed_extractor": executed_extractor,
                 "grid_heavy": grid_heavy,
                 "classification_features": classification_features,
                 "layout_summary": {
@@ -832,6 +850,7 @@ def _build_page_findings(
                     "orientation_counts": orientation_summary,
                     "dominant_line_group_orientation": dominant_orientation,
                     "table_like_geometry": table_like,
+                    "extractor_entry_executed": executed_extractor,
                 },
                 "recognition_strategy": _page_recognition_strategy(
                     page,
@@ -943,6 +962,27 @@ def _build_table_extraction_summary(
     }
 
 
+def _build_extractor_execution_summary(extractor_runs: list[dict[str, Any]]) -> dict[str, Any]:
+    by_extractor: dict[str, dict[str, Any]] = {}
+    for run in extractor_runs:
+        executed_extractor = str(run.get("executed_extractor") or "")
+        if not executed_extractor:
+            continue
+        by_extractor[executed_extractor] = {
+            "sheet_ids": list(run.get("sheet_ids", [])),
+            "page_count": int(run.get("page_count", 0) or 0),
+            "line_group_count": int(run.get("line_group_count", 0) or 0),
+            "terminal_candidate_count": int(run.get("terminal_candidate_count", 0) or 0),
+            "pair_candidate_count": int(run.get("pair_candidate_count", 0) or 0),
+            "pair_count": int(run.get("pair_count", 0) or 0),
+            "table_mapping_count": int(run.get("table_mapping_count", 0) or 0),
+        }
+    return {
+        "executed_extractor_count": len(by_extractor),
+        "executed_extractors": by_extractor,
+    }
+
+
 def _build_findings_payload(
     artifacts: ProjectArtifacts,
     config: dict | None = None,
@@ -1023,6 +1063,7 @@ def _build_findings_payload(
         "pair_evidence_summary": _build_pair_findings_summary(artifacts.pairs),
         "page_findings_count": len(page_findings),
         "page_findings": page_findings,
+        "extractor_execution_summary": _build_extractor_execution_summary(artifacts.extractor_runs),
         "table_extraction_summary": _build_table_extraction_summary(table_mappings, page_findings),
         "one_to_many_review_table": _build_one_to_many_review_table(artifacts.pairs, config=config),
         "failed_files": [

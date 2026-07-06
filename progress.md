@@ -1364,3 +1364,87 @@
   - 最近下一条缺口更像是：
     - `table_like_non_routed_pages` 的解释边界
     - 或 per-type extractor 是否还需要进一步摆脱共享大脚本骨架
+
+## Session Update 2026-07-06 (Phase 34)
+- 先按 current-head 任务书、`task_plan.md` 与 fresh rerun 裁决本轮唯一核心切片：
+  - 不再继续解释 `table_like_non_routed_pages`
+  - 也不回到 desktop / issue 数
+  - 只补“Wire / Component / Terminal 不能只是共享一条 PairBuilder 大链，而要有真实不同的 extractor 入口”
+- 并发动作：
+  - 主线程先读 `pipeline.py / page_router.py / test_analyze_project.py / artifacts.py`
+  - 发出一个只读子代理审查请求，要求只判断“最小安全函数边界、测试证据、潜在回归点”，不改文件
+- 本轮实现：
+  - 新增 [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py)
+    - `extract_wire_pairs()`
+    - `extract_component_pairs()`
+    - `extract_terminal_pairs()`
+    - `extract_layout_audit_pairs()`
+    - 共享内部 helper `_extract_pairs_for_route()`
+  - `pipeline.py`
+    - 按 `route_target` 把 audited pairing 页拆成：
+      - `WireDiagramExtractor`
+      - `ComponentDiagramExtractor`
+      - `TerminalDiagramExtractor`
+      - 显式 supplemental `LayoutOnlyExtractor` 审计兜底
+    - 每条链独立执行 line groups / candidates / pairs
+    - 把 `extractor_runs` 回填进 `ProjectArtifacts`
+  - `domain/models.py`
+    - `ProjectArtifacts` 新增 `extractor_runs`
+  - `report/artifacts.py`
+    - page findings 新增 `executed_extractor`
+    - `structure_summary.extractor_entry_executed`
+    - 项目级 findings 新增 `extractor_execution_summary`
+  - `line_groups.py / candidates.py / pairs.py`
+    - 增加可注入 `IdFactory`
+    - 按 extractor 入口给 `line_group / candidate / pair_candidate / pair` 分配 route-scoped 唯一 ID
+- 本轮先撞到一次真实回归：
+  - 第一版 fresh rerun 出现：
+    - second-set `issue_count = 606`
+    - first-set `issue_count = 374`
+  - rule 分布新增大量 `R-DUPLICATE-SAME-LINE`
+  - 快速比对后定位为：分路后各子链都从 `G0001 / C0001 / P0001` 重新编号，造成项目内 ID 碰撞
+  - 修复后 fresh rerun 回到稳定基线
+- 定向验证：
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "route_specific_pair_extractors or routes_table_like_page_to_table_extractor_and_emits_table_mapping or supports_header_semantic_three_column_table_mapping"` -> `3 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "page_classification_fields or no_table_pages_detected or write_audit_outputs_emits_issue_artifacts_with_evidence_fields"` -> `3 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "backplate_pages_as_supplemental_audit or route_specific_pair_extractors"` -> `2 passed`
+- 全量回归：
+  - `python -m pytest -q` -> `176 passed`
+- fresh real-sample rerun：
+  - 第二套：
+    - `analyze-project` -> [phase40_route_extractors_second](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_second/2_2)
+    - `run-audit` -> [phase40_route_extractors_second audit](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_second/2_2/audit/issues.json)
+    - 结果：
+      - `issue_count = 519`
+      - `extractor_execution_summary.executed_extractor_count = 3`
+      - `WireDiagramExtractor.page_count = 13`
+      - `ComponentDiagramExtractor.page_count = 2`
+      - `TerminalDiagramExtractor.page_count = 4`
+      - 代表页 `executed_extractor`：
+        - `04 交流回路图1.dwg -> WireDiagramExtractor`
+        - `19 元件接线图1.dwg -> ComponentDiagramExtractor`
+        - `21 左侧端子图1.dwg -> TerminalDiagramExtractor`
+        - `17 测控1装置背板.dwg -> null`
+  - 第一套：
+    - `analyze-project` -> [phase40_route_extractors_first](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+    - `run-audit` -> [phase40_route_extractors_first audit](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/audit/issues.json)
+    - 结果：
+      - `issue_count = 345`
+      - `extractor_execution_summary.executed_extractor_count = 3`
+      - `WireDiagramExtractor.page_count = 13`
+      - `ComponentDiagramExtractor.page_count = 3`
+      - `TerminalDiagramExtractor.page_count = 4`
+      - 代表页 `executed_extractor`：
+        - `04 交流回路图1.dwg -> WireDiagramExtractor`
+        - `21 元件接线图1.dwg -> ComponentDiagramExtractor`
+        - `24 左侧端子图1.dwg -> TerminalDiagramExtractor`
+        - `17 差动保护背板图.dwg -> null`
+- 当前裁决：
+  - current-head 现在不只是“页型标签不同”，而是已能证明 audited pages 真实经过不同 extractor 入口
+  - 这条证据同时具备：
+    - pipeline 调用级集成测试
+    - findings 运行态执行摘要
+    - 两套 fresh real-sample 无行为漂移 rerun
+  - 下一条缺口更像是：
+    - `table_like_non_routed_pages` 的解释边界是否还要继续收口
+    - 或把 LayoutOnly / Table 的执行证据合同再补到同一层级

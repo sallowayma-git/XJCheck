@@ -21,6 +21,8 @@ def build_pairs(
     terminal_candidates: list[TerminalCandidate],
     sheets: list[SheetRecord],
     config: dict,
+    pair_candidate_id_factory: IdFactory | None = None,
+    pair_id_factory: IdFactory | None = None,
 ) -> tuple[list[PairCandidate], list[Pair]]:
     by_group_side = defaultdict(list)
     by_group_candidates = defaultdict(list)
@@ -33,8 +35,8 @@ def build_pairs(
     top_k = int(config.get("text", {}).get("top_k_per_side", 3))
     high_threshold = float(config.get("confidence", {}).get("high_threshold", 0.92))
     review_threshold = float(config.get("confidence", {}).get("review_threshold", 0.75))
-    pair_candidate_ids = IdFactory("PC")
-    pair_ids = IdFactory("P")
+    pair_candidate_ids = pair_candidate_id_factory or IdFactory("PC")
+    pair_ids = pair_id_factory or IdFactory("P")
 
     pair_candidates: list[PairCandidate] = []
     pairs: list[Pair] = []

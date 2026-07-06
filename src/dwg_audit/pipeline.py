@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dwg_audit.audit import build_line_groups
-from dwg_audit.audit import build_pairs
-from dwg_audit.audit import build_terminal_candidates
+from dwg_audit.audit.page_extractors import extract_component_pairs
+from dwg_audit.audit.page_extractors import extract_layout_audit_pairs
+from dwg_audit.audit.page_extractors import extract_terminal_pairs
+from dwg_audit.audit.page_extractors import extract_wire_pairs
 from dwg_audit.audit.table_extractor import extract_table_pairs
 from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.ingest import convert_source_files
@@ -102,24 +103,63 @@ def analyze_input_root(
         audit_texts = [text for text in texts if text.sheet_id in audit_sheet_ids]
         audit_lines = [line for line in lines if line.sheet_id in audit_sheet_ids]
 
-        # WireDiagram / Component / Terminal 走 PairBuilder 链
-        pairing_pages = [page for page in audit_pages if page.sheet_id in pairing_sheet_ids]
-        pairing_lines = [line for line in audit_lines if line.sheet_id in pairing_sheet_ids]
-        pairing_texts = [text for text in audit_texts if text.sheet_id in pairing_sheet_ids]
-        pairing_classifications = {
-            sheet_id: classifications[sheet_id]
-            for sheet_id in pairing_sheet_ids
-            if sheet_id in classifications
+        route_sheet_ids = {
+            "WireDiagramExtractor": {
+                page.sheet_id
+                for page in audit_pages
+                if page.sheet_id in pairing_sheet_ids and page.route_target == "WireDiagramExtractor"
+            },
+            "ComponentDiagramExtractor": {
+                page.sheet_id
+                for page in audit_pages
+                if page.sheet_id in pairing_sheet_ids and page.route_target == "ComponentDiagramExtractor"
+            },
+            "TerminalDiagramExtractor": {
+                page.sheet_id
+                for page in audit_pages
+                if page.sheet_id in pairing_sheet_ids and page.route_target == "TerminalDiagramExtractor"
+            },
+            "LayoutOnlyExtractor": {
+                page.sheet_id
+                for page in audit_pages
+                if page.sheet_id in pairing_sheet_ids and page.route_target == "LayoutOnlyExtractor"
+            },
         }
-        line_groups = build_line_groups(
-            pairing_lines,
-            pairing_pages,
-            config,
-            pairing_texts,
-            classifications=pairing_classifications,
+        extractor_runs: list[dict[str, object]] = []
+        line_groups = []
+        terminal_candidates = []
+        pair_candidates = []
+        pairs = []
+        route_extractors = (
+            ("WireDiagramExtractor", extract_wire_pairs),
+            ("ComponentDiagramExtractor", extract_component_pairs),
+            ("TerminalDiagramExtractor", extract_terminal_pairs),
+            ("LayoutOnlyExtractor", extract_layout_audit_pairs),
         )
-        terminal_candidates = build_terminal_candidates(line_groups, pairing_texts, config, pairing_pages)
-        pair_candidates, pairs = build_pairs(line_groups, terminal_candidates, pairing_pages, config)
+        for route_target, extractor in route_extractors:
+            sheet_ids = route_sheet_ids[route_target]
+            if not sheet_ids:
+                continue
+            route_pages = [page for page in audit_pages if page.sheet_id in sheet_ids]
+            route_lines = [line for line in audit_lines if line.sheet_id in sheet_ids]
+            route_texts = [text for text in audit_texts if text.sheet_id in sheet_ids]
+            route_classifications = {
+                sheet_id: classifications[sheet_id]
+                for sheet_id in sheet_ids
+                if sheet_id in classifications
+            }
+            extraction_result = extractor(
+                route_pages,
+                route_texts,
+                route_lines,
+                config,
+                classifications=route_classifications,
+            )
+            extractor_runs.append(extraction_result.execution_record())
+            line_groups.extend(extraction_result.line_groups)
+            terminal_candidates.extend(extraction_result.terminal_candidates)
+            pair_candidates.extend(extraction_result.pair_candidates)
+            pairs.extend(extraction_result.pairs)
 
         # TableExtractor 链（任务书第 4 章 113-121 行）：
         # 表格型图走专用抽取器，生成高置信 table_mapping Pair
@@ -134,6 +174,20 @@ def analyze_input_root(
             table_pages,
             config,
         )
+        if table_pages:
+            extractor_runs.append(
+                {
+                    "executed_extractor": "TableExtractor",
+                    "route_target": "TableExtractor",
+                    "sheet_ids": [page.sheet_id for page in table_pages],
+                    "page_count": len(table_pages),
+                    "line_group_count": 0,
+                    "terminal_candidate_count": 0,
+                    "pair_candidate_count": 0,
+                    "pair_count": len(table_pairs),
+                    "table_mapping_count": sum(len(item.get("mappings", [])) for item in table_mappings),
+                }
+            )
         pairs.extend(table_pairs)
 
         if event_sink is not None:
@@ -159,6 +213,7 @@ def analyze_input_root(
             pairs=pairs,
             issues=[],
             extraction_warnings=extraction_warnings,
+            extractor_runs=extractor_runs,
         )
         # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
         artifacts_page_classifications = classifications

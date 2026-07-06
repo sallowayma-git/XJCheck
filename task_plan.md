@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 33
+Phase 34
 
 ## Phases
 
@@ -245,11 +245,20 @@ Phase 33
 - [x] 把任务书完成度审计与本轮裁决回写 `doc/findings.md` / `progress.md`，并准备本地提交
 - **Status:** complete
 
+### Phase 34: Route-Specific Extractor Entry Proof
+- [x] 重新按 current-head 任务书与 fresh real-sample 证据审计，确认最近核心切片已推进到“Wire / Component / Terminal 不能只共享一条 pairing 大链”
+- [x] 把 `WireDiagramExtractor / ComponentDiagramExtractor / TerminalDiagramExtractor` 落成真实可执行的独立入口，并保留显式 supplemental `LayoutOnly` 审计兜底
+- [x] 让 findings 运行态显式记录 `executed_extractor / extractor_execution_summary`
+- [x] 复跑 targeted pytest、full pytest，以及两套真实样本 fresh `analyze-project + run-audit`
+- [x] 把“入口分流已可证明且行为未漂移”的结论回写 `doc/findings.md` / `progress.md`，并准备本地提交
+- **Status:** complete
+
 ## Key Questions
 1. 在 issue 顶层合同补强后，最近主链缺口更应该先转向 `table_like_non_routed_pages` 的 page/router 解释边界，还是继续收口 per-type extractor 的独立性证明？
 2. 第一套 `S0023 / 22 元件接线图2.dwg` 当前 `table_like_geometry=true` 但仍走 `ComponentDiagramExtractor`，这是否已经是理想解释，还是还需要再收窄 `table_like` 几何判据？
 3. `line_start / line_end` 目前仍主要留在 issue `evidence` 中；考虑到顶层已有 `line_group_id`，这一层是否已经足够满足 MVP，可暂不继续上提？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 `line_groups` 是 `vertical`；是否需要单独收口这一层 subtype 判定？
+5. 在 per-type extractor 入口已可证明之后，下一条更近的任务书缺口是继续收口 `table_like_non_routed_pages` 解释边界，还是进一步把 LayoutOnly / Table 也做成同级执行证据合同？
 
 ## Decisions Made
 | Decision | Rationale |
@@ -289,6 +298,7 @@ Phase 33
 | 当真实样本当前 `table_pages=0` 时，`findings` 必须显式输出 `no_table_pages_detected`，不能要求人工从计数为零自行反推 | 任务书允许真实样本暂无 table hit，但前提是 current-head 要把“暂无命中”写成正式合同 |
 | `table_like_geometry` 与最终 `route_target` 不应被混为一谈 | 第一套 `S0023` 已证明某些 component 页可以几何上偏 table-heavy，但语义上仍应走 `ComponentDiagramExtractor` |
 | 当 `issues.json` 已经拥有复核证据时，最短主链切片不是“再去降 issue 数”，而是把 `filename / sheet_no / rationale` 提升成顶层稳定字段 | 任务书成功定义要求 run-audit 输出可直接复核；当前缺口在输出合同而不在规则数量 |
+| per-type extractor 的最小闭环不需要立刻重写三套完全不同的大算法，但必须有真实不同的执行入口、可测试调用证据，以及 fresh real-sample 的执行摘要 | 这能最小风险地满足“不能继续依赖一条共享大脚本解释所有页型”的任务书要求 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -299,6 +309,7 @@ Phase 33
 | `tauri build` 在 NSIS 资源下载阶段报 `timeout: global` | 1 | 先手动预热 NSIS 缓存，再重跑构建完成安装包产出 |
 | 本轮尝试再拉一个只读 explorer 时命中 agent thread limit | 1 | 停止等待子代理，改为主线程本地直接核对 phase37 rerun 的 `findings.json` 关键字段 |
 | `test_rerun_audit.py` 仍按旧 `issues.json` 形状断言导致 full pytest 失败 | 1 | 同步把 expected JSON 更新为包含新的顶层 `filename / sheet_no / sheet_order / rationale` 字段 |
+| route-specific extractor 首版 fresh rerun 导致两套真实样本 issue 总量异常上升（second `519 -> 606`，first `345 -> 374`） | 1 | 先比对 rule 分布，定位为分路后 `line_group / candidate / pair` 编号在各子链内重新从 1 开始，触发项目内 ID 碰撞；给 `build_line_groups / build_terminal_candidates / build_pairs` 增加可注入 `IdFactory` 后恢复稳定基线 |
 
 ## Notes
 - 本轮不要触碰其他 agent 正在改的文件内容；若发生重叠，先读清现状再合并。

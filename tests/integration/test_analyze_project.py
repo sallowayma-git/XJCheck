@@ -399,6 +399,92 @@ def test_analyze_project_supports_header_semantic_three_column_table_mapping(
     assert first_evidence["table_mapping"]["logical_endpoint"] in {"1-21QD1", "1-21QD2"}
 
 
+def test_analyze_project_executes_route_specific_pair_extractors(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "19 元件接线图1.dwg").write_bytes(b"AC1018demo")
+    (project / "21 左侧端子图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    wire_calls: list[list[str]] = []
+    component_calls: list[list[str]] = []
+    terminal_calls: list[list[str]] = []
+
+    from dwg_audit.audit.page_extractors import extract_component_pairs as real_component_extractor
+    from dwg_audit.audit.page_extractors import extract_terminal_pairs as real_terminal_extractor
+    from dwg_audit.audit.page_extractors import extract_wire_pairs as real_wire_extractor
+
+    def record_wire(*args, **kwargs):
+        wire_calls.append([page.filename for page in args[0]])
+        return real_wire_extractor(*args, **kwargs)
+
+    def record_component(*args, **kwargs):
+        component_calls.append([page.filename for page in args[0]])
+        return real_component_extractor(*args, **kwargs)
+
+    def record_terminal(*args, **kwargs):
+        terminal_calls.append([page.filename for page in args[0]])
+        return real_terminal_extractor(*args, **kwargs)
+
+    monkeypatch.setattr("dwg_audit.pipeline.extract_wire_pairs", record_wire)
+    monkeypatch.setattr("dwg_audit.pipeline.extract_component_pairs", record_component)
+    monkeypatch.setattr("dwg_audit.pipeline.extract_terminal_pairs", record_terminal)
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        name = Path(source).name
+        if name == "04 回路图.dwg":
+            msp.add_text("101", dxfattribs={"insert": (10, 40), "height": 2.5})
+            msp.add_text("202", dxfattribs={"insert": (90, 40), "height": 2.5})
+            msp.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+        elif name == "19 元件接线图1.dwg":
+            block = doc.blocks.new(name="COMP_ROW")
+            block.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+            block.add_text("301", dxfattribs={"insert": (10, 40), "height": 2.5, "layer": "TEXT"})
+            block.add_text("402", dxfattribs={"insert": (90, 40), "height": 2.5, "layer": "TEXT"})
+            msp.add_blockref("COMP_ROW", (0, 0))
+            msp.add_text("19/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+            msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        else:
+            msp.add_line((127.5, 45.0), (202.5, 45.0), dxfattribs={"layer": "CONNECT"})
+            msp.add_text("21", dxfattribs={"insert": (150.998, 46.0), "height": 2.5, "layer": "TEXT"})
+            msp.add_text("3-21n211", dxfattribs={"insert": (158.5, 46.0), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    assert wire_calls == [["04 回路图.dwg"]]
+    assert component_calls == [["19 元件接线图1.dwg"]]
+    assert terminal_calls == [["21 左侧端子图1.dwg"]]
+
+    execution_summary = findings_payload["extractor_execution_summary"]["executed_extractors"]
+    assert execution_summary["WireDiagramExtractor"]["page_count"] == 1
+    assert execution_summary["ComponentDiagramExtractor"]["page_count"] == 1
+    assert execution_summary["TerminalDiagramExtractor"]["page_count"] == 1
+
+    page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
+    assert page_findings["04 回路图.dwg"]["executed_extractor"] == "WireDiagramExtractor"
+    assert page_findings["19 元件接线图1.dwg"]["executed_extractor"] == "ComponentDiagramExtractor"
+    assert page_findings["21 左侧端子图1.dwg"]["executed_extractor"] == "TerminalDiagramExtractor"
+
+
 def test_run_audit_emits_mixed_source_conflict_for_table_mapping_vs_wire_pair(
     monkeypatch,
     tmp_path: Path,

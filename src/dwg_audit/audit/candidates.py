@@ -59,6 +59,7 @@ def build_terminal_candidates(
     texts: list[TextItem],
     config: dict,
     sheets: list[SheetRecord] | None = None,
+    candidate_id_factory: IdFactory | None = None,
 ) -> list[TerminalCandidate]:
     by_sheet_texts = defaultdict(list)
     for text in texts:
@@ -67,7 +68,7 @@ def build_terminal_candidates(
     indexes = {sheet_id: TextSpatialIndex(sheet_texts) for sheet_id, sheet_texts in by_sheet_texts.items()}
     sheet_map = {sheet.sheet_id: sheet for sheet in sheets or []}
     group_map = {group.line_group_id: group for group in line_groups}
-    candidate_ids = IdFactory("C")
+    candidate_ids = candidate_id_factory or IdFactory("C")
 
     results: list[TerminalCandidate] = []
     for group in line_groups:

@@ -349,6 +349,7 @@ class ProjectArtifacts:
     pairs: list[Pair] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
     extraction_warnings: list[ExtractionWarning] = field(default_factory=list)
+    extractor_runs: list[dict[str, Any]] = field(default_factory=list)
 
 
 def record_dict(instance: Any) -> dict[str, Any]:

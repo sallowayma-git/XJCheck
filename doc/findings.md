@@ -5804,3 +5804,180 @@ current-head report markdown 已经能展示：
 
 1. `table_like_non_routed_pages` 这类 page/router 解释边界是否还要更窄收口
 2. 或继续证明 per-type extractor 已不再退化为“同一大脚本 + 少量护栏”
+
+## 85. 2026-07-06 per-type extractor 入口已具备真实执行证据
+
+在 section 84 之后，我没有回到几何调参，也没有继续追 issue 数，而是只补一条更贴近任务书主链的结构性缺口：
+
+- `WireDiagramExtractor / ComponentDiagramExtractor / TerminalDiagramExtractor`
+- 不能只作为 `route_target` 标签存在
+- 必须在 current-head 里变成真实不同的执行入口，并且能被测试和 real-sample findings 一起证明
+
+### 85.1 这轮代码上实际补了什么
+
+代码位置：
+
+- [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py)
+- [pipeline.py](/F:/workspace/XJToolkit/src/dwg_audit/pipeline.py)
+- [models.py](/F:/workspace/XJToolkit/src/dwg_audit/domain/models.py)
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+- [line_groups.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/line_groups.py)
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+
+current-head 现在新增了四个显式入口：
+
+- `extract_wire_pairs()`
+- `extract_component_pairs()`
+- `extract_terminal_pairs()`
+- `extract_layout_audit_pairs()`
+
+其中前三个是本轮的主目标，第四个只是为了保持旧合同不回退：
+
+- 默认 `LayoutOnlyExtractor` 仍然不是普通审计主链
+- 但如果用户显式把背板页纳入 supplemental audit，仍会保留配对证据
+
+pipeline 现在不再把所有 non-table audited pages 一次性喂给同一条共享 pairing 调用，而是：
+
+1. 先按 `route_target` 把 audited pairing 页拆成不同子集
+2. 再分别调用对应 extractor 入口
+3. 最后把结果汇总回统一 findings / audit 产物
+
+同时 findings 运行态新增：
+
+- 页级 `executed_extractor`
+- 页级 `structure_summary.extractor_entry_executed`
+- 项目级 `extractor_execution_summary`
+
+这意味着 current-head 已经不再只是“分类说你应该去哪”，而是能回答“这页实际上去了哪条执行入口”。
+
+### 85.2 中途撞到的真实回归与修复
+
+这轮第一版 fresh rerun 并不稳定：
+
+- second-set `issue_count` 一度从 `519` 漂到 `606`
+- first-set `issue_count` 一度从 `345` 漂到 `374`
+
+新增问题主要表现为：
+
+- `R-DUPLICATE-SAME-LINE` 异常增多
+
+根因不是路由判定错了，而是：
+
+- 分路后每条子链都各自从 `G0001 / C0001 / PC0001 / P0001` 重新编号
+- 导致同一项目内不同 extractor 产物发生 ID 碰撞
+- 进而让 rule 层把不相干实体误当成同一条线或同一个 pair 关系
+
+修复方式是最小而直接的：
+
+- 给 `build_line_groups()`
+- `build_terminal_candidates()`
+- `build_pairs()`
+
+增加可注入 `IdFactory`
+
+再由不同 extractor 入口传入 route-scoped 唯一前缀，例如：
+
+- wire
+- component
+- terminal
+- layout fallback
+
+修完后，两套真实样本 fresh rerun 都回到了原稳定基线。
+
+### 85.3 新增测试证据
+
+本轮最关键的新增集成测试是：
+
+- [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+  - `test_analyze_project_executes_route_specific_pair_extractors`
+
+它直接 monkeypatch 了 pipeline 中导入的三个 extractor 入口，证明：
+
+- `04 回路图.dwg` 真实调用了 `extract_wire_pairs`
+- `19 元件接线图1.dwg` 真实调用了 `extract_component_pairs`
+- `21 左侧端子图1.dwg` 真实调用了 `extract_terminal_pairs`
+
+同时它还断言 findings payload 里会直接出现：
+
+- `executed_extractor = WireDiagramExtractor`
+- `executed_extractor = ComponentDiagramExtractor`
+- `executed_extractor = TerminalDiagramExtractor`
+
+另外，本轮还顺手保住了旧合同：
+
+- `test_analyze_project_can_include_backplate_pages_as_supplemental_audit`
+
+没有因为分路而回退。
+
+验证结果：
+
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "route_specific_pair_extractors or backplate_pages_as_supplemental_audit"` -> `2 passed`
+- `python -m pytest -q` -> `176 passed`
+
+### 85.4 current-head 真实样本结果
+
+我重新对两套真实样本做了 fresh rerun：
+
+- 第二套：
+  - [phase40_route_extractors_second findings](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_second/2_2/findings/findings.json)
+  - [phase40_route_extractors_second issues.json](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_second/2_2/audit/issues.json)
+- 第一套：
+  - [phase40_route_extractors_first findings](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings/findings.json)
+  - [phase40_route_extractors_first issues.json](/F:/workspace/XJToolkit/.tmp/phase40_route_extractors_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/audit/issues.json)
+
+第二套 current-head 现在直接给出：
+
+- `issue_count = 519`
+- `extractor_execution_summary.executed_extractor_count = 3`
+- `WireDiagramExtractor.page_count = 13`
+- `ComponentDiagramExtractor.page_count = 2`
+- `TerminalDiagramExtractor.page_count = 4`
+
+代表页：
+
+- `04 交流回路图1.dwg -> executed_extractor = WireDiagramExtractor`
+- `19 元件接线图1.dwg -> executed_extractor = ComponentDiagramExtractor`
+- `21 左侧端子图1.dwg -> executed_extractor = TerminalDiagramExtractor`
+- `17 测控1装置背板.dwg -> executed_extractor = null`
+
+第一套 current-head 现在直接给出：
+
+- `issue_count = 345`
+- `extractor_execution_summary.executed_extractor_count = 3`
+- `WireDiagramExtractor.page_count = 13`
+- `ComponentDiagramExtractor.page_count = 3`
+- `TerminalDiagramExtractor.page_count = 4`
+
+代表页：
+
+- `04 交流回路图1.dwg -> executed_extractor = WireDiagramExtractor`
+- `21 元件接线图1.dwg -> executed_extractor = ComponentDiagramExtractor`
+- `24 左侧端子图1.dwg -> executed_extractor = TerminalDiagramExtractor`
+- `17 差动保护背板图.dwg -> executed_extractor = null`
+
+这说明 current-head 已经具备三层同时成立的证据：
+
+1. route label 不同
+2. pipeline 调用入口不同
+3. fresh real-sample findings 里可直接看到执行摘要
+
+### 85.5 当前裁决
+
+到这一轮为止，关于任务书里“不能继续依赖同一大脚本解释所有页型”的说法，current-head 更准确的表述应该更新成：
+
+1. 已有强证据完成
+- Wire / Component / Terminal audited pages 已经真实经过不同 extractor 入口
+- current-head findings 已显式记录 `executed_extractor`
+- 两套 fresh rerun 保持 `issue_count` 稳定：
+  - second-set `519`
+  - first-set `345`
+
+2. 仍不是最强形态
+- 这些入口内部仍共享不少底层 line-group / candidate / pair 骨架
+- `LayoutOnlyExtractor` 和 `TableExtractor` 的执行证据合同还没有做到完全同层级细化
+
+所以 current-head 最近的下一条缺口，更像是：
+
+1. `table_like_non_routed_pages` 的解释边界是否还要继续收口
+2. 或把 `LayoutOnly / Table` 的执行证据也继续提升到与 Wire / Component / Terminal 同级的可见合同
