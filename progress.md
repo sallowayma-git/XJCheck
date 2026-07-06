@@ -944,3 +944,40 @@
   - 新规则没有 flood
   - 真实样本只新增了 `1` 条可解释 semantic conflict
   - semantic-specific project consistency 现在已经有最小闭环证明
+
+## Session Update 2026-07-06 (Phase 25)
+- 重新按 current-head 对齐任务书后，主线程把“最近缺口”从 semantic rule 继续推进到第三类一致性：
+  - `table_mapping` 与图内 ordinary pair 的 mixed-source consistency
+- 并发只读子代理复核结果与主线程裁决一致：
+  - 页级分类 / 路由 / `TableExtractor` 目前更像“已有闭环证明但仍可增强”
+  - mixed-source consistency 则还没有显式 rule contract
+- 本轮实现：
+  - 在 `src/dwg_audit/audit/rules.py` 新增 `R-TABLE-MAPPING-SOURCE-CONFLICT`
+  - 只消费高置信 ordinary pair 与 `evidence.source == "table_mapping"` 的 pair
+  - 只在相同 `left_value` 的 `right_value` 集合不一致时出 issue
+  - 同步更新：
+    - `src/dwg_audit/utils/config.py`
+    - `configs/default.yml`
+    - `tests/unit/test_pairs_and_rules.py`
+    - `tests/integration/test_analyze_project.py`
+- 本轮新增验证：
+  - `python -m pytest -q tests\\unit\\test_pairs_and_rules.py -k "table_mapping or mixed_source or semantic_mapping_conflict"` -> `5 passed`
+  - `python -m pytest -q tests\\integration\\test_analyze_project.py -k "table_extractor or mixed_source_conflict"` -> `2 passed`
+  - `python -m pytest -q` -> `163 passed`
+- 真实样本 rerun：
+  - 第二套：[phase28_table_mixed_source_second](/F:/workspace/XJToolkit/.tmp/phase28_table_mixed_source_second/2_2)
+  - 第一套：[phase28_table_mixed_source_first](/F:/workspace/XJToolkit/.tmp/phase28_table_mixed_source_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- synthetic 主链新证据：
+  - `analyze-project -> run-audit` 级用例已证明：
+    - 普通回路页走 `WireDiagramExtractor`
+    - 表格页走 `TableExtractor`
+    - mixed-source inconsistency 会命中 `R-TABLE-MAPPING-SOURCE-CONFLICT`
+- 真实样本 current-head 新证据：
+  - 第二套 `issue_count` 保持 `519`
+  - 第一套 `issue_count` 保持 `345`
+  - 两套样本 `R-TABLE-MAPPING-SOURCE-CONFLICT = 0`
+  - 两套样本 `table_extraction_summary` 仍是 `table_pages=0 / total_mappings=0`
+- 这轮直接意义：
+  - 第三类一致性现在不再只是“table_mapping 进入通用 graph”
+  - 而是有了显式 mixed-source rule + synthetic analyze/audit 证明
+  - 同时真实样本在“暂无稳定表格页命中”的前提下没有回退

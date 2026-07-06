@@ -4248,3 +4248,211 @@ current-head 上，这条并不是完全空白：
 
 1. `table_mapping` 对 `ordinary_pair` 的 mixed-source consistency 专项规则
 2. 更系统的 semantic / bridge ledger，但前提是继续保持窄切片
+
+## 73. 2026-07-06 current-head 任务书审计刷新：最近缺口已收口到 `table_mapping` vs `ordinary_pair` 的 mixed-source consistency
+
+在 section 72 补完 `R-SEMANTIC-MAPPING-CONFLICT` 之后，我又重新按当前头部代码、当前测试和当前产物审了一遍任务书，不再沿用历史叙事。
+
+这次重点核对的是三件事：
+
+- 页级分类 / 路由 / `TableExtractor` 是否还属于“主链断点”
+- 第三类一致性“表格映射与图内端子映射之间的一致性”到底做到哪一步
+- 当前最近的一刀到底应该是“继续补功能”，还是“把已存在能力证明清楚”
+
+### 73.1 为什么页级分类 / 路由 / `TableExtractor` 暂时不是最近缺口
+
+结合 current-head 代码、测试和保留产物，当前至少已有以下强证据：
+
+- `pipeline.py` 在 extract 后真实调用 `classify_pages()`，并把 `route_target / audit_disposition` 回填到 page 运行态。
+- `TableExtractor` 不是“文件存在”，而是真有独立路由：
+  - 表格页从 pairing 主链排除
+  - 单独走 `extract_table_pairs()`
+- 第二套真实样本 current-head 产物里，每页都有：
+  - `page_type`
+  - `route_target`
+  - `audit_disposition`
+- synthetic `analyze-project` 集成测试已经证明：
+  - 普通回路页走 `WireDiagramExtractor`
+  - 表格页走 `TableExtractor`
+  - 表格页不再走 `line_groups`
+  - 并且真实产出 `table_mapping`
+
+更准确地说，当前仍然可以继续增强 page router / component subtype / table semantics，但它们已经不再是“主链完全没证明”的状态。
+
+### 73.2 重新裁决第三类一致性：当前缺的不是 `table_mapping` 存在性，而是 mixed-source consistency
+
+任务书开头把 MVP 的三类一致性写得很明确：
+
+1. 端子号对端子号
+2. 端子号对语义端
+3. 表格映射对图内端子映射
+
+第 1 类 current-head 一直存在普通 pair graph 规则。
+
+第 2 类在 section 72 之后，已经有：
+
+- `semantic_mapping` 显式 relation
+- `R-SEMANTIC-MAPPING-CONFLICT`
+- current-head 真实样本第二套仅新增 `1` 条可解释 semantic conflict
+
+但第 3 类目前仍停在一个更弱的状态：
+
+- `TableExtractor` 会生成高置信 `table_mapping` pair
+- `_high_confidence_pairs()` 会把 `evidence.source == "table_mapping"` 放进高置信集合
+- 也就是说，`table_mapping` 已经能被通用 pair graph 看见
+
+可问题在于，当前还没有一条**显式的 source-aware mixed-source 规则**去回答：
+
+- 同一个 left value，表格映射和图内普通 pair 是否彼此一致
+
+换句话说，现在系统能证明：
+
+- “表格页能被独立识别并产出高置信 pair”
+
+但还不能清楚地区分：
+
+- “这是普通 cross-page conflict”
+- 还是
+- “这是 `table_mapping` 和 ordinary pair 之间的 mixed-source inconsistency”
+
+### 73.3 当前头部代码的更精确结论
+
+这一点需要说得更细一点：
+
+- 当前代码并不是完全看不见 mixed-source case。
+- 如果把一个 `table_mapping` pair 和一个 ordinary high-confidence pair 一起送进现有 `build_issues()`，通用 `R-CROSS-PAGE-CONFLICT` 的确可能把它们当成普通 graph conflict 看见。
+
+但这还不等于“第三类一致性已经被任务书层面证明完成”，因为：
+
+- 当前没有单独的 mixed-source rule id
+- 当前没有 source-aware 证据解释
+- 当前测试也没有把“`table_mapping` vs ordinary pair`”当作独立目标明确证明
+
+现有单测只明确证明了一件更弱的事：
+
+- 两条 `table_mapping` pair 自己之间可以触发通用 `R-CROSS-PAGE-CONFLICT`
+
+这还不够支撑“表格映射与图内端子映射之间的一致性”这条任务书主链。
+
+### 73.4 当前裁决：下一刀应是最小 mixed-source consistency 规则
+
+基于 current-head 审计，下一刀最合理的单一核心切片应定义为：
+
+- **只为 `table_mapping` 与 `ordinary_pair` 增加一条最小 mixed-source consistency 规则，并补齐对应 unit/integration 证明。**
+
+这条切片故意保持很窄：
+
+- 只消费高置信 ordinary pair 与 `evidence.source == "table_mapping"` 的 pair
+- 只处理相同 left value 的 source mismatch
+- 只回答“表格映射和图内普通配对是否一致”
+- 不同时扩展：
+  - 更强的表头语义端合成
+  - 更大的 table semantic ledger
+  - component subtype 收口
+  - page router 顶层彻底拆成三条独立 pairing extractor
+
+这也意味着，当前不该优先回去做的方向包括：
+
+1. 再回桌面端 / Tauri / preview
+2. 再拧全局候选阈值
+3. 再把 page router 写得更“好看”，但不补第三类一致性
+4. 在 `table_mapping` vs ordinary pair 还没独立闭环前，就先做更大的 table semantic 推理
+
+## 74. 2026-07-06 mixed-source consistency 已最小落地：`R-TABLE-MAPPING-SOURCE-CONFLICT`
+
+在 section 73 把“最近缺口”重新裁成 `table_mapping` vs `ordinary_pair` 的 mixed-source consistency 之后，我按最小边界把这条规则落进了 current-head。
+
+- 新规则：`R-TABLE-MAPPING-SOURCE-CONFLICT`
+- 代码位置：
+  - [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py)
+  - [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py)
+  - [default.yml](/F:/workspace/XJToolkit/configs/default.yml)
+  - [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py)
+  - [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+
+### 74.1 这条规则现在具体做什么
+
+这次仍然没有去重写 `TableExtractor`，而是只补一条 source-aware project rule：
+
+- 只消费高置信 ordinary pair
+- 外加 `evidence.source == "table_mapping"` 的高置信 pair
+- 只看相同 `left_value`
+- 当 `table_mapping` 与 ordinary pair 指向的 `right_value` 集合不一致时，输出一条 mixed-source issue
+
+这条规则当前回答的是：
+
+- 同一个 left value，表格映射和图内普通配对是否彼此一致
+
+### 74.2 新增证明
+
+本轮新增两层证明：
+
+1. unit 级规则证明
+- `table_mapping` 与 ordinary pair 冲突时，命中 `R-TABLE-MAPPING-SOURCE-CONFLICT`
+- 两类 source 一致时，不报 mixed-source conflict
+
+2. `analyze-project -> run-audit` 级 synthetic 证明
+- 一页普通回路图
+- 一页表格页
+- 表格页独立走 `TableExtractor`
+- 审计阶段能命中 mixed-source conflict
+
+这条 synthetic 闭环很关键，因为它证明的已经不是“单独构造两个 Pair 送进 RuleEngine”，而是：
+
+- 页级分类
+- 路由
+- `TableExtractor`
+- findings 落盘
+- `run-audit`
+
+整条主链都能把 mixed-source inconsistency 提出来。
+
+### 74.3 验证结果
+
+定向验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "table_mapping or mixed_source or semantic_mapping_conflict"` -> `5 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "table_extractor or mixed_source_conflict"` -> `2 passed`
+
+全量回归：
+
+- `python -m pytest -q` -> `163 passed`
+
+真实样本 rerun：
+
+- 第二套：[phase28_table_mixed_source_second](/F:/workspace/XJToolkit/.tmp/phase28_table_mixed_source_second/2_2)
+- 第一套：[phase28_table_mixed_source_first](/F:/workspace/XJToolkit/.tmp/phase28_table_mixed_source_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+真实样本 current-head 结果：
+
+- 第二套总 issue 仍是 `519`
+- 第一套总 issue 仍是 `345`
+- 两套样本 `R-TABLE-MAPPING-SOURCE-CONFLICT = 0`
+- 两套样本 `table_pages = 0 / total_mappings = 0`
+
+这说明这刀满足三件事：
+
+- synthetic 主链证明已经补上
+- 在真实样本“暂无稳定表格页命中”的前提下，没有引入额外回退
+- 第三类一致性现在不再只是“隐式靠通用 graph 也许能撞见”，而是有了显式 rule contract
+
+### 74.4 当前裁决
+
+到这一轮为止，任务书开头那三类关系的最小闭环已经分别具备：
+
+1. 端子对端子：
+   - ordinary pair + 普通 graph rules
+2. 端子对语义端：
+   - `semantic_mapping` + `R-SEMANTIC-MAPPING-CONFLICT`
+3. 表格对端子：
+   - `table_mapping` + `R-TABLE-MAPPING-SOURCE-CONFLICT`
+
+但这不等于表格方向已经“完全完成”。当前仍然没补的是更强的表头型三列表格语义：
+
+- `表头前缀 + 行号 -> 逻辑语义端`
+- 例如 `1-21QD` + `1` => `1-21QD1`
+
+所以 mixed-source consistency 已不是最近缺口；下一刀更像是二选一：
+
+1. 表头型三列表格的逻辑语义端合成与 `table_mapping` 语义增强
+2. M10 / 最小验收场景中的隔离故障注入与 Pair recall 量化证明

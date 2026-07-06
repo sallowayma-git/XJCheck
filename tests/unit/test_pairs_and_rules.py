@@ -1461,3 +1461,104 @@ def test_build_issues_treats_table_mapping_pairs_as_high_confidence_source() -> 
     issue = cross_page_issues[0]
     assert "101" in issue.values
     assert issue.evidence["one_to_many_classification"] == "conflict"
+
+
+def test_build_issues_emits_mixed_source_conflict_for_table_mapping_vs_ordinary_pair() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="101",
+            right_value="102",
+            confidence=0.95,
+            status="pass",
+            rationale="table mapping",
+            confidence_bucket="high",
+            evidence={"source": "table_mapping", "sheet_order": 5},
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id="G0002",
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id="PC0002",
+            left_value="101",
+            right_value="103",
+            confidence=0.97,
+            status="pass",
+            rationale="ordinary pair",
+            confidence_bucket="high",
+            evidence={"sheet_order": 8},
+        ),
+    ]
+    groups = [
+        LineGroup("G0001", "S0001", "F0001", 0, 0, 10, 0, 10, 0.9, ["L1"], ["TABLE"]),
+        LineGroup("G0002", "S0002", "F0002", 20, 0, 40, 0, 20, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "05 回路表格图.dwg", 5, "05", "回路表格图", "表格型图", "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "08 回路图.dwg", 8, "08", "回路图", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, config)
+
+    mixed = next(item for item in issues if item.rule_id == "R-TABLE-MAPPING-SOURCE-CONFLICT")
+    assert mixed.severity == "major"
+    assert mixed.left_value == "101"
+    assert mixed.evidence["source_conflict_kind"] == "table_mapping_vs_ordinary_pair"
+    assert mixed.evidence["table_mapping_values"] == ["102"]
+    assert mixed.evidence["ordinary_pair_values"] == ["103"]
+    assert mixed.evidence["conflicting_values"] == ["102", "103"]
+    assert mixed.evidence["source_pair_counts"] == {"table_mapping": 1, "ordinary_pair": 1}
+    assert mixed.related_pair_ids == ["P0002"]
+    assert {ref["pair_id"] for ref in mixed.evidence_refs} == {"P0001", "P0002"}
+
+
+def test_build_issues_skips_mixed_source_conflict_when_table_and_ordinary_agree() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="101",
+            right_value="102",
+            confidence=0.95,
+            status="pass",
+            rationale="table mapping",
+            confidence_bucket="high",
+            evidence={"source": "table_mapping", "sheet_order": 5},
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id="G0002",
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id="PC0002",
+            left_value="101",
+            right_value="102",
+            confidence=0.97,
+            status="pass",
+            rationale="ordinary pair",
+            confidence_bucket="high",
+            evidence={"sheet_order": 8},
+        ),
+    ]
+    groups = [
+        LineGroup("G0001", "S0001", "F0001", 0, 0, 10, 0, 10, 0.9, ["L1"], ["TABLE"]),
+        LineGroup("G0002", "S0002", "F0002", 20, 0, 40, 0, 20, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "05 回路表格图.dwg", 5, "05", "回路表格图", "表格型图", "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "08 回路图.dwg", 8, "08", "回路图", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, config)
+
+    assert not any(item.rule_id == "R-TABLE-MAPPING-SOURCE-CONFLICT" for item in issues)

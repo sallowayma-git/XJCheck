@@ -374,6 +374,72 @@ def _run_semantic_mapping_conflict(context: RuleContext) -> list[Issue]:
     return issues
 
 
+def _run_table_mapping_source_conflict(context: RuleContext) -> list[Issue]:
+    grouped: dict[str, dict[str, list[Pair]]] = defaultdict(lambda: {"table_mapping": [], "ordinary_pair": []})
+    for pair in _high_confidence_pairs(context):
+        if not pair.left_value or not pair.right_value:
+            continue
+        source_kind = _table_mapping_source_kind(pair)
+        if source_kind not in {"table_mapping", "ordinary_pair"}:
+            continue
+        grouped[pair.left_value][source_kind].append(pair)
+
+    issues: list[Issue] = []
+    for left_value, source_pairs in grouped.items():
+        table_pairs = source_pairs["table_mapping"]
+        ordinary_pairs = source_pairs["ordinary_pair"]
+        if not table_pairs or not ordinary_pairs:
+            continue
+
+        table_values = {pair.right_value for pair in table_pairs if pair.right_value}
+        ordinary_values = {pair.right_value for pair in ordinary_pairs if pair.right_value}
+        if not table_values or not ordinary_values:
+            continue
+        if table_values == ordinary_values:
+            continue
+
+        related_pairs = sorted(
+            [*table_pairs, *ordinary_pairs],
+            key=lambda pair: (
+                _sheet_order_key(pair),
+                pair.pair_id,
+            ),
+        )
+        primary_pair = sorted(
+            table_pairs,
+            key=lambda pair: (
+                _sheet_order_key(pair),
+                pair.pair_id,
+            ),
+        )[0]
+
+        issues.append(
+            context.issue_factory.build(
+                "R-TABLE-MAPPING-SOURCE-CONFLICT",
+                "major",
+                primary_pair,
+                f"Table mapping for left value {left_value} conflicts with ordinary terminal mapping.",
+                title="表格映射与图内配对不一致",
+                explanation="同一左值在表格映射和图内普通配对中指向了不同右值，存在 mixed-source consistency 风险。",
+                recommended_action="优先复核表格行的中列/外列含义，以及相关图内端子配对是否引用了同一编号。",
+                related_pairs=related_pairs,
+                extra={
+                    "source_conflict_kind": "table_mapping_vs_ordinary_pair",
+                    "table_mapping_values": sorted(table_values),
+                    "ordinary_pair_values": sorted(ordinary_values),
+                    "conflicting_values": sorted(table_values | ordinary_values),
+                    "table_sheet_ids": sorted({pair.sheet_id for pair in table_pairs}),
+                    "ordinary_sheet_ids": sorted({pair.sheet_id for pair in ordinary_pairs}),
+                    "source_pair_counts": {
+                        "table_mapping": len(table_pairs),
+                        "ordinary_pair": len(ordinary_pairs),
+                    },
+                },
+            )
+        )
+    return issues
+
+
 def _run_one_to_many(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     graph, left_to_pairs, _ = _graph_maps(_high_confidence_pairs(context))
@@ -680,6 +746,14 @@ def _sheet_order_key(sheet_or_pair) -> int:
     return 0
 
 
+def _table_mapping_source_kind(pair: Pair) -> str:
+    if pair.evidence.get("source") == "table_mapping":
+        return "table_mapping"
+    if getattr(pair, "pair_kind", "ordinary_pair") == "ordinary_pair":
+        return "ordinary_pair"
+    return getattr(pair, "pair_kind", "ordinary_pair")
+
+
 def _ambiguous_candidate_groups(
     terminal_candidates: list[TerminalCandidate],
     duplicate_delta: float,
@@ -743,6 +817,15 @@ _RULES = [
         runner=_run_semantic_mapping_conflict,
         input_tables=("pairs", "pages"),
         output_issue_type="semantic_mapping_conflict",
+    ),
+    AuditRule(
+        rule_id="R-TABLE-MAPPING-SOURCE-CONFLICT",
+        name="Table Mapping Source Conflict",
+        description="Table-mapping evidence conflicts with ordinary terminal mapping for the same left value.",
+        severity_default="major",
+        runner=_run_table_mapping_source_conflict,
+        input_tables=("pairs", "pages"),
+        output_issue_type="table_mapping_source_conflict",
     ),
     AuditRule(
         rule_id="R-ONE-TO-MANY",

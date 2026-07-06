@@ -181,7 +181,11 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
                         "mode": "manual",
                         "manual_bbox": [0.0, 0.0, 320.0, 320.0],
                     }
-                }
+                },
+                "confidence": {
+                    "high_threshold": 0.8,
+                    "review_threshold": 0.75,
+                },
             },
             allow_unicode=True,
             sort_keys=False,
@@ -276,6 +280,104 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
     first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
     assert first_evidence["source"] == "table_mapping"
     assert first_evidence["table_mapping"]["sheet_id"] == table_sheet_id
+
+
+def test_run_audit_emits_mixed_source_conflict_for_table_mapping_vs_wire_pair(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "05 回路表格图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 320.0, 320.0],
+                    }
+                },
+                "confidence": {
+                    "high_threshold": 0.8,
+                    "review_threshold": 0.75,
+                },
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
+            msp.add_text("102", dxfattribs={"insert": (10, 200), "height": 2.5})
+            msp.add_text("204", dxfattribs={"insert": (90, 200), "height": 2.5})
+            msp.add_line((20, 200), (80, 200), dxfattribs={"layer": "CONNECT"})
+        else:
+            for y in (60.0, 100.0, 140.0, 180.0, 220.0, 260.0):
+                msp.add_line((10.0, y), (290.0, y), dxfattribs={"layer": "TABLE"})
+            for x in (10.0, 100.0, 200.0, 290.0):
+                msp.add_line((x, 60.0), (x, 260.0), dxfattribs={"layer": "TABLE"})
+            for idx in range(20):
+                base_x = 18.0 + (idx % 5) * 48.0
+                base_y = (60.0, 100.0, 140.0, 180.0)[idx // 5]
+                msp.add_lwpolyline(
+                    [
+                        (base_x, base_y),
+                        (base_x + 22.0, base_y),
+                    ],
+                    dxfattribs={"layer": "TABLE"},
+                )
+            for text, x, y in (
+                ("101", 55.0, 80.0),
+                ("102", 150.0, 80.0),
+                ("103", 245.0, 80.0),
+                ("201", 55.0, 120.0),
+                ("202", 150.0, 120.0),
+                ("203", 245.0, 120.0),
+                ("301", 55.0, 160.0),
+                ("302", 150.0, 160.0),
+                ("303", 245.0, 160.0),
+            ):
+                msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    audit = runner.invoke(app, ["run-audit", "--findings", str(findings_dir), "--config", str(config_path)])
+    assert audit.exit_code == 0, audit.output
+
+    audit_dir = Path(run_summary[0]["artifact_dir"]) / "audit"
+    issues = json.loads((audit_dir / "issues.json").read_text(encoding="utf-8"))
+
+    mixed = next(item for item in issues if item["rule_id"] == "R-TABLE-MAPPING-SOURCE-CONFLICT")
+    assert mixed["severity"] == "major"
+    assert mixed["left_value"] == "102"
+    assert mixed["evidence"]["source_conflict_kind"] == "table_mapping_vs_ordinary_pair"
+    assert mixed["evidence"]["table_mapping_values"] == ["103"]
+    assert mixed["evidence"]["ordinary_pair_values"] == ["204"]
+    assert mixed["evidence"]["conflicting_values"] == ["103", "204"]
 
 def test_analyze_project_can_include_backplate_pages_as_supplemental_audit(
     monkeypatch,
