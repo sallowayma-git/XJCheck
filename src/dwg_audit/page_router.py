@@ -103,7 +103,11 @@ def enrich_pages_from_classifications(
         classification = classifications.get(page.sheet_id)
         if classification is None:
             continue
+        page.page_type = classification.page_type
+        page.page_subtype = classification.page_subtype
         page.route_target = classification.route_target
         page.page_type_confidence = classification.page_type_confidence
+        page.table_like = classification.table_like
+        page.grid_heavy = classification.grid_heavy
         page.audit_disposition = classification.audit_disposition
         page.is_primary_audit_candidate = disposition_requires_audit(classification.audit_disposition)

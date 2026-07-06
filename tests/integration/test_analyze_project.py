@@ -248,12 +248,14 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
     findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
     findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
 
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
     line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
     pairs = pd.read_parquet(findings_dir / "pairs.parquet")
 
     page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
     table_page = page_findings["05 回路表格图.dwg"]
     wire_page = page_findings["04 回路图.dwg"]
+    pages_by_file = {row["filename"]: row for _, row in pages.iterrows()}
 
     assert wire_page["page_type"] == "二次原理图"
     assert wire_page["audit_disposition"] == "audit_required"
@@ -268,6 +270,12 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
     assert findings_payload["table_extraction_summary"]["table_pages"] == 1
     assert findings_payload["table_extraction_summary"]["three_column_pages"] == 1
     assert findings_payload["table_extraction_summary"]["total_mappings"] == 3
+    assert pages_by_file["04 回路图.dwg"]["page_type"] == "二次原理图"
+    assert pages_by_file["04 回路图.dwg"]["route_target"] == "WireDiagramExtractor"
+    assert bool(pages_by_file["04 回路图.dwg"]["grid_heavy"]) is False
+    assert pages_by_file["05 回路表格图.dwg"]["page_type"] == "表格型图"
+    assert pages_by_file["05 回路表格图.dwg"]["route_target"] == "TableExtractor"
+    assert bool(pages_by_file["05 回路表格图.dwg"]["table_like"]) is True
 
     table_sheet_id = table_page["sheet_id"]
     wire_sheet_id = wire_page["sheet_id"]

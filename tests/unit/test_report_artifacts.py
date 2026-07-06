@@ -5,6 +5,7 @@ import pandas as pd
 
 from dwg_audit.domain.models import Issue
 from dwg_audit.domain.models import Manifest
+from dwg_audit.domain.models import PageClassification
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.domain.models import ProjectScanResult
@@ -167,6 +168,86 @@ def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path
     assert "# Page Findings `S0001`" in page_finding_text
     assert "- AuditDisposition: `skip_stable`" in page_finding_text
     assert "- RouteTarget: `SkipExtractor`" in page_finding_text
+
+
+def test_write_project_artifacts_persists_page_classification_fields_to_pages_parquet(tmp_path: Path) -> None:
+    source = SourceFileRecord(
+        file_id="F0001",
+        path="C:/demo/04.dwg",
+        filename="04.dwg",
+        ext=".dwg",
+        sha256="abc",
+        size_bytes=10,
+        sheet_order=4,
+        detected_page_no="04",
+        detected_from="filename",
+        sheet_title="交流回路图1",
+        sheet_category="二次原理图",
+        skip_reason=None,
+        valid_dwg_header=True,
+        conversion_status="converted",
+    )
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-06T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[source],
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord("S0001", "F0001", "04.dwg", 4, "04", "交流回路图1", "二次原理图", "primary", "filename", True)
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+
+    scan.pages[0].page_type = "二次原理图"
+    scan.pages[0].page_subtype = "grid_heavy_wire_diagram"
+    scan.pages[0].page_type_confidence = 0.88
+    scan.pages[0].table_like = False
+    scan.pages[0].grid_heavy = True
+    scan.pages[0].route_target = "WireDiagramExtractor"
+    scan.pages[0].audit_disposition = "audit_required"
+
+    project_dir = write_project_artifacts(
+        ProjectArtifacts(scan=scan),
+        tmp_path,
+        page_classifications={
+            "S0001": PageClassification(
+                sheet_id="S0001",
+                page_type="二次原理图",
+                page_subtype="grid_heavy_wire_diagram",
+                page_type_confidence=0.88,
+                table_like=False,
+                grid_heavy=True,
+                route_target="WireDiagramExtractor",
+                features={"grid_band_count": 10, "horizontal_line_ratio": 0.82, "polyline_count": 3},
+                audit_disposition="audit_required",
+            )
+        },
+    )
+
+    pages = pd.read_parquet(project_dir / "findings" / "pages.parquet")
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
+
+    page = pages.iloc[0]
+    assert page["page_type"] == "二次原理图"
+    assert page["page_subtype"] == "grid_heavy_wire_diagram"
+    assert page["page_type_confidence"] == 0.88
+    assert bool(page["grid_heavy"]) is True
+    assert bool(page["table_like"]) is False
+    assert page["route_target"] == "WireDiagramExtractor"
+    assert page["audit_disposition"] == "audit_required"
+    assert "PageClassifier labeled this page as `二次原理图` / `grid_heavy_wire_diagram`" in findings_payload["page_findings"][0]["recognition_strategy"]
 
 
 def test_write_project_artifacts_summarizes_terminal_candidate_channels(tmp_path: Path) -> None:

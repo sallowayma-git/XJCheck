@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 30
+Phase 31
 
 ## Phases
 
@@ -221,10 +221,18 @@ Phase 30
 - [x] 把结果回写 `doc/findings.md` / `progress.md`，并准备本地提交
 - **Status:** complete
 
+### Phase 31: Page Classification Findings Contract
+- [x] 重新按 current-head 任务书审计 `page classifier / router / table extractor` 证据，确认最近核心切片是“把页级分类/路由变成 findings 一等落盘状态”
+- [x] 在 `SheetRecord/pages.parquet` 中显式持久化 `page_type / page_subtype / table_like / grid_heavy`
+- [x] 把页级 `recognition_strategy` 改成反映真实的 `PageClassifier -> Page Router` 几何分类证据，而不是旧的 filename/.prj 启发式叙述
+- [x] 复跑 targeted pytest、full pytest，以及 second-set current-head `analyze-project + run-audit`
+- [x] 把任务书完成度审计与本轮裁决回写 `doc/findings.md` / `progress.md`，并准备本地提交
+- **Status:** complete
+
 ## Key Questions
-1. `M10` 里下一条最近缺口是继续扩 real-sample pair baseline 到更多页型，还是把 `line_groups` 也升级成显式 no-regression status？
-2. 若继续扩 real-sample baseline，优先纳入哪一类页更值当：更多 terminal 页、更多 component 页，还是首次纳入普通 wire 页？
-3. 当前 `compare-regression` 已量化 texts / lines totals 与 per-page drops；是否还需要把这些指标显式接入 acceptance / CI 固定批次？
+1. 现在页级分类/路由已成为 `pages.parquet` 一等字段后，最近主链缺口是否已经收口到 `TableExtractor` 的 real-hit / real-no-hit 证明？
+2. 若真实样本仍稳定 `table_pages=0`，下一刀更适合补“真实样本无命中的显式证明合同”，还是继续扩变异/合成 table acceptance 资产？
+3. `issue` JSON 是否需要把 `filename / sheet_no / rationale` 也提升成顶层字段，还是当前 `evidence + evidence_refs + report markdown` 已足够满足 MVP 可复核合同？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
 ## Decisions Made
@@ -260,6 +268,8 @@ Phase 30
 | mixed-source 项目级规则的第一刀只做 `R-TABLE-MAPPING-SOURCE-CONFLICT` | 这能把第三类一致性从“table_mapping 进入通用 graph”升级成显式 source-aware contract，同时不先重写 `TableExtractor` 语义模型 |
 | `texts / lines` 非回退量化应落在 `report/regression.py`，而不是继续塞进 acceptance evaluator | 这条指标比较的是 findings/audit 快照稳定性，不是人工标注 spec 命中率 |
 | 页级 non-regression 比较必须优先使用 `filename + sheet_order` 这类稳定页键，而不是 `sheet_id` | fresh rerun 中 `sheet_id` 可能重编，直接按 `sheet_id` 比会把无回退误判成回退 |
+| 页级分类/路由的 MVP 合同不能只停留在 `findings.json.page_findings` 里；`pages.parquet` 也应显式携带 `page_type / page_subtype / route_target / audit_disposition` | `pages.parquet` 是默认 findings SSoT 的主表之一，若它缺少 `page_type`，任务书中的“先分类再路由”只能通过聚合 JSON 间接证明 |
+| 页级 `recognition_strategy` 不能继续写成“来自 filename/.prj/title keywords”，必须反映真实 `PageClassifier -> Page Router` 证据 | 否则 current-head 明明已由几何分类驱动路由，页级解释文案却仍在削弱甚至误述主链闭环程度 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -373,6 +383,28 @@ Phase 30
     - `lines status = ok`
   - 额外容错已补：
     - `sheet_order` 非数值时回退到 `filename` 页键，不会在 markdown/json report 生成时崩溃
+- 最新 `phase36_page_contract_second` 已确认：
+  - second-set fresh `analyze-project + run-audit` 保持 `issue_count = 519`
+  - `pages.parquet` 现在已显式带：
+    - `page_type`
+    - `page_subtype`
+    - `page_type_confidence`
+    - `table_like`
+    - `grid_heavy`
+    - `route_target`
+    - `audit_disposition`
+  - 代表页 current-head 结果为：
+    - `04 交流回路图1.dwg -> 二次原理图 / grid_heavy_wire_diagram / WireDiagramExtractor`
+    - `17 测控1装置背板.dwg -> 背板接线图 / LayoutOnlyExtractor`
+    - `19 元件接线图1.dwg -> 元件接线图 / horizontal_component / ComponentDiagramExtractor`
+    - `21 左侧端子图1.dwg -> 屏端子图 / TerminalDiagramExtractor`
+  - `findings.json.page_findings[].recognition_strategy` 也已改成显式引用：
+    - `PageClassifier labeled this page as ...`
+    - `Page Router sent it to ...`
+  - `table_extraction_summary` 仍保持：
+    - `table_pages = 0`
+    - `three_column_pages = 0`
+    - `total_mappings = 0`
 - 最新 `phase15_terminal_short_bridge_{second,first}` 真实样本已确认：
   - 第二套总体 issue `654 -> 648`
   - 第一套总体 issue `559 -> 518`

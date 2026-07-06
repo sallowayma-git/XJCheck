@@ -5238,3 +5238,205 @@ current-head rerun 结果保持稳定：
 
 - `texts / lines` 已量化
 - 但 `line_groups` 仍只是 count 级别，没有独立 status
+
+## 81. 2026-07-06 任务书审计刷新：页级分类/路由证据已够强，最近缺口转为“页级合同落盘 + Table real-no-hit”
+
+在 section 80 之后，我重新按 current-head 对照 [任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 做了一次更窄的完成度审计，专盯：
+
+- `Page Classification Layer`
+- `Page Router Layer`
+- `TableExtractor`
+- 以及“findings 是否真的把页级分类当成一等运行态保存”
+
+这轮结论不再沿用旧叙事，而是只基于 current code、tests 和 fresh real-sample rerun。
+
+### 81.1 已有强证据证明完成
+
+1. 真实样本里，每页都有稳定 `route_target`
+
+second-set current-head fresh rerun：
+
+- [phase36_page_contract_second](/F:/workspace/XJToolkit/.tmp/phase36_page_contract_second/2_2)
+
+其中：
+
+- [pages.parquet](/F:/workspace/XJToolkit/.tmp/phase36_page_contract_second/2_2/findings/pages.parquet)
+- [findings.json](/F:/workspace/XJToolkit/.tmp/phase36_page_contract_second/2_2/findings/findings.json)
+
+现在都能直接证明不同图种走了不同 route：
+
+- `04 交流回路图1.dwg -> WireDiagramExtractor`
+- `17 测控1装置背板.dwg -> LayoutOnlyExtractor`
+- `19 元件接线图1.dwg -> ComponentDiagramExtractor`
+- `21 左侧端子图1.dwg -> TerminalDiagramExtractor`
+
+而且 `audit_disposition` 也稳定区分了：
+
+- `audit_required`
+- `classify_only`
+- `skip_stable`
+
+2. 页级分类不是只停留在 scan 阶段粗标签
+
+代码上：
+
+- [page_classifier.py](/F:/workspace/XJToolkit/src/dwg_audit/page_classifier.py)
+- [pipeline.py](/F:/workspace/XJToolkit/src/dwg_audit/pipeline.py)
+- [page_router.py](/F:/workspace/XJToolkit/src/dwg_audit/page_router.py)
+
+当前主链已经是：
+
+- extract 后先做 `PageClassification`
+- 再由 `Page Router` 决定 route target
+- 再分发到 pairing 链或 `TableExtractor` 链
+
+这不是“文件存在所以算完成”，而是 current-head 真实在执行的路径。
+
+3. 页级分类/路由现在已成为 `pages.parquet` 一等字段
+
+这是本轮刚补齐的关键合同：
+
+- `page_type`
+- `page_subtype`
+- `page_type_confidence`
+- `table_like`
+- `grid_heavy`
+- `route_target`
+- `audit_disposition`
+
+也就是说，任务书第 5.1 / 第 6 节要求的页级分类信息，已经不再只躲在聚合 JSON 或临时内存里，而是进入了 default findings 主表。
+
+4. 页级说明文本不再继续误述成“纯文件名/sidecar 分类”
+
+本轮把：
+
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+
+里的 `recognition_strategy` 改成显式反映：
+
+- `PageClassifier labeled this page as ...`
+- `Page Router sent it to ...`
+
+second-set fresh rerun 里的代表页当前会写成：
+
+- `PageClassifier labeled this page as '二次原理图' / 'grid_heavy_wire_diagram' using features [...] and Page Router sent it to 'WireDiagramExtractor' ...`
+
+这点很重要，因为旧文案虽然不影响算法，但会直接削弱任务书主链“先分类再路由”的可证明性。
+
+### 81.2 只有部分实现，仍不能宣称完全闭环
+
+1. `TableExtractor` 仍然没有真实样本 hit 证明
+
+这条还是当前最明显的部分实现：
+
+- two real sets 当前都还是 `table_pages = 0`
+- `total_mappings = 0`
+
+current-head 证据：
+
+- [phase36_page_contract_second findings.json](/F:/workspace/XJToolkit/.tmp/phase36_page_contract_second/2_2/findings/findings.json)
+- [phase30_table_header_hardening_first findings.json](/F:/workspace/XJToolkit/.tmp/phase30_table_header_hardening_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings/findings.json)
+
+这意味着：
+
+- `TableExtractor` 的功能合同已被 unit + synthetic `analyze-project` 证明
+- 但“真实样本里真的命中过表格页”这件事仍然没有证据
+
+任务书允许“若真实样本中暂无表格页，则明确证明样本中暂无该类命中”，所以这条现在更像：
+
+- 真实 hit 未出现
+- real-no-hit 的证明合同还需要更显式
+
+2. per-type extractor 更像“分类/路由合同成立”，还不是三条彻底独立执行栈
+
+当前：
+
+- Wire / Component / Terminal 的 route matrix 已真实成立
+- 但其执行层仍有大量共享 pairing 主链 + 图种专用护栏
+
+所以更准确的说法应是：
+
+- “按图种分流合同成立”
+
+而不是：
+
+- “每种图已经完全成为互不共享的大型独立识别器”
+
+这不算当前最近缺口，但也不该过度宣称。
+
+### 81.3 已明确未完成
+
+1. `TableExtractor` 的 real-hit / real-no-hit 正式证明仍未收口
+
+因为现在 repo 能证明：
+
+- synthetic 命中
+- real sample `0 hit`
+
+但还没把“为何可接受 `0 hit`”变成一条更正式、更显式的 current-head 合同。
+
+2. `issue` JSON 的可复核字段仍主要通过 `evidence / evidence_refs` 暴露
+
+current-head report markdown 已经能展示：
+
+- 文件名
+- 页码
+- line_group
+- pair values
+- rule_id
+- confidence
+- explanation
+- recommended_action
+- evidence refs
+
+但 `issues.json` 顶层字段本身仍没有把：
+
+- `filename`
+- `sheet_no`
+- `rationale`
+
+全部显式上提为顶层列。
+
+这更偏报告合同，不是本轮最近切片，但它仍属于“部分实现而非最强形态”。
+
+### 81.4 本轮唯一核心切片与裁决
+
+基于上面的审计，本轮我没有继续追：
+
+- 桌面端
+- preview
+- issue 总数变化
+- 更宽的候选规则
+
+而是只补了一条最近的结构性缺口：
+
+- **把页级分类/路由变成 findings 主表级合同。**
+
+具体体现为：
+
+1. `pages.parquet` 现在直接携带 `page_type / page_subtype / route_target / audit_disposition`
+2. `page_findings` 叙述文本现在显式反映 `PageClassifier -> Page Router`
+3. second-set fresh rerun 证明这条改动没有破坏现有 route matrix 或 audit 结果：
+   - `issue_count` 仍是 `519`
+   - `table_pages` 仍是 `0`
+
+### 81.5 当前最接近主链的下一条缺口
+
+完成本轮之后，最近缺口已经不再是：
+
+- “页级分类/路由有没有真的接管”
+
+而更像是：
+
+1. `TableExtractor` 的 real-hit / real-no-hit 证明
+2. `issue` JSON 顶层可复核字段是否还要进一步上提
+
+也就是说，当前最该继续优先的仍然是任务书主链里的：
+
+- page/router/table 的真实闭环证明
+
+而不是再转回：
+
+- 桌面承载层
+- issue 总量下降
+- 候选层大范围调参

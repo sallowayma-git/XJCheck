@@ -1201,3 +1201,58 @@
   - 其余两条留作后续裁决：
     - `pages` 映射缺失时仍可能退回 `sheet_id`
     - `line_groups` 尚未进入显式 no-regression status
+
+## Session Update 2026-07-06 (Phase 31)
+- 先重新按 current-head 任务书审计了 `page classifier / router / table extractor` 的真实证据，并并发拉了只读子代理 `Godel` 复核。
+- 主线程裁决结果：
+  - 页级分类 / 路由在真实样本上已经有够强的 route matrix 证据
+  - 但 `pages.parquet` 还没有把 `page_type` 变成一等字段
+  - `page_findings.recognition_strategy` 仍在误写成“filename / .prj / title keywords”主导
+  - 所以这轮唯一核心切片定为：**把页级分类/路由变成 findings 主表级合同，而不是继续扩桌面层或再追 issue 数**
+- 本轮实现：
+  - `src/dwg_audit/domain/models.py`
+    - `SheetRecord` 新增：
+      - `page_type`
+      - `page_subtype`
+      - `table_like`
+      - `grid_heavy`
+  - `src/dwg_audit/page_router.py`
+    - `enrich_pages_from_classifications()` 现在会把 `PageClassification` 的页型字段同步回 `SheetRecord`
+  - `src/dwg_audit/report/artifacts.py`
+    - `pages.parquet` 现在随 `SheetRecord` 默认落盘页型字段
+    - `page_findings.recognition_strategy` 改为显式反映：
+      - `PageClassifier labeled this page as ...`
+      - `Page Router sent it to ...`
+    - 同时带入关键几何特征摘要，避免继续写成纯文件名/sidecar 启发式
+  - 测试更新：
+    - `tests/unit/test_report_artifacts.py`
+    - `tests/integration/test_analyze_project.py`
+- 本轮定向验证：
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "page_classification_fields or creates_findings_outputs or can_persist_page_findings"` -> `3 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "routes_table_like_page_to_table_extractor_and_emits_table_mapping or supports_header_semantic_three_column_table_mapping or includes_supplemental_pages_in_downstream_audit"` -> `3 passed`
+- 全量回归：
+  - `python -m pytest -q` -> `174 passed`
+- second-set current-head fresh rerun：
+  - `python -m dwg_audit.cli analyze-project --input "test\变压器测控柜(2圈变，2台测控)" --output .tmp\phase36_page_contract_second`
+  - `python -m dwg_audit.cli run-audit --findings ".tmp\phase36_page_contract_second\2_2\findings"` -> 成功
+  - 结果：
+    - `issue_count = 519`
+    - `pages.parquet` 新增并稳定落盘：
+      - `page_type`
+      - `page_subtype`
+      - `page_type_confidence`
+      - `table_like`
+      - `grid_heavy`
+      - `route_target`
+      - `audit_disposition`
+    - 代表页矩阵：
+      - `04 交流回路图1.dwg -> 二次原理图 / grid_heavy_wire_diagram / WireDiagramExtractor`
+      - `17 测控1装置背板.dwg -> 背板接线图 / LayoutOnlyExtractor`
+      - `19 元件接线图1.dwg -> 元件接线图 / horizontal_component / ComponentDiagramExtractor`
+      - `21 左侧端子图1.dwg -> 屏端子图 / TerminalDiagramExtractor`
+    - `table_extraction_summary` 保持 `table_pages=0 / total_mappings=0`
+- 并发只读子代理 `Godel` 的结论已吸收：
+  - 当前最近缺口不再是“页级分类/路由有没有落地”
+  - 而更像是：
+    - `TableExtractor` 的 real-hit / real-no-hit 证明
+    - 以及 `issue` 可复核字段是否还要再上提到顶层合同

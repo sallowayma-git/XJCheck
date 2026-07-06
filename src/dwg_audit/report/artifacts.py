@@ -627,30 +627,47 @@ def _page_open_questions(
 def _page_recognition_strategy(
     page: SheetRecord,
     *,
+    page_type: str,
+    page_subtype: str | None,
+    classification_features: dict[str, Any],
     audit_disposition: str,
     table_like: bool,
+    grid_heavy: bool,
     route_target: str,
     table_mapping_count: int,
 ) -> str:
+    feature_parts: list[str] = []
+    for key in ("grid_band_count", "horizontal_line_ratio", "vertical_line_ratio", "polyline_count", "block_count"):
+        if key not in classification_features:
+            continue
+        feature_parts.append(f"{key}={classification_features[key]}")
+    if grid_heavy:
+        feature_parts.append("grid_heavy=True")
+    if table_like:
+        feature_parts.append("table_like=True")
+    feature_text = f" using features [{', '.join(feature_parts)}]" if feature_parts else ""
+    subtype_text = f" / `{page_subtype}`" if page_subtype else ""
     if route_target == "TableExtractor":
         if table_mapping_count:
             return (
-                f"Current classification routed the page to `{route_target}` and the dedicated table path recovered "
+                f"PageClassifier labeled this page as `{page_type}`{subtype_text}{feature_text}, routed it to "
+                f"`{route_target}`, and the dedicated table path recovered "
                 f"{table_mapping_count} structured row mappings."
             )
         return (
-            f"Current classification routed the page to `{route_target}` because the geometry looks table-heavy, "
+            f"PageClassifier labeled this page as `{page_type}`{subtype_text}{feature_text}, routed it to "
+            f"`{route_target}` because the geometry looks table-heavy, "
             "but stable row/column mappings have not been recovered yet."
         )
     if table_like:
         return (
-            f"Current classification inferred `{page.sheet_category or 'unknown'}` from filename/title heuristics, "
-            f"and the geometry also looks table-heavy; route target is `{route_target}`."
+            f"PageClassifier labeled this page as `{page_type}`{subtype_text}{feature_text}; "
+            f"the geometry also looks table-heavy, but the current route target remains `{route_target}`."
         )
     return (
-        f"Current classification inferred `{page.sheet_category or 'unknown'}` from filename / .prj / title keywords "
-        f"and routed the page to `{route_target}` with audit disposition `{audit_disposition}` "
-        f"(scan role `{page.audit_role}`)."
+        f"PageClassifier labeled this page as `{page_type}`{subtype_text}{feature_text} and Page Router sent it to "
+        f"`{route_target}` with audit disposition `{audit_disposition}` (scan role `{page.audit_role}`, "
+        f"coarse category `{page.sheet_category or 'unknown'}`)."
     )
 
 
@@ -817,8 +834,12 @@ def _build_page_findings(
                 },
                 "recognition_strategy": _page_recognition_strategy(
                     page,
+                    page_type=page_type,
+                    page_subtype=page_subtype,
+                    classification_features=classification_features,
                     audit_disposition=audit_disposition,
                     table_like=table_like,
+                    grid_heavy=grid_heavy,
                     route_target=route_target,
                     table_mapping_count=table_mapping_count,
                 ),

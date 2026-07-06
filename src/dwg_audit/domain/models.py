@@ -70,7 +70,11 @@ class SheetRecord:
     frame_bbox: BBox | None = None
     title_block_bbox: BBox | None = None
     audit_area_bbox: BBox | None = None
+    page_type: str | None = None
+    page_subtype: str | None = None
     page_type_confidence: float | None = None
+    table_like: bool | None = None
+    grid_heavy: bool | None = None
     route_target: str | None = None
     audit_disposition: str | None = None
 
