@@ -932,6 +932,7 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
             "sheet_order": 4,
             "line_start": [10.0, 20.0],
             "line_end": [40.0, 20.0],
+            "rationale": "ok",
             "one_to_many_classification": "conflict",
         },
         title="跨页配对冲突",
@@ -1029,6 +1030,10 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "rationale=right side has competing numeric candidates" in findings_text
 
     assert issues_payload[0]["issue_id"] == "I0001"
+    assert issues_payload[0]["filename"] == "04.dwg"
+    assert issues_payload[0]["sheet_no"] == "04"
+    assert issues_payload[0]["sheet_order"] == 4
+    assert issues_payload[0]["rationale"] == "ok"
     assert issues_payload[0]["evidence"]["filename"] == "04.dwg"
 
     assert "## 审计概览" in report_text

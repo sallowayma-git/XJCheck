@@ -5550,3 +5550,257 @@ current-head report markdown 已经能展示：
 
 1. 继续收口 `issue` JSON 顶层可复核字段
 2. 或专门处理 `table_like_non_routed_pages` 这类“几何像表格、但语义仍应走 component”的解释边界
+
+## 83. 2026-07-06 current-head 任务书完成度审计刷新
+
+这一轮我重新按 [任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 的显式要求做了一次 current-head 审计，不再沿用“文件已经存在”或“历史上做过很多”的叙事，只看当前代码、当前测试和当前真实样本产物。
+
+### 83.1 已有强证据证明完成
+
+1. 真实样本 `analyze-project` 已稳定生成结构化 findings
+- 当前两套真实样本都能稳定产出：
+  - `findings.json`
+  - `findings.md`
+  - `pages.parquet`
+  - `texts/lines/line_groups/pairs` 等 parquet
+- 这满足了任务书第 2、4、5、6、18、20 节里“先形成 findings 运行态，再基于 findings 做后续工作”的主链要求。
+
+2. 页级分类与路由已经在真实样本上真实接管
+- current-head 真实样本已能稳定给出每页：
+  - `page_type`
+  - `page_subtype`
+  - `route_target`
+  - `audit_disposition`
+- second-set current-head 代表页矩阵已明确证明：
+  - 普通回路图 -> `WireDiagramExtractor`
+  - 元件接线图 -> `ComponentDiagramExtractor`
+  - 端子图 -> `TerminalDiagramExtractor`
+  - 背板图 -> `LayoutOnlyExtractor`
+- 这条现在属于强证据，而不是“文件存在即算完成”。
+
+3. 主链已覆盖普通回路图、元件接线图、端子图
+- 真实样本 current-head 已分别证明：
+  - 普通回路图进入 `WireDiagramExtractor`
+  - 元件接线图进入 `ComponentDiagramExtractor`
+  - 端子图进入 `TerminalDiagramExtractor`
+- 这满足了任务书第 2、4、20 节对多图种主链覆盖的核心要求。
+
+4. 表格型图“真实样本暂无命中”的证明已成立
+- synthetic `analyze-project` 已证明：
+  - `TableExtractor` 会被真实路由命中
+  - 会产出高置信 `table_mapping`
+- 两套真实样本 current-head 又已显式输出：
+  - `table_extraction_summary.status = no_table_pages_detected`
+- 所以任务书第 4、5、20 节中“表格型图或明确证明样本中暂无该类命中”这一条，当前属于强证据完成。
+
+5. `page_findings` 已不再是默认正式交付物
+- current-head 默认把页级 findings 保持在内部运行态 payload 中
+- 只有显式调试开关开启时才落盘 `page_findings/*.md|json`
+- 这符合任务书第 5.1、5.1.1、6 节的 current-head 要求。
+
+### 83.2 已有部分实现，但还没有达到最强合同
+
+1. `issues.json` 的可复核证据目前仍是“部分强、部分间接”
+- 当前顶层已经直接给出：
+  - `sheet_id`
+  - `file_id`
+  - `line_group_id`
+  - `left_value`
+  - `right_value`
+  - `rule_id`
+  - `confidence`
+  - `evidence_refs`
+  - `summary / explanation / recommended_action`
+- 但任务书成功定义里要求的人类复核核心字段中，以下几项现在还主要躲在 `evidence` 里：
+  - `filename`
+  - `sheet_no`
+  - `rationale`
+- 这意味着 run-audit 的证据合同已经可用，但还不够“顶层即读即用”。
+
+2. per-type extractor 当前更像“路由合同成立”，还不是完全独立的执行栈
+- 当前不同图种已经走不同 route target
+- 但底层仍共享不少 pair / rule 骨架
+- 这不违背 MVP 主链，但说明“不能再依赖单一大脚本解释所有图种”目前更接近部分成立，而不是最强形态。
+
+3. 第一套仍存在 `table_like_non_routed_pages` 的解释边界
+- `S0023 / 22 元件接线图2.dwg` 当前几何上偏 table-heavy
+- 但语义上仍被收口到 `ComponentDiagramExtractor`
+- 这说明 `table_like_geometry` 和最终 `route_target` 当前已被区分开，但这条边界还需要继续解释和稳固。
+
+### 83.3 已明确未完成
+
+1. `issues.json` 顶层可复核字段合同还没有完全收口
+- 任务书要求 run-audit 的输出问题项能直接复核：
+  - 文件名
+  - 页码 / sheet_id
+  - line_group_id 或定位锚点
+  - 左右值或表格映射值
+  - `rule_id`
+  - `confidence`
+  - `rationale`
+  - `evidence refs`
+- current-head 唯一最直接的缺口，已经收敛到：
+  - `filename`
+  - `sheet_no`
+  - `rationale`
+ 还没有成为 `issues.json` 顶层字段。
+
+### 83.4 已偏航但不应继续优先
+
+1. 桌面端、sidecar、preview、Tauri 打包
+- 这些承载层工作虽然有价值
+- 但当前不再是任务书主链最近缺口
+- 继续优先它们，会直接偏离“DWG 审计 MVP 是否已被严格证明”的目标。
+
+2. 继续仅靠调 `candidates.py` 或全局阈值追 issue 数
+- 当前最短缺口已经不是“再把 issue 数往下压”
+- 而是把主链输出合同补强到足以支持人工复核与验收
+- 所以再回到全局阈值堆规则，会属于明显次优先级。
+
+### 83.5 本轮唯一核心切片裁决
+
+基于以上审计，current-head 距离任务书主链最近的 1 个核心切片已经很明确：
+
+- **把 `run-audit` 的 `issues.json` 提升成更强的顶层可复核证据合同。**
+
+原因是：
+
+1. 页级分类 / 路由 / real-sample table no-hit 已经有强证据
+2. terminal semantic / continuation 也已经进入显式语义合同
+3. 当前最直接卡在任务书成功定义上的，不是新的几何规则，而是 issue 输出字段仍需上提
+
+所以这轮不该优先继续做：
+
+- 桌面端承载层
+- 总 issue 数下降
+- 更宽的候选规则
+- `table_like_non_routed_pages` 的进一步解释美化
+
+而应先补：
+
+- `issues.json` 顶层 `filename / sheet_no / rationale` 等人工复核最短路径字段
+
+## 84. 2026-07-06 `issues.json` 顶层可复核字段合同已补强
+
+在 section 83 做完 current-head 审计后，我没有继续回到几何规则或桌面层，而是只补一条最短主链缺口：
+
+- 让 `run-audit` 产出的 `issues.json` 在顶层直接携带人工复核最常用字段
+- 不再要求消费方每次都去 `evidence` 里反查
+
+### 84.1 这轮代码上实际补了什么
+
+代码位置：
+
+- [models.py](/F:/workspace/XJToolkit/src/dwg_audit/domain/models.py)
+- [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py)
+- [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py)
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+
+`Issue` 顶层现在新增并稳定输出：
+
+- `filename`
+- `sheet_no`
+- `sheet_order`
+- `rationale`
+
+同时 `write_audit_outputs()` 在写 `issues.json / issues.parquet` 前，还会做一次回填：
+
+- 若 issue 本体没显式带这些字段
+- 就从 `evidence / evidence_refs` 中自动补回
+
+这意味着：
+
+- rule 层新产出的 issue 会直接带顶层字段
+- 老式或手工构造的 issue，只要 evidence 里已有这些值，导出时也不会丢
+
+### 84.2 current-head 真实样本结果
+
+我重新对两套真实样本做了 fresh rerun：
+
+- 第二套：
+  - [phase38_issue_contract_second findings](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_second/2_2/findings/findings.json)
+  - [phase38_issue_contract_second issues.json](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_second/2_2/audit/issues.json)
+- 第一套：
+  - [phase38_issue_contract_first findings](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings/findings.json)
+  - [phase38_issue_contract_first issues.json](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/audit/issues.json)
+
+两个 fresh `issues.json` 现在都已经能直接看到：
+
+- `filename`
+- `sheet_no`
+- `sheet_id`
+- `line_group_id`
+- `left_value / right_value`
+- `rule_id`
+- `confidence`
+- `rationale`
+- `evidence_refs`
+
+代表性的 second-set 顶层样本现在是：
+
+- `filename = 08 测控1开入回路图1.dwg`
+- `sheet_no = 08`
+- `sheet_id = S0008`
+- `line_group_id = G0172`
+- `right_value = 127`
+- `confidence = 0.4882`
+- `rationale = missing left candidate`
+
+这条已经直接满足任务书成功定义里对 issue 可复核证据合同的主干要求。
+
+### 84.3 这轮没有带来行为回退
+
+两套真实样本 fresh rerun 的 issue 总量保持稳定：
+
+- second-set `issue_count = 519`
+- first-set `issue_count = 345`
+
+说明这一轮是纯合同增强，而不是通过修改规则触发条件去“换结果”。
+
+### 84.4 新增测试与回归结果
+
+本轮补强了：
+
+- [test_report_artifacts.py](/F:/workspace/XJToolkit/tests/unit/test_report_artifacts.py)
+  - 验证 `issues.json` 顶层会出现 `filename / sheet_no / sheet_order / rationale`
+- [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+  - 验证真实 `run-audit` 链产出的 source-conflict issue 现在也带这些顶层字段
+- [test_rerun_audit.py](/F:/workspace/XJToolkit/tests/unit/test_rerun_audit.py)
+  - 同步更新旧的 `issues.json` 形状断言
+
+验证结果：
+
+- `python -m pytest -q tests\unit\test_report_artifacts.py -k "write_audit_outputs_emits_issue_artifacts_with_evidence_fields"` -> `1 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "source_conflict"` -> `1 passed`
+- `python -m pytest -q` -> `175 passed`
+
+### 84.5 并发只读复核结论
+
+并发只读子代理对这轮裁决给出的结论，与主线程一致：
+
+- current-head `issues.json` 之前已经“有证据但不在顶层”
+- `filename / sheet_no / rationale` 是最明显的顶层合同缺口
+- 相比继续扩几何规则，这条切片更贴近任务书的 run-audit 成功定义
+
+### 84.6 当前裁决
+
+到这一轮为止，任务书第 4 节成功定义中的 issue 证据合同可以更准确地说成：
+
+1. 已有强证据完成
+- `filename`
+- `sheet_no / sheet_id`
+- `line_group_id`
+- `left_value / right_value`
+- `rule_id`
+- `confidence`
+- `rationale`
+- `evidence_refs`
+
+2. 仍可继续增强但不再是最近硬缺口
+- `line_start / line_end` 仍主要留在 `evidence`
+- 表格型 issue 未来若出现真实命中，可能还需要更专门的顶层 mapping 字段
+
+所以 current-head 最近的下一条缺口，已经不再是 issue 顶层字段，而更像是：
+
+1. `table_like_non_routed_pages` 这类 page/router 解释边界是否还要更窄收口
+2. 或继续证明 per-type extractor 已不再退化为“同一大脚本 + 少量护栏”

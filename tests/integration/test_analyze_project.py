@@ -491,6 +491,9 @@ def test_run_audit_emits_mixed_source_conflict_for_table_mapping_vs_wire_pair(
     mixed = next(item for item in issues if item["rule_id"] == "R-TABLE-MAPPING-SOURCE-CONFLICT")
     assert mixed["severity"] == "major"
     assert mixed["left_value"] == "102"
+    assert mixed["filename"]
+    assert mixed["sheet_no"]
+    assert mixed["rationale"]
     assert mixed["evidence"]["source_conflict_kind"] == "table_mapping_vs_ordinary_pair"
     assert mixed["evidence"]["table_mapping_values"] == ["103"]
     assert mixed["evidence"]["ordinary_pair_values"] == ["204"]

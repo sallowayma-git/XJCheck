@@ -293,6 +293,10 @@ class Issue:
     line_group_id: str | None
     left_value: str | None
     right_value: str | None
+    filename: str | None = None
+    sheet_no: str | None = None
+    sheet_order: int | None = None
+    rationale: str | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
     issue_type: str | None = None
     title: str | None = None

@@ -64,6 +64,7 @@ def _issue_frame(issues: list[Issue]) -> pd.DataFrame:
         frame["evidence"] = frame["evidence"].apply(
             lambda value: None if isinstance(value, dict) and not value else value
         )
+    frame = _backfill_issue_contract_fields(frame)
     return frame
 
 
@@ -1282,6 +1283,26 @@ def _decode_jsonish(raw: Any) -> Any:
     except json.JSONDecodeError:
         return None
     return _normalize_jsonish_value(decoded)
+
+
+def _backfill_issue_contract_fields(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    enriched = frame.copy()
+    key_map = {
+        "filename": "filename",
+        "sheet_no": "sheet_no",
+        "sheet_order": "sheet_order",
+        "rationale": "rationale",
+    }
+    for column, key in key_map.items():
+        if column not in enriched.columns:
+            enriched[column] = None
+        enriched[column] = enriched.apply(
+            lambda row: row[column] if not _is_blank_value(row.get(column)) else _read_evidence_key(row, key),
+            axis=1,
+        )
+    return enriched
 
 
 def _normalize_jsonish_value(value: Any) -> Any:

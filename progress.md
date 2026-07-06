@@ -1308,3 +1308,59 @@
   - 最近下一条缺口更像是：
     - `issue` JSON 顶层可复核字段
     - 或 `table_like_non_routed_pages` 的解释边界是否还要更窄收口
+
+## Session Update 2026-07-06 (Phase 33)
+- 先重新按 [任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 做了 current-head 审计，并把结论回写到 [findings.md](/F:/workspace/XJToolkit/doc/findings.md) section 83。
+- 主线程裁决：在 page/router/table real-no-hit 已有强证据后，最近 1 个核心切片已经收口到：
+  - `run-audit` 的 `issues.json` 顶层可复核字段合同
+- 并发只读子代理复核结论与主线程一致：
+  - 当前 issue 证据并不是缺失，而是 `filename / sheet_no / rationale` 主要还埋在 `evidence` 里
+  - 这比继续扩几何规则更贴近任务书成功定义
+- 本轮实现：
+  - `src/dwg_audit/domain/models.py`
+    - `Issue` 新增顶层字段：
+      - `filename`
+      - `sheet_no`
+      - `sheet_order`
+      - `rationale`
+  - `src/dwg_audit/audit/rule_base.py`
+    - `IssueFactory.build()` 直接从 `sheet/pair` 填充上述顶层字段
+  - `src/dwg_audit/audit/rules.py`
+    - `R-SHEET-PAGE-MISMATCH` 的直接构造 issue 也同步补齐顶层上下文
+  - `src/dwg_audit/report/artifacts.py`
+    - `write_audit_outputs()` 在导出前会从 `evidence / evidence_refs` 回填缺失的 issue 顶层合同字段
+  - 测试更新：
+    - `tests/unit/test_report_artifacts.py`
+    - `tests/integration/test_analyze_project.py`
+    - `tests/unit/test_rerun_audit.py`
+- 定向验证：
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "write_audit_outputs_emits_issue_artifacts_with_evidence_fields"` -> `1 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "source_conflict"` -> `1 passed`
+- fresh real-sample rerun：
+  - 第二套：
+    - `analyze-project` -> [phase38_issue_contract_second](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_second/2_2)
+    - `run-audit` -> [phase38_issue_contract_second audit](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_second/2_2/audit/issues.json)
+    - current-head 结果：
+      - `issue_count = 519`
+      - 顶层 issue 现在直接带：
+        - `filename = 08 测控1开入回路图1.dwg`
+        - `sheet_no = 08`
+        - `sheet_id = S0008`
+        - `line_group_id = G0172`
+        - `right_value = 127`
+        - `confidence = 0.4882`
+        - `rationale = missing left candidate`
+  - 第一套：
+    - `analyze-project` -> [phase38_issue_contract_first](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+    - `run-audit` -> [phase38_issue_contract_first audit](/F:/workspace/XJToolkit/.tmp/phase38_issue_contract_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/audit/issues.json)
+    - current-head 结果：
+      - `issue_count = 345`
+      - 顶层 issue 同样直接带 `filename / sheet_no / rationale`
+- 全量回归：
+  - `python -m pytest -q` -> `175 passed`
+- 当前裁决：
+  - 这轮已经把任务书成功定义里的 issue 复核合同补到更强顶层位置
+  - 且没有引入 issue 总量或规则行为回退
+  - 最近下一条缺口更像是：
+    - `table_like_non_routed_pages` 的解释边界
+    - 或 per-type extractor 是否还需要进一步摆脱共享大脚本骨架

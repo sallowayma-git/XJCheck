@@ -200,6 +200,10 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
             "line_group_id": "G0001",
             "left_value": "101",
             "right_value": "201",
+            "filename": "04.dwg",
+            "sheet_no": "04",
+            "sheet_order": 4,
+            "rationale": None,
             "evidence": {
                 "filename": "04.dwg",
                 "sheet_no": "04",
