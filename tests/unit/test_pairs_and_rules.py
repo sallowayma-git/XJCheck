@@ -298,8 +298,10 @@ def test_build_pairs_tags_same_value_terminal_continuation_semantics() -> None:
     assert pair.evidence["semantic_kind"] == "continuation_same_value"
     assert pair.evidence["pair_kind"] == "continuation"
     assert pair.evidence["ordinary_pair_eligible"] is False
-    assert pair.evidence["selected_left_channel"] == "terminal_numeric_channel"
-    assert pair.evidence["selected_right_channel"] == "terminal_numeric_channel"
+    assert pair.evidence["selected_left_channel"] == "continuation_channel"
+    assert pair.evidence["selected_right_channel"] == "continuation_channel"
+    assert candidates[0].channel == "continuation_channel"
+    assert candidates[1].channel == "continuation_channel"
     assert pair.evidence["selected_left_raw_text"] == "3-2n420"
     assert pair.evidence["selected_right_raw_text"] == "1-2n420"
     assert pair.evidence["selected_left_is_derived_numeric"] is True
@@ -378,6 +380,8 @@ def test_build_pairs_tags_single_sided_terminal_continuation_from_derived_numeri
     assert pair.evidence["ordinary_pair_eligible"] is False
     assert pair.evidence["continuation_kind"] == "terminal_missing_left_continuation"
     assert pair.evidence["continuation_missing_side"] == "left"
+    assert pair.evidence["selected_right_channel"] == "continuation_channel"
+    assert candidates[0].channel == "continuation_channel"
     assert pair.evidence["selected_right_raw_text"] == "3-21n328"
 
 
@@ -415,6 +419,8 @@ def test_build_pairs_tags_single_sided_terminal_continuation_from_short_bridge_b
     assert pair.rationale == "missing left candidate; continuation relation"
     assert pair.evidence["semantic_kind"] == "continuation_single_sided"
     assert pair.evidence["continuation_kind"] == "terminal_missing_left_continuation"
+    assert pair.evidence["selected_right_channel"] == "continuation_channel"
+    assert candidates[0].channel == "continuation_channel"
 
 
 def test_build_pairs_tags_terminal_short_bridge_cross_column_as_bridge_mapping() -> None:
@@ -455,6 +461,10 @@ def test_build_pairs_tags_terminal_short_bridge_cross_column_as_bridge_mapping()
     assert pair.evidence["semantic_kind"] == "terminal_bridge_mapping"
     assert pair.evidence["ordinary_pair_eligible"] is False
     assert pair.evidence["bridge_mapping_kind"] == "terminal_short_bridge_cross_column"
+    assert pair.evidence["selected_left_channel"] == "continuation_channel"
+    assert pair.evidence["selected_right_channel"] == "continuation_channel"
+    assert candidates[0].channel == "continuation_channel"
+    assert candidates[1].channel == "continuation_channel"
 
 
 def test_build_pairs_tags_terminal_semantic_row_as_semantic_mapping() -> None:
@@ -496,6 +506,8 @@ def test_build_pairs_tags_terminal_semantic_row_as_semantic_mapping() -> None:
     assert pair.evidence["ordinary_pair_eligible"] is False
     assert pair.evidence["semantic_mapping_kind"] == "terminal_semantic_row"
     assert pair.evidence["semantic_marker_texts"] == ["3-21KLP2-1"]
+    assert pair.evidence["selected_right_channel"] == "terminal_numeric_channel"
+    assert candidates[2].channel == "terminal_numeric_channel"
 
 
 def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None:

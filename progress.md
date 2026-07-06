@@ -854,3 +854,53 @@
 - 本轮并发情况：
   - 我尝试继续使用只读子代理，但上游代理转发仍返回 `502 Bad Gateway`
   - 主线程因此直接用 current-head 代码、测试和真实样本产物完成审计、裁决与落地，没有把关键判断外包
+
+## Session Update 2026-07-06 (Phase 23)
+- 继续按 current-head 任务书审计，确认 `phase25` 之后最近缺口已经从 pair 级 relation 收口到 candidate 级 `continuation_channel`：
+  - pair 级 `ordinary_pair / continuation / bridge_mapping / semantic_mapping` 已齐
+  - 但 candidate 层此前仍只有 `terminal_numeric_channel / semantic_channel / noise_channel`
+- 这一轮实现：
+  - `src/dwg_audit/audit/candidates.py`
+    - 新增 `_CHANNEL_CONTINUATION = "continuation_channel"`
+  - `src/dwg_audit/audit/pairs.py`
+    - PairBuilder 仍只消费 `terminal_numeric_channel`
+    - 但在 pair 语义已经判定为 `continuation` 或 `bridge_mapping` 后，会把对应 selected candidate 回标成 `continuation_channel`
+    - `channel_detail` 同步记录 `continuation_kind` 或 `bridge_mapping_kind`
+    - `semantic_mapping` 的 selected numeric candidate 刻意保持 `terminal_numeric_channel`
+- 新增/更新测试：
+  - `tests/unit/test_pairs_and_rules.py`
+  - `tests/unit/test_report_artifacts.py`
+- 本轮验证：
+  - `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation or bridge_mapping or semantic_mapping or terminal_numeric_channel_candidates"` -> `10 passed`
+  - `python -m pytest -q tests/unit/test_report_artifacts.py -k "continuation_candidate_channel_counts or terminal_candidate_channels or continuation or bridge_mapping or semantic_mapping"` -> `6 passed`
+  - `python -m pytest -q` -> `158 passed`
+- 真实样本 rerun：
+  - 第二套：[phase26_continuation_channel_second](/F:/workspace/XJToolkit/.tmp/phase26_continuation_channel_second)
+  - 第一套：[phase26_continuation_channel_first](/F:/workspace/XJToolkit/.tmp/phase26_continuation_channel_first)
+- 第二套 current-head 新证据：
+  - `pair_kind_counts` 保持 `{'ordinary_pair': 1031, 'semantic_mapping': 157, 'continuation': 20, 'bridge_mapping': 3}`
+  - `issue_count` 保持 `518`
+  - `R-PAIR-LOW-CONFIDENCE = 201`、`R-PAIR-MISSING-SIDE = 317`
+  - `terminal_candidates.parquet` 新增 `continuation_channel = 26`
+  - `channel_detail` 分布为：
+    - `terminal_missing_left_continuation = 20`
+    - `terminal_short_bridge_cross_column = 6`
+  - 端子页页级 findings 中，`S0021` 出现 `continuation_channel = 14`，`S0024` 出现 `continuation_channel = 12`
+- 第一套 current-head 新证据：
+  - `pair_kind_counts` 保持 `{'ordinary_pair': 943, 'semantic_mapping': 103, 'continuation': 68, 'bridge_mapping': 3}`
+  - `issue_count` 保持 `345`
+  - `R-PAIR-LOW-CONFIDENCE = 77`、`R-PAIR-MISSING-SIDE = 267`、`R-DUPLICATE-PAIR = 1`
+  - `terminal_candidates.parquet` 新增 `continuation_channel = 80`
+  - `channel_detail` 分布为：
+    - `terminal_missing_left_continuation = 34`
+    - `terminal_missing_right_continuation = 28`
+    - `terminal_same_value_bridge = 12`
+    - `terminal_short_bridge_cross_column = 6`
+  - 端子页页级 findings 中，`S0025` 出现 `continuation_channel = 38`，`S0027` 出现 `continuation_channel = 42`
+- 这轮的直接意义：
+  - terminal candidate 四通道现在已最小闭环为：
+    - `terminal_numeric_channel`
+    - `continuation_channel`
+    - `semantic_channel`
+    - `noise_channel`
+  - 同时 ordinary / semantic pair 行为和真实样本 issue 结果都没有回退

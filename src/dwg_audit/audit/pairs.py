@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import defaultdict
 import re
 
+from dwg_audit.audit.candidates import _CHANNEL_CONTINUATION
+from dwg_audit.audit.candidates import _CHANNEL_TERMINAL_NUMERIC
 from dwg_audit.audit.candidates import _looks_like_terminal_semantic_marker
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -81,6 +83,16 @@ def build_pairs(
                 by_group_candidates.get(group.line_group_id, []),
             )
             pair_kind = _pair_kind_from_evidence(evidence)
+            if _backfill_continuation_candidate_channels(pair_kind, evidence, left_item, right_item):
+                evidence = _pair_evidence(
+                    group,
+                    sheet_map.get(group.sheet_id),
+                    single,
+                    None,
+                    candidate_map,
+                    by_group_candidates.get(group.line_group_id, []),
+                )
+                pair_kind = _pair_kind_from_evidence(evidence)
             status, rationale = _apply_special_pair_semantics(
                 status=status,
                 rationale=rationale,
@@ -179,6 +191,18 @@ def build_pairs(
             by_group_candidates.get(group.line_group_id, []),
         )
         pair_kind = _pair_kind_from_evidence(evidence)
+        left_candidate = candidate_map.get(selected.left_candidate_id or "")
+        right_candidate = candidate_map.get(selected.right_candidate_id or "")
+        if _backfill_continuation_candidate_channels(pair_kind, evidence, left_candidate, right_candidate):
+            evidence = _pair_evidence(
+                group,
+                sheet_map.get(group.sheet_id),
+                selected,
+                alternative_ids,
+                candidate_map,
+                by_group_candidates.get(group.line_group_id, []),
+            )
+            pair_kind = _pair_kind_from_evidence(evidence)
         status, rationale = _apply_special_pair_semantics(
             status=status,
             rationale=rationale,
@@ -225,7 +249,7 @@ def _accepted_sorted(candidates: list[TerminalCandidate]) -> list[TerminalCandid
         for item in candidates
         if item.status == "accepted"
         and item.value
-        and item.channel == "terminal_numeric_channel"
+        and item.channel == _CHANNEL_TERMINAL_NUMERIC
     ]
     return sorted(accepted, key=lambda item: item.score, reverse=True)
 
@@ -568,6 +592,35 @@ def _pair_kind_from_evidence(evidence: dict[str, object]) -> str:
     if isinstance(pair_kind, str) and pair_kind.strip():
         return pair_kind.strip()
     return "ordinary_pair"
+
+
+def _backfill_continuation_candidate_channels(
+    pair_kind: str,
+    evidence: dict[str, object],
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> bool:
+    if pair_kind not in {"continuation", "bridge_mapping"}:
+        return False
+
+    if pair_kind == "continuation":
+        raw_detail = evidence.get("continuation_kind") or evidence.get("semantic_kind")
+    else:
+        raw_detail = evidence.get("bridge_mapping_kind") or evidence.get("semantic_kind")
+    channel_detail = raw_detail.strip() if isinstance(raw_detail, str) and raw_detail.strip() else None
+
+    changed = False
+    for candidate in (left_candidate, right_candidate):
+        if candidate is None or candidate.status != "accepted" or not candidate.value:
+            continue
+        if candidate.channel not in {_CHANNEL_TERMINAL_NUMERIC, _CHANNEL_CONTINUATION}:
+            continue
+        if candidate.channel == _CHANNEL_CONTINUATION and candidate.channel_detail == channel_detail:
+            continue
+        candidate.channel = _CHANNEL_CONTINUATION
+        candidate.channel_detail = channel_detail
+        changed = True
+    return changed
 
 
 def _apply_special_pair_semantics(

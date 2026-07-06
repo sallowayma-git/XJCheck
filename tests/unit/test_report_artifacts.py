@@ -279,6 +279,115 @@ def test_write_project_artifacts_summarizes_terminal_candidate_channels(tmp_path
     }
 
 
+def test_write_project_artifacts_includes_continuation_candidate_channel_counts(tmp_path: Path) -> None:
+    source = SourceFileRecord(
+        file_id="F0001",
+        path="C:/demo/26.dwg",
+        filename="26.dwg",
+        ext=".dwg",
+        sha256="abc",
+        size_bytes=10,
+        sheet_order=26,
+        detected_page_no="26",
+        detected_from="filename",
+        sheet_title="右侧端子图1",
+        sheet_category="屏端子图",
+        skip_reason=None,
+        valid_dwg_header=True,
+        conversion_status="converted",
+    )
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-06T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[source],
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord("S0001", "F0001", "26.dwg", 26, "26", "右侧端子图1", "屏端子图", "supplemental", "filename", True)
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G1",
+            "S0001",
+            "F0001",
+            "left",
+            "T1",
+            "3-2n420",
+            "420",
+            0.9,
+            "accepted",
+            None,
+            325.0,
+            145.0,
+            2.0,
+            1.0,
+            channel="continuation_channel",
+            channel_detail="terminal_same_value_bridge",
+        ),
+        TerminalCandidate(
+            "C0002",
+            "G1",
+            "S0001",
+            "F0001",
+            "right",
+            "T2",
+            "1-2n420",
+            "420",
+            0.88,
+            "accepted",
+            None,
+            400.0,
+            145.0,
+            2.0,
+            1.0,
+            channel="continuation_channel",
+            channel_detail="terminal_same_value_bridge",
+        ),
+        TerminalCandidate(
+            "C0003",
+            "G1",
+            "S0001",
+            "F0001",
+            "left",
+            "T3",
+            "KLP",
+            None,
+            0.0,
+            "rejected",
+            "not_numeric",
+            350.0,
+            145.0,
+            2.0,
+            1.0,
+            channel="semantic_channel",
+            channel_detail="terminal_semantic_marker",
+        ),
+    ]
+
+    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan, terminal_candidates=candidates), tmp_path)
+    findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
+
+    channel_counts = findings_payload["page_findings"][0]["structure_summary"]["terminal_candidate_channel_counts"]
+    assert channel_counts == {
+        "continuation_channel": 2,
+        "semantic_channel": 1,
+    }
+
+
 def test_write_project_artifacts_summarizes_continuation_pair_kinds(tmp_path: Path) -> None:
     source = SourceFileRecord(
         file_id="F0001",

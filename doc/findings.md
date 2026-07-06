@@ -3830,3 +3830,230 @@ Batch 2 已完成的端子页是：
 - 或 candidate 级 `continuation_channel`
 
 而不再是继续争论 terminal 页是否还只有 ordinary pair。
+
+## 69. 2026-07-06 current-head 任务书审计刷新：`continuation_channel` 现在是最接近 7.4 合同的剩余缺口
+
+在 `phase25` 之后，我再次只依据 current-head 代码、测试和真实样本产物复核了任务书 7.4 与第 9 章，结论是：
+
+- pair 级四类关系现在都已经有最小合同：
+  - `ordinary_pair`
+  - `continuation`
+  - `bridge_mapping`
+  - `semantic_mapping`
+- 但 candidate 级四通道仍然没有真正闭环。
+
+### 69.1 当前已经完成到哪一步
+
+当前 candidate 层仍只有三种显式 channel：
+
+- `terminal_numeric_channel`
+- `semantic_channel`
+- `noise_channel`
+
+这在代码里仍是当前事实，见 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py:18) 到 [20](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py:20)。
+
+当前并没有：
+
+- `continuation_channel`
+
+与此同时，`pairs.py` 已经能够在 pair 层稳定识别：
+
+- continuation
+- bridge_mapping
+- semantic_mapping
+
+而 PairBuilder 仍只直接消费 `terminal_numeric_channel`，见 [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py:228)。
+
+### 69.2 为什么这现在比 semantic-specific rule 更近
+
+`semantic_mapping` 虽然还没有 semantic-specific 项目级一致性规则，但至少已经进入了 pair 级 relation。
+
+而 `continuation_channel` 仍处于更早一层的合同缺口：
+
+- 当前很多最终被识别成 continuation / bridge_mapping 的 selected numeric candidate，
+  在 artifacts 里仍然看起来像普通 `terminal_numeric_channel`
+- 这会让 findings 运行态在 candidate 维度上，仍然无法回答：
+  - 哪些 numeric 实际属于普通 terminal pair 候选
+  - 哪些 numeric 更像 continuation / bridge 提示
+
+也就是说，当前系统虽然已经能在 pair 终点“纠正语义”，但在 candidate 起点还没有把四通道合同补齐。
+
+### 69.3 current-head 真实样本支持这条切片足够窄
+
+在 `phase25` 的真实样本里，当前非 ordinary 的 terminal pair 数量已经很收敛：
+
+- 第二套：
+  - `continuation: 20`
+  - `bridge_mapping: 3`
+  - 对应 selected candidate id 大约 `26` 个
+- 第一套：
+  - `continuation: 68`
+  - `bridge_mapping: 3`
+  - 对应 selected candidate id 大约 `80` 个
+
+这说明：
+
+- 如果下一刀只把“已经在 pair 层被识别成 continuation / bridge_mapping 的 selected numeric candidate”回标成 `continuation_channel`
+- 这会是一个相对窄、相对低风险的 current-head 切片
+
+它不会要求先重做：
+
+- candidate 搜索窗口
+- ordinary pair 排序
+- semantic mapping 规则
+
+### 69.4 当前最接近主链的单一核心切片
+
+基于 current-head 审计，下一刀最合理的单一核心切片应定义为：
+
+- **只把已在 pair 层识别成 `continuation` 或 `bridge_mapping` 的 selected numeric candidate，回标成显式 `continuation_channel`。**
+
+这条切片故意不做以下扩张：
+
+- 不把 `semantic_mapping` 的 numeric candidate 改成 continuation channel
+- 不重做 candidate 排序算法
+- 不改变 ordinary pair 的 candidate channel
+- 不引入新的项目级 semantic / bridge 规则
+
+### 69.5 为什么这轮不该优先做别的
+
+当前仍不该优先的方向：
+
+1. 继续扩大 semantic-specific 项目级规则
+2. 再回桌面端 / preview / Tauri
+3. 继续只在 `pairs.py` 里堆更多语义，而不把 candidate 四通道合同补齐
+
+## 70. 2026-07-06 `phase26_continuation_channel_{second,first}`：candidate 级 `continuation_channel` 已完成最小闭环
+
+这一轮只推进了 `phase25` 之后最近、也最窄的一条合同缺口：
+
+- 不改 candidate 搜索窗口
+- 不重排 ordinary pair
+- 不扩大 semantic mapping
+- **只把已在 pair 层识别成 `continuation` 或 `bridge_mapping` 的 selected numeric candidate，回标成显式 `continuation_channel`**
+
+### 70.1 本轮代码变化
+
+- [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+  - 新增 `_CHANNEL_CONTINUATION = "continuation_channel"`
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - `_accepted_sorted()` 仍只消费 `terminal_numeric_channel`
+  - 在 pair 语义已确定后，若当前 relation 属于：
+    - `continuation`
+    - `bridge_mapping`
+  - 则对应 selected candidate 会被回标为：
+    - `channel = continuation_channel`
+    - `channel_detail = continuation_kind / bridge_mapping_kind`
+  - `semantic_mapping` 刻意不跟着改写，selected numeric candidate 继续保留在 `terminal_numeric_channel`
+- [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py)
+  - 新增断言，确保：
+    - continuation / bridge 的 selected channel 已变成 `continuation_channel`
+    - semantic mapping 仍保持 `terminal_numeric_channel`
+- [test_report_artifacts.py](/F:/workspace/XJToolkit/tests/unit/test_report_artifacts.py)
+  - 新增 findings 汇总对 `continuation_channel` 的页级统计断言
+
+### 70.2 定向与全量测试结果
+
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "continuation or bridge_mapping or semantic_mapping or terminal_numeric_channel_candidates"`
+  - `10 passed`
+- `python -m pytest -q tests/unit/test_report_artifacts.py -k "continuation_candidate_channel_counts or terminal_candidate_channels or continuation or bridge_mapping or semantic_mapping"`
+  - `6 passed`
+- `python -m pytest -q`
+  - `158 passed`
+
+### 70.3 第二套真实样本 rerun 结果
+
+- [phase26_continuation_channel_second/2_2](/F:/workspace/XJToolkit/.tmp/phase26_continuation_channel_second/2_2)
+
+相对 `phase25`，第二套 current-head 的 pair / issue 结果保持不变：
+
+- `pair_kind_counts`
+  - `{'ordinary_pair': 1031, 'semantic_mapping': 157, 'continuation': 20, 'bridge_mapping': 3}`
+- `issue_count`
+  - 保持 `518`
+- `R-PAIR-LOW-CONFIDENCE`
+  - 保持 `201`
+- `R-PAIR-MISSING-SIDE`
+  - 保持 `317`
+
+真正新增的是 candidate 层运行态证据：
+
+- 全项目 `terminal_candidates.parquet` 现在有：
+  - `continuation_channel = 26`
+- `channel_detail` 分布为：
+  - `terminal_missing_left_continuation = 20`
+  - `terminal_short_bridge_cross_column = 6`
+- 页级 findings 中：
+  - `S0021` 出现 `continuation_channel = 14`
+  - `S0024` 出现 `continuation_channel = 12`
+
+这说明第二套里当前被判成：
+
+- `? -> 328` 风格 continuation
+- `110 -> 330` 风格 bridge mapping
+
+其 selected numeric candidate 现在已经不会再伪装成普通 `terminal_numeric_channel`。
+
+### 70.4 第一套真实样本 rerun 结果
+
+- [phase26_continuation_channel_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA](/F:/workspace/XJToolkit/.tmp/phase26_continuation_channel_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+相对 `phase25`，第一套 current-head 的 pair / issue 结果同样保持不变：
+
+- `pair_kind_counts`
+  - `{'ordinary_pair': 943, 'semantic_mapping': 103, 'continuation': 68, 'bridge_mapping': 3}`
+- `issue_count`
+  - 保持 `345`
+- `R-PAIR-LOW-CONFIDENCE`
+  - 保持 `77`
+- `R-PAIR-MISSING-SIDE`
+  - 保持 `267`
+
+candidate 层新增证据则更丰富：
+
+- 全项目 `terminal_candidates.parquet` 现在有：
+  - `continuation_channel = 80`
+- `channel_detail` 分布为：
+  - `terminal_missing_left_continuation = 34`
+  - `terminal_missing_right_continuation = 28`
+  - `terminal_same_value_bridge = 12`
+  - `terminal_short_bridge_cross_column = 6`
+- 页级 findings 中：
+  - `S0025` 出现 `continuation_channel = 38`
+  - `S0027` 出现 `continuation_channel = 42`
+
+这也对应了第一套 current-head 已经存在的三种非 ordinary terminal 关系：
+
+- `? -> X`
+- `X -> ?`
+- `X -> X` same-value continuation
+- 以及少量 `bridge_mapping`
+
+### 70.5 这轮对任务书主链的真正意义
+
+任务书 7.4 在 terminal candidate 层期望的四通道，现在已经最小闭环为：
+
+- `terminal_numeric_channel`
+- `continuation_channel`
+- `semantic_channel`
+- `noise_channel`
+
+同时又保持了两个重要边界：
+
+1. PairBuilder 仍只直接消费 `terminal_numeric_channel`
+2. `semantic_mapping` 的 selected numeric 不会被误并进 continuation channel
+
+所以这一轮补上的不是“更多语义”，而是把 current-head 已经识别出来的 relation 语义，真正回写到了 candidate 运行态。
+
+### 70.6 这轮之后最近的剩余缺口
+
+在 `phase26` 之后，最接近任务书主链的剩余缺口已经进一步收敛为：
+
+1. `semantic_mapping` 仍只有最小 pair 级合同，还没有 semantic-specific 项目级一致性规则
+2. `bridge_mapping` 与 `semantic_mapping` 还没有更系统的 relation ledger / index
+3. `continuation_channel` 已落地，但还没有更专门的 candidate-level 统计/规则消费方
+
+也就是说，下一刀不再是“candidate 四通道是否完整”，而更可能是：
+
+- semantic-specific project rule input
+- 或更系统的 bridge / semantic ledger

@@ -16,6 +16,7 @@ from dwg_audit.utils.ids import IdFactory
 _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
 _CHANNEL_TERMINAL_NUMERIC = "terminal_numeric_channel"
+_CHANNEL_CONTINUATION = "continuation_channel"
 _CHANNEL_SEMANTIC = "semantic_channel"
 _CHANNEL_NOISE = "noise_channel"
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
