@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 71
+Phase 72
 
 ## Phases
 
@@ -970,6 +970,23 @@ Phase 71
   - first fresh `.tmp/phase85_network_time_first/...` + `.tmp/phase85_network_time_first_audit`: `pair_count=1562`, `issue_count=258`, `R-PAIR-MISSING-SIDE=100`, `semantic_mapping=117`。
   - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second wire/component/table structured redlines and first KLP/ZLP/component-prefixed structured mappings all held.
 - [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 72: Second AC Phase-Label Semantic Annotation
+- [x] 只读恢复并确认当前 HEAD 为 `a5522b7`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 Phase85 产物核查确认：second `S0004/S0005 / 04/05 交流回路图*.dwg` 中 `UA/UB/UC/UN/UX/3U0` 是 CT/VT AC phase/function label，旧候选层按 `not_numeric/noise_channel` 拒绝后留下 ordinary missing-side；本轮不混入 terminal-row、first prefixed endpoints 或 backplate rules。
+- [x] 实现目标：沿 Phase70/71 的 `schematic_semantic_endpoint_channel` 窄扩 AC/CT-VT sheet context，只接受 `UA/UB/UC/UN/UX/3U0/3U0'`；PairBuilder 允许该 detail 进入同侧 annotation semantic，输出 `pair_kind=semantic_mapping` / `semantic_mapping_kind=schematic_ac_phase_label` / `ordinary_pair_eligible=False`。
+- [x] 风险门槛：不接受 `I0/IA/IB/IC/IN` 为 AC phase label；端子图 `UA/UB/UC/UN/3U0` 仍保留为 `semantic_channel` / rejected evidence，不进入 schematic semantic endpoint，也不进入 `table_mapping/pass` endpoint；不把局部单字符 `1..6` 或 `1-21ZKK/3-21ZKK` 回灌为普通 endpoint。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0 or network_time or schematic_dc or schematic_semantic_endpoint"` -> `8 passed, 27 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `259 passed`
+  - second fresh `.tmp/phase86_ac_phase_second/2_2` + `.tmp/phase86_ac_phase_second_audit`: `pair_count=1460`, `issue_count=33`, `R-PAIR-MISSING-SIDE=23`, `semantic_mapping=182`；新增 10 条 `schematic_ac_phase_label` semantic review。
+  - second AC targets hit: `721 -> 3U0`、`723 -> UX`、`719 -> UC`、`717 -> UB`、`715 -> UA` 在 `04/05 交流回路图*.dwg` 中按候选窗口命中；`724 -> UX'` 与 `? -> 715/717/719` 另一半链仍是下一刀 covered/window 扩展候选。
+  - first fresh `.tmp/phase86_ac_phase_first/...` + `.tmp/phase86_ac_phase_first_audit`: `pair_count=1562`, `issue_count=258`, `semantic_mapping=119`；新增 2 条 first AC semantic review，既有结构化红线保持。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
+- [ ] 下一刀候选收缩为：second AC phase-label covered/window residual (`724 -> UX'` 与 `? -> 715/717/719` 半链)、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
 ## Errors Encountered

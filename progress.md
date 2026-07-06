@@ -2708,3 +2708,34 @@
   - second AC phase-label semantic/covered mapping.
   - first prefixed external endpoints.
   - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 72 second AC phase-label semantic annotation)
+- Started after commit `a5522b7`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Launched read-only explorers for Phase85 AC residual mining and AC semantic write-set audit.
+- Read-only audit conclusions:
+  - second `S0004/S0005 / 04/05 交流回路图*.dwg` had AC phase/function labels `UA/UB/UC/UN/UX/3U0/3U0'` rejected as `not_numeric/noise_channel`.
+  - The safe slice is schematic-only AC phase semantic annotation. Terminal-row semantics and `1-21ZKK/3-21ZKK` markers must remain out of ordinary endpoint parsing.
+  - Some residuals (`724 -> UX'`, and the `? -> 715/717/719` split half-lines) need a later covered/window slice because their phase label is outside the current candidate window or on the sibling half-chain.
+- Implementation:
+  - Added `_SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS` in `candidates.py`, gated to `二次原理图` and AC/CT-VT sheet context.
+  - Accepted only `UA/UB/UC/UN/UX/3U0/3U0'` as `schematic_semantic_endpoint_channel` with `channel_detail=schematic_ac_phase_label`.
+  - Extended PairBuilder same-side semantic annotation to cover `schematic_ac_phase_label`, still producing `pair_kind=semantic_mapping` and `ordinary_pair_eligible=False`.
+  - Added tests for AC annotation, terminal AC marker isolation, and `I0` not becoming an AC phase label.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0 or network_time or schematic_dc or schematic_semantic_endpoint"` -> `8 passed, 27 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `259 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase86_ac_phase_second/2_2` + `.tmp/phase86_ac_phase_second_audit`: `pair_count=1460`, `issue_count=33`, `R-PAIR-MISSING-SIDE=23`, `semantic_mapping=182`.
+  - Added 10 `schematic_ac_phase_label` semantic review relations, including `721 -> 3U0`, `723 -> UX`, `719 -> UC`, `717 -> UB`, and `715 -> UA` on `04/05 交流回路图*.dwg`.
+  - second AC issues dropped from 11 to 7. Remaining AC residuals are `? -> 715/717/719` sibling half-lines and `724 -> ?`; these are not hidden by this slice.
+  - first fresh `.tmp/phase86_ac_phase_first/...` + `.tmp/phase86_ac_phase_first_audit`: `pair_count=1562`, `issue_count=258`, `semantic_mapping=119`; first-set structured redlines held.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `1-2ZLP4-1 -> KD26`, `1-2ZLP4-2 -> 1-2n422`.
+- Next candidates:
+  - second AC phase-label covered/window residual (`724 -> UX'` and `? -> 715/717/719` sibling half-lines).
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.

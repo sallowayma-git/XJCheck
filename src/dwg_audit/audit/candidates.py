@@ -32,6 +32,9 @@ _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^B[+-]$", re.IGNORECASE),
     re.compile(r"^Device alarm$", re.IGNORECASE),
 )
+_SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"^(?:UA|UB|UC|UN|UX|3U0'?)$", re.IGNORECASE),
+)
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
     re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
@@ -674,6 +677,11 @@ def _candidate_schematic_semantic_endpoint_detail(
         and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS)
     ):
         return "schematic_network_time_label"
+    if (
+        any(marker in sheet_context for marker in ("交流", "AC", "CT AND VT", "VOLTAGE", "CURRENT"))
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_ac_phase_label"
     return None
 
 

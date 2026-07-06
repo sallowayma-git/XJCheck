@@ -8869,3 +8869,56 @@ fresh first-set 非回归证据：
 
 - 本轮是网络/对时功能标签的语义关系收口，不是扩大普通数字端点解析，也不是 rules 静音。
 - 下一轮候选收缩为：second AC phase-label semantic/covered mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics。
+
+## 125. 2026-07-07 second AC phase-label semantic annotation：交流相量标签进入 semantic review 关系
+
+只读审计确认，second `S0004/S0005 / 04/05 交流回路图*.dwg` 中的 `UA/UB/UC/UN/UX/3U0/3U0'` 是 CT/VT 交流回路的相量/功能标签，不是普通数字端点，也不是端子图说明列。旧候选层把这些文本拒为 `not_numeric/noise_channel`，导致相邻数字端 `715/717/719/721/723/724` 留下 ordinary missing-side。
+
+本轮实现：
+
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 沿用 `schematic_semantic_endpoint_channel`，仅在 `二次原理图` 且 sheet filename/title 命中交流/AC/CT-VT context 时接受 AC phase label。
+- 本切片只接受 `UA/UB/UC/UN/UX/3U0/3U0'`，不接受 `I0/IA/IB/IC/IN`，不把 `1-21ZKK/3-21ZKK` 或局部脚位 `1..6` 回灌成 ordinary endpoint。
+- 在 [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py) 让同侧 annotation 语义支持 `schematic_ac_phase_label`，输出仍是 `semantic_mapping/review`，并带 `ordinary_pair_eligible=False`。
+- 在 [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py) 增加 AC annotation、端子图 AC marker 隔离、`I0` 不进入 AC phase label 通道的回归测试。
+
+fresh second-set 证据：
+
+- `.tmp/phase86_ac_phase_second/2_2` + `.tmp/phase86_ac_phase_second_audit`
+- `pair_count=1460`
+- `issue_count=33`
+- `R-PAIR-MISSING-SIDE=23`
+- `semantic_mapping=182`
+- 新增 10 条 `schematic_ac_phase_label` semantic review 关系，包括：
+  - `721 -> 3U0`
+  - `723 -> UX`
+  - `719 -> UC`
+  - `717 -> UB`
+  - `715 -> UA`
+- second AC issue 从 Phase85 的 11 条降为 7 条；剩余为 `? -> 715/717/719` sibling half-lines 与 `724 -> ?`，需要下一刀 covered/window residual，不在本轮静音。
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase86_ac_phase_first/...` + `.tmp/phase86_ac_phase_first_audit`
+- `pair_count=1562`
+- `issue_count=258`
+- `semantic_mapping=119`
+- first 中新增 2 条 `3U0 -> 723` AC semantic review，整体 issue_count 与 Phase85 持平。
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 均保持命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0 or network_time or schematic_dc or schematic_semantic_endpoint"` -> `8 passed, 27 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `259 passed`
+
+裁决：
+
+- 本轮是二次交流相量标签的语义 annotation 收口，不是扩大普通数字解析，也不是 rules 静音。
+- 下一轮候选收缩为：second AC phase-label covered/window residual、first prefixed external endpoints、backplate/component/table mapping rules semantics。
