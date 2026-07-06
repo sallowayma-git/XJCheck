@@ -258,7 +258,40 @@ def _merge_issue_cluster(primary: Issue, duplicate: Issue) -> Issue:
     _merge_backplate_scope_cluster_evidence(evidence, primary, duplicate)
     _merge_backplate_same_sheet_scope_cluster_evidence(evidence, primary, duplicate)
     primary.evidence = evidence
+    _refresh_terminal_header_table_interval_issue(primary)
     return primary
+
+
+def _refresh_terminal_header_table_interval_issue(issue: Issue) -> None:
+    evidence = issue.evidence
+    if not evidence.get("terminal_header_table_interval_review"):
+        return
+    if (
+        evidence.get("many_to_one_classification")
+        != "terminal_header_table_shared_endpoint_review"
+    ):
+        return
+
+    logical_ranges = _as_list(evidence.get("aggregated_logical_endpoint_ranges"))
+    shared_ranges = _as_list(evidence.get("aggregated_shared_endpoint_ranges"))
+    row_ranges = _as_list(evidence.get("aggregated_row_number_ranges"))
+    if not logical_ranges or not shared_ranges:
+        return
+
+    issue.summary = (
+        "Terminal header table shared endpoints form contiguous intervals: "
+        f"logical={', '.join(str(value) for value in logical_ranges)}; "
+        f"shared={', '.join(str(value) for value in shared_ranges)}."
+    )
+    issue.explanation = (
+        "同页 terminal_header_table 表格映射中，多个表头逻辑端按连续行号区间共享端子列文本；"
+        "这更像端子表跨表头/跨列的结构化共享端点区间，需要按区间复核，而不是逐行当成普通多对一错误。"
+    )
+    row_text = f"；行号区间：{', '.join(str(value) for value in row_ranges)}" if row_ranges else ""
+    issue.recommended_action = (
+        "按聚合后的 logical/shared endpoint 区间核对表头、行号和共享端子文本坐标"
+        f"{row_text}。"
+    )
 
 
 def _merge_terminal_header_table_cluster_evidence(
@@ -323,6 +356,35 @@ def _merge_terminal_header_table_cluster_evidence(
             _as_list(primary_evidence.get("header_prefixes"))
             + _as_list(duplicate_evidence.get("header_prefixes"))
         )
+        _add_terminal_header_shared_endpoint_interval_evidence(primary_evidence)
+
+
+def _add_terminal_header_shared_endpoint_interval_evidence(
+    evidence: dict[str, Any],
+) -> None:
+    evidence["terminal_header_table_interval_review"] = True
+    logical_ranges = _numeric_suffix_range_labels(
+        _as_list(evidence.get("aggregated_logical_endpoints"))
+        + _as_list(evidence.get("logical_endpoints"))
+    )
+    if logical_ranges:
+        evidence["aggregated_logical_endpoint_ranges"] = logical_ranges
+
+    shared_ranges = _numeric_suffix_range_labels(
+        _as_list(evidence.get("aggregated_shared_endpoints"))
+        + _as_list(evidence.get("shared_endpoint"))
+    )
+    if shared_ranges:
+        evidence["aggregated_shared_endpoint_ranges"] = shared_ranges
+
+    row_ranges = _integer_range_labels(
+        _integer_values(
+            _as_list(evidence.get("aggregated_row_numbers"))
+            + _as_list(evidence.get("row_numbers"))
+        )
+    )
+    if row_ranges:
+        evidence["aggregated_row_number_ranges"] = row_ranges
 
 
 def _is_terminal_header_table_aggregation_issue(issue: Issue) -> bool:
@@ -564,6 +626,59 @@ def _numeric_suffix_values(values: list[Any]) -> list[int]:
             continue
         result.append(int(digits))
     return result
+
+
+def _numeric_suffix_range_labels(values: list[Any]) -> list[str]:
+    groups: dict[str, set[int]] = {}
+    passthrough: list[str] = []
+    for value in _merge_sorted_values(values):
+        prefix, number = _split_numeric_suffix(value)
+        if number is None:
+            passthrough.append(value)
+            continue
+        groups.setdefault(prefix, set()).add(number)
+
+    labels = list(passthrough)
+    for prefix in sorted(groups, key=_natural_sort_key):
+        labels.extend(_prefixed_integer_range_labels(prefix, sorted(groups[prefix])))
+    return labels
+
+
+def _split_numeric_suffix(value: str) -> tuple[str, int | None]:
+    digits = ""
+    for char in reversed(value):
+        if not char.isdigit():
+            break
+        digits = f"{char}{digits}"
+    if not digits:
+        return value, None
+    return value[: -len(digits)], int(digits)
+
+
+def _integer_range_labels(values: list[int]) -> list[str]:
+    return _prefixed_integer_range_labels("", sorted(set(values)))
+
+
+def _prefixed_integer_range_labels(prefix: str, values: list[int]) -> list[str]:
+    if not values:
+        return []
+    labels: list[str] = []
+    start = values[0]
+    previous = values[0]
+    for value in values[1:]:
+        if value == previous + 1:
+            previous = value
+            continue
+        labels.append(_format_integer_range(prefix, start, previous))
+        start = previous = value
+    labels.append(_format_integer_range(prefix, start, previous))
+    return labels
+
+
+def _format_integer_range(prefix: str, start: int, end: int) -> str:
+    if start == end:
+        return f"{prefix}{start}"
+    return f"{prefix}{start}..{prefix}{end}"
 
 
 def _as_list(value: Any) -> list[Any]:

@@ -9323,3 +9323,41 @@ second 非回归证据：
 
 - 本轮是背板同页虚拟表格作用域 review 的聚合收口，不是静音规则，也不是新增抽取器。
 - 下一轮候选收缩为：many-to-one/shared endpoint 默认展示分层、terminal header shared endpoint 区间展示、component split endpoint review 展示；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 134. 2026-07-07 terminal header shared endpoint：连续区间写入 review 证据和报告说明
+
+只读审计确认，Phase80 后 second `S0023 / 23 右侧端子图1.dwg` 的最大 terminal_header_table shared endpoint review 已经是聚合 issue，但报告仍像单点问题一样描述 `1-21n210`。真实结构是同一张端子表中两个连续 header 区间共享一段连续端子列：`1-21GD1..1-21GD21` 与 `1-21QD26..1-21QD46` 共同对应 `1-21n210..1-21n230`。这些关系在 findings 中已是 `table_mapping/pass/high`，本轮只收口 rules/display 证据，不改抽取器。
+
+本轮实现：
+
+- 在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 为聚合后的 `terminal_header_table_shared_endpoint_review` 增加区间摘要证据。
+- 新增字段：`terminal_header_table_interval_review`、`aggregated_logical_endpoint_ranges`、`aggregated_shared_endpoint_ranges`、`aggregated_row_number_ranges`。
+- 聚合 issue 的 `summary / explanation / recommended_action` 改为明确显示区间结构，让 `audit_report.md` 和桌面 summary 字段不再只展示第一条共享端。
+- 不改 `TableExtractor` / `TerminalDiagramExtractor` / `PairBuilder` / graph input，不隐藏或移除 `table_mapping`，不扩 CLI/UI。
+
+fresh second-set 证据：
+
+- `.tmp/phase81_terminal_header_interval_second_audit`
+- `issue_count=23`，与 Phase80 保持一致。
+- `I0062` now reports:
+  - `aggregated_logical_endpoint_ranges=["1-21GD1..1-21GD21", "1-21QD26..1-21QD46"]`
+  - `aggregated_shared_endpoint_ranges=["1-21n210..1-21n230"]`
+  - `aggregated_row_number_ranges=["1..21", "26..46"]`
+  - `summary="Terminal header table shared endpoints form contiguous intervals: logical=1-21GD1..1-21GD21, 1-21QD26..1-21QD46; shared=1-21n210..1-21n230."`
+- `audit_report.md` 的 Summary / RecommendedAction 已显示上述区间和行号区间。
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase81_terminal_header_interval_first_audit`
+- `issue_count=136`，与 Phase80 保持一致。
+- first 中已聚合的 terminal-header shared endpoint issue 增加 interval evidence；非连续片段仍以分段区间展示，不被强行合成单段。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or backplate or shared_endpoint"` -> `13 passed, 48 deselected`
+- `python -m pytest -q` -> `282 passed`
+
+裁决：
+
+- 本轮是 terminal_header_table shared endpoint 的区间证据和报告说明收口，不是 issue 静音，也不是表格抽取补漏。
+- 下一轮候选收缩为：component split endpoint review 展示、many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示；packaged sidecar/exe smoke 仍为独立产品切片。

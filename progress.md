@@ -2986,3 +2986,30 @@
   - terminal header shared endpoint interval display.
   - component split endpoint review display.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 81 terminal header shared endpoint interval evidence)
+- Started after commit `a59a15e`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned two read-only explorers for taskbook alignment and real-sample issue mining. Both selected terminal_header_table shared endpoint interval display as the best Phase81 rules/display slice.
+- Read-only audit conclusions:
+  - Phase80 second `S0023 / 23 右侧端子图1.dwg` had one large `R-MANY-TO-ONE / terminal_header_table_shared_endpoint_review` cluster, `I0062`, with `cluster_size=21`.
+  - The underlying structured relations are already `table_mapping/pass/high`; the weak part was report evidence: it named the first shared endpoint `1-21n210` but did not show the true intervals `1-21GD1..21`, `1-21QD26..46`, and `1-21n210..230`.
+  - This is not a TableExtractor or TerminalDiagramExtractor miss, and it should not remove `table_mapping` from the graph.
+- Implementation:
+  - Added terminal header interval evidence in `rule_base.py` for aggregated `terminal_header_table_shared_endpoint_review` issues.
+  - New evidence fields include `terminal_header_table_interval_review`, `aggregated_logical_endpoint_ranges`, `aggregated_shared_endpoint_ranges`, and `aggregated_row_number_ranges`.
+  - Refreshed the aggregated issue summary / explanation / recommended_action to name the interval structure in reports and desktop summary fields.
+  - Did not change issue triggering, severity/status, extractor behavior, graph input, CLI/UI, or acceptance harness.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or backplate or shared_endpoint"` -> `13 passed, 48 deselected`
+  - `python -m pytest -q` -> `282 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase81_terminal_header_interval_first_audit`: `issue_count=136`; `R-MANY-TO-ONE=34` unchanged; terminal-header shared endpoint clusters now carry interval evidence and interval summary when aggregated.
+  - second rules-only `.tmp/phase81_terminal_header_interval_second_audit`: `issue_count=23`; `I0062` summary now says `logical=1-21GD1..1-21GD21, 1-21QD26..1-21QD46; shared=1-21n210..1-21n230`; recommended action records row ranges `1..21, 26..46`.
+- Next candidates:
+  - component split endpoint review display.
+  - many-to-one/shared endpoint default display layering.
+  - backplate/component cross-scope shared endpoint display.
+  - packaged sidecar/exe smoke only as a separate product slice.

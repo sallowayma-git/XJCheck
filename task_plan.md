@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 80
+Phase 81
 
 ## Phases
 
@@ -1112,6 +1112,18 @@ Phase 80
   - first rules-only audit `.tmp/phase80_backplate_same_sheet_scope_first_audit`: `issue_count=136`，`R-ONE-TO-MANY=24`；`backplate_table_same_sheet_scope_review` 从 `18` 条聚合为 `1` 条，`cluster_size=18`，保留 `36` 个 `cluster_pair_ids`。
   - second rules-only audit `.tmp/phase80_backplate_same_sheet_scope_second_audit`: `issue_count=23` 保持不变；Phase78 findings pair_count 保持 first `1581` / second `1462`。
 - [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics 的 many-to-one/shared endpoint 默认展示分层、terminal header shared endpoint 区间展示、component split endpoint review 展示；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 81: Terminal Header Shared Endpoint Interval Evidence
+- [x] 只读恢复并确认当前 HEAD 为 `a59a15e`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase80 后 second `S0023 / 23 右侧端子图1.dwg` 的 `terminal_header_table_shared_endpoint_review` 已聚合为 1 条，但报告仍以单个 `1-21n210` 表述，未显示真实结构是 `1-21GD1..21` 与 `1-21QD26..46` 共享 `1-21n210..230` 的连续区间。
+- [x] 实现目标：只在 `rule_base` 聚合证据和 issue summary/action 中补 terminal header shared endpoint 区间摘要；不改 TableExtractor、TerminalDiagramExtractor、PairBuilder、graph input、规则判定或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or backplate or shared_endpoint"` -> `13 passed, 48 deselected`
+  - `python -m pytest -q` -> `282 passed`
+  - first rules-only audit `.tmp/phase81_terminal_header_interval_first_audit`: `issue_count=136` 保持不变；聚合 terminal-header shared endpoint issue 增加 `aggregated_*_ranges` 和区间化 summary。
+  - second rules-only audit `.tmp/phase81_terminal_header_interval_second_audit`: `issue_count=23` 保持不变；`I0062` summary 显示 `logical=1-21GD1..1-21GD21, 1-21QD26..1-21QD46; shared=1-21n210..1-21n230`，recommended action 显示行号区间 `1..21, 26..46`。
+- [ ] 下一刀候选收缩为：component split endpoint review 展示、many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered

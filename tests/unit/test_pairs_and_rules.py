@@ -2155,9 +2155,25 @@ def test_rules_cluster_terminal_header_table_shared_endpoint_reviews_by_header_p
     assert len(reviews) == 1
     review = reviews[0]
     assert review.title == "端子表共享端点待复核"
+    assert (
+        review.summary
+        == "Terminal header table shared endpoints form contiguous intervals: "
+        "logical=1-21GD1..1-21GD2, 1-21QD26..1-21QD27; "
+        "shared=1-21n210..1-21n211."
+    )
+    assert "行号区间：1..2, 26..27" in review.recommended_action
     assert review.evidence["cluster_size"] == 2
     assert review.evidence["terminal_header_table_aggregate_review"] is True
     assert review.evidence["aggregated_shared_endpoints"] == ["1-21n210", "1-21n211"]
+    assert review.evidence["terminal_header_table_interval_review"] is True
+    assert review.evidence["aggregated_shared_endpoint_ranges"] == [
+        "1-21n210..1-21n211",
+    ]
+    assert review.evidence["aggregated_row_number_ranges"] == ["1..2", "26..27"]
+    assert review.evidence["aggregated_logical_endpoint_ranges"] == [
+        "1-21GD1..1-21GD2",
+        "1-21QD26..1-21QD27",
+    ]
     assert review.evidence["aggregated_row_numbers"] == ["1", "2", "26", "27"]
     assert review.evidence["aggregated_logical_endpoints"] == [
         "1-21GD1",
