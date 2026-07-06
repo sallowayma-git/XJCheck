@@ -1681,6 +1681,89 @@ def test_rules_aggregate_complementary_missing_side_pairs() -> None:
     assert issue.evidence["chain_kind"] == "complementary_half_pair"
     assert issue.evidence["shared_text_id"] == "T723"
     assert issue.evidence["bridge_gap"] == 8.0
+    assert issue.evidence["line_group_y_delta"] == 0.1
+
+
+def test_rules_do_not_aggregate_complementary_pairs_across_dim_short_line() -> None:
+    pairs = [
+        Pair(
+            "PW0178",
+            "GW0178",
+            "S0008",
+            "F0008",
+            "PCW0178",
+            None,
+            "701",
+            0.5034,
+            "review",
+            "missing left candidate",
+            [],
+            "review",
+            {},
+            right_text_id="T0458",
+            right_coord_x=345.6229,
+            right_coord_y=145.6579,
+        ),
+        Pair(
+            "PW0182",
+            "GW0182",
+            "S0008",
+            "F0008",
+            "PCW0182",
+            "701",
+            None,
+            0.2831,
+            "review",
+            "missing right candidate",
+            [],
+            "review",
+            {},
+            left_text_id="T0458",
+            left_coord_x=345.6229,
+            left_coord_y=145.6579,
+        ),
+    ]
+    groups = [
+        LineGroup("GW0178", "S0008", "F0008", 257.5, 145.0, 347.5, 145.0, 90.0, 0.85, ["L0392"], ["CONNECT"]),
+        LineGroup(
+            "GW0182",
+            "S0008",
+            "F0008",
+            352.235754,
+            154.1,
+            377.764246,
+            154.1,
+            25.528492,
+            0.50,
+            ["L0425"],
+            ["DIM"],
+        ),
+    ]
+    sheets = [
+        SheetRecord(
+            "S0008",
+            "F0008",
+            "07 网络通讯回路图.dwg",
+            8,
+            "07",
+            "COMMUNICATION AND TIME SYNCHRONIZATION",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        ),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    missing_side = [issue for issue in issues if issue.rule_id == "R-PAIR-MISSING-SIDE"]
+    assert len(missing_side) == 1
+    assert missing_side[0].primary_pair_id == "PW0178"
+    assert missing_side[0].title == "端点数字缺失"
+    assert not any(
+        issue.evidence.get("chain_kind") == "complementary_half_pair"
+        for issue in missing_side
+    )
 
 
 def test_rules_detect_duplicate_same_line_from_close_terminal_candidates() -> None:

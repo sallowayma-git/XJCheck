@@ -86,6 +86,8 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
             continue
         if pair.left_value and pair.right_value:
             continue
+        if not _missing_side_line_group_candidate(pair, context.group_map):
+            continue
         issues.append(
             context.issue_factory.build(
                 "R-PAIR-MISSING-SIDE",
@@ -168,6 +170,8 @@ def _complementary_half_pair_evidence(
         return None
     if left_group.orientation != "horizontal" or right_group.orientation != "horizontal":
         return None
+    if not _line_groups_wire_chain_compatible(left_group, right_group, inline_y_tol):
+        return None
 
     bridge_gap = right_group.start_x - left_group.end_x
     if bridge_gap < 0 or bridge_gap > inline_gap:
@@ -187,7 +191,36 @@ def _complementary_half_pair_evidence(
         "shared_value": missing_left.right_value,
         "bridge_gap": round(bridge_gap, 4),
         "bridge_y_delta": round(bridge_y_delta, 4),
+        "line_group_y_delta": round(abs(left_group.start_y - right_group.start_y), 4),
     }
+
+
+def _line_groups_wire_chain_compatible(
+    left_group: LineGroup,
+    right_group: LineGroup,
+    inline_y_tol: float,
+) -> bool:
+    if abs(left_group.start_y - right_group.start_y) > inline_y_tol:
+        return False
+    return _wire_chain_group_candidate(left_group) and _wire_chain_group_candidate(right_group)
+
+
+def _wire_chain_group_candidate(group: LineGroup) -> bool:
+    layers = {str(layer).upper() for layer in group.layer_hints}
+    if layers and layers.issubset({"DIM"}):
+        return False
+    return group.wire_candidate_score >= 0.55
+
+
+def _missing_side_line_group_candidate(
+    pair: Pair,
+    group_map: dict[str, LineGroup],
+) -> bool:
+    group = group_map.get(pair.line_group_id)
+    if group is None:
+        return True
+    layers = {str(layer).upper() for layer in group.layer_hints}
+    return not (layers and layers.issubset({"DIM"}))
 
 
 def _order_half_pairs(

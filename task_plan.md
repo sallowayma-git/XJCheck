@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 65
+Phase 66
 
 ## Phases
 
@@ -868,6 +868,22 @@ Phase 65
   - second fresh `.tmp/phase79_terminal_header_aggregation_second/2_2`: `pair_count=1460`, `issue_count=129`, pair_kind unchanged；terminal-header 分类收敛为 5 个自然 issue：4 个 `R-ONE-TO-MANY`、1 个 `R-MANY-TO-ONE`。
   - second 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
 - [ ] 下一刀候选收缩为：`inline signal page ordinary residual wire-chain guardrail`；若回到产品化，则单独切 Phase51 packaged sidecar/exe smoke，不与 rules 聚合混入。
+- **Status:** complete
+
+### Phase 66: Inline Wire-Chain DIM Guardrail
+- [x] 只读恢复并确认当前 HEAD 为 `3d6d0fd`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 phase79 产物核查一致确认：first `S0008 / 07 网络通讯回路图.dwg` 的 2 条 `complementary_half_pair` 来自 `CONNECT` 主水平线与 y 方向错位的纯 `DIM` 短线共享同一数字文本锚点，不应解释成同一根 inline broken wire chain。
+- [x] 实现目标：只在 rules 诊断层增加 wire-chain guardrail；互补半链聚合必须要求 line group y 差不超过 inline tolerance，且两侧都不是纯 `DIM` 线；普通 `R-PAIR-MISSING-SIDE` 也不再对纯 `DIM` line group 报缺边。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；不改 `line_groups.py`、候选生成、PairBuilder、extractor、CLI/UI；不移除 pair graph input，`CONNECT` 主线缺边仍保持可见。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side"` -> `4 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q` -> `245 passed`
+  - first fresh `.tmp/phase80_inline_wire_chain_guardrail_first/...`: `pair_count=1550`, `issue_count=302`, pair_kind unchanged；`complementary_half_pair=0`；`R-PAIR-MISSING-SIDE=144`。
+  - first target residuals no longer emit `互补半链待复核`：`PW0178 ? -> 701` and `PW0202 ? -> 601` remain ordinary missing-side on `CONNECT` line groups; `PW0182/GW0182` and `PW0205/GW0205` pure `DIM` short-line issues are suppressed at rules issue level.
+  - second fresh `.tmp/phase80_inline_wire_chain_guardrail_second/2_2`: `pair_count=1460`, `issue_count=127`, pair_kind unchanged；`complementary_half_pair=0`。
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` remain structured pass relationships.
+- [ ] 下一刀候选：优先做只读审计后在剩余 ordinary missing-side/low-confidence 最大簇中选一个真实样本系统误解；若转向产品化，则单独切 Phase51 packaged sidecar/exe smoke。
 - **Status:** complete
 
 ## Errors Encountered

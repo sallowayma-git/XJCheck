@@ -2521,3 +2521,31 @@
 - Next candidates:
   - `inline signal page ordinary residual wire-chain guardrail`
   - packaged sidecar/exe smoke as a separate productization slice if the next round returns to Phase51/M11.
+
+## Session Update 2026-07-07 (Phase 66 inline wire-chain DIM guardrail)
+- Started after commit `3d6d0fd`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Current plan/taskbook pointed to `inline signal page ordinary residual wire-chain guardrail` as the next extraction/rules-quality slice.
+- Read-only audit conclusions:
+  - Explorer evidence confirmed first fresh Phase79 had exactly 2 `complementary_half_pair` issues, both in `S0008 / 07 网络通讯回路图.dwg`.
+  - Targets were `I0001 / PW0178 + PW0182` around shared `701`, and `I0002 / PW0202 + PW0205` around shared `601`.
+  - The related pairs used `CONNECT` main wire groups (`GW0178/GW0202`) plus y-offset pure `DIM` short-line groups (`GW0182/GW0205`), so the current rules wording overstated them as a single inline broken wire chain.
+- Implementation:
+  - Added `_line_groups_wire_chain_compatible()` and `_wire_chain_group_candidate()` in `rules.py`.
+  - Complementary half-chain aggregation now requires compatible horizontal line-group y and non-DIM wire-chain candidates.
+  - Added `_missing_side_line_group_candidate()` so pure `DIM` line groups do not emit generic `R-PAIR-MISSING-SIDE`.
+  - Kept pair graph inputs intact; no extractor, line grouping, candidate generation, PairBuilder, CLI/UI, or acceptance fixture behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side"` -> `4 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q` -> `245 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase80_inline_wire_chain_guardrail_first/...`: `pair_count=1550`, `issue_count=302`, pair_kind unchanged from Phase79; `complementary_half_pair=0`, `R-PAIR-MISSING-SIDE=144`.
+  - first target rows now remain honest ordinary missing-side on main `CONNECT` groups: `PW0178 ? -> 701` and `PW0202 ? -> 601`; pure `DIM` short-line issues `PW0182/PW0205` no longer enter the user issue list.
+  - second fresh `.tmp/phase80_inline_wire_chain_guardrail_second/2_2`: `pair_count=1460`, `issue_count=127`, pair_kind unchanged from Phase79; `complementary_half_pair=0`.
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+- Next candidates:
+  - Run fresh readonly audit on the remaining largest ordinary missing-side/low-confidence clusters and choose one true system-misunderstanding slice.
+  - Keep packaged sidecar/exe smoke separate if the next round returns to productization.

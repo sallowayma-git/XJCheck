@@ -8485,3 +8485,81 @@ fresh second-set 证据：
 - 本轮是 rules / acceptance / 默认展示口径收口，不是 extractor 补缺。
 - issue_count 下降只来自连续端子表行级 review 聚合；`pair_count` 和 `pair_kind` 分布未漂移。
 - 下一轮候选收缩为：`inline signal page ordinary residual wire-chain guardrail`；若转产品化，则单独做 packaged sidecar/exe smoke，不混入 rules 切片。
+
+## 119. 2026-07-07 inline wire-chain DIM guardrail：错位 DIM 短线不再被诊断为互补半链
+
+只读审计确认，Phase79 first-set 剩余 2 条 `complementary_half_pair` 都在 `S0008 / 07 网络通讯回路图.dwg`。它们不是 `inline_klp_component_port_mapping` extractor 缺失，也不是应该桥接成同一根线的普通 inline 数字切断；当前问题是 rules 把主 `CONNECT` 水平线和 y 方向错位的纯 `DIM` 短线，因为共享同一个数字文本锚点而误解释为“互补半链”。
+
+目标样本：
+
+- `I0001 / PW0178 + PW0182`
+  - `PW0178 / GW0178`: `? -> 701`, `CONNECT`, line `[257.5,145.0] -> [347.5,145.0]`
+  - `PW0182 / GW0182`: `701 -> ?`, pure `DIM`, line `[352.235754,154.1] -> [377.764246,154.1]`
+  - shared text `T0458=701`, insert `(345.622905,145.657933)`, bbox `[345.622905,144.782933,350.272905,147.657933]`
+- `I0002 / PW0202 + PW0205`
+  - `PW0202 / GW0202`: `? -> 601`, `CONNECT`, line `[257.5,225.0] -> [347.5,225.0]`
+  - `PW0205 / GW0205`: `601 -> ?`, pure `DIM`, line `[352.235754,234.1] -> [377.764246,234.1]`
+  - shared text `T0442=601`, insert `(345.622905,225.657933)`, bbox `[345.622905,224.782933,350.272905,227.657933]`
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 增加 `_line_groups_wire_chain_compatible()`：
+  - complementary half-chain 聚合必须要求两个 horizontal line group 的 y 差不超过 `inline_numeric_bridge_y_tolerance`。
+  - 两侧 line group 必须是 wire-chain candidate，纯 `DIM` line group 不允许充当 broken wire chain 的另一半。
+- 增加 `_missing_side_line_group_candidate()`：
+  - 普通 `R-PAIR-MISSING-SIDE` 不再对纯 `DIM` line group 报缺边。
+  - `CONNECT` 主线缺边仍保留为普通 `端点数字缺失`，避免通过 rules 静音掩盖主线仍缺端点的事实。
+- 在 [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py) 增加 first `07` 几何负例，证明 `CONNECT + y-offset DIM` 不再聚合为 `complementary_half_pair`。
+- 不改 `line_groups.py`、`candidates.py`、`pairs.py`、extractor、acceptance fixture、CLI/UI，也不移除 pair graph input。
+
+fresh first-set 证据：
+
+- `.tmp/phase80_inline_wire_chain_guardrail_first/...`
+- `pair_count=1550`
+- `issue_count=302`
+- pair_kind 未漂移：
+  - `ordinary_pair=800`
+  - `table_mapping=299`
+  - `continuation=175`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- `complementary_half_pair=0`
+- `R-PAIR-MISSING-SIDE=144`
+- 目标变化：
+  - `PW0178 ? -> 701` 保持普通 `端点数字缺失`
+  - `PW0202 ? -> 601` 保持普通 `端点数字缺失`
+  - `PW0182/GW0182` 与 `PW0205/GW0205` 纯 `DIM` 短线不再进入缺边 issue
+
+fresh second-set 非回归证据：
+
+- `.tmp/phase80_inline_wire_chain_guardrail_second/2_2`
+- `pair_count=1460`
+- `issue_count=127`
+- pair_kind 未漂移：
+  - `ordinary_pair=674`
+  - `continuation=202`
+  - `table_mapping=174`
+  - `wire_component_mapping=168`
+  - `semantic_mapping=157`
+  - `component_mapping=82`
+  - `bridge_mapping=3`
+- `complementary_half_pair=0`
+- 红线保持：
+  - `semantic_table_mapping_pass_endpoint_count=0`
+  - `1-21QD34 -> 1-21n218` 仍为结构化 pass 关系
+  - `3-21QD28 -> 3-21n218` 仍为 `wire_component_mapping/pass`
+  - `1-21GD9 -> 1-21n218` 仍为 `table_mapping/pass`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side"` -> `4 passed, 53 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+- `python -m pytest -q` -> `245 passed`
+
+裁决：
+
+- 本轮是 rules 诊断边界收口，不是 extractor 重写，也不是通过删除 pair 变好看。
+- `pair_count` 和 `pair_kind` 分布均不变；用户可见 issue 只去掉纯 `DIM` 标注短线造成的假 wire-chain/缺边解释。
+- 下一轮应重新只读审计剩余最大的 ordinary missing-side / low-confidence 簇，再选择一个真实系统误解切片；若转产品化，则 packaged sidecar/exe smoke 独立推进。
