@@ -1008,6 +1008,99 @@ def test_rules_emit_one_to_many_review_for_same_sheet_multi_target() -> None:
     assert "component_branch_review" not in review.evidence.values()
 
 
+def test_rules_emit_one_to_many_terminal_header_table_multi_endpoint_review() -> None:
+    pairs = [
+        Pair(
+            "PTMR0042",
+            None,
+            "S1",
+            "F1",
+            "PC1",
+            "1-21QD1",
+            "1-21n116",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "filename": "23 右侧端子图1.dwg",
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 1,
+                    "logical_endpoint": "1-21QD1",
+                    "left_value": "1-21n116",
+                    "right_value": None,
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0043",
+            None,
+            "S1",
+            "F1",
+            "PC2",
+            "1-21QD1",
+            "1-21n524",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "filename": "23 右侧端子图1.dwg",
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 1,
+                    "logical_endpoint": "1-21QD1",
+                    "left_value": None,
+                    "right_value": "1-21n524",
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "23 右侧端子图1.dwg",
+            23,
+            "23",
+            "RIGHT TERMINAL 1",
+            "端子图",
+            "primary",
+            "filename",
+            True,
+        ),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert review.severity == "review"
+    assert review.title == "端子表左右列映射待复核"
+    assert review.related_pair_ids == ["PTMR0043"]
+    assert review.evidence["conflicting_values"] == ["1-21n116", "1-21n524"]
+    assert (
+        review.evidence["one_to_many_classification"]
+        == "terminal_header_table_multi_endpoint_review"
+    )
+    assert review.evidence["table_mapping_mode"] == "terminal_header_table"
+    assert review.evidence["terminal_header_table_classification"] == "multi_endpoint_row_review"
+    assert review.evidence["logical_endpoint"] == "1-21QD1"
+    assert review.evidence["header_prefix"] == "1-21QD"
+    assert review.evidence["row_number"] == "1"
+    assert review.evidence["endpoint_columns"] == ["left_endpoint", "right_endpoint"]
+
+
 def test_rules_emit_one_to_many_component_branch_review_for_strip_two_port_component() -> None:
     pairs = [
         Pair(
@@ -1289,6 +1382,106 @@ def test_rules_detect_many_to_one_conflict() -> None:
     assert conflict.evidence["conflicting_values"] == ["101", "102"]
     assert "many_to_one_classification" not in conflict.evidence
     assert {ref["filename"] for ref in conflict.evidence_refs} == {"a.dwg", "b.dwg"}
+
+
+def test_rules_emit_many_to_one_terminal_header_table_shared_endpoint_review() -> None:
+    pairs = [
+        Pair(
+            "PTM0042",
+            None,
+            "S1",
+            "F1",
+            "PC1",
+            "1-21GD3",
+            "1-21n212",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "filename": "23 右侧端子图1.dwg",
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21GD",
+                    "row_number": 3,
+                    "logical_endpoint": "1-21GD3",
+                    "left_value": None,
+                    "right_value": "1-21n212",
+                    "right_text_id": "T4341",
+                    "right_coord": [156.0000039522472, 133.5],
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0096",
+            None,
+            "S1",
+            "F1",
+            "PC2",
+            "1-21QD28",
+            "1-21n212",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "filename": "23 右侧端子图1.dwg",
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 28,
+                    "logical_endpoint": "1-21QD28",
+                    "left_value": "1-21n212",
+                    "right_value": None,
+                    "left_text_id": "T4341",
+                    "left_coord": [156.0000039522472, 133.5],
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "23 右侧端子图1.dwg",
+            23,
+            "23",
+            "RIGHT TERMINAL 1",
+            "端子图",
+            "primary",
+            "filename",
+            True,
+        ),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert review.severity == "review"
+    assert review.title == "端子表共享端点待复核"
+    assert review.related_pair_ids == ["PTMR0096"]
+    assert review.evidence["conflicting_values"] == ["1-21GD3", "1-21QD28"]
+    assert (
+        review.evidence["many_to_one_classification"]
+        == "terminal_header_table_shared_endpoint_review"
+    )
+    assert review.evidence["table_mapping_mode"] == "terminal_header_table"
+    assert review.evidence["terminal_header_table_classification"] == "shared_endpoint_review"
+    assert review.evidence["shared_endpoint"] == "1-21n212"
+    assert review.evidence["logical_endpoints"] == ["1-21GD3", "1-21QD28"]
+    assert review.evidence["row_numbers"] == ["28", "3"]
+    assert review.evidence["endpoint_columns"] == ["left_endpoint", "right_endpoint"]
+    assert review.evidence["header_prefixes"] == ["1-21GD", "1-21QD"]
+    assert review.evidence["shared_endpoint_text_ids"] == ["T4341"]
+    assert review.evidence["shared_endpoint_coords"] == [[156.0, 133.5]]
 
 
 def test_rules_emit_many_to_one_component_branch_review_for_strip_two_port_component() -> None:

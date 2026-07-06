@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 56
+Phase 57
 
 ## Phases
 
@@ -716,6 +716,23 @@ Phase 56
   - second-set fresh `.tmp/phase70_backplate_scope_second/2_2`: `pair_count=1637`, `issue_count=285`, `wire_component_mapping=168`, `covered_input_matrix_ordinary=336`
   - acceptance suite on fresh second -> required `3/3`, all case precision/recall `1.0`
 - [ ] 下一刀建议：继续只读审计后在 terminal header table 多端 review、terminal bare local numeric、或 wire inline split 三者中选一个最小切片；Phase51 packaged sidecar smoke 仍是独立交付链。
+- **Status:** complete
+
+### Phase 57: Terminal Header Table Multi-Endpoint Review
+- [x] 只读恢复并确认当前外部/并发改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`。
+- [x] 两个只读 explorer 与主线程产物核查一致确认：second `S0023 / 23 右侧端子图1.dwg` 的 `terminal_header_table` 多端关系仍被泛化成 ordinary one-to-many / many-to-one review。
+- [x] 实现目标：保留 `table_mapping/pass` 图关系和 issue 可见性，只把同页 `terminal_header_table` 的左右列多端行、共享端点行重分类为专用 review 文案。
+- [x] 风险门槛：仅匹配同页、高置信 `table_mapping`、`mapping_mode=terminal_header_table`、有效行号序列；one-to-many 需同一 `logical_endpoint + row_number` 且同时出现 left/right endpoint，many-to-one 需共享同一端点文本 id 或坐标。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or table_mapping or component_mapping or cross_page"` -> `16 passed, 30 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `46 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `229 passed`
+  - first-set fresh `.tmp/phase71_terminal_header_table_first/...`: `pair_count=1586`, `issue_count=441`, `pair_kind` unchanged; `terminal_header_table_multi_endpoint_review=8`、`terminal_header_table_shared_endpoint_review=7`
+  - second-set fresh `.tmp/phase71_terminal_header_table_second/2_2`: `pair_count=1637`, `issue_count=285`, `pair_kind` unchanged; `terminal_header_table_multi_endpoint_review=44`、`terminal_header_table_shared_endpoint_review=22`
+  - second 代表 issue 已重分类：`I0223 / PTMR0042+PTMR0043` 为“端子表左右列映射待复核”，`I0267 / PTM0042+PTMR0096` 为“端子表共享端点待复核”
+  - acceptance suite on fresh second -> required `3/3`, `acceptance_passed=True`
+- [ ] 下一刀建议：先做只读审计后在 terminal bare local numeric discard、wire inline split half-pair、或 Phase51 packaged sidecar smoke 中选一个独立切片。
 - **Status:** complete
 
 ## Errors Encountered

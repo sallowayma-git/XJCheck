@@ -494,6 +494,28 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
             continue
 
         first = linked_pairs[0]
+        terminal_header_info = _terminal_header_table_multi_endpoint_info(linked_pairs)
+        if terminal_header_info is not None:
+            issues.append(
+                context.issue_factory.build(
+                    "R-ONE-TO-MANY",
+                    "review",
+                    pair=first,
+                    message=f"Terminal header table logical endpoint {left_value} maps to multiple terminal columns on the same row.",
+                    title="端子表左右列映射待复核",
+                    explanation="同页 terminal_header_table 表格映射中，同一表头逻辑端分别关联左列和右列端子，更可能是端子表同一行的多端列语义，需要按表格行复核。",
+                    recommended_action="核对端子表表头、行号和左右端子列，确认这些端点是否属于同一表格行的多端映射。",
+                    related_pairs=linked_pairs,
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "terminal_header_table_multi_endpoint_review",
+                        **terminal_header_info,
+                    },
+                )
+            )
+            continue
+
         if _is_same_sheet_strip_two_port_component_mapping(linked_pairs):
             issues.append(
                 context.issue_factory.build(
@@ -562,6 +584,32 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
             first = linked_pairs[0]
+            terminal_header_info = _terminal_header_table_shared_endpoint_info(
+                linked_pairs,
+                right_value,
+            )
+            if terminal_header_info is not None:
+                sheet_ids = {pair.sheet_id for pair in linked_pairs}
+                issues.append(
+                    context.issue_factory.build(
+                        "R-MANY-TO-ONE",
+                        "review",
+                        pair=first,
+                        message=f"Terminal header table endpoint {right_value} is shared by multiple logical header rows.",
+                        title="端子表共享端点待复核",
+                        explanation="同页 terminal_header_table 表格映射中，多个表头逻辑端共享同一个端子文本，更可能是端子表跨列/跨表头的共享端点语义，需要按表格行列复核。",
+                        recommended_action="核对相关表头、行号和共享端子文本坐标，确认这些逻辑端是否共同引用同一个端子列文本。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(lefts),
+                            "sheet_ids": sorted(sheet_ids),
+                            "many_to_one_classification": "terminal_header_table_shared_endpoint_review",
+                            **terminal_header_info,
+                        },
+                    )
+                )
+                continue
+
             if _is_same_sheet_strip_two_port_component_mapping(linked_pairs):
                 sheet_ids = {pair.sheet_id for pair in linked_pairs}
                 issues.append(
@@ -822,6 +870,137 @@ def _is_same_sheet_strip_two_port_component_mapping(linked_pairs: list[Pair]) ->
         and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
         for pair in linked_pairs
     )
+
+
+def _terminal_header_table_multi_endpoint_info(
+    linked_pairs: list[Pair],
+) -> dict[str, object] | None:
+    if not linked_pairs:
+        return None
+    if len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return None
+
+    mappings: list[dict[str, object]] = []
+    for pair in linked_pairs:
+        if pair.pair_kind != "table_mapping":
+            return None
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "terminal_header_table":
+            return None
+        if mapping.get("row_number_sequence_valid") is False:
+            return None
+        mappings.append(mapping)
+
+    logical_endpoints = {
+        str(mapping.get("logical_endpoint"))
+        for mapping in mappings
+        if mapping.get("logical_endpoint")
+    }
+    row_numbers = {
+        str(mapping.get("row_number"))
+        for mapping in mappings
+        if mapping.get("row_number") is not None
+    }
+    header_prefixes = {
+        str(mapping.get("header_prefix"))
+        for mapping in mappings
+        if mapping.get("header_prefix")
+    }
+    if len(logical_endpoints) != 1 or len(row_numbers) != 1:
+        return None
+
+    endpoint_columns: set[str] = set()
+    for mapping in mappings:
+        if mapping.get("left_value"):
+            endpoint_columns.add("left_endpoint")
+        if mapping.get("right_value"):
+            endpoint_columns.add("right_endpoint")
+    if not {"left_endpoint", "right_endpoint"}.issubset(endpoint_columns):
+        return None
+
+    result: dict[str, object] = {
+        "table_mapping_mode": "terminal_header_table",
+        "terminal_header_table_classification": "multi_endpoint_row_review",
+        "logical_endpoint": next(iter(logical_endpoints)),
+        "row_number": next(iter(row_numbers)),
+        "endpoint_columns": sorted(endpoint_columns),
+    }
+    if len(header_prefixes) == 1:
+        result["header_prefix"] = next(iter(header_prefixes))
+    return result
+
+
+def _terminal_header_table_shared_endpoint_info(
+    linked_pairs: list[Pair],
+    shared_value: str,
+) -> dict[str, object] | None:
+    if not linked_pairs:
+        return None
+    if len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return None
+
+    header_prefixes: set[str] = set()
+    logical_endpoints: set[str] = set()
+    row_numbers: set[str] = set()
+    endpoint_columns: set[str] = set()
+    endpoint_text_ids: set[str] = set()
+    endpoint_coords: set[tuple[float, float]] = set()
+    for pair in linked_pairs:
+        if pair.pair_kind != "table_mapping":
+            return None
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "terminal_header_table":
+            return None
+        if mapping.get("row_number_sequence_valid") is False:
+            return None
+
+        if mapping.get("header_prefix"):
+            header_prefixes.add(str(mapping.get("header_prefix")))
+        if mapping.get("logical_endpoint"):
+            logical_endpoints.add(str(mapping.get("logical_endpoint")))
+        if mapping.get("row_number") is not None:
+            row_numbers.add(str(mapping.get("row_number")))
+
+        matched_column: str | None = None
+        if mapping.get("left_value") == shared_value:
+            matched_column = "left_endpoint"
+            text_id = mapping.get("left_text_id")
+            coord = mapping.get("left_coord")
+        elif mapping.get("right_value") == shared_value:
+            matched_column = "right_endpoint"
+            text_id = mapping.get("right_text_id")
+            coord = mapping.get("right_coord")
+        else:
+            return None
+
+        endpoint_columns.add(matched_column)
+        if text_id:
+            endpoint_text_ids.add(str(text_id))
+        if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+            endpoint_coords.add((round(float(coord[0]), 3), round(float(coord[1]), 3)))
+
+    if len(logical_endpoints) <= 1:
+        return None
+    if len(endpoint_text_ids) > 1 or len(endpoint_coords) > 1:
+        return None
+    if not endpoint_text_ids and not endpoint_coords:
+        return None
+
+    result: dict[str, object] = {
+        "table_mapping_mode": "terminal_header_table",
+        "terminal_header_table_classification": "shared_endpoint_review",
+        "shared_endpoint": shared_value,
+        "logical_endpoints": sorted(logical_endpoints),
+        "row_numbers": sorted(row_numbers),
+        "endpoint_columns": sorted(endpoint_columns),
+    }
+    if header_prefixes:
+        result["header_prefixes"] = sorted(header_prefixes)
+    if endpoint_text_ids:
+        result["shared_endpoint_text_ids"] = sorted(endpoint_text_ids)
+    if endpoint_coords:
+        result["shared_endpoint_coords"] = [list(coord) for coord in sorted(endpoint_coords)]
+    return result
 
 
 def _semantic_mapping_terminal_value(pair: Pair) -> str | None:

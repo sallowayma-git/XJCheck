@@ -7676,3 +7676,95 @@ fresh second-set 证据：
 - 本轮没有通过降低召回或移除图关系来让结果“好看”；`issue_count` 与 `pair_count` 均保持不变。
 - 改善点是 severity/解释层：真实正确样本不再因背板表格局部作用域复用出现 critical hard-error 洪峰。
 - 下一刀仍应先只读审计，可在 terminal_header_table 多端 review、terminal bare local numeric、wire inline split 或 Phase51 packaged exe smoke 中选一个独立切片。
+
+## 110. 2026-07-06 端子表头表格多端语义：保留 table_mapping，泛化一对多/多对一改为专用 review
+
+只读审计确认，second-set `S0023 / 23 右侧端子图1.dwg` 中多条 `terminal_header_table` 结构化表格映射已经抽取正确，但 rules 层仍按泛化 one-to-many / many-to-one 文案解释。
+
+代表样本：
+
+- `I0223 / PTMR0042 + PTMR0043`
+- `1-21QD1 -> 1-21n116`
+- `1-21QD1 -> 1-21n524`
+- evidence 中明确有：
+  - `mapping_mode=terminal_header_table`
+  - `header_prefix=1-21QD`
+  - `row_number=1`
+  - `logical_endpoint=1-21QD1`
+  - 两条 pair 分别来自 `left_endpoint` 与 `right_endpoint`
+
+共享端点代表样本：
+
+- `I0267 / PTM0042 + PTMR0096`
+- `1-21GD3 -> 1-21n212`
+- `1-21QD28 -> 1-21n212`
+- evidence 中两条 pair 共享同一端子文本 `T4341` 与坐标 `(156.0000039522472, 133.5)`，分别位于 `1-21GD` 右列与 `1-21QD` 左列。
+
+裁决：
+
+- 这些关系仍是有效的结构化 `table_mapping/pass`，必须保留在图关系中参与审计。
+- 但同一端子表行的左右端列、以及同一端子文本被相邻表头行共享时，不应只输出泛化“一对多待复核 / 多对一配对”。
+- 因此本轮只调整 rules 解释：issue 仍保留为 review，但增加 `terminal_header_table_multi_endpoint_review` 与 `terminal_header_table_shared_endpoint_review` 分类。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 中为 `_run_one_to_many()` 增加 `terminal_header_table` 多端行判断。
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 中为 `_run_many_to_one()` 增加 `terminal_header_table` 共享端点判断。
+- 触发门槛保持很窄：同页、高置信 `table_mapping`、`mapping_mode=terminal_header_table`、有效行号序列；one-to-many 还要求同一 `logical_endpoint + row_number` 且左右端列同时出现；many-to-one 还要求共享端点文本 id 或坐标一致。
+- 在 [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py) 增加两个真实样本风格单测。
+
+fresh first-set 证据：
+
+- `.tmp/phase71_terminal_header_table_first/...`
+- `pair_count=1586`
+- `issue_count=441`
+- pair_kind 未漂移：
+  - `ordinary_pair=943`
+  - `table_mapping=299`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `continuation=68`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- 新分类：
+  - `terminal_header_table_multi_endpoint_review=8`
+  - `terminal_header_table_shared_endpoint_review=7`
+
+fresh second-set 证据：
+
+- `.tmp/phase71_terminal_header_table_second/2_2`
+- `pair_count=1637`
+- `issue_count=285`
+- pair_kind 未漂移：
+  - `ordinary_pair=1031`
+  - `table_mapping=176`
+  - `component_mapping=82`
+  - `semantic_mapping=157`
+  - `continuation=20`
+  - `wire_component_mapping=168`
+  - `bridge_mapping=3`
+- 新分类：
+  - `terminal_header_table_multi_endpoint_review=44`
+  - `terminal_header_table_shared_endpoint_review=22`
+- 代表 issue：
+  - `I0223` 标题改为 `端子表左右列映射待复核`
+  - `I0267` 标题改为 `端子表共享端点待复核`
+
+验收红线：
+
+- `.tmp/phase71_terminal_header_table_acceptance`
+- required `3/3`
+- `acceptance_passed=True`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or table_mapping or component_mapping or cross_page"` -> `16 passed, 30 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `46 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+- `python -m pytest -q` -> `229 passed`
+
+裁决：
+
+- 本轮没有改抽取器、没有删 `table_mapping`、没有扩 CLI/UI，也没有通过减少 issue_count 让报告变好看。
+- 改善点是规则解释层：端子表头表格的真实多端关系现在有专用 review 语义，便于人工按表格行列复核。
+- 下一刀更适合继续只读审计 terminal bare local numeric discard，或切到 wire inline split half-pair；Phase51 packaged sidecar smoke 仍是独立交付链。

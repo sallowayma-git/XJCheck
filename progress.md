@@ -2123,6 +2123,33 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-06 (Phase 57 terminal header table multi-endpoint review)
+- Started after commit `e33854d`.
+- Read-only recovery:
+  - `planning-with-files` catchup reported the Phase56 commit summary; `git status --short` still showed only external/concurrent files before edits: `doc/任务书.md`, `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Two readonly explorers and main-thread `.tmp/phase70` inspection converged on `terminal_header_table` rules semantics as the next narrow slice.
+  - Representative second-set samples:
+    - `S0023 / 23 右侧端子图1.dwg`, `I0223`, `PTMR0042 + PTMR0043`: `1-21QD1 -> 1-21n116` and `1-21QD1 -> 1-21n524`.
+    - `S0023 / 23 右侧端子图1.dwg`, `I0267`, `PTM0042 + PTMR0096`: `1-21GD3 -> 1-21n212` and `1-21QD28 -> 1-21n212`.
+- Implementation:
+  - Updated `_run_one_to_many()` in `rules.py` so same-sheet `terminal_header_table` rows with the same `logical_endpoint + row_number` and both left/right endpoint columns remain visible as `R-ONE-TO-MANY review`, but now carry `one_to_many_classification=terminal_header_table_multi_endpoint_review`.
+  - Updated `_run_many_to_one()` so same-sheet `terminal_header_table` rows sharing the same endpoint text id or coordinate remain visible as `R-MANY-TO-ONE review`, but now carry `many_to_one_classification=terminal_header_table_shared_endpoint_review`.
+  - No extractor, pair generation, graph input, acceptance fixture, product CLI, or UI behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or table_mapping or component_mapping or cross_page"` -> `16 passed, 30 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `46 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `229 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase71_terminal_header_table_first/...`: `pair_count=1586`, `issue_count=441`; pair kinds unchanged from Phase70. New classifications: `terminal_header_table_multi_endpoint_review=8`, `terminal_header_table_shared_endpoint_review=7`.
+  - second fresh `.tmp/phase71_terminal_header_table_second/2_2`: `pair_count=1637`, `issue_count=285`; pair kinds unchanged from Phase70. New classifications: `terminal_header_table_multi_endpoint_review=44`, `terminal_header_table_shared_endpoint_review=22`.
+  - second target issue `I0223` now has title `端子表左右列映射待复核`; second target issue `I0267` now has title `端子表共享端点待复核`.
+  - Fresh second acceptance suite `.tmp/phase71_terminal_header_table_acceptance`: required `3/3`, `acceptance_passed=True`.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-06 (Phase 56 backplate table scoped conflict review)
 - Started after commit `03b9f6a`.
 - Read-only recovery:
