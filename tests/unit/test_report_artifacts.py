@@ -865,6 +865,50 @@ def test_write_audit_outputs_shows_bridge_mapping_pair_semantics(tmp_path: Path)
     assert "bridge_mapping_kind=terminal_short_bridge_cross_column" in report_text
 
 
+def test_write_audit_outputs_shows_semantic_mapping_pair_semantics(tmp_path: Path) -> None:
+    semantic_pair = Pair(
+        pair_id="P0001",
+        line_group_id="G0001",
+        sheet_id="S0001",
+        file_id="F0001",
+        selected_pair_candidate_id="PC1",
+        left_value=None,
+        right_value="108",
+        confidence=0.86,
+        status="review",
+        rationale="semantic mapping relation",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="review",
+        evidence={
+            "filename": "21.dwg",
+            "sheet_no": "21",
+            "sheet_order": 21,
+            "line_group_id": "G0001",
+            "line_start": [127.5, 255.0],
+            "line_end": [202.5, 255.0],
+            "pair_kind": "semantic_mapping",
+            "semantic_mapping_kind": "terminal_semantic_row",
+            "semantic_marker_texts": ["3-21KLP2-1", "3-21KLP1-1"],
+            "line_orientation": "horizontal",
+        },
+        pair_kind="semantic_mapping",
+    )
+
+    audit_dir = write_audit_outputs(
+        tmp_path / "project",
+        issues=[],
+        pairs=[semantic_pair],
+        source_files=[],
+        project_name="Demo 项目",
+        formats=["md"],
+    )
+    report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+
+    assert "pair_kind=semantic_mapping" in report_text
+    assert "semantic_mapping_kind=terminal_semantic_row" in report_text
+    assert "semantic_markers=3-21KLP2-1|3-21KLP1-1" in report_text
+
+
 def test_write_audit_outputs_respects_requested_report_formats(tmp_path: Path) -> None:
     issue = Issue(
         issue_id="I0001",

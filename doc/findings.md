@@ -3568,3 +3568,265 @@ Batch 2 已完成的端子页是：
 - 或更细的 bridge ledger
 
 之间做新的 current-head 审计裁决，而不是再回桌面端或继续堆全局阈值。
+
+## 67. 2026-07-06 current-head 任务书审计刷新：`semantic_mapping` 已经出现了可窄切的真实样本入口
+
+在 `phase24` 之后，我继续按当前头状态复核了任务书 7.4 / 7.5 / 9，不再用历史叙事，而是直接检查：
+
+- [phase24_bridge_mapping_second/2_2](/F:/workspace/XJToolkit/.tmp/phase24_bridge_mapping_second/2_2)
+- [phase24_bridge_mapping_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA](/F:/workspace/XJToolkit/.tmp/phase24_bridge_mapping_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 当前代码：
+  - [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py)
+  - [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+
+### 67.1 当前已经被强证据证明完成的 terminal 关系分流
+
+到 `phase24` 为止，当前 terminal 方向已经有三类显式关系：
+
+- `ordinary_pair`
+  - 如 `21 -> 211`
+- `continuation`
+  - 如 `? -> 328`
+  - 如 `10 -> ?`
+- `bridge_mapping`
+  - 如 `110 -> 330`
+  - 如 `109 -> 329`
+
+这三类在 current-head 真实样本里已经有稳定证据，不再只是测试夹具。
+
+### 67.2 为什么 `semantic_mapping` 现在比“继续扩 bridge ledger”更接近下一刀
+
+我又直接核查了 terminal 页里包含真实语义 marker 的 line group：
+
+- `KLP`
+- `DK`
+- `CLP`
+- `UA/UB/UC/UN/3U0`
+- `AC230V`
+- `Shielding layer`
+
+当前代码已经能把这些文本旁路到 `semantic_channel`，但 pair 层还没有显式 relation object。
+
+更关键的是，真实样本里已经出现了大批“**同一 line group 既有语义 marker，又有当前被记作 continuation 的单侧 numeric relation**”：
+
+- 第二套 terminal 页里，这类 marker group 上的 pair 统计当前是：
+  - `continuation: 99`
+  - `ordinary_pair: 32`
+- 第一套 terminal 页里，这类 marker group 上的 pair 统计当前是：
+  - `continuation: 88`
+  - `ordinary_pair: 65`
+
+其中代表性 current-head 真实样例如：
+
+- 第二套 `S0021 / G0890`
+  - 语义文本：
+    - `3-21KLP1-1`
+    - `3-21KLP2-1`
+  - 当前 pair：
+    - `? -> 108`
+    - 仍被记作 `continuation`
+- 第一套 `S0025`
+  - 语义文本：
+    - `5DK-4`
+    - `5KLP9-1`
+    - `5CLP3-1`
+  - 当前大量 pair：
+    - `? -> 411`
+    - `? -> 103`
+    - `? -> 214`
+    - 仍被记作 `continuation`
+
+这说明当前系统已经有了：
+
+1. 语义 marker 候选旁路
+2. 同行 numeric terminal 候选
+3. 行锁定 / 列角色稳定结构
+
+但还没有把“terminal 到语义端/代号列/标签列”的关系显式抬成 `semantic_mapping`。
+
+### 67.3 为什么这些关系不该继续留在 `continuation`
+
+`continuation` 更适合表示：
+
+- 单侧已知，另一侧待续接或待去向
+
+但像 `KLP/DK/CLP/UA/AC230V` 这类语义行，当前很多 `? -> 108` 并不是“另一端未知的 terminal continuation”，而更像：
+
+- terminal `108`
+- 对应语义端 `KLP2`
+
+也就是任务书第 9 章定义的：
+
+- `semantic_mapping`：端子到语义端、代号列或标签列的映射
+
+如果继续把它们留在 continuation 下，系统虽然避免了 ordinary 冲突，但仍然没有真正把“这是语义映射”说出来。
+
+### 67.4 当前最接近主链的单一核心切片
+
+基于 current-head 审计，下一刀最合理的单一核心切片已经收敛为：
+
+- **只把 terminal 页中“单侧 numeric relation + 同 line group 存在真实语义 marker”的 relation，从 continuation 提升成显式 `semantic_mapping`。**
+
+这条切片必须保持窄边界：
+
+- 只处理 `屏端子图`
+- 只处理 horizontal terminal row
+- 只处理当前已经是 single-sided relation 的 case
+- 只在 group 内存在真实语义 marker 文本时触发
+- 不把 `terminal_strip_bypass_text` 或纯 `not_numeric` 杂项一并视为 semantic mapping
+- 不改 ordinary pair
+- 不改 bridge_mapping
+
+### 67.5 为什么这轮不该先做更大的东西
+
+当前仍不该优先的方向：
+
+1. 继续扩大 `bridge_mapping` 作用域
+2. 先做 candidate 级 `continuation_channel`
+3. 只补 `suppressed_candidate_refs` 解释层，而不建立真正的 `semantic_mapping`
+4. 再回桌面端 / preview / Tauri
+
+## 68. 2026-07-06 `phase25_semantic_mapping_{second,first}`：terminal 页语义行已从 continuation 中拆出最小 `semantic_mapping`
+
+这一轮只推进了一个 current-head 已经具备真实样本入口的关系切片：
+
+- 不改 ordinary pair
+- 不扩大 bridge_mapping
+- 不先做 candidate 级 `continuation_channel`
+- 只把 terminal 页中“单侧 numeric relation + 同组存在真实语义 marker”的 relation，从 continuation 提升成显式 `semantic_mapping`
+
+### 68.1 本轮代码变化
+
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - 在当前 terminal relation 语义分流里新增：
+    - `pair_kind=semantic_mapping`
+    - `semantic_kind=terminal_semantic_mapping`
+    - `semantic_mapping_kind=terminal_semantic_row`
+    - `semantic_mapping_missing_side`
+    - `semantic_marker_texts`
+  - 触发条件刻意保持窄边界：
+    - `屏端子图`
+    - `horizontal`
+    - 线长 `70-80`
+    - 当前是 single-sided relation
+    - 选中的 numeric 仍来自 `n###` 派生文本
+    - 同 line group 内存在真实语义 marker 文本
+- [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py)
+  - `R-PAIR-MISSING-SIDE` 和 complementary half-pair 聚合现在统一只处理 ordinary pair
+  - continuation / bridge_mapping / semantic_mapping 都不再被 ordinary missing-side 规则重新吞回去
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+  - pair 语义摘要现在会显式输出：
+    - `semantic_mapping_kind`
+    - `semantic_markers`
+
+### 68.2 定向与全量测试结果
+
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "semantic_mapping or bridge_mapping or continuation or terminal_numeric_channel_candidates"`
+  - `10 passed`
+- `python -m pytest -q tests/unit/test_terminal_candidates.py -k "semantic_row or semantic_ac_row or short_bridge"`
+  - `4 passed`
+- `python -m pytest -q tests/unit/test_report_artifacts.py -k "semantic_mapping or bridge_mapping or continuation or pair_kind"`
+  - `4 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or supplemental or table_like_page_to_table_extractor"`
+  - `11 passed`
+- `python -m pytest -q`
+  - `157 passed`
+
+### 68.3 第二套真实样本 rerun 结果
+
+- [phase25_semantic_mapping_second/2_2](/F:/workspace/XJToolkit/.tmp/phase25_semantic_mapping_second/2_2)
+
+相对 `phase24`，第二套 current-head 现在变成：
+
+- `pair_kind_counts`
+  - 旧：`{'ordinary_pair': 1031, 'continuation': 177, 'bridge_mapping': 3}`
+  - 新：`{'ordinary_pair': 1031, 'semantic_mapping': 157, 'continuation': 20, 'bridge_mapping': 3}`
+- `issue_count`
+  - 保持 `518`
+- `R-PAIR-MISSING-SIDE`
+  - 保持 `317`
+- `R-PAIR-LOW-CONFIDENCE`
+  - 保持 `201`
+
+最关键的 current-head 边界现在已经清晰：
+
+- `21 -> 211`
+  - 仍是 `ordinary_pair`
+- `110 -> 330`
+  - 仍是 `bridge_mapping`
+- `? -> 328`
+  - 仍是 `continuation`
+- `? -> 108`
+  - 已是 `semantic_mapping`
+
+第二套 current-head 的代表语义行例如：
+
+- `KLP`
+- `I0'`
+- `AC230V`
+
+这些现在不再只是 candidate channel 的旁路对象，而已经进入 pair 级 relation。
+
+### 68.4 第一套真实样本 rerun 结果
+
+- [phase25_semantic_mapping_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA](/F:/workspace/XJToolkit/.tmp/phase25_semantic_mapping_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+相对 `phase24`，第一套 current-head 现在变成：
+
+- `pair_kind_counts`
+  - 旧：`{'ordinary_pair': 943, 'continuation': 171, 'bridge_mapping': 3}`
+  - 新：`{'ordinary_pair': 943, 'semantic_mapping': 103, 'continuation': 68, 'bridge_mapping': 3}`
+- `issue_count`
+  - 保持 `345`
+- `R-PAIR-MISSING-SIDE`
+  - 保持 `267`
+- `R-PAIR-LOW-CONFIDENCE`
+  - 保持 `77`
+
+第一套当前被抬成 semantic_mapping 的代表语义行来自：
+
+- `KLP`
+- `DK`
+- `CLP`
+
+也就是说，这轮没有继续扩大到普通回路图，而是只在 terminal 页语义行里生效。
+
+### 68.5 这轮对任务书主链的真正意义
+
+任务书 7.4 与第 9 章要求：
+
+- `semantic_channel` 不能只是“被旁路后消失”
+- `semantic_mapping` 应表示“端子到语义端、代号列或标签列的对应关系”
+
+经过 `phase25` 之后，当前头状态已经从：
+
+- candidate 级 `semantic_channel`
+
+推进到：
+
+- pair 级 `semantic_mapping`
+
+所以 terminal 方向当前已经形成四类显式页面内关系：
+
+- `ordinary_pair`
+- `continuation`
+- `bridge_mapping`
+- `semantic_mapping`
+
+这意味着当前系统已经不再把 terminal 页所有关系都塞进同一个几何 pair 壳里。
+
+### 68.6 这轮之后最近的剩余缺口
+
+在 `phase25` 之后，离任务书主链最近的剩余缺口进一步收敛为：
+
+1. candidate 侧仍没有独立 `continuation_channel`
+2. `bridge_mapping` 与 `semantic_mapping` 目前都只是最小 pair 级合同，还没有更系统的 relation ledger / index
+3. `semantic_mapping` 虽已进入 pair 级 relation，但还没有 semantic-specific 项目级一致性规则
+
+如果继续按“最短闭环路径”推进，下一刀更可能是：
+
+- semantic-specific index / rule input
+- 或 candidate 级 `continuation_channel`
+
+而不再是继续争论 terminal 页是否还只有 ordinary pair。

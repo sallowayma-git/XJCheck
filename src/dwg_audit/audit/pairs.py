@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 import re
 
+from dwg_audit.audit.candidates import _looks_like_terminal_semantic_marker
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import PairCandidate
@@ -20,8 +21,10 @@ def build_pairs(
     config: dict,
 ) -> tuple[list[PairCandidate], list[Pair]]:
     by_group_side = defaultdict(list)
+    by_group_candidates = defaultdict(list)
     for candidate in terminal_candidates:
         by_group_side[(candidate.line_group_id, candidate.side)].append(candidate)
+        by_group_candidates[candidate.line_group_id].append(candidate)
 
     candidate_map = {candidate.candidate_id: candidate for candidate in terminal_candidates}
     sheet_map = {sheet.sheet_id: sheet for sheet in sheets}
@@ -69,7 +72,14 @@ def build_pairs(
             )
             pair_candidates.append(single)
             confidence = single.score
-            evidence = _pair_evidence(group, sheet_map.get(group.sheet_id), single, None, candidate_map)
+            evidence = _pair_evidence(
+                group,
+                sheet_map.get(group.sheet_id),
+                single,
+                None,
+                candidate_map,
+                by_group_candidates.get(group.line_group_id, []),
+            )
             pair_kind = _pair_kind_from_evidence(evidence)
             status, rationale = _apply_special_pair_semantics(
                 status=status,
@@ -160,7 +170,14 @@ def build_pairs(
             selected=selected,
             candidate_map=candidate_map,
         )
-        evidence = _pair_evidence(group, sheet_map.get(group.sheet_id), selected, alternative_ids, candidate_map)
+        evidence = _pair_evidence(
+            group,
+            sheet_map.get(group.sheet_id),
+            selected,
+            alternative_ids,
+            candidate_map,
+            by_group_candidates.get(group.line_group_id, []),
+        )
         pair_kind = _pair_kind_from_evidence(evidence)
         status, rationale = _apply_special_pair_semantics(
             status=status,
@@ -243,6 +260,7 @@ def _pair_evidence(
     selected: PairCandidate,
     alternative_ids: list[str] | None,
     candidate_map: dict[str, TerminalCandidate],
+    group_candidates: list[TerminalCandidate],
 ) -> dict[str, object]:
     left_side, right_side = _pair_side_labels(group)
     left_candidate = candidate_map.get(selected.left_candidate_id or "")
@@ -292,6 +310,7 @@ def _pair_evidence(
             selected=selected,
             left_candidate=left_candidate,
             right_candidate=right_candidate,
+            group_candidates=group_candidates,
         )
     )
     return evidence
@@ -359,6 +378,7 @@ def _terminal_continuation_semantics(
     selected: PairCandidate,
     left_candidate: TerminalCandidate | None,
     right_candidate: TerminalCandidate | None,
+    group_candidates: list[TerminalCandidate],
 ) -> dict[str, object]:
     if not _is_terminal_continuation_scope(group=group, sheet=sheet):
         return {}
@@ -377,6 +397,14 @@ def _terminal_continuation_semantics(
     )
     if bridge_mapping:
         return bridge_mapping
+    semantic_mapping = _terminal_semantic_mapping_semantics(
+        selected=selected,
+        left_candidate=left_candidate,
+        right_candidate=right_candidate,
+        group_candidates=group_candidates,
+    )
+    if semantic_mapping:
+        return semantic_mapping
     return _single_sided_terminal_continuation_semantics(
         group=group,
         selected=selected,
@@ -493,6 +521,48 @@ def _single_sided_terminal_continuation_semantics(
     }
 
 
+def _terminal_semantic_mapping_semantics(
+    *,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+    group_candidates: list[TerminalCandidate],
+) -> dict[str, object]:
+    if bool(selected.left_value) == bool(selected.right_value):
+        return {}
+    selected_candidate = left_candidate if selected.left_value else right_candidate
+    selected_value = selected.left_value if selected.left_value else selected.right_value
+    if not selected_candidate or not selected_value:
+        return {}
+    selected_raw = selected_candidate.text.strip()
+    if not (
+        _is_derived_numeric_candidate(selected_candidate, selected_value)
+        and _CONTINUATION_SUFFIX_PATTERN.search(selected_raw)
+    ):
+        return {}
+    semantic_marker_texts = _terminal_semantic_marker_texts(group_candidates)
+    if not semantic_marker_texts:
+        return {}
+    missing_side = "left" if not selected.left_value else "right"
+    return {
+        "pair_kind": "semantic_mapping",
+        "semantic_kind": "terminal_semantic_mapping",
+        "ordinary_pair_eligible": False,
+        "semantic_mapping_kind": "terminal_semantic_row",
+        "semantic_mapping_missing_side": missing_side,
+        "semantic_marker_texts": semantic_marker_texts,
+    }
+
+
+def _terminal_semantic_marker_texts(group_candidates: list[TerminalCandidate]) -> list[str]:
+    marker_texts = {
+        candidate.text.strip()
+        for candidate in group_candidates
+        if _looks_like_terminal_semantic_marker(candidate.text)
+    }
+    return sorted(text for text in marker_texts if text)
+
+
 def _pair_kind_from_evidence(evidence: dict[str, object]) -> str:
     pair_kind = evidence.get("pair_kind")
     if isinstance(pair_kind, str) and pair_kind.strip():
@@ -513,6 +583,10 @@ def _apply_special_pair_semantics(
     if pair_kind == "bridge_mapping":
         if "bridge mapping" not in rationale:
             rationale = f"{rationale}; bridge mapping relation"
+        return "review", rationale
+    if pair_kind == "semantic_mapping":
+        if "semantic mapping" not in rationale:
+            rationale = f"{rationale}; semantic mapping relation"
         return "review", rationale
     return status, rationale
 

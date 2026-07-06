@@ -872,8 +872,8 @@ def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic
     assert continuation.channel == "terminal_numeric_channel"
     assert pair.left_value is None
     assert pair.right_value == "108"
-    assert pair.pair_kind == "continuation"
-    assert pair.rationale == "missing left candidate; continuation relation"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.rationale == "missing left candidate; semantic mapping relation"
 
 
 def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic_ac_row() -> None:
@@ -920,5 +920,5 @@ def test_build_terminal_candidates_suppresses_local_numeric_on_terminal_semantic
     assert continuation.channel == "terminal_numeric_channel"
     assert pair.left_value == "511"
     assert pair.right_value is None
-    assert pair.pair_kind == "continuation"
-    assert pair.rationale == "missing right candidate; continuation relation"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.rationale == "missing right candidate; semantic mapping relation"

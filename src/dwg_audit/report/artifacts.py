@@ -226,6 +226,12 @@ def _pair_semantics_parts(payload: Any) -> list[str]:
     bridge_mapping_kind = evidence.get("bridge_mapping_kind")
     if not _is_blank_value(bridge_mapping_kind):
         parts.append(f"bridge_mapping_kind={bridge_mapping_kind}")
+    semantic_mapping_kind = evidence.get("semantic_mapping_kind")
+    if not _is_blank_value(semantic_mapping_kind):
+        parts.append(f"semantic_mapping_kind={semantic_mapping_kind}")
+    semantic_marker_texts = evidence.get("semantic_marker_texts")
+    if isinstance(semantic_marker_texts, list) and semantic_marker_texts:
+        parts.append(f"semantic_markers={'|'.join(str(item) for item in semantic_marker_texts[:3])}")
     orientation = evidence.get("line_orientation")
     if not _is_blank_value(orientation):
         parts.append(f"orientation={orientation}")

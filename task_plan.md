@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 21
+Phase 22
 
 ## Phases
 
@@ -152,10 +152,17 @@ Phase 21
 - [x] 复跑 targeted pytest、full pytest，以及 first/second-set 当前头部 `analyze-project + run-audit`
 - **Status:** complete
 
+### Phase 22: Terminal Semantic-Mapping Contract
+- [x] 重新按当前头部代码与 `phase24` 实样审计，确认 `semantic_mapping` 已出现可窄切的真实样本入口
+- [x] 在 `pairs.py` 把 terminal 页“单侧 numeric relation + 同 line group 存在真实语义 marker”的 relation 提升成显式 `pair_kind=semantic_mapping`
+- [x] 让 ordinary missing-side 聚合与 report/evidence 对 `semantic_mapping` 显式旁路并展示 `semantic_mapping_kind`
+- [x] 复跑 targeted pytest、full pytest，以及 first/second-set 当前头部 `analyze-project + run-audit`
+- **Status:** complete
+
 ## Key Questions
 1. candidate 侧仍没有独立 `continuation_channel`；下一步是否需要把当前 pair 层 continuation / bridge 提示前移成稳定候选通道？
-2. `bridge_mapping` 现在已有最小 pair 级合同，但仍没有更细的页内 bridge ledger；是否需要继续扩到更多短桥列模式，还是先转向 `semantic_mapping`？
-3. `semantic_channel` 已完成候选旁路，但 pair / issue / report 仍缺 `semantic_mapping` 或 `suppressed_candidate_refs` 级证据；下一步先补哪一层最合适？
+2. `bridge_mapping` 与 `semantic_mapping` 现在都已有最小 pair 级合同；下一步是继续扩更细的页内 ledger，还是先补 candidate 级通道合同？
+3. `semantic_mapping` 目前只做到了 pair 级显式 relation；是否还需要补 `suppressed_candidate_refs` 或 semantic-specific index/rule input？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
 ## Decisions Made
@@ -185,6 +192,7 @@ Phase 21
 | `audit_disposition` 的最小闭环应优先做成“分类输出 + pipeline 准入合同 + findings 落盘”，而不是先大改 `audit_role` 扫描策略 | 这能最小风险地补齐任务书第 4/5 层合同，同时避免和仍在演进的 continuation / semantic 语义切片互相缠绕 |
 | 单侧 terminal half-pair 的下一刀应先落 pair 级 continuation，而不是先重构候选通道或直接发明 `bridge_mapping` | 这能复用现有 `pair_kind / ordinary_pair_eligible` 骨架，最小风险地把 `? -> 328`、`10 -> ?` 这类关系从普通 `R-PAIR-MISSING-SIDE` 中分流出去 |
 | `bridge_mapping` 的第一刀应只覆盖端子页短桥接带里“双侧都来自 `n###` 派生文本且数值不同”的 cross-column relation | 这能把 `110 -> 330 / 109 -> 329` 这类任务书例子从 ordinary pair 中拆出，同时避免把正常端子行如 `21 -> 211` 一起误收 |
+| `semantic_mapping` 的第一刀应只覆盖 terminal 页里“单侧 numeric relation + 同组存在真实语义 marker”的 relation | 这能把 `? -> 108` 与 `KLP/AC230V/I0'` 这类语义行从 continuation 中拆出，同时不误伤 `? -> 328` 或普通端子行 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

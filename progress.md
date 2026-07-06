@@ -798,3 +798,59 @@
   - `R-PAIR-LOW-CONFIDENCE: 79 -> 77`
   - 新 bridge pair 只出现在 `S0027 / 26 右侧端子图1.dwg`
   - 代表样例：`429 -> 108`
+
+## Session Update 2026-07-06 (Phase 22)
+- 继续按 current-head 做任务书审计，确认 `phase24` 之后最近缺口已经从 bridge 收口到 semantic：
+  - 在 terminal 页里，已经出现大批“单侧 numeric relation + 同组存在真实语义 marker”的稳定样本
+  - 这时继续把它们留在 continuation 里，已经不如显式建 `semantic_mapping` 更符合任务书第 9 章
+- 这一轮实现：
+  - `src/dwg_audit/audit/pairs.py`
+    - 在 current terminal relation 语义分流里新增 `semantic_mapping`
+    - 触发条件保持窄边界：
+      - `屏端子图 + horizontal + 70-80`
+      - 当前是 single-sided relation
+      - 选中的 numeric 仍来自 `n###` 派生文本
+      - 同 line group 内存在真实语义 marker（`KLP/DK/CLP/UA/UB/UC/UN/3U0/I0/AC230V/Shielding layer`）
+    - evidence 新增：
+      - `semantic_mapping_kind=terminal_semantic_row`
+      - `semantic_mapping_missing_side`
+      - `semantic_marker_texts`
+  - `src/dwg_audit/audit/rules.py`
+    - `R-PAIR-MISSING-SIDE` 和 complementary half-pair 聚合现在统一只处理 ordinary pair
+    - 避免 `semantic_mapping` 再被普通缺边规则吞回去
+  - `src/dwg_audit/report/artifacts.py`
+    - report / findings 语义摘要现在会显示：
+      - `semantic_mapping_kind`
+      - `semantic_markers`
+- 新增/更新测试：
+  - `tests/unit/test_pairs_and_rules.py`
+  - `tests/unit/test_terminal_candidates.py`
+  - `tests/unit/test_report_artifacts.py`
+- 本轮验证：
+  - `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "semantic_mapping or bridge_mapping or continuation or terminal_numeric_channel_candidates"` -> `10 passed`
+  - `python -m pytest -q tests/unit/test_terminal_candidates.py -k "semantic_row or semantic_ac_row or short_bridge"` -> `4 passed`
+  - `python -m pytest -q tests/unit/test_report_artifacts.py -k "semantic_mapping or bridge_mapping or continuation or pair_kind"` -> `4 passed`
+  - `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or supplemental or table_like_page_to_table_extractor"` -> `11 passed`
+  - `python -m pytest -q` -> `157 passed`
+- 真实样本 rerun：
+  - 第二套：[phase25_semantic_mapping_second](/F:/workspace/XJToolkit/.tmp/phase25_semantic_mapping_second)
+  - 第一套：[phase25_semantic_mapping_first](/F:/workspace/XJToolkit/.tmp/phase25_semantic_mapping_first)
+- 第二套 current-head 新证据：
+  - `pair_kind_counts: {'ordinary_pair': 1031, 'semantic_mapping': 157, 'continuation': 20, 'bridge_mapping': 3}`
+  - `issue_count` 保持 `518`
+  - `R-PAIR-MISSING-SIDE` 保持 `317`
+  - `R-PAIR-LOW-CONFIDENCE` 保持 `201`
+  - 代表边界：
+    - `21 -> 211` 仍是 `ordinary_pair`
+    - `110 -> 330` 仍是 `bridge_mapping`
+    - `? -> 328` 仍是 `continuation`
+    - `? -> 108` 已变成 `semantic_mapping`
+- 第一套 current-head 新证据：
+  - `pair_kind_counts: {'ordinary_pair': 943, 'semantic_mapping': 103, 'continuation': 68, 'bridge_mapping': 3}`
+  - `issue_count` 保持 `345`
+  - `R-PAIR-MISSING-SIDE` 保持 `267`
+  - `R-PAIR-LOW-CONFIDENCE` 保持 `77`
+  - 代表 semantic rows 来自 `KLP/DK/CLP` 相关端子行
+- 本轮并发情况：
+  - 我尝试继续使用只读子代理，但上游代理转发仍返回 `502 Bad Gateway`
+  - 主线程因此直接用 current-head 代码、测试和真实样本产物完成审计、裁决与落地，没有把关键判断外包

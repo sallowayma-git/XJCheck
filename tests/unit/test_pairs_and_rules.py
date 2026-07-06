@@ -457,6 +457,47 @@ def test_build_pairs_tags_terminal_short_bridge_cross_column_as_bridge_mapping()
     assert pair.evidence["bridge_mapping_kind"] == "terminal_short_bridge_cross_column"
 
 
+def test_build_pairs_tags_terminal_semantic_row_as_semantic_mapping() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=127.5,
+            start_y=255.0,
+            end_x=202.5,
+            end_y=255.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "left", "T0", "3", None, 0.82, "rejected", "terminal_semantic_local_numeric", 151.75, 256.0, 4.5, 1.0, 151.75, 256.0, channel="semantic_channel", channel_detail="terminal_semantic_local_numeric"),
+        TerminalCandidate("C0002", "G0001", "S0001", "F0001", "left", "T1", "3-21KLP2-1", None, 0.0, "rejected", "not_numeric", 128.5, 256.0, 8.0, 1.0, 128.5, 256.0, channel="semantic_channel", channel_detail="not_numeric"),
+        TerminalCandidate("C0003", "G0001", "S0001", "F0001", "right", "T2", "1-21n108", "108", 0.8657, "accepted", None, 158.5, 256.0, 7.0, 1.0, 158.5, 256.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value is None
+    assert pair.right_value == "108"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.status == "review"
+    assert pair.rationale == "missing left candidate; semantic mapping relation"
+    assert pair.evidence["pair_kind"] == "semantic_mapping"
+    assert pair.evidence["semantic_kind"] == "terminal_semantic_mapping"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["semantic_mapping_kind"] == "terminal_semantic_row"
+    assert pair.evidence["semantic_marker_texts"] == ["3-21KLP2-1"]
+
+
 def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None:
     groups = [
         LineGroup(
@@ -699,6 +740,61 @@ def test_rules_skip_bridge_mapping_pairs_from_ordinary_audit() -> None:
     ]
     groups = [
         LineGroup("G1", "S1", "F1", 310, 226, 385, 226, 75, 0.9, ["L1"], ["WIRE"], orientation="horizontal"),
+        LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True),
+        SheetRecord("S2", "F2", "28 回路图.dwg", 28, "28", "回路图", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.pair_id == "P1" for issue in issues)
+
+
+def test_rules_skip_semantic_mapping_pairs_from_ordinary_audit() -> None:
+    pairs = [
+        Pair(
+            pair_id="P1",
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            selected_pair_candidate_id="PC1",
+            left_value=None,
+            right_value="108",
+            confidence=0.86,
+            status="review",
+            rationale="semantic mapping relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "21.dwg",
+                "pair_kind": "semantic_mapping",
+                "semantic_kind": "terminal_semantic_mapping",
+                "ordinary_pair_eligible": False,
+                "semantic_mapping_kind": "terminal_semantic_row",
+                "semantic_marker_texts": ["3-21KLP2-1"],
+            },
+            pair_kind="semantic_mapping",
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S2",
+            "F2",
+            "PC2",
+            "420",
+            "421",
+            0.97,
+            "pass",
+            "ok",
+            [],
+            "high",
+            {"filename": "28.dwg"},
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 127.5, 255.0, 202.5, 255.0, 75, 0.9, ["L1"], ["WIRE"], orientation="horizontal"),
         LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["WIRE"]),
     ]
     sheets = [

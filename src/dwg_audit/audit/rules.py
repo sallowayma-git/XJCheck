@@ -69,7 +69,7 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
     for pair in context.pairs:
         if pair.status == "discard":
             continue
-        if getattr(pair, "pair_kind", "ordinary_pair") == "continuation":
+        if not _ordinary_pair_eligible(pair):
             continue
         if pair.pair_id in aggregated_pair_ids:
             continue
@@ -96,6 +96,8 @@ def _complementary_half_pair_matches(
     missing_right_by_key = defaultdict(list)
     for pair in context.pairs:
         if pair.status == "discard":
+            continue
+        if not _ordinary_pair_eligible(pair):
             continue
         if pair.left_value is None and pair.right_value and pair.right_text_id:
             missing_left.append(pair)
