@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 58
+Phase 59
 
 ## Phases
 
@@ -750,6 +750,23 @@ Phase 58
   - 点名伪 pair 已消失：first `S0025 8 -> ?`、first `S0027 ? -> 4`、second `S0022 9 -> 116`、second `S0021 69 -> 318`
   - second 红线保持：`wire_component_mapping=168`、`table_mapping=176`、`component_mapping=82`，acceptance suite required `3/3`
 - [ ] 下一刀建议：继续只读审计后处理 wire inline split half-pair，或回到 Phase51 packaged sidecar/exe smoke；不要把 issue_count 下降当成隐藏关系目标。
+- **Status:** complete
+
+### Phase 59: Inline Numeric Bridge BBox Coverage
+- [x] 只读恢复并确认当前受保护外部/并发改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`；当前 HEAD 为 `ca2d8fc`。
+- [x] 三个只读 explorer 与主线程审计一致确认：Phase72 后 first 仍有 35 条、second 仍有 6 条 `complementary_half_pair / inline_wire_split`，代表样本是被 inline 数字切断的同一根 wire chain。
+- [x] 实现目标：在 `_has_inline_numeric_bridge()` 中用 TEXT bbox 的轴向区间判断是否覆盖断点间隙，修复真实 DWG 中 insert point 位于左线端附近但 bbox 横跨 gap 的漏桥接。
+- [x] 风险门槛：只改线组 bridge 判断；不改 rules、不删除 issue、不扩 CLI/UI、不触碰受保护外部文件。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_line_groups.py` -> `9 passed`
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "inline_klp or input_matrix"` -> `5 passed, 1 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or inline_klp or run_audit"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `231 passed`
+  - first fresh `.tmp/phase73_inline_bridge_first/...`: `pair_count=1550`, `issue_count=327`, `ordinary_pair=800`, `wire_component_mapping=32`, `table_mapping=299`, `component_mapping=138`; `complementary_half_pair` 从 35 降到 2，剩余 2 条位于 `07 网络通讯回路图.dwg` 短 gap 边界。
+  - second fresh `.tmp/phase73_inline_bridge_second/2_2`: `pair_count=1462`, `issue_count=191`, `ordinary_pair=674`, `wire_component_mapping=168`, `table_mapping=176`, `component_mapping=82`; `complementary_half_pair` 从 6 降到 0。
+  - first `08/09/10` 与 second `08/12` 点名 inline split 页级 `complementary_half_pair` 均为 0；acceptance suite required `3/3`。
+- [ ] 下一刀建议：继续只读审计 first `07 网络通讯回路图.dwg` 两条短 gap 半链，或转向 terminal/table/component 规则语义残差；Phase51 packaged sidecar smoke 仍独立。
 - **Status:** complete
 
 ## Errors Encountered

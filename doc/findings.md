@@ -7869,3 +7869,89 @@ fresh second-set 证据：
 - 本轮没有移除结构化 `table_mapping/component_mapping/wire_component_mapping`，也没有扩 CLI/UI。
 - 改善点是候选语义：端子图行号列不再伪装成跨页端子候选，因而不再制造低置信和缺边伪 issue。
 - 下一刀可继续只读审计 wire inline split half-pair，或回到 Phase51 packaged sidecar/exe smoke；两者仍应分开推进。
+
+## 112. 2026-07-07 inline 数字断线桥接：用 TEXT bbox 覆盖 gap 而不是只看插入点
+
+只读审计确认，Phase72 后仍有一类真实 wire path 残差：同一根水平导线被 inline 数字文本切断，但线组桥接没有恢复成同一条 chain，于是进入 `R-PAIR-MISSING-SIDE / complementary_half_pair`。
+
+代表样本：
+
+- second-set `08 测控1开入回路图1.dwg`：旧 `PW0251 ? -> 114` 与 `PW0252 114 -> ?` 共享文本 `T0355=114`，两段线 gap 约 `12.5`。
+- first-set `08 差动保护及信号回路.dwg`：旧 `PW0220 ? -> 112` 与 `PW0221 112 -> ?` 同构。
+- first-set `09 高后备保护及信号回路.dwg`：旧 `PW0238 ? -> 123` 与 `PW0239 123 -> ?` 同构。
+
+根因：
+
+- `_has_inline_numeric_bridge()` 已有 inline numeric bridge 逻辑，但只检查 `text.insert_x / insert_y` 是否落在 gap 内。
+- 真实 DWG 的 TEXT 插入点常位于左线端附近，文字 bbox 才横跨断点间隙。例如 second `T0355=114` 的 insert x 约 `90.62`，bbox x 约 `[90.62, 95.27]`，左线 end x 为 `92.5`，右线 start x 为 `105.0`。
+- 插入点低于 `previous_end_axis - 1.0` 时旧逻辑直接跳过，虽然文字 bbox 已经覆盖断点边缘。
+
+本轮实现：
+
+- 在 [line_groups.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/line_groups.py) 中把 inline bridge 的轴向命中条件改为 TEXT bbox 区间与扩展 gap 区间相交。
+- horizontal/grid 使用 `bbox_min_x/bbox_max_x` 判断轴向覆盖，cross-axis 使用 bbox y 中心；vertical 对应使用 y 区间和 bbox x 中心。
+- 保留原有 `inline_numeric_bridge_gap` 与 cross-axis tolerance，不改 rules、不删除 issue、不扩 CLI/UI。
+- 在 [test_line_groups.py](/F:/workspace/XJToolkit/tests/unit/test_line_groups.py) 增加真实形态回归：`114` 的 insert point 在左线端附近、bbox 覆盖 gap，grid 行带应桥接 `L1/L2`。
+
+fresh first-set 证据：
+
+- `.tmp/phase73_inline_bridge_first/...`
+- `pair_count=1550`
+- `issue_count=327`
+- pair_kind：
+  - `ordinary_pair=800`
+  - `wire_component_mapping=32`
+  - `component_mapping=138`
+  - `continuation=175`
+  - `semantic_mapping=103`
+  - `bridge_mapping=3`
+  - `table_mapping=299`
+- `complementary_half_pair`：`35 -> 2`
+- 点名页级结果：
+  - `08 差动保护及信号回路.dwg`：`complementary_half_pair=0`
+  - `09 高后备保护及信号回路.dwg`：`complementary_half_pair=0`
+  - `10 低后备保护及信号回路.dwg`：`complementary_half_pair=0`
+  - 剩余 2 条位于 `07 网络通讯回路图.dwg`，gap 约 `4.7358`，属于后续独立短 gap 边界。
+
+fresh second-set 证据：
+
+- `.tmp/phase73_inline_bridge_second/2_2`
+- `pair_count=1462`
+- `issue_count=191`
+- pair_kind：
+  - `ordinary_pair=674`
+  - `wire_component_mapping=168`
+  - `component_mapping=82`
+  - `continuation=202`
+  - `semantic_mapping=157`
+  - `bridge_mapping=3`
+  - `table_mapping=176`
+- `complementary_half_pair`：`6 -> 0`
+- 点名页级结果：
+  - `08 测控1开入回路图1.dwg`：`complementary_half_pair=0`
+  - `12 测控2开入回路图1.dwg`：`complementary_half_pair=0`
+- 红线未漂移：
+  - `wire_component_mapping=168`
+  - `input_matrix_wire_mapping=168`
+  - `table_mapping=176`
+  - `component_mapping=82`
+
+验收红线：
+
+- `.tmp/phase73_inline_bridge_acceptance`
+- required `3/3`
+- `acceptance_passed=True`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_line_groups.py` -> `9 passed`
+- `python -m pytest -q tests\unit\test_wire_components.py -k "inline_klp or input_matrix"` -> `5 passed, 1 deselected`
+- `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or inline_klp or run_audit"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `231 passed`
+
+裁决：
+
+- 本轮修的是 CAD TEXT 几何解释：插入点不等于文字占位范围。
+- 改动没有隐藏 issue；first 剩余 2 条 `07 网络通讯回路图.dwg` 半链继续显式留在 review。
+- 下一刀若继续 wire 主链，应先只读审计这 2 条短 gap 半链是否需要另一个线组边界规则；否则可转向 terminal/table/component 的规则语义残差。

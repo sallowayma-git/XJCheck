@@ -248,6 +248,56 @@ def test_build_line_groups_grid_bridges_inline_numeric_split() -> None:
     assert bridged[0].orientation == "grid"
 
 
+def test_build_line_groups_grid_bridges_inline_numeric_split_when_bbox_overlaps_gap() -> None:
+    """DWG TEXT insert point may sit on the left segment while its bbox spans into the split gap."""
+    from dwg_audit.domain.models import PageClassification
+
+    lines = [
+        LineEntity("L1", "S1", "F1", "H1", "LINE", "WIRE", 32.5, 20.0, 92.5, 20.0, 60.0, 0.0, 32.5, 20.0, 92.5, 20.0),
+        LineEntity("L2", "S1", "F1", "H2", "LINE", "WIRE", 105.0, 20.0, 145.0, 20.0, 40.0, 0.0, 105.0, 20.0, 145.0, 20.0),
+    ]
+    sheets = [
+        SheetRecord(
+            sheet_id="S1",
+            file_id="F1",
+            filename="08 测控1开入回路图1.dwg",
+            sheet_order=8,
+            sheet_no="08",
+            sheet_title="测控1开入回路图1",
+            sheet_category="二次原理图",
+            audit_role="primary",
+            page_no_source="filename",
+            is_primary_audit_candidate=True,
+            audit_area_bbox=(0.0, 0.0, 180.0, 120.0),
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "TH1", "TEXT", "114", "114", True, "DIM", 0.0, 2.5, 90.6, 20.6, 90.6, 19.0, 95.3, 22.0)
+    ]
+    extra_lines = [
+        LineEntity(f"X{i}", "S1", "F1", f"HX{i}", "LINE", "WIRE", 10.0, y, 80.0, y, 70.0, 0.0, 10.0, y, 80.0, y)
+        for i, y in enumerate([30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0])
+    ]
+    classification = PageClassification(
+        sheet_id="S1",
+        page_type="二次原理图",
+        page_subtype="grid_heavy_wire_diagram",
+        page_type_confidence=0.88,
+        table_like=False,
+        grid_heavy=True,
+        route_target="WireDiagramExtractor",
+        features={"grid_band_count": 10},
+    )
+
+    groups = build_line_groups(lines + extra_lines, sheets, DEFAULT_CONFIG, texts, classifications={"S1": classification})
+
+    bridged = [g for g in groups if "L1" in g.member_line_ids and "L2" in g.member_line_ids]
+    assert len(bridged) == 1
+    assert bridged[0].start_x == 32.5
+    assert bridged[0].end_x == 145.0
+    assert bridged[0].orientation == "grid"
+
+
 def test_build_line_groups_keeps_component_page_out_of_grid_mode() -> None:
     from dwg_audit.domain.models import PageClassification
 

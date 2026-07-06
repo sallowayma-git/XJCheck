@@ -2123,6 +2123,35 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-07 (Phase 59 inline numeric bridge bbox coverage)
+- Started after commit `ca2d8fc`.
+- Read-only recovery:
+  - Ran `planning-with-files` catchup; it reported unsynced context from the previous turn and recommended `git diff --stat`.
+  - `git status --short` before edits showed only protected external/concurrent files: `doc/任务书.md`, `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Read `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, and the dirty taskbook draft as data only.
+  - Read-only explorers converged on `wire inline split half-pair` as the next main-chain slice; `Phase51` packaged sidecar smoke remains separate.
+- Implementation:
+  - Updated `_has_inline_numeric_bridge()` in `src/dwg_audit/audit/line_groups.py` to test whether a numeric TEXT bbox overlaps the expanded gap interval, instead of requiring only the insert point to fall in the gap.
+  - Kept the existing gap and cross-axis tolerances; no rules, CLI, UI, or protected external documents were changed.
+  - Added a grid-heavy regression test where text `114` has insert x before `previous_end_axis - 1.0`, but its bbox reaches into the split gap.
+- Verification:
+  - `python -m pytest -q tests\unit\test_line_groups.py` -> `9 passed`
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "inline_klp or input_matrix"` -> `5 passed, 1 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or inline_klp or run_audit"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `231 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite ... .tmp\phase73_inline_bridge_acceptance` -> required `3/3`, `acceptance_passed=True`
+- Real-sample verification:
+  - first fresh `.tmp/phase73_inline_bridge_first/...`: `pair_count=1550`, `issue_count=327`, `ordinary_pair=800`, `wire_component_mapping=32`, `table_mapping=299`, `component_mapping=138`.
+  - first `complementary_half_pair` went `35 -> 2`; `08 差动保护及信号回路.dwg`, `09 高后备保护及信号回路.dwg`, and `10 低后备保护及信号回路.dwg` now have `0` half-pair issues. The remaining two are in `07 网络通讯回路图.dwg` with a shorter gap boundary.
+  - second fresh `.tmp/phase73_inline_bridge_second/2_2`: `pair_count=1462`, `issue_count=191`, `ordinary_pair=674`, `wire_component_mapping=168`, `table_mapping=176`, `component_mapping=82`.
+  - second `complementary_half_pair` went `6 -> 0`; `08 测控1开入回路图1.dwg` and `12 测控2开入回路图1.dwg` now have `0` half-pair issues.
+  - Structure redlines held: second `input_matrix_wire_mapping=168`, `table_mapping=176`, `component_mapping=82`; first `wire_component_mapping=32`, `table_mapping=299`, `component_mapping=138`.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-07 (Phase 58 terminal row number local numeric suppression)
 - Started after commit `7a4af5b`.
 - Read-only recovery:

@@ -437,12 +437,14 @@ def _has_inline_numeric_bridge(
         if not text.is_numeric_candidate:
             continue
         if orientation == _ORIENTATION_VERTICAL:
-            along_axis = text.insert_y
-            cross_axis = text.insert_x
+            text_axis_min = min(text.bbox_min_y, text.bbox_max_y)
+            text_axis_max = max(text.bbox_min_y, text.bbox_max_y)
+            cross_axis = (text.bbox_min_x + text.bbox_max_x) / 2.0
         else:
-            along_axis = text.insert_x
-            cross_axis = text.insert_y
-        if not (previous_end_axis - 1.0 <= along_axis <= next_start_axis + 1.0):
+            text_axis_min = min(text.bbox_min_x, text.bbox_max_x)
+            text_axis_max = max(text.bbox_min_x, text.bbox_max_x)
+            cross_axis = (text.bbox_min_y + text.bbox_max_y) / 2.0
+        if text_axis_max < previous_end_axis - 1.0 or text_axis_min > next_start_axis + 1.0:
             continue
         if abs(cross_axis - target_cross_axis) <= inline_bridge_y_tol:
             return True
