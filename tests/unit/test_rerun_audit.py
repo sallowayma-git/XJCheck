@@ -49,6 +49,8 @@ def _sample_frames() -> dict[str, pd.DataFrame]:
                     "wire_candidate_score": 0.95,
                     "member_line_ids": json.dumps(["L1", "L2"]),
                     "layer_hints": json.dumps(["WIRE"]),
+                    "orientation": "grid",
+                    "row_band_id": "RB1",
                 }
             ]
         ),
@@ -154,6 +156,8 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
     def fake_build_issues(pairs, line_groups, pages, config, terminal_candidates=None):
         assert [page.sheet_id for page in pages] == ["S0001"]
         assert [group.line_group_id for group in line_groups] == ["G0001"]
+        assert line_groups[0].orientation == "grid"
+        assert line_groups[0].row_band_id == "RB1"
         assert [pair.pair_id for pair in pairs] == ["P0001"]
         assert pairs[0].left_text_id == "T0001"
         assert pairs[0].left_coord_x == 10.0

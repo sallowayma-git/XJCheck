@@ -8634,3 +8634,73 @@ fresh first-set 非回归证据：
 - 本轮是二次原理图逻辑端候选/关系语义补齐，不是 terminal-header/table extractor 回退，也不是 rules 静音。
 - 已闭合能力不得重开：`input_matrix_wire_mapping`、`small_port_box_component`、`kk_multi_port_component`、`strip_two_port_component(KLP/CLP)`、terminal header semantic endpoint exclusion/aggregation、inline DIM guardrail。
 - 下一轮候选收缩为：second 剩余 `R-PAIR-MISSING-SIDE=48`、first 剩余 `R-PAIR-MISSING-SIDE=144`、backplate/component/table mapping rules semantics；若转产品化，则 packaged sidecar/exe smoke 单独推进。
+
+## 121. 2026-07-07 schematic complementary half-chain geometry review：grid 半链以 review 聚合，rerun loader 保真
+
+只读审计确认，Phase81 second-set 剩余 `R-PAIR-MISSING-SIDE=48` 中有一组真实结构不是新的 extractor 缺失，而是二次原理图中两个强几何半链共享同一个数字文本，但 line group 被标记为 `grid`，符号间隙可到 `17.5/18.75`。旧 complementary half-chain 只允许 `horizontal` 且 gap 必须落在普通 inline 范围内，因此这些半链被拆成两条普通缺边。
+
+代表样本：
+
+- second `S0004/S0005`，`04/05 交流回路图*.dwg`：`PW0015 + PW0016` 等共享 `719/717/715`，`bridge_gap=17.5`。
+- second `S0014 / 14 测控2开入回路图3.dwg`：`PW0438 + PW0440`，`bridge_gap=18.75`。
+- first 同构页也存在 24 个可聚合的 geometry half-chain review。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 中允许 `horizontal/grid` line group 参与 `complementary_half_pair` 聚合。
+- 对含 `grid` 的半链使用 `bridge_gap_min=-3.0`、`bridge_gap_max=max(inline_gap, 20.0)`，覆盖轻微重叠和较宽符号间隙。
+- evidence 新增 `bridge_gap_min` / `bridge_gap_max`，方便复核为什么被聚合。
+- 保留 `R-PAIR-MISSING-SIDE` / `review` 可见性；该规则只把两条互补缺边聚合为一条更准确的 review，不改成 pass/discard，也不删除 pair graph 输入。
+- 在 [rerun.py](/F:/workspace/XJToolkit/src/dwg_audit/report/rerun.py) 修复 findings rerun loader：恢复 `LineGroup.orientation` 与 `row_band_id`。此前 audit-only 验证会把历史 findings 中的 `grid` 反序列化为默认 `horizontal`，导致 rules 验证和 fresh analyze 语义不一致。
+
+fresh second-set 证据：
+
+- `.tmp/phase82_complementary_second/2_2` + `.tmp/phase82_complementary_second_audit`
+- `pair_count=1460`
+- `issue_count=51`
+- `R-PAIR-MISSING-SIDE=41`
+- `complementary_half_pair=7`
+- pair_kind 未漂移：
+  - `ordinary_pair=597`
+  - `wire_component_mapping=245`
+  - `continuation=202`
+  - `table_mapping=174`
+  - `semantic_mapping=157`
+  - `component_mapping=82`
+  - `bridge_mapping=3`
+
+fresh first-set 证据：
+
+- `.tmp/phase82_complementary_first/...` + `.tmp/phase82_complementary_first_audit`
+- `pair_count=1550`
+- `issue_count=278`
+- `R-PAIR-MISSING-SIDE=120`
+- `complementary_half_pair=24`
+- pair_kind 未漂移：
+  - `ordinary_pair=800`
+  - `table_mapping=299`
+  - `continuation=175`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- first `1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307` 均保持命中。
+- `I0/IA/UA/UB/UC/UN/3U0` 等语义说明文本仍不得成为 `table_mapping/pass` endpoint；当前候选表中这些标签保留为 rejected candidate evidence，不参与 endpoint 竞争。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or dim"` -> `4 passed, 55 deselected`
+- `python -m pytest -q tests\unit\test_rerun_audit.py` -> `2 passed`
+- `python -m pytest -q` -> `250 passed`
+
+裁决：
+
+- 本轮是 rules 诊断语义和 findings rerun 保真修复，不是 extractor 补缺。
+- issue_count 下降来自互补半链聚合：两条普通缺边合并成一条 review，而不是隐藏关系。
+- 下一轮候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、first ZLP component two-port mapping；backplate/component/table mapping 继续作为 rules/acceptance/display 质量问题单独切。

@@ -128,6 +128,8 @@ def _line_group(row: pd.Series) -> LineGroup:
         wire_candidate_score=float(row["wire_candidate_score"]),
         member_line_ids=_json_list(row.get("member_line_ids")),
         layer_hints=_json_list(row.get("layer_hints")),
+        orientation=_nullable_str(row.get("orientation")) or "horizontal",
+        row_band_id=_nullable_str(row.get("row_band_id")),
     )
 
 

@@ -2579,3 +2579,37 @@
   - Read-only audit of first remaining `R-PAIR-MISSING-SIDE=144`.
   - Backplate/component/table mapping rules semantics.
   - Packaged sidecar/exe smoke as a separate M11 productization slice.
+
+## Session Update 2026-07-07 (Phase 68 schematic complementary half-chain geometry review)
+- Started after commit `75722bc`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Confirmed Phase60 terminal-header semantic endpoint exclusion was already complete; `table_extractor.py` already excludes `I0/IA/UA/UB/UC/UN/3U0` from `table_mapping/pass`.
+  - Current dirty work was the inherited Phase68 rules slice in `rules.py` and `test_pairs_and_rules.py`; protected untracked paths remained `doc/page_findings/` and `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - Phase81 second-set remaining `R-PAIR-MISSING-SIDE=48` included AC measurement / grid half-chain residuals where two strong half-pairs share a numeric text across a wider symbol gap.
+  - Phase81 first-set had the same pattern in a larger set of pages, plus separate future candidates for prefixed external endpoints and ZLP two-port component mapping.
+  - The initial rules change matched private function checks but audit-only rerun did not move because `report/rerun.py` failed to restore `LineGroup.orientation` / `row_band_id` from findings.
+- Implementation:
+  - Kept the complementary half-pair rules change: `horizontal` and `grid` orientations are eligible; grid pairs allow a small overlap and a gap up to at least `20.0`.
+  - Added evidence fields `bridge_gap_min` and `bridge_gap_max`.
+  - Fixed `rerun_audit_from_findings()` line group reconstruction so audit-only validation preserves `orientation` and `row_band_id`.
+  - Added unit coverage for grid wider-gap, grid small-overlap, and rerun loader preservation.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or dim"` -> `4 passed, 55 deselected`
+  - `python -m pytest -q tests\unit\test_rerun_audit.py` -> `2 passed`
+  - `python -m pytest -q` -> `250 passed`
+- Real-sample verification:
+  - audit-only second `.tmp/phase82_complementary_audit_second_v2`: `issue_count=51`, `R-PAIR-MISSING-SIDE=41`, `complementary_half_pair=7`.
+  - audit-only first `.tmp/phase82_complementary_audit_first_v2`: `issue_count=278`, `R-PAIR-MISSING-SIDE=120`, `complementary_half_pair=24`.
+  - fresh second `.tmp/phase82_complementary_second_audit`: `pair_count=1460`, `issue_count=51`; pair_kind unchanged from Phase81 with `wire_component_mapping=245`, `table_mapping=174`, `component_mapping=82`.
+  - fresh first `.tmp/phase82_complementary_first_audit`: `pair_count=1550`, `issue_count=278`; pair_kind unchanged from Phase81 with `table_mapping=299`, `component_mapping=138`, `wire_component_mapping=32`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511` and `3-21CD58 -> 511` remain `wire_component_mapping/review`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+  - First-set structured mapping redlines also held: `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, and `5KLP5-2 -> 5n307`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - second DC/GND/function-label semantic mapping.
+  - second network-time/function-label semantic mapping.
+  - first prefixed external endpoint mapping.
+  - first ZLP two-port component mapping.
+  - backplate/component/table mapping rules semantics as a separate rules/acceptance/display slice.

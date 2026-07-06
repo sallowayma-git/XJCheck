@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 67
+Phase 68
 
 ## Phases
 
@@ -901,6 +901,23 @@ Phase 67
   - second targets hit: `1-21CD58 -> 511`、`3-21CD58 -> 511` 均为 `wire_component_mapping/review`，`11/16 测控控制回路图2` 的 missing-side 均为 0。
   - second 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` remain structured pass relationships。
 - [ ] 下一刀候选：继续只读审计 second 剩余 `R-PAIR-MISSING-SIDE=48` 与 first `R-PAIR-MISSING-SIDE=144` 的真实结构；若转产品化，则单独切 Phase51/M11 packaged sidecar/exe smoke。
+- **Status:** complete
+
+### Phase 68: Schematic Complementary Half-Chain Geometry Review
+- [x] 只读恢复并确认当前 HEAD 为 `75722bc`；工作区已有上一段代理留下的 `rules.py` / `test_pairs_and_rules.py` 未提交改动，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 复核确认 Phase60 `terminal_header_table semantic endpoint exclusion` 已完成并提交；本轮不重开 `TableExtractor`，只收口 Phase81 剩余 ordinary missing-side 中的几何互补半链 rules 语义。
+- [x] 实现目标：允许二次原理图 `grid` line group 在较宽符号间隙或小重叠下聚合为 `complementary_half_pair` review；保留 pair graph 和 missing-side 可见性，不把关系改成 pass/discard。
+- [x] 必要保真修复：`run-audit --findings` 的 rerun loader 现在恢复 `LineGroup.orientation` 与 `row_band_id`，避免历史 findings audit-only 把 `grid` 误当 `horizontal`，导致 rules 验证和 fresh analyze 不一致。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or dim"` -> `4 passed, 55 deselected`
+  - `python -m pytest -q tests\unit\test_rerun_audit.py` -> `2 passed`
+  - `python -m pytest -q` -> `250 passed`
+  - audit-only second `.tmp/phase82_complementary_audit_second_v2`: `issue_count=51`, `R-PAIR-MISSING-SIDE=41`, `complementary_half_pair=7`
+  - audit-only first `.tmp/phase82_complementary_audit_first_v2`: `issue_count=278`, `R-PAIR-MISSING-SIDE=120`, `complementary_half_pair=24`
+  - fresh second `.tmp/phase82_complementary_second_audit`: `pair_count=1460`, `issue_count=51`, pair_kind unchanged；`ordinary_pair=597`, `wire_component_mapping=245`, `table_mapping=174`, `component_mapping=82`
+  - fresh first `.tmp/phase82_complementary_first_audit`: `pair_count=1550`, `issue_count=278`, pair_kind unchanged；`table_mapping=299`, `component_mapping=138`, `wire_component_mapping=32`
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系；first `1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307` 仍命中。
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、first ZLP component two-port mapping；backplate/component/table mapping 继续按 rules/acceptance/display 质量单独切片。
 - **Status:** complete
 
 ## Errors Encountered

@@ -1684,6 +1684,122 @@ def test_rules_aggregate_complementary_missing_side_pairs() -> None:
     assert issue.evidence["line_group_y_delta"] == 0.1
 
 
+def test_rules_aggregate_grid_complementary_pairs_with_wider_symbol_gap() -> None:
+    pairs = [
+        Pair(
+            "PW0015",
+            "GW0015",
+            "S0004",
+            "F0004",
+            "PCW0015",
+            None,
+            "719",
+            0.5046,
+            "review",
+            "missing left candidate",
+            [],
+            "review",
+            {},
+            right_text_id="T0007",
+            right_coord_x=160.625,
+            right_coord_y=180.605,
+        ),
+        Pair(
+            "PW0016",
+            "GW0016",
+            "S0004",
+            "F0004",
+            "PCW0016",
+            "719",
+            None,
+            0.2754,
+            "review",
+            "missing right candidate",
+            [],
+            "review",
+            {},
+            left_text_id="T0007",
+            left_coord_x=160.625,
+            left_coord_y=180.605,
+        ),
+    ]
+    groups = [
+        LineGroup("GW0015", "S0004", "F0004", 132.5, 180.0, 162.5, 180.0, 30.0, 0.85, ["L1"], ["CONNECT"], "grid"),
+        LineGroup("GW0016", "S0004", "F0004", 180.0, 180.0, 215.0, 180.0, 35.0, 0.85, ["L2"], ["0"], "grid"),
+    ]
+    sheets = [
+        SheetRecord("S0004", "F0004", "04 交流回路图1.dwg", 4, "04", "交流回路图1", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    missing_side = [issue for issue in issues if issue.rule_id == "R-PAIR-MISSING-SIDE"]
+    assert len(missing_side) == 1
+    issue = missing_side[0]
+    assert issue.title == "互补半链待复核"
+    assert issue.primary_pair_id == "PW0015"
+    assert issue.related_pair_ids == ["PW0016"]
+    assert issue.evidence["chain_kind"] == "complementary_half_pair"
+    assert issue.evidence["bridge_gap"] == 17.5
+    assert issue.evidence["bridge_gap_max"] == 20.0
+
+
+def test_rules_aggregate_grid_complementary_pairs_with_small_overlap() -> None:
+    pairs = [
+        Pair(
+            "P1",
+            "G1",
+            "S1",
+            "F1",
+            "PC1",
+            None,
+            "505",
+            0.50,
+            "review",
+            "missing left candidate",
+            [],
+            "review",
+            {},
+            right_text_id="T505",
+            right_coord_x=125.6,
+            right_coord_y=135.6,
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S1",
+            "F1",
+            "PC2",
+            "505",
+            None,
+            0.30,
+            "review",
+            "missing right candidate",
+            [],
+            "review",
+            {},
+            left_text_id="T505",
+            left_coord_x=125.6,
+            left_coord_y=135.6,
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 87.5, 135.0, 127.5, 135.0, 40.0, 0.85, ["L1"], ["CONNECT"], "grid"),
+        LineGroup("G2", "S1", "F1", 125.0, 135.0, 237.5, 135.0, 112.5, 0.85, ["L2"], ["CONNECT"], "grid"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "14 测控2开入回路图3.dwg", 14, "14", "测控2开入回路图3", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    missing_side = [issue for issue in issues if issue.rule_id == "R-PAIR-MISSING-SIDE"]
+    assert len(missing_side) == 1
+    assert missing_side[0].title == "互补半链待复核"
+    assert missing_side[0].evidence["bridge_gap"] == -2.5
+    assert missing_side[0].evidence["bridge_gap_min"] == -3.0
+
+
 def test_rules_do_not_aggregate_complementary_pairs_across_dim_short_line() -> None:
     pairs = [
         Pair(

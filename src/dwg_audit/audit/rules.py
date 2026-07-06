@@ -168,13 +168,14 @@ def _complementary_half_pair_evidence(
     right_group = group_map.get(missing_right.line_group_id)
     if left_group is None or right_group is None:
         return None
-    if left_group.orientation != "horizontal" or right_group.orientation != "horizontal":
+    if not _complementary_half_pair_orientation(left_group, right_group):
         return None
     if not _line_groups_wire_chain_compatible(left_group, right_group, inline_y_tol):
         return None
 
     bridge_gap = right_group.start_x - left_group.end_x
-    if bridge_gap < 0 or bridge_gap > inline_gap:
+    min_gap, max_gap = _complementary_half_pair_gap_bounds(left_group, right_group, inline_gap)
+    if bridge_gap < min_gap or bridge_gap > max_gap:
         return None
 
     left_anchor_y = missing_left.right_coord_y
@@ -190,9 +191,26 @@ def _complementary_half_pair_evidence(
         "shared_text_id": missing_left.right_text_id,
         "shared_value": missing_left.right_value,
         "bridge_gap": round(bridge_gap, 4),
+        "bridge_gap_min": round(min_gap, 4),
+        "bridge_gap_max": round(max_gap, 4),
         "bridge_y_delta": round(bridge_y_delta, 4),
         "line_group_y_delta": round(abs(left_group.start_y - right_group.start_y), 4),
     }
+
+
+def _complementary_half_pair_orientation(left_group: LineGroup, right_group: LineGroup) -> bool:
+    allowed = {"horizontal", "grid"}
+    return left_group.orientation in allowed and right_group.orientation in allowed
+
+
+def _complementary_half_pair_gap_bounds(
+    left_group: LineGroup,
+    right_group: LineGroup,
+    inline_gap: float,
+) -> tuple[float, float]:
+    if "grid" in {left_group.orientation, right_group.orientation}:
+        return -3.0, max(inline_gap, 20.0)
+    return 0.0, inline_gap
 
 
 def _line_groups_wire_chain_compatible(
