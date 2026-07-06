@@ -5,6 +5,7 @@ from pathlib import Path
 
 import ezdxf
 import pandas as pd
+import yaml
 from typer.testing import CliRunner
 
 from dwg_audit.cli import app
@@ -77,7 +78,7 @@ def test_analyze_project_records_failures_and_reuses_cached_dxf(
     assert (audit_dir / "audit_report.md").exists()
 
 
-def test_analyze_project_only_emits_primary_pages_into_downstream_audit(
+def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -114,23 +115,1347 @@ def test_analyze_project_only_emits_primary_pages_into_downstream_audit(
 
     run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
     findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    page_findings_dir = findings_dir / "page_findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
 
     pages = pd.read_parquet(findings_dir / "pages.parquet")
     line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
     pairs = pd.read_parquet(findings_dir / "pairs.parquet")
 
     page_roles = {row["filename"]: row["audit_role"] for _, row in pages.iterrows()}
+    page_dispositions = {row["filename"]: row["audit_disposition"] for _, row in pages.iterrows()}
     page_primary = {row["filename"]: bool(row["is_primary_audit_candidate"]) for _, row in pages.iterrows()}
     sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
 
     assert page_roles["04 回路图.dwg"] == "primary"
+    assert page_dispositions["04 回路图.dwg"] == "audit_required"
     assert page_primary["04 回路图.dwg"] is True
-    assert page_roles["07 屏端子图.dwg"] == "secondary"
-    assert page_primary["07 屏端子图.dwg"] is False
+    assert page_roles["07 屏端子图.dwg"] == "supplemental"
+    assert page_dispositions["07 屏端子图.dwg"] == "audit_required"
+    assert page_primary["07 屏端子图.dwg"] is True
     assert page_roles["08 封面.dwg"] == "skip"
+    assert page_dispositions["08 封面.dwg"] == "skip_stable"
     assert page_primary["08 封面.dwg"] is False
+    assert findings_payload["page_findings_count"] == len(findings_payload["page_findings"]) == len(pages)
+    assert not page_findings_dir.exists()
+    assert "page_findings/" not in findings_payload["artifacts"]["findings"]
 
-    assert set(line_groups["sheet_id"].tolist()) == {sheet_by_file["04 回路图.dwg"]}
-    assert set(pairs["sheet_id"].tolist()) == {sheet_by_file["04 回路图.dwg"]}
-    assert sheet_by_file["07 屏端子图.dwg"] not in set(line_groups["sheet_id"].tolist())
+    assert set(line_groups["sheet_id"].tolist()) == {
+        sheet_by_file["04 回路图.dwg"],
+        sheet_by_file["07 屏端子图.dwg"],
+    }
+    assert set(pairs["sheet_id"].tolist()) == {
+        sheet_by_file["04 回路图.dwg"],
+        sheet_by_file["07 屏端子图.dwg"],
+    }
     assert sheet_by_file["08 封面.dwg"] not in set(line_groups["sheet_id"].tolist())
+    assert findings_payload["primary_audit_pages"] == 1
+    assert findings_payload["supplemental_audit_pages"] == 1
+    assert findings_payload["included_audit_pages"] == 2
+    assert findings_payload["audit_page_counts"] == {
+        "primary": 1,
+        "secondary": 0,
+        "skip": 1,
+        "supplemental": 1,
+    }
+    assert findings_payload["audit_disposition_counts"] == {
+        "audit_required": 2,
+        "skip_stable": 1,
+    }
+    route_execution = findings_payload["route_execution_summary"]["route_targets"]
+    assert route_execution["WireDiagramExtractor"]["status"] == "executed"
+    assert route_execution["WireDiagramExtractor"]["executed_page_count"] == 1
+    assert route_execution["TerminalDiagramExtractor"]["status"] == "executed"
+    assert route_execution["TerminalDiagramExtractor"]["executed_page_count"] == 1
+    assert route_execution["LayoutOnlyExtractor"]["status"] == "no_pages_classified"
+    assert route_execution["SkipExtractor"]["status"] == "skip_pages_present"
+    assert route_execution["SkipExtractor"]["routed_page_count"] == 1
+    assert route_execution["TableExtractor"]["status"] == "no_pages_classified"
+
+
+def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_table_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "05 回路表格图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 320.0, 320.0],
+                    }
+                },
+                "confidence": {
+                    "high_threshold": 0.8,
+                    "review_threshold": 0.75,
+                },
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
+            msp.add_text("101", dxfattribs={"insert": (10, 200), "height": 2.5})
+            msp.add_text("202", dxfattribs={"insert": (90, 200), "height": 2.5})
+            msp.add_line((20, 200), (80, 200), dxfattribs={"layer": "CONNECT"})
+        else:
+            for index, y in enumerate((60.0, 100.0, 140.0, 180.0, 220.0, 260.0), start=1):
+                msp.add_line((10.0, y), (290.0, y), dxfattribs={"layer": "TABLE"})
+            for index, x in enumerate((10.0, 100.0, 200.0, 290.0), start=1):
+                msp.add_line((x, 60.0), (x, 260.0), dxfattribs={"layer": "TABLE"})
+            for idx in range(20):
+                base_x = 18.0 + (idx % 5) * 48.0
+                base_y = (60.0, 100.0, 140.0, 180.0)[idx // 5]
+                msp.add_lwpolyline(
+                    [
+                        (base_x, base_y),
+                        (base_x + 22.0, base_y),
+                    ],
+                    dxfattribs={"layer": "TABLE"},
+                )
+                for text, x, y in (
+                    ("101", 55.0, 80.0),
+                    ("102", 150.0, 80.0),
+                    ("103", 245.0, 80.0),
+                    ("201", 55.0, 120.0),
+                    ("202", 150.0, 120.0),
+                    ("203", 245.0, 120.0),
+                    ("301", 55.0, 160.0),
+                    ("302", 150.0, 160.0),
+                    ("303", 245.0, 160.0),
+                ):
+                    msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
+    table_page = page_findings["05 回路表格图.dwg"]
+    wire_page = page_findings["04 回路图.dwg"]
+    pages_by_file = {row["filename"]: row for _, row in pages.iterrows()}
+
+    assert wire_page["page_type"] == "二次原理图"
+    assert wire_page["audit_disposition"] == "audit_required"
+    assert wire_page["route_target"] == "WireDiagramExtractor"
+    assert table_page["page_type"] == "表格型图"
+    assert table_page["audit_disposition"] == "audit_required"
+    assert table_page["route_target"] == "TableExtractor"
+    assert table_page["structure_summary"]["table_mapping_count"] == 3
+    assert table_page["structure_summary"]["three_column_table"] is True
+    assert "dedicated table path recovered 3 structured row mappings" in table_page["recognition_strategy"]
+    assert "middle-column-to-outer-column mappings as high-confidence structured evidence" in table_page["number_matching_strategy"]
+    assert findings_payload["table_extraction_summary"]["table_pages"] == 1
+    assert findings_payload["table_extraction_summary"]["three_column_pages"] == 1
+    assert findings_payload["table_extraction_summary"]["total_mappings"] == 3
+    assert findings_payload["table_extraction_summary"]["status"] == "table_mappings_recovered"
+    assert findings_payload["table_extraction_summary"]["classified_table_pages"] == 1
+    assert findings_payload["table_extraction_summary"]["classified_table_filenames"] == ["05 回路表格图.dwg"]
+    assert table_page["executed_extractor"] == "TableExtractor"
+    assert table_page["execution_status"] == "executed"
+    assert pages_by_file["04 回路图.dwg"]["page_type"] == "二次原理图"
+    assert pages_by_file["04 回路图.dwg"]["route_target"] == "WireDiagramExtractor"
+    assert bool(pages_by_file["04 回路图.dwg"]["grid_heavy"]) is False
+    assert pages_by_file["05 回路表格图.dwg"]["page_type"] == "表格型图"
+    assert pages_by_file["05 回路表格图.dwg"]["route_target"] == "TableExtractor"
+    assert bool(pages_by_file["05 回路表格图.dwg"]["table_like"]) is True
+    route_execution = findings_payload["route_execution_summary"]["route_targets"]
+    assert route_execution["TableExtractor"]["status"] == "executed"
+    assert route_execution["TableExtractor"]["executed_extractor"] == "TableExtractor"
+    assert route_execution["TableExtractor"]["routed_page_count"] == 1
+    assert route_execution["TableExtractor"]["executed_page_count"] == 1
+
+    table_sheet_id = table_page["sheet_id"]
+    wire_sheet_id = wire_page["sheet_id"]
+    assert table_sheet_id not in set(line_groups["sheet_id"].tolist())
+    assert wire_sheet_id in set(line_groups["sheet_id"].tolist())
+
+    table_pairs = pairs[pairs["sheet_id"] == table_sheet_id]
+    assert len(table_pairs) == 3
+    assert set(table_pairs["pair_kind"].tolist()) == {"table_mapping"}
+    assert table_pairs["line_group_id"].isna().all()
+    first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "table_mapping"
+    assert first_evidence["table_mapping"]["sheet_id"] == table_sheet_id
+
+
+def test_analyze_project_supports_header_semantic_three_column_table_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "05 回路表格图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 320.0, 320.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
+            msp.add_text("101", dxfattribs={"insert": (10, 200), "height": 2.5})
+            msp.add_text("202", dxfattribs={"insert": (90, 200), "height": 2.5})
+            msp.add_line((20, 200), (80, 200), dxfattribs={"layer": "CONNECT"})
+        else:
+            for y in (60.0, 100.0, 140.0, 180.0):
+                msp.add_line((10.0, y), (290.0, y), dxfattribs={"layer": "TABLE"})
+            for y in (75.0, 165.0):
+                msp.add_line((20.0, y), (80.0, y), dxfattribs={"layer": "TABLE"})
+            for x in (10.0, 100.0, 200.0, 290.0):
+                msp.add_line((x, 60.0), (x, 180.0), dxfattribs={"layer": "TABLE"})
+            for idx in range(20):
+                base_x = 18.0 + (idx % 5) * 48.0
+                base_y = (60.0, 100.0, 140.0, 60.0)[idx // 5]
+                msp.add_lwpolyline(
+                    [
+                        (base_x, base_y),
+                        (base_x + 22.0, base_y),
+                    ],
+                    dxfattribs={"layer": "TABLE"},
+                )
+            for text, x, y in (
+                ("1-21QD", 150.0, 80.0),
+                ("1-21n552", 55.0, 120.0),
+                ("1", 150.0, 120.0),
+                ("1-21n553", 245.0, 120.0),
+                ("1-21n554", 55.0, 160.0),
+                ("2", 150.0, 160.0),
+                ("1-21n555", 245.0, 160.0),
+            ):
+                msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
+    table_page = page_findings["05 回路表格图.dwg"]
+    assert table_page["route_target"] == "TableExtractor"
+    assert table_page["structure_summary"]["table_mapping_count"] == 2
+    assert table_page["structure_summary"]["three_column_table"] is True
+    assert table_page["structure_summary"]["table_mapping_modes"] == {"header_semantic_three_column": 2}
+    assert table_page["structure_summary"]["table_header_prefixes"] == ["1-21QD"]
+    assert table_page["structure_summary"]["table_logical_endpoint_examples"] == ["1-21QD1", "1-21QD2"]
+    assert table_page["structure_summary"]["table_row_number_sequence_valid"] is True
+
+    table_sheet_id = table_page["sheet_id"]
+    table_pairs = pairs[pairs["sheet_id"] == table_sheet_id]
+    assert len(table_pairs) == 4
+    assert set(table_pairs["pair_kind"].tolist()) == {"table_mapping"}
+    pair_values = {(row["left_value"], row["right_value"]) for _, row in table_pairs.iterrows()}
+    assert pair_values == {
+        ("1-21QD1", "1-21n552"),
+        ("1-21QD1", "1-21n553"),
+        ("1-21QD2", "1-21n554"),
+        ("1-21QD2", "1-21n555"),
+    }
+    first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
+    assert first_evidence["table_mapping"]["mapping_mode"] == "header_semantic_three_column"
+    assert first_evidence["table_mapping"]["logical_endpoint"] in {"1-21QD1", "1-21QD2"}
+
+
+def test_analyze_project_routes_backplate_virtual_table_to_table_extractor(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "20 非电量保护背板图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 300.0, 260.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        block = doc.blocks.new(name="WBH-814E-E1SA-101")
+        block.add_text("NKR308A(非电量选配)", dxfattribs={"insert": (213.0, 243.75), "height": 2.5, "layer": "CH"})
+        block.add_text("调压重瓦斯开入", dxfattribs={"insert": (213.0, 239.0), "height": 2.0, "layer": "CH"})
+        msp = doc.modelspace()
+        msp.add_blockref("WBH-814E-E1SA-101", (0, 0))
+        for index in range(1, 9):
+            y = 238.75 - (index - 1) * 5.0
+            row_x = 208.75 if index % 2 else 233.75
+            endpoint_x = 199.0 if index % 2 else 238.5
+            block.add_text(f"{index:02d}", dxfattribs={"insert": (row_x, y), "height": 2.5, "layer": "0"})
+            msp.add_text(f"5FD{14 + index}", dxfattribs={"insert": (endpoint_x, y - 0.25), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+    texts = pd.read_parquet(findings_dir / "texts.parquet")
+
+    page = findings_payload["page_findings"][0]
+    assert page["page_type"] == "背板表格型图"
+    assert page["page_subtype"] == "backplate_virtual_terminal_table"
+    assert page["route_target"] == "TableExtractor"
+    assert page["executed_extractor"] == "TableExtractor"
+    assert page["structure_summary"]["table_mapping_modes"] == {"backplate_virtual_table": 8}
+    assert page["structure_summary"]["table_header_prefixes"] == ["NKR308A"]
+
+    assert "WBH-814E-E1SA-101" in set(texts["source_block_name"].dropna().tolist())
+    pair_values = {(row["left_value"], row["right_value"]) for _, row in pairs.iterrows()}
+    assert ("NKR308A-1", "5FD15") in pair_values
+    assert ("NKR308A-2", "5FD16") in pair_values
+    assert len(pair_values) == 8
+    first_evidence = json.loads(pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "table_mapping"
+    assert first_evidence["table_mapping"]["mapping_mode"] == "backplate_virtual_table"
+    assert first_evidence["table_mapping"]["raw_header_text"] == "NKR308A(非电量选配)"
+
+
+def test_analyze_project_emits_component_prefixed_signal_circuit_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "16 高低压侧操作箱信号回路.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 420.0, 280.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        for text, x, y in (
+            ("1-2n", 130.0, 274.5),
+            ("218", 101.9, 263.8),
+            ("1-4YD1", 75.0, 264.5),
+            ("221", 154.4, 263.8),
+            ("1-4YD4", 182.5, 264.5),
+        ):
+            msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "DIM"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page = findings_payload["page_findings"][0]
+    assert page["route_target"] == "WireDiagramExtractor"
+    assert page["structure_summary"]["pair_kind_counts"] == {"wire_component_mapping": 2}
+    pair_values = {(row["left_value"], row["right_value"]) for _, row in pairs.iterrows()}
+    assert ("1-2n218", "1-4YD1") in pair_values
+    assert ("1-2n221", "1-4YD4") in pair_values
+    first_evidence = json.loads(pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "wire_component_mapping"
+    assert first_evidence["component_submode"] == "component_prefixed_signal_circuit"
+
+
+def test_analyze_project_emits_inline_klp_component_port_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "09 操作回路图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 260.0, 160.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_line((116.0, 100.0), (144.0, 100.0), dxfattribs={"layer": "CONNECT"})
+        msp.add_line((90.0, 100.0), (120.0, 100.0), dxfattribs={"layer": "CONNECT"})
+        msp.add_line((140.0, 100.0), (170.0, 100.0), dxfattribs={"layer": "CONNECT"})
+        for text, x, y in (
+            ("3-2KLP1", 130.0, 105.0),
+            ("1", 120.0, 100.0),
+            ("3-2QD2", 90.0, 105.5),
+            ("2", 140.0, 100.0),
+            ("116", 170.0, 104.5),
+        ):
+            msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "DIM"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page = findings_payload["page_findings"][0]
+    assert page["route_target"] == "WireDiagramExtractor"
+    mapping_pairs = pairs[pairs["pair_kind"] == "wire_component_mapping"]
+    assert {
+        (row["left_value"], row["right_value"])
+        for _, row in mapping_pairs.iterrows()
+    } == {
+        ("3-2KLP1-1", "3-2QD2"),
+        ("3-2KLP1-2", "3-2n116"),
+    }
+    first_evidence = json.loads(mapping_pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "wire_component_mapping"
+    assert first_evidence["component_submode"] == "inline_klp_component_port_mapping"
+    assert first_evidence["component_body"] == "3-2KLP1"
+
+
+def test_analyze_project_executes_route_specific_pair_extractors(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "19 元件接线图1.dwg").write_bytes(b"AC1018demo")
+    (project / "21 左侧端子图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    wire_calls: list[list[str]] = []
+    component_calls: list[list[str]] = []
+    component_block_calls: list[list[tuple[str, str]]] = []
+    kk_block_calls: list[list[tuple[str, str]]] = []
+    terminal_calls: list[list[str]] = []
+
+    from dwg_audit.audit.page_extractors import extract_component_pairs as real_component_extractor
+    from dwg_audit.audit.page_extractors import extract_terminal_pairs as real_terminal_extractor
+    from dwg_audit.audit.page_extractors import extract_wire_pairs as real_wire_extractor
+
+    def record_wire(*args, **kwargs):
+        wire_calls.append([page.filename for page in args[0]])
+        return real_wire_extractor(*args, **kwargs)
+
+    def record_component(*args, **kwargs):
+        component_calls.append([page.filename for page in args[0]])
+        component_block_calls.append([
+            (block.name, block.sheet_id)
+            for block in kwargs.get("blocks", [])
+        ])
+        return real_component_extractor(*args, **kwargs)
+
+    def record_terminal(*args, **kwargs):
+        terminal_calls.append([page.filename for page in args[0]])
+        return real_terminal_extractor(*args, **kwargs)
+
+    def record_kk_component(*args, **kwargs):
+        kk_block_calls.append([
+            (block.name, block.sheet_id)
+            for block in kwargs.get("blocks", [])
+        ])
+        return [], set()
+
+    monkeypatch.setattr("dwg_audit.pipeline.extract_wire_pairs", record_wire)
+    monkeypatch.setattr("dwg_audit.pipeline.extract_component_pairs", record_component)
+    monkeypatch.setattr("dwg_audit.pipeline.extract_terminal_pairs", record_terminal)
+    monkeypatch.setattr(
+        "dwg_audit.audit.page_extractors.component_diagrams.extract_kk_multi_port_component_pairs",
+        record_kk_component,
+        raising=False,
+    )
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
+            msp.add_text("101", dxfattribs={"insert": (10, 40), "height": 2.5})
+            msp.add_text("202", dxfattribs={"insert": (90, 40), "height": 2.5})
+            msp.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+            doc.blocks.new(name="WIRE_MARK")
+            msp.add_blockref("WIRE_MARK", (5, 5))
+        elif staged_name.startswith("F0002_"):
+            block = doc.blocks.new(name="COMP_ROW")
+            block.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+            block.add_text("301", dxfattribs={"insert": (10, 40), "height": 2.5, "layer": "TEXT"})
+            block.add_text("402", dxfattribs={"insert": (90, 40), "height": 2.5, "layer": "TEXT"})
+            msp.add_blockref("COMP_ROW", (0, 0))
+            msp.add_text("19/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+            msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        else:
+            msp.add_line((127.5, 45.0), (202.5, 45.0), dxfattribs={"layer": "CONNECT"})
+            msp.add_text("21", dxfattribs={"insert": (150.998, 46.0), "height": 2.5, "layer": "TEXT"})
+            msp.add_text("3-21n211", dxfattribs={"insert": (158.5, 46.0), "height": 2.5, "layer": "TEXT"})
+            doc.blocks.new(name="TERMINAL_MARK")
+            msp.add_blockref("TERMINAL_MARK", (5, 5))
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    assert wire_calls == [["04 回路图.dwg"]]
+    assert component_calls == [["19 元件接线图1.dwg"]]
+    assert terminal_calls == [["21 左侧端子图1.dwg"]]
+
+    execution_summary = findings_payload["extractor_execution_summary"]["executed_extractors"]
+    assert execution_summary["WireDiagramExtractor"]["page_count"] == 1
+    assert execution_summary["ComponentDiagramExtractor"]["page_count"] == 1
+    assert execution_summary["TerminalDiagramExtractor"]["page_count"] == 1
+
+    page_findings = {item["filename"]: item for item in findings_payload["page_findings"]}
+    assert component_block_calls == [[("COMP_ROW", page_findings["19 元件接线图1.dwg"]["sheet_id"])]]
+    assert kk_block_calls == component_block_calls
+    assert page_findings["04 回路图.dwg"]["executed_extractor"] == "WireDiagramExtractor"
+    assert page_findings["19 元件接线图1.dwg"]["executed_extractor"] == "ComponentDiagramExtractor"
+    assert page_findings["21 左侧端子图1.dwg"]["executed_extractor"] == "TerminalDiagramExtractor"
+
+
+def test_run_audit_emits_mixed_source_conflict_for_table_mapping_vs_wire_pair(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "05 回路表格图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 320.0, 320.0],
+                    }
+                },
+                "confidence": {
+                    "high_threshold": 0.8,
+                    "review_threshold": 0.75,
+                },
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        staged_name = Path(target).name
+        if staged_name.startswith("F0001_"):
+            msp.add_text("102", dxfattribs={"insert": (10, 200), "height": 2.5})
+            msp.add_text("204", dxfattribs={"insert": (90, 200), "height": 2.5})
+            msp.add_line((20, 200), (80, 200), dxfattribs={"layer": "CONNECT"})
+        else:
+            for y in (60.0, 100.0, 140.0, 180.0, 220.0, 260.0):
+                msp.add_line((10.0, y), (290.0, y), dxfattribs={"layer": "TABLE"})
+            for x in (10.0, 100.0, 200.0, 290.0):
+                msp.add_line((x, 60.0), (x, 260.0), dxfattribs={"layer": "TABLE"})
+            for idx in range(20):
+                base_x = 18.0 + (idx % 5) * 48.0
+                base_y = (60.0, 100.0, 140.0, 180.0)[idx // 5]
+                msp.add_lwpolyline(
+                    [
+                        (base_x, base_y),
+                        (base_x + 22.0, base_y),
+                    ],
+                    dxfattribs={"layer": "TABLE"},
+                )
+            for text, x, y in (
+                ("101", 55.0, 80.0),
+                ("102", 150.0, 80.0),
+                ("103", 245.0, 80.0),
+                ("201", 55.0, 120.0),
+                ("202", 150.0, 120.0),
+                ("203", 245.0, 120.0),
+                ("301", 55.0, 160.0),
+                ("302", 150.0, 160.0),
+                ("303", 245.0, 160.0),
+            ):
+                msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    audit = runner.invoke(app, ["run-audit", "--findings", str(findings_dir), "--config", str(config_path)])
+    assert audit.exit_code == 0, audit.output
+
+    audit_dir = Path(run_summary[0]["artifact_dir"]) / "audit"
+    issues = json.loads((audit_dir / "issues.json").read_text(encoding="utf-8"))
+
+    mixed = next(item for item in issues if item["rule_id"] == "R-TABLE-MAPPING-SOURCE-CONFLICT")
+    assert mixed["severity"] == "major"
+    assert mixed["left_value"] == "102"
+    assert mixed["filename"]
+    assert mixed["sheet_no"]
+    assert mixed["rationale"]
+    assert mixed["evidence"]["source_conflict_kind"] == "table_mapping_vs_ordinary_pair"
+    assert mixed["evidence"]["table_mapping_values"] == ["103"]
+    assert mixed["evidence"]["ordinary_pair_values"] == ["204"]
+    assert mixed["evidence"]["conflicting_values"] == ["103", "204"]
+
+def test_analyze_project_can_include_backplate_pages_as_supplemental_audit(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+    (project / "17 背板接线图1.dwg").write_bytes(b"AC1018demo")
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "project": {
+                    "audit_supplemental_categories": ["背板接线图"],
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_text("101", dxfattribs={"insert": (10, 40), "height": 2.5})
+        msp.add_text("202", dxfattribs={"insert": (90, 40), "height": 2.5})
+        msp.add_line((20, 40), (80, 40))
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+
+    page_roles = {row["filename"]: row["audit_role"] for _, row in pages.iterrows()}
+    page_dispositions = {row["filename"]: row["audit_disposition"] for _, row in pages.iterrows()}
+    page_primary = {row["filename"]: bool(row["is_primary_audit_candidate"]) for _, row in pages.iterrows()}
+    sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
+
+    assert page_roles["04 回路图.dwg"] == "primary"
+    assert page_roles["17 背板接线图1.dwg"] == "supplemental"
+    assert page_dispositions["17 背板接线图1.dwg"] == "audit_required"
+    assert page_primary["17 背板接线图1.dwg"] is True
+    assert set(line_groups["sheet_id"].tolist()) == {
+        sheet_by_file["04 回路图.dwg"],
+        sheet_by_file["17 背板接线图1.dwg"],
+    }
+    assert findings_payload["primary_audit_pages"] == 1
+    assert findings_payload["supplemental_audit_pages"] == 1
+    assert findings_payload["included_audit_pages"] == 2
+    assert findings_payload["audit_page_counts"] == {
+        "primary": 1,
+        "secondary": 0,
+        "skip": 0,
+        "supplemental": 1,
+    }
+    assert findings_payload["audit_disposition_counts"] == {"audit_required": 2}
+    route_execution = findings_payload["route_execution_summary"]["route_targets"]
+    assert route_execution["LayoutOnlyExtractor"]["status"] == "executed"
+    assert route_execution["LayoutOnlyExtractor"]["executed_extractor"] == "LayoutOnlyAuditFallback"
+    assert route_execution["LayoutOnlyExtractor"]["routed_page_count"] == 1
+    assert route_execution["LayoutOnlyExtractor"]["executed_page_count"] == 1
+
+
+def test_analyze_project_applies_terminal_page_numeric_suffix_override(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "07 屏端子图.dwg").write_bytes(b"AC1018demo")
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "project": {
+                    "audit_supplemental_categories": ["屏端子图"],
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_text("1-21n110", dxfattribs={"insert": (46, 40), "height": 2.5, "layer": "0"})
+        msp.add_text("3-21n210", dxfattribs={"insert": (106, 40), "height": 2.5, "layer": "0"})
+        msp.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    terminal_candidates = pd.read_parquet(findings_dir / "terminal_candidates.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page_roles = {row["filename"]: row["audit_role"] for _, row in pages.iterrows()}
+    sheet_by_file = {row["filename"]: row["sheet_id"] for _, row in pages.iterrows()}
+    terminal_sheet_id = sheet_by_file["07 屏端子图.dwg"]
+
+    assert page_roles["07 屏端子图.dwg"] == "supplemental"
+
+    accepted = terminal_candidates[
+        (terminal_candidates["sheet_id"] == terminal_sheet_id)
+        & (terminal_candidates["status"] == "accepted")
+    ]
+    pair = pairs[pairs["sheet_id"] == terminal_sheet_id].iloc[0]
+
+    assert set(accepted["value"].tolist()) == {"110", "210"}
+    assert pair["left_value"] == "110"
+    assert pair["right_value"] == "210"
+
+
+def test_analyze_project_row_locks_terminal_strip_candidates(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "21 左侧端子图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_line((127.5, 45.0), (202.5, 45.0), dxfattribs={"layer": "CONNECT"})
+        msp.add_text("21", dxfattribs={"insert": (150.998, 46.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("22", dxfattribs={"insert": (150.998, 41.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("20", dxfattribs={"insert": (150.998, 51.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("3-21n211", dxfattribs={"insert": (158.5, 46.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("3-21n212", dxfattribs={"insert": (158.5, 41.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("3-21n210", dxfattribs={"insert": (158.5, 51.0), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    terminal_candidates = pd.read_parquet(findings_dir / "terminal_candidates.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    pair = pairs.iloc[0]
+    row_locked = terminal_candidates[terminal_candidates["rejection_reason"] == "terminal_row_locked"]
+
+    assert pair["left_value"] == "21"
+    assert pair["right_value"] == "211"
+    assert pair["status"] == "review"
+    assert "ambiguous candidate ordering" not in pair["rationale"]
+    assert pair["confidence"] > 0.75
+    assert set(row_locked["text"].tolist()) == {"22", "20", "3-21n212", "3-21n210"}
+
+
+def test_analyze_project_supports_mirrored_right_terminal_strip_candidates(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "23 右侧端子图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_line((40.0, 48.5), (115.0, 48.5), dxfattribs={"layer": "CONNECT"})
+        msp.add_text("1-21n132", dxfattribs={"insert": (66.0, 48.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("1-21n231", dxfattribs={"insert": (66.0, 43.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("20", dxfattribs={"insert": (88.5, 48.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("21", dxfattribs={"insert": (88.5, 43.5), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    terminal_candidates = pd.read_parquet(findings_dir / "terminal_candidates.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    pair = pairs.iloc[0]
+    row_locked = terminal_candidates[terminal_candidates["rejection_reason"] == "terminal_row_locked"]
+
+    assert pair["left_value"] == "132"
+    assert pair["right_value"] == "20"
+    assert pair["status"] == "review"
+    assert "ambiguous candidate ordering" not in pair["rationale"]
+    assert set(row_locked["text"].tolist()) == {"1-21n231", "21"}
+
+
+def test_analyze_project_emits_terminal_header_table_mappings(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "23 右侧端子图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_line((40.0, 48.5), (115.0, 48.5), dxfattribs={"layer": "CONNECT"})
+        msp.add_text("1-21QD", dxfattribs={"insert": (175.5, 276.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("1-21n116", dxfattribs={"insert": (156.0, 268.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("1", dxfattribs={"insert": (179.25, 268.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("1-21n117", dxfattribs={"insert": (156.0, 263.5), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("2", dxfattribs={"insert": (179.25, 263.5), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    table_pairs = pairs[pairs["left_value"].astype(str).str.startswith("1-21QD")]
+    assert set(table_pairs["pair_kind"].tolist()) == {"table_mapping"}
+    assert {
+        (row["left_value"], row["right_value"])
+        for _, row in table_pairs.iterrows()
+    } == {
+        ("1-21QD1", "1-21n116"),
+        ("1-21QD2", "1-21n117"),
+    }
+    first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "table_mapping"
+    assert first_evidence["table_mapping"]["mapping_mode"] == "terminal_header_table"
+
+    page_finding = findings_payload["page_findings"][0]
+    assert page_finding["route_target"] == "TerminalDiagramExtractor"
+    assert page_finding["structure_summary"]["table_mapping_modes"] == {"terminal_header_table": 2}
+    assert findings_payload["table_extraction_summary"]["total_mappings"] == 2
+
+
+def test_analyze_project_extracts_line_groups_from_insert_virtual_entities_on_component_page(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "19 元件接线图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="COMP_ROW")
+        block.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+        block.add_text("101", dxfattribs={"insert": (10, 40), "height": 2.5, "layer": "TEXT"})
+        block.add_text("202", dxfattribs={"insert": (90, 40), "height": 2.5, "layer": "TEXT"})
+        msp.add_blockref("COMP_ROW", (0, 0))
+        msp.add_text("19/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    component_sheet = pages[pages["filename"] == "19 元件接线图1.dwg"].iloc[0]
+    component_sheet_id = component_sheet["sheet_id"]
+
+    component_groups = line_groups[line_groups["sheet_id"] == component_sheet_id]
+    component_pairs = pairs[pairs["sheet_id"] == component_sheet_id]
+
+    assert component_sheet["audit_role"] == "supplemental"
+    assert len(component_groups) == 1
+    assert len(component_pairs) == 1
+    assert component_pairs.iloc[0]["left_value"] == "101"
+    assert component_pairs.iloc[0]["right_value"] == "202"
+
+
+def test_analyze_project_does_not_expand_insert_virtual_entities_on_primary_page_by_default(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 回路图.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="PRIMARY_BLOCK")
+        block.add_line((20, 40), (80, 40), dxfattribs={"layer": "CONNECT"})
+        block.add_text("101", dxfattribs={"insert": (10, 40), "height": 2.5, "layer": "TEXT"})
+        block.add_text("202", dxfattribs={"insert": (90, 40), "height": 2.5, "layer": "TEXT"})
+        msp.add_blockref("PRIMARY_BLOCK", (0, 0))
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    primary_sheet = pages[pages["filename"] == "04 回路图.dwg"].iloc[0]
+    primary_sheet_id = primary_sheet["sheet_id"]
+
+    assert primary_sheet["audit_role"] == "primary"
+    assert len(line_groups[line_groups["sheet_id"] == primary_sheet_id]) == 0
+    assert len(pairs[pairs["sheet_id"] == primary_sheet_id]) == 0
+
+
+def test_analyze_project_extracts_vertical_component_pairs_on_component_page(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "20 元件接线图2.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="COMP_COL")
+        block.add_line((60, 80), (60, 40), dxfattribs={"layer": "CONNECT"})
+        block.add_text("101", dxfattribs={"insert": (60, 84), "height": 2.5, "layer": "TEXT"})
+        block.add_text("202", dxfattribs={"insert": (60, 36), "height": 2.5, "layer": "TEXT"})
+        msp.add_blockref("COMP_COL", (0, 0))
+        msp.add_text("20/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    line_groups = pd.read_parquet(findings_dir / "line_groups.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    component_sheet = pages[pages["filename"] == "20 元件接线图2.dwg"].iloc[0]
+    component_sheet_id = component_sheet["sheet_id"]
+    component_groups = line_groups[line_groups["sheet_id"] == component_sheet_id]
+    component_pairs = pairs[pairs["sheet_id"] == component_sheet_id]
+
+    assert component_sheet["audit_role"] == "supplemental"
+    assert len(component_groups) == 1
+    assert component_groups.iloc[0]["orientation"] == "vertical"
+    assert len(component_pairs) == 1
+    assert component_pairs.iloc[0]["left_value"] == "101"
+    assert component_pairs.iloc[0]["right_value"] == "202"
+
+
+def test_analyze_project_prefers_component_suffix_values_on_vertical_component_page(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "20 元件接线图2.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="COMP_COL")
+        block.add_line((60, 80), (60, 40), dxfattribs={"layer": "CONNECT"})
+        block.add_text("1", dxfattribs={"insert": (61.8, 83.8), "height": 2.5, "layer": "0"})
+        block.add_text("2", dxfattribs={"insert": (61.9, 36.2), "height": 2.5, "layer": "0"})
+        block.add_text("3-21CD43", dxfattribs={"insert": (56.5, 84.1), "height": 3.0, "layer": "TEXT"})
+        block.add_text("3-21n419", dxfattribs={"insert": (56.5, 33.5), "height": 3.0, "layer": "TEXT"})
+        msp.add_blockref("COMP_COL", (0, 0))
+        msp.add_text("20/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    terminal_candidates = pd.read_parquet(findings_dir / "terminal_candidates.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    component_sheet = pages[pages["filename"] == "20 元件接线图2.dwg"].iloc[0]
+    component_sheet_id = component_sheet["sheet_id"]
+
+    component_candidates = terminal_candidates[terminal_candidates["sheet_id"] == component_sheet_id]
+    component_pairs = pairs[pairs["sheet_id"] == component_sheet_id]
+
+    assert any(
+        row["status"] == "accepted" and row["value"] == "43"
+        for _, row in component_candidates.iterrows()
+    )
+    assert any(
+        row["status"] == "accepted" and row["value"] == "419"
+        for _, row in component_candidates.iterrows()
+    )
+    assert any(
+        row["rejection_reason"] == "superseded_by_derived_numeric" and row["text"] == "1"
+        for _, row in component_candidates.iterrows()
+    )
+    assert any(
+        row["rejection_reason"] == "superseded_by_derived_numeric" and row["text"] == "2"
+        for _, row in component_candidates.iterrows()
+    )
+    assert component_pairs.iloc[0]["left_value"] == "43"
+    assert component_pairs.iloc[0]["right_value"] == "419"
+
+
+def test_analyze_project_rejects_virtual_fjl_internal_pin_numbers_on_component_page(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "20 元件接线图2.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="FJL-25-2A_Mirror")
+        block.add_line((60, 135), (60, 120), dxfattribs={"layer": "CONNECT"})
+        block.add_text("1", dxfattribs={"insert": (61.8, 133.8), "height": 2.5, "layer": "0"})
+        block.add_text("2", dxfattribs={"insert": (61.9, 121.2), "height": 2.5, "layer": "0"})
+        block.add_text("LP3", dxfattribs={"insert": (60.2, 149.0), "height": 3.0, "layer": "TEXT"})
+        block.add_text("FJL1-2.5/2A", dxfattribs={"insert": (56.5, 150.5), "height": 3.0, "layer": "TEXT"})
+        msp.add_blockref("FJL-25-2A_Mirror", (0, 0))
+        msp.add_text("20/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    terminal_candidates = pd.read_parquet(findings_dir / "terminal_candidates.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    component_sheet = pages[pages["filename"] == "20 元件接线图2.dwg"].iloc[0]
+    component_sheet_id = component_sheet["sheet_id"]
+
+    component_candidates = terminal_candidates[terminal_candidates["sheet_id"] == component_sheet_id]
+    component_pairs = pairs[pairs["sheet_id"] == component_sheet_id]
+
+    assert any(
+        row["rejection_reason"] == "block_internal_pin_number" and row["text"] == "1"
+        for _, row in component_candidates.iterrows()
+    )
+    assert any(
+        row["rejection_reason"] == "block_internal_pin_number" and row["text"] == "2"
+        for _, row in component_candidates.iterrows()
+    )
+    assert len(component_pairs) == 1
+    assert component_pairs.iloc[0]["status"] == "discard"
+
+
+def test_analyze_project_discards_horizontal_component_internal_pin_pairs(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "19 元件接线图1.dwg").write_bytes(b"AC1018demo")
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        block = doc.blocks.new(name="KK2P")
+        block.add_line((60, 40), (85, 40), dxfattribs={"layer": "CONNECT"})
+        block.add_text("2", dxfattribs={"insert": (61.5, 40), "height": 2.5, "layer": "0"})
+        block.add_text("4", dxfattribs={"insert": (83.5, 40), "height": 2.5, "layer": "0"})
+        msp.add_blockref("KK2P", (0, 0))
+        msp.add_text("19/24", dxfattribs={"insert": (300, 5), "height": 2.5, "layer": "BOARD"})
+        msp.add_text("TOP", dxfattribs={"insert": (300, 120), "height": 2.5, "layer": "BOARD"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+
+    pages = pd.read_parquet(findings_dir / "pages.parquet")
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    component_sheet = pages[pages["filename"] == "19 元件接线图1.dwg"].iloc[0]
+    component_sheet_id = component_sheet["sheet_id"]
+    component_pairs = pairs[pairs["sheet_id"] == component_sheet_id]
+
+    assert len(component_pairs) == 1
+    assert component_pairs.iloc[0]["status"] == "discard"
+    assert component_pairs.iloc[0]["rationale"] == "block_internal_pin_pair"

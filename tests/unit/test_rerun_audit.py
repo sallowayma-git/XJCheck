@@ -181,51 +181,31 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
     assert result == audit_dir
     assert (audit_dir / "issues.parquet").exists()
     assert (audit_dir / "issues.json").exists()
+    assert (audit_dir / "issue_root_cause_audit.json").exists()
+    assert (audit_dir / "issue_root_cause_audit.md").exists()
     assert (audit_dir / "audit_report.md").exists()
     assert (audit_dir / "audit_report.html").exists()
     assert (audit_dir / "issues.xlsx").exists()
 
     issues_json = json.loads((audit_dir / "issues.json").read_text(encoding="utf-8"))
-    assert issues_json == [
-        {
-            "issue_id": "I0001",
-            "rule_id": "R-CROSS-PAGE-CONFLICT",
-            "severity": "critical",
-            "status": "open",
-            "confidence": 0.97,
-            "message": "conflict",
-            "sheet_id": "S0001",
-            "file_id": "F0001",
-            "pair_id": "P0001",
-            "line_group_id": "G0001",
-            "left_value": "101",
-            "right_value": "201",
-            "evidence": json.dumps(
-                {
-                    "filename": "04.dwg",
-                    "sheet_no": "04",
-                    "sheet_order": 4,
-                    "line_start": [10.0, 20.0],
-                    "line_end": [40.0, 20.0],
-                },
-                ensure_ascii=False,
-            ),
-            "issue_type": None,
-            "title": "跨页配对冲突",
-            "summary": None,
-            "explanation": None,
-            "recommended_action": None,
-            "primary_pair_id": None,
-            "related_pair_ids": "[]",
-            "sheet_ids": "[]",
-            "values": "[]",
-            "evidence_refs": "[]",
-        }
-    ]
+    assert len(issues_json) == 1
+    issue_row = issues_json[0]
+    assert issue_row["issue_id"] == "I0001"
+    assert issue_row["rule_id"] == "R-CROSS-PAGE-CONFLICT"
+    assert issue_row["filename"] == "04.dwg"
+    assert issue_row["root_cause"] == "rule_too_strict"
+    assert issue_row["pair_kind"] == "ordinary_pair"
+    assert issue_row["diagnostic_context"]["route_target"] is None
 
     issues_frame = pd.read_parquet(audit_dir / "issues.parquet")
     assert issues_frame.loc[0, "rule_id"] == "R-CROSS-PAGE-CONFLICT"
-    assert issues_frame.loc[0, "evidence"] == json.dumps(issue.evidence, ensure_ascii=False)
+    assert issues_frame.loc[0, "root_cause"] == "rule_too_strict"
+    evidence = issues_frame.loc[0, "evidence"]
+    assert evidence["filename"] == issue.evidence["filename"]
+    assert evidence["sheet_no"] == issue.evidence["sheet_no"]
+    assert evidence["sheet_order"] == issue.evidence["sheet_order"]
+    assert evidence["line_start"].tolist() == issue.evidence["line_start"]
+    assert evidence["line_end"].tolist() == issue.evidence["line_end"]
 
 
 def test_rerun_audit_from_findings_copies_outputs_to_output_dir(tmp_path: Path, monkeypatch) -> None:
@@ -241,10 +221,21 @@ def test_rerun_audit_from_findings_copies_outputs_to_output_dir(tmp_path: Path, 
 
     audit_dir = project_dir / "audit"
     assert result == output_dir
-    for name in ("issues.parquet", "issues.json", "audit_report.md", "audit_report.html", "issues.xlsx"):
+    for name in (
+        "issues.parquet",
+        "issues.json",
+        "issue_root_cause_audit.json",
+        "issue_root_cause_audit.md",
+        "audit_report.md",
+        "audit_report.html",
+        "issues.xlsx",
+    ):
         assert (audit_dir / name).exists()
         assert (output_dir / name).exists()
 
     assert (output_dir / "issues.json").read_text(encoding="utf-8") == (audit_dir / "issues.json").read_text(encoding="utf-8")
+    assert (output_dir / "issue_root_cause_audit.json").read_text(encoding="utf-8") == (
+        audit_dir / "issue_root_cause_audit.json"
+    ).read_text(encoding="utf-8")
     assert (output_dir / "audit_report.html").read_text(encoding="utf-8") == (audit_dir / "audit_report.html").read_text(encoding="utf-8")
     assert (output_dir / "issues.xlsx").read_bytes() == (audit_dir / "issues.xlsx").read_bytes()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 
 from dwg_audit.audit.graph_builder import PairGraphSummary
 from dwg_audit.audit.graph_builder import build_pair_graph
@@ -15,6 +16,16 @@ from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.utils.ids import IdFactory
+
+_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"(KLP\d+-\d+)", re.IGNORECASE),
+    re.compile(r"(CLP\d+-\d+)", re.IGNORECASE),
+    re.compile(r"(DK\d*-\d+)", re.IGNORECASE),
+    re.compile(r"((?:K)?ZKK-\d+)", re.IGNORECASE),
+    re.compile(r"(KK-[A-Z0-9+\-]+)", re.IGNORECASE),
+    re.compile(r"(ZK-\d+)", re.IGNORECASE),
+)
+_HIGH_CONFIDENCE_STRUCTURED_SOURCES = {"table_mapping", "component_mapping"}
 
 
 def build_issues(
@@ -48,8 +59,30 @@ def build_issues(
 
 def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
+    aggregated_pair_ids: set[str] = set()
+    for pair, related_pair, evidence in _complementary_half_pair_matches(context):
+        aggregated_pair_ids.add(pair.pair_id)
+        aggregated_pair_ids.add(related_pair.pair_id)
+        issues.append(
+            context.issue_factory.build(
+                "R-PAIR-MISSING-SIDE",
+                "review",
+                pair,
+                "Complementary half-pairs share a text anchor and likely belong to one broken wire chain.",
+                title="互补半链待复核",
+                explanation="两条单侧配对共享同一个数字文本锚点，且几何上表现为被 inline 数字切开的相邻线段，通常需要作为同一条连接链一起复核。",
+                recommended_action="优先检查共享数字附近是否存在被切断的同一根导线，再决定是否调整桥接阈值或保留为真实单侧缺失。",
+                related_pairs=[pair, related_pair],
+                extra=evidence,
+            )
+        )
+
     for pair in context.pairs:
         if pair.status == "discard":
+            continue
+        if not _ordinary_pair_eligible(pair):
+            continue
+        if pair.pair_id in aggregated_pair_ids:
             continue
         if pair.left_value and pair.right_value:
             continue
@@ -67,10 +100,118 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
     return issues
 
 
+def _complementary_half_pair_matches(
+    context: RuleContext,
+) -> list[tuple[Pair, Pair, dict[str, object]]]:
+    missing_left: list[Pair] = []
+    missing_right_by_key = defaultdict(list)
+    for pair in context.pairs:
+        if pair.status == "discard":
+            continue
+        if not _ordinary_pair_eligible(pair):
+            continue
+        if pair.left_value is None and pair.right_value and pair.right_text_id:
+            missing_left.append(pair)
+            continue
+        if pair.right_value is None and pair.left_value and pair.left_text_id:
+            key = (pair.sheet_id, pair.left_text_id, pair.left_value)
+            missing_right_by_key[key].append(pair)
+
+    inline_gap = float(context.config.get("geometry", {}).get("inline_numeric_bridge_gap", 13.0))
+    inline_y_tol = float(context.config.get("geometry", {}).get("inline_numeric_bridge_y_tolerance", 4.0))
+    used_pair_ids: set[str] = set()
+    matches: list[tuple[Pair, Pair, dict[str, object]]] = []
+
+    for pair in missing_left:
+        if pair.pair_id in used_pair_ids:
+            continue
+        key = (pair.sheet_id, pair.right_text_id, pair.right_value)
+        candidates = [item for item in missing_right_by_key.get(key, []) if item.pair_id not in used_pair_ids]
+        if not candidates:
+            continue
+
+        compatible: list[tuple[float, Pair, dict[str, object]]] = []
+        for candidate in candidates:
+            evidence = _complementary_half_pair_evidence(
+                pair,
+                candidate,
+                context.group_map,
+                inline_gap=inline_gap,
+                inline_y_tol=inline_y_tol,
+            )
+            if evidence is None:
+                continue
+            compatible.append((float(evidence["bridge_gap"]), candidate, evidence))
+        if not compatible:
+            continue
+
+        compatible.sort(key=lambda item: item[0])
+        _, related_pair, evidence = compatible[0]
+        primary_pair, secondary_pair = _order_half_pairs(pair, related_pair, context.group_map)
+        used_pair_ids.add(primary_pair.pair_id)
+        used_pair_ids.add(secondary_pair.pair_id)
+        matches.append((primary_pair, secondary_pair, evidence))
+    return matches
+
+
+def _complementary_half_pair_evidence(
+    missing_left: Pair,
+    missing_right: Pair,
+    group_map: dict[str, LineGroup],
+    *,
+    inline_gap: float,
+    inline_y_tol: float,
+) -> dict[str, object] | None:
+    left_group = group_map.get(missing_left.line_group_id)
+    right_group = group_map.get(missing_right.line_group_id)
+    if left_group is None or right_group is None:
+        return None
+    if left_group.orientation != "horizontal" or right_group.orientation != "horizontal":
+        return None
+
+    bridge_gap = right_group.start_x - left_group.end_x
+    if bridge_gap < 0 or bridge_gap > inline_gap:
+        return None
+
+    left_anchor_y = missing_left.right_coord_y
+    right_anchor_y = missing_right.left_coord_y
+    if left_anchor_y is None or right_anchor_y is None:
+        return None
+    bridge_y_delta = abs(left_anchor_y - right_anchor_y)
+    if bridge_y_delta > inline_y_tol:
+        return None
+
+    return {
+        "chain_kind": "complementary_half_pair",
+        "shared_text_id": missing_left.right_text_id,
+        "shared_value": missing_left.right_value,
+        "bridge_gap": round(bridge_gap, 4),
+        "bridge_y_delta": round(bridge_y_delta, 4),
+    }
+
+
+def _order_half_pairs(
+    first: Pair,
+    second: Pair,
+    group_map: dict[str, LineGroup],
+) -> tuple[Pair, Pair]:
+    first_group = group_map.get(first.line_group_id)
+    second_group = group_map.get(second.line_group_id)
+    if first_group is None or second_group is None:
+        return first, second
+    if first_group.start_x <= second_group.start_x:
+        return first, second
+    return second, first
+
+
 def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     for pair in context.pairs:
         if pair.status == "discard":
+            continue
+        if not _ordinary_pair_eligible(pair):
+            continue
+        if not pair.left_value or not pair.right_value:
             continue
         if pair.confidence >= context.high_threshold and pair.status == "pass":
             continue
@@ -97,6 +238,8 @@ def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
         pair = pair_by_group.get(line_group_id)
         if pair is None or pair.status == "discard":
             continue
+        if not _ordinary_pair_eligible(pair):
+            continue
         top_values = [candidate.value for candidate in candidates[:2] if candidate.value]
         top_scores = [candidate.score for candidate in candidates[:2]]
         issues.append(
@@ -114,6 +257,8 @@ def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
 
     if not ambiguous_groups and not context.terminal_candidates:
         for pair in context.pairs:
+            if not _ordinary_pair_eligible(pair):
+                continue
             if pair.left_value and pair.right_value and pair.left_value == pair.right_value:
                 issues.append(
                     context.issue_factory.build(
@@ -136,6 +281,45 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
         sheet_ids = {pair.sheet_id for pair in linked_pairs}
         if len(rights) > 1 and len(sheet_ids) > 1:
             first = linked_pairs[0]
+            if _is_backplate_virtual_table_scope_review(linked_pairs):
+                table_mappings = [_table_mapping_evidence(pair) for pair in linked_pairs]
+                issues.append(
+                    context.issue_factory.build(
+                        "R-CROSS-PAGE-CONFLICT",
+                        "review",
+                        first,
+                        f"Backplate table endpoint {left_value} maps to multiple scoped terminals across pages.",
+                        title="背板表格作用域待复核",
+                        explanation=(
+                            "同型背板插件表格中的逻辑端在不同背板页或装置作用域下指向不同外部端。"
+                            "这通常表示同一表头/行号模板在不同装置实例中复用，应作为作用域待复核，"
+                            "不直接按全项目同名端子 critical 冲突处理。"
+                        ),
+                        recommended_action="核对背板页、插件块名、表头和行号，确认这些表格行是否属于不同装置作用域。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(rights),
+                            "sheet_ids": sorted(sheet_ids),
+                            "one_to_many_classification": "backplate_table_scope_review",
+                            "table_mapping_mode": "backplate_virtual_table",
+                            "source_block_names": sorted(
+                                {
+                                    str(mapping.get("source_block_name"))
+                                    for mapping in table_mappings
+                                    if mapping.get("source_block_name")
+                                }
+                            ),
+                            "header_prefixes": sorted(
+                                {
+                                    str(mapping.get("header_prefix"))
+                                    for mapping in table_mappings
+                                    if mapping.get("header_prefix")
+                                }
+                            ),
+                        },
+                    )
+                )
+                continue
             issues.append(
                 context.issue_factory.build(
                     "R-CROSS-PAGE-CONFLICT",
@@ -146,31 +330,250 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
                     explanation="同一左侧数字在不同页映射到了不同右侧数字，存在跨页一致性冲突。",
                     recommended_action="核对相关页的引用关系、页号和重复配对来源。",
                     related_pairs=linked_pairs,
-                    extra={"conflicting_values": sorted(rights), "sheet_ids": sorted(sheet_ids)},
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "conflict",
+                    },
                 )
             )
+    return issues
+
+
+def _run_semantic_mapping_conflict(context: RuleContext) -> list[Issue]:
+    by_terminal_sheet: dict[str, dict[str, dict[str, object]]] = defaultdict(dict)
+    for pair in context.pairs:
+        if getattr(pair, "pair_kind", "ordinary_pair") != "semantic_mapping":
+            continue
+        terminal_value = _semantic_mapping_terminal_value(pair)
+        if not terminal_value:
+            continue
+        endpoints = _normalized_semantic_endpoints(pair)
+        if len(endpoints) != 1:
+            continue
+        sheet_entry = by_terminal_sheet[terminal_value].setdefault(
+            pair.sheet_id,
+            {"targets": set(), "pairs": []},
+        )
+        sheet_entry["targets"].update(endpoints)
+        sheet_entry["pairs"].append(pair)
+
+    issues: list[Issue] = []
+    for terminal_value, sheet_entries in by_terminal_sheet.items():
+        stable_entries = {
+            sheet_id: entry
+            for sheet_id, entry in sheet_entries.items()
+            if len(entry["targets"]) == 1
+        }
+        if len(stable_entries) <= 1:
+            continue
+
+        endpoint_by_sheet = {
+            sheet_id: next(iter(entry["targets"]))
+            for sheet_id, entry in stable_entries.items()
+        }
+        distinct_endpoints = sorted(set(endpoint_by_sheet.values()))
+        if len(distinct_endpoints) <= 1:
+            continue
+
+        ordered_sheet_entries = sorted(
+            stable_entries.items(),
+            key=lambda item: (
+                _sheet_order_key(context.sheet_map.get(item[0])),
+                item[0],
+            ),
+        )
+        primary_sheet_id, primary_entry = ordered_sheet_entries[0]
+        primary_pair = _semantic_conflict_primary_pair(primary_entry["pairs"])
+
+        related_pairs: list[Pair] = []
+        for _, entry in ordered_sheet_entries:
+            related_pairs.extend(entry["pairs"])
+
+        issues.append(
+            context.issue_factory.build(
+                "R-SEMANTIC-MAPPING-CONFLICT",
+                "review",
+                primary_pair,
+                f"Terminal value {terminal_value} maps to different semantic endpoints across sheets.",
+                title="端子-语义映射冲突",
+                explanation="同一端子号在不同图页被稳定映射到不同的语义端，存在 terminal-to-semantic consistency 风险。",
+                recommended_action="优先复核相关端子页的语义行、端子列和跨页引用，确认这些 semantic endpoint 是否本应一致。",
+                related_pairs=related_pairs,
+                extra={
+                    "terminal_value": terminal_value,
+                    "semantic_targets": {
+                        sheet_id: endpoint_by_sheet[sheet_id]
+                        for sheet_id, _ in ordered_sheet_entries
+                    },
+                    "conflicting_values": distinct_endpoints,
+                    "semantic_conflict_kind": "cross_sheet_semantic_endpoint_mismatch",
+                },
+            )
+        )
+    return issues
+
+
+def _run_table_mapping_source_conflict(context: RuleContext) -> list[Issue]:
+    grouped: dict[str, dict[str, list[Pair]]] = defaultdict(lambda: {"table_mapping": [], "ordinary_pair": []})
+    for pair in _high_confidence_pairs(context):
+        if not pair.left_value or not pair.right_value:
+            continue
+        source_kind = _table_mapping_source_kind(pair)
+        if source_kind not in {"table_mapping", "ordinary_pair"}:
+            continue
+        grouped[pair.left_value][source_kind].append(pair)
+
+    issues: list[Issue] = []
+    for left_value, source_pairs in grouped.items():
+        table_pairs = source_pairs["table_mapping"]
+        ordinary_pairs = source_pairs["ordinary_pair"]
+        if not table_pairs or not ordinary_pairs:
+            continue
+
+        table_values = {pair.right_value for pair in table_pairs if pair.right_value}
+        ordinary_values = {pair.right_value for pair in ordinary_pairs if pair.right_value}
+        if not table_values or not ordinary_values:
+            continue
+        if table_values == ordinary_values:
+            continue
+
+        related_pairs = sorted(
+            [*table_pairs, *ordinary_pairs],
+            key=lambda pair: (
+                _sheet_order_key(pair),
+                pair.pair_id,
+            ),
+        )
+        primary_pair = sorted(
+            table_pairs,
+            key=lambda pair: (
+                _sheet_order_key(pair),
+                pair.pair_id,
+            ),
+        )[0]
+
+        issues.append(
+            context.issue_factory.build(
+                "R-TABLE-MAPPING-SOURCE-CONFLICT",
+                "major",
+                primary_pair,
+                f"Table mapping for left value {left_value} conflicts with ordinary terminal mapping.",
+                title="表格映射与图内配对不一致",
+                explanation="同一左值在表格映射和图内普通配对中指向了不同右值，存在 mixed-source consistency 风险。",
+                recommended_action="优先复核表格行的中列/外列含义，以及相关图内端子配对是否引用了同一编号。",
+                related_pairs=related_pairs,
+                extra={
+                    "source_conflict_kind": "table_mapping_vs_ordinary_pair",
+                    "table_mapping_values": sorted(table_values),
+                    "ordinary_pair_values": sorted(ordinary_values),
+                    "conflicting_values": sorted(table_values | ordinary_values),
+                    "table_sheet_ids": sorted({pair.sheet_id for pair in table_pairs}),
+                    "ordinary_sheet_ids": sorted({pair.sheet_id for pair in ordinary_pairs}),
+                    "source_pair_counts": {
+                        "table_mapping": len(table_pairs),
+                        "ordinary_pair": len(ordinary_pairs),
+                    },
+                },
+            )
+        )
     return issues
 
 
 def _run_one_to_many(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     graph, left_to_pairs, _ = _graph_maps(_high_confidence_pairs(context))
+    branch_allowlist = _one_to_many_branch_left_values(context.config)
     for left_value, rights in graph.left_to_rights.items():
         linked_pairs = left_to_pairs[left_value]
-        if len(rights) > 1:
-            first = linked_pairs[0]
+        if len(rights) <= 1:
+            continue
+
+        sheet_ids = {pair.sheet_id for pair in linked_pairs}
+        if len(sheet_ids) > 1:
+            continue
+
+        first = linked_pairs[0]
+        terminal_header_info = _terminal_header_table_multi_endpoint_info(linked_pairs)
+        if terminal_header_info is not None:
             issues.append(
                 context.issue_factory.build(
                     "R-ONE-TO-MANY",
-                    "high",
+                    "review",
                     pair=first,
-                    message=f"Left value {left_value} maps to multiple right values.",
-                    title="一对多配对",
-                    explanation="同一左值对应多个右值，需要人工确认是否属于合法分支还是错误配对。",
+                    message=f"Terminal header table logical endpoint {left_value} maps to multiple terminal columns on the same row.",
+                    title="端子表左右列映射待复核",
+                    explanation="同页 terminal_header_table 表格映射中，同一表头逻辑端分别关联左列和右列端子，更可能是端子表同一行的多端列语义，需要按表格行复核。",
+                    recommended_action="核对端子表表头、行号和左右端子列，确认这些端点是否属于同一表格行的多端映射。",
                     related_pairs=linked_pairs,
-                    extra={"conflicting_values": sorted(rights)},
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "terminal_header_table_multi_endpoint_review",
+                        **terminal_header_info,
+                    },
                 )
             )
+            continue
+
+        if _is_same_sheet_strip_two_port_component_mapping(linked_pairs):
+            issues.append(
+                context.issue_factory.build(
+                    "R-ONE-TO-MANY",
+                    "review",
+                    pair=first,
+                    message=f"Left value {left_value} maps to multiple strip two-port component endpoints on the same page.",
+                    title="组件端子分支映射待复核",
+                    explanation="同页 strip_two_port_component 组件映射中，同一组件端子关联多个邻接端点，更可能表示组件分支/邻接关系，需要按组件上下文复核。",
+                    recommended_action="核对组件本体、端子标注和相邻连接关系，确认这些端点是否属于同一组件分支映射。",
+                    related_pairs=linked_pairs,
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "component_branch_review",
+                        "component_submode": "strip_two_port_component",
+                    },
+                )
+            )
+            continue
+
+        if left_value in branch_allowlist:
+            issues.append(
+                context.issue_factory.build(
+                    "R-ONE-TO-MANY",
+                    "low",
+                    pair=first,
+                    message=f"Left value {left_value} fans out to multiple right values under an allowed branch rule.",
+                    title="一对多合法分支",
+                    explanation="该左值命中了项目允许的一对多配置，作为结构现象保留可见，但默认不记为错误。",
+                    recommended_action="若该左值不应再允许分支，请移除项目配置并重新复核相关配对。",
+                    related_pairs=linked_pairs,
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "branch",
+                    },
+                )
+            )
+            continue
+
+        issues.append(
+            context.issue_factory.build(
+                "R-ONE-TO-MANY",
+                "review",
+                pair=first,
+                message=f"Left value {left_value} maps to multiple right values and requires review.",
+                title="一对多待复核",
+                explanation="同一左值对应多个右值，但当前缺少足够证据判定为合法分支或明确冲突，默认保守进入 review。",
+                recommended_action="人工核对相关页上下文、反向引用和项目允许分支规则，再决定是否升级为 branch 或 conflict。",
+                related_pairs=linked_pairs,
+                extra={
+                    "conflicting_values": sorted(rights),
+                    "sheet_ids": sorted(sheet_ids),
+                    "one_to_many_classification": "review",
+                },
+            )
+        )
     return issues
 
 
@@ -181,6 +584,54 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
             first = linked_pairs[0]
+            terminal_header_info = _terminal_header_table_shared_endpoint_info(
+                linked_pairs,
+                right_value,
+            )
+            if terminal_header_info is not None:
+                sheet_ids = {pair.sheet_id for pair in linked_pairs}
+                issues.append(
+                    context.issue_factory.build(
+                        "R-MANY-TO-ONE",
+                        "review",
+                        pair=first,
+                        message=f"Terminal header table endpoint {right_value} is shared by multiple logical header rows.",
+                        title="端子表共享端点待复核",
+                        explanation="同页 terminal_header_table 表格映射中，多个表头逻辑端共享同一个端子文本，更可能是端子表跨列/跨表头的共享端点语义，需要按表格行列复核。",
+                        recommended_action="核对相关表头、行号和共享端子文本坐标，确认这些逻辑端是否共同引用同一个端子列文本。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(lefts),
+                            "sheet_ids": sorted(sheet_ids),
+                            "many_to_one_classification": "terminal_header_table_shared_endpoint_review",
+                            **terminal_header_info,
+                        },
+                    )
+                )
+                continue
+
+            if _is_same_sheet_strip_two_port_component_mapping(linked_pairs):
+                sheet_ids = {pair.sheet_id for pair in linked_pairs}
+                issues.append(
+                    context.issue_factory.build(
+                        "R-MANY-TO-ONE",
+                        "review",
+                        pair=first,
+                        message=f"Right value {right_value} receives multiple strip two-port component endpoints on the same page.",
+                        title="组件端子多入口映射待复核",
+                        explanation="同页 strip_two_port_component 组件映射中，多个组件端子指向同一邻接端点，可能是组件端子多入口/邻接映射，需要按组件上下文复核。",
+                        recommended_action="核对组件本体、端子标注和相邻连接关系，确认这些入口是否属于同一组件邻接映射。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(lefts),
+                            "sheet_ids": sorted(sheet_ids),
+                            "many_to_one_classification": "component_branch_review",
+                            "component_submode": "strip_two_port_component",
+                        },
+                    )
+                )
+                continue
+
             issues.append(
                 context.issue_factory.build(
                     "R-MANY-TO-ONE",
@@ -202,6 +653,8 @@ def _run_missing_reciprocal(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     graph, _, _ = _graph_maps(_high_confidence_pairs(context))
     for pair in context.pairs:
+        if not _ordinary_pair_eligible(pair):
+            continue
         if not pair.left_value or not pair.right_value:
             continue
         if (pair.right_value, pair.left_value) not in graph.pair_lookup:
@@ -247,11 +700,147 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
     return [
         pair
         for pair in context.pairs
+        if _high_confidence_source_eligible(pair)
         if pair.left_value
         and pair.right_value
-        and pair.confidence >= context.high_threshold
-        and (pair.status == "pass" or pair.confidence_bucket == "high")
+        and (
+            (pair.confidence >= context.high_threshold and (pair.status == "pass" or pair.confidence_bucket == "high"))
+            or _structured_source_kind(pair) == "table_mapping"
+        )
     ]
+
+
+def _high_confidence_source_eligible(pair: Pair) -> bool:
+    if _structured_source_kind(pair) in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
+        return True
+    return _ordinary_pair_eligible(pair)
+
+
+def _is_backplate_virtual_table_scope_review(linked_pairs: list[Pair]) -> bool:
+    if not linked_pairs:
+        return False
+    for pair in linked_pairs:
+        if getattr(pair, "pair_kind", "ordinary_pair") != "table_mapping":
+            return False
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "backplate_virtual_table":
+            return False
+    return True
+
+
+def _table_mapping_evidence(pair: Pair) -> dict[str, object]:
+    evidence = pair.evidence or {}
+    table_mapping = evidence.get("table_mapping")
+    if isinstance(table_mapping, dict):
+        return table_mapping
+    return {}
+
+
+def _ordinary_pair_eligible(pair: Pair) -> bool:
+    if getattr(pair, "pair_kind", "ordinary_pair") != "ordinary_pair":
+        return False
+    return pair.evidence.get("ordinary_pair_eligible", True) is not False
+
+
+def _structured_source_kind(pair: Pair) -> str | None:
+    source = pair.evidence.get("source")
+    if isinstance(source, str) and source in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
+        return source
+    pair_kind = getattr(pair, "pair_kind", "ordinary_pair")
+    if isinstance(pair_kind, str) and pair_kind in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
+        return pair_kind
+    return None
+
+
+def _run_sheet_page_mismatch(context: RuleContext) -> list[Issue]:
+    """R-SHEET-PAGE-MISMATCH：文件名页码与标题栏页码不一致。
+
+    触发条件：当 page_no_source 包含 filename 和 title_block 两个来源，
+    且两者解析出的页码不一致时，输出 major 级 issue。
+    """
+    issues: list[Issue] = []
+    for sheet in context.sheets:
+        filename_page_no = _extract_filename_page_no(sheet.filename)
+        title_block_page_no = _extract_title_block_page_no(sheet)
+        if filename_page_no is None or title_block_page_no is None:
+            continue
+        if filename_page_no == title_block_page_no:
+            continue
+        issue_id = context.issue_factory.issue_ids.next()
+        evidence = {
+            "filename": sheet.filename,
+            "sheet_no": sheet.sheet_no,
+            "sheet_order": sheet.sheet_order,
+            "filename_page_no": filename_page_no,
+            "title_block_page_no": title_block_page_no,
+            "page_no_source": sheet.page_no_source,
+        }
+        issues.append(
+            Issue(
+                issue_id=issue_id,
+                rule_id="R-SHEET-PAGE-MISMATCH",
+                severity="major",
+                status="open",
+                confidence=0.9,
+                message=f"Filename page no '{filename_page_no}' differs from title block page no '{title_block_page_no}'.",
+                sheet_id=sheet.sheet_id,
+                file_id=sheet.file_id,
+                pair_id=None,
+                line_group_id=None,
+                left_value=None,
+                right_value=None,
+                filename=sheet.filename,
+                sheet_no=sheet.sheet_no,
+                sheet_order=sheet.sheet_order,
+                rationale="filename_title_block_page_mismatch",
+                evidence=evidence,
+                issue_type="sheet_page_mismatch",
+                title="页码不一致",
+                summary=f"文件名页码 {filename_page_no} 与标题栏页码 {title_block_page_no} 不一致。",
+                explanation="文件名推断的页码与标题栏推断的页码不匹配，可能存在命名错误或标题栏填写错误。",
+                recommended_action="核对文件名与标题栏页码，确认哪个是正确的页码并修正另一个。",
+                primary_pair_id=None,
+                related_pair_ids=[],
+                sheet_ids=[sheet.sheet_id] if sheet.sheet_id else [],
+                values=[filename_page_no, title_block_page_no],
+                evidence_refs=[
+                    {
+                        "sheet_id": sheet.sheet_id,
+                        "filename": sheet.filename,
+                        "sheet_no": sheet.sheet_no,
+                        "sheet_order": sheet.sheet_order,
+                    }
+                ],
+            )
+        )
+    return issues
+
+
+def _extract_filename_page_no(filename: str) -> str | None:
+    """从文件名前缀提取页码，例如 '08 测控1开入回路图1.dwg' -> '08'。"""
+    if not filename:
+        return None
+    # 取文件名开头连续数字
+    stripped = filename.strip()
+    digits = ""
+    for char in stripped:
+        if char.isdigit():
+            digits += char
+        else:
+            break
+    return digits if digits else None
+
+
+def _extract_title_block_page_no(sheet: SheetRecord) -> str | None:
+    """从 sheet_no 提取标题栏页码。
+
+    当 page_no_source 标记为 title_block 时，sheet_no 即来自标题栏；
+    当 page_no_source 为 filename 时，sheet_no 也可能来自文件名。
+    这里保守地返回 sheet_no，让上游对比逻辑只在两者都有值时触发。
+    """
+    if sheet.page_no_source not in {"title_block", "filename", "prj"}:
+        return None
+    return sheet.sheet_no
 
 
 def _graph_maps(
@@ -264,6 +853,219 @@ def _graph_maps(
         left_to_pairs[pair.left_value].append(pair)
         right_to_pairs[pair.right_value].append(pair)
     return summary, left_to_pairs, right_to_pairs
+
+
+def _one_to_many_branch_left_values(config: dict) -> set[str]:
+    configured = config.get("rules", {}).get("one_to_many_branch_left_values", [])
+    return {str(value) for value in configured if value is not None}
+
+
+def _is_same_sheet_strip_two_port_component_mapping(linked_pairs: list[Pair]) -> bool:
+    if not linked_pairs:
+        return False
+    if len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return False
+    return all(
+        pair.pair_kind == "component_mapping"
+        and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
+        for pair in linked_pairs
+    )
+
+
+def _terminal_header_table_multi_endpoint_info(
+    linked_pairs: list[Pair],
+) -> dict[str, object] | None:
+    if not linked_pairs:
+        return None
+    if len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return None
+
+    mappings: list[dict[str, object]] = []
+    for pair in linked_pairs:
+        if pair.pair_kind != "table_mapping":
+            return None
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "terminal_header_table":
+            return None
+        if mapping.get("row_number_sequence_valid") is False:
+            return None
+        mappings.append(mapping)
+
+    logical_endpoints = {
+        str(mapping.get("logical_endpoint"))
+        for mapping in mappings
+        if mapping.get("logical_endpoint")
+    }
+    row_numbers = {
+        str(mapping.get("row_number"))
+        for mapping in mappings
+        if mapping.get("row_number") is not None
+    }
+    header_prefixes = {
+        str(mapping.get("header_prefix"))
+        for mapping in mappings
+        if mapping.get("header_prefix")
+    }
+    if len(logical_endpoints) != 1 or len(row_numbers) != 1:
+        return None
+
+    endpoint_columns: set[str] = set()
+    for mapping in mappings:
+        if mapping.get("left_value"):
+            endpoint_columns.add("left_endpoint")
+        if mapping.get("right_value"):
+            endpoint_columns.add("right_endpoint")
+    if not {"left_endpoint", "right_endpoint"}.issubset(endpoint_columns):
+        return None
+
+    result: dict[str, object] = {
+        "table_mapping_mode": "terminal_header_table",
+        "terminal_header_table_classification": "multi_endpoint_row_review",
+        "logical_endpoint": next(iter(logical_endpoints)),
+        "row_number": next(iter(row_numbers)),
+        "endpoint_columns": sorted(endpoint_columns),
+    }
+    if len(header_prefixes) == 1:
+        result["header_prefix"] = next(iter(header_prefixes))
+    return result
+
+
+def _terminal_header_table_shared_endpoint_info(
+    linked_pairs: list[Pair],
+    shared_value: str,
+) -> dict[str, object] | None:
+    if not linked_pairs:
+        return None
+    if len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return None
+
+    header_prefixes: set[str] = set()
+    logical_endpoints: set[str] = set()
+    row_numbers: set[str] = set()
+    endpoint_columns: set[str] = set()
+    endpoint_text_ids: set[str] = set()
+    endpoint_coords: set[tuple[float, float]] = set()
+    for pair in linked_pairs:
+        if pair.pair_kind != "table_mapping":
+            return None
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "terminal_header_table":
+            return None
+        if mapping.get("row_number_sequence_valid") is False:
+            return None
+
+        if mapping.get("header_prefix"):
+            header_prefixes.add(str(mapping.get("header_prefix")))
+        if mapping.get("logical_endpoint"):
+            logical_endpoints.add(str(mapping.get("logical_endpoint")))
+        if mapping.get("row_number") is not None:
+            row_numbers.add(str(mapping.get("row_number")))
+
+        matched_column: str | None = None
+        if mapping.get("left_value") == shared_value:
+            matched_column = "left_endpoint"
+            text_id = mapping.get("left_text_id")
+            coord = mapping.get("left_coord")
+        elif mapping.get("right_value") == shared_value:
+            matched_column = "right_endpoint"
+            text_id = mapping.get("right_text_id")
+            coord = mapping.get("right_coord")
+        else:
+            return None
+
+        endpoint_columns.add(matched_column)
+        if text_id:
+            endpoint_text_ids.add(str(text_id))
+        if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+            endpoint_coords.add((round(float(coord[0]), 3), round(float(coord[1]), 3)))
+
+    if len(logical_endpoints) <= 1:
+        return None
+    if len(endpoint_text_ids) > 1 or len(endpoint_coords) > 1:
+        return None
+    if not endpoint_text_ids and not endpoint_coords:
+        return None
+
+    result: dict[str, object] = {
+        "table_mapping_mode": "terminal_header_table",
+        "terminal_header_table_classification": "shared_endpoint_review",
+        "shared_endpoint": shared_value,
+        "logical_endpoints": sorted(logical_endpoints),
+        "row_numbers": sorted(row_numbers),
+        "endpoint_columns": sorted(endpoint_columns),
+    }
+    if header_prefixes:
+        result["header_prefixes"] = sorted(header_prefixes)
+    if endpoint_text_ids:
+        result["shared_endpoint_text_ids"] = sorted(endpoint_text_ids)
+    if endpoint_coords:
+        result["shared_endpoint_coords"] = [list(coord) for coord in sorted(endpoint_coords)]
+    return result
+
+
+def _semantic_mapping_terminal_value(pair: Pair) -> str | None:
+    if pair.left_value:
+        return str(pair.left_value)
+    if pair.right_value:
+        return str(pair.right_value)
+    return None
+
+
+def _normalized_semantic_endpoints(pair: Pair) -> set[str]:
+    evidence = pair.evidence or {}
+    marker_texts = evidence.get("semantic_marker_texts")
+    if not isinstance(marker_texts, list):
+        return set()
+
+    endpoints: set[str] = set()
+    for marker_text in marker_texts:
+        if not isinstance(marker_text, str):
+            continue
+        normalized = _normalize_semantic_endpoint(marker_text)
+        if normalized:
+            endpoints.add(normalized)
+    return endpoints
+
+
+def _normalize_semantic_endpoint(marker_text: str) -> str | None:
+    for pattern in _SEMANTIC_ENDPOINT_PATTERNS:
+        match = pattern.search(marker_text)
+        if match:
+            return match.group(1).upper()
+    return None
+
+
+def _semantic_conflict_primary_pair(pairs: list[Pair]) -> Pair:
+    return sorted(
+        pairs,
+        key=lambda pair: (
+            _sheet_order_key(pair),
+            pair.pair_id,
+        ),
+    )[0]
+
+
+def _sheet_order_key(sheet_or_pair) -> int:
+    if isinstance(sheet_or_pair, SheetRecord):
+        return int(sheet_or_pair.sheet_order or 0)
+    if isinstance(sheet_or_pair, Pair):
+        evidence = sheet_or_pair.evidence or {}
+        sheet_order = evidence.get("sheet_order")
+        if isinstance(sheet_order, int):
+            return sheet_order
+        try:
+            return int(sheet_order)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
+def _table_mapping_source_kind(pair: Pair) -> str:
+    if pair.evidence.get("source") == "table_mapping":
+        return "table_mapping"
+    if getattr(pair, "pair_kind", "ordinary_pair") == "ordinary_pair":
+        return "ordinary_pair"
+    return getattr(pair, "pair_kind", "ordinary_pair")
 
 
 def _ambiguous_candidate_groups(
@@ -322,10 +1124,28 @@ _RULES = [
         output_issue_type="cross_page_conflict",
     ),
     AuditRule(
+        rule_id="R-SEMANTIC-MAPPING-CONFLICT",
+        name="Semantic Mapping Conflict",
+        description="The same terminal value maps to different normalized semantic endpoints across sheets.",
+        severity_default="review",
+        runner=_run_semantic_mapping_conflict,
+        input_tables=("pairs", "pages"),
+        output_issue_type="semantic_mapping_conflict",
+    ),
+    AuditRule(
+        rule_id="R-TABLE-MAPPING-SOURCE-CONFLICT",
+        name="Table Mapping Source Conflict",
+        description="Table-mapping evidence conflicts with ordinary terminal mapping for the same left value.",
+        severity_default="major",
+        runner=_run_table_mapping_source_conflict,
+        input_tables=("pairs", "pages"),
+        output_issue_type="table_mapping_source_conflict",
+    ),
+    AuditRule(
         rule_id="R-ONE-TO-MANY",
         name="One To Many",
-        description="One left-side value maps to multiple right-side values.",
-        severity_default="high",
+        description="One left-side value maps to multiple right-side values and must be triaged as branch or review.",
+        severity_default="review",
         runner=_run_one_to_many,
         input_tables=("pairs",),
         output_issue_type="one_to_many",
@@ -357,5 +1177,14 @@ _RULES = [
         runner=_run_duplicate_pair,
         input_tables=("pairs",),
         output_issue_type="duplicate_pair",
+    ),
+    AuditRule(
+        rule_id="R-SHEET-PAGE-MISMATCH",
+        name="Sheet Page Mismatch",
+        description="Filename page number differs from title block page number.",
+        severity_default="major",
+        runner=_run_sheet_page_mismatch,
+        input_tables=("pages",),
+        output_issue_type="sheet_page_mismatch",
     ),
 ]

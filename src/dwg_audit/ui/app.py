@@ -26,9 +26,19 @@ def _jsonish(value: Any) -> Any:
         if not value:
             return None
         try:
-            return json.loads(value)
+            return _normalize_jsonish(json.loads(value))
         except json.JSONDecodeError:
             return value
+    return _normalize_jsonish(value)
+
+
+def _normalize_jsonish(value: Any) -> Any:
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
+        value = value.tolist()
+    if isinstance(value, dict):
+        return {str(key): _normalize_jsonish(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_jsonish(item) for item in value]
     return value
 
 
@@ -45,6 +55,40 @@ def _issue_values_text(row: pd.Series) -> str:
         return ",".join(str(item) for item in values)
     parts = [row.get("left_value"), row.get("right_value")]
     return ",".join(str(item) for item in parts if item)
+
+
+def _issue_one_to_many_classification(row: pd.Series) -> str:
+    evidence = _jsonish(row.get("evidence"))
+    if isinstance(evidence, dict) and evidence.get("one_to_many_classification") is not None:
+        return str(evidence["one_to_many_classification"])
+    return ""
+
+
+def _pair_evidence_mapping(value: Any) -> dict[str, Any]:
+    payload = _jsonish(value)
+    if not isinstance(payload, dict):
+        return {}
+    nested = payload.get("pair_evidence")
+    if isinstance(nested, dict):
+        return nested
+    return payload
+
+
+def _line_semantics_dict(value: Any) -> dict[str, str]:
+    payload = _pair_evidence_mapping(value)
+    semantics: dict[str, str] = {}
+    for source_key, target_key in (
+        ("line_orientation", "line_orientation"),
+        ("left_side_label", "left_side_label"),
+        ("right_side_label", "right_side_label"),
+    ):
+        raw = payload.get(source_key)
+        if raw is None:
+            continue
+        text = str(raw).strip()
+        if text:
+            semantics[target_key] = text
+    return semantics
 
 
 def _filter_issues(
@@ -128,8 +172,44 @@ def _summary_metrics(manifest: dict[str, Any], frames: dict[str, pd.DataFrame]) 
     }
 
 
+def _load_findings_payload(project_dir: Path) -> dict[str, Any]:
+    findings_path = project_dir / "findings" / "findings.json"
+    if not findings_path.exists():
+        return {}
+    return json.loads(findings_path.read_text(encoding="utf-8"))
+
+
+def _one_to_many_cluster_rows(findings_payload: dict[str, Any]) -> pd.DataFrame:
+    table = findings_payload.get("one_to_many_review_table")
+    if not isinstance(table, dict):
+        return pd.DataFrame()
+    clusters = table.get("clusters")
+    if not isinstance(clusters, list) or not clusters:
+        return pd.DataFrame()
+
+    rows = []
+    for cluster in clusters:
+        if not isinstance(cluster, dict):
+            continue
+        rows.append(
+            {
+                "left_value": cluster.get("left_value"),
+                "classification": cluster.get("classification"),
+                "classification_reason": cluster.get("classification_reason"),
+                "right_values": ",".join(str(item) for item in cluster.get("right_values", []) if item is not None),
+                "sheet_nos": ",".join(str(item) for item in cluster.get("sheet_nos", []) if item is not None),
+                "high_confidence_pairs": (
+                    f"{cluster.get('high_confidence_pair_count', 0)}/{cluster.get('pair_count', 0)}"
+                ),
+                "reciprocal_pairs": f"{cluster.get('reciprocal_pair_count', 0)}/{cluster.get('pair_count', 0)}",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _issue_detail(issue_row: pd.Series) -> None:
     st.subheader(f"Issue {issue_row.get('issue_id')}")
+    semantics = _line_semantics_dict(issue_row.get("evidence"))
     left, right = st.columns([1, 1])
     with left:
         st.write(
@@ -140,6 +220,8 @@ def _issue_detail(issue_row: pd.Series) -> None:
                 "confidence": issue_row.get("confidence"),
                 "sheet_no": _issue_sheet_no(issue_row),
                 "values": _issue_values_text(issue_row),
+                "one_to_many_classification": _issue_one_to_many_classification(issue_row),
+                **semantics,
             }
         )
     with right:
@@ -164,6 +246,7 @@ def _issue_detail(issue_row: pd.Series) -> None:
 
 def _pair_detail(pair_row: pd.Series) -> None:
     st.subheader(f"Pair {pair_row.get('pair_id')}")
+    semantics = _line_semantics_dict(pair_row.get("evidence"))
     st.write(
         {
             "left_value": pair_row.get("left_value"),
@@ -176,6 +259,7 @@ def _pair_detail(pair_row: pd.Series) -> None:
             "right_text_id": pair_row.get("right_text_id"),
             "left_coord": [pair_row.get("left_coord_x"), pair_row.get("left_coord_y")],
             "right_coord": [pair_row.get("right_coord_x"), pair_row.get("right_coord_y")],
+            **semantics,
         }
     )
     evidence = _jsonish(pair_row.get("evidence"))
@@ -263,10 +347,12 @@ def main() -> None:
 
     manifest: dict[str, Any] = {}
     frames: dict[str, pd.DataFrame] = {}
+    findings_payload: dict[str, Any] = {}
     metrics = {"files": 0, "valid_dwg": 0, "pairs": 0, "issues": 0}
     if selected is not None:
         manifest = json.loads((selected / "manifest.json").read_text(encoding="utf-8"))
         frames = load_report_frames(selected)
+        findings_payload = _load_findings_payload(selected)
         metrics = _summary_metrics(manifest, frames)
 
     with summary_tab:
@@ -285,6 +371,19 @@ def main() -> None:
                     "warnings": manifest.get("warnings", []),
                 }
             )
+            one_to_many_rows = _one_to_many_cluster_rows(findings_payload)
+            if not one_to_many_rows.empty:
+                review_table = findings_payload.get("one_to_many_review_table", {})
+                st.markdown("### One-to-Many Review Table")
+                st.write(
+                    {
+                        "cluster_count": review_table.get("cluster_count", 0),
+                        "branch_cluster_count": review_table.get("branch_cluster_count", 0),
+                        "review_cluster_count": review_table.get("review_cluster_count", 0),
+                        "conflict_cluster_count": review_table.get("conflict_cluster_count", 0),
+                    }
+                )
+                st.dataframe(one_to_many_rows, use_container_width=True)
 
     with issues_tab:
         if selected is None:
@@ -294,6 +393,11 @@ def main() -> None:
             if issues.empty:
                 st.info("No issues available yet. Analyze with audit enabled or run `dwg-audit run-audit` for this project.")
             else:
+                issues = issues.copy()
+                issues["one_to_many_classification"] = issues.apply(_issue_one_to_many_classification, axis=1)
+                issues["line_orientation"] = issues["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("line_orientation", "")
+                )
                 filter_cols = st.columns(5)
                 severity_options = sorted(issues["severity"].dropna().astype(str).unique().tolist()) if "severity" in issues.columns else []
                 rule_options = sorted(issues["rule_id"].dropna().astype(str).unique().tolist()) if "rule_id" in issues.columns else []
@@ -319,7 +423,18 @@ def main() -> None:
 
                 display_columns = [
                     column
-                    for column in ("issue_id", "severity", "rule_id", "status", "confidence", "title", "left_value", "right_value")
+                    for column in (
+                        "issue_id",
+                        "severity",
+                        "rule_id",
+                        "one_to_many_classification",
+                        "status",
+                        "confidence",
+                        "line_orientation",
+                        "title",
+                        "left_value",
+                        "right_value",
+                    )
                     if column in filtered.columns
                 ]
                 st.dataframe(filtered[display_columns] if display_columns else filtered, use_container_width=True)
@@ -342,6 +457,16 @@ def main() -> None:
             if pairs.empty:
                 st.info("No pairs available yet.")
             else:
+                pairs = pairs.copy()
+                pairs["line_orientation"] = pairs["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("line_orientation", "")
+                )
+                pairs["left_side_label"] = pairs["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("left_side_label", "")
+                )
+                pairs["right_side_label"] = pairs["evidence"].apply(
+                    lambda value: _line_semantics_dict(value).get("right_side_label", "")
+                )
                 filter_cols = st.columns(3)
                 pair_statuses = sorted(pairs["status"].dropna().astype(str).unique().tolist()) if "status" in pairs.columns else []
                 confidence_buckets = sorted(pairs["confidence_bucket"].dropna().astype(str).unique().tolist()) if "confidence_bucket" in pairs.columns else []
@@ -372,6 +497,9 @@ def main() -> None:
                         "status",
                         "confidence_bucket",
                         "line_group_id",
+                        "line_orientation",
+                        "left_side_label",
+                        "right_side_label",
                     )
                     if column in filtered.columns
                 ]

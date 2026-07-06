@@ -1,0 +1,37 @@
+{
+  "name": "acceptance-mini",
+  "pair_recall_threshold": 0.9,
+  "expected_skip_pages": [
+    "01 封面.dwg"
+  ],
+  "golden_pairs": [
+    {"filename": "04 正常回路图A.dwg", "left_value": "101", "right_value": "201"},
+    {"filename": "04 正常回路图A.dwg", "left_value": "102", "right_value": "202"},
+    {"filename": "04 正常回路图A.dwg", "left_value": "103", "right_value": "203"},
+    {"filename": "04 正常回路图A.dwg", "left_value": "104", "right_value": "204"},
+    {"filename": "05 正常回路图B.dwg", "left_value": "101", "right_value": "201"},
+    {"filename": "05 正常回路图B.dwg", "left_value": "102", "right_value": "202"},
+    {"filename": "05 正常回路图B.dwg", "left_value": "105", "right_value": "205"},
+    {"filename": "06 故障回路图C.dwg", "left_value": "103", "right_value": "203"},
+    {"filename": "06 故障回路图C.dwg", "left_value": "104", "right_value": "204"},
+    {"filename": "06 故障回路图C.dwg", "left_value": "106", "right_value": "206"},
+    {"filename": "04 正常回路图A.dwg", "left_value": "301", "right_value": "401"},
+    {"filename": "05 正常回路图B.dwg", "left_value": "301", "right_value": "402"},
+    {"filename": "04 正常回路图A.dwg", "left_value": "302", "right_value": "501"},
+    {"filename": "06 故障回路图C.dwg", "left_value": "302", "right_value": "502"},
+    {"filename": "07 模糊回路图D.dwg", "left_value": "801", "right_value": "901"},
+    {"filename": "07 模糊回路图D.dwg", "left_value": "802", "right_value": "903"}
+  ],
+  "expected_conflicts": [
+    {"left_value": "301", "right_values": ["401", "402"]},
+    {"left_value": "302", "right_values": ["501", "502"]}
+  ],
+  "expected_missing_issues": [
+    {"filename": "05 正常回路图B.dwg", "pair_key": "701->?"},
+    {"filename": "06 故障回路图C.dwg", "pair_key": "?->702"}
+  ],
+  "expected_review_pairs": [
+    {"filename": "07 模糊回路图D.dwg", "left_value": "801", "right_value": "901"},
+    {"filename": "07 模糊回路图D.dwg", "left_value": "802", "right_value": "903"}
+  ]
+}

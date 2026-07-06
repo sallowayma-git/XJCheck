@@ -12,11 +12,19 @@ from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
+from dwg_audit.report.artifacts import _issue_frame
 from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
+from dwg_audit.services.issue_diagnostics import write_issue_root_cause_audit
 
 
-def rerun_audit_from_findings(project_dir: Path, config: dict, output_dir: Path | None = None) -> Path:
+def rerun_audit_from_findings(
+    project_dir: Path,
+    config: dict,
+    output_dir: Path | None = None,
+    *,
+    event_sink = None,
+) -> Path:
     frames = load_report_frames(project_dir)
     pages = [_sheet_record(row) for _, row in frames.get("pages", pd.DataFrame()).iterrows()]
     line_groups = [_line_group(row) for _, row in frames.get("line_groups", pd.DataFrame()).iterrows()]
@@ -27,17 +35,55 @@ def rerun_audit_from_findings(project_dir: Path, config: dict, output_dir: Path 
     ]
 
     issues = build_issues(pairs, line_groups, pages, config, terminal_candidates=terminal_candidates)
+    if event_sink is not None:
+        event_sink.emit(
+            "progress",
+            stage="audit",
+            project_dir=str(project_dir),
+            pair_count=len(pairs),
+            issue_count=len(issues),
+        )
+        for issue in issues:
+            evidence = issue.evidence or {}
+            event_sink.emit(
+                "issue_found",
+                project_dir=str(project_dir),
+                issue_id=issue.issue_id,
+                rule_id=issue.rule_id,
+                issue_type=issue.issue_type or issue.rule_id,
+                severity=issue.severity,
+                title=issue.title or issue.message,
+                filename=evidence.get("filename"),
+                sheet_no=evidence.get("sheet_no"),
+                left_value=issue.left_value,
+                right_value=issue.right_value,
+                confidence=issue.confidence,
+                one_to_many_classification=evidence.get("one_to_many_classification"),
+            )
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
-    issues_frame = _issues_frame(issues)
-    issues_frame.to_parquet(audit_dir / "issues.parquet", index=False)
-    issues_frame.to_json(audit_dir / "issues.json", orient="records", force_ascii=False, indent=2)
+    issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
     export_existing_reports(project_dir)
+    if event_sink is not None:
+        event_sink.emit(
+            "audit_finished",
+            project_dir=str(project_dir),
+            audit_dir=str(audit_dir),
+            issue_count=len(issues),
+        )
 
     if output_dir is not None and output_dir.resolve() != audit_dir.resolve():
         output_dir.mkdir(parents=True, exist_ok=True)
-        for name in ("issues.parquet", "issues.json", "audit_report.md", "audit_report.html", "issues.xlsx"):
+        for name in (
+            "issues.parquet",
+            "issues.json",
+            "issue_root_cause_audit.json",
+            "issue_root_cause_audit.md",
+            "audit_report.md",
+            "audit_report.html",
+            "issues.xlsx",
+        ):
             copy2(audit_dir / name, output_dir / name)
         return output_dir
     return audit_dir
@@ -63,6 +109,9 @@ def _sheet_record(row: pd.Series) -> SheetRecord:
         frame_bbox=_json_bbox(row.get("frame_bbox")),
         title_block_bbox=_json_bbox(row.get("title_block_bbox")),
         audit_area_bbox=_json_bbox(row.get("audit_area_bbox")),
+        page_type_confidence=_nullable_float(row.get("page_type_confidence")),
+        route_target=_nullable_str(row.get("route_target")),
+        audit_disposition=_nullable_str(row.get("audit_disposition")),
     )
 
 
@@ -105,6 +154,7 @@ def _pair(row: pd.Series) -> Pair:
         left_coord_y=_nullable_float(row.get("left_coord_y")),
         right_coord_x=_nullable_float(row.get("right_coord_x")),
         right_coord_y=_nullable_float(row.get("right_coord_y")),
+        pair_kind=_nullable_str(row.get("pair_kind")) or "ordinary_pair",
     )
 
 
@@ -132,44 +182,10 @@ def _terminal_candidate(row: pd.Series) -> TerminalCandidate:
         text_type_score=_nullable_float(row.get("text_type_score")),
         height_score=_nullable_float(row.get("height_score")),
         rank=_nullable_int(row.get("rank")),
+        source_block_name=_nullable_str(row.get("source_block_name")),
+        channel=_nullable_str(row.get("channel")) or "terminal_numeric_channel",
+        channel_detail=_nullable_str(row.get("channel_detail")),
     )
-
-
-def _issues_frame(issues: list[Any]) -> pd.DataFrame:
-    rows = []
-    for issue in issues:
-        row = issue.__dict__.copy() if hasattr(issue, "__dict__") else {}
-        if not row:
-            row = {
-                "issue_id": issue.issue_id,
-                "rule_id": issue.rule_id,
-                "severity": issue.severity,
-                "status": issue.status,
-                "confidence": issue.confidence,
-                "message": issue.message,
-                "sheet_id": issue.sheet_id,
-                "file_id": issue.file_id,
-                "pair_id": issue.pair_id,
-                "line_group_id": issue.line_group_id,
-                "left_value": issue.left_value,
-                "right_value": issue.right_value,
-                "evidence": issue.evidence,
-                "issue_type": issue.issue_type,
-                "title": issue.title,
-                "summary": issue.summary,
-                "explanation": issue.explanation,
-                "recommended_action": issue.recommended_action,
-                "primary_pair_id": issue.primary_pair_id,
-                "related_pair_ids": issue.related_pair_ids,
-                "sheet_ids": issue.sheet_ids,
-                "values": issue.values,
-                "evidence_refs": issue.evidence_refs,
-            }
-        for key, value in list(row.items()):
-            if isinstance(value, (list, tuple, dict)):
-                row[key] = json.dumps(value, ensure_ascii=False)
-        rows.append(row)
-    return pd.DataFrame(rows)
 
 
 def _nullable_str(value: object) -> str | None:
