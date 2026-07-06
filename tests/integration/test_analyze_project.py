@@ -162,6 +162,15 @@ def test_analyze_project_includes_supplemental_pages_in_downstream_audit(
         "audit_required": 2,
         "skip_stable": 1,
     }
+    route_execution = findings_payload["route_execution_summary"]["route_targets"]
+    assert route_execution["WireDiagramExtractor"]["status"] == "executed"
+    assert route_execution["WireDiagramExtractor"]["executed_page_count"] == 1
+    assert route_execution["TerminalDiagramExtractor"]["status"] == "executed"
+    assert route_execution["TerminalDiagramExtractor"]["executed_page_count"] == 1
+    assert route_execution["LayoutOnlyExtractor"]["status"] == "no_pages_classified"
+    assert route_execution["SkipExtractor"]["status"] == "skip_pages_present"
+    assert route_execution["SkipExtractor"]["routed_page_count"] == 1
+    assert route_execution["TableExtractor"]["status"] == "no_pages_classified"
 
 
 def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_table_mapping(
@@ -273,12 +282,19 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
     assert findings_payload["table_extraction_summary"]["status"] == "table_mappings_recovered"
     assert findings_payload["table_extraction_summary"]["classified_table_pages"] == 1
     assert findings_payload["table_extraction_summary"]["classified_table_filenames"] == ["05 回路表格图.dwg"]
+    assert table_page["executed_extractor"] == "TableExtractor"
+    assert table_page["execution_status"] == "executed"
     assert pages_by_file["04 回路图.dwg"]["page_type"] == "二次原理图"
     assert pages_by_file["04 回路图.dwg"]["route_target"] == "WireDiagramExtractor"
     assert bool(pages_by_file["04 回路图.dwg"]["grid_heavy"]) is False
     assert pages_by_file["05 回路表格图.dwg"]["page_type"] == "表格型图"
     assert pages_by_file["05 回路表格图.dwg"]["route_target"] == "TableExtractor"
     assert bool(pages_by_file["05 回路表格图.dwg"]["table_like"]) is True
+    route_execution = findings_payload["route_execution_summary"]["route_targets"]
+    assert route_execution["TableExtractor"]["status"] == "executed"
+    assert route_execution["TableExtractor"]["executed_extractor"] == "TableExtractor"
+    assert route_execution["TableExtractor"]["routed_page_count"] == 1
+    assert route_execution["TableExtractor"]["executed_page_count"] == 1
 
     table_sheet_id = table_page["sheet_id"]
     wire_sheet_id = wire_page["sheet_id"]
@@ -660,6 +676,11 @@ def test_analyze_project_can_include_backplate_pages_as_supplemental_audit(
         "supplemental": 1,
     }
     assert findings_payload["audit_disposition_counts"] == {"audit_required": 2}
+    route_execution = findings_payload["route_execution_summary"]["route_targets"]
+    assert route_execution["LayoutOnlyExtractor"]["status"] == "executed"
+    assert route_execution["LayoutOnlyExtractor"]["executed_extractor"] == "LayoutOnlyAuditFallback"
+    assert route_execution["LayoutOnlyExtractor"]["routed_page_count"] == 1
+    assert route_execution["LayoutOnlyExtractor"]["executed_page_count"] == 1
 
 
 def test_analyze_project_applies_terminal_page_numeric_suffix_override(

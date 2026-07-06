@@ -1448,3 +1448,71 @@
   - 下一条缺口更像是：
     - `table_like_non_routed_pages` 的解释边界是否还要继续收口
     - 或把 LayoutOnly / Table 的执行证据合同再补到同一层级
+
+## Session Update 2026-07-06 (Phase 35)
+- 先重新对齐 [任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) current-head 要求，再做了一次“先审计、后开发”的裁决。
+- 主线程判断：在 `Wire / Component / Terminal` 已有真实执行入口证据之后，最近单一缺口已经不再是几何细节，而是：
+  - `TableExtractor / LayoutOnlyExtractor / SkipExtractor`
+  - 还没有和前三类 route 一样，拥有同层级的执行或明确未执行合同
+- 这轮没有继续动 pipeline、规则或几何，只补 findings 合同层：
+  - [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+    - 页级 findings 新增 `execution_status`
+    - 项目级 findings 新增 `route_execution_summary`
+    - `route_execution_summary.route_targets` 现在对所有 canonical route target 都显式输出：
+      - `status`
+      - `status_reason`
+      - `routed_page_count`
+      - `executed_page_count`
+      - `routed_sheet_ids / filenames`
+      - 相关 pair / line_group / table_mapping 计数
+- 当前 page-level 执行语义现在变成：
+  - `executed`
+  - `classify_only`
+  - `skipped`
+- 这意味着 current-head 已经能把：
+  - `LayoutOnlyExtractor`
+  - `SkipExtractor`
+  - `TableExtractor(no_pages_classified)`
+  从“路由标签存在”升级成正式 findings 合同，而不是继续依赖人工读上下文推断
+- 定向验证：
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "routes_table_like_page_to_table_extractor_and_emits_table_mapping or includes_supplemental_pages_in_downstream_audit or can_include_backplate_pages_as_supplemental_audit"` -> `3 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "route_specific_pair_extractors"` -> `1 passed`
+- 全量回归：
+  - `python -m pytest -q` -> `176 passed`
+- fresh real-sample rerun：
+  - 第二套：
+    - `analyze-project` -> [phase41_route_contract_second](/F:/workspace/XJToolkit/.tmp/phase41_route_contract_second/2_2)
+    - `run-audit` -> [phase41_route_contract_second audit](/F:/workspace/XJToolkit/.tmp/phase41_route_contract_second/2_2/audit/issues.json)
+    - 结果：
+      - `issue_count = 519`
+      - `route_status`：
+        - `WireDiagramExtractor = executed`
+        - `ComponentDiagramExtractor = executed`
+        - `TerminalDiagramExtractor = executed`
+        - `TableExtractor = no_pages_classified`
+        - `LayoutOnlyExtractor = classify_only_pages_present`
+        - `SkipExtractor = skip_pages_present`
+      - `17 测控1装置背板.dwg` 现在显式为：
+        - `route_target = LayoutOnlyExtractor`
+        - `executed_extractor = null`
+        - `execution_status = classify_only`
+      - `01 封面.dwg` 现在显式为：
+        - `route_target = SkipExtractor`
+        - `executed_extractor = null`
+        - `execution_status = skipped`
+  - 第一套：
+    - `analyze-project` -> [phase41_route_contract_first](/F:/workspace/XJToolkit/.tmp/phase41_route_contract_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+    - `run-audit` -> [phase41_route_contract_first audit](/F:/workspace/XJToolkit/.tmp/phase41_route_contract_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/audit/issues.json)
+    - 结果：
+      - `issue_count = 345`
+      - `route_status` 同样稳定为：
+        - `Wire / Component / Terminal = executed`
+        - `Table = no_pages_classified`
+        - `LayoutOnly = classify_only_pages_present`
+        - `Skip = skip_pages_present`
+- 当前裁决：
+  - current-head 现在对 route matrix 的证据已经从“只有三类 audited pair page 强”推进到“六类 canonical route target 都有正式状态”
+  - 这条切片没有引入行为漂移，只增强了可证明性
+  - 下一条缺口更像是：
+    - `table_like_non_routed_pages` 的解释边界
+    - 或回到任务书第 19 节，刷新“真实正确样本 + 故障注入样本”的最小验收闭环

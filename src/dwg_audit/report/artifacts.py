@@ -711,6 +711,23 @@ def _extractor_execution_by_sheet(
     return execution_by_sheet
 
 
+def _page_execution_status(
+    *,
+    route_target: str,
+    audit_disposition: str,
+    executed_extractor: str | None,
+) -> str:
+    if executed_extractor is not None:
+        return "executed"
+    if route_target == "LayoutOnlyExtractor" and audit_disposition == "classify_only":
+        return "classify_only"
+    if route_target == "SkipExtractor" and audit_disposition == "skip_stable":
+        return "skipped"
+    if route_target == "TableExtractor":
+        return "table_route_not_executed"
+    return "not_executed"
+
+
 def _build_page_findings(
     artifacts: ProjectArtifacts,
     *,
@@ -816,6 +833,11 @@ def _build_page_findings(
                 "audit_disposition": audit_disposition,
                 "route_target": route_target,
                 "executed_extractor": executed_extractor,
+                "execution_status": _page_execution_status(
+                    route_target=route_target,
+                    audit_disposition=audit_disposition,
+                    executed_extractor=executed_extractor,
+                ),
                 "grid_heavy": grid_heavy,
                 "classification_features": classification_features,
                 "layout_summary": {
@@ -983,6 +1005,103 @@ def _build_extractor_execution_summary(extractor_runs: list[dict[str, Any]]) -> 
     }
 
 
+def _build_route_execution_summary(
+    extractor_runs: list[dict[str, Any]],
+    page_findings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    canonical_routes = (
+        "WireDiagramExtractor",
+        "ComponentDiagramExtractor",
+        "TerminalDiagramExtractor",
+        "TableExtractor",
+        "LayoutOnlyExtractor",
+        "SkipExtractor",
+    )
+    route_runs: dict[str, dict[str, Any]] = {}
+    for run in extractor_runs:
+        route_target = str(run.get("route_target") or "")
+        if route_target:
+            route_runs[route_target] = run
+
+    pages_by_route: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in page_findings:
+        route_target = str(item.get("route_target") or "")
+        if route_target:
+            pages_by_route[route_target].append(item)
+
+    route_targets: dict[str, dict[str, Any]] = {}
+    all_routes = list(canonical_routes)
+    all_routes.extend(
+        sorted(route for route in pages_by_route if route not in route_targets and route not in canonical_routes)
+    )
+
+    for route_target in all_routes:
+        routed_pages = pages_by_route.get(route_target, [])
+        run = route_runs.get(route_target, {})
+        routed_sheet_ids = [str(item.get("sheet_id")) for item in routed_pages if item.get("sheet_id")]
+        routed_filenames = [str(item.get("filename")) for item in routed_pages if item.get("filename")]
+        routed_dispositions = _count_labels(
+            [item.get("audit_disposition") for item in routed_pages],
+            missing_label="unknown",
+        )
+        executed_extractor = run.get("executed_extractor")
+        if executed_extractor:
+            status = "executed"
+            status_reason = (
+                f"Pages routed to `{route_target}` executed through `{executed_extractor}` "
+                f"with {int(run.get('page_count', 0) or 0)} page(s)."
+            )
+        elif route_target == "TableExtractor":
+            status = "no_pages_classified" if not routed_pages else "routed_without_execution"
+            status_reason = (
+                "No page in this run was classified as a table page or routed to TableExtractor."
+                if not routed_pages
+                else "Pages were routed to TableExtractor, but no execution record was captured."
+            )
+        elif route_target == "LayoutOnlyExtractor":
+            status = "classify_only_pages_present" if routed_pages else "no_pages_classified"
+            status_reason = (
+                "Backplate/layout pages were classified and intentionally kept out of pairing audit."
+                if routed_pages
+                else "No page in this run was routed to LayoutOnlyExtractor."
+            )
+        elif route_target == "SkipExtractor":
+            status = "skip_pages_present" if routed_pages else "no_pages_classified"
+            status_reason = (
+                "Stable non-audit pages were intentionally skipped after page classification."
+                if routed_pages
+                else "No page in this run was routed to SkipExtractor."
+            )
+        else:
+            status = "no_pages_classified" if not routed_pages else "routed_without_execution"
+            status_reason = (
+                f"No page in this run was routed to `{route_target}`."
+                if not routed_pages
+                else f"Pages were routed to `{route_target}`, but no execution record was captured."
+            )
+
+        route_targets[route_target] = {
+            "status": status,
+            "status_reason": status_reason,
+            "routed_page_count": len(routed_pages),
+            "routed_sheet_ids": routed_sheet_ids,
+            "routed_filenames": routed_filenames,
+            "routed_audit_disposition_counts": routed_dispositions,
+            "executed_extractor": executed_extractor,
+            "executed_page_count": int(run.get("page_count", 0) or 0),
+            "line_group_count": int(run.get("line_group_count", 0) or 0),
+            "terminal_candidate_count": int(run.get("terminal_candidate_count", 0) or 0),
+            "pair_candidate_count": int(run.get("pair_candidate_count", 0) or 0),
+            "pair_count": int(run.get("pair_count", 0) or 0),
+            "table_mapping_count": int(run.get("table_mapping_count", 0) or 0),
+        }
+
+    return {
+        "route_target_count": len(route_targets),
+        "route_targets": route_targets,
+    }
+
+
 def _build_findings_payload(
     artifacts: ProjectArtifacts,
     config: dict | None = None,
@@ -1064,6 +1183,7 @@ def _build_findings_payload(
         "page_findings_count": len(page_findings),
         "page_findings": page_findings,
         "extractor_execution_summary": _build_extractor_execution_summary(artifacts.extractor_runs),
+        "route_execution_summary": _build_route_execution_summary(artifacts.extractor_runs, page_findings),
         "table_extraction_summary": _build_table_extraction_summary(table_mappings, page_findings),
         "one_to_many_review_table": _build_one_to_many_review_table(artifacts.pairs, config=config),
         "failed_files": [
