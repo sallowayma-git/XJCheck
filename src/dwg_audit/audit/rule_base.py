@@ -164,6 +164,14 @@ def cluster_issues(issues: list[Issue]) -> list[Issue]:
             clustered[existing_index] = _merge_issue_cluster(clustered[existing_index], issue)
             continue
 
+        if _is_backplate_same_sheet_scope_aggregation_issue(issue):
+            existing_index = _find_backplate_same_sheet_scope_cluster(clustered, issue)
+            if existing_index is None:
+                clustered.append(issue)
+                continue
+            clustered[existing_index] = _merge_issue_cluster(clustered[existing_index], issue)
+            continue
+
         if _is_terminal_header_table_aggregation_issue(issue):
             existing_index = _find_terminal_header_table_cluster(clustered, issue)
             if existing_index is None:
@@ -248,6 +256,7 @@ def _merge_issue_cluster(primary: Issue, duplicate: Issue) -> Issue:
         evidence["cluster_sheet_ids"] = sorted(sheet_ids)
     _merge_terminal_header_table_cluster_evidence(evidence, duplicate.evidence)
     _merge_backplate_scope_cluster_evidence(evidence, primary, duplicate)
+    _merge_backplate_same_sheet_scope_cluster_evidence(evidence, primary, duplicate)
     primary.evidence = evidence
     return primary
 
@@ -339,6 +348,15 @@ def _is_backplate_scope_aggregation_issue(issue: Issue) -> bool:
     )
 
 
+def _is_backplate_same_sheet_scope_aggregation_issue(issue: Issue) -> bool:
+    return (
+        issue.rule_id == "R-ONE-TO-MANY"
+        and issue.evidence.get("one_to_many_classification")
+        == "backplate_table_same_sheet_scope_review"
+        and issue.evidence.get("table_mapping_mode") == "backplate_virtual_table"
+    )
+
+
 def _backplate_scope_cluster_key(issue: Issue) -> tuple[Any, ...]:
     return (
         issue.rule_id,
@@ -346,6 +364,19 @@ def _backplate_scope_cluster_key(issue: Issue) -> tuple[Any, ...]:
         issue.evidence.get("table_mapping_mode"),
         tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_prefixes")))),
         tuple(_merge_sorted_values(_as_list(issue.evidence.get("source_block_names")))),
+    )
+
+
+def _backplate_same_sheet_scope_cluster_base_key(issue: Issue) -> tuple[Any, ...]:
+    return (
+        issue.rule_id,
+        issue.evidence.get("one_to_many_classification"),
+        issue.evidence.get("table_mapping_mode"),
+        issue.sheet_id or "",
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("source_block_names")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_prefixes")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("raw_header_texts")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_text_ids")))),
     )
 
 
@@ -380,6 +411,69 @@ def _merge_backplate_scope_cluster_evidence(
         _as_list(evidence.get("header_prefixes"))
         + _as_list(duplicate.evidence.get("header_prefixes"))
     )
+
+
+def _merge_backplate_same_sheet_scope_cluster_evidence(
+    evidence: dict[str, Any],
+    primary: Issue,
+    duplicate: Issue,
+) -> None:
+    if (
+        evidence.get("one_to_many_classification")
+        != "backplate_table_same_sheet_scope_review"
+        or evidence.get("table_mapping_mode") != "backplate_virtual_table"
+    ):
+        return
+
+    evidence["backplate_scope_aggregate_review"] = True
+    evidence["aggregated_logical_endpoints"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_logical_endpoints"))
+        + _as_list(primary.left_value)
+        + _as_list(duplicate.left_value)
+    )
+    evidence["aggregated_row_numbers"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_row_numbers"))
+        + _as_list(evidence.get("row_numbers"))
+        + _as_list(duplicate.evidence.get("aggregated_row_numbers"))
+        + _as_list(duplicate.evidence.get("row_numbers"))
+    )
+    evidence["aggregated_conflicting_values"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_conflicting_values"))
+        + _as_list(evidence.get("conflicting_values"))
+        + _as_list(duplicate.evidence.get("aggregated_conflicting_values"))
+        + _as_list(duplicate.evidence.get("conflicting_values"))
+    )
+    evidence["source_block_names"] = _merge_sorted_values(
+        _as_list(evidence.get("source_block_names"))
+        + _as_list(duplicate.evidence.get("source_block_names"))
+    )
+    evidence["header_prefixes"] = _merge_sorted_values(
+        _as_list(evidence.get("header_prefixes"))
+        + _as_list(duplicate.evidence.get("header_prefixes"))
+    )
+    evidence["raw_header_texts"] = _merge_sorted_values(
+        _as_list(evidence.get("raw_header_texts"))
+        + _as_list(duplicate.evidence.get("raw_header_texts"))
+    )
+    evidence["header_text_ids"] = _merge_sorted_values(
+        _as_list(evidence.get("header_text_ids"))
+        + _as_list(duplicate.evidence.get("header_text_ids"))
+    )
+
+
+def _find_backplate_same_sheet_scope_cluster(
+    clustered: list[Issue],
+    issue: Issue,
+) -> int | None:
+    base_key = _backplate_same_sheet_scope_cluster_base_key(issue)
+    for index, existing in enumerate(clustered):
+        if not _is_backplate_same_sheet_scope_aggregation_issue(existing):
+            continue
+        if _backplate_same_sheet_scope_cluster_base_key(existing) != base_key:
+            continue
+        if _terminal_header_table_ranges_touch(existing, issue):
+            return index
+    return None
 
 
 def _find_terminal_header_table_cluster(

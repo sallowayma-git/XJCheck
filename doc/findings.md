@@ -9281,3 +9281,45 @@ second 非回归证据：
 
 - 本轮是背板跨页虚拟表格作用域 review 的聚合和诊断口径修正，不是 extractor 补漏，也不是静音规则。
 - 下一轮候选收缩为：backplate/component/table mapping rules semantics 的同页 scope、many-to-one/shared endpoint、默认用户可见 review 分组；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 133. 2026-07-07 backplate same-sheet scope：NKR308A 同页表格复用聚合为连续行带
+
+只读审计确认，Phase79 后 first `S0021 / 20 非电量保护背板图.dwg` 仍有 18 条 `R-ONE-TO-MANY` / `backplate_table_same_sheet_scope_review` 行级 review。它们都来自 `backplate_virtual_table`：同一 `source_block_name=WBH-814E-E1SA-101`、同一 `header_prefix=NKR308A`、同一对 raw headers `NKR308A / NKR308A(非电量选配)`，行号为连续 `1..18`。这表示同一背板表头模板在同页不同区域复用，不是 extractor 缺失，也不是应删除的 `table_mapping`。
+
+本轮实现：
+
+- 在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 增加 `backplate_table_same_sheet_scope_review` 聚合。
+- 聚合 key 限定为 rule/classification/table mode、sheet、source block、header prefix、raw header texts、header text ids。
+- 仅当行号范围相邻或重叠时合并，避免把同页不同表格段过度并成一个问题。
+- 聚合证据保留 `backplate_scope_aggregate_review`、`aggregated_logical_endpoints`、`aggregated_row_numbers`、`aggregated_conflicting_values`、`cluster_pair_ids`、`cluster_sheet_ids`。
+- 不改 `rules.py` 判定、不改 extractor、不改 graph input、不扩 CLI/UI。
+
+fresh rules-only 证据：
+
+- first `.tmp/phase80_backplate_same_sheet_scope_first_audit`
+- `issue_count=136`
+- `R-ONE-TO-MANY=24`
+- `backplate_table_same_sheet_scope_review=1`
+- 聚合 issue `I0159`:
+  - `cluster_size=18`
+  - rows `1..18`
+  - `aggregated_logical_endpoints=18`
+  - `aggregated_conflicting_values=36`
+  - `cluster_pair_ids=36`
+- first Phase78 findings pair_count 保持 `1581`。
+
+second 非回归证据：
+
+- second `.tmp/phase80_backplate_same_sheet_scope_second_audit`
+- `issue_count=23`，与 Phase79 保持一致。
+- second Phase78 findings pair_count 保持 `1462`。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `8 passed, 53 deselected`
+- `python -m pytest -q` -> `282 passed`
+
+裁决：
+
+- 本轮是背板同页虚拟表格作用域 review 的聚合收口，不是静音规则，也不是新增抽取器。
+- 下一轮候选收缩为：many-to-one/shared endpoint 默认展示分层、terminal header shared endpoint 区间展示、component split endpoint review 展示；packaged sidecar/exe smoke 仍为独立产品切片。

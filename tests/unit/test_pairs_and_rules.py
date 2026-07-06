@@ -2880,6 +2880,74 @@ def test_build_issues_classifies_same_sheet_backplate_virtual_table_scope_review
     assert issue.evidence["conflicting_values"] == ["5FD11", "5FD15"]
 
 
+def test_build_issues_clusters_contiguous_same_sheet_backplate_scope_reviews() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+
+    def backplate_pair(pair_id: str, row: int, right_value: str, raw_header_text: str, header_text_id: str) -> Pair:
+        return Pair(
+            pair_id=pair_id,
+            line_group_id=None,
+            sheet_id="S0021",
+            file_id="F0021",
+            selected_pair_candidate_id=None,
+            left_value=f"NKR308A-{row}",
+            right_value=right_value,
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-814E-E1SA-101",
+                    "header_prefix": "NKR308A",
+                    "raw_header_text": raw_header_text,
+                    "header_text_id": header_text_id,
+                    "header_coord": [145.6201, 243.75],
+                    "row_number": row,
+                },
+            },
+            pair_kind="table_mapping",
+        )
+
+    pairs = [
+        backplate_pair("P0001", 1, "5FD11", "NKR308A", "T2990"),
+        backplate_pair("P0002", 1, "5FD15", "NKR308A(非电量选配)", "T2858"),
+        backplate_pair("P0003", 2, "5FD12", "NKR308A", "T2990"),
+        backplate_pair("P0004", 2, "5FD16", "NKR308A(非电量选配)", "T2858"),
+        backplate_pair("P0005", 20, "5YD1", "NKR308A", "T2990"),
+        backplate_pair("P0006", 20, "5YD2", "NKR308A(非电量选配)", "T2858"),
+    ]
+    sheets = [
+        SheetRecord("S0021", "F0021", "20 非电量保护背板图.dwg", 21, "20", "5n REAR WIRING", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    one_to_many = [
+        issue
+        for issue in issues
+        if issue.rule_id == "R-ONE-TO-MANY"
+        and issue.evidence["one_to_many_classification"]
+        == "backplate_table_same_sheet_scope_review"
+    ]
+    assert len(one_to_many) == 2
+    aggregate = next(issue for issue in one_to_many if issue.evidence.get("cluster_size") == 2)
+    assert aggregate.evidence["backplate_scope_aggregate_review"] is True
+    assert aggregate.evidence["aggregated_logical_endpoints"] == ["NKR308A-1", "NKR308A-2"]
+    assert aggregate.evidence["aggregated_row_numbers"] == ["1", "2"]
+    assert aggregate.evidence["aggregated_conflicting_values"] == [
+        "5FD11",
+        "5FD12",
+        "5FD15",
+        "5FD16",
+    ]
+    assert set(aggregate.evidence["cluster_pair_ids"]) == {"P0001", "P0002", "P0003", "P0004"}
+    disjoint = next(issue for issue in one_to_many if issue.evidence.get("row_numbers") == ["20"])
+    assert "cluster_size" not in disjoint.evidence
+
+
 def test_build_issues_keeps_same_backplate_virtual_table_scope_as_generic_review() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     base_mapping = {

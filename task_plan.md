@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 79
+Phase 80
 
 ## Phases
 
@@ -1100,6 +1100,18 @@ Phase 79
   - first rules-only audit `.tmp/phase79_backplate_scope_first_audit`: `issue_count=153`，`R-CROSS-PAGE-CONFLICT=7`，cross-page root cause 全部为 `rule_too_strict`；Phase78 first findings pair_count 保持 `1581`。
   - second rules-only audit `.tmp/phase79_backplate_scope_second_audit`: `issue_count=23`，规则分布保持 `R-PAIR-MISSING-SIDE=15`、`R-ONE-TO-MANY=6`、`R-SEMANTIC-MAPPING-CONFLICT=1`、`R-MANY-TO-ONE=1`；Phase78 second findings pair_count 保持 `1462`。
 - [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics 的剩余同页 / many-to-one / 默认展示口径；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 80: Backplate Same-Sheet Scope Review Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `07614f5`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase79 后 first `S0021 / 20 非电量保护背板图.dwg` 的 `NKR308A-1..18` 仍以 `backplate_table_same_sheet_scope_review` 行级 review 散开；这是同一 source block、同一表头组、连续行号的同页虚拟表格作用域复用，属于 rules/display 聚合缺口，不是 extractor 缺失。
+- [x] 实现目标：只在 `rule_base.cluster_issues()` 聚合同页背板 scope review；按 sheet、source block、header prefix、raw header/header text ids 分簇，并仅合并连续行号范围，保留所有 related pair/evidence。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `8 passed, 53 deselected`
+  - `python -m pytest -q` -> `282 passed`
+  - first rules-only audit `.tmp/phase80_backplate_same_sheet_scope_first_audit`: `issue_count=136`，`R-ONE-TO-MANY=24`；`backplate_table_same_sheet_scope_review` 从 `18` 条聚合为 `1` 条，`cluster_size=18`，保留 `36` 个 `cluster_pair_ids`。
+  - second rules-only audit `.tmp/phase80_backplate_same_sheet_scope_second_audit`: `issue_count=23` 保持不变；Phase78 findings pair_count 保持 first `1581` / second `1462`。
+- [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics 的 many-to-one/shared endpoint 默认展示分层、terminal header shared endpoint 区间展示、component split endpoint review 展示；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered

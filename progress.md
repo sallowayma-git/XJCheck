@@ -2958,3 +2958,31 @@
 - Next candidates:
   - remaining backplate/component/table mapping rules semantics, especially same-sheet scope, many-to-one/shared endpoint, and default user-visible review grouping.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 80 backplate same-sheet scope review aggregation)
+- Started after commit `07614f5`.
+- Read-only recovery:
+  - Reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Ran `planning-with-files` session catchup; working tree only had protected untracked `doc/page_findings/` and `doc/page_task_queue.md` before edits.
+  - Spawned two read-only explorers for taskbook alignment and real-sample issue mining; both recommended the same P0 sample, first `S0021 / NKR308A` same-sheet backplate scope review.
+- Read-only audit conclusions:
+  - first Phase79 audit still had `backplate_table_same_sheet_scope_review=18` under `R-ONE-TO-MANY`, all from `S0021 / 20 非电量保护背板图.dwg`.
+  - The 18 rows share `source_block_names=["WBH-814E-E1SA-101"]`, `header_prefixes=["NKR308A"]`, raw headers `NKR308A / NKR308A(非电量选配)`, and contiguous row numbers `1..18`.
+  - This is the same rules/display pattern as Phase79 cross-page scope aggregation, not a new extractor task and not a reason to remove `table_mapping` from the graph.
+- Implementation:
+  - Added same-sheet backplate scope aggregation in `rule_base.py`.
+  - The cluster key includes rule/classification/table mode, sheet id, source block names, header prefixes, raw header texts, and header text ids.
+  - The merge only occurs when row ranges touch, reusing the existing integer-range guard, and records `backplate_scope_aggregate_review`, `aggregated_logical_endpoints`, `aggregated_row_numbers`, `aggregated_conflicting_values`, `cluster_pair_ids`, and `cluster_sheet_ids`.
+  - Added a unit test proving contiguous rows aggregate while a disjoint row range remains a separate review.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `8 passed, 53 deselected`
+  - `python -m pytest -q` -> `282 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase80_backplate_same_sheet_scope_first_audit`: `issue_count=136`; `R-ONE-TO-MANY=24`; same-sheet backplate scope review count is `1` with `cluster_size=18`, rows `1..18`, `18` logical endpoints, `36` conflicting values, and `36` `cluster_pair_ids`.
+  - second rules-only `.tmp/phase80_backplate_same_sheet_scope_second_audit`: `issue_count=23`, unchanged from Phase79.
+  - Phase78 findings pair counts stayed unchanged: first `1581`, second `1462`.
+- Next candidates:
+  - many-to-one/shared endpoint default display layering.
+  - terminal header shared endpoint interval display.
+  - component split endpoint review display.
+  - packaged sidecar/exe smoke only as a separate product slice.
