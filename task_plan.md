@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 72
+Phase 73
 
 ## Phases
 
@@ -987,6 +987,22 @@ Phase 72
   - first fresh `.tmp/phase86_ac_phase_first/...` + `.tmp/phase86_ac_phase_first_audit`: `pair_count=1562`, `issue_count=258`, `semantic_mapping=119`；新增 2 条 first AC semantic review，既有结构化红线保持。
   - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
 - [ ] 下一刀候选收缩为：second AC phase-label covered/window residual (`724 -> UX'` 与 `? -> 715/717/719` 半链)、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 73: Second AC Phase-Label Covered Half-Lines
+- [x] 只读恢复并确认当前 HEAD 为 `9a8bd37`；工作区继承上一段未提交实现，仅涉及 `page_extractors.py` 与 `test_page_extractors.py`，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 审计结论：Phase86 second AC 剩余 7 条中，6 条 `? -> 715/717/719` sibling half-lines 与已存在的 `schematic_ac_phase_label` semantic mapping 共用同一个 numeric text，属于结构化语义关系覆盖下的普通半边 residual；`724 -> UX'` 尚无既有 semantic mapping，需要后续 strict nearby/window annotation 切片。
+- [x] 实现目标：只在 `WireDiagramExtractor` 输出后扫描二次原理图内 `schematic_ac_phase_label` semantic mapping 的 `numeric_endpoint_text_id`，把共享该 numeric text 的 ordinary 单侧半边 pair 降为 `discard`，并标记 `covered_by_schematic_ac_phase_label_semantic_mapping`；不改候选窗口、PairBuilder、rules、table/component extractor 或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0"` -> `3 passed, 32 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `262 passed`
+  - second fresh `.tmp/phase87_ac_covered_second/2_2` + `.tmp/phase87_ac_covered_second_audit`: `pair_count=1460`, `issue_count=27`, `ordinary_pair review=21`；6 条 AC sibling half-lines 被 coverage discard，AC residual 只剩 `PW0047/GW0047 724 -> ?`。
+  - first fresh `.tmp/phase87_ac_covered_first/...` + `.tmp/phase87_ac_covered_first_audit`: `pair_count=1562`, `issue_count=256`，既有 KLP/ZLP/218 structured redlines held。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
+- [ ] 下一刀候选收缩为：second AC `724 -> UX'` strict nearby/window annotation、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
 ## Errors Encountered

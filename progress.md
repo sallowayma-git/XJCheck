@@ -2739,3 +2739,36 @@
   - second AC phase-label covered/window residual (`724 -> UX'` and `? -> 715/717/719` sibling half-lines).
   - first prefixed external endpoints.
   - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 73 second AC phase-label covered half-lines)
+- Started after commit `9a8bd37`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Inherited uncommitted implementation only touched `src/dwg_audit/audit/page_extractors.py` and `tests/unit/test_page_extractors.py`.
+  - Protected untracked paths remained untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - Phase86 second AC residual had 7 AC-related issues.
+  - Six `? -> 715/717/719` sibling half-lines shared the same numeric text IDs with existing `schematic_ac_phase_label` semantic mappings, so they are ordinary half-pair residuals covered by structured semantic evidence.
+  - `724 -> UX'` has no existing semantic mapping and remains a separate strict nearby/window annotation candidate.
+- Implementation:
+  - Added `_mark_schematic_ac_phase_covered_ordinary_pairs()` in `page_extractors.py`.
+  - The helper runs only after `WireDiagramExtractor` `build_pairs()`, and only covers ordinary single-sided pairs on `二次原理图` when their selected text ID is already the numeric endpoint of a `schematic_ac_phase_label` semantic mapping.
+  - Covered ordinary half-pairs are marked `discard`, `confidence_bucket=low`, `ordinary_pair_eligible=False`, and tagged with `covered_by_schematic_ac_phase_label_semantic_mapping=True`.
+  - Did not change candidates, PairBuilder, rules, table/component extractors, CLI/UI, or the AC semantic window.
+- Verification:
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0"` -> `3 passed, 32 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `262 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase87_ac_covered_second/2_2` + `.tmp/phase87_ac_covered_second_audit`: `pair_count=1460`, `issue_count=27`.
+  - The six covered AC ordinary half-lines are `PW0015 ? -> 719`, `PW0019 ? -> 717`, `PW0023 ? -> 715`, `PW0057 ? -> 719`, `PW0061 ? -> 717`, and `PW0065 ? -> 715`.
+  - second AC residual is now only `PW0047/GW0047 724 -> ?`, with nearby `UX'` left for a later strict annotation slice.
+  - second `pair_kind` counts held: `ordinary_pair=572`, `wire_component_mapping=245`, `continuation=202`, `semantic_mapping=182`, `table_mapping=174`, `component_mapping=82`, `bridge_mapping=3`.
+  - first fresh `.tmp/phase87_ac_covered_first/...` + `.tmp/phase87_ac_covered_first_audit`: `pair_count=1562`, `issue_count=256`, `covered_by_schematic_ac_phase_label_count=2`, `semantic_table_mapping_pass_endpoint_count=0`.
+  - Redlines held: second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `1-2ZLP4-1 -> KD26`, `1-2ZLP4-2 -> 1-2n422`.
+- Next candidates:
+  - second AC `724 -> UX'` strict nearby/window annotation.
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.

@@ -171,6 +171,8 @@ def _extract_pairs_for_route(
         pair_id_factory=IdFactory(f"P{id_stem}"),
     )
     if executed_extractor == "WireDiagramExtractor":
+        _mark_schematic_ac_phase_covered_ordinary_pairs(pairs, pages)
+    if executed_extractor == "WireDiagramExtractor":
         wire_component_pairs = extract_component_prefixed_signal_pairs(
             pages,
             texts,
@@ -292,6 +294,57 @@ def _mark_wire_component_covered_ordinary_pairs(
         pair.evidence["ordinary_pair_eligible"] = False
         for reason in covered_reasons:
             pair.evidence[f"covered_by_{reason}"] = True
+
+
+def _mark_schematic_ac_phase_covered_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:
+    sheet_map = {page.sheet_id: page for page in pages}
+    covered_text_reasons = _schematic_ac_phase_numeric_text_reasons(pairs, sheet_map)
+    if not covered_text_reasons:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.status == "discard":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if bool(pair.left_value) == bool(pair.right_value):
+            continue
+        covered_reasons = _pair_text_coverage_reasons(pair, covered_text_reasons)
+        if not covered_reasons:
+            continue
+        pair.status = "discard"
+        pair.confidence_bucket = "low"
+        pair.rationale = (
+            "Covered by schematic_ac_phase_label semantic_mapping; AC phase numeric text "
+            "must not be emitted as a bare ordinary half-pair."
+        )
+        pair.evidence["ordinary_pair_eligible"] = False
+        for reason in covered_reasons:
+            pair.evidence[f"covered_by_{reason}"] = True
+
+
+def _schematic_ac_phase_numeric_text_reasons(
+    pairs: list[Pair],
+    sheet_map: dict[str, SheetRecord],
+) -> dict[str, str]:
+    text_reasons: dict[str, str] = {}
+    for pair in pairs:
+        evidence = pair.evidence or {}
+        if pair.pair_kind != "semantic_mapping":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if evidence.get("semantic_mapping_kind") != "schematic_ac_phase_label":
+            continue
+        if evidence.get("semantic_kind") not in {"schematic_semantic_endpoint", "schematic_semantic_annotation"}:
+            continue
+        value = evidence.get("numeric_endpoint_text_id")
+        if isinstance(value, str) and value:
+            text_reasons[value] = "schematic_ac_phase_label_semantic_mapping"
+    return text_reasons
 
 
 def _input_matrix_local_number_text_ids(wire_component_pairs: list[Pair]) -> set[str]:

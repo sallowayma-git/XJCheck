@@ -8922,3 +8922,59 @@ fresh first-set 非回归证据：
 
 - 本轮是二次交流相量标签的语义 annotation 收口，不是扩大普通数字解析，也不是 rules 静音。
 - 下一轮候选收缩为：second AC phase-label covered/window residual、first prefixed external endpoints、backplate/component/table mapping rules semantics。
+
+## 126. 2026-07-07 second AC phase-label covered half-lines：已有 AC semantic mapping 覆盖的普通半边 residual 降级
+
+只读审计确认，Phase86 second AC 剩余 7 条中有 6 条并不是新的端点识别缺口，而是与已有 `schematic_ac_phase_label` semantic mapping 共用同一个 numeric text 的 sibling half-line 普通缺边。典型形态是 `? -> 719` 与 sibling `719 -> UC` 共享 `T0007`；`? -> 717` / `? -> 715` 同理。`724 -> UX'` 没有既有 semantic mapping，仍保留为后续 strict nearby/window annotation 切片。
+
+本轮实现：
+
+- 在 [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py) 增加 `_mark_schematic_ac_phase_covered_ordinary_pairs()`。
+- 该 helper 只在 `WireDiagramExtractor` 的 `build_pairs()` 之后运行，只扫描 `二次原理图`。
+- 只采信 `pair_kind=semantic_mapping`、`semantic_mapping_kind=schematic_ac_phase_label`、`semantic_kind` 为 `schematic_semantic_endpoint` 或 `schematic_semantic_annotation` 的既有结构化关系。
+- 只把共享同一 `numeric_endpoint_text_id` 的 ordinary 单侧半边 pair 标记为 `discard/low`，并写入 `ordinary_pair_eligible=False` 与 `covered_by_schematic_ac_phase_label_semantic_mapping=True`。
+- 不扩大 AC semantic candidate window，不改 PairBuilder，不改 rules，不移除 `semantic_mapping` 或普通 pair graph。
+- 在 [test_page_extractors.py](/F:/workspace/XJToolkit/tests/unit/test_page_extractors.py) 增加 shared numeric half-pair、非 AC semantic、complete pair、terminal semantic row scope 的窄单测。
+
+fresh second-set 证据：
+
+- `.tmp/phase87_ac_covered_second/2_2` + `.tmp/phase87_ac_covered_second_audit`
+- `pair_count=1460`
+- `issue_count=27`
+- `ordinary_pair review=21`
+- 被覆盖降级的 6 条 ordinary half-lines：
+  - `PW0015 ? -> 719`
+  - `PW0019 ? -> 717`
+  - `PW0023 ? -> 715`
+  - `PW0057 ? -> 719`
+  - `PW0061 ? -> 717`
+  - `PW0065 ? -> 715`
+- AC residual 只剩 `PW0047/GW0047 724 -> ?`；附近 `UX'` 需要后续 strict nearby/window annotation，不在本轮静音。
+- `pair_kind` counts 保持：`ordinary_pair=572`、`wire_component_mapping=245`、`continuation=202`、`semantic_mapping=182`、`table_mapping=174`、`component_mapping=82`、`bridge_mapping=3`。
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase87_ac_covered_first/...` + `.tmp/phase87_ac_covered_first_audit`
+- `pair_count=1562`
+- `issue_count=256`
+- `covered_by_schematic_ac_phase_label_count=2`
+- `semantic_table_mapping_pass_endpoint_count=0`
+
+红线保持：
+
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 均保持命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+- `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0"` -> `3 passed, 32 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `262 passed`
+
+裁决：
+
+- 本轮是“已有 semantic evidence 覆盖普通半边 residual”的关系收口，不是 extractor 重写、候选窗口扩张或 rules 静音。
+- 下一轮候选收缩为：second AC `724 -> UX'` strict nearby/window annotation、first prefixed external endpoints、backplate/component/table mapping rules semantics。
