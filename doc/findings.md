@@ -7456,3 +7456,73 @@ fresh second-set 证据：
 - `small_port_box_component` 已从“未实现”推进到 first/second 真实样本双命中。
 - 本轮没有通过降低 issue_count 来证明正确性；结构化关系新增后 project `issue_count` 保持稳定。
 - `4输出/6输出` 的 KK2P/KK3P 端口绑定偏差仍未闭合，下一刀应单独处理，不能把本轮 small-port 视为 ComponentDiagramExtractor 全完成。
+
+## 107. 2026-07-06 KK2P/KK3P 输出槽位几何绑定：4输出 / 6输出 端口纠偏
+
+本轮只读审计确认，`4输出/6输出` 的残留偏差不是规则层或报告层造成，而是 `kk_multi_port_component` 抽取阶段没有采用任务书定义的固定端口槽位：
+
+- 旧实现把 KK2P/KK3P 端口当作散点处理，对每个端口独立寻找最近水平线和线段远端。
+- 真实 `4输出` 是左右两列、上下两排：左上 `1`、左下 `2`、右上 `3`、右下 `4`。
+- 真实 `6输出` 是三列、上下两排：上排 `1/3/5`，下排 `2/4/6`。
+- 因此旧产物会把同一行左右列外部端互换，并漏掉上排端口；代表偏差包括 `5DK-2 -> 5FD1`、`5DK-4 -> 5FD25`、`1-2ZKK-2 -> 1-2n721`、`1-2ZKK-4 -> 1-2n719`。
+
+本轮实现：
+
+- 在 [component_diagrams.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/component_diagrams.py) 中为 KK multi-port 增加固定槽位解释。
+- `KK2P` 端口按 2 列 x 2 行绑定：`1/2` 属左列，`3/4` 属右列，奇数端口找同列上方外部端，偶数端口找同列下方外部端。
+- `KK3P` 端口按 3 列 x 2 行绑定：`1/2`、`3/4`、`5/6` 分属三列。
+- `_nearest_kk_external_endpoint()` 不再以“水平线远端”决定外部端，而是按同列 x 和上/下方向选择端点。
+- `_nearest_kk_slot_supporting_group()` 保留水平线证据，确保映射仍有支撑线，不变成纯文本近邻。
+- 单测 [test_component_diagrams.py](/F:/workspace/XJToolkit/tests/unit/test_component_diagrams.py) 改为真实两排几何，并显式断言 `5DK-2 -> 5FD25`、`5DK-4 -> 5FD1`、`1-2ZKK-4 -> 1-2n720` 等目标。
+
+fresh first-set 证据：
+
+- `.tmp/phase68_kk_slot_first/...`
+- `pair_count=1552`
+- `issue_count=458`
+- `component_mapping=104`
+- `kk_multi_port_component=36`
+- first `S0022 / 21 元件接线图1.dwg` 目标全命中：
+  - `5DK-1 -> ZD12`
+  - `5DK-2 -> 5FD25`
+  - `5DK-3 -> ZD4`
+  - `5DK-4 -> 5FD1`
+  - `1-2ZKK-1 -> 1-2UD1`
+  - `1-2ZKK-2 -> 1-2n719`
+  - `1-2ZKK-3 -> 1-2UD3`
+  - `1-2ZKK-4 -> 1-2n720`
+  - `1-2ZKK-5 -> 1-2UD5`
+  - `1-2ZKK-6 -> 1-2n721`
+- 旧错配不再作为 pass `component_mapping`：
+  - `5DK-2 -> 5FD1`
+  - `5DK-4 -> 5FD25`
+  - `1-2ZKK-2 -> 1-2n721`
+  - `1-2ZKK-4 -> 1-2n719`
+
+fresh second-set 证据：
+
+- `.tmp/phase68_kk_slot_second/2_2`
+- `pair_count=1601`
+- `issue_count=303`
+- `component_mapping=46`
+- `kk_multi_port_component=28`
+- second `S0019 / 19 元件接线图1.dwg` 代表目标命中：
+  - `1-21DK2-1 -> ZD8`
+  - `1-21ZKK-2 -> 1-21n715`
+- second input-matrix 非回归保持：
+  - `input_matrix_wire_mapping=168`
+  - `covered_input_matrix_ordinary=336`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py -k "kk_multi_port"` -> `5 passed`
+- `python -m pytest -q tests\unit\test_component_diagrams.py` -> `16 passed`
+- `python -m pytest -q tests\unit\test_wire_components.py -k "input_matrix"` -> `2 passed, 4 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip"` -> `9 passed, 11 deselected`
+- `python -m pytest -q` -> `225 passed`
+
+裁决：
+
+- `4输出/6输出` 的 KK2P/KK3P 端口绑定已从“最近线段远端”收口为任务书定义的固定槽位语义。
+- 本轮新增的是结构化 `component_mapping` 真实命中，不靠隐藏 issue 或移除关系降低审计数；first `issue_count=458`、second `issue_count=303` 均保持稳定。
+- 下一刀不应继续扩大 KK 规则面，除非先有新的人工标注偏差；更合适的方向是 acceptance suite 结构化 golden 口径，或回到 Phase51 packaged sidecar/exe smoke。

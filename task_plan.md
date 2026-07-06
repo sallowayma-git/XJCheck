@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 53
+Phase 54
 
 ## Phases
 
@@ -661,6 +661,25 @@ Phase 53
   - second-set fresh `.tmp/phase67_small_port_second/2_2`: `pair_count=1585`, `issue_count=303`, `component_mapping=30`, `small_port_box_component=10`
   - 目标命中：`AK-1 -> JD1`、`AK-2 -> A'-1`、`A'-1 -> AK-2`、`A'-2 -> JD6`、`KZKK-1 -> JD8`、`KZKK-2 -> K-5`、`KZKK-3 -> JD3`、`KZKK-4 -> K-6`、`JR-1 -> K-3`、`JR-2 -> K-4`
 - [ ] 下一刀建议：优先修正 `4输出/6输出` 的 KK2P/KK3P 端口几何绑定偏差，尤其 `5DK-2/4` 与 `1-2ZKK-2/4/6` 的真实人工标注口径。
+- **Status:** complete
+
+### Phase 54: KK Output Slot Geometry Binding
+- [x] 只读恢复并确认当前外部/并发改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`。
+- [x] 两个只读 explorer 复核确认 `4输出/6输出` 偏差来自 KK2P/KK3P 固定槽位未建模，而不是 rules 或报告层问题。
+- [x] 实现目标：把 `kk_multi_port_component` 从“端口文字最近水平线远端”改为“固定 2x2 / 3x2 槽位 + 同列上/下外部端点”绑定。
+- [x] 风险门槛：只改 `ComponentDiagramExtractor` 的 KK2P/KK3P 多端口子模式；不启用 KK1P、不改普通候选、不改 rules、不隐藏 component_mapping issue。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "kk_multi_port"` -> `5 passed`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `16 passed`
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "input_matrix"` -> `2 passed, 4 deselected`
+  - targeted integration component slice -> `9 passed, 11 deselected`
+  - `python -m pytest -q` -> `225 passed`
+  - first-set fresh `.tmp/phase68_kk_slot_first/...`: `pair_count=1552`, `issue_count=458`, `component_mapping=104`, `kk_multi_port_component=36`
+  - first `S0022` 目标全命中：`5DK-1 -> ZD12`、`5DK-2 -> 5FD25`、`5DK-3 -> ZD4`、`5DK-4 -> 5FD1`、`1-2ZKK-1 -> 1-2UD1`、`1-2ZKK-2 -> 1-2n719`、`1-2ZKK-3 -> 1-2UD3`、`1-2ZKK-4 -> 1-2n720`、`1-2ZKK-5 -> 1-2UD5`、`1-2ZKK-6 -> 1-2n721`
+  - first 旧错配 `5DK-2 -> 5FD1`、`5DK-4 -> 5FD25`、`1-2ZKK-2 -> 1-2n721`、`1-2ZKK-4 -> 1-2n719` 不再作为 pass `component_mapping`
+  - second-set fresh `.tmp/phase68_kk_slot_second/2_2`: `pair_count=1601`, `issue_count=303`, `component_mapping=46`, `kk_multi_port_component=28`
+  - second 代表目标 `1-21DK2-1 -> ZD8`、`1-21ZKK-2 -> 1-21n715` 命中；Phase52/66 input matrix 基线保持 `input_matrix_wire_mapping=168`、`covered_input_matrix_ordinary=336`
+- [ ] 下一刀建议：继续只读审计 acceptance suite 的结构化 golden 口径，或回到 Phase51 packaged sidecar/exe smoke；不要在同一刀混入 terminal/rules/UI。
 - **Status:** complete
 
 ## Errors Encountered

@@ -2123,6 +2123,38 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-06 (Phase 54 KK output slot geometry binding)
+- Started after commit `6972ede`.
+- Read-only recovery:
+  - `git status --short` still showed only external/concurrent files before edits: `doc/任务书.md`, `doc/page_findings/`, `doc/page_task_queue.md`.
+  - `task_plan.md`, `progress.md`, `doc/findings.md`, and `doc/任务书.md` all pointed to the same next slice: fix `4输出/6输出` KK2P/KK3P port geometry binding.
+- Read-only audit conclusions:
+  - Current `kk_multi_port_component` treated KK2P/KK3P ports as independent nearest-line endpoints.
+  - The taskbook requires fixed slot layouts: KK2P is 2 columns x 2 rows (`1/2`, `3/4`), KK3P is 3 columns x 2 rows (`1/2`, `3/4`, `5/6`).
+  - The old geometry swapped lower-row endpoints such as `5DK-2/4` and `1-2ZKK-2/4`, and missed top-row ports.
+- Implementation:
+  - Added slot-aware KK port binding in `src/dwg_audit/audit/component_diagrams.py`.
+  - `_nearest_kk_external_endpoint()` now binds external endpoints by same-column x and above/below row direction instead of the far endpoint of the nearest horizontal line.
+  - Added `_kk_port_slot()` and `_nearest_kk_slot_supporting_group()` to keep line evidence while using fixed output-slot semantics.
+  - Updated KK unit tests in `tests/unit/test_component_diagrams.py` to use realistic 2-row geometry and assert the taskbook targets.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "kk_multi_port"` -> `5 passed`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `16 passed`
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "input_matrix"` -> `2 passed, 4 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip"` -> `9 passed, 11 deselected`
+  - `python -m pytest -q` -> `225 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase68_kk_slot_first/...`: `pair_count=1552`, `issue_count=458`, `component_mapping=104`, `kk_multi_port_component=36`.
+  - first `S0022 / 21 元件接线图1.dwg` now hits all taskbook targets: `5DK-1 -> ZD12`, `5DK-2 -> 5FD25`, `5DK-3 -> ZD4`, `5DK-4 -> 5FD1`, `1-2ZKK-1 -> 1-2UD1`, `1-2ZKK-2 -> 1-2n719`, `1-2ZKK-3 -> 1-2UD3`, `1-2ZKK-4 -> 1-2n720`, `1-2ZKK-5 -> 1-2UD5`, `1-2ZKK-6 -> 1-2n721`.
+  - old first wrong pass mappings are gone: `5DK-2 -> 5FD1`, `5DK-4 -> 5FD25`, `1-2ZKK-2 -> 1-2n721`, `1-2ZKK-4 -> 1-2n719`.
+  - second fresh `.tmp/phase68_kk_slot_second/2_2`: `pair_count=1601`, `issue_count=303`, `component_mapping=46`, `kk_multi_port_component=28`.
+  - second `S0019 / 19 元件接线图1.dwg` representative targets now hit: `1-21DK2-1 -> ZD8`, `1-21ZKK-2 -> 1-21n715`.
+  - Phase52/66 input-matrix evidence did not regress: `input_matrix_wire_mapping=168`, `covered_input_matrix_ordinary=336`, `issue_count=303`.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-06 (Phase 53 small port box component mapping)
 - Started after commit `9127db5`.
 - Read-only recovery:

@@ -51,8 +51,9 @@ _KK_BODY_Y_MIN_GAP = 3.0
 _KK_BODY_Y_MAX_GAP = 36.0
 _KK_HORIZONTAL_LINE_Y_TOL = 4.5
 _KK_HORIZONTAL_LINE_X_TOL = 18.0
-_KK_ENDPOINT_LINE_X_TOL = 26.0
-_KK_ENDPOINT_LINE_Y_TOL = 8.0
+_KK_SLOT_ENDPOINT_X_TOL = 8.0
+_KK_SLOT_ENDPOINT_Y_MIN_GAP = 1.0
+_KK_SLOT_ENDPOINT_Y_MAX_GAP = 18.0
 _SMALL_PORT_BLOCK_X_TOL = 26.0
 _SMALL_PORT_BLOCK_Y_TOL = 42.0
 _SMALL_PORT_BODY_X_TOL = 18.0
@@ -173,30 +174,30 @@ def extract_kk_multi_port_component_pairs(
                 continue
             excluded_text_ids = {body.text_id, *(port.text_id for port in ports_by_number.values())}
             used_endpoint_text_ids: set[str] = set()
-            used_group_sides: set[tuple[str, str]] = set()
             for port_number in sorted(ports_by_number, key=int):
-                port = ports_by_number[port_number]
-                support_group = _nearest_supporting_horizontal_group(port, sheet_groups)
-                if support_group is None:
+                port_slot = _kk_port_slot(port_count, port_number)
+                if port_slot is None:
                     continue
+                port = ports_by_number[port_number]
                 endpoint = _nearest_kk_external_endpoint(
                     port,
-                    support_group,
                     sheet_texts,
+                    port_slot=port_slot,
                     excluded_text_ids=excluded_text_ids,
+                    used_endpoint_text_ids=used_endpoint_text_ids,
                 )
                 if endpoint is None:
                     continue
                 endpoint_value = _clean_external_endpoint(endpoint.normalized_text)
                 if not _is_valid_external_endpoint(endpoint_value):
                     continue
-                endpoint_side = _endpoint_side(port, endpoint)
-                group_side = (support_group.line_group_id, endpoint_side)
-                if endpoint.text_id in used_endpoint_text_ids or group_side in used_group_sides:
+                support_group = _nearest_kk_slot_supporting_group(port, endpoint, sheet_groups)
+                if support_group is None:
+                    continue
+                if endpoint.text_id in used_endpoint_text_ids:
                     continue
                 logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
                 used_endpoint_text_ids.add(endpoint.text_id)
-                used_group_sides.add(group_side)
                 consumed_group_ids.add(support_group.line_group_id)
                 pairs.append(
                     _build_kk_multi_port_pair(
@@ -472,25 +473,41 @@ def _nearest_supporting_horizontal_group(port: TextItem, line_groups: list[LineG
     )[0][0]
 
 
+def _kk_port_slot(port_count: int, port_number: str) -> tuple[str, int] | None:
+    try:
+        number = int(port_number)
+    except ValueError:
+        return None
+    if number < 1 or number > port_count:
+        return None
+    if port_count == 4:
+        if number in {1, 2}:
+            column = 0
+        elif number in {3, 4}:
+            column = 1
+        else:
+            return None
+    elif port_count == 6:
+        column = (number - 1) // 2
+    else:
+        return None
+    row = "top" if number % 2 == 1 else "bottom"
+    return row, column
+
+
 def _nearest_kk_external_endpoint(
     port: TextItem,
-    support_group: LineGroup,
     texts: list[TextItem],
     *,
+    port_slot: tuple[str, int],
     excluded_text_ids: set[str],
+    used_endpoint_text_ids: set[str],
 ) -> TextItem | None:
-    port_x, _ = _text_center(port)
-    start_distance = abs(support_group.start_x - port_x)
-    end_distance = abs(support_group.end_x - port_x)
-    if start_distance >= end_distance:
-        endpoint_x, endpoint_y = support_group.start_x, support_group.start_y
-    else:
-        endpoint_x, endpoint_y = support_group.end_x, support_group.end_y
-    direction = 1 if endpoint_x >= port_x else -1
-
+    row, _ = port_slot
+    port_x, port_y = _text_center(port)
     candidates = []
     for text in texts:
-        if text.text_id in excluded_text_ids:
+        if text.text_id in excluded_text_ids or text.text_id in used_endpoint_text_ids:
             continue
         if text.source_block_name:
             continue
@@ -499,25 +516,58 @@ def _nearest_kk_external_endpoint(
         if not _is_valid_external_endpoint(_clean_external_endpoint(text.normalized_text)):
             continue
         center_x, center_y = _text_center(text)
-        if direction > 0 and center_x < port_x:
+        if abs(center_x - port_x) > _KK_SLOT_ENDPOINT_X_TOL:
             continue
-        if direction < 0 and center_x > port_x:
+        y_gap = center_y - port_y if row == "top" else port_y - center_y
+        if not (_KK_SLOT_ENDPOINT_Y_MIN_GAP <= y_gap <= _KK_SLOT_ENDPOINT_Y_MAX_GAP):
             continue
-        if abs(center_x - endpoint_x) > _KK_ENDPOINT_LINE_X_TOL:
-            continue
-        if abs(center_y - endpoint_y) > _KK_ENDPOINT_LINE_Y_TOL:
-            continue
-        candidates.append(text)
+        candidates.append((text, y_gap))
     if not candidates:
         return None
     return sorted(
         candidates,
         key=lambda item: (
-            abs(_text_center(item)[0] - endpoint_x),
-            abs(_text_center(item)[1] - endpoint_y),
-            item.text_id,
+            abs(_text_center(item[0])[0] - port_x),
+            item[1],
+            item[0].text_id,
         ),
-    )[0]
+    )[0][0]
+
+
+def _nearest_kk_slot_supporting_group(
+    port: TextItem,
+    endpoint: TextItem,
+    line_groups: list[LineGroup],
+) -> LineGroup | None:
+    port_x, port_y = _text_center(port)
+    endpoint_x, endpoint_y = _text_center(endpoint)
+    min_y = min(port_y, endpoint_y) - _KK_HORIZONTAL_LINE_Y_TOL
+    max_y = max(port_y, endpoint_y) + _KK_HORIZONTAL_LINE_Y_TOL
+    candidates = []
+    for group in line_groups:
+        if group.orientation != "horizontal":
+            continue
+        group_y = (group.start_y + group.end_y) / 2.0
+        if not (min_y <= group_y <= max_y):
+            continue
+        min_x = min(group.start_x, group.end_x)
+        max_x = max(group.start_x, group.end_x)
+        port_gap = 0.0 if min_x <= port_x <= max_x else min(abs(port_x - min_x), abs(port_x - max_x))
+        endpoint_gap = (
+            0.0
+            if min_x <= endpoint_x <= max_x
+            else min(abs(endpoint_x - min_x), abs(endpoint_x - max_x))
+        )
+        if max(port_gap, endpoint_gap) > _KK_HORIZONTAL_LINE_X_TOL:
+            continue
+        mid_y = (port_y + endpoint_y) / 2.0
+        candidates.append((group, abs(group_y - mid_y), port_gap + endpoint_gap))
+    if not candidates:
+        return None
+    return sorted(
+        candidates,
+        key=lambda item: (item[1], item[2], -item[0].length, item[0].line_group_id),
+    )[0][0]
 
 
 def _small_port_box_endpoint_side(port: TextItem, ports_by_number: dict[str, TextItem]) -> str:
@@ -754,12 +804,6 @@ def _is_valid_small_port_external_endpoint(value: str | None) -> bool:
 
 def _text_center(text: TextItem) -> tuple[float, float]:
     return ((text.bbox_min_x + text.bbox_max_x) / 2.0, (text.bbox_min_y + text.bbox_max_y) / 2.0)
-
-
-def _endpoint_side(port: TextItem, endpoint: TextItem) -> str:
-    port_x, _ = _text_center(port)
-    endpoint_x, _ = _text_center(endpoint)
-    return "right" if endpoint_x >= port_x else "left"
 
 
 def _component_bbox_from_items(items: list[TextItem]) -> list[float]:

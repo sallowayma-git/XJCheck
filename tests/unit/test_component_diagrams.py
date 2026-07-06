@@ -249,28 +249,26 @@ def test_extract_strip_two_port_component_pairs_requires_two_valid_external_endp
 
 def test_extract_kk_multi_port_component_pairs_builds_kk2p_four_outputs() -> None:
     sheet = _make_sheet()
-    block = _make_block("B_KK2P", "KK2P")
+    block = _make_block("B_KK2P", "KK2P", x=87.5, y=252.5)
     texts = [
-        _make_text("BODY", "5DK", 100.0, 112.0, layer="MARK"),
-        _make_text("P1", "1", 100.0, 90.0, layer="0", source_block_name="KK2P"),
-        _make_text("P2", "2", 100.0, 80.0, layer="0", source_block_name="KK2P"),
-        _make_text("P3", "3", 100.0, 70.0, layer="0", source_block_name="KK2P"),
-        _make_text("P4", "4", 100.0, 60.0, layer="0", source_block_name="KK2P"),
-        _make_text("E1", "ZD12", 20.0, 90.0, bbox=(139.0, 89.0, 141.0, 91.0)),
-        _make_text("E2", "5FD25", 139.0, 80.0),
-        _make_text("E3", "ZD4", 139.0, 70.0),
-        _make_text("E4", "5FD1", 139.0, 60.0),
+        _make_text("BODY", "5DK", 85.0, 279.0, layer="MARK"),
+        _make_text("P1", "1", 79.0, 262.0, layer="0", source_block_name="KK2P"),
+        _make_text("P2", "2", 79.0, 240.0, layer="0", source_block_name="KK2P"),
+        _make_text("P3", "3", 94.0, 262.0, layer="0", source_block_name="KK2P"),
+        _make_text("P4", "4", 94.0, 240.0, layer="0", source_block_name="KK2P"),
+        _make_text("E1", "& ZD12", 78.0, 269.0),
+        _make_text("E2", "& 5FD25", 78.0, 233.5),
+        _make_text("E3", "& ZD4", 98.0, 269.0),
+        _make_text("E4", "& 5FD1", 98.0, 233.5),
     ]
     groups = [
-        _make_horizontal_group("G1", 90.0),
-        _make_horizontal_group("G2", 80.0),
-        _make_horizontal_group("G3", 70.0),
-        _make_horizontal_group("G4", 60.0),
+        _make_horizontal_group("G_TOP", 267.5, start_x=75.0, end_x=100.0),
+        _make_horizontal_group("G_BOTTOM", 237.5, start_x=75.0, end_x=100.0),
     ]
 
     pairs, consumed = extract_kk_multi_port_component_pairs([sheet], texts, groups, [block])
 
-    assert consumed == {"G1", "G2", "G3", "G4"}
+    assert consumed == {"G_TOP", "G_BOTTOM"}
     assert {(pair.left_value, pair.right_value) for pair in pairs} == {
         ("5DK-1", "ZD12"),
         ("5DK-2", "5FD25"),
@@ -281,72 +279,77 @@ def test_extract_kk_multi_port_component_pairs_builds_kk2p_four_outputs() -> Non
     assert all(pair.status == "pass" for pair in pairs)
     first = next(pair for pair in pairs if pair.left_value == "5DK-1")
     assert first.confidence == 0.95
-    assert first.right_coord_x == 140.0
+    assert first.right_coord_x == 79.0
     assert first.evidence["source"] == "component_mapping"
     assert first.evidence["submode"] == "kk_multi_port_component"
     assert first.evidence["component_submode"] == "kk_multi_port_component"
     assert first.evidence["component_block_name"] == "KK2P"
     assert first.evidence["component_port_text_id"] == "P1"
     assert first.evidence["external_endpoint_text_id"] == "E1"
+    assert next(pair for pair in pairs if pair.left_value == "5DK-2").evidence["external_endpoint_text_id"] == "E2"
+    assert next(pair for pair in pairs if pair.left_value == "5DK-4").evidence["external_endpoint_text_id"] == "E4"
 
 
-def test_extract_kk_multi_port_component_pairs_builds_kk3p_partial_outputs_only() -> None:
+def test_extract_kk_multi_port_component_pairs_builds_kk3p_six_outputs() -> None:
     sheet = _make_sheet()
-    block = _make_block("B_KK3P", "KK3P", y=95.0)
+    block = _make_block("B_KK3P", "KK3P", x=292.5, y=247.5)
     texts = [
-        _make_text("BODY", "1-2ZKK", 100.0, 141.0, layer="MARK"),
-        _make_text("P1", "1", 100.0, 120.0, layer="0", source_block_name="KK3P"),
-        _make_text("P2", "2", 100.0, 110.0, layer="0", source_block_name="KK3P"),
-        _make_text("P3", "3", 100.0, 100.0, layer="0", source_block_name="KK3P"),
-        _make_text("P4", "4", 100.0, 90.0, layer="0", source_block_name="KK3P"),
-        _make_text("P5", "5", 100.0, 80.0, layer="0", source_block_name="KK3P"),
-        _make_text("P6", "6", 100.0, 70.0, layer="0", source_block_name="KK3P"),
-        _make_text("E1", "1-2UD1", 179.0, 120.0),
-        _make_text("E2", "1-2n719", 179.0, 110.0),
-        _make_text("E6", "1-2n721", 179.0, 70.0),
+        _make_text("BODY", "1-2ZKK", 289.0, 279.0, layer="MARK"),
+        _make_text("P1", "1", 279.0, 257.0, layer="0", source_block_name="KK3P"),
+        _make_text("P2", "2", 279.0, 235.0, layer="0", source_block_name="KK3P"),
+        _make_text("P3", "3", 293.0, 257.0, layer="0", source_block_name="KK3P"),
+        _make_text("P4", "4", 293.0, 235.0, layer="0", source_block_name="KK3P"),
+        _make_text("P5", "5", 307.0, 257.0, layer="0", source_block_name="KK3P"),
+        _make_text("P6", "6", 307.0, 235.0, layer="0", source_block_name="KK3P"),
+        _make_text("E1", "& 1-2UD1", 279.0, 264.0),
+        _make_text("E2", "& 1-2n719", 279.0, 228.0),
+        _make_text("E3", "& 1-2UD3", 293.0, 269.0),
+        _make_text("E4", "& 1-2n720", 293.0, 223.0),
+        _make_text("E5", "& 1-2UD5", 307.0, 264.0),
+        _make_text("E6", "& 1-2n721", 307.0, 228.0),
     ]
     groups = [
-        _make_horizontal_group("G1", 120.0, end_x=180.0),
-        _make_horizontal_group("G2", 110.0, end_x=180.0),
-        _make_horizontal_group("G3", 100.0, end_x=180.0),
-        _make_horizontal_group("G4", 90.0, end_x=180.0),
-        _make_horizontal_group("G5", 80.0, end_x=180.0),
-        _make_horizontal_group("G6", 70.0, end_x=180.0),
+        _make_horizontal_group("G_TOP", 262.5, start_x=275.0, end_x=312.5),
+        _make_horizontal_group("G_TOP_MID", 267.5, start_x=287.5, end_x=302.5),
+        _make_horizontal_group("G_BOTTOM", 232.5, start_x=275.0, end_x=312.5),
+        _make_horizontal_group("G_BOTTOM_MID", 227.5, start_x=287.5, end_x=302.5),
     ]
 
     pairs, consumed = extract_kk_multi_port_component_pairs([sheet], texts, groups, [block])
 
-    assert consumed == {"G1", "G2", "G6"}
+    assert consumed == {"G_TOP", "G_BOTTOM", "G_BOTTOM_MID"}
     assert {(pair.left_value, pair.right_value) for pair in pairs} == {
         ("1-2ZKK-1", "1-2UD1"),
         ("1-2ZKK-2", "1-2n719"),
+        ("1-2ZKK-3", "1-2UD3"),
+        ("1-2ZKK-4", "1-2n720"),
+        ("1-2ZKK-5", "1-2UD5"),
         ("1-2ZKK-6", "1-2n721"),
     }
-    assert {pair.left_value for pair in pairs}.isdisjoint({"1-2ZKK-3", "1-2ZKK-4", "1-2ZKK-5"})
+    assert next(pair for pair in pairs if pair.left_value == "1-2ZKK-4").evidence["external_endpoint_text_id"] == "E4"
 
 
 def test_extract_kk_multi_port_component_pairs_does_not_force_missing_external_endpoint() -> None:
     sheet = _make_sheet()
-    block = _make_block("B_KK2P", "KK2P")
+    block = _make_block("B_KK2P", "KK2P", x=87.5, y=252.5)
     texts = [
-        _make_text("BODY", "1-21DK2", 100.0, 112.0, layer="MARK"),
-        _make_text("P1", "1", 100.0, 90.0, layer="0", source_block_name="KK2P"),
-        _make_text("P2", "2", 100.0, 80.0, layer="0", source_block_name="KK2P"),
-        _make_text("P3", "3", 100.0, 70.0, layer="0", source_block_name="KK2P"),
-        _make_text("P4", "4", 100.0, 60.0, layer="0", source_block_name="KK2P"),
-        _make_text("E1", "ZD8", 139.0, 90.0),
-        _make_text("E2", "1-21GD19", 139.0, 80.0),
-        _make_text("UNCLEAR", "719", 139.0, 70.0),
+        _make_text("BODY", "1-21DK2", 85.0, 279.0, layer="MARK"),
+        _make_text("P1", "1", 79.0, 262.0, layer="0", source_block_name="KK2P"),
+        _make_text("P2", "2", 79.0, 240.0, layer="0", source_block_name="KK2P"),
+        _make_text("P3", "3", 94.0, 262.0, layer="0", source_block_name="KK2P"),
+        _make_text("P4", "4", 94.0, 240.0, layer="0", source_block_name="KK2P"),
+        _make_text("E1", "ZD8", 79.0, 269.0),
+        _make_text("E2", "1-21GD19", 79.0, 233.5),
+        _make_text("UNCLEAR", "719", 94.0, 269.0),
     ]
     groups = [
-        _make_horizontal_group("G1", 90.0),
-        _make_horizontal_group("G2", 80.0),
-        _make_horizontal_group("G3", 70.0),
+        _make_horizontal_group("G_TOP", 267.5, start_x=75.0, end_x=100.0),
+        _make_horizontal_group("G_BOTTOM", 237.5, start_x=75.0, end_x=100.0),
     ]
 
     pairs, consumed = extract_kk_multi_port_component_pairs([sheet], texts, groups, [block])
 
-    assert consumed == {"G1", "G2"}
+    assert consumed == {"G_TOP", "G_BOTTOM"}
     assert {(pair.left_value, pair.right_value) for pair in pairs} == {
         ("1-21DK2-1", "ZD8"),
         ("1-21DK2-2", "1-21GD19"),
@@ -378,18 +381,18 @@ def test_extract_kk_multi_port_component_pairs_deduplicates_same_group_side_endp
     sheet = _make_sheet()
     block = _make_block("B_KK3P", "KK3P", x=120.0, y=95.0)
     texts = [
-        _make_text("BODY", "1-21ZKK", 120.0, 141.0, layer="MARK"),
-        _make_text("P4", "4", 118.0, 110.0, layer="0", source_block_name="KK3P"),
-        _make_text("P6", "6", 132.0, 110.0, layer="0", source_block_name="KK3P"),
-        _make_text("E4", "1-21n715", 99.0, 110.0),
+        _make_text("BODY", "1-21ZKK", 120.0, 125.0, layer="MARK"),
+        _make_text("P4", "4", 118.0, 90.0, layer="0", source_block_name="KK3P"),
+        _make_text("P6", "6", 124.0, 90.0, layer="0", source_block_name="KK3P"),
+        _make_text("E4", "1-21n715", 121.0, 82.0),
     ]
-    groups = [_make_horizontal_group("GZ", 110.0, start_x=100.0, end_x=140.0)]
+    groups = [_make_horizontal_group("GZ", 86.0, start_x=116.0, end_x=130.0)]
 
     pairs, consumed = extract_kk_multi_port_component_pairs([sheet], texts, groups, [block])
 
     assert consumed == {"GZ"}
     assert len(pairs) == 1
-    assert pairs[0].left_value in {"1-21ZKK-4", "1-21ZKK-6"}
+    assert pairs[0].left_value == "1-21ZKK-4"
     assert pairs[0].right_value == "1-21n715"
 
 
