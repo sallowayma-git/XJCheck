@@ -9083,3 +9083,63 @@ fresh second-set 非回归证据：
 
 - 本轮是 QD 型 first prefixed external endpoint residual 的结构化抽取与普通半边覆盖，不是扩大普通 numeric candidate，也不是 rules 静音。
 - 下一轮候选收缩为：FD prefixed external endpoint residual (`5FD25 -> 5n105`)、backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 只作为独立产品切片。
+
+## 129. 2026-07-07 FD prefixed external endpoint residual：`5FD25 -> 5n105` 进入结构化 wire-component 关系
+
+只读审计确认，first `S0012 / 11 非电量开入回路.dwg` 的 `PW0309 ? -> 105` 不是图纸错误，而是系统未理解 FD 前缀外部端。该行 `GW0309 [137.5,260.0] -> [172.5,260.0]` 附近存在 `T0801=5FD25` 与 `T0830=105`，页面标题为 `5n BINARY INPUT`，应形成 `5FD25 -> 5n105`。背板与元件结构化关系中已有 `NDY306A-5 -> 5FD25` 和 `5DK-2 -> 5FD25`，进一步说明 `5FD25` 是真实外部端。
+
+本轮实现：
+
+- 在 [wire_components.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/wire_components.py) 将 `_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN` 从 QD-only 扩为 `QD|FD`。
+- 保持 `first_prefixed_external_endpoint_mapping` submode 不变，仍只捕获数字前缀并合成 `prefix + n + local_number`。
+- 保持 ordinary 单侧 residual eligible gate、二次原理图 route boundary、同行/右侧局部号几何约束、非 `*-21QD*` input-matrix guard。
+- 不改 rules、table/component extractor、candidate 主逻辑、CLI/UI。
+- 在 [test_wire_components.py](/F:/workspace/XJToolkit/tests/unit/test_wire_components.py) 增加 FD 正例、FD eligibility 隔离和 `DK/YD/FX` 非授权字母负例。
+
+fresh first-set 证据：
+
+- `.tmp/phase76_fd_prefixed_first/...` + `.tmp/phase76_fd_prefixed_first_audit`
+- `pair_count=1589`
+- `issue_count=226`
+- `wire_component_mapping=59`
+- `first_prefixed_external_endpoint_mapping=27`
+- 目标命中：
+  - `5FD25 -> 5n105`
+  - `PW0309 ? -> 105` 已为 `ordinary_pair/discard`，并带 `covered_by_first_prefixed_external_endpoint_mapping=True`
+- 同族 FD residual 也被结构化：
+  - `5FD3 -> 5n114`
+  - `5FD26 -> 5n132`
+  - `5FD1 -> 5n103`
+- QD 目标仍保持：
+  - `1QD5 -> 1n105`
+  - `1-2QD12 -> 1-2n105`
+  - `3-2QD12 -> 3-2n105`
+
+fresh second-set 非回归证据：
+
+- `.tmp/phase76_fd_prefixed_second/2_2` + `.tmp/phase76_fd_prefixed_second_audit`
+- `pair_count=1460`
+- `issue_count=26`
+- `wire_component_mapping=245`
+- `input_matrix_wire_mapping=168`
+- `first_prefixed_external_endpoint_mapping=0`
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化关系。
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 均保持命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_wire_components.py -k "prefixed or input_matrix or inline_klp"` -> `12 passed`
+- `python -m pytest -q tests\unit\test_page_extractors.py -k "prefixed or input_matrix or terminal_prefixed"` -> `9 passed, 3 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "wire_component or missing_side or semantic_mapping"` -> `7 passed, 52 deselected`
+- `python -m pytest -q` -> `274 passed`
+
+裁决：
+
+- 本轮是 FD 型 first prefixed external endpoint residual 的窄扩展，只允许 `QD|FD`，不是任意字母端泛化。
+- 下一轮候选收缩为：second inline wire split `505` half-chain bridge、second component vertical `401` mapping upgrade、backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 仍为独立产品切片。

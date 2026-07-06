@@ -18,7 +18,10 @@ _INLINE_KLP_ENDPOINT_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:QD\d+|n\d+)$", re.IG
 _INLINE_KLP_LOCAL_NUMBER_PATTERN = re.compile(r"^\d{3}$")
 _INPUT_MATRIX_PREFIX_PATTERN = re.compile(r"^\d+-21n$", re.IGNORECASE)
 _INPUT_MATRIX_ROW_ENDPOINT_PATTERN = re.compile(r"^\d+-21QD\d+$", re.IGNORECASE)
-_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN = re.compile(r"^(?P<prefix>\d+(?:-\d+)?)QD\d+$", re.IGNORECASE)
+_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN = re.compile(
+    r"^(?P<prefix>\d+(?:-\d+)?)(?:QD|FD)\d+$",
+    re.IGNORECASE,
+)
 _ROW_Y_TOL = 1.5
 _PREFIX_X_TOL = 36.0
 _PREFIX_Y_SPAN = 130.0
@@ -437,7 +440,7 @@ def _build_first_prefixed_external_endpoint_pair(
         right_value=logical_endpoint,
         confidence=_COMPONENT_PAIR_CONFIDENCE,
         status="pass",
-        rationale="First prefixed external endpoint mapping: same-row QD endpoint associated with local number using its numeric prefix.",
+        rationale="First prefixed external endpoint mapping: same-row prefixed endpoint associated with local number using its numeric prefix.",
         alternative_pair_candidate_ids=[],
         confidence_bucket="high",
         evidence=evidence,

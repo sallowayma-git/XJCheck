@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 75
+Phase 76
 
 ## Phases
 
@@ -1039,6 +1039,23 @@ Phase 75
   - second fresh `.tmp/phase75_prefixed_external_second_v2/2_2` + `.tmp/phase75_prefixed_external_second_v2_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`。
   - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first KLP/ZLP/218 structured redlines held。
 - [ ] 下一刀候选收缩为：FD prefixed external endpoint residual (`5FD25 -> 5n105`)；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 76: FD Prefixed External Endpoint Residual
+- [x] 只读恢复并确认当前 HEAD 为 `1396809`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 parquet 核查一致确认：first `S0012 / 11 非电量开入回路.dwg` 的 `PW0309 ? -> 105` 是系统误解；`T0801=5FD25` 与 `T0830=105` 同行，页面 scope 为 `5n BINARY INPUT`，且背板/元件结构化证据中已有 `NDY306A-5 -> 5FD25`、`5DK-2 -> 5FD25` corroboration。
+- [x] 实现目标：将 `first_prefixed_external_endpoint_mapping` 的端点族从 QD 窄扩到 `QD|FD`，仍保留非 `*-21QD*`、二次原理图、同行、右侧局部号、ordinary 单侧 residual eligible gate；不改 rules、table/component extractor、candidate 主逻辑或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "prefixed or input_matrix or inline_klp"` -> `12 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "prefixed or input_matrix or terminal_prefixed"` -> `9 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "wire_component or missing_side or semantic_mapping"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `274 passed`
+  - first fresh `.tmp/phase76_fd_prefixed_first/...` + `.tmp/phase76_fd_prefixed_first_audit`: `pair_count=1589`, `issue_count=226`, `wire_component_mapping=59`；`first_prefixed_external_endpoint_mapping=27`。
+  - first FD targets hit: `5FD25 -> 5n105` plus same-family `5FD3 -> 5n114`、`5FD26 -> 5n132`、`5FD1 -> 5n103` on the 5n input page；`PW0309 ? -> 105` is now `ordinary_pair/discard` with `covered_by_first_prefixed_external_endpoint_mapping=True`。
+  - second fresh `.tmp/phase76_fd_prefixed_second/2_2` + `.tmp/phase76_fd_prefixed_second_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first KLP/ZLP/218 structured redlines held。
+- [ ] 下一刀候选收缩为：second inline wire split `505` half-chain bridge；second component vertical `401` mapping upgrade；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered

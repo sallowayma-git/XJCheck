@@ -173,6 +173,27 @@ def test_extract_component_prefixed_signal_pairs_builds_first_prefixed_external_
     assert first.evidence["logical_endpoint"] == "1n105"
 
 
+def test_extract_component_prefixed_signal_pairs_builds_fd_first_prefixed_external_endpoint_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("E1", "5FD25", 135.0, 262.0),
+        _make_text("N1", "105", 155.6, 260.7),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        first_prefixed_eligible_local_text_ids={"N1"},
+    )
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {("5FD25", "5n105")}
+    first = pairs[0]
+    assert first.evidence["component_submode"] == "first_prefixed_external_endpoint_mapping"
+    assert first.evidence["external_endpoint"] == "5FD25"
+    assert first.evidence["local_number"] == "105"
+    assert first.evidence["logical_endpoint"] == "5n105"
+
+
 def test_extract_component_prefixed_signal_pairs_filters_first_prefixed_by_eligible_local_text_ids() -> None:
     sheet = _make_sheet()
     texts = [
@@ -180,6 +201,8 @@ def test_extract_component_prefixed_signal_pairs_filters_first_prefixed_by_eligi
         _make_text("N1", "105", 135.6, 228.2),
         _make_text("E2", "1QD6", 110.0, 210.0),
         _make_text("N2", "132", 136.0, 209.2),
+        _make_text("E3", "5FD25", 110.0, 190.0),
+        _make_text("N3", "105", 136.0, 189.2),
     ]
 
     pairs = extract_component_prefixed_signal_pairs(
@@ -213,6 +236,26 @@ def test_extract_component_prefixed_signal_pairs_keeps_input_matrix_separate_fro
         pair.evidence["component_submode"] == "input_matrix_wire_mapping"
         for pair in pairs
     )
+
+
+def test_extract_component_prefixed_signal_pairs_rejects_unapproved_first_prefixed_letters() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("E1", "5DK25", 110.0, 229.2),
+        _make_text("N1", "105", 135.6, 228.2),
+        _make_text("E2", "5YD25", 110.0, 210.0),
+        _make_text("N2", "106", 136.0, 209.2),
+        _make_text("E3", "5FX25", 110.0, 190.0),
+        _make_text("N3", "107", 136.0, 189.2),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        first_prefixed_eligible_local_text_ids={"N1", "N2", "N3"},
+    )
+
+    assert pairs == []
 
 
 def test_extract_component_prefixed_signal_pairs_requires_secondary_sheet_for_first_prefixed() -> None:

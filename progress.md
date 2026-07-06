@@ -2836,3 +2836,36 @@
   - FD prefixed external endpoint residual (`5FD25 -> 5n105`).
   - backplate/component/table mapping rules semantics.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 76 FD prefixed external endpoint residual)
+- Started after commit `1396809`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits.
+  - Spawned read-only explorers for taskbook alignment, real-sample residual mining, and source/verification boundary review.
+- Read-only audit conclusions:
+  - Taskbook alignment picked FD prefixed external endpoint residual as the next P0 minimum slice; rules semantics was too broad for one round, and product smoke remains a separate product track.
+  - Real-sample audit confirmed `PW0309 / S0012 / 11 非电量开入回路.dwg` has `T0801=5FD25` and `T0830=105` on the same row, with page scope `5n BINARY INPUT`; expected relation is `5FD25 -> 5n105`.
+  - Corroborating structured evidence already exists in backplate/component mappings: `NDY306A-5 -> 5FD25` and `5DK-2 -> 5FD25`.
+- Implementation:
+  - Extended `_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN` from QD-only to `QD|FD`, still capturing only the numeric prefix.
+  - Kept the existing `first_prefixed_external_endpoint_mapping` submode, ordinary single-sided local-text eligibility gate, non-`*-21QD*` input-matrix guard, row/x constraints, and 二次原理图 route boundary.
+  - Updated rationale wording from QD-specific to prefixed endpoint.
+  - Added FD positive coverage, FD eligibility isolation, and unapproved letter negative cases (`DK/YD/FX`) in `test_wire_components.py`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "prefixed or input_matrix or inline_klp"` -> `12 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "prefixed or input_matrix or terminal_prefixed"` -> `9 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "wire_component or missing_side or semantic_mapping"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `274 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase76_fd_prefixed_first/...` + `.tmp/phase76_fd_prefixed_first_audit`: `pair_count=1589`, `issue_count=226`, `wire_component_mapping=59`, `first_prefixed_external_endpoint_mapping=27`.
+  - Target hit: `5FD25 -> 5n105` is `wire_component_mapping/pass`; `PW0309 ? -> 105` is now `ordinary_pair/discard` with `covered_by_first_prefixed_external_endpoint_mapping=True`.
+  - Same-family first-set FD residuals also mapped: `5FD3 -> 5n114`, `5FD26 -> 5n132`, `5FD1 -> 5n103`.
+  - second fresh `.tmp/phase76_fd_prefixed_second/2_2` + `.tmp/phase76_fd_prefixed_second_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first KLP/ZLP/218 structured mappings.
+- Next candidates:
+  - second inline wire split `505` half-chain bridge.
+  - second component vertical `401` mapping upgrade.
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.
