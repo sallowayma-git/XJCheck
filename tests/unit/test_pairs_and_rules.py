@@ -2197,6 +2197,208 @@ def test_build_issues_keeps_same_backplate_virtual_table_scope_as_generic_review
     assert issue.evidence["one_to_many_classification"] == "review"
 
 
+def test_build_issues_classifies_structured_mapping_shared_endpoint_scope_review() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            "PCK0006",
+            "GC0019",
+            "S0022",
+            "F0022",
+            None,
+            "5DK-2",
+            "5FD25",
+            0.95,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "filename": "21 元件接线图1.dwg",
+                "component_submode": "kk_multi_port_component",
+                "logical_endpoint": "5DK-2",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P0168",
+            "nan",
+            "S0021",
+            "F0021",
+            None,
+            "NDY306A-5",
+            "5FD25",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "filename": "20 非电量保护背板图.dwg",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-814E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                    "logical_endpoint": "NDY306A-5",
+                    "right_value": "5FD25",
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0021", "F0021", "20 非电量保护背板图.dwg", 21, "20", "5n REAR WIRING", "背板图", "primary", "filename", True),
+        SheetRecord("S0022", "F0022", "21 元件接线图1.dwg", 22, "21", "TERMINAL BLOCKS WIRING", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    issue = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert issue.title == "背板结构化端点汇合待复核"
+    assert issue.evidence["many_to_one_classification"] == "backplate_structured_shared_endpoint_review"
+    assert issue.evidence["shared_endpoint"] == "5FD25"
+    assert issue.evidence["pair_kinds"] == ["component_mapping", "table_mapping"]
+    assert issue.evidence["component_submodes"] == ["kk_multi_port_component"]
+    assert issue.evidence["table_mapping_modes"] == ["backplate_virtual_table"]
+
+
+def test_build_issues_keeps_terminal_only_shared_endpoint_on_generic_many_to_one() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            "PTM0051",
+            "nan",
+            "S0027",
+            "F0027",
+            None,
+            "1-2QD7",
+            "KD23",
+            0.95,
+            "pass",
+            "terminal table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "row_number_sequence_valid": True,
+                    "header_prefix": "1-2QD",
+                    "row_number": 7,
+                    "logical_endpoint": "1-2QD7",
+                    "right_value": "KD23",
+                    "right_text_id": "T1",
+                    "right_coord": [10.0, 20.0],
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTM0054",
+            "nan",
+            "S0027",
+            "F0027",
+            None,
+            "1-2QD8",
+            "KD23",
+            0.95,
+            "pass",
+            "terminal table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "row_number_sequence_valid": True,
+                    "header_prefix": "1-2QD",
+                    "row_number": 8,
+                    "logical_endpoint": "1-2QD8",
+                    "right_value": "KD23",
+                    "right_text_id": "T2",
+                    "right_coord": [12.0, 18.0],
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0027", "F0027", "26 右侧端子图1.dwg", 27, "26", "RIGHT TERMINAL 1", "端子图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    issue = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert issue.title == "多对一配对"
+    assert "many_to_one_classification" not in issue.evidence
+
+
+def test_build_issues_keeps_non_backplate_structured_shared_endpoint_generic() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            "PCM0050",
+            "GC0106",
+            "S0023",
+            "F0023",
+            None,
+            "1CLP2-1",
+            "KD6",
+            0.95,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+                "logical_endpoint": "1CLP2-1",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "PTM0019",
+            "nan",
+            "S0025",
+            "F0025",
+            None,
+            "3-4QD7",
+            "KD6",
+            0.95,
+            "pass",
+            "terminal table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "row_number_sequence_valid": True,
+                    "header_prefix": "3-4QD",
+                    "row_number": 7,
+                    "logical_endpoint": "3-4QD7",
+                    "right_value": "KD6",
+                    "right_text_id": "T1",
+                    "right_coord": [10.0, 20.0],
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0023", "F0023", "22 元件接线图2.dwg", 23, "22", "TERMINAL BLOCKS WIRING", "元件接线图", "supplemental", "filename", True),
+        SheetRecord("S0025", "F0025", "24 左侧端子图1.dwg", 25, "24", "LEFT TERMINAL 1", "端子图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    issue = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert issue.title == "多对一配对"
+    assert "many_to_one_classification" not in issue.evidence
+
+
 def test_build_issues_treats_component_mapping_pairs_as_high_confidence_source() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     pairs = [

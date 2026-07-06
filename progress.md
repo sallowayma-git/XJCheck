@@ -2257,6 +2257,40 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-07 (Phase 64 backplate structured shared endpoint review)
+- Started after commit `33b9681`.
+- Read-only recovery:
+  - Read `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Current dirty state before edits only had protected untracked external paths: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Four read-only explorers audited terminal-header aggregation, inline wire residuals, and remaining many-to-one rules semantics.
+- Audit conclusion:
+  - Phase77 first had `37` `R-MANY-TO-ONE`: `12` component split endpoint reviews, `7` terminal header shared endpoint reviews, and `18` generic `多对一配对`.
+  - Of the `18` generic issues, `16` involved `backplate_virtual_table` sharing an external endpoint with a component mapping, terminal-header table mapping, or another backplate virtual table row.
+  - Two non-backplate boundaries were intentionally left generic: `KD6` (`strip_two_port_component + terminal_header_table`) and `KD23` (pure `terminal_header_table`).
+- Implementation:
+  - Added `_structured_mapping_shared_endpoint_scope_info()` in `src/dwg_audit/audit/rules.py`.
+  - `_run_many_to_one()` now emits title `背板结构化端点汇合待复核` with `many_to_one_classification=backplate_structured_shared_endpoint_review` only when all linked pairs are structured `table_mapping/component_mapping` and at least one mapping is `backplate_virtual_table`.
+  - Added focused unit tests proving component+backplate shared endpoint is classified, while pure terminal and component+terminal non-backplate shared endpoints remain generic.
+  - No extractor, PairBuilder, CLI/UI, graph relationship, or acceptance fixture behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or non_backplate_structured or many_to_one or backplate or terminal_header"` -> `11 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `53 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `241 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase78_backplate_structured_shared_first/...`: `pair_count=1550`, `issue_count=311`, pair kinds unchanged (`ordinary_pair=800`, `table_mapping=299`, `continuation=175`, `component_mapping=138`, `semantic_mapping=103`, `wire_component_mapping=32`, `bridge_mapping=3`).
+  - first `R-MANY-TO-ONE` classifications: `backplate_structured_shared_endpoint_review=16`, `component_split_endpoint_group_review=12`, `terminal_header_table_shared_endpoint_review=7`, generic `<none>=2`.
+  - Representative reclassified issues: `5KLP8-1` (`PCM0089 + P0211`), `1QD5` (`PCK0002 + P0002`), `5FD25` (`PCK0006 + P0168`).
+  - Remaining generic boundaries intentionally preserved: `KD6` (`PCM0050 + PTM0019 + PTM0025`) and `KD23` (`PTM0051 + PTM0054`).
+  - second fresh `.tmp/phase78_backplate_structured_shared_second/2_2`: `pair_count=1460`, `issue_count=188`, pair kinds unchanged; `backplate_structured_shared_endpoint_review=0`.
+  - second redlines held: `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`, and `semantic_table_mapping_pass_endpoint_count=0`.
+- Next candidates:
+  - `terminal_header_table issue aggregation`
+  - `inline signal page ordinary residual wire-chain guardrail`
+- External/concurrent paths intentionally not touched:
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-07 (Phase 59 inline numeric bridge bbox coverage)
 - Started after commit `ca2d8fc`.
 - Read-only recovery:

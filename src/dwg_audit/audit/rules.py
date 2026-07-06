@@ -713,6 +713,36 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 )
                 continue
 
+            structured_scope_info = _structured_mapping_shared_endpoint_scope_info(
+                linked_pairs,
+                shared_value=right_value,
+            )
+            if structured_scope_info is not None:
+                sheet_ids = {pair.sheet_id for pair in linked_pairs}
+                issues.append(
+                    context.issue_factory.build(
+                        "R-MANY-TO-ONE",
+                        "review",
+                        pair=first,
+                        message=f"Backplate structured mappings share endpoint {right_value} across table/component scopes.",
+                        title="背板结构化端点汇合待复核",
+                        explanation=(
+                            "背板虚拟表格与其他结构化 table/component 映射共同指向同一个外部端点。"
+                            "这通常是背板表格、端子表或元件端口在同一物理端子处汇合的作用域现象，"
+                            "应按结构化证据复核，而不是按普通线端多对一直接解释。"
+                        ),
+                        recommended_action="核对共享端点、背板表格行、端子表行和元件端口，确认这些结构化关系是否共同引用同一物理端子。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(lefts),
+                            "sheet_ids": sorted(sheet_ids),
+                            "many_to_one_classification": "backplate_structured_shared_endpoint_review",
+                            **structured_scope_info,
+                        },
+                    )
+                )
+                continue
+
             issues.append(
                 context.issue_factory.build(
                     "R-MANY-TO-ONE",
@@ -807,6 +837,74 @@ def _is_backplate_virtual_table_scope_review(linked_pairs: list[Pair]) -> bool:
         if mapping.get("mapping_mode") != "backplate_virtual_table":
             return False
     return True
+
+
+def _structured_mapping_shared_endpoint_scope_info(
+    linked_pairs: list[Pair],
+    *,
+    shared_value: str,
+) -> dict[str, object] | None:
+    if not linked_pairs:
+        return None
+
+    pair_kinds = {getattr(pair, "pair_kind", "ordinary_pair") for pair in linked_pairs}
+    if not pair_kinds.issubset({"table_mapping", "component_mapping"}):
+        return None
+
+    table_modes: set[str] = set()
+    component_submodes: set[str] = set()
+    source_block_names: set[str] = set()
+    header_prefixes: set[str] = set()
+    logical_endpoints: set[str] = set()
+    filenames: set[str] = set()
+    for pair in linked_pairs:
+        if pair.right_value != shared_value:
+            return None
+        if pair.left_value:
+            logical_endpoints.add(str(pair.left_value))
+        evidence = pair.evidence or {}
+        filename = evidence.get("filename")
+        if filename:
+            filenames.add(str(filename))
+
+        if getattr(pair, "pair_kind", "ordinary_pair") == "table_mapping":
+            mapping = _table_mapping_evidence(pair)
+            mode = mapping.get("mapping_mode")
+            if isinstance(mode, str) and mode:
+                table_modes.add(mode)
+            source_block_name = mapping.get("source_block_name")
+            if source_block_name:
+                source_block_names.add(str(source_block_name))
+            header_prefix = mapping.get("header_prefix")
+            if header_prefix:
+                header_prefixes.add(str(header_prefix))
+        elif getattr(pair, "pair_kind", "ordinary_pair") == "component_mapping":
+            submode = evidence.get("component_submode") or evidence.get("submode")
+            if isinstance(submode, str) and submode:
+                component_submodes.add(submode)
+
+    # Keep terminal/component-only fan-in on their narrower paths. This branch is
+    # only for shared physical endpoints involving a backplate virtual table.
+    if "backplate_virtual_table" not in table_modes:
+        return None
+
+    result: dict[str, object] = {
+        "shared_endpoint": shared_value,
+        "pair_kinds": sorted(str(kind) for kind in pair_kinds),
+        "structured_scope_kind": "backplate_shared_endpoint",
+        "logical_endpoints": sorted(logical_endpoints),
+    }
+    if table_modes:
+        result["table_mapping_modes"] = sorted(table_modes)
+    if component_submodes:
+        result["component_submodes"] = sorted(component_submodes)
+    if source_block_names:
+        result["source_block_names"] = sorted(source_block_names)
+    if header_prefixes:
+        result["header_prefixes"] = sorted(header_prefixes)
+    if filenames:
+        result["filenames"] = sorted(filenames)
+    return result
 
 
 def _backplate_virtual_table_same_sheet_scope_info(linked_pairs: list[Pair]) -> dict[str, object] | None:

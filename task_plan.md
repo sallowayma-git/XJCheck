@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 63
+Phase 64
 
 ## Phases
 
@@ -833,6 +833,24 @@ Phase 63
   - first target pairs remain pass `table_mapping`: `NKR308A-1 -> 5FD11`、`NKR308A-1 -> 5FD15`、`NKR308A-7 -> 5KLP1-2`、`NKR308A-7 -> 5KLP5-2`
   - second fresh `.tmp/phase77_backplate_same_sheet_second/2_2`: `pair_count=1460`, `issue_count=188`, pair_kind unchanged；terminal_header_table and semantic endpoint redlines unchanged。
 - [ ] 下一刀候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`、`backplate/component many-to-one scope semantics`；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 64: Backplate Structured Shared Endpoint Review
+- [x] 只读恢复并确认当前 HEAD 为 `33b9681`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四个只读 explorer 与主线程 phase77 产物核查一致确认：first-set `R-MANY-TO-ONE` 剩余 18 条 generic 中，16 条含 `backplate_virtual_table` 与 `component_mapping`/`terminal_header_table`/背板虚拟表共享外部端点，属于 rules 语义过严；`KD6` component+terminal 与 `KD23` 纯 terminal-header 边界不纳入本轮。
+- [x] 实现目标：保留所有 `table_mapping/pass` 与 `component_mapping/pass` 图关系和 issue 可见性，只把含背板虚拟表的结构化共享端点 many-to-one 重分类为 `backplate_structured_shared_endpoint_review`。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；必须含 `backplate_virtual_table` 才触发；普通 pair、纯 `terminal_header_table`、component+terminal 非背板共享端点仍保持 generic。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or non_backplate_structured or many_to_one or backplate or terminal_header"` -> `11 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `53 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `241 passed`
+  - first fresh `.tmp/phase78_backplate_structured_shared_first/...`: `pair_count=1550`, `issue_count=311`, pair_kind unchanged；`R-MANY-TO-ONE` 中 `backplate_structured_shared_endpoint_review=16`，generic `多对一配对` 从 `18` 降到 `2`
+  - first target examples reclassified: `5KLP8-1` (`PCM0089 + P0211`), `1QD5` (`PCK0002 + P0002`), `5FD25` (`PCK0006 + P0168`)。
+  - remaining generic boundaries intentionally preserved: `KD6` (`PCM0050 + PTM0019 + PTM0025`) and `KD23` (`PTM0051 + PTM0054`)。
+  - second fresh `.tmp/phase78_backplate_structured_shared_second/2_2`: `pair_count=1460`, `issue_count=188`, pair_kind unchanged；`backplate_structured_shared_endpoint_review=0`，`terminal_header_table_shared_endpoint_review=21`。
+  - second redlines held: `1-21QD34 -> 1-21n218` and `3-21QD28 -> 3-21n218` remain `wire_component_mapping/pass`; `1-21GD9 -> 1-21n218` remains `table_mapping/pass`; `semantic_table_mapping_pass_endpoint_count=0`。
+- [ ] 下一刀候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual wire-chain guardrail`；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
 ## Errors Encountered

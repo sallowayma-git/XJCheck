@@ -8298,3 +8298,104 @@ fresh second-set 非回归证据：
 - 本轮是 rules 语义重分类，不是 extractor 补缺，也不是 issue 隐藏。
 - 背板虚拟表 `table_mapping/pass` 仍完整进入图；issue_count 和 rule_count 不变，只让同页背板表格复用有可解释分类。
 - 下一轮候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`、`backplate/component many-to-one scope semantics`。
+
+## 117. 2026-07-07 backplate structured shared endpoint review：背板虚拟表与结构化映射共享外部端点不再泛化成普通多对一
+
+只读审计确认，Phase77 first 的 `R-MANY-TO-ONE` 剩余 generic `多对一配对` 共有 18 条，其中 16 条都含 `backplate_virtual_table`。这些关系不是 extractor 缺失，也不是应删除的图关系；它们表示背板虚拟表、元件端口或端子表在同一实际外部端点处汇合。
+
+真实缺陷：
+
+- first-set `21 元件接线图1.dwg` 的 `kk_multi_port_component` 与背板虚拟表共享同一外部端，例如：
+  - `PCK0002 1DK-2 -> 1QD5 component_mapping/pass`
+  - `P0002 NDY306A-5 -> 1QD5 table_mapping/pass`
+  - `PCK0006 5DK-2 -> 5FD25 component_mapping/pass`
+  - `P0168 NDY306A-5 -> 5FD25 table_mapping/pass`
+- first-set `23 元件接线图3.dwg` 的 `strip_two_port_component` 与背板虚拟表共享外部端：
+  - `PCM0089 5KLP6-1 -> 5KLP8-1 component_mapping/pass`
+  - `P0211 NTZ302A-1 -> 5KLP8-1 table_mapping/pass`
+- first-set 背板虚拟表自身也存在同页共享外部端点：
+  - `NDY306A-32 -> 5FD26`
+  - `NKR308A-11 -> 5FD26`
+- 这些原本都显示为 generic `多对一配对`，无法说明“背板结构化映射共享物理端点”的真实成因。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 新增 `_structured_mapping_shared_endpoint_scope_info()`。
+- `_run_many_to_one()` 在 generic fallback 前新增窄分支：
+  - 全部 linked pairs 必须是 `pair_kind in {table_mapping, component_mapping}`
+  - 至少一个 `table_mapping.mapping_mode=backplate_virtual_table`
+  - 共享右端点必须与 `right_value` 一致
+- 命中后 issue 仍保留为 `R-MANY-TO-ONE/review`，但标题改为 `背板结构化端点汇合待复核`，并写入：
+  - `many_to_one_classification=backplate_structured_shared_endpoint_review`
+  - `structured_scope_kind=backplate_shared_endpoint`
+  - `shared_endpoint`
+  - `pair_kinds`
+  - `table_mapping_modes`
+  - `component_submodes`
+  - `source_block_names`
+  - `header_prefixes`
+  - `logical_endpoints`
+- 在 [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py) 增加正负单测：component+backplate 应重分类；纯 terminal-header 共享端点和 component+terminal 非背板共享端点仍保持 generic。
+- 不改 extractor、PairBuilder、acceptance fixture、CLI/UI，也不移除 `table_mapping` 或 `component_mapping` 入图。
+
+fresh first-set 证据：
+
+- `.tmp/phase78_backplate_structured_shared_first/...`
+- `pair_count=1550`
+- `issue_count=311`
+- pair_kind 未漂移：
+  - `ordinary_pair=800`
+  - `table_mapping=299`
+  - `continuation=175`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- `R-MANY-TO-ONE` 分类：
+  - `backplate_structured_shared_endpoint_review=16`
+  - `component_split_endpoint_group_review=12`
+  - `terminal_header_table_shared_endpoint_review=7`
+  - generic `<none>=2`
+- 点名 issue 已重分类：
+  - `5KLP8-1`：`PCM0089 + P0211`
+  - `1QD5`：`PCK0002 + P0002`
+  - `5FD25`：`PCK0006 + P0168`
+- 点名边界保留 generic：
+  - `KD6`：`PCM0050 + PTM0019 + PTM0025`，component+terminal 非背板
+  - `KD23`：`PTM0051 + PTM0054`，纯 `terminal_header_table`
+
+fresh second-set 非回归证据：
+
+- `.tmp/phase78_backplate_structured_shared_second/2_2`
+- `pair_count=1460`
+- `issue_count=188`
+- pair_kind 未漂移：
+  - `ordinary_pair=674`
+  - `continuation=202`
+  - `table_mapping=174`
+  - `wire_component_mapping=168`
+  - `semantic_mapping=157`
+  - `component_mapping=82`
+  - `bridge_mapping=3`
+- `backplate_structured_shared_endpoint_review=0`
+- terminal header 既有语义保持：
+  - `terminal_header_table_multi_endpoint_review=43`
+  - `terminal_header_table_shared_endpoint_review=21`
+- 红线保持：
+  - `1-21QD34 -> 1-21n218` 仍为 `wire_component_mapping/pass`
+  - `3-21QD28 -> 3-21n218` 仍为 `wire_component_mapping/pass`
+  - `1-21GD9 -> 1-21n218` 仍为 `table_mapping/pass`
+  - `semantic_table_mapping_pass_endpoint_count=0`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or non_backplate_structured or many_to_one or backplate or terminal_header"` -> `11 passed, 42 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `53 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+- `python -m pytest -q` -> `241 passed`
+
+裁决：
+
+- 本轮是 backplate/component/table rules 语义重分类，不是 extractor 补缺，也不是 issue 隐藏。
+- `pair_count`、`issue_count`、`pair_kind` 分布均不变；只让 16 条背板相关 many-to-one review 从 generic 文案变成可解释分类。
+- 下一轮候选收缩为：`terminal_header_table issue aggregation`、`inline signal page ordinary residual wire-chain guardrail`。
