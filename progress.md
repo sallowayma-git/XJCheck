@@ -2900,3 +2900,34 @@
   - second component vertical `401` mapping upgrade.
   - backplate/component/table mapping rules semantics.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 78 second component vertical 401 endpoint bridge)
+- Started after commit `e8d9ecd`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Collected two read-only explorer results for real-sample `401` residual and ComponentDiagramExtractor source boundary.
+- Read-only audit conclusions:
+  - second `S0020 / 20 元件接线图2.dwg` had `PC0077 4 -> 401` and `PC0090 6 -> 401` as low-confidence ordinary reviews on `GC0077/GC0090`.
+  - The raw endpoints are `T3494=3-21ZK-4` with `T3495=3-21n401`, and `T3468=1-21ZK-6` with `T3469=1-21n401`.
+  - Both are supported by `FJL-25-2A_Mirror` pin `1/2` texts and vertical support lines, so the expected relation is direct endpoint bridge `component_mapping/pass`, not a derived numeric ordinary pair.
+- Implementation:
+  - Added `extract_strip_two_port_endpoint_bridge_pairs()` in `component_diagrams.py`.
+  - The submode only accepts top endpoints matching `prefix ZK-port`, bottom endpoints matching the same `prefix n###`, strip block pins `1/2`, and a supporting vertical line group.
+  - Registered the submode in `ComponentDiagramExtractor` and reused existing consumed-line coverage so the old ordinary pair remains as discarded evidence.
+  - Added positive and negative unit coverage in `test_component_diagrams.py`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or endpoint_bridge"` -> `12 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "component or inline_wire_split or input_matrix or prefixed"` -> `11 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `279 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase78_component_vertical_401_second/2_2` + `.tmp/phase78_component_vertical_401_second_audit`: `pair_count=1462`, `issue_count=23`, `component_mapping=84`.
+  - Target hits: `3-21ZK-4 -> 3-21n401` and `1-21ZK-6 -> 1-21n401` are `component_mapping/pass`.
+  - `PC0077 4 -> 401` and `PC0090 6 -> 401` are now `ordinary_pair/discard` with `covered_by_component_mapping=True`; no `GC0077/GC0090` or `401` issue remains.
+  - Existing S0020 strip sanity held, including `3-21CLP7-1 -> 3-21CD43` and `3-21CLP7-2 -> 3-21n419`.
+  - first fresh `.tmp/phase78_component_vertical_401_first/...` + `.tmp/phase78_component_vertical_401_first_audit`: `pair_count=1581`, `issue_count=212`, `component_mapping=150`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first KLP/ZLP/218 structured mappings.
+- Next candidates:
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.

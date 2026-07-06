@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 77
+Phase 78
 
 ## Phases
 
@@ -1071,6 +1071,22 @@ Phase 77
   - `PW0438` and `PW0440` are now `continuation/review` with `semantic_kind=continuation_inline_wire_split`, `continuation_kind=schematic_inline_wire_split_half_chain`, `covered_by_inline_wire_split_half_chain=True`, `shared_text_id=T1479`, `shared_value=505`, `bridge_gap=18.75`; no `505` issue remains.
   - Guardrails held: `PW0439 505 -> 506` remains `ordinary_pair/discard`; `PW0442 ? -> 501` remains an ordinary missing-side review; `semantic_table_mapping_pass_endpoint_count=0`; `input_matrix_wire_mapping=168`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain structured relations.
 - [ ] 下一刀候选收缩为：second component vertical `401` mapping upgrade；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 78: Second Component Vertical 401 Endpoint Bridge
+- [x] 只读恢复并确认当前 HEAD 为 `e8d9ecd`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 parquet 核查一致确认：second `S0020 / 20 元件接线图2.dwg` 的 `PC0077 4 -> 401`、`PC0090 6 -> 401` 是 `FJL-25-2A_Mirror` 双端口块上下端点桥接，真实结构应为 `3-21ZK-4 -> 3-21n401` 与 `1-21ZK-6 -> 1-21n401`，旧 ordinary review 来自派生数字而非图纸问题。
+- [x] 实现目标：在 `ComponentDiagramExtractor` 中新增 `strip_two_port_endpoint_bridge` 窄 submode，只接受同前缀 `*-21ZK-#` 顶端点与 `*-21n###` 底端点、上下 pin `1/2`、支撑竖线同时成立的场景；输出直接 `component_mapping/pass`，并用 consumed line group 覆盖旧 ordinary pair。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or endpoint_bridge"` -> `12 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "component or inline_wire_split or input_matrix or prefixed"` -> `11 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `279 passed`
+  - second fresh `.tmp/phase78_component_vertical_401_second/2_2` + `.tmp/phase78_component_vertical_401_second_audit`: `pair_count=1462`, `issue_count=23`, `component_mapping=84`；新增 `PCB0001 3-21ZK-4 -> 3-21n401` 与 `PCB0002 1-21ZK-6 -> 1-21n401` 均为 `component_mapping/pass`。
+  - `PC0077 4 -> 401` 与 `PC0090 6 -> 401` 均已 `ordinary_pair/discard`，带 `covered_by_component_mapping=True`；`GC0077/GC0090` 不再产生 `401` 相关 issue。
+  - first fresh `.tmp/phase78_component_vertical_401_first/...` + `.tmp/phase78_component_vertical_401_first_audit`: `pair_count=1581`, `issue_count=212`, `component_mapping=150`；first KLP/ZLP/218 structured redlines held。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` held。
+- [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered

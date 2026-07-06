@@ -191,6 +191,16 @@ def _extract_pairs_for_route(
             line_groups,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
         )
+        endpoint_bridge_extractor = getattr(component_diagrams, "extract_strip_two_port_endpoint_bridge_pairs", None)
+        if callable(endpoint_bridge_extractor):
+            endpoint_bridge_pairs, endpoint_bridge_consumed_group_ids = endpoint_bridge_extractor(
+                pages,
+                texts,
+                line_groups,
+                pair_id_factory=IdFactory(f"P{id_stem}B"),
+            )
+            component_pairs.extend(endpoint_bridge_pairs)
+            consumed_group_ids.update(endpoint_bridge_consumed_group_ids)
         kk_extractor = getattr(component_diagrams, "extract_kk_multi_port_component_pairs", None)
         if callable(kk_extractor):
             kk_pairs, kk_consumed_group_ids = kk_extractor(

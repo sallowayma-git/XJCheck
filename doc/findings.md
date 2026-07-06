@@ -9186,3 +9186,55 @@ fresh second-set 证据：
 
 - 本轮是 second `505` inline wire split half-chain 的 pair 语义收口，不是 rules 静音，也不是全局线组合并阈值调整。
 - 下一轮候选收缩为：second component vertical `401` mapping upgrade、backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 131. 2026-07-07 second component vertical 401：ZK 到 n401 端点桥接进入 component_mapping
+
+只读审计确认，second `S0020 / 20 元件接线图2.dwg` 中的 `PC0077 4 -> 401` 与 `PC0090 6 -> 401` 不是低置信图纸问题，而是系统把完整端点 `3-21ZK-4`、`1-21ZK-6` 派生成裸数字后走了 ordinary pair。实图结构是 `FJL-25-2A_Mirror` 双端口块上下 pin `1/2` 之间的竖向端点桥接，底端分别是同前缀 `3-21n401`、`1-21n401`。
+
+本轮实现：
+
+- 在 [component_diagrams.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/component_diagrams.py) 新增 `strip_two_port_endpoint_bridge` 子模式。
+- 该子模式只接受顶部 `^\d+-\d+ZK-\d+$`、底部同前缀 `^\d+-\d+n\d{3,}$`、上下 pin `1/2` 和支撑竖线同时成立的场景。
+- 输出直接 `component_mapping/pass`：`3-21ZK-4 -> 3-21n401`、`1-21ZK-6 -> 1-21n401`。
+- 在 [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py) 注册该 submode，并复用 consumed line group 机制覆盖旧 ordinary pair。
+- 在 [test_component_diagrams.py](/F:/workspace/XJToolkit/tests/unit/test_component_diagrams.py) 增加真实几何正例、前缀不一致负例、裸数字底端负例。
+
+fresh second-set 证据：
+
+- `.tmp/phase78_component_vertical_401_second/2_2` + `.tmp/phase78_component_vertical_401_second_audit`
+- `pair_count=1462`
+- `issue_count=23`
+- `component_mapping=84`
+- 目标命中：
+  - `PCB0001 / GC0077 / T3494 -> T3495`: `3-21ZK-4 -> 3-21n401`, `component_mapping/pass`
+  - `PCB0002 / GC0090 / T3468 -> T3469`: `1-21ZK-6 -> 1-21n401`, `component_mapping/pass`
+- 旧普通 pair：
+  - `PC0077 4 -> 401` 已为 `ordinary_pair/discard`，`covered_by_component_mapping=True`
+  - `PC0090 6 -> 401` 已为 `ordinary_pair/discard`，`covered_by_component_mapping=True`
+- `GC0077/GC0090` 与 `401` 不再产生 issue。
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase78_component_vertical_401_first/...` + `.tmp/phase78_component_vertical_401_first_audit`
+- `pair_count=1581`
+- `issue_count=212`
+- `component_mapping=150`
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中结构化关系。
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 均保持命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or endpoint_bridge"` -> `12 passed, 9 deselected`
+- `python -m pytest -q tests\unit\test_page_extractors.py -k "component or inline_wire_split or input_matrix or prefixed"` -> `11 passed, 3 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `279 passed`
+
+裁决：
+
+- 本轮是 second component vertical `401` 的结构化端点桥接收口，不是放宽普通 endpoint 正则，也不是 rules 静音。
+- 下一轮候选收缩为：backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 仍为独立产品切片。
