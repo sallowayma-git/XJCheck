@@ -7955,3 +7955,67 @@ fresh second-set 证据：
 - 本轮修的是 CAD TEXT 几何解释：插入点不等于文字占位范围。
 - 改动没有隐藏 issue；first 剩余 2 条 `07 网络通讯回路图.dwg` 半链继续显式留在 review。
 - 下一刀若继续 wire 主链，应先只读审计这 2 条短 gap 半链是否需要另一个线组边界规则；否则可转向 terminal/table/component 的规则语义残差。
+
+## 113. 2026-07-07 terminal header table 语义端排除：I0/3U0 保留语义证据但不进 table_mapping endpoint
+
+只读恢复确认，当前最新代码已闭合 `input_matrix_wire_mapping`、`small_port_box_component`、`kk_multi_port_component`、`strip_two_port_component(KLP/CLP)` 和 inline wire bbox bridge；本轮不再把这些旧 Phase52/53/54/55 backlog 当作待实现 extractor。
+
+本轮先刷新 [任务书](/F:/workspace/XJToolkit/doc/任务书.md) 状态：
+
+- Phase52/53/54/55 的“未实现/错配”旧 backlog 已改为已完成或过期。
+- active backlog 收缩为三条：`terminal_header_table semantic endpoint exclusion`、`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`。
+- 背板表格和 component/table mapping branch 后续问题改写为 rules/acceptance 质量问题，不再写成 extractor 缺失。
+
+真实缺陷：
+
+- second-set `S0021 / 21 左侧端子图1.dwg` 中，`I0` 同行靠近两个 terminal header table 行号。
+- Phase73 输出把它误当成 endpoint：
+  - `PTM0008 3-21ID9 -> I0 table_mapping/pass`
+  - `PTM0017 3-21QD7 -> I0 table_mapping/pass`
+- 同一文本在 terminal candidates 中已经是 `semantic_channel/not_numeric`，说明普通端子候选层语义正确，漏点在 `TableExtractor` 的 endpoint 谓词。
+
+本轮实现：
+
+- 在 [table_extractor.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/table_extractor.py) 中为 table endpoint eligibility 增加语义代号排除：`I0/I0'/IA/UA/UB/UC/UN/3U0/3U0'`。
+- 只影响 `_looks_like_table_endpoint()`，不删除 texts，不改 terminal candidates，不改 rules，不改 CLI/UI。
+- 在 [test_table_extractor.py](/F:/workspace/XJToolkit/tests/unit/test_table_extractor.py) 增加负向断言：同一行出现 `3-21n701` 与 `I0` 时，只输出 `3-21ID1 -> 3-21n701`，不输出 `3-21ID1 -> I0`。
+
+fresh second-set 证据：
+
+- `.tmp/phase74_terminal_header_semantic_second/2_2`
+- `pair_count=1460`
+- `issue_count=188`
+- pair_kind：
+  - `ordinary_pair=674`
+  - `wire_component_mapping=168`
+  - `component_mapping=82`
+  - `continuation=202`
+  - `semantic_mapping=157`
+  - `bridge_mapping=3`
+  - `table_mapping=174`
+- 点名 pair 已消失：
+  - `3-21ID9 -> I0` 的 `table_mapping/pass` 数量为 `0`
+  - `3-21QD7 -> I0` 的 `table_mapping/pass` 数量为 `0`
+- `semantic_table_mapping_pass_endpoint_count=0`
+- `I0` 仍保留语义证据：`S0021` 中 `8` 条 terminal candidate 为 `semantic_channel/not_numeric`。
+- 正常 terminal header table 关系未回退：
+  - `3-21ID9 -> 3-21n707` 仍为 `table_mapping/pass`
+  - `3-21QD7 -> 3-21n128` 仍为 `table_mapping/pass`
+  - terminal header table by sheet：`S0021=32`、`S0022=7`、`S0023=112`、`S0024=23`
+- 红线未漂移：
+  - `wire_component_mapping=168`
+  - `input_matrix_wire_mapping=168`
+  - `component_mapping=82`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_table_extractor.py` -> `14 passed`
+- `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `3 passed, 17 deselected`
+- `python -m pytest -q` -> `232 passed`
+
+裁决：
+
+- 本轮是 table extractor 语义端排除，不是 rules 降噪或关系隐藏。
+- `table_mapping` 总数从 Phase73 second 的 `176` 变为 `174`，仅少掉两条 `I0` 误 endpoint；正常 terminal header table 和结构化 wire/component 红线保持。
+- 下一轮候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`。

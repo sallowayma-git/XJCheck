@@ -51,6 +51,17 @@ _TERMINAL_HEADER_ENDPOINT_Y_TOL = 1.2
 _TERMINAL_HEADER_ENDPOINT_X_TOL = 80.0
 _TERMINAL_HEADER_MIN_ENDPOINT_HITS = 2
 _TERMINAL_HEADER_MIN_ENDPOINT_ROW_RATIO = 0.5
+_TERMINAL_HEADER_SEMANTIC_ENDPOINTS = {
+    "I0",
+    "I0'",
+    "IA",
+    "UA",
+    "UB",
+    "UC",
+    "UN",
+    "3U0",
+    "3U0'",
+}
 
 
 def extract_table_pairs(
@@ -823,7 +834,10 @@ def _looks_like_header_prefix(value: str | None) -> bool:
 def _looks_like_table_endpoint(value: str | None) -> bool:
     if not value:
         return False
-    return bool(_TERMINAL_ENDPOINT_PATTERN.fullmatch(str(value)))
+    text = str(value).strip().upper()
+    if text in _TERMINAL_HEADER_SEMANTIC_ENDPOINTS:
+        return False
+    return bool(_TERMINAL_ENDPOINT_PATTERN.fullmatch(text))
 
 
 def _looks_like_terminal_header_prefix(value: str | None) -> bool:

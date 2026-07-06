@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 59
+Phase 60
 
 ## Phases
 
@@ -767,6 +767,22 @@ Phase 59
   - second fresh `.tmp/phase73_inline_bridge_second/2_2`: `pair_count=1462`, `issue_count=191`, `ordinary_pair=674`, `wire_component_mapping=168`, `table_mapping=176`, `component_mapping=82`; `complementary_half_pair` 从 6 降到 0。
   - first `08/09/10` 与 second `08/12` 点名 inline split 页级 `complementary_half_pair` 均为 0；acceptance suite required `3/3`。
 - [ ] 下一刀建议：继续只读审计 first `07 网络通讯回路图.dwg` 两条短 gap 半链，或转向 terminal/table/component 规则语义残差；Phase51 packaged sidecar smoke 仍独立。
+- **Status:** complete
+
+### Phase 60: Terminal Header Semantic Endpoint Exclusion
+- [x] 只读恢复并确认当前工作区只有本轮允许更新的 `doc/任务书.md` 修改，以及外部/并发 `doc/page_findings/`、`doc/page_task_queue.md` 未跟踪目录；当前 HEAD 为 `0cac857`。
+- [x] 按用户要求先刷新 `doc/任务书.md`：Phase52/53/54/55 旧“未实现/错配” backlog 已改为完成或过期；active backlog 收缩为 terminal semantic endpoint、inline KLP 116 residual、component-prefixed 218 residual 三条；背板表格与 component/table mapping branch 改写为 rules/acceptance 质量问题。
+- [x] 实现目标：在 `TableExtractor` 的 table endpoint 谓词中排除 `I0/I0'/IA/UA/UB/UC/UN/3U0/3U0'` 等语义代号，使其不再进入 `terminal_header_table` 的 `table_mapping/pass` endpoint。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/table_extractor.py` 与表格抽取单测；不改 KLP residual、218 residual、rules、CLI/UI，也不移除正常 `terminal_header_table` 图关系。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_table_extractor.py` -> `14 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `3 passed, 17 deselected`
+  - `python -m pytest -q` -> `232 passed`
+  - second fresh `.tmp/phase74_terminal_header_semantic_second/2_2`: `pair_count=1460`, `issue_count=188`, `table_mapping=174`, `wire_component_mapping=168`, `input_matrix_wire_mapping=168`, `component_mapping=82`
+  - `3-21ID9 -> I0` 与 `3-21QD7 -> I0` 的 `table_mapping/pass` 均为 `0`；`I0` 在 `S0021` 仍保留 `semantic_channel/not_numeric` candidate 证据 `8` 条。
+  - 既有正常关系保持：`3-21ID9 -> 3-21n707`、`3-21QD7 -> 3-21n128` 仍为 `table_mapping/pass`；`terminal_header_table` by sheet 为 `S0021=32`、`S0022=7`、`S0023=112`、`S0024=23`。
+- [ ] 下一刀候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
 ## Errors Encountered

@@ -304,6 +304,36 @@ def test_extract_terminal_header_table_pairs_builds_supplemental_mappings() -> N
     assert pairs[0].evidence["table_mapping"]["mapping_mode"] == "terminal_header_table"
 
 
+def test_extract_terminal_header_table_pairs_excludes_semantic_endpoint_labels() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 260.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "21 左侧端子图1.dwg"
+    texts = [
+        _make_text("H", 60.5, 163.5, "3-21ID"),
+        _make_text("R1", 64.25, 156.0, "1", is_numeric_candidate=True),
+        _make_text("E1", 71.0, 156.0, "3-21n701"),
+        _make_text("S1", 91.0, 156.25, "I0"),
+        _make_text("R2", 64.25, 151.0, "2", is_numeric_candidate=True),
+        _make_text("E2", 71.0, 151.0, "3-21n702"),
+        _make_text("S2", 91.0, 151.25, "3U0"),
+    ]
+
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("3-21ID1", "3-21n701"),
+        ("3-21ID2", "3-21n702"),
+    }
+    assert all(pair.right_value not in {"I0", "3U0"} for pair in pairs)
+    mapping_endpoints = {
+        row.get("left_value") or row.get("right_value")
+        for table_mapping in mappings
+        for row in table_mapping["mappings"]
+    }
+    assert "I0" not in mapping_endpoints
+    assert "3U0" not in mapping_endpoints
+
+
 def test_extract_terminal_header_table_pairs_skips_sparse_header_like_group() -> None:
     sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 260.0, 280.0))
     sheet.sheet_category = "屏端子图"

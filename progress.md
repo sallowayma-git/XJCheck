@@ -2123,6 +2123,39 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-07 (Phase 60 terminal header semantic endpoint exclusion)
+- Started after commit `0cac857`.
+- Read-only recovery:
+  - Ran `planning-with-files` catchup, `git status --short`, and `git diff --stat`.
+  - Read `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `src/dwg_audit/audit/table_extractor.py`.
+  - Before code edits, only `doc/任务书.md` was modified and `doc/page_findings/`, `doc/page_task_queue.md` were untracked external/concurrent paths.
+- Taskbook refresh:
+  - Updated `doc/任务书.md` so Phase52 `input_matrix_wire_mapping`, Phase53 `small_port_box_component`, Phase54 `kk_multi_port_component`, and Phase55/63 `strip_two_port_component(KLP/CLP)` are completed or expired backlog, not active extractor gaps.
+  - Active backlog is now limited to `terminal_header_table semantic endpoint exclusion`, `inline KLP 116 residual suppression`, and `component-prefixed 218 residual suppression`.
+  - Backplate table and component/table mapping branch issues are described as rules/acceptance quality work, not extractor missing.
+- Implementation:
+  - Added a narrow semantic endpoint exclusion in `src/dwg_audit/audit/table_extractor.py` for `I0/I0'/IA/UA/UB/UC/UN/3U0/3U0'`.
+  - The filter only affects table endpoint eligibility; source texts and terminal candidate semantic evidence remain available.
+  - Added a table extractor unit test proving same-row `I0/3U0` do not become `terminal_header_table` `table_mapping/pass` endpoints while normal `3-21n*` endpoints still map.
+- Verification:
+  - `python -m pytest -q tests\unit\test_table_extractor.py` -> `14 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `3 passed, 17 deselected`
+  - `python -m pytest -q` -> `232 passed`
+- Real-sample verification:
+  - Fresh second-set `analyze-project + run-audit` output: `.tmp/phase74_terminal_header_semantic_second/2_2`.
+  - Bad pair keys are gone: `3-21ID9->I0` count `0`, `3-21QD7->I0` count `0`.
+  - `I0` remains semantic evidence on `S0021`: `8` terminal candidates with `semantic_channel/not_numeric`.
+  - Normal terminal header mappings did not regress: `3-21ID9 -> 3-21n707` and `3-21QD7 -> 3-21n128` still pass as `table_mapping`.
+  - Fresh counts: `pair_count=1460`, `issue_count=188`, `table_mapping=174`, `wire_component_mapping=168`, `input_matrix_wire_mapping=168`, `component_mapping=82`; `semantic_table_mapping_pass_endpoint_count=0`.
+- Next candidates:
+  - `inline KLP 116 residual suppression`
+  - `component-prefixed 218 residual suppression`
+  - `backplate/component mapping rules semantics`
+- External/concurrent paths intentionally not touched:
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-07 (Phase 59 inline numeric bridge bbox coverage)
 - Started after commit `ca2d8fc`.
 - Read-only recovery:
