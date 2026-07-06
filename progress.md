@@ -2154,6 +2154,42 @@
   - `inline KLP 116 residual suppression`
   - `backplate/component mapping rules semantics`
 
+## Session Update 2026-07-07 (Phase 63 backplate virtual table same-sheet scope review)
+- Started after commit `27e5435`.
+- Read-only recovery:
+  - Ran `planning-with-files` catchup, read `task_plan.md`, `progress.md`, `doc/findings.md`, `doc/任务书.md`, and checked `git status --short`.
+  - Current worktree before edits only had external/concurrent `doc/任务书.md`, `doc/page_findings/`, and `doc/page_task_queue.md`.
+  - Four readonly explorers plus main-thread phase76 inspection converged on `backplate virtual table same-sheet one-to-many scope semantics` as the next narrow rules-only slice.
+  - Representative sample: first `S0021 / 20 非电量保护背板图.dwg`, `NKR308A-1 -> 5FD11 / 5FD15` through `NKR308A-18 -> 5YD4 / 5YD5`, all `table_mapping/pass` but reported as generic `一对多待复核`.
+- Implementation:
+  - Added a same-sheet backplate virtual table scope branch to `_run_one_to_many()` in `rules.py`.
+  - The new branch only applies to `pair_kind=table_mapping` with `mapping_mode=backplate_virtual_table`, same sheet, and multiple table-region/scope evidence such as different raw header text, header text ids, header coordinates, or source block names.
+  - Issues remain visible as `R-ONE-TO-MANY/review`, but now carry title `背板表格同页作用域待复核` and `one_to_many_classification=backplate_table_same_sheet_scope_review`.
+  - Added a positive rules unit test modeled on `NKR308A` same-sheet dual table regions and a negative test proving identical backplate scope still falls back to generic review.
+  - No extractor, pair generation, graph input, acceptance fixture, CLI/UI, or product workflow behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or one_to_many or many_to_one or component_split or terminal_header"` -> `13 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `50 passed`
+  - `python -m pytest -q tests\unit\test_table_extractor.py -k "backplate" tests\integration\test_analyze_project.py -k "backplate or run_audit or mixed_source"` -> `6 passed, 28 deselected`
+  - `python -m pytest -q` -> `238 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase77_backplate_same_sheet_first/...`: `pair_count=1550`, `issue_count=311`; pair kinds unchanged (`ordinary_pair=800`, `table_mapping=299`, `continuation=175`, `component_mapping=138`, `semantic_mapping=103`, `wire_component_mapping=32`, `bridge_mapping=3`).
+  - first rule counts unchanged: `R-PAIR-MISSING-SIDE=147`, `R-CROSS-PAGE-CONFLICT=66`, `R-ONE-TO-MANY=44`, `R-MANY-TO-ONE=37`, `R-PAIR-LOW-CONFIDENCE=12`, `R-DUPLICATE-PAIR=5`.
+  - first `R-ONE-TO-MANY` classifications now include `backplate_table_scope_review=66`, `backplate_table_same_sheet_scope_review=18`, `component_split_endpoint_group_review=16`, `terminal_header_table_multi_endpoint_review=8`, and generic `review=2`.
+  - Target pairs remain pass `table_mapping`: `NKR308A-1 -> 5FD11`, `NKR308A-1 -> 5FD15`, `NKR308A-7 -> 5KLP1-2`, `NKR308A-7 -> 5KLP5-2`.
+  - second fresh `.tmp/phase77_backplate_same_sheet_second/2_2`: `pair_count=1460`, `issue_count=188`; pair kinds unchanged (`ordinary_pair=674`, `continuation=202`, `table_mapping=174`, `wire_component_mapping=168`, `semantic_mapping=157`, `component_mapping=82`, `bridge_mapping=3`).
+  - second redlines hold: `terminal_header_table_multi_endpoint_review=43`, `terminal_header_table_shared_endpoint_review=21`, and `semantic_table_mapping_pass_endpoint_count=0`.
+- Error encountered:
+  - First `run-audit` attempt failed writing `issues.parquet` because the new `row_numbers` evidence used integer lists while existing issue evidence used string-like row numbers. Fixed by serializing new `row_numbers` as strings, then reran targeted/full/fresh audit successfully.
+- External/concurrent files intentionally not touched or staged:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+- Next candidates:
+  - `terminal_header_table issue aggregation`
+  - `inline signal page ordinary residual taxonomy guardrail`
+  - `backplate/component many-to-one scope semantics`
+
 ## Session Update 2026-07-07 (Phase 62 component split endpoint rules semantics)
 - Started after commit `7fb59b9`.
 - Read-only recovery:

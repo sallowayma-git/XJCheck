@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 62
+Phase 63
 
 ## Phases
 
@@ -819,6 +819,22 @@ Phase 62
 - [ ] 下一刀候选收缩为：`backplate virtual table same-sheet one-to-many scope semantics`、`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
+### Phase 63: Backplate Virtual Table Same-Sheet Scope Review
+- [x] 只读恢复并确认当前 HEAD 为 `27e5435`；外部/并发 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 四个只读 explorer 与主线程 phase76 产物核查一致确认：first `S0021 / 20 非电量保护背板图.dwg` 的 18 条 `NKR308A-*` 同页背板虚拟表 one-to-many 仍是 generic “一对多待复核”，而非背板表格作用域语义。
+- [x] 实现目标：保留所有 `backplate_virtual_table` `table_mapping/pass` 图关系和 issue 可见性，只把同页不同表格区域/表头 scope 的背板虚拟表 fanout 重分类为 `backplate_table_same_sheet_scope_review`。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；不改 `table_extractor.py`、classifier/router、PairBuilder、acceptance fixture、CLI/UI，也不减少 issue_count。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or one_to_many or many_to_one or component_split or terminal_header"` -> `13 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `50 passed`
+  - backplate/table targeted integration -> `6 passed, 28 deselected`
+  - `python -m pytest -q` -> `238 passed`
+  - first fresh `.tmp/phase77_backplate_same_sheet_first/...`: `pair_count=1550`, `issue_count=311`, pair_kind and rule counts unchanged；`backplate_table_same_sheet_scope_review=18`，generic one-to-many review 从 `20` 降到 `2`
+  - first target pairs remain pass `table_mapping`: `NKR308A-1 -> 5FD11`、`NKR308A-1 -> 5FD15`、`NKR308A-7 -> 5KLP1-2`、`NKR308A-7 -> 5KLP5-2`
+  - second fresh `.tmp/phase77_backplate_same_sheet_second/2_2`: `pair_count=1460`, `issue_count=188`, pair_kind unchanged；terminal_header_table and semantic endpoint redlines unchanged。
+- [ ] 下一刀候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`、`backplate/component many-to-one scope semantics`；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -828,3 +844,4 @@ Phase 62
 | Tauri `cargo test` 首次失败：`frontendDist` 路径不存在 | 未先生成 `apps/desktop/dist` 时运行 Rust tests | 先执行 `npm run build` 生成 gitignored dist，再跑 cargo test |
 | Windows `link.exe` 间歇性 `LNK1104` 无法打开 test exe 输出 | 重跑 `cargo test` 时链接阶段偶发锁定输出路径 | 查无残留进程后立即重试，同命令通过；记录为 Windows target/linker 临时锁竞争 |
 | second-set verification helper `KeyError: right` | 用旧 `pairs.parquet` endpoint 列名检查 semantic endpoint rows | 改用当前 schema 的 `left_value/right_value` 重跑，确认 `semantic_table_mapping_pass_endpoint_count=0` |
+| `run-audit` 写 `issues.parquet` 时 `ArrowInvalid` | 新增 `row_numbers` evidence 使用整数列表，与既有字符串行号 evidence 混合 | 将新 evidence 的 `row_numbers` 统一为字符串列表并重跑 targeted/full/fresh audit 通过 |

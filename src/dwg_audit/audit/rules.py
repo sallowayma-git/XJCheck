@@ -494,6 +494,32 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
             continue
 
         first = linked_pairs[0]
+        backplate_scope_info = _backplate_virtual_table_same_sheet_scope_info(linked_pairs)
+        if backplate_scope_info is not None:
+            issues.append(
+                context.issue_factory.build(
+                    "R-ONE-TO-MANY",
+                    "review",
+                    pair=first,
+                    message=f"Backplate table endpoint {left_value} maps to multiple scoped terminals on the same sheet.",
+                    title="背板表格同页作用域待复核",
+                    explanation=(
+                        "同页背板虚拟表格中，同一表头行号在不同表格区域或装置作用域下指向多个外部端。"
+                        "这通常表示同一插件/表头模板在同一背板页内分区复用，应按背板表格作用域复核，"
+                        "不直接按普通端子一对多解释。"
+                    ),
+                    recommended_action="核对背板页、插件块名、表头文本、行号和表格区域，确认这些端点是否属于不同背板表格作用域。",
+                    related_pairs=linked_pairs,
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "backplate_table_same_sheet_scope_review",
+                        **backplate_scope_info,
+                    },
+                )
+            )
+            continue
+
         terminal_header_info = _terminal_header_table_multi_endpoint_info(linked_pairs)
         if terminal_header_info is not None:
             issues.append(
@@ -781,6 +807,85 @@ def _is_backplate_virtual_table_scope_review(linked_pairs: list[Pair]) -> bool:
         if mapping.get("mapping_mode") != "backplate_virtual_table":
             return False
     return True
+
+
+def _backplate_virtual_table_same_sheet_scope_info(linked_pairs: list[Pair]) -> dict[str, object] | None:
+    if not linked_pairs:
+        return None
+    if len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return None
+    if not _is_backplate_virtual_table_scope_review(linked_pairs):
+        return None
+
+    mappings = [_table_mapping_evidence(pair) for pair in linked_pairs]
+    source_block_names = _sorted_mapping_values(mappings, "source_block_name")
+    header_prefixes = _sorted_mapping_values(mappings, "header_prefix")
+    raw_header_texts = _sorted_mapping_values(mappings, "raw_header_text")
+    header_text_ids = _sorted_mapping_values(mappings, "header_text_id")
+    header_coords = sorted(
+        {
+            _format_coord(mapping.get("header_coord"))
+            for mapping in mappings
+            if _format_coord(mapping.get("header_coord")) is not None
+        }
+    )
+    row_numbers = sorted(
+        {
+            str(mapping.get("row_number"))
+            for mapping in mappings
+            if mapping.get("row_number") is not None
+        }
+    )
+
+    # Same-sheet backplate fanout is only treated as scope review when there is
+    # evidence of multiple table regions or block/header scopes.
+    scope_variants = [
+        len(source_block_names),
+        len(raw_header_texts),
+        len(header_text_ids),
+        len(header_coords),
+    ]
+    if max(scope_variants, default=0) <= 1:
+        return None
+
+    semantic_notes = sorted(
+        {
+            str(note)
+            for mapping in mappings
+            for note in (
+                mapping.get("semantic_notes")
+                if isinstance(mapping.get("semantic_notes"), list)
+                else []
+            )
+            if note is not None
+        }
+    )
+    result: dict[str, object] = {
+        "table_mapping_mode": "backplate_virtual_table",
+        "backplate_scope_kind": "same_sheet_virtual_table",
+        "source_block_names": source_block_names,
+        "header_prefixes": header_prefixes,
+        "raw_header_texts": raw_header_texts,
+        "header_text_ids": header_text_ids,
+        "header_coords": header_coords,
+        "row_numbers": row_numbers,
+    }
+    if semantic_notes:
+        result["semantic_notes"] = semantic_notes
+    return result
+
+
+def _sorted_mapping_values(mappings: list[dict[str, object]], key: str) -> list[str]:
+    return sorted({str(mapping.get(key)) for mapping in mappings if mapping.get(key) is not None})
+
+
+def _format_coord(value: object) -> str | None:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    x, y = value
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return None
+    return f"{x:.3f},{y:.3f}"
 
 
 def _table_mapping_evidence(pair: Pair) -> dict[str, object]:

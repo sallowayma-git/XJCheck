@@ -8198,3 +8198,103 @@ fresh second-set 非回归证据：
 - 本轮是 rules/acceptance 质量问题收口，不是 extractor 缺失，也不是 issue 降噪隐藏。
 - `component_mapping/pass` 仍进入图；issue 数量和 pair 分布不漂移，只让 review 文案表达真实成因。
 - 下一轮候选收缩为：`backplate virtual table same-sheet one-to-many scope semantics`、`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`。
+
+## 116. 2026-07-07 backplate virtual table same-sheet scope review：同页背板虚拟表复用不再泛化成普通一对多
+
+只读审计确认，`backplate_virtual_table` extractor 本身已经能稳定输出 `table_mapping/pass`。Phase56 已把跨页背板虚拟表复用从 critical conflict 改成 `backplate_table_scope_review`，但同页多个背板表格区域复用同一 `header_prefix + row_number` 时，仍落入 generic “一对多待复核”。
+
+真实缺陷：
+
+- first-set `S0021 / 20 非电量保护背板图.dwg` 中，同一页存在两个 `NKR308A` 表格区域：
+  - `raw_header_text=NKR308A`
+  - `raw_header_text=NKR308A(非电量选配)`
+- 两个区域共享同一逻辑端行号，但指向不同外部端，例如：
+  - `P0175 NKR308A-1 -> 5FD11 table_mapping/pass`
+  - `P0193 NKR308A-1 -> 5FD15 table_mapping/pass`
+  - `P0181 NKR308A-7 -> 5KLP1-2 table_mapping/pass`
+  - `P0199 NKR308A-7 -> 5KLP5-2 table_mapping/pass`
+- 这些关系是背板虚拟表格的同页分区/作用域复用，不应继续只显示为 generic `一对多待复核`。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 的 `_run_one_to_many()` 中新增同页背板虚拟表 scope 分支。
+- 新分支只匹配：
+  - 全部 pair 都是 `pair_kind=table_mapping`
+  - `mapping_mode=backplate_virtual_table`
+  - 同一 sheet
+  - 存在多个表格区域/作用域证据，例如不同 `raw_header_text`、`header_text_id`、`header_coord` 或 `source_block_name`
+- 触发后 issue 仍保留为 `R-ONE-TO-MANY/review`，但标题改为 `背板表格同页作用域待复核`，并写入：
+  - `one_to_many_classification=backplate_table_same_sheet_scope_review`
+  - `table_mapping_mode=backplate_virtual_table`
+  - `backplate_scope_kind=same_sheet_virtual_table`
+  - `source_block_names`
+  - `header_prefixes`
+  - `raw_header_texts`
+  - `header_text_ids`
+  - `header_coords`
+  - `row_numbers`
+- 在 [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py) 增加正向单测和负向单测：真实 `NKR308A` 双表区应重分类；同一表区同一 scope 的冲突仍保留 generic review。
+- 不改 `table_extractor.py`、PairBuilder、classification/router、acceptance fixture、CLI/UI，也不移除 `table_mapping` 入图。
+
+fresh first-set 证据：
+
+- `.tmp/phase77_backplate_same_sheet_first/...`
+- `pair_count=1550`
+- `issue_count=311`
+- pair_kind 未漂移：
+  - `ordinary_pair=800`
+  - `table_mapping=299`
+  - `continuation=175`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- rule count 未漂移：
+  - `R-PAIR-MISSING-SIDE=147`
+  - `R-CROSS-PAGE-CONFLICT=66`
+  - `R-ONE-TO-MANY=44`
+  - `R-MANY-TO-ONE=37`
+  - `R-PAIR-LOW-CONFIDENCE=12`
+  - `R-DUPLICATE-PAIR=5`
+- `R-ONE-TO-MANY` 分类：
+  - `backplate_table_scope_review=66`
+  - `backplate_table_same_sheet_scope_review=18`
+  - `component_split_endpoint_group_review=16`
+  - `terminal_header_table_multi_endpoint_review=8`
+  - generic `review=2`
+- 点名关系保持：
+  - `NKR308A-1 -> 5FD11` 仍为 `table_mapping/pass`
+  - `NKR308A-1 -> 5FD15` 仍为 `table_mapping/pass`
+  - `NKR308A-7 -> 5KLP1-2` 仍为 `table_mapping/pass`
+  - `NKR308A-7 -> 5KLP5-2` 仍为 `table_mapping/pass`
+
+fresh second-set 非回归证据：
+
+- `.tmp/phase77_backplate_same_sheet_second/2_2`
+- `pair_count=1460`
+- `issue_count=188`
+- pair_kind 未漂移：
+  - `ordinary_pair=674`
+  - `continuation=202`
+  - `table_mapping=174`
+  - `wire_component_mapping=168`
+  - `semantic_mapping=157`
+  - `component_mapping=82`
+  - `bridge_mapping=3`
+- terminal header table 既有语义保持：
+  - `terminal_header_table_multi_endpoint_review=43`
+  - `terminal_header_table_shared_endpoint_review=21`
+- `semantic_table_mapping_pass_endpoint_count=0`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or one_to_many or many_to_one or component_split or terminal_header"` -> `13 passed, 37 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `50 passed`
+- `python -m pytest -q tests\unit\test_table_extractor.py -k "backplate" tests\integration\test_analyze_project.py -k "backplate or run_audit or mixed_source"` -> `6 passed, 28 deselected`
+- `python -m pytest -q` -> `238 passed`
+
+裁决：
+
+- 本轮是 rules 语义重分类，不是 extractor 补缺，也不是 issue 隐藏。
+- 背板虚拟表 `table_mapping/pass` 仍完整进入图；issue_count 和 rule_count 不变，只让同页背板表格复用有可解释分类。
+- 下一轮候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`、`backplate/component many-to-one scope semantics`。

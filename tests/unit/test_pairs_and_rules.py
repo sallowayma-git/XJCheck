@@ -2061,6 +2061,142 @@ def test_build_issues_demotes_backplate_virtual_table_cross_page_scope_conflict(
     assert issue.evidence["header_prefixes"] == ["NDY306A"]
 
 
+def test_build_issues_classifies_same_sheet_backplate_virtual_table_scope_review() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            pair_id="P0175",
+            line_group_id=None,
+            sheet_id="S0021",
+            file_id="F0021",
+            selected_pair_candidate_id=None,
+            left_value="NKR308A-1",
+            right_value="5FD11",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-814E-E1SA-101",
+                    "header_prefix": "NKR308A",
+                    "raw_header_text": "NKR308A",
+                    "header_text_id": "T2990",
+                    "header_coord": [145.6201, 243.75],
+                    "row_number": 1,
+                    "semantic_notes": ["本体重瓦斯开入"],
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            pair_id="P0193",
+            line_group_id=None,
+            sheet_id="S0021",
+            file_id="F0021",
+            selected_pair_candidate_id=None,
+            left_value="NKR308A-1",
+            right_value="5FD15",
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-814E-E1SA-101",
+                    "header_prefix": "NKR308A",
+                    "raw_header_text": "NKR308A(非电量选配)",
+                    "header_text_id": "T2858",
+                    "header_coord": [213.1117, 243.75],
+                    "row_number": 1,
+                    "semantic_notes": ["调压重瓦斯开入"],
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0021", "F0021", "20 非电量保护背板图.dwg", 21, "20", "5n REAR WIRING", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    one_to_many = [issue for issue in issues if issue.rule_id == "R-ONE-TO-MANY"]
+    assert len(one_to_many) == 1
+    issue = one_to_many[0]
+    assert issue.severity == "review"
+    assert issue.title == "背板表格同页作用域待复核"
+    assert issue.evidence["one_to_many_classification"] == "backplate_table_same_sheet_scope_review"
+    assert issue.evidence["table_mapping_mode"] == "backplate_virtual_table"
+    assert issue.evidence["backplate_scope_kind"] == "same_sheet_virtual_table"
+    assert issue.evidence["source_block_names"] == ["WBH-814E-E1SA-101"]
+    assert issue.evidence["header_prefixes"] == ["NKR308A"]
+    assert issue.evidence["raw_header_texts"] == ["NKR308A", "NKR308A(非电量选配)"]
+    assert issue.evidence["header_text_ids"] == ["T2858", "T2990"]
+    assert issue.evidence["row_numbers"] == ["1"]
+    assert issue.evidence["conflicting_values"] == ["5FD11", "5FD15"]
+
+
+def test_build_issues_keeps_same_backplate_virtual_table_scope_as_generic_review() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    base_mapping = {
+        "mapping_mode": "backplate_virtual_table",
+        "source_block_name": "WBH-814E-E1SA-101",
+        "header_prefix": "NKR308A",
+        "raw_header_text": "NKR308A",
+        "header_text_id": "T2990",
+        "header_coord": [145.6201, 243.75],
+        "row_number": 1,
+    }
+    pairs = [
+        Pair(
+            "P1",
+            None,
+            "S0021",
+            "F0021",
+            None,
+            "NKR308A-1",
+            "5FD11",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {"source": "table_mapping", "table_mapping": dict(base_mapping)},
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "P2",
+            None,
+            "S0021",
+            "F0021",
+            None,
+            "NKR308A-1",
+            "5FD15",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {"source": "table_mapping", "table_mapping": dict(base_mapping)},
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0021", "F0021", "20 非电量保护背板图.dwg", 21, "20", "5n REAR WIRING", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    issue = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert issue.title == "一对多待复核"
+    assert issue.evidence["one_to_many_classification"] == "review"
+
+
 def test_build_issues_treats_component_mapping_pairs_as_high_confidence_source() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     pairs = [
