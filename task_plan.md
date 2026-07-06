@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 50
+Phase 52
 
 ## Phases
 
@@ -632,6 +632,21 @@ Phase 50
   - `python -m pytest -q` -> `217 passed`
   - `npm run tauri:build` -> produced `apps/desktop/src-tauri/target/release/bundle/nsis/DWG Audit Desktop_0.1.0_x64-setup.exe`
 - [ ] 下一刀建议：产出并打包真实 `dwg-audit-sidecar` 可执行文件，然后用安装后的 exe 跑一次导入项目、启动分析、加载报告的桌面主链证据。
+
+### Phase 52: Input Matrix Wire Mapping Closure
+- [x] 恢复上下文并确认并发外部改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`。
+- [x] 实现目标：在 `WireDiagramExtractor` 中识别开入矩阵的 `21QD` 行端点、`21n` 列前缀和三位局部号，产出显式 `wire_component_mapping/pass`。
+- [x] 语义收口：被 `input_matrix_wire_mapping` 覆盖的局部号 ordinary 半边只降级为 `discard`，不删除结构化关系、不扩 CLI、不隐藏 issue graph。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_wire_components.py` -> `6 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - targeted integration slice -> `2 passed`
+  - `python -m pytest -q` -> `221 passed`
+  - second-set fresh `analyze-project + run-audit`: `.tmp/phase66_input_matrix_cover_second/2_2` 中 `wire_component_mapping=168`，`input_matrix` 覆盖 ordinary discard `336`，`issue_count=303`
+  - second-set 目标命中：`S0008` 的 `1-21QD12 -> 1-21n127`、`1-21QD28 -> 1-21n212`、`1-21QD44 -> 1-21n228`；`S0012` 的 `3-21QD6 -> 3-21n127`、`3-21QD22 -> 3-21n212`、`3-21QD38 -> 3-21n228`
+  - first-set fresh non-regression: `.tmp/phase66_input_matrix_cover_first/...` 中 `input_matrix_wire_mapping=0`、`covered_input_matrix_ordinary=0`、`issue_count=458`
+- [ ] 下一刀建议：回到 Phase51 packaged sidecar/exe smoke，或继续按任务书审计 `small_port_box_component` / 输出几何 mismatch；二者都先做只读审计。
+- **Status:** complete
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

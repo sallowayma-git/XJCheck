@@ -4,7 +4,7 @@ from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
 
 
-def _make_sheet() -> SheetRecord:
+def _make_sheet(sheet_category: str = "二次原理图") -> SheetRecord:
     return SheetRecord(
         sheet_id="S1",
         file_id="F1",
@@ -12,7 +12,7 @@ def _make_sheet() -> SheetRecord:
         sheet_order=16,
         sheet_no="16",
         sheet_title="高低压侧操作箱信号回路",
-        sheet_category="二次原理图",
+        sheet_category=sheet_category,
         audit_role="primary",
         page_no_source="filename",
         is_primary_audit_candidate=True,
@@ -89,6 +89,60 @@ def test_extract_component_prefixed_signal_pairs_builds_logical_endpoint_mapping
     assert first.evidence["source"] == "wire_component_mapping"
     assert first.evidence["component_submode"] == "component_prefixed_signal_circuit"
     assert first.evidence["component_prefix"] == "1-2n"
+
+
+def test_extract_component_prefixed_signal_pairs_builds_input_matrix_wire_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("MP1", "1-21n", 120.0, 274.5),
+        _make_text("MP1_DUP", "1-21n", 120.4, 274.6),
+        _make_text("MP2", "1-21n", 180.0, 274.5),
+        _make_text("RE1", "1-21QD12", 70.0, 87.12),
+        _make_text("N1", "127", 90.6, 85.67),
+        _make_text("RE2", "1-21QD28", 70.0, 120.0),
+        _make_text("N2", "212", 90.6, 119.0),
+        _make_text("RE3", "1-21QD44", 70.0, 151.0),
+        _make_text("N3", "228", 90.6, 150.0),
+        _make_text("LABEL1", "BI", 82.0, 85.7),
+        _make_text("LABEL2", "开入", 82.0, 119.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts)
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert ("1-21QD12", "1-21n127") in pair_values
+    assert ("1-21QD28", "1-21n212") in pair_values
+    assert ("1-21QD44", "1-21n228") in pair_values
+    assert len(pair_values) == 3
+    first = next(pair for pair in pairs if pair.left_value == "1-21QD12")
+    assert first.status == "pass"
+    assert first.confidence == 0.95
+    assert first.pair_kind == "wire_component_mapping"
+    assert first.evidence["source"] == "wire_component_mapping"
+    assert first.evidence["component_submode"] == "input_matrix_wire_mapping"
+    assert first.evidence["matrix_prefix"] == "1-21n"
+    assert first.evidence["matrix_prefix_text_id"] == "MP1"
+    assert first.evidence["row_endpoint"] == "1-21QD12"
+    assert first.evidence["local_number"] == "127"
+    assert first.evidence["logical_endpoint"] == "1-21n127"
+    assert first.evidence["row_band_id"]
+    assert first.evidence["column_band_id"]
+
+
+def test_extract_component_prefixed_signal_pairs_requires_input_matrix_gate() -> None:
+    secondary_sheet = _make_sheet(sheet_category="一次接线图")
+    missing_prefix_sheet = _make_sheet()
+    texts = [
+        _make_text("MP1", "1-21n", 120.0, 274.5),
+        _make_text("MP2", "1-21n", 180.0, 274.5),
+        _make_text("RE1", "1-21QD12", 70.0, 87.12),
+        _make_text("N1", "127", 90.6, 85.67),
+        _make_text("RE2", "1-21QD28", 70.0, 120.0),
+        _make_text("N2", "212", 90.6, 119.0),
+    ]
+
+    assert extract_component_prefixed_signal_pairs([secondary_sheet], texts) == []
+    assert extract_component_prefixed_signal_pairs([missing_prefix_sheet], texts[2:]) == []
 
 
 def test_extract_component_prefixed_signal_pairs_builds_inline_klp_port_mapping() -> None:

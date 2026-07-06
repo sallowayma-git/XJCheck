@@ -2099,3 +2099,26 @@
 - Next recommended focus:
   - Build/package the actual `dwg-audit-sidecar` executable into Tauri resources.
   - Then run an installed exe-level smoke proof: import project folder, start analysis, load report/result view without relying on source tree or local Python.
+
+## Session Update 2026-07-06 (Phase 52 input matrix wire mapping closure)
+- Resumed from catchup after the uncommitted worker slice in `wire_components.py` and `test_wire_components.py`.
+- Implemented the missing semantic closeout for second-set input matrix pages:
+  - `WireDiagramExtractor` now emits `wire_component_mapping/pass` for `input_matrix_wire_mapping`.
+  - Covered local-number ordinary half-pairs are marked `discard` with `covered_by_input_matrix_wire_mapping=True`.
+  - The structured mapping remains visible; no product CLI surface was expanded.
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_components.py` -> `6 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or component_prefixed or inline_klp"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `221 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase66_input_matrix_cover_second/2_2`: `pair_count=1575`, `issue_count=303`, `wire_component_mapping=168`, `covered_input_matrix_ordinary=336`.
+  - second targets hit:
+    - `S0008`: `1-21QD12 -> 1-21n127`, `1-21QD28 -> 1-21n212`, `1-21QD44 -> 1-21n228`
+    - `S0012`: `3-21QD6 -> 3-21n127`, `3-21QD22 -> 3-21n212`, `3-21QD38 -> 3-21n228`
+  - old non-discard naked ordinary checks for `127/212/228` on `S0008/S0012` are now `0`.
+  - first fresh `.tmp/phase66_input_matrix_cover_first/...`: `pair_count=1523`, `issue_count=458`, `input_matrix_wire_mapping=0`, `covered_input_matrix_ordinary=0`.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`

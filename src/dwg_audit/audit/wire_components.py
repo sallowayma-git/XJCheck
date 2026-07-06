@@ -16,11 +16,17 @@ _EXTERNAL_ENDPOINT_PATTERN = re.compile(r"^\d+-4[A-Za-z]{2}\d+$")
 _INLINE_KLP_BODY_PATTERN = re.compile(r"^(?:\d+(?:-\d+)?)?KLP\d+$", re.IGNORECASE)
 _INLINE_KLP_ENDPOINT_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:QD\d+|n\d+)$", re.IGNORECASE)
 _INLINE_KLP_LOCAL_NUMBER_PATTERN = re.compile(r"^\d{3}$")
+_INPUT_MATRIX_PREFIX_PATTERN = re.compile(r"^\d+-21n$", re.IGNORECASE)
+_INPUT_MATRIX_ROW_ENDPOINT_PATTERN = re.compile(r"^\d+-21QD\d+$", re.IGNORECASE)
 _ROW_Y_TOL = 1.5
 _PREFIX_X_TOL = 36.0
 _PREFIX_Y_SPAN = 130.0
 _EXTERNAL_X_TOL = 45.0
 _COMPONENT_PAIR_CONFIDENCE = 0.95
+_INPUT_MATRIX_ROW_Y_TOL = 2.5
+_INPUT_MATRIX_PREFIX_X_TOL = 46.0
+_INPUT_MATRIX_PREFIX_Y_GAP_MIN = 25.0
+_INPUT_MATRIX_ROW_ENDPOINT_X_TOL = 55.0
 _INLINE_KLP_BODY_X_TOL = 48.0
 _INLINE_KLP_BODY_Y_TOL = 18.0
 _INLINE_KLP_PORT_ROW_TOL = 2.0
@@ -70,6 +76,13 @@ def extract_component_prefixed_signal_pairs(
                         seen.add(dedupe_key)
                         pairs.append(_build_component_pair(page, prefix, local, endpoint, logical_endpoint, pair_ids))
         pairs.extend(
+            _extract_input_matrix_wire_pairs(
+                page,
+                sheet_texts,
+                pair_ids,
+            )
+        )
+        pairs.extend(
             _extract_inline_klp_port_pairs(
                 page,
                 sheet_texts,
@@ -77,6 +90,37 @@ def extract_component_prefixed_signal_pairs(
                 pair_ids,
             )
         )
+    return pairs
+
+
+def _extract_input_matrix_wire_pairs(
+    page: SheetRecord,
+    sheet_texts: list[TextItem],
+    pair_ids: IdFactory,
+) -> list[Pair]:
+    prefixes = [text for text in sheet_texts if _looks_like_input_matrix_prefix(text.normalized_text)]
+    row_endpoints = [text for text in sheet_texts if _looks_like_input_matrix_row_endpoint(text.normalized_text)]
+    local_numbers = [text for text in sheet_texts if _looks_like_local_number(text.normalized_text)]
+    if len(prefixes) < 2 or len(row_endpoints) < 2 or len(local_numbers) < 2:
+        return []
+
+    deduped_prefixes = _dedupe_input_matrix_prefixes(prefixes)
+    if len(deduped_prefixes) < 2:
+        return []
+
+    pairs: list[Pair] = []
+    seen: set[tuple[str, str, str]] = set()
+    for local in sorted(local_numbers, key=lambda item: (item.insert_y, item.insert_x, item.text_id)):
+        prefix = _nearest_input_matrix_prefix(local, deduped_prefixes)
+        row_endpoint = _nearest_input_matrix_row_endpoint(local, row_endpoints)
+        if prefix is None or row_endpoint is None:
+            continue
+        logical_endpoint = f"{prefix.normalized_text}{local.normalized_text}"
+        dedupe_key = (row_endpoint.normalized_text, local.normalized_text, logical_endpoint)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        pairs.append(_build_input_matrix_wire_pair(page, prefix, row_endpoint, local, logical_endpoint, pair_ids))
     return pairs
 
 
@@ -218,6 +262,78 @@ def _build_component_pair(
     )
 
 
+def _build_input_matrix_wire_pair(
+    page: SheetRecord,
+    prefix: TextItem,
+    row_endpoint: TextItem,
+    local: TextItem,
+    logical_endpoint: str,
+    pair_ids: IdFactory,
+) -> Pair:
+    component_bbox = _component_bbox_from_items([prefix, row_endpoint, local])
+    evidence = {
+        "source": "wire_component_mapping",
+        "filename": page.filename,
+        "sheet_no": page.sheet_no,
+        "sheet_order": page.sheet_order,
+        "sheet_title": page.sheet_title,
+        "pair_kind": "wire_component_mapping",
+        "component_submode": "input_matrix_wire_mapping",
+        "matrix_prefix": prefix.normalized_text,
+        "matrix_prefix_text_id": prefix.text_id,
+        "matrix_prefix_coord": [prefix.insert_x, prefix.insert_y],
+        "row_endpoint": row_endpoint.normalized_text,
+        "row_endpoint_text_id": row_endpoint.text_id,
+        "row_endpoint_coord": [row_endpoint.insert_x, row_endpoint.insert_y],
+        "local_number": local.normalized_text,
+        "local_number_text_id": local.text_id,
+        "local_number_coord": [local.insert_x, local.insert_y],
+        "logical_endpoint": logical_endpoint,
+        "component_bbox": component_bbox,
+        "line_orientation": "input_matrix_row_column",
+        "row_band_id": f"row:{round(local.insert_y, 1)}",
+        "column_band_id": f"col:{prefix.normalized_text}:{round(prefix.insert_x, 1)}",
+        "row_y_delta": abs(row_endpoint.insert_y - local.insert_y),
+        "column_x_delta": abs(prefix.insert_x - local.insert_x),
+        "prefix_y_gap": prefix.insert_y - local.insert_y,
+        "left_side_label": "row_endpoint",
+        "right_side_label": "logical_endpoint",
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_ids.next(),
+        line_group_id=None,
+        sheet_id=page.sheet_id,
+        file_id=page.file_id,
+        selected_pair_candidate_id=None,
+        left_value=row_endpoint.normalized_text,
+        right_value=logical_endpoint,
+        confidence=_COMPONENT_PAIR_CONFIDENCE,
+        status="pass",
+        rationale="Input matrix wire mapping: same-row QD endpoint associated with local number under the matrix n-prefix column.",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=row_endpoint.text_id,
+        right_text_id=local.text_id,
+        left_coord_x=row_endpoint.insert_x,
+        left_coord_y=row_endpoint.insert_y,
+        right_coord_x=local.insert_x,
+        right_coord_y=local.insert_y,
+        pair_key=f"{row_endpoint.normalized_text}->{logical_endpoint}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="wire_component_mapping",
+    )
+
+
 def _build_inline_klp_component_pair(
     *,
     page: SheetRecord,
@@ -338,6 +454,14 @@ def _looks_like_external_endpoint(value: str | None) -> bool:
     return bool(value) and bool(_EXTERNAL_ENDPOINT_PATTERN.fullmatch(str(value).strip()))
 
 
+def _looks_like_input_matrix_prefix(value: str | None) -> bool:
+    return bool(value) and bool(_INPUT_MATRIX_PREFIX_PATTERN.fullmatch(str(value).strip()))
+
+
+def _looks_like_input_matrix_row_endpoint(value: str | None) -> bool:
+    return bool(value) and bool(_INPUT_MATRIX_ROW_ENDPOINT_PATTERN.fullmatch(str(value).strip()))
+
+
 def _looks_like_inline_klp_body(value: str | None) -> bool:
     return bool(value) and bool(_INLINE_KLP_BODY_PATTERN.fullmatch(str(value).strip()))
 
@@ -419,6 +543,41 @@ def _nearest_unambiguous(
         if abs(second_distance - first_distance) < _INLINE_KLP_AMBIGUITY_GAP:
             return None
     return ordered[0]
+
+
+def _dedupe_input_matrix_prefixes(prefixes: list[TextItem]) -> list[TextItem]:
+    buckets: dict[tuple[str, int, int], TextItem] = {}
+    for prefix in sorted(prefixes, key=lambda item: (item.insert_y, item.insert_x, item.text_id)):
+        key = (prefix.normalized_text, round(prefix.insert_x / 2.0), round(prefix.insert_y / 2.0))
+        buckets.setdefault(key, prefix)
+    return sorted(buckets.values(), key=lambda item: (item.insert_x, item.insert_y, item.text_id))
+
+
+def _nearest_input_matrix_prefix(local: TextItem, prefixes: list[TextItem]) -> TextItem | None:
+    candidates = [
+        prefix
+        for prefix in prefixes
+        if prefix.insert_y - local.insert_y >= _INPUT_MATRIX_PREFIX_Y_GAP_MIN
+        and abs(prefix.insert_x - local.insert_x) <= _INPUT_MATRIX_PREFIX_X_TOL
+    ]
+    return _nearest_unambiguous(
+        candidates,
+        key=lambda item: (abs(item.insert_x - local.insert_x), -(item.insert_y - local.insert_y), item.text_id),
+    )
+
+
+def _nearest_input_matrix_row_endpoint(local: TextItem, row_endpoints: list[TextItem]) -> TextItem | None:
+    candidates = [
+        row_endpoint
+        for row_endpoint in row_endpoints
+        if row_endpoint.insert_x < local.insert_x
+        and abs(row_endpoint.insert_y - local.insert_y) <= _INPUT_MATRIX_ROW_Y_TOL
+        and local.insert_x - row_endpoint.insert_x <= _INPUT_MATRIX_ROW_ENDPOINT_X_TOL
+    ]
+    return _nearest_unambiguous(
+        candidates,
+        key=lambda item: (abs(item.insert_y - local.insert_y), local.insert_x - item.insert_x, item.text_id),
+    )
 
 
 def _supporting_inline_klp_lines(

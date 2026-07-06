@@ -171,14 +171,14 @@ def _extract_pairs_for_route(
         pair_id_factory=IdFactory(f"P{id_stem}"),
     )
     if executed_extractor == "WireDiagramExtractor":
-        pairs.extend(
-            extract_component_prefixed_signal_pairs(
-                pages,
-                texts,
-                lines,
-                pair_id_factory=IdFactory(f"P{id_stem}M"),
-            )
+        wire_component_pairs = extract_component_prefixed_signal_pairs(
+            pages,
+            texts,
+            lines,
+            pair_id_factory=IdFactory(f"P{id_stem}M"),
         )
+        _mark_input_matrix_covered_ordinary_pairs(pairs, wire_component_pairs)
+        pairs.extend(wire_component_pairs)
     if executed_extractor == "ComponentDiagramExtractor":
         component_pairs, consumed_group_ids = extract_strip_two_port_component_pairs(
             pages,
@@ -253,6 +253,41 @@ def _mark_consumed_component_ordinary_pairs(pairs: list[Pair], consumed_group_id
         pair.evidence["covered_by_component_mapping"] = True
 
 
+def _mark_input_matrix_covered_ordinary_pairs(
+    pairs: list[Pair],
+    wire_component_pairs: list[Pair],
+) -> None:
+    covered_text_ids = _input_matrix_local_number_text_ids(wire_component_pairs)
+    if not covered_text_ids:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.status == "discard":
+            continue
+        if not _pair_uses_any_text_id(pair, covered_text_ids):
+            continue
+        pair.status = "discard"
+        pair.confidence_bucket = "low"
+        pair.rationale = "Covered by input_matrix_wire_mapping; matrix local number must not be emitted as a bare ordinary pair."
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["covered_by_input_matrix_wire_mapping"] = True
+
+
+def _input_matrix_local_number_text_ids(wire_component_pairs: list[Pair]) -> set[str]:
+    text_ids: set[str] = set()
+    for pair in wire_component_pairs:
+        evidence = pair.evidence or {}
+        if pair.pair_kind != "wire_component_mapping":
+            continue
+        if evidence.get("component_submode") != "input_matrix_wire_mapping":
+            continue
+        for value in (pair.right_text_id, evidence.get("local_number_text_id")):
+            if isinstance(value, str) and value:
+                text_ids.add(value)
+    return text_ids
+
+
 def _mark_terminal_prefixed_endpoint_ordinary_pairs(
     pairs: list[Pair],
     table_mappings: list[dict[str, object]],
@@ -304,6 +339,17 @@ def _iter_terminal_header_table_mappings(
 def _pair_uses_any_selected_text_id(pair: Pair, text_ids: set[str]) -> bool:
     evidence = pair.evidence or {}
     selected_ids = {
+        evidence.get("selected_left_text_id"),
+        evidence.get("selected_right_text_id"),
+    }
+    return any(isinstance(text_id, str) and text_id in text_ids for text_id in selected_ids)
+
+
+def _pair_uses_any_text_id(pair: Pair, text_ids: set[str]) -> bool:
+    evidence = pair.evidence or {}
+    selected_ids = {
+        pair.left_text_id,
+        pair.right_text_id,
         evidence.get("selected_left_text_id"),
         evidence.get("selected_right_text_id"),
     }

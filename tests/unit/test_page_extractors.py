@@ -1,8 +1,15 @@
+from dwg_audit.audit.page_extractors import _mark_input_matrix_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
 from dwg_audit.domain.models import Pair
 
 
-def _pair(evidence: dict[str, object]) -> Pair:
+def _pair(
+    evidence: dict[str, object],
+    *,
+    pair_kind: str = "ordinary_pair",
+    left_text_id: str | None = None,
+    right_text_id: str | None = None,
+) -> Pair:
     return Pair(
         pair_id="P1",
         line_group_id="G1",
@@ -17,7 +24,9 @@ def _pair(evidence: dict[str, object]) -> Pair:
         alternative_pair_candidate_ids=[],
         confidence_bucket="review",
         evidence=evidence,
-        pair_kind="ordinary_pair",
+        left_text_id=left_text_id,
+        right_text_id=right_text_id,
+        pair_kind=pair_kind,
     )
 
 
@@ -87,3 +96,40 @@ def test_mark_terminal_prefixed_endpoint_ordinary_pairs_keeps_uncovered_row_lock
 
     assert pair.status == "review"
     assert "ordinary_pair_eligible" not in pair.evidence
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_discards_bare_local_number_pair() -> None:
+    ordinary = _pair({}, right_text_id="LOCAL127")
+    matrix_pair = _pair(
+        {
+            "component_submode": "input_matrix_wire_mapping",
+            "local_number_text_id": "LOCAL127",
+        },
+        pair_kind="wire_component_mapping",
+        right_text_id="LOCAL127",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [matrix_pair])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_input_matrix_wire_mapping"] is True
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_keeps_uncovered_or_structured_pairs() -> None:
+    uncovered = _pair({}, right_text_id="LOCAL212")
+    structured = _pair(
+        {
+            "component_submode": "input_matrix_wire_mapping",
+            "local_number_text_id": "LOCAL127",
+        },
+        pair_kind="wire_component_mapping",
+        right_text_id="LOCAL127",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([uncovered, structured], [structured])
+
+    assert uncovered.status == "review"
+    assert structured.status == "review"
+    assert "covered_by_input_matrix_wire_mapping" not in uncovered.evidence
