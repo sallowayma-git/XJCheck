@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dwg_audit.audit.candidates import build_terminal_candidates
 from dwg_audit.audit.line_groups import build_line_groups
 from dwg_audit.audit.pairs import build_pairs
+from dwg_audit.audit.wire_components import extract_component_prefixed_signal_pairs
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import PageClassification
@@ -156,6 +157,14 @@ def _extract_pairs_for_route(
         pair_candidate_id_factory=IdFactory(f"PC{id_stem}"),
         pair_id_factory=IdFactory(f"P{id_stem}"),
     )
+    if executed_extractor == "WireDiagramExtractor":
+        pairs.extend(
+            extract_component_prefixed_signal_pairs(
+                pages,
+                texts,
+                pair_id_factory=IdFactory(f"P{id_stem}M"),
+            )
+        )
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,

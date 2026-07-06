@@ -1646,3 +1646,22 @@
   - `16 高低压侧操作箱信号回路.dwg`
   - `component_prefixed_signal_circuit`
   - target mapping `1-2n218 -> 1-4YD1`
+
+## Session Update 2026-07-06 (Phase 39)
+- Completed the component-prefixed signal circuit slice for `16 高低压侧操作箱信号回路.dwg`.
+- Implemented:
+  - Added `src/dwg_audit/audit/wire_components.py`.
+  - `WireDiagramExtractor` now appends `wire_component_mapping` pairs for `component_prefixed_signal_circuit` patterns.
+  - The new path combines component prefixes such as `1-2n` / `3-2n` with local three-digit numbers and same-row external endpoints.
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_components.py tests\integration\test_analyze_project.py -k "component_prefixed_signal_circuit or backplate_virtual_table"` -> `2 passed`
+  - `python -m pytest -q` -> `184 passed`
+- Real-sample evidence:
+  - First set output: `.tmp/phase47_component_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `16 高低压侧操作箱信号回路.dwg` now has `26` `wire_component_mapping` pairs.
+  - Required taskbook mapping `1-2n218 -> 1-4YD1` exists with `status=pass`, `confidence=0.95`, and `component_submode=component_prefixed_signal_circuit`.
+  - Backplate mapping `NKR308A-1 -> 5FD15` remains present.
+  - Second set output: `.tmp/phase47_component_second/2_2`
+  - Second set remains stable at `sheet_count=24`, `pair_count=1211`, `issue_count=519`, and `wire_component_mapping=0`.
+- Next nearest MVP slice:
+  - line-in component port circuit mappings such as `3-2KLP1-1 -> 3-2QD2`.

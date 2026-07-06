@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 39
+Phase 40
 
 ## Phases
 
@@ -287,16 +287,23 @@ Phase 39
 - **Status:** complete
 
 ### Phase 39: Component-Prefixed Signal Circuit
-- [ ] 针对 `16 高低压侧操作箱信号回路.dwg` 识别 `component_prefixed_signal_circuit` 子模式
-- [ ] 识别左右元件分区 bbox 与顶部前缀 `1-2n` / `3-2n`
-- [ ] 将分区内局部数字合成为 `1-2n218` / `3-2n218`，再与同线外侧端子生成结构化映射
-- [ ] 补窄单测、集成测试和第一套真实样本验证
+- [x] 针对 `16 高低压侧操作箱信号回路.dwg` 识别 `component_prefixed_signal_circuit` 子模式
+- [x] 识别左右元件分区顶部前缀 `1-2n` / `3-2n`
+- [x] 将分区内局部数字合成为 `1-2n218` / `3-2n218`，再与同线外侧端子生成结构化映射
+- [x] 补窄单测、集成测试和第一套真实样本验证
+- **Status:** complete
+
+### Phase 40: Inline Component Port Circuit
+- [ ] 针对任务书中的线中元件端口型回路，识别嵌在线中的元件本体编号与端口 `1/2`
+- [ ] 输出 `3-2KLP1-1 -> 3-2QD2`、`3-2KLP1-2 -> 3-2n116` 类结构化 `wire_component_mapping`
+- [ ] 确认局部端口序号不再作为裸普通端子进入跨页审计
+- [ ] 补窄单测、集成测试和真实样本验证
 - **Status:** pending
 
 ## Key Questions
-1. `16 高低压侧操作箱信号回路.dwg` 的分区边界应优先用矩形框、垂直分隔线、连接线簇还是顶部前缀文本来定位？
-2. `wire_component_mapping` 是否应复用 `Pair` + `evidence.source` 合同，还是新增专门 pair_kind 后再进入规则引擎？
-3. 背板表格型页已进入 `TableExtractor` 后，是否需要在 page_findings 中进一步展开块名、原始表头、行号规范化和中文说明旁路字段？
+1. 线中元件端口型回路是否和 `component_prefixed_signal_circuit` 共用 `wire_component_mapping` pair_kind？
+2. 线中元件端口型的元件 bbox 应优先从块/符号边界、端口号位置还是连接线断点推断？
+3. 背板表格型页与组件前缀回路已进入结构化 pair 后，RuleEngine 是否需要按 pair_kind 进一步区分普通跨页冲突与结构化信源冲突？
 
 ## Decisions Made
 | Decision | Rationale |

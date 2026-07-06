@@ -6512,3 +6512,104 @@ route status 仍稳定为：
 - 目标映射：`1-2n218 -> 1-4YD1`
 
 这仍然是 DWG 审计主链，不是 CLI 扩张。
+
+## 91. 2026-07-06 元件分区型普通回路图已输出 wire_component_mapping
+
+在背板表格型闭环之后，本轮继续补任务书中点名的 `16 高低压侧操作箱信号回路.dwg`。该页仍保持：
+
+- `page_type = 二次原理图`
+- `page_subtype = grid_heavy_wire_diagram`
+- `route_target = WireDiagramExtractor`
+
+没有把它改路由到 ComponentDiagramExtractor 或 TableExtractor；新增能力是 WireDiagramExtractor 内的结构化附加信源。
+
+### 91.1 实现策略
+
+新增模块：
+
+- [wire_components.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/wire_components.py)
+
+该模块识别 `component_prefixed_signal_circuit` 子模式：
+
+- 组件分区前缀：`1-2n`、`3-2n`
+- 分区内局部三位数：如 `218`、`221`
+- 同 y 外侧端点：如 `1-4YD1`、`1-4YD4`
+- 输出逻辑端：`前缀 + 局部号`
+- 输出 pair_kind：`wire_component_mapping`
+- 输出 evidence source：`wire_component_mapping`
+
+该逻辑在 [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py) 中只接入 `WireDiagramExtractor`，不改变普通候选排名。
+
+### 91.2 第一套真实样本验证
+
+最终实跑产物：
+
+- [phase47_component_first](/F:/workspace/XJToolkit/.tmp/phase47_component_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+目标页 `16 高低压侧操作箱信号回路.dwg` 当前结果：
+
+- `pair_count = 54`
+- `ordinary_pair = 28`
+- `wire_component_mapping = 26`
+- `high_confidence_pair_count = 26`
+
+任务书点名样例已经命中：
+
+- `left_value = 1-2n218`
+- `right_value = 1-4YD1`
+- `status = pass`
+- `confidence = 0.95`
+- `pair_kind = wire_component_mapping`
+- `evidence.source = wire_component_mapping`
+- `component_submode = component_prefixed_signal_circuit`
+- evidence 保留 prefix 文本、local number 文本、external endpoint 文本、坐标与 component bbox
+
+同页还恢复了同模式映射，例如：
+
+- `1-2n221 -> 1-4YD4`
+- `3-2n218 -> 3-4YD1`
+- `3-2n221 -> 3-4YD4`
+
+背板表格型闭环未回退：
+
+- `20 非电量保护背板图.dwg` 仍保持 `背板表格型图 / backplate_virtual_terminal_table / TableExtractor`
+- `NKR308A-1 -> 5FD15` 仍存在
+
+第一套最终 audit issue 总量仍为 `370`。
+
+### 91.3 第二套真实样本防误伤验证
+
+最终实跑产物：
+
+- [phase47_component_second](/F:/workspace/XJToolkit/.tmp/phase47_component_second/2_2)
+
+第二套保持稳定：
+
+- `sheet_count = 24`
+- `pair_count = 1211`
+- `issue_count = 519`
+- `wire_component_mapping = 0`
+- `17/18 测控装置背板` 仍保持 `LayoutOnlyExtractor / classify_only`
+
+这说明 `component_prefixed_signal_circuit` 规则没有误吸普通测控回路或普通背板页。
+
+### 91.4 测试结果
+
+新增/更新测试：
+
+- [test_wire_components.py](/F:/workspace/XJToolkit/tests/unit/test_wire_components.py)
+- [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+
+验证结果：
+
+- `python -m pytest -q tests\unit\test_wire_components.py tests\integration\test_analyze_project.py -k "component_prefixed_signal_circuit or backplate_virtual_table"` -> `2 passed`
+- `python -m pytest -q` -> `184 passed`
+
+### 91.5 下一刀
+
+任务书中普通回路图的另一个结构化子模式还未闭环：
+
+- 线中元件端口型回路
+- 目标形态：`3-2KLP1-1 -> 3-2QD2`、`3-2KLP1-2 -> 3-2n116`
+
+下一步应继续沿用“结构化 pair_kind + evidence.source”的路线，而不是回到裸数字候选排名。

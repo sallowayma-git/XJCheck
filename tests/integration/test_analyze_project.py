@@ -493,6 +493,73 @@ def test_analyze_project_routes_backplate_virtual_table_to_table_extractor(
     assert first_evidence["table_mapping"]["raw_header_text"] == "NKR308A(非电量选配)"
 
 
+def test_analyze_project_emits_component_prefixed_signal_circuit_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "16 高低压侧操作箱信号回路.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 420.0, 280.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        for text, x, y in (
+            ("1-2n", 130.0, 274.5),
+            ("218", 101.9, 263.8),
+            ("1-4YD1", 75.0, 264.5),
+            ("221", 154.4, 263.8),
+            ("1-4YD4", 182.5, 264.5),
+        ):
+            msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "DIM"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page = findings_payload["page_findings"][0]
+    assert page["route_target"] == "WireDiagramExtractor"
+    assert page["structure_summary"]["pair_kind_counts"] == {"wire_component_mapping": 2}
+    pair_values = {(row["left_value"], row["right_value"]) for _, row in pairs.iterrows()}
+    assert ("1-2n218", "1-4YD1") in pair_values
+    assert ("1-2n221", "1-4YD4") in pair_values
+    first_evidence = json.loads(pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "wire_component_mapping"
+    assert first_evidence["component_submode"] == "component_prefixed_signal_circuit"
+
+
 def test_analyze_project_executes_route_specific_pair_extractors(
     monkeypatch,
     tmp_path: Path,
