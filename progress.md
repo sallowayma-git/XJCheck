@@ -3172,3 +3172,33 @@
 - Next candidates:
   - terminal_header_table large row-band range display / report projection.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 87 terminal header row-band range report projection)
+- Started after commit `4033851`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Confirmed Phase86 had already closed terminal-header same-side multi-endpoint classification; this round stayed in rules/report projection.
+- Read-only audit conclusions:
+  - second `.tmp/phase86_terminal_header_multi_endpoint_second_audit` already had compact machine evidence such as `aggregated_row_numbers`, `aggregated_logical_endpoints`, `aggregated_terminal_header_table_endpoint_values`, and `cluster_pair_ids`.
+  - The report layer still preferred expanded `evidence_refs`, so large terminal-header row-band clusters were hard to review.
+  - Primary sample was second `S0023 / 23 右侧端子图1.dwg / I0021`: 76 evidence refs, logical range `1-21QD1..1-21QD38`, row range `1..38`, and terminal endpoint ranges.
+- Implementation:
+  - Added terminal-header multi-endpoint row-band range evidence in `rule_base.py`: `terminal_header_table_row_band_review`, `aggregated_logical_endpoint_ranges`, `aggregated_row_number_ranges`, and `aggregated_terminal_header_table_endpoint_ranges`.
+  - Refreshed aggregated multi-endpoint issue summary/action to describe logical and terminal endpoint ranges instead of only the primary row.
+  - Updated report evidence projection in `artifacts.py` so terminal-header multi-endpoint/shared-endpoint review evidence displays compact semantic ranges before raw refs.
+  - Added focused unit coverage for range evidence and compact Markdown/XLSX evidence display; non-terminal issue evidence display remains ref-first.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "evidence_display or terminal_header"` -> `2 passed, 16 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py` -> `18 passed`
+  - `python -m pytest -q` -> `290 passed`
+- Fresh rules-only verification:
+  - second `.tmp/phase87_terminal_header_row_band_display_second_audit`: `pair_count=1462`, `issue_count=22`, pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `semantic_mapping=183`, `continuation=204`, `component_mapping=84`, `bridge_mapping=3`, `table_mapping=174`; `generic_one_to_many_review_count=0`.
+  - second largest row-band issue `I0021 / S0023 / 23 右侧端子图1.dwg` keeps `76` bottom-level refs but now has summary `logical=1-21QD1..1-21QD38` and terminal endpoint ranges `1-21n116..1-21n131`, `1-21n201..1-21n222`, `1-21n301..1-21n330`, `1-21n524..1-21n531`.
+  - second Markdown/XLSX evidence display includes compact `logical=1-21QD1..1-21QD38`, `rows=1..38`, `pair_count=76`, and no `ref76` flood for `I0021`.
+  - first `.tmp/phase87_terminal_header_row_band_display_first_audit`: `pair_count=1581`, `issue_count=131`, pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`; `generic_one_to_many_review_count=0`.
+- Next candidates:
+  - packaged sidecar/exe smoke only as a separate product slice.
+  - If continuing rules semantics, keep it to backplate/component mapping default user-view layering, not extractor work.

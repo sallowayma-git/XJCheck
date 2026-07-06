@@ -1315,10 +1315,21 @@ def test_rules_cluster_terminal_header_table_multi_endpoint_reviews_by_header() 
     assert len(reviews) == 1
     review = reviews[0]
     assert review.title == "端子表多端点行映射待复核"
+    assert review.summary == (
+        "Terminal header table row-band multi-endpoint review: "
+        "logical=1-21QD1..1-21QD2; "
+        "endpoints=1-21n116..1-21n117, 1-21n524..1-21n525."
+    )
+    assert "行号区间：1..2" in review.recommended_action
     assert review.evidence["cluster_size"] == 2
     assert review.evidence["terminal_header_table_aggregate_review"] is True
+    assert review.evidence["terminal_header_table_row_band_review"] is True
     assert review.evidence["aggregated_logical_endpoints"] == ["1-21QD1", "1-21QD2"]
+    assert review.evidence["aggregated_logical_endpoint_ranges"] == [
+        "1-21QD1..1-21QD2",
+    ]
     assert review.evidence["aggregated_row_numbers"] == ["1", "2"]
+    assert review.evidence["aggregated_row_number_ranges"] == ["1..2"]
     assert review.evidence["aggregated_conflicting_values"] == [
         "1-21n116",
         "1-21n117",
@@ -1330,6 +1341,10 @@ def test_rules_cluster_terminal_header_table_multi_endpoint_reviews_by_header() 
         "1-21n117",
         "1-21n524",
         "1-21n525",
+    ]
+    assert review.evidence["aggregated_terminal_header_table_endpoint_ranges"] == [
+        "1-21n116..1-21n117",
+        "1-21n524..1-21n525",
     ]
     assert set(review.evidence["cluster_pair_ids"]) == {
         "PTMR0040",

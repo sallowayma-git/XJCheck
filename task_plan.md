@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 86
+Phase 87
 
 ## Phases
 
@@ -1201,6 +1201,22 @@ Phase 86
   - second `.tmp/phase86_terminal_header_multi_endpoint_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`；`I0017 / 3-21WD2` now title `端子表多端点行映射待复核`, `endpoint_columns=["right_endpoint"]`, `terminal_header_table_endpoint_values=["3-21GD7","3-21n608"]`；`I0060/I0061` row `10/11` 聚合并保留 `aggregated_terminal_header_table_endpoint_values=["1-21n403","1-21n508","1-21n511","1-21n512"]`。
   - first `.tmp/phase86_terminal_header_multi_endpoint_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；terminal header generic one-to-many reviews also reduced to `0`。
 - [ ] 下一刀候选收缩为：terminal_header_table large row-band range display / report projection；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 87: Terminal Header Row-Band Range Report Projection
+- [x] 只读恢复并确认当前 HEAD 为 `4033851`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase86 后 `terminal_header_table_multi_endpoint_review` 已正确分层并聚合，但报告仍容易被 `evidence_refs` 淹没；second `S0023 / 23 右侧端子图1.dwg / I0021` 保留 76 条底层 refs，却缺少 `1-21QD1..1-21QD38`、行号 `1..38` 和端子区间的默认展示。
+- [x] 实现目标：只在 rules/report projection 层补 row-band range evidence 和 compact evidence display；不改 TableExtractor、PairBuilder、graph input、规则触发、CLI 产品表面或桌面端。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "evidence_display or terminal_header"` -> `2 passed, 16 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py` -> `18 passed`
+  - `python -m pytest -q` -> `290 passed`
+- [x] Fresh rules-only verification：
+  - second `.tmp/phase87_terminal_header_row_band_display_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`；`I0021` summary now shows `logical=1-21QD1..1-21QD38` and terminal endpoint ranges, Markdown/XLSX evidence display includes `pair_count=76` and no `ref76` flood.
+  - first `.tmp/phase87_terminal_header_row_band_display_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`。
+- [ ] 下一刀候选收缩为：packaged sidecar/exe smoke as a separate product slice；若继续规则语义，只做 backplate/component mapping rules semantics 的默认用户视角分层。
 - **Status:** complete
 
 ## Errors Encountered

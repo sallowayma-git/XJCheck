@@ -1567,7 +1567,87 @@ def _format_evidence_value(value: Any) -> str:
     return "" if payload is None else _format_evidence_part(payload)
 
 
+def _format_terminal_header_table_display(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    classification = payload.get("one_to_many_classification")
+    if classification == "terminal_header_table_multi_endpoint_review":
+        return _format_terminal_header_table_compact_display(
+            payload,
+            classification,
+            logical_key="aggregated_logical_endpoint_ranges",
+            endpoint_label="terminal_endpoints",
+            endpoint_key="aggregated_terminal_header_table_endpoint_ranges",
+        )
+    classification = payload.get("many_to_one_classification")
+    if classification == "terminal_header_table_shared_endpoint_review":
+        return _format_terminal_header_table_compact_display(
+            payload,
+            classification,
+            logical_key="aggregated_logical_endpoint_ranges",
+            endpoint_label="shared_endpoints",
+            endpoint_key="aggregated_shared_endpoint_ranges",
+        )
+    return ""
+
+
+def _format_terminal_header_table_compact_display(
+    payload: dict[str, Any],
+    classification: Any,
+    *,
+    logical_key: str,
+    endpoint_label: str,
+    endpoint_key: str,
+) -> str:
+    logical_ranges = _format_compact_evidence_list(
+        payload.get(logical_key) or payload.get("aggregated_logical_endpoints")
+    )
+    endpoint_ranges = _format_compact_evidence_list(
+        payload.get(endpoint_key)
+        or payload.get("aggregated_terminal_header_table_endpoint_values")
+        or payload.get("aggregated_shared_endpoints")
+    )
+    if not logical_ranges or not endpoint_ranges:
+        return ""
+
+    parts = [
+        f"review={_format_evidence_part(classification)}",
+        f"logical={logical_ranges}",
+        f"{endpoint_label}={endpoint_ranges}",
+    ]
+    row_ranges = _format_compact_evidence_list(
+        payload.get("aggregated_row_number_ranges") or payload.get("aggregated_row_numbers")
+    )
+    if row_ranges:
+        parts.append(f"rows={row_ranges}")
+    for key in ("header_prefix", "header_prefixes", "endpoint_columns"):
+        value = _format_compact_evidence_list(payload.get(key))
+        if value:
+            parts.append(f"{key}={value}")
+    cluster_size = payload.get("cluster_size")
+    if cluster_size is not None:
+        parts.append(f"cluster_size={_format_evidence_part(cluster_size)}")
+    pair_ids = _decode_jsonish(payload.get("cluster_pair_ids"))
+    if isinstance(pair_ids, list) and pair_ids:
+        parts.append(f"pair_count={len(pair_ids)}")
+    return ", ".join(parts)
+
+
+def _format_compact_evidence_list(value: Any) -> str:
+    payload = _decode_jsonish(value)
+    if payload is None:
+        return ""
+    if isinstance(payload, list):
+        return "|".join(_format_evidence_part(item) for item in payload)
+    return _format_evidence_part(payload)
+
+
 def _evidence_display(row: pd.Series) -> str:
+    terminal_header_display = _format_terminal_header_table_display(
+        _decode_jsonish(row.get("evidence"))
+    )
+    if terminal_header_display:
+        return terminal_header_display
     refs = _format_evidence_value(row.get("evidence_refs"))
     if refs:
         return refs

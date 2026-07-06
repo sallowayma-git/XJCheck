@@ -276,6 +276,38 @@ def _merge_issue_cluster(primary: Issue, duplicate: Issue) -> Issue:
 
 def _refresh_terminal_header_table_interval_issue(issue: Issue) -> None:
     evidence = issue.evidence
+    if (
+        evidence.get("one_to_many_classification")
+        == "terminal_header_table_multi_endpoint_review"
+        and evidence.get("terminal_header_table_row_band_review")
+    ):
+        logical_ranges = _as_list(evidence.get("aggregated_logical_endpoint_ranges"))
+        endpoint_ranges = _as_list(
+            evidence.get("aggregated_terminal_header_table_endpoint_ranges")
+        )
+        row_ranges = _as_list(evidence.get("aggregated_row_number_ranges"))
+        if not logical_ranges or not endpoint_ranges:
+            return
+        issue.summary = (
+            "Terminal header table row-band multi-endpoint review: "
+            f"logical={', '.join(str(value) for value in logical_ranges)}; "
+            f"endpoints={', '.join(str(value) for value in endpoint_ranges)}."
+        )
+        issue.explanation = (
+            "同页 terminal_header_table 表格映射中，连续行带内多个表头逻辑端分别关联多个端子文本；"
+            "这更像端子表行带级多端点语义，需要按区间复核，而不是逐行当成普通一对多错误。"
+        )
+        row_text = (
+            f"；行号区间：{', '.join(str(value) for value in row_ranges)}"
+            if row_ranges
+            else ""
+        )
+        issue.recommended_action = (
+            "按聚合后的 logical/terminal endpoint 区间核对表头、行号、端子列和端子文本坐标"
+            f"{row_text}。"
+        )
+        return
+
     if not evidence.get("terminal_header_table_interval_review"):
         return
     if (
@@ -345,6 +377,7 @@ def _merge_terminal_header_table_cluster_evidence(
                 + _as_list(duplicate_evidence.get("terminal_header_table_endpoint_values"))
             )
         )
+        _add_terminal_header_multi_endpoint_range_evidence(primary_evidence)
         return
 
     if (
@@ -405,6 +438,36 @@ def _add_terminal_header_shared_endpoint_interval_evidence(
         _integer_values(
             _as_list(evidence.get("aggregated_row_numbers"))
             + _as_list(evidence.get("row_numbers"))
+        )
+    )
+    if row_ranges:
+        evidence["aggregated_row_number_ranges"] = row_ranges
+
+
+def _add_terminal_header_multi_endpoint_range_evidence(
+    evidence: dict[str, Any],
+) -> None:
+    evidence["terminal_header_table_row_band_review"] = True
+    logical_ranges = _numeric_suffix_range_labels(
+        _as_list(evidence.get("aggregated_logical_endpoints"))
+        + _as_list(evidence.get("logical_endpoint"))
+    )
+    if logical_ranges:
+        evidence["aggregated_logical_endpoint_ranges"] = logical_ranges
+
+    endpoint_ranges = _numeric_suffix_range_labels(
+        _as_list(evidence.get("aggregated_terminal_header_table_endpoint_values"))
+        + _as_list(evidence.get("terminal_header_table_endpoint_values"))
+        + _as_list(evidence.get("aggregated_conflicting_values"))
+        + _as_list(evidence.get("conflicting_values"))
+    )
+    if endpoint_ranges:
+        evidence["aggregated_terminal_header_table_endpoint_ranges"] = endpoint_ranges
+
+    row_ranges = _integer_range_labels(
+        _integer_values(
+            _as_list(evidence.get("aggregated_row_numbers"))
+            + _as_list(evidence.get("row_number"))
         )
     )
     if row_ranges:

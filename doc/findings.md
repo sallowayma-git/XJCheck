@@ -9576,3 +9576,48 @@ first 非回归证据：
 
 - Phase86 是 terminal_header_table rules/display 分类边界收口：同侧多端点行不再被写成普通一对多。
 - 下一轮候选收缩为：terminal_header_table large row-band range display / report projection；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 140. 2026-07-07 terminal_header_table：大行带 review 默认展示为区间证据
+
+只读审计确认，Phase86 后 `terminal_header_table_multi_endpoint_review` 已经正确入图、分层和聚合；剩余问题不是 `TableExtractor` 缺失，也不是 PairBuilder 漂移，而是报告默认展示仍优先展开 `evidence_refs`。对于 second `S0023 / 23 右侧端子图1.dwg / I0021`，底层必须保留 76 条 pair refs 作为可追溯证据，但默认报告若直接展开 76 个 refs，会掩盖真实结构：这是 `1-21QD1..1-21QD38` 的连续逻辑行带、行号 `1..38`，对应多段 terminal endpoint 区间。
+
+本轮实现：
+
+- 在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 中为 terminal-header multi-endpoint 聚合补充：
+  - `terminal_header_table_row_band_review`
+  - `aggregated_logical_endpoint_ranges`
+  - `aggregated_row_number_ranges`
+  - `aggregated_terminal_header_table_endpoint_ranges`
+- 聚合 issue 的 summary / recommended action 改为描述 logical endpoint、terminal endpoint 和 row number 区间，不再只显示 primary row。
+- 在 [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py) 中让 terminal-header review evidence display 优先展示 compact semantic ranges；非 terminal-header issue 仍保持原有 ref-first 展示。
+- 不改 `TableExtractor`、PairBuilder、graph input、规则触发、product CLI、桌面端或受保护并发文档目录。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table"` -> `6 passed, 59 deselected`
+- `python -m pytest -q tests\unit\test_report_artifacts.py -k "evidence_display or terminal_header"` -> `2 passed, 16 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+- `python -m pytest -q tests\unit\test_report_artifacts.py` -> `18 passed`
+- `python -m pytest -q` -> `290 passed`
+
+fresh rules-only 证据：
+
+- second `.tmp/phase87_terminal_header_row_band_display_second_audit`
+- `pair_count=1462`，`issue_count=22`，pair kind 分布不变。
+- `generic_one_to_many_review_count=0`。
+- 最大 row-band issue `I0021 / S0023 / 23 右侧端子图1.dwg`：
+  - `evidence_refs=76` 仍保留。
+  - summary 显示 `logical=1-21QD1..1-21QD38`。
+  - endpoint ranges 为 `1-21n116..1-21n131`、`1-21n201..1-21n222`、`1-21n301..1-21n330`、`1-21n524..1-21n531`。
+  - Markdown/XLSX evidence display 显示 `rows=1..38`、`pair_count=76`，且不再出现 `ref76` 洪流。
+
+first 非回归证据：
+
+- first `.tmp/phase87_terminal_header_row_band_display_first_audit`
+- `pair_count=1581`，`issue_count=131`，pair kind 分布不变。
+- `generic_one_to_many_review_count=0`。
+
+裁决：
+
+- Phase87 是 terminal_header_table report projection 质量收口：保留底层 refs，同时把默认用户可见 evidence 压缩为行带区间。
+- 下一轮若走产品线，应独立推进 packaged sidecar/exe smoke；若继续规则语义，只做 backplate/component mapping 默认用户视角分层，不重开已闭环 extractor。
