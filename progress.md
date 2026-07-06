@@ -2645,3 +2645,34 @@
   - second network-time/function-label semantic mapping.
   - first prefixed external endpoint mapping.
   - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 70 second DC/GND function semantic mapping)
+- Started after commit `92f8c3a`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Confirmed already closed capabilities must not be reopened: terminal-header semantic endpoint exclusion, component-prefixed 218 suppression, inline KLP 116 rules decision, schematic wire logic endpoint mapping, grid complementary half-chain review, and strip two-port KLP/CLP/ZLP.
+- Read-only audit conclusions:
+  - second `S0006 / 06 直流回路图.dwg` had function/semantic labels such as `DC 0-5V/4-20mA +` and `GND` rejected as `not_numeric/noise_channel`, leaving ordinary missing-side rows like `611 -> ?` and `? -> 101`.
+  - This is a semantic relation closure, not a broad numeric parser expansion and not an AC/network-time slice.
+- Implementation:
+  - Added `schematic_semantic_endpoint_channel` in `candidates.py`, limited to `二次原理图` horizontal/grid groups in a DC/直流 sheet context.
+  - Accepted only `DC 0-5V/4-20mA +/-` and `GND` for this slice.
+  - Let `pairs.py` consume the channel only when the opposite side has a real `terminal_numeric_channel`, and promote the relation to `pair_kind=semantic_mapping` with `semantic_mapping_kind=schematic_dc_function_label` and `ordinary_pair_eligible=False`.
+  - Added unit coverage for DC function labels, GND, and the single-sided semantic endpoint guardrail.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `5 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `254 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase84_dc_semantic_second/2_2` + `.tmp/phase84_dc_semantic_second_audit`: `pair_count=1460`, `issue_count=45`, `R-PAIR-MISSING-SIDE=35`, `semantic_mapping=164`.
+  - second `S0006` now has semantic review relations including `611 -> DC 0-5V/4-20mA +`, `609 -> DC 0-5V/4-20mA +`, `607 -> DC 0-5V/4-20mA +`, and `GND -> 101`.
+  - second terminal-header redline held: `semantic_table_mapping_pass_endpoint_count=0`; `I0/IA/UA/UB/UC/UN/3U0` remain `semantic_channel` rejected evidence; `PTM0008/PTM0017` are no longer `... -> I0`.
+  - second structured redlines held: `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`.
+  - first fresh `.tmp/phase84_dc_semantic_first/...` + `.tmp/phase84_dc_semantic_first_audit`: `pair_count=1562`, `issue_count=269`, `R-PAIR-MISSING-SIDE=111`, `semantic_mapping=106`.
+  - first structured redlines held: `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - second network-time/function-label semantic mapping.
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.

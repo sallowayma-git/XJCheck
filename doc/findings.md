@@ -8760,3 +8760,57 @@ fresh second-set 非回归证据：
 
 - 本轮是同构组件 family 漏收补齐，不是重新实现 KLP/CLP extractor，也不是 rules 静音。
 - 下一轮候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics。
+
+## 123. 2026-07-07 second DC/GND function semantic mapping：直流功能标签进入 semantic review 关系
+
+只读审计确认，second `S0006 / 06 直流回路图.dwg` 中 `DC 0-5V/4-20mA +/-` 与 `GND` 不是普通数字端点，也不是 terminal-header table extractor 回退，而是二次原理图里的功能/语义端标签。旧候选层把这些文本拒为 `not_numeric/noise_channel`，导致相邻数字端留下普通 missing-side，例如 `611 -> ?` 与 `? -> 101`。
+
+本轮实现：
+
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 新增 `schematic_semantic_endpoint_channel`，只在 `二次原理图`、horizontal/grid、且文件名或标题含直流/DC 的上下文启用。
+- 本切片只接受 `DC 0-5V/4-20mA +/-` 与 `GND`，不把 AC phase label、network-time label 或 first prefixed external endpoint 混入。
+- 在 [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py) 中只允许该通道与对侧真实 `terminal_numeric_channel` 成对，并将关系标为 `pair_kind=semantic_mapping`、`semantic_mapping_kind=schematic_dc_function_label`、`ordinary_pair_eligible=False`。
+- 单侧语义标签会被 PairBuilder scoped filter 移除，不制造新的 ordinary missing-side review。
+- 在 [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py) 增加 DC 功能标签、GND 和单侧语义 guardrail 单测。
+
+fresh second-set 证据：
+
+- `.tmp/phase84_dc_semantic_second/2_2` + `.tmp/phase84_dc_semantic_second_audit`
+- `pair_count=1460`
+- `issue_count=45`
+- `R-PAIR-MISSING-SIDE=35`
+- `semantic_mapping=164`
+- 新增/命中 semantic review 关系包括：
+  - `611 -> DC 0-5V/4-20mA +`
+  - `609 -> DC 0-5V/4-20mA +`
+  - `607 -> DC 0-5V/4-20mA +`
+  - `GND -> 101`
+- 这些关系均为 `semantic_mapping/review`，并带 `ordinary_pair_eligible=False`。
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase84_dc_semantic_first/...` + `.tmp/phase84_dc_semantic_first_audit`
+- `pair_count=1562`
+- `issue_count=269`
+- `R-PAIR-MISSING-SIDE=111`
+- `semantic_mapping=106`
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- second `S0021 / 21 左侧端子图1.dwg` 中 `I0/IA/UA/UB/UC/UN/3U0` 仍保留为 `semantic_channel` rejected candidate evidence，不进入 `table_mapping/pass` endpoint。
+- `PTM0008` 当前为 `3-21ID11 -> 3-21n708`，`PTM0017` 当前为 `3-21QD9 -> 3-21n130`，均不再是旧的 `... -> I0` 错误。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1` 均保持命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `5 passed, 25 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+- `python -m pytest -q` -> `254 passed`
+
+裁决：
+
+- 本轮是二次直流功能标签的语义关系收口，不是扩大普通数字端点解析，也不是隐藏 issue。
+- 下一轮候选收缩为：second AC phase-label semantic/covered mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics。

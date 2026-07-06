@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 69
+Phase 70
 
 ## Phases
 
@@ -937,6 +937,22 @@ Phase 69
   - second fresh `.tmp/phase83_zlp_second/2_2` + `.tmp/phase83_zlp_second_audit`: `pair_count=1460`, `issue_count=51`, pair_kind unchanged from Phase82；`wire_component_mapping=245`, `table_mapping=174`, `component_mapping=82`。
   - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain expected structured relations.
 - [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 70: Second DC/GND Function Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `92f8c3a`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 只读审计结论：second `S0006 / 06 直流回路图.dwg` 中 `DC 0-5V/4-20mA +/-` 与 `GND` 是二次原理图功能/语义端标签，旧候选层按 `not_numeric/noise_channel` 拒绝后留下普通缺边；本轮不触碰 AC phase、network-time、first prefixed endpoints 或 backplate/component/table rules。
+- [x] 实现目标：新增窄范围 `schematic_semantic_endpoint_channel`，只在二次原理图 horizontal/grid 且直流上下文中接受 `DC 0-5V/4-20mA +/-` 与 `GND`；PairBuilder 只在对侧存在真实 `terminal_numeric_channel` 时消费，并输出 `pair_kind=semantic_mapping` / `semantic_mapping_kind=schematic_dc_function_label` / `ordinary_pair_eligible=False`。
+- [x] 风险门槛：不把语义标签提升为 `terminal_numeric_channel` 或 ordinary hard pass；单侧语义标签不得制造新 missing-side review；端子图 `I0/IA/UA/UB/UC/UN/3U0` 仍只保留为 semantic / rejected candidate evidence，不进入 `table_mapping/pass` endpoint。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `5 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `254 passed`
+  - second fresh `.tmp/phase84_dc_semantic_second/2_2` + `.tmp/phase84_dc_semantic_second_audit`: `pair_count=1460`, `issue_count=45`, `R-PAIR-MISSING-SIDE=35`, `semantic_mapping=164`。
+  - second targets now include semantic review relations: `611 -> DC 0-5V/4-20mA +`, `609 -> DC 0-5V/4-20mA +`, `607 -> DC 0-5V/4-20mA +`, and `GND -> 101` as `semantic_mapping/review` with `ordinary_pair_eligible=False`。
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `I0/IA/UA/UB/UC/UN/3U0` remain `semantic_channel` rejected evidence on terminal pages; `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain expected structured relations.
+  - first fresh `.tmp/phase84_dc_semantic_first/...` + `.tmp/phase84_dc_semantic_first_audit`: `pair_count=1562`, `issue_count=269`, `R-PAIR-MISSING-SIDE=111`, `semantic_mapping=106`; KLP/CLP/ZLP and prefixed structured redlines held.
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
 ## Errors Encountered
