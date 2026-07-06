@@ -2772,3 +2772,36 @@
   - second AC `724 -> UX'` strict nearby/window annotation.
   - first prefixed external endpoints.
   - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 74 second AC UX prime strict line-span annotation)
+- Started after commit `35cb72f`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Inherited uncommitted implementation only touched `src/dwg_audit/audit/candidates.py` and `tests/unit/test_terminal_candidates.py`.
+  - Protected untracked paths remained untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - second `S0005 / 05 交流回路图2.dwg` had the final AC residual `PW0047/GW0047 724 -> ?`.
+  - Numeric text `724` and semantic text `UX'` sit on the same strict line-span row; this should be `schematic_ac_phase_label` semantic annotation evidence.
+  - A broad row guard initially regressed DC semantic endpoint mapping, so it was narrowed to AC labels only.
+- Implementation:
+  - Allowed `UX'` in the AC phase semantic endpoint pattern.
+  - Added `_add_schematic_ac_phase_line_span_candidates()` in `candidates.py`, limited to `二次原理图` horizontal/grid groups with exactly one accepted numeric side and strict line-span y tolerance.
+  - Added an AC-only cross-row rejection for endpoint-window semantic hits, leaving DC/network-time semantic endpoints unchanged.
+  - Added unit coverage for line-span `UX'`, far-y rejection, cross-row `UX'` rejection, and low-alignment DC non-regression.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or ac_phase or ux_prime or schematic_i0"` -> `10 passed, 29 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `266 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase88_ac_ux_prime_second_v3/2_2` + `.tmp/phase88_ac_ux_prime_second_v3_audit`: `pair_count=1460`, `issue_count=26`, `ordinary_pair=571`, `semantic_mapping=183`, AC issue count `0`.
+  - `PW0047/GW0047 724 -> ?` is now `semantic_mapping/review` with `semantic_endpoint=UX'`, `numeric_endpoint=724`, and `ordinary_pair_eligible=False`.
+  - `GW0047/T0134 UX'` is accepted as same-row line-span evidence; `GW0048/T0134 UX'` is rejected as `schematic_semantic_out_of_row`.
+  - `PW0106 607 -> DC 0-5V/4-20mA +` remains `semantic_mapping/review`, proving the row guard no longer regresses DC semantics.
+  - first fresh `.tmp/phase88_ac_ux_prime_first/...` + `.tmp/phase88_ac_ux_prime_first_audit`: `pair_count=1562`, `issue_count=256`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second wire/component/table structured redlines and first KLP/ZLP/218 structured mappings all held.
+- Next candidates:
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.

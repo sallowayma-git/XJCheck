@@ -8978,3 +8978,53 @@ fresh first-set 非回归证据：
 
 - 本轮是“已有 semantic evidence 覆盖普通半边 residual”的关系收口，不是 extractor 重写、候选窗口扩张或 rules 静音。
 - 下一轮候选收缩为：second AC `724 -> UX'` strict nearby/window annotation、first prefixed external endpoints、backplate/component/table mapping rules semantics。
+
+## 127. 2026-07-07 second AC UX prime strict line-span annotation：最后一条交流相量缺边进入 semantic review
+
+只读审计确认，Phase87 second AC 唯一剩余 residual 是 `S0005 / 05 交流回路图2.dwg` 的 `PW0047/GW0047 724 -> ?`。该线段 `[165.0,129.9999997] -> [215.0,129.9999997]` 上，数字 `T0132=724` 位于同一行，语义文本 `T0134=UX'` 位于严格 line-span 内，应解释为 AC phase label annotation，而不是普通端点缺失。
+
+本轮实现：
+
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 中将 AC phase label 白名单扩展为支持 `UX'`。
+- 新增 `_add_schematic_ac_phase_line_span_candidates()`，只在 `二次原理图` horizontal/grid line group 上、且恰好已有一侧真实 `terminal_numeric_channel` 时扫描同线段跨度内的 AC phase semantic endpoint。
+- 新增 AC-only 跨行 guard：endpoint window 中的 `schematic_ac_phase_label` 若垂直对齐分数为 0，则拒为 `schematic_semantic_out_of_row`；该 guard 不作用于 DC/network-time semantic endpoint。
+- 在 [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py) 增加 `UX'` line-span 正例、far-y 负例、跨行 `UX'` endpoint-window 负例和低对齐 DC 语义端非回归测试。
+
+fresh second-set 证据：
+
+- `.tmp/phase88_ac_ux_prime_second_v3/2_2` + `.tmp/phase88_ac_ux_prime_second_v3_audit`
+- `pair_count=1460`
+- `issue_count=26`
+- `ordinary_pair=571`
+- `semantic_mapping=183`
+- AC issue count `0`
+- `PW0047/GW0047 724 -> ?` 现在为 `semantic_mapping/review`，evidence 包含 `semantic_kind=schematic_semantic_annotation`、`semantic_mapping_kind=schematic_ac_phase_label`、`semantic_endpoint=UX'`、`numeric_endpoint=724`、`ordinary_pair_eligible=False`。
+- `GW0047/T0134 UX'` 被接受为同线段 line-span semantic candidate；相邻行 `GW0048/T0134 UX'` 被拒为 `schematic_semantic_out_of_row`。
+- `PW0106 607 -> DC 0-5V/4-20mA +` 仍为 `semantic_mapping/review`，证明跨行 guard 已收窄到 AC labels，没有回退 DC 语义端。
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase88_ac_ux_prime_first/...` + `.tmp/phase88_ac_ux_prime_first_audit`
+- `pair_count=1562`
+- `issue_count=256`
+- KLP/ZLP/218 structured redlines 均保持命中。
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 均保持命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or ac_phase or ux_prime or schematic_i0"` -> `10 passed, 29 deselected`
+- `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `266 passed`
+
+裁决：
+
+- 本轮是 second AC 最后一条 `724 -> UX'` 的严格 line-span 语义 annotation 收口，不是扩大普通 endpoint 解析，也不是 rules 静音。
+- 下一轮候选收缩为：first prefixed external endpoints、backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 只作为独立产品切片。

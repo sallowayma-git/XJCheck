@@ -33,7 +33,7 @@ _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^Device alarm$", re.IGNORECASE),
 )
 _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS = (
-    re.compile(r"^(?:UA|UB|UC|UN|UX|3U0'?)$", re.IGNORECASE),
+    re.compile(r"^(?:UA|UB|UC|UN|UX'?|3U0'?)$", re.IGNORECASE),
 )
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
@@ -141,6 +141,16 @@ def build_terminal_candidates(
                     reason = "height_out_of_range"
                     score = 0.0
                 elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_ac_phase_label"
+                    and vertical_alignment_score <= 0.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
                     len(value.strip()) == 1
                     and text.layer.upper() in profile["single_char_reject_layers"]
                 ):
@@ -218,6 +228,14 @@ def build_terminal_candidates(
                         channel_detail=channel_detail if status == "accepted" else (reason or channel_detail),
                     )
                 )
+        _add_schematic_ac_phase_line_span_candidates(
+            results=results,
+            index=index,
+            group=group,
+            sheet=sheet,
+            profile=profile,
+            candidate_ids=candidate_ids,
+        )
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
     _apply_terminal_strip_row_lock(results, group_map, sheet_map)
     _apply_terminal_short_bridge_roles(results, group_map, sheet_map)
@@ -248,6 +266,111 @@ def _candidate_search_bbox(
         endpoint[0] + radius_x,
         endpoint[1] + radius_y,
     )
+
+
+def _add_schematic_ac_phase_line_span_candidates(
+    *,
+    results: list[TerminalCandidate],
+    index: TextSpatialIndex,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    profile: dict[str, object],
+    candidate_ids: IdFactory,
+) -> None:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return
+    orientation = group.orientation if group.orientation in {"horizontal", "grid"} else "horizontal"
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return
+
+    by_side = defaultdict(list)
+    existing_text_ids: set[str] = set()
+    for candidate in results:
+        if candidate.line_group_id != group.line_group_id:
+            continue
+        existing_text_ids.add(candidate.text_id)
+        if candidate.status == "accepted" and candidate.channel == _CHANNEL_TERMINAL_NUMERIC:
+            by_side[candidate.side].append(candidate)
+    numeric_sides = {side for side, candidates in by_side.items() if candidates}
+    if len(numeric_sides) != 1:
+        return
+
+    side = next(iter(numeric_sides))
+    endpoint_map = dict(_endpoints_for_group(group))
+    endpoint = endpoint_map[side]
+    min_x = min(group.start_x, group.end_x)
+    max_x = max(group.start_x, group.end_x)
+    y = (group.start_y + group.end_y) / 2.0
+    y_tolerance = 2.5
+    min_height = float(profile["min_height"])
+    max_height = float(profile["max_height"])
+    radius_x = float(profile["radius_x"])
+    radius_y = float(profile["radius_y"])
+    bbox = (min_x, y - y_tolerance, max_x, y + y_tolerance)
+
+    for text in index.query(bbox):
+        if text.text_id in existing_text_ids:
+            continue
+        if not (min_height <= text.height <= max_height):
+            continue
+        if not (min_x <= text.insert_x <= max_x and abs(text.insert_y - y) <= y_tolerance):
+            continue
+        value = _candidate_schematic_semantic_endpoint_value(text, sheet, orientation)
+        detail = _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation)
+        if value is None or detail != "schematic_ac_phase_label":
+            continue
+        dx = text.insert_x - endpoint[0]
+        dy = text.insert_y - endpoint[1]
+        score = _candidate_score(
+            dx,
+            dy,
+            radius_x,
+            radius_y,
+            text.height,
+            side,
+            orientation=orientation,
+            layer=text.layer,
+            value=value,
+            deprioritized_layers=profile["deprioritized_layers"],
+            deprioritized_layer_penalty=float(profile["deprioritized_layer_penalty"]),
+            single_char_penalty_layers=profile["single_char_penalty_layers"],
+            single_char_penalty=float(profile["single_char_penalty"]),
+            derived_numeric_penalty=0.0,
+            block_internal_numeric_penalty=float(profile["block_internal_numeric_penalty"]),
+            is_block_internal=False,
+            terminal_strip_mode=False,
+            horizontal_distance_weight=float(profile["terminal_strip_distance_x_weight"]),
+            cross_axis_distance_weight=float(profile["terminal_strip_distance_y_weight"]),
+        )
+        results.append(
+            TerminalCandidate(
+                candidate_id=candidate_ids.next(),
+                line_group_id=group.line_group_id,
+                sheet_id=group.sheet_id,
+                file_id=group.file_id,
+                side=side,
+                text_id=text.text_id,
+                text=text.text,
+                value=value,
+                score=score,
+                status="accepted",
+                rejection_reason=None,
+                endpoint_x=endpoint[0],
+                endpoint_y=endpoint[1],
+                distance_x=round(abs(dx), 4),
+                distance_y=round(abs(dy), 4),
+                text_insert_x=text.insert_x,
+                text_insert_y=text.insert_y,
+                vertical_alignment_score=_cross_axis_alignment_score(dx, dy, radius_x, radius_y, orientation),
+                horizontal_side_score=_side_alignment_score(dx, dy, radius_x, radius_y, side, orientation),
+                text_type_score=1.0,
+                height_score=1.0,
+                source_block_name=text.source_block_name,
+                channel=_CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT,
+                channel_detail=detail,
+            )
+        )
+        existing_text_ids.add(text.text_id)
 
 
 def _endpoints_for_group(group: LineGroup) -> tuple[tuple[str, tuple[float, float]], tuple[str, tuple[float, float]]]:

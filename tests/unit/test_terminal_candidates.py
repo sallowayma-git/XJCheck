@@ -270,6 +270,65 @@ def test_build_terminal_candidates_accepts_schematic_dc_function_label_mapping()
     assert pair.evidence["ordinary_pair_eligible"] is False
 
 
+def test_build_terminal_candidates_keeps_low_alignment_dc_function_label_mapping() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=134.99,
+            start_y=65.0,
+            end_x=170.0,
+            end_y=65.0,
+            length=35.01,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "06 直流回路图.dwg", 6, "06", "直流回路图", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem(
+            "T1",
+            "S1",
+            "F1",
+            "H1",
+            "TEXT",
+            "DC 0-5V/4-20mA +",
+            "DC 0-5V/4-20mA +",
+            False,
+            "TEXT",
+            0.0,
+            2.5,
+            132.5,
+            72.0,
+            128.0,
+            70.5,
+            151.0,
+            73.5,
+        ),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "611", "611", True, "TEXT", 0.0, 2.5, 172.5, 66.0, 171.0, 64.5, 177.0, 67.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    semantic_candidate = next(item for item in candidates if item.text_id == "T1")
+    pair = pairs[0]
+
+    assert semantic_candidate.status == "accepted"
+    assert semantic_candidate.vertical_alignment_score == 0.0
+    assert semantic_candidate.channel == "schematic_semantic_endpoint_channel"
+    assert semantic_candidate.channel_detail == "schematic_dc_function_label"
+    assert pair.left_value == "DC 0-5V/4-20mA +"
+    assert pair.right_value == "611"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.evidence["semantic_mapping_kind"] == "schematic_dc_function_label"
+
+
 def test_build_terminal_candidates_accepts_schematic_dc_gnd_mapping() -> None:
     line_groups = [
         LineGroup(
@@ -463,6 +522,126 @@ def test_build_pairs_marks_single_sided_ac_phase_label_as_semantic_annotation() 
     assert pair.evidence["semantic_endpoint"] == "3U0"
     assert pair.evidence["numeric_endpoint"] == "721"
     assert pair.evidence["ordinary_pair_eligible"] is False
+
+
+def test_build_pairs_marks_line_span_ux_prime_as_ac_phase_semantic_annotation() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=165.0,
+            start_y=130.0,
+            end_x=215.0,
+            end_y=130.0,
+            length=50.0,
+            wire_candidate_score=0.55,
+            member_line_ids=["L1"],
+            layer_hints=["0"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "05 交流回路图2.dwg", 5, "05", "CT AND VT INPUT 2", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "724", "724", True, "DIM", 0.0, 2.5, 160.625, 130.605, 160.625, 129.73, 165.275, 132.605),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "UX'", "UX'", False, "DIM", 0.0, 2.5, 184.179, 131.25, 184.179, 130.375, 188.829, 133.25),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    phase_candidate = next(item for item in candidates if item.text_id == "T2" and item.line_group_id == "G1")
+    pair = pairs[0]
+
+    assert phase_candidate.status == "accepted"
+    assert phase_candidate.value == "UX'"
+    assert phase_candidate.channel == "schematic_semantic_endpoint_channel"
+    assert phase_candidate.channel_detail == "schematic_ac_phase_label"
+    assert phase_candidate.side == "left"
+    assert pair.left_value == "724"
+    assert pair.right_value is None
+    assert pair.status == "review"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.evidence["semantic_kind"] == "schematic_semantic_annotation"
+    assert pair.evidence["semantic_mapping_kind"] == "schematic_ac_phase_label"
+    assert pair.evidence["semantic_endpoint"] == "UX'"
+    assert pair.evidence["numeric_endpoint"] == "724"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
+def test_build_terminal_candidates_keeps_far_ux_prime_out_of_ac_line_span_annotation() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=165.0,
+            start_y=130.0,
+            end_x=215.0,
+            end_y=130.0,
+            length=50.0,
+            wire_candidate_score=0.55,
+            member_line_ids=["L1"],
+            layer_hints=["0"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "05 交流回路图2.dwg", 5, "05", "CT AND VT INPUT 2", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "724", "724", True, "DIM", 0.0, 2.5, 160.625, 130.605, 160.625, 129.73, 165.275, 132.605),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "UX'", "UX'", False, "DIM", 0.0, 2.5, 184.179, 136.0, 184.179, 135.125, 188.829, 138.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    assert not [item for item in candidates if item.text_id == "T2" and item.status == "accepted"]
+    assert pairs[0].pair_kind == "ordinary_pair"
+    assert pairs[0].left_value == "724"
+    assert pairs[0].right_value is None
+
+
+def test_build_terminal_candidates_rejects_cross_row_ux_prime_endpoint_hit() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=180.0,
+            start_y=140.0,
+            end_x=215.0,
+            end_y=140.0,
+            length=35.0,
+            wire_candidate_score=0.55,
+            member_line_ids=["L1"],
+            layer_hints=["0"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "05 交流回路图2.dwg", 5, "05", "CT AND VT INPUT 2", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "723", "723", True, "DIM", 0.0, 2.5, 160.625, 140.605, 160.625, 139.73, 165.275, 142.605),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "UX", "UX", False, "DIM", 0.0, 2.5, 184.179, 141.25, 184.179, 140.375, 187.279, 143.25),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "UX'", "UX'", False, "DIM", 0.0, 2.5, 184.179, 131.25, 184.179, 130.375, 188.829, 133.25),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    cross_row = next(item for item in candidates if item.text_id == "T3")
+    pair = pairs[0]
+
+    assert cross_row.status == "rejected"
+    assert cross_row.rejection_reason == "schematic_semantic_out_of_row"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.evidence["semantic_endpoint"] == "UX"
+    assert pair.evidence["numeric_endpoint"] == "723"
 
 
 def test_build_terminal_candidates_keeps_terminal_ac_marker_out_of_schematic_endpoint_channel() -> None:

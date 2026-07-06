@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 73
+Phase 74
 
 ## Phases
 
@@ -1003,6 +1003,24 @@ Phase 73
   - first fresh `.tmp/phase87_ac_covered_first/...` + `.tmp/phase87_ac_covered_first_audit`: `pair_count=1562`, `issue_count=256`，既有 KLP/ZLP/218 structured redlines held。
   - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
 - [ ] 下一刀候选收缩为：second AC `724 -> UX'` strict nearby/window annotation、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 74: Second AC UX Prime Strict Line-Span Annotation
+- [x] 只读恢复并确认当前 HEAD 为 `35cb72f`；工作区继承上一段未提交实现，仅涉及 `src/dwg_audit/audit/candidates.py` 与 `tests/unit/test_terminal_candidates.py`，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 审计结论：second `S0005 / 05 交流回路图2.dwg` 的 `PW0047/GW0047 724 -> ?` 是 AC 相量语义标注残留；数字 `724` 与 `UX'` 位于同一严格 line-span 行带内，应形成 `schematic_ac_phase_label` 的 `semantic_mapping/review`，而不是普通 missing-side。
+- [x] 实现目标：在 `build_terminal_candidates()` 中只为二次原理图 AC phase label 增加严格 line-span 候选补充，支持 `UX'`；新增跨行 AC 语义端 guard，但只作用于 `schematic_ac_phase_label`，避免误伤 DC/network-time 语义端。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or ac_phase or ux_prime or schematic_i0"` -> `10 passed, 29 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `266 passed`
+  - second fresh `.tmp/phase88_ac_ux_prime_second_v3/2_2` + `.tmp/phase88_ac_ux_prime_second_v3_audit`: `pair_count=1460`, `issue_count=26`, `ordinary_pair=571`, `semantic_mapping=183`, AC issue count `0`。
+  - second target hit: `PW0047/GW0047 724 -> ?` is now `semantic_mapping/review` with `semantic_endpoint=UX'`, `numeric_endpoint=724`, `ordinary_pair_eligible=False`；`GW0048/T0134 UX'` is rejected as `schematic_semantic_out_of_row`。
+  - DC regression held: `PW0106 607 -> DC 0-5V/4-20mA +` remains `semantic_mapping/review` after narrowing the row guard to AC labels only。
+  - first fresh `.tmp/phase88_ac_ux_prime_first/...` + `.tmp/phase88_ac_ux_prime_first_audit`: `pair_count=1562`, `issue_count=256`，KLP/ZLP/218 structured redlines held。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
+- [ ] 下一刀候选收缩为：first prefixed external endpoints、backplate/component/table mapping rules semantics；若转向产品化，packaged sidecar/exe smoke 必须作为独立切片。
 - **Status:** complete
 
 ## Errors Encountered
