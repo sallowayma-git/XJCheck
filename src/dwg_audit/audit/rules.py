@@ -569,7 +569,7 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
     return [
         pair
         for pair in context.pairs
-        if _ordinary_pair_eligible(pair)
+        if _high_confidence_source_eligible(pair)
         if pair.left_value
         and pair.right_value
         and (
@@ -577,6 +577,12 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
             or pair.evidence.get("source") == "table_mapping"
         )
     ]
+
+
+def _high_confidence_source_eligible(pair: Pair) -> bool:
+    if pair.evidence.get("source") == "table_mapping":
+        return True
+    return _ordinary_pair_eligible(pair)
 
 
 def _ordinary_pair_eligible(pair: Pair) -> bool:

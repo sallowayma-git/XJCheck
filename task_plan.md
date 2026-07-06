@@ -535,3 +535,15 @@ Phase 41
   - first-set fresh `analyze-project + run-audit`: `.tmp/phase52_inline_klp_line_gated_first/...` 产出 `6` 条 `inline_klp_component_port_mapping`，其中四个目标 `1KLP1-1 -> 1QD2`、`1KLP1-2 -> 1n116`、`3-2KLP1-1 -> 3-2QD2`、`3-2KLP1-2 -> 3-2n116` 均为 `pass/confidence=0.95`
   - second-set fresh `analyze-project`: `.tmp/phase52_inline_klp_line_gated_second/2_2` 中 `inline_klp=0`，未在第二套误触发
 - [ ] 下一刀建议：继续收口 `ComponentDiagramExtractor` 的元件接线图结构化 `component_mapping`，或处理 `R-ONE-TO-MANY` 对结构化表格/组件映射的规则语义。
+
+### Phase 44: Table Mapping Relationship Contract
+- [x] 任务书审计：重新按 `doc/任务书.md` 拆出 MVP 主链要求，并写入 `doc/findings.md` section 95。
+- [x] 实现目标：把表格映射从“`ordinary_pair` + `evidence.source=table_mapping`”修正为显式 `pair_kind=table_mapping`。
+- [x] 规则层同步：`_high_confidence_pairs()` 允许 `table_mapping` 在不冒充 ordinary pair 的前提下继续参与跨页冲突和 mixed-source 规则。
+- [x] 验证命令与结果：
+  - targeted table/rules tests -> `13 passed`
+  - targeted analyze-project table tests -> `5 passed`
+  - `python -m pytest -q` -> `193 passed`
+  - first-set fresh `analyze-project + run-audit`: `.tmp/phase53_table_pair_kind_first/...` 产出 `pair_kind.table_mapping=144`，`NKR308A-1 -> 5FD15` 保持 `pass/confidence=0.95`
+  - second-set fresh `analyze-project + run-audit`: `.tmp/phase53_table_pair_kind_second/2_2` 产出 `pair_kind.table_mapping=176`，`1-21QD1 -> 1-21n116` 保持 `pass/confidence=0.95`
+- [ ] 下一刀建议：进入 `ComponentDiagramExtractor` 专用 `component_mapping`，优先 first `S0022/S0024` 或 second `S0019/S0020`。

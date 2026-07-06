@@ -303,6 +303,7 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
 
     table_pairs = pairs[pairs["sheet_id"] == table_sheet_id]
     assert len(table_pairs) == 3
+    assert set(table_pairs["pair_kind"].tolist()) == {"table_mapping"}
     assert table_pairs["line_group_id"].isna().all()
     first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
     assert first_evidence["source"] == "table_mapping"
@@ -403,6 +404,7 @@ def test_analyze_project_supports_header_semantic_three_column_table_mapping(
     table_sheet_id = table_page["sheet_id"]
     table_pairs = pairs[pairs["sheet_id"] == table_sheet_id]
     assert len(table_pairs) == 4
+    assert set(table_pairs["pair_kind"].tolist()) == {"table_mapping"}
     pair_values = {(row["left_value"], row["right_value"]) for _, row in table_pairs.iterrows()}
     assert pair_values == {
         ("1-21QD1", "1-21n552"),
@@ -1100,6 +1102,7 @@ def test_analyze_project_emits_terminal_header_table_mappings(
     findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
 
     table_pairs = pairs[pairs["left_value"].astype(str).str.startswith("1-21QD")]
+    assert set(table_pairs["pair_kind"].tolist()) == {"table_mapping"}
     assert {
         (row["left_value"], row["right_value"])
         for _, row in table_pairs.iterrows()

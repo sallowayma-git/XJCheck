@@ -452,5 +452,6 @@ def test_extract_table_pairs_builds_backplate_virtual_table_mappings() -> None:
         ("NKR308A-2", "5FD16"),
     }
     assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
-    assert {pair.pair_kind for pair in pairs} == {"ordinary_pair"}
+    assert all(pair.evidence["pair_kind"] == "table_mapping" for pair in pairs)
+    assert {pair.pair_kind for pair in pairs} == {"table_mapping"}
     assert pairs[0].evidence["table_mapping"]["source_block_name"] == "WBH-814E-E1SA-101"

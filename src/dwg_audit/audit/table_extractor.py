@@ -535,6 +535,7 @@ def _build_table_pairs(
     pair_key = f"{left_pair_value}->{right_pair_value}"
     evidence = {
         "source": "table_mapping",
+        "pair_kind": "table_mapping",
         "filename": sheet.filename,
         "sheet_no": sheet.sheet_no,
         "sheet_order": sheet.sheet_order,
@@ -577,6 +578,7 @@ def _build_table_pairs(
             right_score=1.0,
             wire_score=1.0,
             ambiguity_gap=None,
+            pair_kind="table_mapping",
         )
     ]
 
@@ -599,6 +601,7 @@ def _build_header_semantic_pairs(
         endpoint_coord = mapping.get("left_coord") if side_key == "left_value" else mapping.get("right_coord")
         evidence = {
             "source": "table_mapping",
+            "pair_kind": "table_mapping",
             "filename": sheet.filename,
             "sheet_no": sheet.sheet_no,
             "sheet_order": sheet.sheet_order,
@@ -641,6 +644,7 @@ def _build_header_semantic_pairs(
                 right_score=1.0,
                 wire_score=1.0,
                 ambiguity_gap=None,
+                pair_kind="table_mapping",
             )
         )
     return pairs

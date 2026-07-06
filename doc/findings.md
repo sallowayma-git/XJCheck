@@ -6791,3 +6791,86 @@ route status 仍稳定为：
 - `wire_component_mapping = 0`
 
 这说明本轮不是靠放宽候选召回，而是把一个明确的线中元件端口关系补成结构化 mapping。下一步更适合继续做元件接线图 `component_mapping`，或者让规则层更好理解这些结构化 mapping，避免把正确的一对多结构误报成普通冲突。
+
+## 95. 2026-07-06 任务书完成度审计：当前主链仍未完全闭环
+
+本轮重新按当前 [任务书](/F:/workspace/XJToolkit/doc/任务书.md) 审计，不用历史功能存在性代替完成证明。当前证据主要来自：
+
+- 第一套 fresh 输出：[phase52_inline_klp_line_gated_first](/F:/workspace/XJToolkit/.tmp/phase52_inline_klp_line_gated_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第二套 fresh 输出：[phase52_inline_klp_line_gated_second](/F:/workspace/XJToolkit/.tmp/phase52_inline_klp_line_gated_second/2_2)
+- 第一套 audit 输出：[phase52 audit](/F:/workspace/XJToolkit/.tmp/phase52_inline_klp_line_gated_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/audit)
+
+### 95.1 当前强证据已完成
+
+| 要求 | 当前证据 |
+|---|---|
+| 项目目录多 DWG 输入并生成 findings | 第一套 `28` 页、第二套 `24` 页均有 `findings/pages.parquet`、`pairs.parquet`、`findings.json` |
+| 页级分类字段进入主链 | `pages.parquet` 已有 `page_type / page_subtype / page_type_confidence / route_target / audit_disposition` |
+| 不同图种走不同 extractor | 第一套 route 分布：`WireDiagramExtractor=13`、`TableExtractor=4`、`TerminalDiagramExtractor=4`、`ComponentDiagramExtractor=3`、`SkipExtractor=4`；第二套 route 分布：`WireDiagramExtractor=13`、`TerminalDiagramExtractor=4`、`ComponentDiagramExtractor=2`、`LayoutOnlyExtractor=2`、`SkipExtractor=3` |
+| 表头型端子/表格 supplemental mapping | 第二套 `terminal_header_table=176`，`1-21QD1 -> 1-21n116` 为 `pass/confidence=0.95/source=table_mapping` |
+| 背板虚拟表格 | 第一套 `NKR308A-1 -> 5FD15` 保持 `backplate_virtual_table/pass/confidence=0.95` |
+| 普通回路图结构化子模式 | 第一套 `wire_component_mapping=32`，包含 `component_prefixed_signal_circuit=26` 和 `inline_klp_component_port_mapping=6` |
+| issue 可复核证据字段 | 第一套 `issues.parquet` 有 `filename / sheet_no / sheet_id / line_group_id / left_value / right_value / rule_id / confidence / rationale / evidence / evidence_refs / root_cause` |
+| page_findings 不再被当最终交付物 | 当前任务书已明确 page findings 属内部运行态；本轮没有把 `doc/page_findings/` 作为正式交付推进 |
+
+### 95.2 部分实现但未达到任务书完成标准
+
+| 要求 | 当前状态 | 缺口 |
+|---|---|---|
+| `TableExtractor` 作为独立高置信信源 | 真实样本已有 `evidence.source=table_mapping`，第一套 `144`、第二套 `176` | 顶层 `pair_kind` 仍统计为 `ordinary_pair`，没有显式 `table_mapping`；这与任务书中“结构化关系类型必须显式”的要求冲突 |
+| 规则层统一消费结构化关系 | `wire_component_mapping` 已是显式 `pair_kind`，table mapping 可被部分规则按 `evidence.source` 识别 | `_high_confidence_pairs()` 仍先按 `_ordinary_pair_eligible()` 过滤；若把 table pair_kind 改正确，规则会漏掉表格信源，说明规则入口尚未真正结构化 |
+| `ComponentDiagramExtractor` | 元件接线图已稳定路由到 `ComponentDiagramExtractor` | 仍没有 `component_mapping`；first `S0022-S0024` 和 second `S0019-S0020` 主要还是普通 pair/review/discard，不满足 4/6 输出或长条双端口组件要求 |
+| 背板插件端子表 | first `S0019/S0020` 能进入背板表格型/`TableExtractor` 路径 | `NCZ343A` 类背板插件端子表仍未证明产出映射；不能用 `NKR308A` 虚拟表格代替该子类完成 |
+| 端子图列角色/语义列 | 端子图路由正确，已有 `terminal_header_table` 和部分 `semantic_mapping / continuation / bridge_mapping` | 普通 terminal row、语义列、continuation 的 relationship kind 与规则语义仍不完整，不能只靠普通 pair 分数解释 |
+
+### 95.3 明确未完成
+
+- 元件接线图 `4输出/6输出`：任务书要求 `1-40DK2-1 -> ZD17` 等 `component_mapping`，当前没有强证据。
+- 长条双端口元件接线图：任务书要求 `5KLP10-1 -> 5KLP9-1`、`5KLP10-2 -> 5n112`，当前没有强证据。
+- 背板插件端子表 `NCZ343A`：任务书要求左右奇偶序号列绑定外侧端子，当前没有强证据。
+- 结构化关系类型统一化：`table_mapping` 仍被顶层归为 `ordinary_pair`，与当前任务书第 9/10 章的关系类型要求不一致。
+
+### 95.4 偏航或不应继续优先
+
+- 不应继续用总 `issue_count` 变化证明成功。第一套 `issue_count=390`、第二套若重跑 audit 预计仍会大量显性化，这只是症状集合。
+- 不应继续扩展桌面端、预览、Tauri 或新 CLI；当前主链缺口在 relationship kind、组件抽取和规则语义。
+- 不应继续把端子、元件、表格都塞回普通 `ordinary_pair` 后再靠全局阈值调分。
+
+### 95.5 本轮最近主链切片裁决
+
+最近、最短且最贴近任务书主链的切片不是新增 UI，也不是继续调 `candidate` 阈值，而是：
+
+**把所有表格映射 pair 的顶层 `pair_kind` 改为 `table_mapping`，并修正规则层高置信入口，使 `table_mapping` 在不冒充 `ordinary_pair` 的前提下继续参与跨页冲突和 mixed-source 规则。**
+
+理由：
+
+- 当前真实样本已经有稳定 table mapping，但关系类型仍错。
+- 任务书明确要求 `table_mapping / wire_component_mapping / component_mapping` 是不同关系类型。
+- 这是证明 `TableExtractor` 已成为独立信源的最短闭环。
+- 修完后再进入更大的 `ComponentDiagramExtractor` 专用实现会更干净。
+
+### 95.6 本轮切片完成证据
+
+已完成 `table_mapping` 显式关系类型修正：
+
+- `TableExtractor` 产出的表格映射现在顶层 `pair_kind = table_mapping`
+- 表格映射 evidence 同步带 `pair_kind = table_mapping`
+- 规则层高置信入口允许 `table_mapping` 作为结构化信源参与项目级规则，不再依赖它伪装成 `ordinary_pair`
+
+验证结果：
+
+- targeted table/rules tests: `13 passed`
+- targeted analyze-project table tests: `5 passed`
+- full pytest: `193 passed`
+
+真实样本证据：
+
+- 第一套 fresh 输出：[phase53_table_pair_kind_first](/F:/workspace/XJToolkit/.tmp/phase53_table_pair_kind_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第一套 `pair_kind.table_mapping = 144`
+- 第一套 `NKR308A-1 -> 5FD15` 仍为 `table_mapping / pass / confidence=0.95`
+- 第二套 fresh 输出：[phase53_table_pair_kind_second](/F:/workspace/XJToolkit/.tmp/phase53_table_pair_kind_second/2_2)
+- 第二套 `pair_kind.table_mapping = 176`
+- 第二套 `1-21QD1 -> 1-21n116` 仍为 `table_mapping / pass / confidence=0.95`
+- 两套 `run-audit` 均成功；issues 中已能看到 `pair_kind=table_mapping`
+
+这轮之后，`TableExtractor` 作为独立高置信信源的 contract 更接近任务书要求。当前最强剩余缺口变为：`ComponentDiagramExtractor` 仍未产出 `component_mapping`。

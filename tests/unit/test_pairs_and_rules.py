@@ -1433,6 +1433,7 @@ def test_build_issues_treats_table_mapping_pairs_as_high_confidence_source() -> 
             rationale="table mapping",
             confidence_bucket="high",
             evidence={"source": "table_mapping"},
+            pair_kind="table_mapping",
         ),
         Pair(
             pair_id="P0002",
@@ -1447,6 +1448,7 @@ def test_build_issues_treats_table_mapping_pairs_as_high_confidence_source() -> 
             rationale="table mapping",
             confidence_bucket="high",
             evidence={"source": "table_mapping"},
+            pair_kind="table_mapping",
         ),
     ]
     sheets = [
@@ -1479,6 +1481,7 @@ def test_build_issues_emits_mixed_source_conflict_for_table_mapping_vs_ordinary_
             rationale="table mapping",
             confidence_bucket="high",
             evidence={"source": "table_mapping", "sheet_order": 5},
+            pair_kind="table_mapping",
         ),
         Pair(
             pair_id="P0002",
@@ -1534,6 +1537,7 @@ def test_build_issues_skips_mixed_source_conflict_when_table_and_ordinary_agree(
             rationale="table mapping",
             confidence_bucket="high",
             evidence={"source": "table_mapping", "sheet_order": 5},
+            pair_kind="table_mapping",
         ),
         Pair(
             pair_id="P0002",

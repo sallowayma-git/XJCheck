@@ -1763,3 +1763,34 @@
 - Concurrent/user changes preserved:
   - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
   - Did not revert concurrent/user work.
+
+## Session Update 2026-07-06 (Phase 44)
+- Re-ran a taskbook-first MVP audit before development and recorded it in `doc/findings.md` section 95.
+- Completed the table mapping relationship contract slice:
+  - TableExtractor-created mappings now emit `pair_kind="table_mapping"` at the top-level Pair contract.
+  - Table mapping evidence now also carries `evidence.pair_kind="table_mapping"`.
+  - Rule high-confidence source selection now admits table mappings without requiring them to masquerade as ordinary pairs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_table_extractor.py tests\unit\test_pairs_and_rules.py -k "table_mapping or table_pairs or backplate_virtual_table"` -> `13 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "table_mapping or terminal_header_table or backplate_virtual_table"` -> `5 passed`
+  - `python -m pytest -q` -> `193 passed`
+  - `git diff --check` -> no whitespace errors, only existing CRLF warnings
+- First-set real-sample evidence:
+  - Fresh output: `.tmp/phase53_table_pair_kind_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `run-audit` succeeded.
+  - `pair_kind` counts include `table_mapping=144`, `wire_component_mapping=32`, `continuation=68`, `semantic_mapping=103`, `bridge_mapping=3`.
+  - `table_mapping` modes are `terminal_header_table=77` and `backplate_virtual_table=67`.
+  - `NKR308A-1 -> 5FD15` remains `pair_kind=table_mapping`, `status=pass`, `confidence=0.95`.
+  - First audit remains `issue_count=390`; issues now include `pair_kind=table_mapping` where table mappings are involved.
+- Second-set real-sample evidence:
+  - Fresh output: `.tmp/phase53_table_pair_kind_second/2_2`
+  - `run-audit` succeeded.
+  - `pair_kind` counts include `table_mapping=176`, all from `terminal_header_table`.
+  - `1-21QD1 -> 1-21n116` remains `pair_kind=table_mapping`, `status=pass`, `confidence=0.95`.
+  - Second audit has `issue_count=588`; issues include `pair_kind=table_mapping` where table mappings are involved.
+- Current remaining MVP gap after this slice:
+  - `component_mapping=0` remains the strongest taskbook failure.
+  - Next slice should stop treating `ComponentDiagramExtractor` as a generic PairBuilder wrapper and recover component-page mappings.
+- Concurrent/user changes preserved:
+  - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.
