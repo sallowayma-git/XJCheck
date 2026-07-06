@@ -178,6 +178,7 @@ def _extract_pairs_for_route(
             texts,
             lines,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
+            first_prefixed_eligible_local_text_ids=_ordinary_single_sided_text_ids(pairs),
         )
         _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)
@@ -296,6 +297,20 @@ def _mark_wire_component_covered_ordinary_pairs(
             pair.evidence[f"covered_by_{reason}"] = True
 
 
+def _ordinary_single_sided_text_ids(pairs: list[Pair]) -> set[str]:
+    text_ids: set[str] = set()
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.status == "discard":
+            continue
+        if bool(pair.left_value) == bool(pair.right_value):
+            continue
+        for value in _pair_selected_text_ids(pair):
+            text_ids.add(value)
+    return text_ids
+
+
 def _mark_schematic_ac_phase_covered_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:
     sheet_map = {page.sheet_id: page for page in pages}
     covered_text_reasons = _schematic_ac_phase_numeric_text_reasons(pairs, sheet_map)
@@ -365,7 +380,7 @@ def _wire_component_local_number_text_reasons(wire_component_pairs: list[Pair]) 
         component_submode = evidence.get("component_submode")
         if component_submode == "input_matrix_wire_mapping":
             values = (pair.right_text_id, evidence.get("local_number_text_id"))
-        elif component_submode == "component_prefixed_signal_circuit":
+        elif component_submode in {"component_prefixed_signal_circuit", "first_prefixed_external_endpoint_mapping"}:
             values = (evidence.get("local_number_text_id"),)
         else:
             continue
@@ -377,24 +392,33 @@ def _wire_component_local_number_text_reasons(wire_component_pairs: list[Pair]) 
 
 
 def _pair_text_coverage_reasons(pair: Pair, covered_text_reasons: dict[str, str]) -> set[str]:
+    return {
+        covered_text_reasons[text_id]
+        for text_id in _pair_selected_text_ids(pair)
+        if text_id in covered_text_reasons
+    }
+
+
+def _pair_selected_text_ids(pair: Pair) -> set[str]:
     evidence = pair.evidence or {}
-    selected_ids = {
+    values = {
         pair.left_text_id,
         pair.right_text_id,
         evidence.get("selected_left_text_id"),
         evidence.get("selected_right_text_id"),
     }
-    return {
-        covered_text_reasons[text_id]
-        for text_id in selected_ids
-        if isinstance(text_id, str) and text_id in covered_text_reasons
-    }
+    return {value for value in values if isinstance(value, str) and value}
 
 
 def _wire_component_coverage_rationale(covered_reasons: set[str]) -> str:
     if "component_prefixed_signal_circuit" in covered_reasons:
         return (
             "Covered by component_prefixed_signal_circuit; component local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    if "first_prefixed_external_endpoint_mapping" in covered_reasons:
+        return (
+            "Covered by first_prefixed_external_endpoint_mapping; prefixed external local number "
             "must not be emitted as a bare ordinary pair."
         )
     return "Covered by input_matrix_wire_mapping; matrix local number must not be emitted as a bare ordinary pair."

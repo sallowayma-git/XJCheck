@@ -18,6 +18,7 @@ _INLINE_KLP_ENDPOINT_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:QD\d+|n\d+)$", re.IG
 _INLINE_KLP_LOCAL_NUMBER_PATTERN = re.compile(r"^\d{3}$")
 _INPUT_MATRIX_PREFIX_PATTERN = re.compile(r"^\d+-21n$", re.IGNORECASE)
 _INPUT_MATRIX_ROW_ENDPOINT_PATTERN = re.compile(r"^\d+-21QD\d+$", re.IGNORECASE)
+_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN = re.compile(r"^(?P<prefix>\d+(?:-\d+)?)QD\d+$", re.IGNORECASE)
 _ROW_Y_TOL = 1.5
 _PREFIX_X_TOL = 36.0
 _PREFIX_Y_SPAN = 130.0
@@ -27,6 +28,8 @@ _INPUT_MATRIX_ROW_Y_TOL = 2.5
 _INPUT_MATRIX_PREFIX_X_TOL = 46.0
 _INPUT_MATRIX_PREFIX_Y_GAP_MIN = 25.0
 _INPUT_MATRIX_ROW_ENDPOINT_X_TOL = 55.0
+_FIRST_PREFIXED_EXTERNAL_ROW_Y_TOL = 2.5
+_FIRST_PREFIXED_EXTERNAL_X_TOL = 75.0
 _INLINE_KLP_BODY_X_TOL = 48.0
 _INLINE_KLP_BODY_Y_TOL = 18.0
 _INLINE_KLP_PORT_ROW_TOL = 2.0
@@ -43,6 +46,7 @@ def extract_component_prefixed_signal_pairs(
     lines: list[LineEntity] | None = None,
     *,
     pair_id_factory: IdFactory | None = None,
+    first_prefixed_eligible_local_text_ids: set[str] | None = None,
 ) -> list[Pair]:
     """Recover narrow wire-component mappings on signal-circuit pages."""
     pair_ids = pair_id_factory or IdFactory("PWCM")
@@ -80,6 +84,14 @@ def extract_component_prefixed_signal_pairs(
                 page,
                 sheet_texts,
                 pair_ids,
+            )
+        )
+        pairs.extend(
+            _extract_first_prefixed_external_endpoint_pairs(
+                page,
+                sheet_texts,
+                pair_ids,
+                eligible_local_text_ids=first_prefixed_eligible_local_text_ids,
             )
         )
         pairs.extend(
@@ -121,6 +133,48 @@ def _extract_input_matrix_wire_pairs(
             continue
         seen.add(dedupe_key)
         pairs.append(_build_input_matrix_wire_pair(page, prefix, row_endpoint, local, logical_endpoint, pair_ids))
+    return pairs
+
+
+def _extract_first_prefixed_external_endpoint_pairs(
+    page: SheetRecord,
+    sheet_texts: list[TextItem],
+    pair_ids: IdFactory,
+    *,
+    eligible_local_text_ids: set[str] | None = None,
+) -> list[Pair]:
+    external_endpoints = [
+        text for text in sheet_texts if _looks_like_first_prefixed_external_endpoint(text.normalized_text)
+    ]
+    local_numbers = [text for text in sheet_texts if _looks_like_local_number(text.normalized_text)]
+    if not external_endpoints or not local_numbers:
+        return []
+
+    pairs: list[Pair] = []
+    seen: set[tuple[str, str, str]] = set()
+    for endpoint in sorted(external_endpoints, key=lambda item: (item.insert_y, item.insert_x, item.text_id)):
+        local = _nearest_first_prefixed_external_local_number(endpoint, local_numbers)
+        if local is None:
+            continue
+        if eligible_local_text_ids is not None and local.text_id not in eligible_local_text_ids:
+            continue
+        prefix = _first_prefixed_external_prefix(endpoint.normalized_text)
+        if prefix is None:
+            continue
+        logical_endpoint = f"{prefix}n{local.normalized_text}"
+        dedupe_key = (endpoint.text_id, local.text_id, logical_endpoint)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        pairs.append(
+            _build_first_prefixed_external_endpoint_pair(
+                page=page,
+                external_endpoint=endpoint,
+                local=local,
+                logical_endpoint=logical_endpoint,
+                pair_ids=pair_ids,
+            )
+        )
     return pairs
 
 
@@ -334,6 +388,74 @@ def _build_input_matrix_wire_pair(
     )
 
 
+def _build_first_prefixed_external_endpoint_pair(
+    *,
+    page: SheetRecord,
+    external_endpoint: TextItem,
+    local: TextItem,
+    logical_endpoint: str,
+    pair_ids: IdFactory,
+) -> Pair:
+    component_bbox = _component_bbox_from_items([external_endpoint, local])
+    evidence = {
+        "source": "wire_component_mapping",
+        "filename": page.filename,
+        "sheet_no": page.sheet_no,
+        "sheet_order": page.sheet_order,
+        "sheet_title": page.sheet_title,
+        "pair_kind": "wire_component_mapping",
+        "component_submode": "first_prefixed_external_endpoint_mapping",
+        "external_endpoint": external_endpoint.normalized_text,
+        "external_endpoint_raw": external_endpoint.normalized_text,
+        "external_endpoint_text_id": external_endpoint.text_id,
+        "external_endpoint_coord": [external_endpoint.insert_x, external_endpoint.insert_y],
+        "local_number": local.normalized_text,
+        "local_number_text_id": local.text_id,
+        "local_number_coord": [local.insert_x, local.insert_y],
+        "logical_endpoint": logical_endpoint,
+        "component_bbox": component_bbox,
+        "line_orientation": "first_prefixed_external_row",
+        "row_band_id": f"row:{round((external_endpoint.insert_y + local.insert_y) / 2.0, 1)}",
+        "row_y_delta": abs(external_endpoint.insert_y - local.insert_y),
+        "endpoint_x_delta": abs(external_endpoint.insert_x - local.insert_x),
+        "left_side_label": "external_endpoint",
+        "right_side_label": "logical_endpoint",
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_ids.next(),
+        line_group_id=None,
+        sheet_id=page.sheet_id,
+        file_id=page.file_id,
+        selected_pair_candidate_id=None,
+        left_value=external_endpoint.normalized_text,
+        right_value=logical_endpoint,
+        confidence=_COMPONENT_PAIR_CONFIDENCE,
+        status="pass",
+        rationale="First prefixed external endpoint mapping: same-row QD endpoint associated with local number using its numeric prefix.",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=external_endpoint.text_id,
+        right_text_id=local.text_id,
+        left_coord_x=external_endpoint.insert_x,
+        left_coord_y=external_endpoint.insert_y,
+        right_coord_x=local.insert_x,
+        right_coord_y=local.insert_y,
+        pair_key=f"{external_endpoint.normalized_text}->{logical_endpoint}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="wire_component_mapping",
+    )
+
+
 def _build_inline_klp_component_pair(
     *,
     page: SheetRecord,
@@ -462,6 +584,15 @@ def _looks_like_input_matrix_row_endpoint(value: str | None) -> bool:
     return bool(value) and bool(_INPUT_MATRIX_ROW_ENDPOINT_PATTERN.fullmatch(str(value).strip()))
 
 
+def _looks_like_first_prefixed_external_endpoint(value: str | None) -> bool:
+    if not value:
+        return False
+    normalized = str(value).strip()
+    if _looks_like_input_matrix_row_endpoint(normalized):
+        return False
+    return bool(_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN.fullmatch(normalized))
+
+
 def _looks_like_inline_klp_body(value: str | None) -> bool:
     return bool(value) and bool(_INLINE_KLP_BODY_PATTERN.fullmatch(str(value).strip()))
 
@@ -527,6 +658,31 @@ def _normalize_inline_klp_endpoint_value(body: TextItem, endpoint: TextItem) -> 
     body_value = body.normalized_text.strip()
     prefix = body_value.split("KLP", 1)[0]
     return f"{prefix}n{endpoint_value}"
+
+
+def _first_prefixed_external_prefix(value: str | None) -> str | None:
+    if not value:
+        return None
+    match = _FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN.fullmatch(str(value).strip())
+    if match is None:
+        return None
+    return match.group("prefix")
+
+
+def _nearest_first_prefixed_external_local_number(
+    endpoint: TextItem,
+    local_numbers: list[TextItem],
+) -> TextItem | None:
+    candidates = [
+        local
+        for local in local_numbers
+        if abs(local.insert_y - endpoint.insert_y) <= _FIRST_PREFIXED_EXTERNAL_ROW_Y_TOL
+        and 0.0 < local.insert_x - endpoint.insert_x <= _FIRST_PREFIXED_EXTERNAL_X_TOL
+    ]
+    return _nearest_unambiguous(
+        candidates,
+        key=lambda item: (abs(item.insert_x - endpoint.insert_x), abs(item.insert_y - endpoint.insert_y), item.text_id),
+    )
 
 
 def _nearest_unambiguous(

@@ -182,6 +182,47 @@ def test_mark_input_matrix_covered_ordinary_pairs_keeps_component_prefixed_exter
     assert "covered_by_component_prefixed_signal_circuit" not in ordinary.evidence
 
 
+def test_mark_input_matrix_covered_ordinary_pairs_discards_first_prefixed_external_local_number_pair() -> None:
+    ordinary = _pair({}, right_text_id="LOCAL105")
+    component_pair = _pair(
+        {
+            "component_submode": "first_prefixed_external_endpoint_mapping",
+            "local_number_text_id": "LOCAL105",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="EXT1",
+        right_text_id="LOCAL105",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_first_prefixed_external_endpoint_mapping"] is True
+    assert "prefixed external local number" in ordinary.rationale
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_keeps_first_prefixed_external_endpoint_pair() -> None:
+    ordinary = _pair({}, right_text_id="EXT1")
+    component_pair = _pair(
+        {
+            "component_submode": "first_prefixed_external_endpoint_mapping",
+            "local_number_text_id": "LOCAL105",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="EXT1",
+        right_text_id="LOCAL105",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "review"
+    assert "covered_by_first_prefixed_external_endpoint_mapping" not in ordinary.evidence
+
+
 def test_mark_schematic_ac_phase_covered_ordinary_pairs_discards_shared_numeric_half_pair() -> None:
     ordinary = _pair(
         {
