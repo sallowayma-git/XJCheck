@@ -20,7 +20,7 @@ _SMALL_PORT_BOX_BLOCK_PORTS = {
     "KK2P": {"1", "2", "3", "4"},
     "JR-01": {"1", "2"},
 }
-_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?KLP\d+$", re.IGNORECASE)
+_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:KLP|CLP)\d+$", re.IGNORECASE)
 _KK_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?[A-Za-z]{1,5}\d*$", re.IGNORECASE)
 _SMALL_PORT_BOX_BODY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z']{0,4}$", re.IGNORECASE)
 _EXTERNAL_ENDPOINT_PATTERN = re.compile(

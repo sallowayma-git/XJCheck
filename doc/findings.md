@@ -7526,3 +7526,67 @@ fresh second-set 证据：
 - `4输出/6输出` 的 KK2P/KK3P 端口绑定已从“最近线段远端”收口为任务书定义的固定槽位语义。
 - 本轮新增的是结构化 `component_mapping` 真实命中，不靠隐藏 issue 或移除关系降低审计数；first `issue_count=458`、second `issue_count=303` 均保持稳定。
 - 下一刀不应继续扩大 KK 规则面，除非先有新的人工标注偏差；更合适的方向是 acceptance suite 结构化 golden 口径，或回到 Phase51 packaged sidecar/exe smoke。
+
+## 108. 2026-07-06 CLP strip component mapping：FJL 双端口组件从 KLP 扩展到 CLP，并刷新验收红线
+
+只读审计确认，`strip_two_port_component` 的几何门槛已经足够窄：必须在 `元件接线图 / ComponentDiagramExtractor` 下同时具备 `FJL-25-2A_Mirror` 块内 `1/2` 端口、同列本体、上下合法外部端点和支撑竖线。本轮真实漏检不是普通候选或 rules 层问题，而是本体识别只接受 `KLP`，漏掉了同一几何形态的 `CLP`。
+
+本轮实现：
+
+- 在 [component_diagrams.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/component_diagrams.py) 中将 strip 本体正则从 `KLP` 扩展为 `KLP|CLP`。
+- 在 [test_component_diagrams.py](/F:/workspace/XJToolkit/tests/unit/test_component_diagrams.py) 增加 CLP/FJL 真实几何风格单测，覆盖 `3-21CLP7-1 -> 3-21CD43`、`3-21CLP7-2 -> 3-21n419`。
+- 在 [second_set_component_terminal_subset.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_real_subset/second_set_component_terminal_subset.json) 中把 S0020 旧 `ordinary_pair/review` 裸数字 golden 刷新为 `3-21CLP2..7` 的 `component_mapping/pass/pair_key` 级 golden。
+- 同步更新 acceptance integration 的 synthetic real-second 项目，避免 suite 测试仍造旧 ordinary rows。
+
+fresh first-set 证据：
+
+- `.tmp/phase69_clp_strip_first/...`
+- `pair_count=1586`
+- `issue_count=441`
+- `component_mapping=138`
+- `strip_two_port_component=92`
+- first `S0023 / 22 元件接线图2.dwg` 命中：
+  - `3-2CLP5-1 -> KD16`
+  - `3-2CLP5-2 -> 3-2n414`
+- old `* -> 414` ordinary rows 已为 `discard`，说明消费发生在结构化 component mapping 生成之后。
+
+fresh second-set 证据：
+
+- `.tmp/phase69_clp_strip_second/2_2`
+- `pair_count=1637`
+- `issue_count=285`
+- `component_mapping=82`
+- `strip_two_port_component=44`
+- second `S0020 / 20 元件接线图2.dwg` 命中：
+  - `3-21CLP7-1 -> 3-21CD43`
+  - `3-21CLP7-2 -> 3-21n419`
+- old `43 -> 419` ordinary rows 已为 `discard`。
+- Phase54 KK 红线仍命中：
+  - `5DK-2 -> 5FD25`
+  - `1-2ZKK-2 -> 1-2n719`
+  - `1-21DK2-1 -> ZD8`
+  - `1-21ZKK-2 -> 1-21n715`
+- Phase52 input matrix 红线保持：
+  - `input_matrix_wire_mapping=168`
+  - `covered_input_matrix_ordinary=336`
+
+验收红线：
+
+- `evaluate-acceptance-suite` 在 `.tmp/phase69_clp_strip_second/2_2` 上恢复 required `3/3`，`acceptance_passed=True`。
+- case metrics：
+  - fault-injected mini：expected/matched `16/16`
+  - real second component/terminal：expected/matched `18/18`
+  - real second S0024 terminal：expected/matched `6/6`
+  - 三个 case precision/recall 均为 `1.0`，missing/unexpected 均为空。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py` -> `17 passed`
+- `python -m pytest -q tests\unit\test_component_diagrams.py tests\integration\test_analyze_project.py -k "component or kk or strip"` -> `26 passed, 11 deselected`
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `5 passed`
+- `python -m pytest -q` -> `226 passed`
+
+裁决：
+
+- CLP strip 已从裸数字 ordinary review 语义升级为结构化 `component_mapping/pass`；本轮 issue_count 下降来自旧 ordinary 噪声被结构化关系覆盖，不是隐藏或删除 component relation。
+- acceptance suite 的 S0020 golden 已跟上结构化口径，但 pair evidence 级 golden 仍未支持；后续如果需要更细验收，应单独扩 evaluator，而不是混入 extractor 切片。

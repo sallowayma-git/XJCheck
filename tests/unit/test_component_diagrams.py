@@ -59,16 +59,22 @@ def _make_text(
     )
 
 
-def _make_vertical_group() -> LineGroup:
+def _make_vertical_group(
+    line_group_id: str = "GC0132",
+    *,
+    x: float = 207.0,
+    start_y: float = 191.3,
+    end_y: float = 176.3,
+) -> LineGroup:
     return LineGroup(
-        line_group_id="GC0132",
+        line_group_id=line_group_id,
         sheet_id="S1",
         file_id="F1",
-        start_x=207.0,
-        start_y=191.3,
-        end_x=207.0,
-        end_y=176.3,
-        length=15.0,
+        start_x=x,
+        start_y=start_y,
+        end_x=x,
+        end_y=end_y,
+        length=abs(start_y - end_y),
         wire_candidate_score=0.9,
         member_line_ids=["L1"],
         layer_hints=["CONNECT"],
@@ -133,6 +139,31 @@ def test_extract_strip_two_port_component_pairs_builds_component_mapping() -> No
     assert first.evidence["component_block_name"] == "FJL-25-2A_Mirror"
     assert first.evidence["component_port_text_id"] == "T3806"
     assert first.evidence["external_endpoint_text_id"] == "T3859"
+
+
+def test_extract_strip_two_port_component_pairs_accepts_clp_body() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("T3375", "3-21CLP7", 57.35, 209.0, layer="MARK"),
+        _make_text("T3373", "1", 61.84, 193.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3372", "2", 61.9, 178.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3502", "3-21CD43", 56.49, 199.1),
+        _make_text("T3503", "3-21n419", 56.49, 173.5),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs(
+        [sheet],
+        texts,
+        [_make_vertical_group("GC0041", x=60.0, start_y=195.0, end_y=180.0)],
+    )
+
+    assert consumed == {"GC0041"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("3-21CLP7-1", "3-21CD43"),
+        ("3-21CLP7-2", "3-21n419"),
+    }
+    assert {pair.pair_kind for pair in pairs} == {"component_mapping"}
+    assert all(pair.evidence["component_submode"] == "strip_two_port_component" for pair in pairs)
 
 
 def test_extract_strip_two_port_component_pairs_requires_supporting_vertical_group() -> None:

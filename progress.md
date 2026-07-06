@@ -2123,6 +2123,36 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-06 (Phase 55 CLP strip component mapping and acceptance redline refresh)
+- Started after commit `f201766`.
+- Read-only recovery:
+  - `planning-with-files` catchup reported unsynced context from the previous run; `git diff --stat` showed only the external/concurrent `doc/任务书.md`.
+  - `git status --short` still showed only `doc/任务书.md`, `doc/page_findings/`, and `doc/page_task_queue.md` before edits.
+  - Validation audit confirmed acceptance already supports `pair_kind/status/pair_key` golden fields, but not pair evidence golden fields.
+- Implementation:
+  - Extended `strip_two_port_component` body recognition from `KLP` only to `KLP/CLP` in `component_diagrams.py`.
+  - Added a CLP/FJL geometry unit test modeled on second `S0020 / 20 元件接线图2.dwg`: `3-21CLP7-1 -> 3-21CD43` and `3-21CLP7-2 -> 3-21n419`.
+  - Refreshed `second_set_component_terminal_subset` acceptance fixture from six old S0020 `ordinary_pair/review` suffix golden pairs to twelve `component_mapping/pass` `3-21CLP2..7` port golden pairs; S0024 table mapping golden stayed unchanged.
+  - Updated the acceptance integration synthetic real-second project to emit the same structured rows.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `17 passed`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py tests\integration\test_analyze_project.py -k "component or kk or strip"` -> `26 passed, 11 deselected`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `5 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite --suite tests\fixtures\acceptance_suite\mvp_minimum_suite.json --project-alias fault_injected=.tmp\phase65_fault_injected_run\artifacts\project --project-alias real_second=.tmp\phase69_clp_strip_second\2_2 --output .tmp\phase69_clp_strip_acceptance_v2` -> required `3/3`, `acceptance_passed=True`
+  - suite case metrics: fault-injected `16/16`, real second component/terminal `18/18`, S0024 terminal `6/6`, all precision/recall `1.0`
+  - `python -m pytest -q` -> `226 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase69_clp_strip_first/...`: `pair_count=1586`, `issue_count=441`, `component_mapping=138`, `strip_two_port_component=92`.
+  - first `S0023 / 22 元件接线图2.dwg` now hits `3-2CLP5-1 -> KD16` and `3-2CLP5-2 -> 3-2n414`; old `* -> 414` ordinary rows are `discard`.
+  - second fresh `.tmp/phase69_clp_strip_second/2_2`: `pair_count=1637`, `issue_count=285`, `component_mapping=82`, `strip_two_port_component=44`.
+  - second `S0020 / 20 元件接线图2.dwg` now hits `3-21CLP7-1 -> 3-21CD43` and `3-21CLP7-2 -> 3-21n419`; old `43 -> 419` ordinary rows are `discard`.
+  - Phase54 KK targets still hit: `5DK-2 -> 5FD25`, `1-2ZKK-2 -> 1-2n719`, `1-21DK2-1 -> ZD8`, `1-21ZKK-2 -> 1-21n715`.
+  - Phase52 input-matrix evidence did not regress: `input_matrix_wire_mapping=168`, `covered_input_matrix_ordinary=336`.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-06 (Phase 54 KK output slot geometry binding)
 - Started after commit `6972ede`.
 - Read-only recovery:

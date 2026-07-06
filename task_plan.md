@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 54
+Phase 55
 
 ## Phases
 
@@ -680,6 +680,25 @@ Phase 54
   - second-set fresh `.tmp/phase68_kk_slot_second/2_2`: `pair_count=1601`, `issue_count=303`, `component_mapping=46`, `kk_multi_port_component=28`
   - second 代表目标 `1-21DK2-1 -> ZD8`、`1-21ZKK-2 -> 1-21n715` 命中；Phase52/66 input matrix 基线保持 `input_matrix_wire_mapping=168`、`covered_input_matrix_ordinary=336`
 - [ ] 下一刀建议：继续只读审计 acceptance suite 的结构化 golden 口径，或回到 Phase51 packaged sidecar/exe smoke；不要在同一刀混入 terminal/rules/UI。
+- **Status:** complete
+
+### Phase 55: CLP Strip Component Mapping And Acceptance Redline Refresh
+- [x] 只读恢复并确认当前外部/并发改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`。
+- [x] 审计确认 `strip_two_port_component` 已有 FJL 块端口、上下外部端和支撑竖线门槛；本轮最小缺口是本体正则只认 `KLP`、漏掉同几何的 `CLP`。
+- [x] 实现目标：让 FJL 双端口 strip 子模式同时识别 `KLP/CLP` 本体，产出 `component_mapping/pass`，并只在结构化关系生成后消费对应 ordinary pair。
+- [x] 验收口径同步：把 `second_set_component_terminal_subset` 中 S0020 旧 `ordinary_pair/review` 裸数字 golden 刷新为 `3-21CLP2..7` 的 `component_mapping/pass/pair_key` 级 golden；不扩产品 CLI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `17 passed`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py tests\integration\test_analyze_project.py -k "component or kk or strip"` -> `26 passed, 11 deselected`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `5 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite ... phase69_clp_strip_acceptance_v2` -> required `3/3`, `acceptance_passed=True`
+  - `python -m pytest -q` -> `226 passed`
+  - first-set fresh `.tmp/phase69_clp_strip_first/...`: `pair_count=1586`, `issue_count=441`, `component_mapping=138`, `strip_two_port_component=92`
+  - first `S0023` 命中：`3-2CLP5-1 -> KD16`、`3-2CLP5-2 -> 3-2n414`；旧 `* -> 414` ordinary rows 为 `discard`
+  - second-set fresh `.tmp/phase69_clp_strip_second/2_2`: `pair_count=1637`, `issue_count=285`, `component_mapping=82`, `strip_two_port_component=44`
+  - second `S0020` 命中：`3-21CLP7-1 -> 3-21CD43`、`3-21CLP7-2 -> 3-21n419`；旧 `43 -> 419` ordinary rows 为 `discard`
+  - Phase54 KK 代表目标与 Phase52 input matrix 红线保持：`5DK-2 -> 5FD25`、`1-2ZKK-2 -> 1-2n719`、`1-21DK2-1 -> ZD8`、`1-21ZKK-2 -> 1-21n715`、`input_matrix_wire_mapping=168`、`covered_input_matrix_ordinary=336`
+- [ ] 下一刀建议：先做只读审计再决定继续 component 残差、terminal header table 规则语义，或回到 Phase51 packaged sidecar/exe smoke；不要把 issue_count 下降当成隐藏关系的目标。
 - **Status:** complete
 
 ## Errors Encountered
