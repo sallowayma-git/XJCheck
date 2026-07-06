@@ -2017,3 +2017,25 @@
   - Second `issue_count=471`, same as phase63; `component_branch_review=0`.
 - Next recommended focus:
   - Acceptance suite structured relation schema/fixture refresh.
+
+## Session Update 2026-07-06 (Phase 50 acceptance structured relation complete)
+- Completed the internal acceptance harness structured relation slice via worker `Carver`.
+- Implementation:
+  - `golden_pairs` remains backward compatible with `filename / left_value / right_value`.
+  - `golden_pairs` now optionally supports `pair_kind`, `status`, and `pair_key`; when present, they must match.
+  - Extracted complete pair dedupe now includes `pair_kind / status / pair_key` so structured and ordinary relations do not collapse into the same key.
+  - The suite name is now `internal-mvp-minimum-acceptance-suite`, keeping the CLI positioned as an internal harness.
+- Fixture changes:
+  - `second_set_terminal_s0024.json` now asserts six `table_mapping/pass` terminal-header relations.
+  - `second_set_component_terminal_subset.json` keeps six `S0020 ordinary_pair/review` expectations and replaces old `S0024 ordinary_pair` expectations with six `table_mapping/pass` expectations.
+  - `428->55` is intentionally left out as a known manual-confirmation gap.
+- Verification:
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `5 passed`
+  - `python -m pytest -q` -> `217 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite --suite tests\fixtures\acceptance_suite\mvp_minimum_suite.json --project-alias real_second=.tmp\phase63_strip_comma_second\2_2 --output .tmp\phase65_acceptance_structured_real_only`
+    - required passed `2 / 3`
+    - `real_second_component_terminal_subset`: expected/matched/extracted `12/12/12`, precision `1.0`, recall `1.0`
+    - `real_second_terminal_s0024`: expected/matched/extracted `6/6/6`, precision `1.0`, recall `1.0`
+    - remaining failure is only the missing `fault_injected` alias.
+- Next recommended focus:
+  - Generate or bind stable `fault_injected` artifacts for the internal suite.

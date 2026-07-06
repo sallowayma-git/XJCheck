@@ -604,10 +604,11 @@ Phase 50
 - **Status:** complete
 
 ### Phase 50: Acceptance Redline Or Rule Semantics Follow-up
-- [ ] 重新审计 `mvp_minimum_suite` 与当前结构化关系口径，决定是刷新 golden 还是修正实现
+- [x] 重新审计 `mvp_minimum_suite` 与当前结构化关系口径，决定是刷新 golden 还是修正实现
 - [ ] 固定 fault-injected artifacts / alias，使 acceptance suite 可在本地稳定复跑
 - [x] 审计新增 `component_mapping` 后暴露的 many-to-one / branch issue，避免证据不足项继续作为 hard error
 - [x] 为同页 `strip_two_port_component` 分支 / 多入口关系补充 `component_branch_review` 规则语义
+- [x] 扩展 internal acceptance harness，使真实样本 golden 支持 `pair_kind/status/pair_key`
 - **Status:** in_progress
 
 ## Errors Encountered

@@ -31,8 +31,6 @@ def evaluate_acceptance_project(
 
     matched_golden_pairs = _matched_golden_pairs(scoped_pairs, golden_pairs)
     extracted_complete_pairs = _extracted_complete_pairs(scoped_pairs)
-    golden_pair_keys = {_pair_spec_key(item) for item in golden_pairs}
-    matched_pair_keys = {_pair_spec_key(item) for item in matched_golden_pairs}
     pair_precision = _safe_ratio(len(matched_golden_pairs), len(extracted_complete_pairs))
     pair_recall = _safe_ratio(len(matched_golden_pairs), len(golden_pairs))
 
@@ -55,11 +53,15 @@ def evaluate_acceptance_project(
             "recall": pair_recall,
             "threshold": pair_recall_threshold,
             "matched_pairs": matched_golden_pairs,
-            "missing_pairs": [item for item in golden_pairs if _pair_spec_key(item) not in matched_pair_keys],
+            "missing_pairs": [
+                item
+                for item in golden_pairs
+                if not any(_pair_specs_equivalent(item, matched) for matched in matched_golden_pairs)
+            ],
             "unexpected_pairs": [
                 item
                 for item in extracted_complete_pairs
-                if _pair_spec_key(item) not in golden_pair_keys
+                if not any(_pair_matches_spec(item, golden) for golden in golden_pairs)
             ],
         },
         "skip_page_metrics": {
@@ -195,30 +197,21 @@ def write_acceptance_suite_report(
 
 
 def _matched_golden_pairs(pairs: pd.DataFrame, golden_pairs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    extracted = {
-        (
-            _pair_filename(row),
-            str(row.get("left_value") or ""),
-            str(row.get("right_value") or ""),
-        )
+    extracted = [
+        row
         for row in _rows(pairs)
         if row.get("status") != "discard" and _present(row.get("left_value")) and _present(row.get("right_value"))
-    }
+    ]
     matched: list[dict[str, Any]] = []
     for item in golden_pairs:
-        key = (
-            str(item.get("filename") or ""),
-            str(item.get("left_value") or ""),
-            str(item.get("right_value") or ""),
-        )
-        if key in extracted:
+        if any(_pair_matches_spec(row, item) for row in extracted):
             matched.append(item)
     return matched
 
 
 def _extracted_complete_pairs(pairs: pd.DataFrame) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, str, str, str]] = set()
     for row in _rows(pairs):
         if row.get("status") == "discard":
             continue
@@ -228,6 +221,9 @@ def _extracted_complete_pairs(pairs: pd.DataFrame) -> list[dict[str, Any]]:
             _pair_filename(row),
             str(row.get("left_value") or ""),
             str(row.get("right_value") or ""),
+            str(row.get("pair_kind") or ""),
+            str(row.get("status") or ""),
+            str(row.get("pair_key") or ""),
         )
         if key in seen:
             continue
@@ -237,8 +233,9 @@ def _extracted_complete_pairs(pairs: pd.DataFrame) -> list[dict[str, Any]]:
                 "filename": key[0],
                 "left_value": key[1],
                 "right_value": key[2],
-                "status": str(row.get("status") or ""),
-                "pair_key": str(row.get("pair_key") or ""),
+                "pair_kind": key[3],
+                "status": key[4],
+                "pair_key": key[5],
             }
         )
     return results
@@ -483,12 +480,26 @@ def _pair_filename(row: dict[str, Any]) -> str:
     return ""
 
 
-def _pair_spec_key(item: dict[str, Any]) -> tuple[str, str, str]:
-    return (
-        str(item.get("filename") or ""),
-        str(item.get("left_value") or ""),
-        str(item.get("right_value") or ""),
-    )
+def _pair_matches_spec(row: dict[str, Any], spec: dict[str, Any]) -> bool:
+    required_fields = {
+        "filename": _pair_filename(row),
+        "left_value": str(row.get("left_value") or ""),
+        "right_value": str(row.get("right_value") or ""),
+    }
+    for field, actual in required_fields.items():
+        if actual != str(spec.get(field) or ""):
+            return False
+    for field in ("pair_kind", "status", "pair_key"):
+        if not _present(spec.get(field)):
+            continue
+        if str(row.get(field) or "") != str(spec.get(field) or ""):
+            return False
+    return True
+
+
+def _pair_specs_equivalent(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    fields = ("filename", "left_value", "right_value", "pair_kind", "status", "pair_key")
+    return all(str(left.get(field) or "") == str(right.get(field) or "") for field in fields)
 
 
 def _optional_recall_check(metrics: dict[str, Any]) -> bool:

@@ -5,10 +5,12 @@ import shutil
 from pathlib import Path
 
 import ezdxf
+import pandas as pd
 import yaml
 from typer.testing import CliRunner
 
 from dwg_audit.cli import app
+from dwg_audit.report.acceptance import evaluate_acceptance_project
 
 
 def _add_complete_pair(msp, left: str, right: str, y: float) -> None:
@@ -275,6 +277,91 @@ def test_acceptance_evaluation_supports_scoped_pair_keys_and_unique_complete_pai
     assert payload["pair_metrics"]["matched_pair_count"] == 3
     assert payload["pair_metrics"]["precision"] == 1.0
     assert payload["pair_metrics"]["recall"] == 1.0
+
+
+def test_acceptance_evaluation_matches_structured_golden_pair_fields(tmp_path: Path) -> None:
+    project_dir = tmp_path / "structured_project"
+    findings_dir = project_dir / "findings"
+    audit_dir = project_dir / "audit"
+    findings_dir.mkdir(parents=True)
+    audit_dir.mkdir(parents=True)
+    (findings_dir / "findings.json").write_text(
+        json.dumps({"page_findings": []}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (audit_dir / "issues.json").write_text("[]", encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "filename": "24 右侧端子图2.dwg",
+                "sheet_id": "S0024",
+                "left_value": "1-21CD20",
+                "right_value": "1-21n406",
+                "pair_kind": "table_mapping",
+                "status": "pass",
+                "pair_key": "1-21CD20->1-21n406",
+            },
+            {
+                "filename": "24 右侧端子图2.dwg",
+                "sheet_id": "S0024",
+                "left_value": "1-21CD20",
+                "right_value": "1-21n406",
+                "pair_kind": "ordinary_pair",
+                "status": "pass",
+                "pair_key": "406->20",
+            },
+            {
+                "filename": "24 右侧端子图2.dwg",
+                "sheet_id": "S0024",
+                "left_value": "1-21CD20",
+                "right_value": "1-21n406",
+                "pair_kind": "table_mapping",
+                "status": "review",
+                "pair_key": "review:1-21CD20->1-21n406",
+            },
+        ]
+    ).to_parquet(findings_dir / "pairs.parquet", index=False)
+
+    base_golden = {
+        "filename": "24 右侧端子图2.dwg",
+        "left_value": "1-21CD20",
+        "right_value": "1-21n406",
+    }
+    matching_spec = {
+        "name": "structured-golden-fields-match",
+        "golden_pairs": [
+            {
+                **base_golden,
+                "pair_kind": "table_mapping",
+                "status": "pass",
+                "pair_key": "1-21CD20->1-21n406",
+            }
+        ],
+    }
+    spec_path = tmp_path / "structured_match.json"
+    spec_path.write_text(json.dumps(matching_spec, ensure_ascii=False), encoding="utf-8")
+
+    payload = evaluate_acceptance_project(project_dir, spec_path)
+    assert payload["acceptance_passed"] is True
+    assert payload["pair_metrics"]["matched_pair_count"] == 1
+    assert payload["pair_metrics"]["recall"] == 1.0
+
+    for field, value in (
+        ("pair_kind", "semantic_mapping"),
+        ("status", "fail"),
+        ("pair_key", "missing-key"),
+    ):
+        mismatch_spec = {
+            "name": f"structured-golden-{field}-mismatch",
+            "golden_pairs": [{**base_golden, field: value}],
+        }
+        mismatch_spec_path = tmp_path / f"structured_{field}_mismatch.json"
+        mismatch_spec_path.write_text(json.dumps(mismatch_spec, ensure_ascii=False), encoding="utf-8")
+
+        mismatch_payload = evaluate_acceptance_project(project_dir, mismatch_spec_path)
+        assert mismatch_payload["acceptance_passed"] is False
+        assert mismatch_payload["pair_metrics"]["matched_pair_count"] == 0
+        assert mismatch_payload["pair_metrics"]["missing_pairs"] == mismatch_spec["golden_pairs"]
 
 
 def test_acceptance_suite_evaluation_summarizes_required_cases(

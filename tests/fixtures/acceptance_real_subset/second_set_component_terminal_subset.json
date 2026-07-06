@@ -1,5 +1,5 @@
 {
-  "name": "real-sample-second-set-component-terminal-subset",
+  "name": "internal-real-sample-second-set-component-terminal-subset",
   "pair_recall_threshold": 0.9,
   "pair_scope": {
     "included_sheet_ids": ["S0020", "S0024"],
@@ -11,30 +11,28 @@
       {"filename": "20 元件接线图2.dwg", "pair_key": "33->413"},
       {"filename": "20 元件接线图2.dwg", "pair_key": "38->416"},
       {"filename": "20 元件接线图2.dwg", "pair_key": "43->419"},
-      {"filename": "24 右侧端子图2.dwg", "pair_key": "406->20"},
-      {"filename": "24 右侧端子图2.dwg", "pair_key": "409->25"},
-      {"filename": "24 右侧端子图2.dwg", "pair_key": "412->30"},
-      {"filename": "24 右侧端子图2.dwg", "pair_key": "415->35"},
-      {"filename": "24 右侧端子图2.dwg", "pair_key": "418->40"},
-      {"filename": "24 右侧端子图2.dwg", "pair_key": "421->45"},
-      {"filename": "24 右侧端子图2.dwg", "pair_key": "428->55"}
+      {"filename": "24 右侧端子图2.dwg", "pair_key": "1-21CD20->1-21n406"},
+      {"filename": "24 右侧端子图2.dwg", "pair_key": "1-21CD25->1-21n409"},
+      {"filename": "24 右侧端子图2.dwg", "pair_key": "1-21CD30->1-21n412"},
+      {"filename": "24 右侧端子图2.dwg", "pair_key": "1-21CD35->1-21n415"},
+      {"filename": "24 右侧端子图2.dwg", "pair_key": "1-21CD40->1-21n418"},
+      {"filename": "24 右侧端子图2.dwg", "pair_key": "1-21CD45->1-21n421"}
     ],
-    "pair_kinds": ["ordinary_pair"],
-    "statuses": ["review"]
+    "pair_kinds": ["ordinary_pair", "table_mapping"],
+    "statuses": ["review", "pass"]
   },
   "golden_pairs": [
-    {"filename": "20 元件接线图2.dwg", "left_value": "18", "right_value": "404"},
-    {"filename": "20 元件接线图2.dwg", "left_value": "23", "right_value": "407"},
-    {"filename": "20 元件接线图2.dwg", "left_value": "28", "right_value": "410"},
-    {"filename": "20 元件接线图2.dwg", "left_value": "33", "right_value": "413"},
-    {"filename": "20 元件接线图2.dwg", "left_value": "38", "right_value": "416"},
-    {"filename": "20 元件接线图2.dwg", "left_value": "43", "right_value": "419"},
-    {"filename": "24 右侧端子图2.dwg", "left_value": "406", "right_value": "20"},
-    {"filename": "24 右侧端子图2.dwg", "left_value": "409", "right_value": "25"},
-    {"filename": "24 右侧端子图2.dwg", "left_value": "412", "right_value": "30"},
-    {"filename": "24 右侧端子图2.dwg", "left_value": "415", "right_value": "35"},
-    {"filename": "24 右侧端子图2.dwg", "left_value": "418", "right_value": "40"},
-    {"filename": "24 右侧端子图2.dwg", "left_value": "421", "right_value": "45"},
-    {"filename": "24 右侧端子图2.dwg", "left_value": "428", "right_value": "55"}
+    {"filename": "20 元件接线图2.dwg", "left_value": "18", "right_value": "404", "pair_kind": "ordinary_pair", "status": "review", "pair_key": "18->404"},
+    {"filename": "20 元件接线图2.dwg", "left_value": "23", "right_value": "407", "pair_kind": "ordinary_pair", "status": "review", "pair_key": "23->407"},
+    {"filename": "20 元件接线图2.dwg", "left_value": "28", "right_value": "410", "pair_kind": "ordinary_pair", "status": "review", "pair_key": "28->410"},
+    {"filename": "20 元件接线图2.dwg", "left_value": "33", "right_value": "413", "pair_kind": "ordinary_pair", "status": "review", "pair_key": "33->413"},
+    {"filename": "20 元件接线图2.dwg", "left_value": "38", "right_value": "416", "pair_kind": "ordinary_pair", "status": "review", "pair_key": "38->416"},
+    {"filename": "20 元件接线图2.dwg", "left_value": "43", "right_value": "419", "pair_kind": "ordinary_pair", "status": "review", "pair_key": "43->419"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "1-21CD20", "right_value": "1-21n406", "pair_kind": "table_mapping", "status": "pass", "pair_key": "1-21CD20->1-21n406"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "1-21CD25", "right_value": "1-21n409", "pair_kind": "table_mapping", "status": "pass", "pair_key": "1-21CD25->1-21n409"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "1-21CD30", "right_value": "1-21n412", "pair_kind": "table_mapping", "status": "pass", "pair_key": "1-21CD30->1-21n412"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "1-21CD35", "right_value": "1-21n415", "pair_kind": "table_mapping", "status": "pass", "pair_key": "1-21CD35->1-21n415"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "1-21CD40", "right_value": "1-21n418", "pair_kind": "table_mapping", "status": "pass", "pair_key": "1-21CD40->1-21n418"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "1-21CD45", "right_value": "1-21n421", "pair_kind": "table_mapping", "status": "pass", "pair_key": "1-21CD45->1-21n421"}
   ]
 }

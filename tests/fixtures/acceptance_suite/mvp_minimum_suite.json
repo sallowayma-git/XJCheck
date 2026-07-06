@@ -1,5 +1,6 @@
 {
-  "name": "mvp-minimum-acceptance-suite",
+  "name": "internal-mvp-minimum-acceptance-suite",
+  "description": "Internal acceptance harness suite for fault-injected mini and real second-set structured relation checks.",
   "cases": [
     {
       "case_id": "fault_injected_acceptance_mini",
