@@ -180,6 +180,16 @@ def cluster_issues(issues: list[Issue]) -> list[Issue]:
             clustered[existing_index] = _merge_issue_cluster(clustered[existing_index], issue)
             continue
 
+        if _is_backplate_structured_shared_endpoint_aggregation_issue(issue):
+            key = _backplate_structured_shared_endpoint_cluster_key(issue)
+            existing_index = index_by_key.get(key)
+            if existing_index is None:
+                index_by_key[key] = len(clustered)
+                clustered.append(issue)
+                continue
+            clustered[existing_index] = _merge_issue_cluster(clustered[existing_index], issue)
+            continue
+
         key = _issue_cluster_key(issue)
         existing_index = index_by_key.get(key)
         if existing_index is None:
@@ -257,8 +267,10 @@ def _merge_issue_cluster(primary: Issue, duplicate: Issue) -> Issue:
     _merge_terminal_header_table_cluster_evidence(evidence, duplicate.evidence)
     _merge_backplate_scope_cluster_evidence(evidence, primary, duplicate)
     _merge_backplate_same_sheet_scope_cluster_evidence(evidence, primary, duplicate)
+    _merge_backplate_structured_shared_endpoint_cluster_evidence(evidence, duplicate.evidence)
     primary.evidence = evidence
     _refresh_terminal_header_table_interval_issue(primary)
+    _refresh_backplate_structured_shared_endpoint_issue(primary)
     return primary
 
 
@@ -419,6 +431,17 @@ def _is_backplate_same_sheet_scope_aggregation_issue(issue: Issue) -> bool:
     )
 
 
+def _is_backplate_structured_shared_endpoint_aggregation_issue(issue: Issue) -> bool:
+    return (
+        issue.rule_id == "R-MANY-TO-ONE"
+        and issue.evidence.get("many_to_one_classification")
+        == "backplate_structured_shared_endpoint_review"
+        and _is_real_line_group(issue.line_group_id)
+        and "component_mapping" in _as_list(issue.evidence.get("pair_kinds"))
+        and "backplate_virtual_table" in _as_list(issue.evidence.get("table_mapping_modes"))
+    )
+
+
 def _backplate_scope_cluster_key(issue: Issue) -> tuple[Any, ...]:
     return (
         issue.rule_id,
@@ -426,6 +449,21 @@ def _backplate_scope_cluster_key(issue: Issue) -> tuple[Any, ...]:
         issue.evidence.get("table_mapping_mode"),
         tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_prefixes")))),
         tuple(_merge_sorted_values(_as_list(issue.evidence.get("source_block_names")))),
+    )
+
+
+def _backplate_structured_shared_endpoint_cluster_key(issue: Issue) -> tuple[Any, ...]:
+    return (
+        issue.rule_id,
+        issue.evidence.get("many_to_one_classification"),
+        issue.sheet_id or "",
+        issue.file_id or "",
+        issue.line_group_id or "",
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("pair_kinds")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("table_mapping_modes")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("component_submodes")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("source_block_names")))),
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_prefixes")))),
     )
 
 
@@ -520,6 +558,84 @@ def _merge_backplate_same_sheet_scope_cluster_evidence(
     evidence["header_text_ids"] = _merge_sorted_values(
         _as_list(evidence.get("header_text_ids"))
         + _as_list(duplicate.evidence.get("header_text_ids"))
+    )
+
+
+def _merge_backplate_structured_shared_endpoint_cluster_evidence(
+    evidence: dict[str, Any],
+    duplicate_evidence: dict[str, Any],
+) -> None:
+    if (
+        evidence.get("many_to_one_classification")
+        != "backplate_structured_shared_endpoint_review"
+    ):
+        return
+
+    evidence["backplate_structured_shared_endpoint_aggregate_review"] = True
+    evidence["aggregated_shared_endpoints"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_shared_endpoints"))
+        + _as_list(evidence.get("shared_endpoint"))
+        + _as_list(duplicate_evidence.get("aggregated_shared_endpoints"))
+        + _as_list(duplicate_evidence.get("shared_endpoint"))
+    )
+    evidence["aggregated_shared_endpoint_ranges"] = _numeric_suffix_range_labels(
+        _as_list(evidence.get("aggregated_shared_endpoints"))
+    )
+    evidence["aggregated_logical_endpoints"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_logical_endpoints"))
+        + _as_list(evidence.get("logical_endpoints"))
+        + _as_list(duplicate_evidence.get("aggregated_logical_endpoints"))
+        + _as_list(duplicate_evidence.get("logical_endpoints"))
+    )
+    evidence["aggregated_conflicting_values"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_conflicting_values"))
+        + _as_list(evidence.get("conflicting_values"))
+        + _as_list(duplicate_evidence.get("aggregated_conflicting_values"))
+        + _as_list(duplicate_evidence.get("conflicting_values"))
+    )
+    for key in (
+        "pair_kinds",
+        "table_mapping_modes",
+        "component_submodes",
+        "source_block_names",
+        "header_prefixes",
+        "filenames",
+    ):
+        evidence[key] = _merge_sorted_values(
+            _as_list(evidence.get(key)) + _as_list(duplicate_evidence.get(key))
+        )
+
+
+def _refresh_backplate_structured_shared_endpoint_issue(issue: Issue) -> None:
+    evidence = issue.evidence
+    if not evidence.get("backplate_structured_shared_endpoint_aggregate_review"):
+        return
+    if (
+        evidence.get("many_to_one_classification")
+        != "backplate_structured_shared_endpoint_review"
+    ):
+        return
+
+    shared_values = _as_list(evidence.get("aggregated_shared_endpoint_ranges")) or _as_list(
+        evidence.get("aggregated_shared_endpoints")
+    )
+    logical_values = _as_list(evidence.get("aggregated_logical_endpoints"))
+    if not shared_values:
+        return
+
+    issue.summary = (
+        "Backplate structured mappings share a component-scope endpoint cluster: "
+        f"shared={', '.join(str(value) for value in shared_values)}."
+    )
+    if logical_values:
+        issue.summary += f" logical={', '.join(str(value) for value in logical_values)}."
+    issue.explanation = (
+        "同一组件实例或线组内，背板虚拟表格与 component/table 结构化映射共同引用多个外部端点。"
+        "这更像背板表格作用域与元件端口作用域在同一物理接线组内的汇合，需要按结构化 scope 复核，"
+        "而不是逐个共享端点当成普通多对一错误。"
+    )
+    issue.recommended_action = (
+        "按聚合后的共享端点、组件线组、背板表头、插件块和逻辑端列表核对这些结构化关系是否属于同一接线组。"
     )
 
 
@@ -689,6 +805,13 @@ def _as_list(value: Any) -> list[Any]:
     if isinstance(value, tuple):
         return list(value)
     return [value]
+
+
+def _is_real_line_group(value: Any) -> bool:
+    if value is None:
+        return False
+    text = str(value).strip()
+    return bool(text) and text.lower() not in {"nan", "none", "null"}
 
 
 def _merge_sorted_values(values: list[Any]) -> list[str]:

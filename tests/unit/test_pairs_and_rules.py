@@ -3087,6 +3087,251 @@ def test_build_issues_classifies_structured_mapping_shared_endpoint_scope_review
     assert issue.evidence["table_mapping_modes"] == ["backplate_virtual_table"]
 
 
+def test_build_issues_clusters_backplate_structured_shared_endpoint_component_scope() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            "PCK0002",
+            "GC0018",
+            "S0022",
+            "F0022",
+            None,
+            "1DK-2",
+            "1QD5",
+            0.95,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "filename": "21 元件接线图1.dwg",
+                "component_submode": "kk_multi_port_component",
+                "logical_endpoint": "1DK-2",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P0168",
+            None,
+            "S0018",
+            "F0018",
+            None,
+            "NDY306A-5",
+            "1QD5",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "filename": "17 差动保护背板图.dwg",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-812E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                    "logical_endpoint": "NDY306A-5",
+                    "right_value": "1QD5",
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PCK0004",
+            "GC0018",
+            "S0022",
+            "F0022",
+            None,
+            "1DK-4",
+            "1QD1",
+            0.95,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "filename": "21 元件接线图1.dwg",
+                "component_submode": "kk_multi_port_component",
+                "logical_endpoint": "1DK-4",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P0169",
+            None,
+            "S0018",
+            "F0018",
+            None,
+            "NDY306A-3",
+            "1QD1",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "filename": "17 差动保护背板图.dwg",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-812E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                    "logical_endpoint": "NDY306A-3",
+                    "right_value": "1QD1",
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0018", "F0018", "17 差动保护背板图.dwg", 18, "17", "1n REAR WIRING", "背板图", "primary", "filename", True),
+        SheetRecord("S0022", "F0022", "21 元件接线图1.dwg", 22, "21", "TERMINAL BLOCKS WIRING", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    reviews = [
+        issue
+        for issue in issues
+        if issue.rule_id == "R-MANY-TO-ONE"
+        and issue.evidence["many_to_one_classification"]
+        == "backplate_structured_shared_endpoint_review"
+    ]
+    assert len(reviews) == 1
+    review = reviews[0]
+    assert review.evidence["backplate_structured_shared_endpoint_aggregate_review"] is True
+    assert review.evidence["cluster_size"] == 2
+    assert review.evidence["aggregated_shared_endpoints"] == ["1QD1", "1QD5"]
+    assert review.evidence["aggregated_shared_endpoint_ranges"] == ["1QD1", "1QD5"]
+    assert review.evidence["aggregated_logical_endpoints"] == [
+        "1DK-2",
+        "1DK-4",
+        "NDY306A-3",
+        "NDY306A-5",
+    ]
+    assert set(review.evidence["cluster_pair_ids"]) == {
+        "P0168",
+        "P0169",
+        "PCK0002",
+        "PCK0004",
+    }
+    assert "component-scope endpoint cluster" in review.summary
+
+
+def test_build_issues_keeps_backplate_structured_shared_endpoint_clusters_per_line_group() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            "PCK0002",
+            "GC0018",
+            "S0022",
+            "F0022",
+            None,
+            "1DK-2",
+            "1QD5",
+            0.95,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "component_submode": "kk_multi_port_component",
+                "logical_endpoint": "1DK-2",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P0168",
+            None,
+            "S0018",
+            "F0018",
+            None,
+            "NDY306A-5",
+            "1QD5",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-812E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PCK0004",
+            "GC0019",
+            "S0022",
+            "F0022",
+            None,
+            "5DK-2",
+            "5FD25",
+            0.95,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "component_submode": "kk_multi_port_component",
+                "logical_endpoint": "5DK-2",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P0169",
+            None,
+            "S0021",
+            "F0021",
+            None,
+            "NDY306A-5",
+            "5FD25",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "source_block_name": "WBH-814E-E1SA-101",
+                    "header_prefix": "NDY306A",
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0018", "F0018", "17 差动保护背板图.dwg", 18, "17", "1n REAR WIRING", "背板图", "primary", "filename", True),
+        SheetRecord("S0021", "F0021", "20 非电量保护背板图.dwg", 21, "20", "5n REAR WIRING", "背板图", "primary", "filename", True),
+        SheetRecord("S0022", "F0022", "21 元件接线图1.dwg", 22, "21", "TERMINAL BLOCKS WIRING", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    reviews = [
+        issue
+        for issue in issues
+        if issue.rule_id == "R-MANY-TO-ONE"
+        and issue.evidence["many_to_one_classification"]
+        == "backplate_structured_shared_endpoint_review"
+    ]
+    assert len(reviews) == 2
+    assert not any(
+        issue.evidence.get("backplate_structured_shared_endpoint_aggregate_review")
+        for issue in reviews
+    )
+
+
 def test_build_issues_keeps_terminal_only_shared_endpoint_on_generic_many_to_one() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     pairs = [

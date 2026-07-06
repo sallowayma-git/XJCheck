@@ -9408,3 +9408,46 @@ second 非回归证据：
 
 - 本轮是 component split endpoint review 的报告/UI 展示语义收口，不是 issue 静音，也不是组件抽取器补漏。
 - 下一轮候选收缩为：many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示、acceptance golden 口径；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 136. 2026-07-07 backplate structured shared endpoint：同组件线组共享端点聚合为 scope cluster
+
+只读审计确认，Phase82 后 first `.tmp/phase82_component_split_display_first_audit` 中仍有 `16` 条 `R-MANY-TO-ONE / backplate_structured_shared_endpoint_review`。其中 `11` 条是 backplate virtual table 与 component mapping 共同指向同一物理端点；证据中已经具备 `pair_kinds`、`table_mapping_modes`、`component_submodes`、`source_block_names`、`header_prefixes`、`logical_endpoints` 和 `shared_endpoint`。本轮缺口不是 extractor 缺失，而是同一组件线组内端点按单个 shared endpoint 散开显示。
+
+本轮实现：
+
+- 在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 中新增 `backplate_structured_shared_endpoint_review` 的 component-scope 聚合。
+- 聚合 key 限定为 rule/classification、sheet/file、line group、pair kinds、table mapping modes、component submodes、source block names、header prefixes。
+- 聚合证据保留 `backplate_structured_shared_endpoint_aggregate_review`、`aggregated_shared_endpoints`、`aggregated_shared_endpoint_ranges`、`aggregated_logical_endpoints`、`aggregated_conflicting_values`、`cluster_pair_ids`、`cluster_sheet_ids`。
+- 聚合 issue 的 `summary / explanation / recommended_action` 改为说明 component-scope endpoint cluster。
+- 不改 extractor、PairBuilder、graph input、规则触发 severity/status、CLI/UI 或 acceptance harness。
+
+fresh rules-only 证据：
+
+- first `.tmp/phase83_backplate_structured_shared_first_audit`
+- `issue_count=132`，相对 Phase82 的 `136` 只减少聚合后的重复展示项。
+- `R-MANY-TO-ONE=30`
+- `backplate_structured_shared_endpoint_review=12`
+- `backplate_structured_shared_endpoint_aggregate_review=4`：
+  - `1QD1 / 1QD5` 聚合为 `cluster_size=2`
+  - `5FD1 / 5FD25` 聚合为 `cluster_size=2`
+  - `1-2QD1 / 1-2QD12` 聚合为 `cluster_size=2`
+  - `3-2QD1 / 3-2QD12` 聚合为 `cluster_size=2`
+- 每个聚合保留 `4` 个 `cluster_pair_ids`，即 component pair 与 backplate table pair 均仍可追溯。
+- first pair graph 未漂移：`pair_count=1581`、`table_mapping=299`、`component_mapping=150`。
+
+second 非回归证据：
+
+- second `.tmp/phase83_backplate_structured_shared_second_audit`
+- `issue_count=23`，与 Phase82 保持一致。
+- `backplate_structured_shared_endpoint_review=0`。
+- second pair graph 未漂移：`pair_count=1462`、`component_mapping=84`。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate_structured or shared_endpoint or backplate or terminal_header"` -> `15 passed, 48 deselected`
+- `python -m pytest -q` -> `286 passed`
+
+裁决：
+
+- 本轮是 backplate/component cross-scope shared endpoint 的 rules/display 聚合收口，不是 issue 静音，也不是抽取器补漏。
+- 下一轮候选收缩为：acceptance golden 口径刷新、剩余 table-only shared endpoint 默认展示分层、packaged sidecar/exe smoke 独立产品切片。

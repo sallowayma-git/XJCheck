@@ -3047,3 +3047,32 @@
   - backplate/component cross-scope shared endpoint display.
   - acceptance golden wording/fixture refresh for structured relations.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 83 backplate structured shared endpoint component-scope aggregation)
+- Started after commit `fe5476d`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+- Read-only audit conclusions:
+  - Phase82 first audit still had `16` `R-MANY-TO-ONE / backplate_structured_shared_endpoint_review` issues.
+  - The repeated default-display noise was the component-scope subset: backplate virtual table rows and component mappings share physical endpoints inside the same component line group, with existing evidence fields `pair_kinds`, `table_mapping_modes`, `component_submodes`, `source_block_names`, `header_prefixes`, and `logical_endpoints`.
+  - This is a rules/display aggregation problem, not a missing extractor relation and not a reason to remove `component_mapping` or `table_mapping` from the graph.
+- Implementation:
+  - Added `backplate_structured_shared_endpoint_review` component-scope aggregation in `rule_base.py`.
+  - The cluster key is constrained by rule/classification, sheet/file, line group, pair kinds, table mapping modes, component submodes, source block names, and header prefixes.
+  - Aggregated evidence now records `backplate_structured_shared_endpoint_aggregate_review`, `aggregated_shared_endpoints`, `aggregated_shared_endpoint_ranges`, `aggregated_logical_endpoints`, `aggregated_conflicting_values`, `cluster_pair_ids`, and `cluster_sheet_ids`.
+  - Refreshed aggregated issue summary / explanation / recommended_action to describe a component-scope endpoint cluster.
+  - Did not change extractors, PairBuilder, graph inclusion, rule triggering severity/status, CLI, UI, or acceptance harness.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate_structured or shared_endpoint or backplate or terminal_header"` -> `15 passed, 48 deselected`
+  - `python -m pytest -q` -> `286 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase83_backplate_structured_shared_first_audit`: `issue_count=132`; `R-MANY-TO-ONE=30`; `backplate_structured_shared_endpoint_review=12`.
+  - Four component-scope aggregates were produced with `cluster_size=2`: `1QD1/1QD5`, `5FD1/5FD25`, `1-2QD1/1-2QD12`, and `3-2QD1/3-2QD12`; each preserves `4` `cluster_pair_ids`.
+  - first pair graph did not drift: `pair_count=1581`; `table_mapping=299`; `component_mapping=150`.
+  - second rules-only `.tmp/phase83_backplate_structured_shared_second_audit`: `issue_count=23`; `backplate_structured_shared_endpoint_review=0`.
+  - second pair graph did not drift: `pair_count=1462`; `component_mapping=84`.
+- Next candidates:
+  - acceptance golden wording/fixture refresh for structured relations.
+  - remaining table-only shared endpoint default display layering.
+  - packaged sidecar/exe smoke only as a separate product slice.
