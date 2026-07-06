@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 83
+Phase 84
 
 ## Phases
 
@@ -1153,6 +1153,21 @@ Phase 83
   - second rules-only audit `.tmp/phase83_backplate_structured_shared_second_audit`: `issue_count=23` 保持不变；`backplate_structured_shared_endpoint_review=0`。
   - Phase78 findings pair counts 未漂移：first `pair_count=1581`，second `pair_count=1462`。
 - [ ] 下一刀候选收缩为：acceptance golden 口径刷新、剩余 table-only shared endpoint 默认展示分层、packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 84: Structured Review Issue Acceptance Golden Refresh
+- [x] 只读恢复并确认当前 HEAD 为 `d75c708`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase83 后 extractor 红线已闭环，现有 acceptance suite 已支持 `pair_kind/status/pair_key` 精确 pair golden，但不能直接验收 `backplate_structured_shared_endpoint_aggregate_review` 这类结构化 review issue evidence。
+- [x] 实现目标：只扩 internal acceptance harness 的 spec 表达能力，新增 `expected_review_issues`，支持按 rule/filename/sheet/status/severity、review classification、summary 片段和 evidence 字段匹配；不改产品 CLI 表面、不改 extractor、rules、graph input、report/UI。
+- [x] 固化 first-set Phase83 真实 review fixture：新增 `first_set_backplate_structured_shared_phase83.json`，验收 `1QD1/1QD5`、`5FD1/5FD25`、`1-2QD1/1-2QD12`、`3-2QD1/3-2QD12` 四个 component-scope 聚合簇，并把它作为 `mvp_minimum_suite.json` 的 required case。
+- [x] 验证结果：
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `287 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite ...` -> `required_passed_case_count=4/4`, `acceptance_passed=True`
+  - fresh first review acceptance `.tmp/phase84_acceptance_first_review`: `expected_review_issues=4`, `matched=4`, `recall=1.0`, `acceptance_passed=True`
+  - fresh second component/terminal acceptance: `18/18` pairs, precision/recall `1.0`; second terminal S0024 acceptance: `6/6` pairs, precision/recall `1.0`
+  - first fresh rules-only audit: `pair_count=1581`, `issue_count=132`, `backplate_structured_shared_endpoint_aggregate_review=4`; second fresh analyze/audit: `pair_count=1462`, `issue_count=23`
+- [ ] 下一刀候选收缩为：剩余 table-only shared endpoint 默认展示分层；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered

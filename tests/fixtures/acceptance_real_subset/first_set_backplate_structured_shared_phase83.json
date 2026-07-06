@@ -1,0 +1,81 @@
+{
+  "name": "internal-real-sample-first-set-backplate-structured-shared-phase83",
+  "expected_review_issues": [
+    {
+      "rule_id": "R-MANY-TO-ONE",
+      "filename": "21 元件接线图1.dwg",
+      "sheet_id": "S0022",
+      "severity": "review",
+      "status": "open",
+      "review_classification": "backplate_structured_shared_endpoint_review",
+      "summary_contains": ["component-scope endpoint cluster", "1QD1, 1QD5"],
+      "evidence_contains": {
+        "backplate_structured_shared_endpoint_aggregate_review": true,
+        "cluster_size": 2,
+        "aggregated_shared_endpoints": ["1QD1", "1QD5"],
+        "aggregated_logical_endpoints": ["1DK-2", "1DK-4", "NDY306A-3", "NDY306A-5"],
+        "cluster_pair_ids": ["P0001", "P0002", "PCK0002", "PCK0004"],
+        "pair_kinds": ["component_mapping", "table_mapping"],
+        "table_mapping_modes": ["backplate_virtual_table"],
+        "component_submodes": ["kk_multi_port_component"]
+      }
+    },
+    {
+      "rule_id": "R-MANY-TO-ONE",
+      "filename": "21 元件接线图1.dwg",
+      "sheet_id": "S0022",
+      "severity": "review",
+      "status": "open",
+      "review_classification": "backplate_structured_shared_endpoint_review",
+      "summary_contains": ["component-scope endpoint cluster", "5FD1, 5FD25"],
+      "evidence_contains": {
+        "backplate_structured_shared_endpoint_aggregate_review": true,
+        "cluster_size": 2,
+        "aggregated_shared_endpoints": ["5FD1", "5FD25"],
+        "aggregated_logical_endpoints": ["5DK-2", "5DK-4", "NDY306A-3", "NDY306A-5"],
+        "cluster_pair_ids": ["P0167", "P0168", "PCK0006", "PCK0008"],
+        "pair_kinds": ["component_mapping", "table_mapping"],
+        "table_mapping_modes": ["backplate_virtual_table"],
+        "component_submodes": ["kk_multi_port_component"]
+      }
+    },
+    {
+      "rule_id": "R-MANY-TO-ONE",
+      "filename": "21 元件接线图1.dwg",
+      "sheet_id": "S0022",
+      "severity": "review",
+      "status": "open",
+      "review_classification": "backplate_structured_shared_endpoint_review",
+      "summary_contains": ["component-scope endpoint cluster", "1-2QD1, 1-2QD12"],
+      "evidence_contains": {
+        "backplate_structured_shared_endpoint_aggregate_review": true,
+        "cluster_size": 2,
+        "aggregated_shared_endpoints": ["1-2QD1", "1-2QD12"],
+        "aggregated_logical_endpoints": ["1-2DK-2", "1-2DK-4", "NDY306A-3", "NDY306A-5"],
+        "cluster_pair_ids": ["P0028", "P0029", "PCK0010", "PCK0012"],
+        "pair_kinds": ["component_mapping", "table_mapping"],
+        "table_mapping_modes": ["backplate_virtual_table"],
+        "component_submodes": ["kk_multi_port_component"]
+      }
+    },
+    {
+      "rule_id": "R-MANY-TO-ONE",
+      "filename": "21 元件接线图1.dwg",
+      "sheet_id": "S0022",
+      "severity": "review",
+      "status": "open",
+      "review_classification": "backplate_structured_shared_endpoint_review",
+      "summary_contains": ["component-scope endpoint cluster", "3-2QD1, 3-2QD12"],
+      "evidence_contains": {
+        "backplate_structured_shared_endpoint_aggregate_review": true,
+        "cluster_size": 2,
+        "aggregated_shared_endpoints": ["3-2QD1", "3-2QD12"],
+        "aggregated_logical_endpoints": ["3-2DK-2", "3-2DK-4", "NDY306A-3", "NDY306A-5"],
+        "cluster_pair_ids": ["P0100", "P0101", "PCK0014", "PCK0016"],
+        "pair_kinds": ["component_mapping", "table_mapping"],
+        "table_mapping_modes": ["backplate_virtual_table"],
+        "component_submodes": ["kk_multi_port_component"]
+      }
+    }
+  ]
+}

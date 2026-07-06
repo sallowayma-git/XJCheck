@@ -9451,3 +9451,38 @@ second 非回归证据：
 
 - 本轮是 backplate/component cross-scope shared endpoint 的 rules/display 聚合收口，不是 issue 静音，也不是抽取器补漏。
 - 下一轮候选收缩为：acceptance golden 口径刷新、剩余 table-only shared endpoint 默认展示分层、packaged sidecar/exe smoke 独立产品切片。
+
+## 137. 2026-07-07 acceptance：结构化 review issue golden 口径补齐
+
+只读审计确认，Phase83 后真实 first-set 关系已经具备结构化证据，但 `mvp_minimum_suite` 仍主要证明 pair golden，不能直接验收 `backplate_structured_shared_endpoint_aggregate_review` 这类 issue-level evidence。现有 evaluator 已能按 `pair_kind/status/pair_key` 精确匹配 pair，本轮缺口是 acceptance 表达能力，而不是 extractor、rules 或报告/UI 行为缺失。
+
+本轮实现：
+
+- 在 [acceptance.py](/F:/workspace/XJToolkit/src/dwg_audit/report/acceptance.py) 增加 `expected_review_issues`。
+- review issue golden 可按 `rule_id`、`filename`、`sheet_id`、`severity`、`status`、统一 review classification、summary 片段和 `evidence_contains` 匹配。
+- 新增 [first_set_backplate_structured_shared_phase83.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_real_subset/first_set_backplate_structured_shared_phase83.json)，把 Phase83 的 4 个 component-scope 聚合簇纳入 required acceptance：
+  - `1QD1 / 1QD5`
+  - `5FD1 / 5FD25`
+  - `1-2QD1 / 1-2QD12`
+  - `3-2QD1 / 3-2QD12`
+- 更新 [mvp_minimum_suite.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_suite/mvp_minimum_suite.json)，新增 required `real_first_backplate_structured_shared_phase83` case。
+- 不改产品 CLI 表面、不改 extractor、PairBuilder、rules、graph input、report/UI。
+
+验证：
+
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+- `python -m pytest -q` -> `287 passed`
+- full suite `.tmp/phase84_acceptance_suite`：`required_passed_case_count=4/4`，`acceptance_passed=True`。
+- first fresh review acceptance `.tmp/phase84_acceptance_first_review`：`expected_review_issues=4`，`matched_count=4`，`recall=1.0`，`acceptance_passed=True`。
+- second fresh component/terminal acceptance：`18/18` pairs，precision/recall `1.0`。
+- second fresh terminal S0024 acceptance：`6/6` pairs，precision/recall `1.0`。
+
+非回归证据：
+
+- first fresh rules-only audit `.tmp/phase84_acceptance_first_audit`：`pair_count=1581`，`issue_count=132`，`backplate_structured_shared_endpoint_aggregate_review=4`。
+- second fresh `.tmp/phase84_acceptance_second/2_2` + `.tmp/phase84_acceptance_second_audit`：`pair_count=1462`，`issue_count=23`；`pair_kind` 分布保持 Phase83 基线。
+
+裁决：
+
+- Phase84 是 acceptance golden 口径刷新，把已有结构化 relations/review evidence 纳入最小验收闭环。
+- 下一轮候选收缩为：剩余 table-only shared endpoint 默认展示分层；packaged sidecar/exe smoke 仅作为独立产品化切片。

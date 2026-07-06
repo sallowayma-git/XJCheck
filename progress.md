@@ -3076,3 +3076,34 @@
   - acceptance golden wording/fixture refresh for structured relations.
   - remaining table-only shared endpoint default display layering.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 84 structured review issue acceptance golden refresh)
+- Started after commit `d75c708`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Confirmed the older terminal_header_table semantic endpoint exclusion request was already closed in current code and project records; this round did not reopen `table_extractor.py`.
+  - Integrated read-only subagent conclusions: Phase84 should not mix rules/display, sidecar smoke, and acceptance; the smallest safe slice is acceptance golden wording/fixture refresh for structured relations.
+- Read-only audit conclusions:
+  - `src/dwg_audit/report/acceptance.py` already matched pair golden by optional `pair_kind`, `status`, and `pair_key`.
+  - The suite did not prove Phase83 structured review aggregation because it had no way to assert issue-level evidence such as `backplate_structured_shared_endpoint_aggregate_review`, `cluster_size`, or component/table source fields.
+  - Phase83 first audit had four stable component-scope aggregates: `1QD1/1QD5`, `5FD1/5FD25`, `1-2QD1/1-2QD12`, and `3-2QD1/3-2QD12`.
+- Implementation:
+  - Added `expected_review_issues` to the internal acceptance evaluator.
+  - Matching supports top-level `rule_id/filename/sheet_id/severity/status`, review classification from top-level or evidence fields, summary/recommended-action substring checks, and evidence field containment checks.
+  - Added synthetic integration coverage for matching and mismatch behavior.
+  - Added `tests/fixtures/acceptance_real_subset/first_set_backplate_structured_shared_phase83.json` and registered it as a required `real_first` case in `mvp_minimum_suite.json`.
+  - Did not change extractors, rules, graph input, report/UI, or product CLI surface.
+- Verification:
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `287 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite --suite tests\fixtures\acceptance_suite\mvp_minimum_suite.json --project-alias fault_injected=.tmp\phase65_fault_injected_run\artifacts\project --project-alias real_first=.tmp\phase84_acceptance_first_project --project-alias real_second=.tmp\phase78_component_vertical_401_second\2_2 --output .tmp\phase84_acceptance_suite` -> `required_passed_case_count=4/4`, `acceptance_passed=True`
+- Fresh real-sample verification:
+  - first rules-only `.tmp/phase84_acceptance_first_audit`: `pair_count=1581`, `issue_count=132`, `backplate_structured_shared_endpoint_aggregate_review=4`.
+  - first acceptance `.tmp/phase84_acceptance_first_review`: `expected_review_issues=4`, `matched_count=4`, `recall=1.0`, `acceptance_passed=True`.
+  - second fresh `.tmp/phase84_acceptance_second/2_2` + `.tmp/phase84_acceptance_second_audit`: `pair_count=1462`, `issue_count=23`; pair kind distribution stayed at `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`.
+  - second component/terminal acceptance `.tmp/phase84_acceptance_component_terminal`: `expected_pair_count=18`, `matched_pair_count=18`, precision/recall `1.0`, `acceptance_passed=True`.
+  - second terminal S0024 acceptance `.tmp/phase84_acceptance_terminal_s0024`: `expected_pair_count=6`, `matched_pair_count=6`, precision/recall `1.0`, `acceptance_passed=True`.
+- Next candidates:
+  - remaining table-only shared endpoint default display layering.
+  - packaged sidecar/exe smoke only as a separate product slice.

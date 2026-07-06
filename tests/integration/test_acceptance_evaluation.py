@@ -65,6 +65,154 @@ def _prepare_real_second_minimum_project(tmp_path: Path) -> Path:
     return project_dir
 
 
+def _prepare_real_first_review_issue_project(tmp_path: Path) -> Path:
+    project_dir = tmp_path / "real_first_project"
+    findings_dir = project_dir / "findings"
+    audit_dir = project_dir / "audit"
+    findings_dir.mkdir(parents=True)
+    audit_dir.mkdir(parents=True)
+
+    (project_dir / "manifest.json").write_text(
+        json.dumps({"project_id": "real-first-minimum", "project_name": "real-first-minimum"}),
+        encoding="utf-8",
+    )
+    (findings_dir / "findings.json").write_text(
+        json.dumps({"page_findings": []}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        columns=["filename", "sheet_id", "left_value", "right_value", "pair_kind", "status", "pair_key"]
+    ).to_parquet(findings_dir / "pairs.parquet", index=False)
+    issues = [
+        {
+            "issue_id": "I0192",
+            "rule_id": "R-MANY-TO-ONE",
+            "severity": "review",
+            "confidence": 0.9,
+            "status": "open",
+            "sheet_id": "S0022",
+            "sheet_no": "21",
+            "filename": "21 元件接线图1.dwg",
+            "line_group_id": None,
+            "left_value": "1DK-2",
+            "right_value": "1QD1",
+            "values": ["1QD1", "1QD5"],
+            "summary": "Backplate structured mappings share a component-scope endpoint cluster: shared=1QD1, 1QD5.",
+            "recommended_action": "Review the component-scope endpoint cluster without removing structured mappings.",
+            "evidence_refs": ["P0001@S0022", "P0002@S0022", "PCK0002@S0022", "PCK0004@S0022"],
+            "evidence": {
+                "filename": "21 元件接线图1.dwg",
+                "sheet_no": "21",
+                "table_mapping": "backplate_virtual_table",
+                "many_to_one_classification": "backplate_structured_shared_endpoint_review",
+                "backplate_structured_shared_endpoint_aggregate_review": True,
+                "cluster_size": 2,
+                "aggregated_shared_endpoints": ["1QD1", "1QD5"],
+                "aggregated_logical_endpoints": ["1DK-2", "1DK-4", "NDY306A-3", "NDY306A-5"],
+                "cluster_pair_ids": ["P0001", "P0002", "PCK0002", "PCK0004"],
+                "pair_kinds": ["component_mapping", "table_mapping"],
+                "table_mapping_modes": ["backplate_virtual_table"],
+                "component_submodes": ["kk_multi_port_component"],
+            },
+        },
+        {
+            "issue_id": "I0194",
+            "rule_id": "R-MANY-TO-ONE",
+            "severity": "review",
+            "confidence": 0.9,
+            "status": "open",
+            "sheet_id": "S0022",
+            "sheet_no": "21",
+            "filename": "21 元件接线图1.dwg",
+            "line_group_id": None,
+            "left_value": "5DK-2",
+            "right_value": "5FD1",
+            "values": ["5FD1", "5FD25"],
+            "summary": "Backplate structured mappings share a component-scope endpoint cluster: shared=5FD1, 5FD25.",
+            "recommended_action": "Review the component-scope endpoint cluster without removing structured mappings.",
+            "evidence_refs": ["P0167@S0022", "P0168@S0022", "PCK0006@S0022", "PCK0008@S0022"],
+            "evidence": {
+                "filename": "21 元件接线图1.dwg",
+                "sheet_no": "21",
+                "table_mapping": "backplate_virtual_table",
+                "many_to_one_classification": "backplate_structured_shared_endpoint_review",
+                "backplate_structured_shared_endpoint_aggregate_review": True,
+                "cluster_size": 2,
+                "aggregated_shared_endpoints": ["5FD1", "5FD25"],
+                "aggregated_logical_endpoints": ["5DK-2", "5DK-4", "NDY306A-3", "NDY306A-5"],
+                "cluster_pair_ids": ["P0167", "P0168", "PCK0006", "PCK0008"],
+                "pair_kinds": ["component_mapping", "table_mapping"],
+                "table_mapping_modes": ["backplate_virtual_table"],
+                "component_submodes": ["kk_multi_port_component"],
+            },
+        },
+        {
+            "issue_id": "I0196",
+            "rule_id": "R-MANY-TO-ONE",
+            "severity": "review",
+            "confidence": 0.9,
+            "status": "open",
+            "sheet_id": "S0022",
+            "sheet_no": "21",
+            "filename": "21 元件接线图1.dwg",
+            "line_group_id": None,
+            "left_value": "1-2DK-2",
+            "right_value": "1-2QD1",
+            "values": ["1-2QD1", "1-2QD12"],
+            "summary": "Backplate structured mappings share a component-scope endpoint cluster: shared=1-2QD1, 1-2QD12.",
+            "recommended_action": "Review the component-scope endpoint cluster without removing structured mappings.",
+            "evidence_refs": ["P0028@S0022", "P0029@S0022", "PCK0010@S0022", "PCK0012@S0022"],
+            "evidence": {
+                "filename": "21 元件接线图1.dwg",
+                "sheet_no": "21",
+                "table_mapping": "backplate_virtual_table",
+                "many_to_one_classification": "backplate_structured_shared_endpoint_review",
+                "backplate_structured_shared_endpoint_aggregate_review": True,
+                "cluster_size": 2,
+                "aggregated_shared_endpoints": ["1-2QD1", "1-2QD12"],
+                "aggregated_logical_endpoints": ["1-2DK-2", "1-2DK-4", "NDY306A-3", "NDY306A-5"],
+                "cluster_pair_ids": ["P0028", "P0029", "PCK0010", "PCK0012"],
+                "pair_kinds": ["component_mapping", "table_mapping"],
+                "table_mapping_modes": ["backplate_virtual_table"],
+                "component_submodes": ["kk_multi_port_component"],
+            },
+        },
+        {
+            "issue_id": "I0198",
+            "rule_id": "R-MANY-TO-ONE",
+            "severity": "review",
+            "confidence": 0.9,
+            "status": "open",
+            "sheet_id": "S0022",
+            "sheet_no": "21",
+            "filename": "21 元件接线图1.dwg",
+            "line_group_id": None,
+            "left_value": "3-2DK-2",
+            "right_value": "3-2QD1",
+            "values": ["3-2QD1", "3-2QD12"],
+            "summary": "Backplate structured mappings share a component-scope endpoint cluster: shared=3-2QD1, 3-2QD12.",
+            "recommended_action": "Review the component-scope endpoint cluster without removing structured mappings.",
+            "evidence_refs": ["P0100@S0022", "P0101@S0022", "PCK0014@S0022", "PCK0016@S0022"],
+            "evidence": {
+                "filename": "21 元件接线图1.dwg",
+                "sheet_no": "21",
+                "table_mapping": "backplate_virtual_table",
+                "many_to_one_classification": "backplate_structured_shared_endpoint_review",
+                "backplate_structured_shared_endpoint_aggregate_review": True,
+                "cluster_size": 2,
+                "aggregated_shared_endpoints": ["3-2QD1", "3-2QD12"],
+                "aggregated_logical_endpoints": ["3-2DK-2", "3-2DK-4", "NDY306A-3", "NDY306A-5"],
+                "cluster_pair_ids": ["P0100", "P0101", "PCK0014", "PCK0016"],
+                "pair_kinds": ["component_mapping", "table_mapping"],
+                "table_mapping_modes": ["backplate_virtual_table"],
+                "component_submodes": ["kk_multi_port_component"],
+            },
+        },
+    ]
+    (audit_dir / "issues.json").write_text(json.dumps(issues, ensure_ascii=False, indent=2), encoding="utf-8")
+    return project_dir
+
+
 def test_acceptance_mini_project_produces_quantified_acceptance_report(
     monkeypatch,
     tmp_path: Path,
@@ -297,11 +445,65 @@ def test_acceptance_evaluation_matches_structured_golden_pair_fields(tmp_path: P
         assert mismatch_payload["pair_metrics"]["missing_pairs"] == mismatch_spec["golden_pairs"]
 
 
+def test_acceptance_evaluation_matches_structured_review_issue_fields(tmp_path: Path) -> None:
+    project_dir = _prepare_real_first_review_issue_project(tmp_path)
+    matching_spec = {
+        "name": "structured-review-issue-match",
+        "expected_review_issues": [
+            {
+                "rule_id": "R-MANY-TO-ONE",
+                "filename": "21 元件接线图1.dwg",
+                "sheet_id": "S0022",
+                "severity": "review",
+                "status": "open",
+                "review_classification": "backplate_structured_shared_endpoint_review",
+                "summary_contains": ["component-scope endpoint cluster", "1QD1, 1QD5"],
+                "evidence_contains": {
+                    "backplate_structured_shared_endpoint_aggregate_review": True,
+                    "cluster_size": 2,
+                    "aggregated_shared_endpoints": ["1QD1", "1QD5"],
+                    "pair_kinds": ["component_mapping", "table_mapping"],
+                    "table_mapping_modes": ["backplate_virtual_table"],
+                    "component_submodes": ["kk_multi_port_component"],
+                },
+            }
+        ],
+    }
+    spec_path = tmp_path / "structured_review_issue_match.json"
+    spec_path.write_text(json.dumps(matching_spec, ensure_ascii=False), encoding="utf-8")
+
+    payload = evaluate_acceptance_project(project_dir, spec_path)
+    assert payload["acceptance_passed"] is True
+    assert payload["review_issue_metrics"]["matched_count"] == 1
+    assert payload["review_issue_metrics"]["recall"] == 1.0
+
+    mismatch_spec = {
+        "name": "structured-review-issue-mismatch",
+        "expected_review_issues": [
+            {
+                **matching_spec["expected_review_issues"][0],
+                "evidence_contains": {
+                    "backplate_structured_shared_endpoint_aggregate_review": True,
+                    "cluster_size": 3,
+                },
+            }
+        ],
+    }
+    mismatch_spec_path = tmp_path / "structured_review_issue_mismatch.json"
+    mismatch_spec_path.write_text(json.dumps(mismatch_spec, ensure_ascii=False), encoding="utf-8")
+
+    mismatch_payload = evaluate_acceptance_project(project_dir, mismatch_spec_path)
+    assert mismatch_payload["acceptance_passed"] is False
+    assert mismatch_payload["review_issue_metrics"]["matched_count"] == 0
+    assert mismatch_payload["review_issue_metrics"]["missing_items"] == mismatch_spec["expected_review_issues"]
+
+
 def test_acceptance_suite_evaluation_summarizes_required_cases(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     _, fault_injected_project = prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    real_first_project = _prepare_real_first_review_issue_project(tmp_path)
     real_second_project = _prepare_real_second_minimum_project(tmp_path)
     suite_path = Path(__file__).resolve().parents[1] / "fixtures" / "acceptance_suite" / "mvp_minimum_suite.json"
 
@@ -316,6 +518,8 @@ def test_acceptance_suite_evaluation_summarizes_required_cases(
             "--project-alias",
             f"fault_injected={fault_injected_project}",
             "--project-alias",
+            f"real_first={real_first_project}",
+            "--project-alias",
             f"real_second={real_second_project}",
             "--output",
             str(output_dir),
@@ -326,11 +530,12 @@ def test_acceptance_suite_evaluation_summarizes_required_cases(
     payload = json.loads((output_dir / "acceptance_suite_report.json").read_text(encoding="utf-8"))
     assert payload["acceptance_passed"] is True
     assert payload["suite_name"] == "internal-mvp-minimum-acceptance-suite"
-    assert payload["required_case_count"] == 3
-    assert payload["required_passed_case_count"] == 3
-    assert payload["passed_case_count"] == 3
+    assert payload["required_case_count"] == 4
+    assert payload["required_passed_case_count"] == 4
+    assert payload["passed_case_count"] == 4
     assert {item["case_id"] for item in payload["cases"]} == {
         "fault_injected_acceptance_mini",
+        "real_first_backplate_structured_shared_phase83",
         "real_second_component_terminal_subset",
         "real_second_terminal_s0024",
     }
@@ -340,5 +545,6 @@ def test_acceptance_suite_evaluation_summarizes_required_cases(
     markdown = (output_dir / "acceptance_suite_report.md").read_text(encoding="utf-8")
     assert "Acceptance Suite Report" in markdown
     assert "fault_injected_acceptance_mini" in markdown
+    assert "real_first_backplate_structured_shared_phase83" in markdown
     assert "real_second_component_terminal_subset" in markdown
     assert "real_second_terminal_s0024" in markdown
