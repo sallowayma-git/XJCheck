@@ -1928,3 +1928,54 @@
 - Concurrent/user changes preserved:
   - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
   - Did not revert concurrent/user work.
+
+## Session Update 2026-07-06 (Phase 49 start)
+- Resumed with `planning-with-files` catchup; unsynced context confirms the current handoff is to keep the main thread as coordinator and use subagents for parallel review/development.
+- Current worktree check:
+  - `doc/任务书.md` is modified externally/concurrently.
+  - `doc/page_findings/` and `doc/page_task_queue.md` are untracked external/concurrent files.
+  - These files are treated as read-only inputs for this slice and will not be staged or reverted.
+- Spawned two read-only explorer subagents:
+  - `Galileo`: taskbook/MVP acceptance boundary review.
+  - `Volta`: Phase62 residual issue and next-slice review.
+- Environment note:
+  - `rg.exe` failed to start from the Codex app bundled WindowsApps path with access denied, so this session will use PowerShell `Select-String` for text search.
+
+## Session Update 2026-07-06 (Phase 49 complete)
+- Completed the `strip_two_port_component` comma endpoint split slice with subagent-assisted development.
+- Subagent coordination:
+  - `Galileo` performed read-only taskbook/MVP acceptance audit and flagged remaining acceptance-suite / exe-delivery redlines.
+  - `Volta` performed read-only Phase62 residual review and recommended the comma endpoint split as the cleanest next extractor slice.
+  - `Huygens` implemented the bounded patch in `src/dwg_audit/audit/component_diagrams.py` and `tests/unit/test_component_diagrams.py`.
+  - All three subagents were closed after completion.
+- Implementation:
+  - Split comma-separated external endpoint text only inside the `strip_two_port_component` path.
+  - Preserved non-comma legal endpoint priority over comma candidates.
+  - Emitted multiple `component_mapping` pass pairs for one component port when one endpoint text contains multiple valid endpoint fragments.
+  - Kept `right_text_id` pointed at the original text and added `external_endpoint_split` evidence beside `external_endpoint_raw`.
+  - Required both top and bottom component ports to have at least one legal endpoint before consuming the support line group.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py tests\unit\test_pairs_and_rules.py -k "strip_two_port or component_mapping"` -> `10 passed`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `4 passed`
+  - `python -m pytest -q` -> `213 passed`
+  - `git diff --check` -> no whitespace errors, only CRLF warnings.
+- First-set real-sample evidence:
+  - Fresh output: `.tmp/phase63_strip_comma_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - Audit output: `.tmp/phase63_strip_comma_first/audit`
+  - `S0024 component_mapping` increased from `6` to `39`.
+  - Total `component_mapping` increased from `27` to `75`; other major pair kinds stayed stable.
+  - Required comma-split targets now pass:
+    - `5KLP5-1 -> 5KLP3-1`
+    - `5KLP5-1 -> 5KLP2-1`
+    - `5KLP5-2 -> 5n307`
+  - Audit issues increased from `444` to `458`, expected because additional high-confidence component mappings are now visible to project rules.
+- Second-set real-sample evidence:
+  - Fresh output: `.tmp/phase63_strip_comma_second/2_2`
+  - Audit output: `.tmp/phase63_strip_comma_second/audit`
+  - No drift from Phase62: `pair_count=1407`, `issue_count=471`, `component_mapping=20`, `table_mapping=176`.
+- Concurrent/user changes preserved:
+  - Did not stage or modify `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.
+- Next recommended focus:
+  - Refresh/fix the MVP acceptance suite around current structured relationship semantics and fault-injected artifacts.
+  - Or address rule semantics for newly visible `component_mapping` many-to-one / branch relationships.

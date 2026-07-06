@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 48
+Phase 50
 
 ## Phases
 
@@ -594,3 +594,22 @@ Phase 48
   - first-set fresh `analyze-project + run-audit`: `.tmp/phase62_terminal_structured_cover_first/...`，terminal ordinary review `104 -> 85`，结构化映射不回退
   - second-set fresh `analyze-project + run-audit`: `.tmp/phase62_terminal_structured_cover_second/2_2`，terminal ordinary review `200 -> 87`，结构化映射不回退
 - [ ] 下一刀建议：继续 terminal 剩余普通行列角色收敛，或补 `strip_two_port_component` 逗号端点拆分；二者都必须先有任务书审计证据再动手。
+
+### Phase 49: Taskbook Re-Audit And Next Narrow Slice
+- [x] 执行 planning catchup，并确认并发外部改动只限 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`
+- [x] 启动两个只读子代理并发审计：MVP/验收边界与 Phase62 剩余缺口横向复核
+- [x] 汇总子代理结论，选择一个不扩大 CLI / UI 的最小开发切片
+- [x] 派 worker 负责 disjoint 写集，主线程只做集成审查、验证与提交
+- [x] 完成 `strip_two_port_component` 逗号端点拆分，并在 first/second 真实样本上验证
+- **Status:** complete
+
+### Phase 50: Acceptance Redline Or Rule Semantics Follow-up
+- [ ] 重新审计 `mvp_minimum_suite` 与当前结构化关系口径，决定是刷新 golden 还是修正实现
+- [ ] 固定 fault-injected artifacts / alias，使 acceptance suite 可在本地稳定复跑
+- [ ] 审计新增 `component_mapping` 后暴露的 many-to-one / branch issue，避免证据不足项继续作为 hard error
+- **Status:** pending
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| `rg.exe` 启动被 Windows 拒绝访问 | 在 Codex app bundled `rg.exe` 上执行全文检索 | 改用 PowerShell `Select-String` / `Get-ChildItem`，后续本轮不重复同一 `rg` 调用 |

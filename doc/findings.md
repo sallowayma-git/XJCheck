@@ -7126,3 +7126,51 @@ route status 仍稳定为：
 - 端子页仍有普通行列角色 residual ordinary review，需要继续按列角色/行锁定收敛，而不是全局调分。
 - `strip_two_port_component` 的逗号外部端拆分仍未实现。
 - 最小验收第 19 章的“真实正确样本 + 隔离故障注入样本”仍需要作为最终验收闭环重跑，不能只靠当前真实样本和单测宣称完成。
+
+## 101. 2026-07-06 `strip_two_port_component` 逗号端点拆分闭环
+
+本轮继续遵守“主线程做总调度、子代理并发执行”的约束。并行只读审计结论一致：phase62 后端子图剩余 ordinary review 已经混合为多类问题，不适合继续盲切；更确定的抽取缺口是 first `S0024 / 23 元件接线图3.dwg` 的长条双端口元件逗号外部端。
+
+实现边界：
+
+- 只在 `ComponentDiagramExtractor` 的 `strip_two_port_component` 子模式里拆分逗号端点。
+- 不修改全局候选规则，不扩大端子图、普通回路图或 KK 多端口逻辑。
+- 同一个外部端文本按英文逗号拆分后，只保留符合既有 endpoint pattern 的合法片段；空值、纯数字、单字符、中文说明片段不产出 mapping。
+- 非逗号合法候选优先于逗号候选，避免离散合法端点被逗号噪声抢走。
+- 只有上下端口两侧都至少有一个合法 endpoint 时，才 consume 原普通 line group。
+- `component_mapping` 的 `right_text_id` 仍指向原始逗号文本，并在 evidence 中同时保留 `external_endpoint_raw` 与 `external_endpoint_split`。
+
+测试验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py tests\unit\test_pairs_and_rules.py -k "strip_two_port or component_mapping"` -> `10 passed`
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `4 passed`
+- `python -m pytest -q` -> `213 passed`
+- `git diff --check` -> no whitespace errors，仅有当前工作树 CRLF warning。
+
+真实样本验证：
+
+- 第一套 fresh 输出：[phase63 first](/F:/workspace/XJToolkit/.tmp/phase63_strip_comma_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第一套 audit 输出：[phase63 first audit](/F:/workspace/XJToolkit/.tmp/phase63_strip_comma_first/audit)
+- first `S0024` 的 `component_mapping` 从 phase62 的 `6` 增加到 `39`。
+- first 全项目 `pair_kind.component_mapping` 从 `27` 增加到 `75`；其它主要关系类型不变：`ordinary_pair=943`、`table_mapping=299`、`semantic_mapping=103`、`continuation=68`、`wire_component_mapping=32`、`bridge_mapping=3`。
+- 任务书点名目标已命中：
+  - `5KLP5-1 -> 5KLP3-1`
+  - `5KLP5-1 -> 5KLP2-1`
+  - `5KLP5-2 -> 5n307`
+- first audit issue `444 -> 458`。增加来自新增高置信 `component_mapping` 进入规则图后的可见一致性症状，不应通过隐藏关系来降噪，后续应做规则语义 / 分支语义解释。
+- 第二套 fresh 输出：[phase63 second](/F:/workspace/XJToolkit/.tmp/phase63_strip_comma_second/2_2)
+- 第二套 audit 输出：[phase63 second audit](/F:/workspace/XJToolkit/.tmp/phase63_strip_comma_second/audit)
+- second 完全不漂移：`pair_count=1407`、`issue_count=471`、`component_mapping=20`、`table_mapping=176` 均与 phase62 一致。
+
+并行验收审计提醒：
+
+- 现有 `mvp_minimum_suite` 仍不能作为最终完成证明：真实 subset 的 ordinary pair golden 与后续结构化关系策略已经不完全一致，且 fault-injected artifacts 需要固定生成 / 绑定。
+- 第一套真实正确样本仍存在较多 hard/critical symptoms，其中一部分 root cause 为 `insufficient_evidence`，后续不能把这类证据不足项继续当作最终 hard error。
+- 桌面 `exe` 交付链仍需单独闭环：当前已有 service entry 与 Tauri 壳，但最终还要证明无手动 CLI / 无源码依赖的本地 exe 工作流。
+
+当前裁决：
+
+- `strip_two_port_component` 的任务书点名逗号拆分样例已经闭合。
+- 下一步不应继续扩 CLI；最近的两条主线候选是：
+  - 验收红线收口：刷新 acceptance suite，使其以结构化关系口径验证真实样本，并固定 fault-injected artifacts。
+  - 规则语义收口：解释新增 `component_mapping` 后暴露的 many-to-one / branch 关系，避免真实正确图纸产生 hard error 洪峰。

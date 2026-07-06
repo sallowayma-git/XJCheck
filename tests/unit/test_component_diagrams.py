@@ -150,13 +150,56 @@ def test_extract_strip_two_port_component_pairs_requires_supporting_vertical_gro
     assert consumed == set()
 
 
-def test_extract_strip_two_port_component_pairs_skips_unsplit_comma_endpoint() -> None:
+def test_extract_strip_two_port_component_pairs_splits_comma_endpoint_for_same_port() -> None:
     sheet = _make_sheet()
     texts = [
         _make_text("T3808", "5KLP10", 205.0, 205.3, layer="MARK"),
         _make_text("T3806", "1", 208.9, 190.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
         _make_text("T3805", "2", 208.9, 175.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
-        _make_text("T3859", "5FD2,5KLP10-1", 204.3, 195.4),
+        _make_text("T3859", "5KLP3-1,5KLP2-1", 204.3, 195.4),
+        _make_text("T3860", "5n112", 205.8, 169.8),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs([sheet], texts, [_make_vertical_group()])
+
+    assert consumed == {"GC0132"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("5KLP10-1", "5KLP3-1"),
+        ("5KLP10-1", "5KLP2-1"),
+        ("5KLP10-2", "5n112"),
+    }
+    split_pairs = [pair for pair in pairs if pair.right_text_id == "T3859"]
+    assert {pair.evidence["external_endpoint_raw"] for pair in split_pairs} == {"5KLP3-1,5KLP2-1"}
+    assert {pair.evidence["external_endpoint_split"] for pair in split_pairs} == {"5KLP3-1", "5KLP2-1"}
+
+
+def test_extract_strip_two_port_component_pairs_keeps_only_legal_comma_fragments() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("T3808", "5KLP10", 205.0, 205.3, layer="MARK"),
+        _make_text("T3806", "1", 208.9, 190.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3805", "2", 208.9, 175.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3859", "5KLP3-1,112,A,中文说明,5KLP2-1", 204.3, 195.4),
+        _make_text("T3860", "bad,5n112", 205.8, 169.8),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs([sheet], texts, [_make_vertical_group()])
+
+    assert consumed == {"GC0132"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("5KLP10-1", "5KLP3-1"),
+        ("5KLP10-1", "5KLP2-1"),
+        ("5KLP10-2", "5n112"),
+    }
+
+
+def test_extract_strip_two_port_component_pairs_skips_comma_group_without_both_sides() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("T3808", "5KLP10", 205.0, 205.3, layer="MARK"),
+        _make_text("T3806", "1", 208.9, 190.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3805", "2", 208.9, 175.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3859", "112,A,中文说明", 204.3, 195.4),
         _make_text("T3860", "5n112", 205.8, 169.8),
     ]
 

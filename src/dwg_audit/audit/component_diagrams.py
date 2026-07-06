@@ -73,8 +73,8 @@ def extract_strip_two_port_component_pairs(
             body = _nearest_component_body(port_top, sheet_texts)
             if body is None:
                 continue
-            top_endpoint = _nearest_external_endpoint(port_top, sheet_texts, side="top")
-            bottom_endpoint = _nearest_external_endpoint(port_bottom, sheet_texts, side="bottom")
+            top_endpoint = _nearest_strip_external_endpoints(port_top, sheet_texts, side="top")
+            bottom_endpoint = _nearest_strip_external_endpoints(port_bottom, sheet_texts, side="bottom")
             if top_endpoint is None or bottom_endpoint is None:
                 continue
             support_group = _nearest_supporting_vertical_group(port_top, port_bottom, sheet_groups)
@@ -86,25 +86,26 @@ def extract_strip_two_port_component_pairs(
                 (port_bottom, bottom_endpoint, "bottom"),
             ]
             built_pairs: list[Pair] = []
-            for port, endpoint, side_label in endpoint_specs:
-                endpoint_value = _clean_external_endpoint(endpoint.normalized_text)
-                if not _is_valid_external_endpoint(endpoint_value):
+            for port, endpoint_result, side_label in endpoint_specs:
+                endpoint, endpoint_values = endpoint_result
+                if not endpoint_values:
                     break
                 logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
-                built_pairs.append(
-                    _build_strip_two_port_pair(
-                        page=page,
-                        body=body,
-                        port=port,
-                        endpoint=endpoint,
-                        endpoint_value=endpoint_value,
-                        side_label=side_label,
-                        support_group=support_group,
-                        pair_ids=pair_ids,
-                        logical_endpoint=logical_endpoint,
+                for endpoint_value in endpoint_values:
+                    built_pairs.append(
+                        _build_strip_two_port_pair(
+                            page=page,
+                            body=body,
+                            port=port,
+                            endpoint=endpoint,
+                            endpoint_value=endpoint_value,
+                            side_label=side_label,
+                            support_group=support_group,
+                            pair_ids=pair_ids,
+                            logical_endpoint=logical_endpoint,
+                        )
                     )
-                )
-            if len(built_pairs) != 2:
+            if len(built_pairs) < 2:
                 continue
             consumed_group_ids.add(support_group.line_group_id)
             pairs.extend(built_pairs)
@@ -399,14 +400,20 @@ def _nearest_component_body(port_top: TextItem, texts: list[TextItem]) -> TextIt
     return sorted(candidates, key=lambda item: (abs(item.insert_x - port_top.insert_x), item.insert_y, item.text_id))[0]
 
 
-def _nearest_external_endpoint(port: TextItem, texts: list[TextItem], *, side: str) -> TextItem | None:
+def _nearest_strip_external_endpoints(
+    port: TextItem,
+    texts: list[TextItem],
+    *,
+    side: str,
+) -> tuple[TextItem, list[str]] | None:
     candidates = []
     for text in texts:
         if text.source_block_name:
             continue
         if text.layer.upper() == "MARK":
             continue
-        if not _is_valid_external_endpoint(_clean_external_endpoint(text.normalized_text)):
+        endpoint_values = _strip_external_endpoint_values(text.normalized_text)
+        if not endpoint_values:
             continue
         if abs(text.insert_x - port.insert_x) > _ENDPOINT_X_TOL:
             continue
@@ -416,10 +423,33 @@ def _nearest_external_endpoint(port: TextItem, texts: list[TextItem], *, side: s
         else:
             if not (_BOTTOM_ENDPOINT_Y_MIN_GAP <= port.insert_y - text.insert_y <= _BOTTOM_ENDPOINT_Y_MAX_GAP):
                 continue
-        candidates.append(text)
+        is_split_candidate = "," in _clean_external_endpoint(text.normalized_text)
+        candidates.append((text, endpoint_values, is_split_candidate))
     if not candidates:
         return None
-    return sorted(candidates, key=lambda item: (abs(item.insert_x - port.insert_x), abs(item.insert_y - port.insert_y), item.text_id))[0]
+    best_text, best_values, _ = sorted(
+        candidates,
+        key=lambda item: (
+            item[2],
+            abs(item[0].insert_x - port.insert_x),
+            abs(item[0].insert_y - port.insert_y),
+            item[0].text_id,
+        ),
+    )[0]
+    return best_text, best_values
+
+
+def _strip_external_endpoint_values(value: str | None) -> list[str]:
+    cleaned = _clean_external_endpoint(value)
+    if not cleaned:
+        return []
+    if "," not in cleaned:
+        return [cleaned] if _is_valid_external_endpoint(cleaned) else []
+    return [
+        endpoint_value
+        for endpoint_value in (_clean_external_endpoint(piece) for piece in cleaned.split(","))
+        if _is_valid_external_endpoint(endpoint_value)
+    ]
 
 
 def _nearest_supporting_vertical_group(
@@ -579,6 +609,7 @@ def _build_strip_two_port_pair(
         "component_block_name": port.source_block_name,
         "external_endpoint": endpoint_value,
         "external_endpoint_raw": endpoint.normalized_text,
+        "external_endpoint_split": endpoint_value,
         "external_endpoint_text_id": endpoint.text_id,
         "external_endpoint_coord": [endpoint.insert_x, endpoint.insert_y],
         "logical_endpoint": logical_endpoint,
