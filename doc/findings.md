@@ -8399,3 +8399,89 @@ fresh second-set 非回归证据：
 - 本轮是 backplate/component/table rules 语义重分类，不是 extractor 补缺，也不是 issue 隐藏。
 - `pair_count`、`issue_count`、`pair_kind` 分布均不变；只让 16 条背板相关 many-to-one review 从 generic 文案变成可解释分类。
 - 下一轮候选收缩为：`terminal_header_table issue aggregation`、`inline signal page ordinary residual wire-chain guardrail`。
+
+## 118. 2026-07-07 terminal header table issue aggregation：端子表行级 review 洪峰收敛为自然簇
+
+只读审计确认，Phase78 后 second-set 的端子表结构化关系本身正确：`terminal_header_table` 继续产出 `table_mapping/pass`，Phase60 语义端排除仍保持 `semantic_table_mapping_pass_endpoint_count=0`。真实问题不是 extractor 缺失，而是规则层把连续行带的同类结构现象逐行输出为 review：
+
+- `terminal_header_table_multi_endpoint_review=43`
+- `terminal_header_table_shared_endpoint_review=21`
+
+本轮实现：
+
+- 在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 的 `cluster_issues()` 中增加 terminal-header 专用聚合入口。
+- 聚合只匹配：
+  - `R-ONE-TO-MANY` + `one_to_many_classification=terminal_header_table_multi_endpoint_review`
+  - `R-MANY-TO-ONE` + `many_to_one_classification=terminal_header_table_shared_endpoint_review`
+- 聚合键保持窄范围：
+  - multi endpoint 按 `sheet_id + header_prefix`，并要求 row range 相邻或重叠。
+  - shared endpoint 按 `sheet_id + header_prefixes`，优先要求 shared endpoint 数字后缀相邻或重叠，再退回 row range。
+- evidence 增加聚合字段：
+  - `terminal_header_table_aggregate_review`
+  - `aggregated_logical_endpoints`
+  - `aggregated_row_numbers`
+  - `aggregated_conflicting_values`
+  - `aggregated_shared_endpoints`
+  - `aggregated_shared_endpoint_text_ids`
+- 不改 `TableExtractor`、PairBuilder、rules 语义分类、acceptance fixture、CLI/UI，也不移除任何 `table_mapping/pass` 图关系。
+
+fresh first-set 证据：
+
+- `.tmp/phase79_terminal_header_aggregation_first/...`
+- `pair_count=1550`
+- `issue_count=305`
+- pair_kind 未漂移：
+  - `ordinary_pair=800`
+  - `table_mapping=299`
+  - `continuation=175`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- terminal-header 分类：
+  - `R-ONE-TO-MANY terminal_header_table_multi_endpoint_review=5`
+  - `R-MANY-TO-ONE terminal_header_table_shared_endpoint_review=4`
+- backplate/component rules 语义保持：
+  - `backplate_table_scope_review=66`
+  - `backplate_table_same_sheet_scope_review=18`
+  - `backplate_structured_shared_endpoint_review=16`
+  - `component_split_endpoint_group_review` one-to-many `16`、many-to-one `12`
+
+fresh second-set 证据：
+
+- `.tmp/phase79_terminal_header_aggregation_second/2_2`
+- `pair_count=1460`
+- `issue_count=129`
+- pair_kind 未漂移：
+  - `ordinary_pair=674`
+  - `continuation=202`
+  - `table_mapping=174`
+  - `wire_component_mapping=168`
+  - `semantic_mapping=157`
+  - `component_mapping=82`
+  - `bridge_mapping=3`
+- terminal-header 行级洪峰收敛为 5 个自然 issue：
+  - `R-ONE-TO-MANY / 1-21GD / rows 3-4`
+  - `R-ONE-TO-MANY / 1-21GD / rows 20-21`
+  - `R-ONE-TO-MANY / 1-21QD / rows 1-38`
+  - `R-ONE-TO-MANY / 1-21CD / row 10` singleton 保留
+  - `R-MANY-TO-ONE / 1-21GD + 1-21QD / shared endpoints 1-21n210-230`
+- 红线保持：
+  - `semantic_table_mapping_pass_endpoint_count=0`
+  - `1-21QD34 -> 1-21n218` 仍为结构化 pass 关系
+  - `3-21QD28 -> 3-21n218` 仍为 `wire_component_mapping/pass`
+  - `1-21GD9 -> 1-21n218` 仍为 `table_mapping/pass`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or one_to_many or many_to_one"` -> `14 passed, 42 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `56 passed`
+- `python -m pytest -q tests\unit\test_table_extractor.py -k "terminal_header_table"` -> `3 passed, 11 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_mapping"` -> `4 passed, 16 deselected`
+- `python -m pytest -q` -> `244 passed`
+
+裁决：
+
+- 本轮是 rules / acceptance / 默认展示口径收口，不是 extractor 补缺。
+- issue_count 下降只来自连续端子表行级 review 聚合；`pair_count` 和 `pair_kind` 分布未漂移。
+- 下一轮候选收缩为：`inline signal page ordinary residual wire-chain guardrail`；若转产品化，则单独做 packaged sidecar/exe smoke，不混入 rules 切片。

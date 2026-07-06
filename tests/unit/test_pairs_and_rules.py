@@ -1101,6 +1101,274 @@ def test_rules_emit_one_to_many_terminal_header_table_multi_endpoint_review() ->
     assert review.evidence["endpoint_columns"] == ["left_endpoint", "right_endpoint"]
 
 
+def test_rules_cluster_terminal_header_table_multi_endpoint_reviews_by_header() -> None:
+    pairs = [
+        Pair(
+            "PTMR0040",
+            None,
+            "S1",
+            "F1",
+            "PC1",
+            "1-21QD1",
+            "1-21n116",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 1,
+                    "logical_endpoint": "1-21QD1",
+                    "left_value": "1-21n116",
+                    "right_value": None,
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0041",
+            None,
+            "S1",
+            "F1",
+            "PC2",
+            "1-21QD1",
+            "1-21n524",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 1,
+                    "logical_endpoint": "1-21QD1",
+                    "left_value": None,
+                    "right_value": "1-21n524",
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0042",
+            None,
+            "S1",
+            "F1",
+            "PC3",
+            "1-21QD2",
+            "1-21n117",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 2,
+                    "logical_endpoint": "1-21QD2",
+                    "left_value": "1-21n117",
+                    "right_value": None,
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0043",
+            None,
+            "S1",
+            "F1",
+            "PC4",
+            "1-21QD2",
+            "1-21n525",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 2,
+                    "logical_endpoint": "1-21QD2",
+                    "left_value": None,
+                    "right_value": "1-21n525",
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "23 右侧端子图1.dwg", 23, "23", "RIGHT TERMINAL 1", "端子图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    reviews = [item for item in issues if item.rule_id == "R-ONE-TO-MANY"]
+    assert len(reviews) == 1
+    review = reviews[0]
+    assert review.title == "端子表左右列映射待复核"
+    assert review.evidence["cluster_size"] == 2
+    assert review.evidence["terminal_header_table_aggregate_review"] is True
+    assert review.evidence["aggregated_logical_endpoints"] == ["1-21QD1", "1-21QD2"]
+    assert review.evidence["aggregated_row_numbers"] == ["1", "2"]
+    assert review.evidence["aggregated_conflicting_values"] == [
+        "1-21n116",
+        "1-21n117",
+        "1-21n524",
+        "1-21n525",
+    ]
+    assert set(review.evidence["cluster_pair_ids"]) == {
+        "PTMR0040",
+        "PTMR0041",
+        "PTMR0042",
+        "PTMR0043",
+    }
+    assert {ref["pair_id"] for ref in review.evidence_refs} == {
+        "PTMR0040",
+        "PTMR0041",
+        "PTMR0042",
+        "PTMR0043",
+    }
+
+
+def test_rules_do_not_cluster_disjoint_terminal_header_table_row_ranges() -> None:
+    pairs = [
+        Pair(
+            "PTM0039",
+            None,
+            "S1",
+            "F1",
+            "PC1",
+            "1-21GD3",
+            "3-21n108",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21GD",
+                    "row_number": 3,
+                    "logical_endpoint": "1-21GD3",
+                    "left_value": "3-21n108",
+                    "right_value": None,
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTM0040",
+            None,
+            "S1",
+            "F1",
+            "PC2",
+            "1-21GD3",
+            "1-21n212",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21GD",
+                    "row_number": 3,
+                    "logical_endpoint": "1-21GD3",
+                    "left_value": None,
+                    "right_value": "1-21n212",
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTM0058",
+            None,
+            "S1",
+            "F1",
+            "PC3",
+            "1-21GD20",
+            "1-21n132",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21GD",
+                    "row_number": 20,
+                    "logical_endpoint": "1-21GD20",
+                    "left_value": "1-21n132",
+                    "right_value": None,
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTM0059",
+            None,
+            "S1",
+            "F1",
+            "PC4",
+            "1-21GD20",
+            "1-21n229",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21GD",
+                    "row_number": 20,
+                    "logical_endpoint": "1-21GD20",
+                    "left_value": None,
+                    "right_value": "1-21n229",
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "23 右侧端子图1.dwg", 23, "23", "RIGHT TERMINAL 1", "端子图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    reviews = [item for item in issues if item.rule_id == "R-ONE-TO-MANY"]
+    assert len(reviews) == 2
+    assert sorted(item.evidence["row_number"] for item in reviews) == ["20", "3"]
+    assert all("cluster_size" not in item.evidence for item in reviews)
+
+
 def test_rules_emit_one_to_many_component_branch_review_for_strip_two_port_component() -> None:
     pairs = [
         Pair(
@@ -1557,6 +1825,159 @@ def test_rules_emit_many_to_one_terminal_header_table_shared_endpoint_review() -
     assert review.evidence["header_prefixes"] == ["1-21GD", "1-21QD"]
     assert review.evidence["shared_endpoint_text_ids"] == ["T4341"]
     assert review.evidence["shared_endpoint_coords"] == [[156.0, 133.5]]
+
+
+def test_rules_cluster_terminal_header_table_shared_endpoint_reviews_by_header_pair() -> None:
+    pairs = [
+        Pair(
+            "PTM0037",
+            None,
+            "S1",
+            "F1",
+            "PC1",
+            "1-21GD1",
+            "1-21n210",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21GD",
+                    "row_number": 1,
+                    "logical_endpoint": "1-21GD1",
+                    "left_value": None,
+                    "right_value": "1-21n210",
+                    "right_text_id": "T1",
+                    "right_coord": [156.0, 143.5],
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0090",
+            None,
+            "S1",
+            "F1",
+            "PC2",
+            "1-21QD26",
+            "1-21n210",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 26,
+                    "logical_endpoint": "1-21QD26",
+                    "left_value": "1-21n210",
+                    "right_value": None,
+                    "left_text_id": "T1",
+                    "left_coord": [156.0, 143.5],
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTM0038",
+            None,
+            "S1",
+            "F1",
+            "PC3",
+            "1-21GD2",
+            "1-21n211",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21GD",
+                    "row_number": 2,
+                    "logical_endpoint": "1-21GD2",
+                    "left_value": None,
+                    "right_value": "1-21n211",
+                    "right_text_id": "T2",
+                    "right_coord": [156.0, 138.5],
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0092",
+            None,
+            "S1",
+            "F1",
+            "PC4",
+            "1-21QD27",
+            "1-21n211",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21QD",
+                    "row_number": 27,
+                    "logical_endpoint": "1-21QD27",
+                    "left_value": "1-21n211",
+                    "right_value": None,
+                    "left_text_id": "T2",
+                    "left_coord": [156.0, 138.5],
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "23 右侧端子图1.dwg", 23, "23", "RIGHT TERMINAL 1", "端子图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    reviews = [item for item in issues if item.rule_id == "R-MANY-TO-ONE"]
+    assert len(reviews) == 1
+    review = reviews[0]
+    assert review.title == "端子表共享端点待复核"
+    assert review.evidence["cluster_size"] == 2
+    assert review.evidence["terminal_header_table_aggregate_review"] is True
+    assert review.evidence["aggregated_shared_endpoints"] == ["1-21n210", "1-21n211"]
+    assert review.evidence["aggregated_row_numbers"] == ["1", "2", "26", "27"]
+    assert review.evidence["aggregated_logical_endpoints"] == [
+        "1-21GD1",
+        "1-21GD2",
+        "1-21QD26",
+        "1-21QD27",
+    ]
+    assert set(review.evidence["cluster_pair_ids"]) == {
+        "PTM0037",
+        "PTM0038",
+        "PTMR0090",
+        "PTMR0092",
+    }
+    assert {ref["pair_id"] for ref in review.evidence_refs} == {
+        "PTM0037",
+        "PTM0038",
+        "PTMR0090",
+        "PTMR0092",
+    }
 
 
 def test_rules_emit_many_to_one_component_branch_review_for_strip_two_port_component() -> None:

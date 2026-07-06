@@ -154,6 +154,14 @@ def cluster_issues(issues: list[Issue]) -> list[Issue]:
     clustered: list[Issue] = []
     index_by_key: dict[tuple[Any, ...], int] = {}
     for issue in issues:
+        if _is_terminal_header_table_aggregation_issue(issue):
+            existing_index = _find_terminal_header_table_cluster(clustered, issue)
+            if existing_index is None:
+                clustered.append(issue)
+                continue
+            clustered[existing_index] = _merge_issue_cluster(clustered[existing_index], issue)
+            continue
+
         key = _issue_cluster_key(issue)
         existing_index = index_by_key.get(key)
         if existing_index is None:
@@ -228,8 +236,207 @@ def _merge_issue_cluster(primary: Issue, duplicate: Issue) -> Issue:
         evidence["cluster_pair_ids"] = sorted(pair_ids)
     if sheet_ids:
         evidence["cluster_sheet_ids"] = sorted(sheet_ids)
+    _merge_terminal_header_table_cluster_evidence(evidence, duplicate.evidence)
     primary.evidence = evidence
     return primary
+
+
+def _merge_terminal_header_table_cluster_evidence(
+    primary_evidence: dict[str, Any],
+    duplicate_evidence: dict[str, Any],
+) -> None:
+    if (
+        primary_evidence.get("one_to_many_classification")
+        == "terminal_header_table_multi_endpoint_review"
+    ):
+        primary_evidence["terminal_header_table_aggregate_review"] = True
+        primary_evidence["aggregated_logical_endpoints"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("aggregated_logical_endpoints"))
+            + _as_list(primary_evidence.get("logical_endpoint"))
+            + _as_list(duplicate_evidence.get("aggregated_logical_endpoints"))
+            + _as_list(duplicate_evidence.get("logical_endpoint"))
+        )
+        primary_evidence["aggregated_row_numbers"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("aggregated_row_numbers"))
+            + _as_list(primary_evidence.get("row_number"))
+            + _as_list(duplicate_evidence.get("aggregated_row_numbers"))
+            + _as_list(duplicate_evidence.get("row_number"))
+        )
+        primary_evidence["aggregated_conflicting_values"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("aggregated_conflicting_values"))
+            + _as_list(primary_evidence.get("conflicting_values"))
+            + _as_list(duplicate_evidence.get("aggregated_conflicting_values"))
+            + _as_list(duplicate_evidence.get("conflicting_values"))
+        )
+        return
+
+    if (
+        primary_evidence.get("many_to_one_classification")
+        == "terminal_header_table_shared_endpoint_review"
+    ):
+        primary_evidence["terminal_header_table_aggregate_review"] = True
+        primary_evidence["aggregated_logical_endpoints"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("aggregated_logical_endpoints"))
+            + _as_list(primary_evidence.get("logical_endpoints"))
+            + _as_list(duplicate_evidence.get("aggregated_logical_endpoints"))
+            + _as_list(duplicate_evidence.get("logical_endpoints"))
+        )
+        primary_evidence["aggregated_row_numbers"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("aggregated_row_numbers"))
+            + _as_list(primary_evidence.get("row_numbers"))
+            + _as_list(duplicate_evidence.get("aggregated_row_numbers"))
+            + _as_list(duplicate_evidence.get("row_numbers"))
+        )
+        primary_evidence["aggregated_shared_endpoints"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("aggregated_shared_endpoints"))
+            + _as_list(primary_evidence.get("shared_endpoint"))
+            + _as_list(duplicate_evidence.get("aggregated_shared_endpoints"))
+            + _as_list(duplicate_evidence.get("shared_endpoint"))
+        )
+        primary_evidence["aggregated_shared_endpoint_text_ids"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("aggregated_shared_endpoint_text_ids"))
+            + _as_list(primary_evidence.get("shared_endpoint_text_ids"))
+            + _as_list(duplicate_evidence.get("aggregated_shared_endpoint_text_ids"))
+            + _as_list(duplicate_evidence.get("shared_endpoint_text_ids"))
+        )
+        primary_evidence["header_prefixes"] = _merge_sorted_values(
+            _as_list(primary_evidence.get("header_prefixes"))
+            + _as_list(duplicate_evidence.get("header_prefixes"))
+        )
+
+
+def _is_terminal_header_table_aggregation_issue(issue: Issue) -> bool:
+    if (
+        issue.rule_id == "R-ONE-TO-MANY"
+        and issue.evidence.get("one_to_many_classification")
+        == "terminal_header_table_multi_endpoint_review"
+    ):
+        return True
+    return (
+        issue.rule_id == "R-MANY-TO-ONE"
+        and issue.evidence.get("many_to_one_classification")
+        == "terminal_header_table_shared_endpoint_review"
+    )
+
+
+def _find_terminal_header_table_cluster(
+    clustered: list[Issue],
+    issue: Issue,
+) -> int | None:
+    base_key = _terminal_header_table_cluster_base_key(issue)
+    for index, existing in enumerate(clustered):
+        if not _is_terminal_header_table_aggregation_issue(existing):
+            continue
+        if _terminal_header_table_cluster_base_key(existing) != base_key:
+            continue
+        if _terminal_header_table_ranges_touch(existing, issue):
+            return index
+    return None
+
+
+def _terminal_header_table_cluster_base_key(issue: Issue) -> tuple[Any, ...]:
+    if issue.rule_id == "R-ONE-TO-MANY":
+        return (
+            issue.rule_id,
+            issue.evidence.get("one_to_many_classification"),
+            issue.sheet_id or "",
+            issue.evidence.get("header_prefix") or "",
+        )
+    return (
+        issue.rule_id,
+        issue.evidence.get("many_to_one_classification"),
+        issue.sheet_id or "",
+        tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_prefixes")))),
+    )
+
+
+def _terminal_header_table_ranges_touch(primary: Issue, duplicate: Issue) -> bool:
+    if primary.rule_id == "R-MANY-TO-ONE":
+        primary_endpoints = _numeric_suffix_values(
+            _as_list(primary.evidence.get("aggregated_shared_endpoints"))
+            + _as_list(primary.evidence.get("shared_endpoint"))
+        )
+        duplicate_endpoints = _numeric_suffix_values(
+            _as_list(duplicate.evidence.get("aggregated_shared_endpoints"))
+            + _as_list(duplicate.evidence.get("shared_endpoint"))
+        )
+        if primary_endpoints and duplicate_endpoints:
+            return _integer_ranges_touch(primary_endpoints, duplicate_endpoints)
+
+    primary_rows = _integer_values(
+        _as_list(primary.evidence.get("aggregated_row_numbers"))
+        + _as_list(primary.evidence.get("row_number"))
+        + _as_list(primary.evidence.get("row_numbers"))
+    )
+    duplicate_rows = _integer_values(
+        _as_list(duplicate.evidence.get("aggregated_row_numbers"))
+        + _as_list(duplicate.evidence.get("row_number"))
+        + _as_list(duplicate.evidence.get("row_numbers"))
+    )
+    if not primary_rows or not duplicate_rows:
+        return False
+    return _integer_ranges_touch(primary_rows, duplicate_rows)
+
+
+def _integer_ranges_touch(first: list[int], second: list[int]) -> bool:
+    first_min, first_max = min(first), max(first)
+    second_min, second_max = min(second), max(second)
+    return first_min <= second_max + 1 and second_min <= first_max + 1
+
+
+def _integer_values(values: list[Any]) -> list[int]:
+    result: list[int] = []
+    for value in values:
+        try:
+            result.append(int(str(value)))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _numeric_suffix_values(values: list[Any]) -> list[int]:
+    result: list[int] = []
+    for value in values:
+        text = str(value)
+        digits = ""
+        for char in reversed(text):
+            if not char.isdigit():
+                break
+            digits = f"{char}{digits}"
+        if not digits:
+            continue
+        result.append(int(digits))
+    return result
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    return [value]
+
+
+def _merge_sorted_values(values: list[Any]) -> list[str]:
+    return sorted({str(value) for value in values if value is not None}, key=_natural_sort_key)
+
+
+def _natural_sort_key(value: str) -> list[tuple[int, Any]]:
+    parts: list[tuple[int, Any]] = []
+    current = ""
+    current_is_digit: bool | None = None
+    for char in value:
+        is_digit = char.isdigit()
+        if current and is_digit != current_is_digit:
+            parts.append((0, int(current)) if current_is_digit else (1, current))
+            current = ""
+        current += char
+        current_is_digit = is_digit
+    if current:
+        parts.append((0, int(current)) if current_is_digit else (1, current))
+    return parts
 
 
 def _dedupe_dict_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:

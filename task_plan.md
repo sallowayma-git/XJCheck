@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 64
+Phase 65
 
 ## Phases
 
@@ -853,6 +853,23 @@ Phase 64
 - [ ] 下一刀候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual wire-chain guardrail`；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
+### Phase 65: Terminal Header Table Issue Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `ccd6ef6`；工作区有上一段代理留下的 `rule_base.py` / `test_pairs_and_rules.py` 未提交改动，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 只读审计结论：`terminal_header_table` 的 `table_mapping/pass` 关系和专用 review 分类正确，second-set 主要噪声来自 43 条左右列多端 review 与 21 条共享端点 review 的行级洪峰；本轮只做 rules 层聚合，不改 extractor、不移除结构化关系。
+- [x] 实现目标：在 `cluster_issues()` 中对 `terminal_header_table_multi_endpoint_review` 与 `terminal_header_table_shared_endpoint_review` 增加 range-aware 聚合；相邻 row range / shared endpoint suffix 连续时合并，间隔较远的自然簇保持分开。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rule_base.py` 与 rules 单测；`pair_count`、`pair_kind`、`table_mapping/pass` 不漂移；singleton review 仍保留为独立 issue，不为了降低 issue_count 隐藏图关系。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or one_to_many or many_to_one"` -> `14 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `56 passed`
+  - `python -m pytest -q tests\unit\test_table_extractor.py -k "terminal_header_table"` -> `3 passed, 11 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_mapping"` -> `4 passed, 16 deselected`
+  - `python -m pytest -q` -> `244 passed`
+  - first fresh `.tmp/phase79_terminal_header_aggregation_first/...`: `pair_count=1550`, `issue_count=305`, pair_kind unchanged；terminal-header 分类从 Phase78 的 8+7 行级 review 收敛为 `R-ONE-TO-MANY=5`、`R-MANY-TO-ONE=4`。
+  - second fresh `.tmp/phase79_terminal_header_aggregation_second/2_2`: `pair_count=1460`, `issue_count=129`, pair_kind unchanged；terminal-header 分类收敛为 5 个自然 issue：4 个 `R-ONE-TO-MANY`、1 个 `R-MANY-TO-ONE`。
+  - second 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- [ ] 下一刀候选收缩为：`inline signal page ordinary residual wire-chain guardrail`；若回到产品化，则单独切 Phase51 packaged sidecar/exe smoke，不与 rules 聚合混入。
+- **Status:** complete
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -863,3 +880,4 @@ Phase 64
 | Windows `link.exe` 间歇性 `LNK1104` 无法打开 test exe 输出 | 重跑 `cargo test` 时链接阶段偶发锁定输出路径 | 查无残留进程后立即重试，同命令通过；记录为 Windows target/linker 临时锁竞争 |
 | second-set verification helper `KeyError: right` | 用旧 `pairs.parquet` endpoint 列名检查 semantic endpoint rows | 改用当前 schema 的 `left_value/right_value` 重跑，确认 `semantic_table_mapping_pass_endpoint_count=0` |
 | `run-audit` 写 `issues.parquet` 时 `ArrowInvalid` | 新增 `row_numbers` evidence 使用整数列表，与既有字符串行号 evidence 混合 | 将新 evidence 的 `row_numbers` 统一为字符串列表并重跑 targeted/full/fresh audit 通过 |
+| terminal-header aggregation fresh first audit `TypeError: '<' not supported between instances of 'str' and 'int'` | natural sort key 同时比较数字开头端点和非数字开头字符串 | 将 `_natural_sort_key()` 改为稳定 tuple key 后重跑 targeted/full/fresh audit 通过 |

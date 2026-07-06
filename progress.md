@@ -2494,3 +2494,30 @@
   - `doc/任务书.md`
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
+
+## Session Update 2026-07-07 (Phase 65 terminal header table issue aggregation)
+- Started after commit `ccd6ef6`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup; it reported unsynced context from the prior in-progress terminal aggregation attempt.
+  - Read `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Confirmed Phase60 terminal semantic endpoint exclusion was already complete at `9f2bc50`; current uncommitted work was the Phase65 rules aggregation slice in `rule_base.py` and `test_pairs_and_rules.py`.
+  - Protected external paths remained untracked and untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Implementation:
+  - Kept the existing range-aware terminal-header aggregation in `cluster_issues()`.
+  - Fixed a fresh first-set audit crash by making `_natural_sort_key()` return stable tuple parts, so numeric-leading endpoints and nonnumeric strings sort together safely.
+  - Aggregation is limited to `terminal_header_table_multi_endpoint_review` and `terminal_header_table_shared_endpoint_review`; it does not alter pair generation, extractor behavior, or `table_mapping/pass` graph relationships.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or one_to_many or many_to_one"` -> `14 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `56 passed`
+  - `python -m pytest -q tests\unit\test_table_extractor.py -k "terminal_header_table"` -> `3 passed, 11 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_mapping"` -> `4 passed, 16 deselected`
+  - `python -m pytest -q` -> `244 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase79_terminal_header_aggregation_first/...`: `pair_count=1550`, `issue_count=305`; pair_kind unchanged from Phase78.
+  - first terminal-header classifications now show `R-ONE-TO-MANY terminal_header_table_multi_endpoint_review=5` and `R-MANY-TO-ONE terminal_header_table_shared_endpoint_review=4`.
+  - second fresh `.tmp/phase79_terminal_header_aggregation_second/2_2`: `pair_count=1460`, `issue_count=129`; pair_kind unchanged from Phase78.
+  - second terminal-header row-level flood collapsed from `43 + 21` source reviews into 5 natural issue entries: `1-21GD rows 3-4`, `1-21GD rows 20-21`, `1-21QD rows 1-38`, singleton `1-21CD row 10`, and shared endpoints `1-21n210-230`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+- Next candidates:
+  - `inline signal page ordinary residual wire-chain guardrail`
+  - packaged sidecar/exe smoke as a separate productization slice if the next round returns to Phase51/M11.
