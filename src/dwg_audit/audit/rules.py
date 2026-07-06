@@ -25,6 +25,7 @@ _SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"(KK-[A-Z0-9+\-]+)", re.IGNORECASE),
     re.compile(r"(ZK-\d+)", re.IGNORECASE),
 )
+_HIGH_CONFIDENCE_STRUCTURED_SOURCES = {"table_mapping", "component_mapping"}
 
 
 def build_issues(
@@ -574,13 +575,13 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
         and pair.right_value
         and (
             (pair.confidence >= context.high_threshold and (pair.status == "pass" or pair.confidence_bucket == "high"))
-            or pair.evidence.get("source") == "table_mapping"
+            or _structured_source_kind(pair) == "table_mapping"
         )
     ]
 
 
 def _high_confidence_source_eligible(pair: Pair) -> bool:
-    if pair.evidence.get("source") == "table_mapping":
+    if _structured_source_kind(pair) in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
         return True
     return _ordinary_pair_eligible(pair)
 
@@ -589,6 +590,16 @@ def _ordinary_pair_eligible(pair: Pair) -> bool:
     if getattr(pair, "pair_kind", "ordinary_pair") != "ordinary_pair":
         return False
     return pair.evidence.get("ordinary_pair_eligible", True) is not False
+
+
+def _structured_source_kind(pair: Pair) -> str | None:
+    source = pair.evidence.get("source")
+    if isinstance(source, str) and source in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
+        return source
+    pair_kind = getattr(pair, "pair_kind", "ordinary_pair")
+    if isinstance(pair_kind, str) and pair_kind in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
+        return pair_kind
+    return None
 
 
 def _run_sheet_page_mismatch(context: RuleContext) -> list[Issue]:

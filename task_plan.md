@@ -547,3 +547,14 @@ Phase 41
   - first-set fresh `analyze-project + run-audit`: `.tmp/phase53_table_pair_kind_first/...` 产出 `pair_kind.table_mapping=144`，`NKR308A-1 -> 5FD15` 保持 `pass/confidence=0.95`
   - second-set fresh `analyze-project + run-audit`: `.tmp/phase53_table_pair_kind_second/2_2` 产出 `pair_kind.table_mapping=176`，`1-21QD1 -> 1-21n116` 保持 `pass/confidence=0.95`
 - [ ] 下一刀建议：进入 `ComponentDiagramExtractor` 专用 `component_mapping`，优先 first `S0022/S0024` 或 second `S0019/S0020`。
+
+### Phase 45: Strip Two-Port Component Mapping
+- [x] 实现目标：在 `ComponentDiagramExtractor` 中为长条双端口元件接线图产出首个专用 `component_mapping`，覆盖 first `S0024 / 23 元件接线图3.dwg` 的 `5KLP10-1 -> 5KLP9-1` 与 `5KLP10-2 -> 5n112`。
+- [x] 风险门槛：仅限 `元件接线图 / horizontal_component / ComponentDiagramExtractor`；仅使用 `FJL-25-2A_Mirror` 块内端口 `1/2`；必须有同列 KLP 本体、上下合法外部端点和支撑竖线；逗号端点、纯数字端点和 partial mapping 不 consume 普通 pair。
+- [x] 规则层同步：`component_mapping` 可作为高置信图信源参与 cross-page / one-to-many / many-to-one / duplicate 等图规则；不放宽 `_ordinary_pair_eligible()`，也不为 component mapping 开置信度 bypass。
+- [x] 验证命令与结果：
+  - targeted component/rules tests -> `8 passed`
+  - `python -m pytest -q` -> `201 passed`
+  - first-set fresh `analyze-project + run-audit`: `.tmp/phase56_strip_component_safe_first/...` 产出 `component_mapping=10`，目标 `5KLP10-1 -> 5KLP9-1`、`5KLP10-2 -> 5n112` 均为 `pass/confidence=0.95/pair_kind=component_mapping`，逗号端点 component mapping = `0`，audit `issue_count=385`
+  - second-set fresh `analyze-project + run-audit`: `.tmp/phase56_strip_component_safe_second/2_2` 产出 `component_mapping=8`，逗号端点 component mapping = `0`，audit `issue_count=584`
+- [ ] 下一刀建议：继续 `ComponentDiagramExtractor` 的 `4输出/6输出` 组件实例抽取，或补 first `S0019/S0020` 背板几何表格的静默空结果。

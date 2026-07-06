@@ -5,6 +5,7 @@ from dataclasses import field
 from dataclasses import replace
 
 from dwg_audit.audit.candidates import build_terminal_candidates
+from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
 from dwg_audit.audit.line_groups import build_line_groups
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.table_extractor import extract_terminal_header_table_pairs
@@ -171,6 +172,16 @@ def _extract_pairs_for_route(
                 pair_id_factory=IdFactory(f"P{id_stem}M"),
             )
         )
+    if executed_extractor == "ComponentDiagramExtractor":
+        component_pairs, consumed_group_ids = extract_strip_two_port_component_pairs(
+            pages,
+            texts,
+            line_groups,
+            pair_id_factory=IdFactory(f"P{id_stem}M"),
+        )
+        if component_pairs:
+            _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
+            pairs.extend(component_pairs)
     table_mappings = []
     if executed_extractor == "TerminalDiagramExtractor":
         table_pairs, table_mappings = extract_terminal_header_table_pairs(
@@ -208,6 +219,19 @@ def _extractor_id_stem(executed_extractor: str) -> str:
         "LayoutOnlyAuditFallback": "L",
     }
     return mapping.get(executed_extractor, "X")
+
+
+def _mark_consumed_component_ordinary_pairs(pairs: list[Pair], consumed_group_ids: set[str]) -> None:
+    for pair in pairs:
+        if pair.line_group_id not in consumed_group_ids:
+            continue
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        pair.status = "discard"
+        pair.confidence_bucket = "low"
+        pair.rationale = "Covered by component_mapping from ComponentDiagramExtractor."
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["covered_by_component_mapping"] = True
 
 
 def _terminal_header_table_retry_pages(

@@ -1465,6 +1465,145 @@ def test_build_issues_treats_table_mapping_pairs_as_high_confidence_source() -> 
     assert issue.evidence["one_to_many_classification"] == "conflict"
 
 
+def test_build_issues_treats_component_mapping_pairs_as_high_confidence_source() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="5KLP10-1",
+            right_value="5KLP9-1",
+            confidence=0.95,
+            status="pass",
+            rationale="component mapping",
+            confidence_bucket="high",
+            evidence={"source": "component_mapping"},
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id="G0002",
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id=None,
+            left_value="5KLP10-1",
+            right_value="5KLP8-1",
+            confidence=0.95,
+            status="pass",
+            rationale="component mapping",
+            confidence_bucket="high",
+            evidence={"source": "component_mapping"},
+            pair_kind="component_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "23 元件接线图3.dwg", 23, "23", "元件接线图3", "元件接线图", "supplemental", "filename", True),
+        SheetRecord("S0002", "F0002", "24 元件接线图4.dwg", 24, "24", "元件接线图4", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    cross_page_issues = [issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT"]
+    assert len(cross_page_issues) >= 1
+    issue = cross_page_issues[0]
+    assert "5KLP10-1" in issue.values
+    assert issue.evidence["one_to_many_classification"] == "conflict"
+
+
+def test_build_issues_does_not_treat_low_confidence_component_mapping_as_high_confidence_source() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id=None,
+            left_value="5KLP10-1",
+            right_value="5KLP9-1",
+            confidence=0.95,
+            status="pass",
+            rationale="component mapping",
+            confidence_bucket="high",
+            evidence={"source": "component_mapping"},
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id="G0002",
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id=None,
+            left_value="5KLP10-1",
+            right_value="5KLP8-1",
+            confidence=0.60,
+            status="review",
+            rationale="weak component mapping",
+            confidence_bucket="review",
+            evidence={"source": "component_mapping"},
+            pair_kind="component_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "23 元件接线图3.dwg", 23, "23", "元件接线图3", "元件接线图", "supplemental", "filename", True),
+        SheetRecord("S0002", "F0002", "24 元件接线图4.dwg", 24, "24", "元件接线图4", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    assert not any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
+
+
+def test_missing_reciprocal_graph_can_see_component_mapping_reverse_edge() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    config["rules"]["reciprocal_required"] = True
+    pairs = [
+        Pair(
+            pair_id="P0001",
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            selected_pair_candidate_id="PC0001",
+            left_value="5KLP9-1",
+            right_value="5KLP10-1",
+            confidence=0.96,
+            status="pass",
+            rationale="ordinary pair",
+            confidence_bucket="high",
+            evidence={"filename": "ordinary.dwg"},
+        ),
+        Pair(
+            pair_id="P0002",
+            line_group_id="G0002",
+            sheet_id="S0002",
+            file_id="F0002",
+            selected_pair_candidate_id=None,
+            left_value="5KLP10-1",
+            right_value="5KLP9-1",
+            confidence=0.95,
+            status="pass",
+            rationale="component mapping",
+            confidence_bucket="high",
+            evidence={"source": "component_mapping"},
+            pair_kind="component_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "08 回路图.dwg", 8, "08", "回路图", "二次原理图", "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "23 元件接线图3.dwg", 23, "23", "元件接线图3", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    assert not any(
+        issue.rule_id == "R-MISSING-RECIPROCAL" and issue.primary_pair_id == "P0001"
+        for issue in issues
+    )
+
+
 def test_build_issues_emits_mixed_source_conflict_for_table_mapping_vs_ordinary_pair() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     pairs = [

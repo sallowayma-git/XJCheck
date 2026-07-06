@@ -6874,3 +6874,56 @@ route status 仍稳定为：
 - 两套 `run-audit` 均成功；issues 中已能看到 `pair_kind=table_mapping`
 
 这轮之后，`TableExtractor` 作为独立高置信信源的 contract 更接近任务书要求。当前最强剩余缺口变为：`ComponentDiagramExtractor` 仍未产出 `component_mapping`。
+
+## 96. 2026-07-06 下一刀裁决：先做长条双端口组件 `component_mapping`
+
+任务书当前仍要求 `ComponentDiagramExtractor` 输出结构化 `component_mapping`，但真实产物中 `component_mapping=0`。本轮不继续调普通 PairBuilder，也不尝试一次性完成所有元件接线图。
+
+在两个候选切片中：
+
+- `4输出/6输出` 子类覆盖面更大，但布局规则和缺目标处理更多。
+- `strip_two_port_component` 子类更窄：first `S0024 / 23 元件接线图3.dwg` 已有明确块名 `FJL-25-2A_Mirror`、端口 `1/2`、外部端和线证据。
+
+因此本轮选择最短闭环切片：
+
+**只实现 `strip_two_port_component`，目标输出 `5KLP10-1 -> 5KLP9-1` 与 `5KLP10-2 -> 5n112` 的 `component_mapping`。**
+
+边界：
+
+- 仅限 `ComponentDiagramExtractor` 路由下的 `元件接线图 / horizontal_component`。
+- 仅限块内存在 `source_block_name=FJL-25-2A_Mirror` 的端口 `1/2`。
+- 本体编号取同列上方元件文本，例如 `5KLP10`。
+- 外部端取端口附近非块内文本原文，保留 `5KLP9-1`、`5n112`，不得降级为 `112`。
+- 本轮不解决 `4输出/6输出`，不处理逗号拆分的全部泛化，只为后续组件库铺出 `component_mapping` contract。
+
+### 96.1 `strip_two_port_component` 切片完成证据
+
+已完成第一条 `ComponentDiagramExtractor` 专用结构化关系：
+
+- 新增 `component_mapping` 顶层关系类型，不再把长条双端口元件接线图只留给普通 PairBuilder。
+- 仅在 `元件接线图 / horizontal_component / ComponentDiagramExtractor` 下启用。
+- 仅识别 `FJL-25-2A_Mirror` 块内端口 `1/2`、同列上方 `KLP` 本体、上下合法外部端点和支撑竖线。
+- 端点候选阶段排除逗号组合、纯数字、单字符噪声；同一 strip 必须两端都合法才产出并 consume 普通 pair，避免 partial mapping 吃掉原始证据。
+- 规则层把 `component_mapping` 纳入高置信图可见来源，但不加入 `table_mapping` 的置信度 bypass，也不放宽 `_ordinary_pair_eligible()`。
+
+测试验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py tests\unit\test_pairs_and_rules.py -k "strip_two_port or component_mapping or reciprocal_graph"` -> `8 passed`
+- `python -m pytest -q` -> `201 passed`
+
+真实样本验证：
+
+- 第一套 fresh 输出：[phase56_strip_component_safe_first](/F:/workspace/XJToolkit/.tmp/phase56_strip_component_safe_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第一套 audit 输出：[phase56 first audit](/F:/workspace/XJToolkit/.tmp/phase56_strip_component_safe_first/audit)
+- 第一套 `component_mapping = 10`，逗号端点 component mapping = `0`
+- 目标页 `S0024 / 23 元件接线图3.dwg` 已产出：
+  - `5KLP10-1 -> 5KLP9-1`，`pair_kind=component_mapping`，`status=pass`，`confidence=0.95`
+  - `5KLP10-2 -> 5n112`，`pair_kind=component_mapping`，`status=pass`，`confidence=0.95`
+- `S0024 / GC0132` 原普通 `? -> 112` 已被标记为 `discard`，rationale 为 `Covered by component_mapping from ComponentDiagramExtractor.`
+- 第一套 audit `issue_count = 385`；root cause 分布：`insufficient_evidence=204`、`candidate_noise=68`、`rule_too_strict=40`、`extractor_missing=38`、`pairing_wrong=35`
+- 第二套 fresh 输出：[phase56_strip_component_safe_second](/F:/workspace/XJToolkit/.tmp/phase56_strip_component_safe_second/2_2)
+- 第二套 audit 输出：[phase56 second audit](/F:/workspace/XJToolkit/.tmp/phase56_strip_component_safe_second/audit)
+- 第二套 `component_mapping = 8`，逗号端点 component mapping = `0`，集中在 `S0020` 的 `3-21KLP* / 1-21KLP*` strip 二端口结构。
+- 第二套 audit `issue_count = 584`；root cause 分布：`insufficient_evidence=287`、`pairing_wrong=174`、`rule_too_strict=70`、`candidate_noise=33`、`extractor_missing=20`
+
+本轮之后，`ComponentDiagramExtractor` 已不再是完全的 PairBuilder 包装，但只覆盖 `strip_two_port_component`。下一步仍应继续做元件接线图 `4输出/6输出` 或背板几何表格补齐，而不是继续扩 CLI。

@@ -1794,3 +1794,35 @@
 - Concurrent/user changes preserved:
   - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
   - Did not revert concurrent/user work.
+
+## Session Update 2026-07-06 (Phase 45)
+- Completed the first dedicated `ComponentDiagramExtractor` component mapping slice for strip two-port components.
+- Implementation goal:
+  - Recover long strip component-page mappings as `pair_kind=component_mapping` instead of leaving them as ordinary `? -> 112` style review pairs.
+  - Target first-set `S0024 / 23 元件接线图3.dwg`: `5KLP10-1 -> 5KLP9-1` and `5KLP10-2 -> 5n112`.
+- Risk controls added after subagent review:
+  - `component_mapping` is graph-visible to high-confidence rules without making it ordinary-pair eligible.
+  - Only `table_mapping` keeps the high-confidence bypass; low-confidence/review `component_mapping` does not enter the graph.
+  - Endpoint selection rejects comma endpoints, pure numeric labels, and single-character labels before nearest-candidate ranking.
+  - A strip consumes/discards the ordinary pair only when both component endpoints are valid and emitted.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py tests\unit\test_pairs_and_rules.py -k "strip_two_port or component_mapping or reciprocal_graph"` -> `8 passed`
+  - `python -m pytest -q` -> `201 passed`
+- First-set real-sample evidence:
+  - Fresh output: `.tmp/phase56_strip_component_safe_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `run-audit` succeeded.
+  - `component_mapping=10`, comma component mappings `0`.
+  - Required taskbook mappings are present as `pass/confidence=0.95/pair_kind=component_mapping`:
+    - `S0024`: `5KLP10-1 -> 5KLP9-1`
+    - `S0024`: `5KLP10-2 -> 5n112`
+  - `S0024 / GC0132` ordinary `? -> 112` is now `discard` with rationale `Covered by component_mapping from ComponentDiagramExtractor.`
+  - Audit issue count is `385`.
+- Second-set real-sample evidence:
+  - Fresh output: `.tmp/phase56_strip_component_safe_second/2_2`
+  - `run-audit` succeeded.
+  - `component_mapping=8`, comma component mappings `0`.
+  - The natural hits are all `S0020` strip two-port KLP mappings such as `3-21KLP2-1 -> 3-21GD3` and `1-21KLP1-2 -> 1-21n112`.
+  - Audit issue count is `584`.
+- Concurrent/user changes preserved:
+  - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.
