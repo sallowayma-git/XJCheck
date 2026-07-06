@@ -1075,3 +1075,41 @@
     - 真实样本人工标注 pair precision / recall
     - texts / lines 召回不回退的真实基线量化
     - 把 acceptance 评估正式接成项目级固定回归批次
+
+## Session Update 2026-07-06 (Phase 28)
+- 先按 current-head 再做了一次任务书裁决，确认最近缺口已经从 `acceptance-mini` 转到“真实样本人工标注子集的 pair precision / recall”，而不是继续回到 extractor 规则层。
+- 并发拉了只读子代理做页选择复核；主线程最终刻意收窄到最小实现：
+  - 这轮先不做 `pair_key` 级抽样 scope
+  - 只补“按页/图种作用域”的 scoped acceptance
+  - 并选第二套 `S0024 / 24 右侧端子图2.dwg` 作为第一张真实样本标注页，因为它当前有 `7` 条完整 ordinary pair，足够做有效 precision，且不会被整项目其它页污染分母
+- 本轮实现：
+  - `src/dwg_audit/report/acceptance.py`
+    - 新增 `pair_scope`
+    - 支持按 `included_sheet_ids / included_filenames / pair_kinds / statuses` 过滤 pair 评估范围
+    - `acceptance_passed` 对空的 optional checks 改为自动跳过，不再因为 `expected_count=0` 把 scoped spec 判失败
+    - markdown/json 报告显式落 `pair_scope`
+  - `tests/integration/test_acceptance_evaluation.py`
+    - 抽出 acceptance-mini 运行 helper
+    - 新增 scoped acceptance 集成测试，证明只评 `04 正常回路图A.dwg` 时 precision/recall 仍可正确为 `1.0`
+  - 新增真实样本标注 spec：
+    - `tests/fixtures/acceptance_real_subset/second_set_terminal_s0024.json`
+- 本轮验证：
+  - `python -m pytest -q tests\\integration\\test_acceptance_evaluation.py` -> `2 passed`
+  - `python -m pytest -q tests\\unit\\test_regression_metrics.py tests\\unit\\test_rerun_regression.py` -> `6 passed`
+  - `python -m pytest -q tests\\integration\\test_analyze_project.py -k "acceptance or table_extractor or header_semantic or mixed_source_conflict"` -> `3 passed`
+  - `python -m pytest -q` -> `170 passed`
+- 真实样本 acceptance：
+  - `python -m dwg_audit.cli evaluate-acceptance --project .tmp\\phase31_acceptance_second\\2_2 --spec tests\\fixtures\\acceptance_real_subset\\second_set_terminal_s0024.json --output .tmp\\phase32_real_subset_eval_s0024`
+  - 结果：
+    - `expected_pair_count = 7`
+    - `extracted_complete_pair_count = 7`
+    - `matched_pair_count = 7`
+    - `pair_precision = 1.0`
+    - `pair_recall = 1.0`
+    - `acceptance_passed = True`
+- 当前裁决：
+  - 真实样本第一份 scoped pair precision/recall 基线已经出现
+  - 这还不是“整页/整项目 pair precision 已全面证明”，但已经把 `M10` 从纯 synthetic acceptance 推进到了 current real sample 上的持久化量化资产
+  - 下一步更像是二选一：
+    - 扩第二套更多页的 scoped 标注 spec
+    - 或补 texts / lines 非回退基线量化

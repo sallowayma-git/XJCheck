@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 27
+Phase 28
 
 ## Phases
 
@@ -194,6 +194,14 @@ Phase 27
 - [x] 增加 `evaluate-acceptance` 评估链，量化 pair precision/recall、冲突命中、缺失命中、review 命中与 issue 字段完备性
 - [x] 复跑定向 pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
 - [x] 把“acceptance 资产已补齐但 M10 仍未完全闭环”的裁决回写 `doc/findings.md` / `progress.md`
+- **Status:** complete
+
+### Phase 28: Real-Sample Scoped Acceptance Baseline
+- [x] 重新按 current-head 任务书审计，确认最近缺口已从 synthetic acceptance 资产推进到“真实样本人工标注子集的 pair precision/recall”
+- [x] 让 `evaluate-acceptance` 支持按页/图种作用域统计 complete pair precision/recall，避免 1 页标注被整项目其它页污染 precision
+- [x] 补 scoped acceptance 集成测试，并新增第二套真实样本 `S0024` 的持久化标注 spec
+- [x] 复跑 targeted pytest、full pytest，并在 current-head 第二套真实产物上执行 scoped acceptance
+- [x] 把“真实样本第一份 precision/recall 基线已出现，下一步转向更多页与 texts/lines 基线”的裁决回写 `doc/findings.md` / `progress.md`
 - **Status:** complete
 
 ## Key Questions

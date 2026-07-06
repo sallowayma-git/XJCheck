@@ -26,9 +26,11 @@ def evaluate_acceptance_project(
     expected_missing_issues = spec.get("expected_missing_issues", [])
     expected_review_pairs = spec.get("expected_review_pairs", [])
     pair_recall_threshold = float(spec.get("pair_recall_threshold", 0.9))
+    pair_scope = spec.get("pair_scope") or {}
+    scoped_pairs = _scoped_pairs(pairs, pair_scope)
 
-    matched_golden_pairs = _matched_golden_pairs(pairs, golden_pairs)
-    extracted_complete_pairs = _extracted_complete_pairs(pairs)
+    matched_golden_pairs = _matched_golden_pairs(scoped_pairs, golden_pairs)
+    extracted_complete_pairs = _extracted_complete_pairs(scoped_pairs)
     golden_pair_keys = {_pair_spec_key(item) for item in golden_pairs}
     matched_pair_keys = {_pair_spec_key(item) for item in matched_golden_pairs}
     pair_precision = _safe_ratio(len(matched_golden_pairs), len(extracted_complete_pairs))
@@ -37,13 +39,14 @@ def evaluate_acceptance_project(
     matched_skip_pages = _matched_skip_pages(findings_payload.get("page_findings", []), expected_skip_pages)
     matched_conflicts = _matched_conflict_issues(issues_payload, expected_conflicts)
     matched_missing_issues = _matched_missing_issues(issues_payload, expected_missing_issues)
-    matched_review_pairs = _matched_review_pairs(pairs, expected_review_pairs)
+    matched_review_pairs = _matched_review_pairs(scoped_pairs, expected_review_pairs)
     issue_field_coverage = _issue_field_coverage(issues_payload)
 
     evaluation = {
         "spec_name": spec.get("name", spec_path.stem),
         "project_dir": str(project_dir.resolve()),
         "spec_path": str(spec_path.resolve()),
+        "pair_scope": pair_scope,
         "pair_metrics": {
             "expected_pair_count": len(golden_pairs),
             "extracted_complete_pair_count": len(extracted_complete_pairs),
@@ -266,15 +269,21 @@ def _issue_field_coverage(issues_payload: list[dict[str, Any]]) -> dict[str, Any
 
 def _acceptance_passed(evaluation: dict[str, Any]) -> bool:
     pair_metrics = evaluation.get("pair_metrics", {})
+    pair_required = int(pair_metrics.get("expected_pair_count") or 0) > 0
+    pair_passed = True
+    if pair_required:
+        pair_passed = (
+            pair_metrics.get("precision") is not None
+            and pair_metrics.get("recall") is not None
+            and float(pair_metrics.get("recall") or 0.0) >= float(pair_metrics.get("threshold") or 0.0)
+        )
     return all(
         [
-            pair_metrics.get("precision") is not None,
-            pair_metrics.get("recall") is not None,
-            float(pair_metrics.get("recall") or 0.0) >= float(pair_metrics.get("threshold") or 0.0),
-            float(evaluation.get("skip_page_metrics", {}).get("recall") or 0.0) >= 1.0,
-            float(evaluation.get("conflict_issue_metrics", {}).get("recall") or 0.0) >= 1.0,
-            float(evaluation.get("missing_issue_metrics", {}).get("recall") or 0.0) >= 1.0,
-            float(evaluation.get("review_pair_metrics", {}).get("recall") or 0.0) >= 1.0,
+            pair_passed,
+            _optional_recall_check(evaluation.get("skip_page_metrics", {})),
+            _optional_recall_check(evaluation.get("conflict_issue_metrics", {})),
+            _optional_recall_check(evaluation.get("missing_issue_metrics", {})),
+            _optional_recall_check(evaluation.get("review_pair_metrics", {})),
             bool(evaluation.get("issue_field_coverage", {}).get("all_required_fields_present")),
         ]
     )
@@ -287,34 +296,41 @@ def _format_acceptance_markdown(evaluation: dict[str, Any]) -> str:
     missing_metrics = evaluation.get("missing_issue_metrics", {})
     review_metrics = evaluation.get("review_pair_metrics", {})
     field_coverage = evaluation.get("issue_field_coverage", {})
+    pair_scope = evaluation.get("pair_scope") or {}
     lines = [
         "# Acceptance Report",
         "",
         f"- Spec: `{evaluation.get('spec_name')}`",
         f"- Project: `{evaluation.get('project_dir')}`",
         f"- Passed: `{evaluation.get('acceptance_passed')}`",
-        "",
-        "## Pair Metrics",
-        "",
-        f"- Expected complete pairs: `{pair_metrics.get('expected_pair_count', 0)}`",
-        f"- Extracted complete pairs: `{pair_metrics.get('extracted_complete_pair_count', 0)}`",
-        f"- Matched complete pairs: `{pair_metrics.get('matched_pair_count', 0)}`",
-        f"- Precision: `{pair_metrics.get('precision')}`",
-        f"- Recall: `{pair_metrics.get('recall')}`",
-        f"- Recall threshold: `{pair_metrics.get('threshold')}`",
-        "",
-        "## Acceptance Checks",
-        "",
-        f"- Skip pages recall: `{skip_metrics.get('matched_count', 0)}` / `{skip_metrics.get('expected_count', 0)}`",
-        f"- Conflict issue recall: `{conflict_metrics.get('matched_count', 0)}` / `{conflict_metrics.get('expected_count', 0)}`",
-        f"- Missing issue recall: `{missing_metrics.get('matched_count', 0)}` / `{missing_metrics.get('expected_count', 0)}`",
-        f"- Review pair recall: `{review_metrics.get('matched_count', 0)}` / `{review_metrics.get('expected_count', 0)}`",
-        f"- Issue evidence fields complete: `{field_coverage.get('all_required_fields_present')}`",
-        "",
-        "## Field Coverage",
-        "",
-        f"- Required fields: `{json.dumps(field_coverage.get('required_fields_present', {}), ensure_ascii=False, sort_keys=True)}`",
     ]
+    if pair_scope:
+        lines.append(f"- Pair scope: `{json.dumps(pair_scope, ensure_ascii=False, sort_keys=True)}`")
+    lines.extend(
+        [
+            "",
+            "## Pair Metrics",
+            "",
+            f"- Expected complete pairs: `{pair_metrics.get('expected_pair_count', 0)}`",
+            f"- Extracted complete pairs: `{pair_metrics.get('extracted_complete_pair_count', 0)}`",
+            f"- Matched complete pairs: `{pair_metrics.get('matched_pair_count', 0)}`",
+            f"- Precision: `{pair_metrics.get('precision')}`",
+            f"- Recall: `{pair_metrics.get('recall')}`",
+            f"- Recall threshold: `{pair_metrics.get('threshold')}`",
+            "",
+            "## Acceptance Checks",
+            "",
+            f"- Skip pages recall: `{skip_metrics.get('matched_count', 0)}` / `{skip_metrics.get('expected_count', 0)}`",
+            f"- Conflict issue recall: `{conflict_metrics.get('matched_count', 0)}` / `{conflict_metrics.get('expected_count', 0)}`",
+            f"- Missing issue recall: `{missing_metrics.get('matched_count', 0)}` / `{missing_metrics.get('expected_count', 0)}`",
+            f"- Review pair recall: `{review_metrics.get('matched_count', 0)}` / `{review_metrics.get('expected_count', 0)}`",
+            f"- Issue evidence fields complete: `{field_coverage.get('all_required_fields_present')}`",
+            "",
+            "## Field Coverage",
+            "",
+            f"- Required fields: `{json.dumps(field_coverage.get('required_fields_present', {}), ensure_ascii=False, sort_keys=True)}`",
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -350,6 +366,33 @@ def _pair_spec_key(item: dict[str, Any]) -> tuple[str, str, str]:
         str(item.get("left_value") or ""),
         str(item.get("right_value") or ""),
     )
+
+
+def _optional_recall_check(metrics: dict[str, Any]) -> bool:
+    if int(metrics.get("expected_count") or 0) <= 0:
+        return True
+    return float(metrics.get("recall") or 0.0) >= 1.0
+
+
+def _scoped_pairs(pairs: pd.DataFrame, pair_scope: dict[str, Any]) -> pd.DataFrame:
+    if pairs is None or pairs.empty or not pair_scope:
+        return pairs
+    filenames = {str(value) for value in pair_scope.get("included_filenames", []) if _present(value)}
+    sheet_ids = {str(value) for value in pair_scope.get("included_sheet_ids", []) if _present(value)}
+    pair_kinds = {str(value) for value in pair_scope.get("pair_kinds", []) if _present(value)}
+    statuses = {str(value) for value in pair_scope.get("statuses", []) if _present(value)}
+    filtered: list[dict[str, Any]] = []
+    for row in _rows(pairs):
+        if filenames and _pair_filename(row) not in filenames:
+            continue
+        if sheet_ids and str(row.get("sheet_id") or "") not in sheet_ids:
+            continue
+        if pair_kinds and str(row.get("pair_kind") or "") not in pair_kinds:
+            continue
+        if statuses and str(row.get("status") or "") not in statuses:
+            continue
+        filtered.append(row)
+    return pd.DataFrame(filtered)
 
 
 def _rows(frame: pd.DataFrame) -> list[dict[str, Any]]:

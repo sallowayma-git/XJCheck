@@ -38,14 +38,13 @@ def _add_page_no_marker(msp, value: str) -> None:
     msp.add_text(value, dxfattribs={"insert": (108.0, 12.0), "height": 2.5, "layer": "TITLE"})
 
 
-def test_acceptance_mini_project_produces_quantified_acceptance_report(
+def _prepare_acceptance_mini_run(
     monkeypatch,
     tmp_path: Path,
-) -> None:
+) -> tuple[Path, Path]:
     fixture_root = Path(__file__).resolve().parents[1] / "fixtures" / "acceptance_mini"
     project = tmp_path / "project"
     shutil.copytree(fixture_root / "project", project)
-    spec_path = fixture_root / "spec.json"
 
     config_path = tmp_path / "config.yml"
     config_path.write_text(
@@ -128,7 +127,17 @@ def test_acceptance_mini_project_produces_quantified_acceptance_report(
 
     audit = runner.invoke(app, ["run-audit", "--findings", str(project_dir / "findings")])
     assert audit.exit_code == 0, audit.output
+    return fixture_root, project_dir
 
+
+def test_acceptance_mini_project_produces_quantified_acceptance_report(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    fixture_root, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    spec_path = fixture_root / "spec.json"
+
+    runner = CliRunner()
     acceptance_dir = tmp_path / "acceptance_report"
     evaluate = runner.invoke(
         app,
@@ -160,3 +169,54 @@ def test_acceptance_mini_project_produces_quantified_acceptance_report(
     assert "Acceptance Report" in markdown
     assert "Precision: `1.0`" in markdown
     assert "Recall: `1.0`" in markdown
+
+
+def test_acceptance_evaluation_supports_scoped_pair_metrics(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _, project_dir = _prepare_acceptance_mini_run(monkeypatch, tmp_path)
+    scoped_spec = {
+        "name": "acceptance-mini-scoped-page",
+        "pair_recall_threshold": 0.9,
+        "pair_scope": {
+            "included_filenames": ["04 正常回路图A.dwg"],
+            "pair_kinds": ["ordinary_pair"],
+        },
+        "golden_pairs": [
+            {"filename": "04 正常回路图A.dwg", "left_value": "101", "right_value": "201"},
+            {"filename": "04 正常回路图A.dwg", "left_value": "102", "right_value": "202"},
+            {"filename": "04 正常回路图A.dwg", "left_value": "103", "right_value": "203"},
+            {"filename": "04 正常回路图A.dwg", "left_value": "104", "right_value": "204"},
+            {"filename": "04 正常回路图A.dwg", "left_value": "301", "right_value": "401"},
+            {"filename": "04 正常回路图A.dwg", "left_value": "302", "right_value": "501"},
+        ],
+    }
+    spec_path = tmp_path / "scoped_spec.json"
+    spec_path.write_text(json.dumps(scoped_spec, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    runner = CliRunner()
+    acceptance_dir = tmp_path / "acceptance_scoped_report"
+    evaluate = runner.invoke(
+        app,
+        [
+            "evaluate-acceptance",
+            "--project",
+            str(project_dir),
+            "--spec",
+            str(spec_path),
+            "--output",
+            str(acceptance_dir),
+        ],
+    )
+    assert evaluate.exit_code == 0, evaluate.output
+
+    payload = json.loads((acceptance_dir / "acceptance_report.json").read_text(encoding="utf-8"))
+    assert payload["acceptance_passed"] is True
+    assert payload["pair_scope"]["included_filenames"] == ["04 正常回路图A.dwg"]
+    assert payload["pair_metrics"]["expected_pair_count"] == 6
+    assert payload["pair_metrics"]["extracted_complete_pair_count"] == 6
+    assert payload["pair_metrics"]["matched_pair_count"] == 6
+    assert payload["pair_metrics"]["precision"] == 1.0
+    assert payload["pair_metrics"]["recall"] == 1.0
+    assert payload["skip_page_metrics"]["expected_count"] == 0

@@ -1,0 +1,18 @@
+{
+  "name": "real-sample-second-set-terminal-s0024",
+  "pair_recall_threshold": 0.9,
+  "pair_scope": {
+    "included_sheet_ids": ["S0024"],
+    "included_filenames": ["24 右侧端子图2.dwg"],
+    "pair_kinds": ["ordinary_pair"]
+  },
+  "golden_pairs": [
+    {"filename": "24 右侧端子图2.dwg", "left_value": "406", "right_value": "20"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "409", "right_value": "25"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "412", "right_value": "30"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "415", "right_value": "35"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "418", "right_value": "40"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "421", "right_value": "45"},
+    {"filename": "24 右侧端子图2.dwg", "left_value": "428", "right_value": "55"}
+  ]
+}

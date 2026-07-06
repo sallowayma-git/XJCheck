@@ -4759,3 +4759,131 @@ current-head 结果保持稳定：
 
 1. 真实样本人工标注与 pair 指标量化
 2. texts / lines 回归基线量化
+
+## 78. 2026-07-06 第一份真实样本 scoped acceptance 基线已出现
+
+在 section 77 把 `acceptance-mini` 落成持久化资产之后，我继续按 current-head 把最近缺口再收窄一层：
+
+- 不去同时做更大页标注、texts 基线、lines 基线
+- 先只补“真实样本人工标注子集的 pair precision / recall”
+
+### 78.1 先解决 evaluator 的结构性缺口
+
+当前 `evaluate-acceptance` 原本只能按**整个项目**计算 complete pair precision。
+
+这意味着只要标 1 页，整项目其他页的 complete pair 都会落进 `unexpected_pairs`，precision 会被无关页污染。这不适合“真实样本先做一小块人工标注”的工作流。
+
+所以这轮先补的不是新抽取规则，而是 acceptance evaluator 的 scope 合同：
+
+- 代码位置：[acceptance.py](/F:/workspace/XJToolkit/src/dwg_audit/report/acceptance.py)
+- 新增 `pair_scope`
+- 当前支持：
+  - `included_sheet_ids`
+  - `included_filenames`
+  - `pair_kinds`
+  - `statuses`
+
+同时把 `acceptance_passed` 调整成：
+
+- 当 `expected_skip_pages / expected_conflicts / expected_missing_issues / expected_review_pairs` 为空时，对应 check 自动跳过
+- 不再因为 `expected_count = 0` 把 scoped spec 误判为失败
+
+这一步的直接意义是：
+
+- synthetic acceptance 仍然保持原样可跑
+- 真实样本小范围标注现在终于能算出**不被整项目其它页污染**的 pair precision / recall
+
+### 78.2 这轮为什么先选 `S0024`
+
+我并发拉了只读子代理做页选择复核。子代理给出了两类有价值的建议：
+
+- 一类更偏“full pair 密度高”的页，比如 `S0021 / S0023`
+- 一类更偏“首批标注工作量小、ordinary pair 干净”的页，比如 `S0024`
+
+主线程最后刻意选了第二类，原因很简单：
+
+- 这轮的唯一目标是先证明“真实样本 scoped acceptance”能成立
+- `S0024 / 24 右侧端子图2.dwg` 当前 ordinary complete pair 正好是 `7` 条
+- 用一整页就能做出**有意义的 precision 分母**
+- 又不用立即引入更复杂的 `pair_key` 级 scope 或几十条人工标注维护成本
+
+本轮持久化 spec 放在：
+
+- [second_set_terminal_s0024.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_real_subset/second_set_terminal_s0024.json)
+
+当前标注的 `7` 组 pair 为：
+
+- `406 -> 20`
+- `409 -> 25`
+- `412 -> 30`
+- `415 -> 35`
+- `418 -> 40`
+- `421 -> 45`
+- `428 -> 55`
+
+scope 明确限制为：
+
+- `sheet_id = S0024`
+- `filename = 24 右侧端子图2.dwg`
+- `pair_kind = ordinary_pair`
+
+也就是说，这轮故意**不**把同页的大量 `semantic_mapping / continuation` 混进第一份 real-sample pair baseline。
+
+### 78.3 新增证明
+
+为了避免 scope 只在真实样本 spec 上“看起来可用”，我先补了一条 synthetic 集成测试：
+
+- [test_acceptance_evaluation.py](/F:/workspace/XJToolkit/tests/integration/test_acceptance_evaluation.py)
+
+它证明：
+
+- 只评 `04 正常回路图A.dwg`
+- 只消费 `ordinary_pair`
+- 即使 spec 不再提供 skip/conflict/missing/review 期望项
+- acceptance 仍然可以正确通过
+
+本轮验证结果：
+
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `2 passed`
+- `python -m pytest -q tests\unit\test_regression_metrics.py tests\unit\test_rerun_regression.py` -> `6 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "acceptance or table_extractor or header_semantic or mixed_source_conflict"` -> `3 passed`
+- `python -m pytest -q` -> `170 passed`
+
+### 78.4 current-head 真实样本结果
+
+我直接在第二套 current-head 产物上执行了 scoped acceptance：
+
+- 命令输出目录：[phase32_real_subset_eval_s0024](/F:/workspace/XJToolkit/.tmp/phase32_real_subset_eval_s0024)
+
+结果如下：
+
+- `expected_pair_count = 7`
+- `extracted_complete_pair_count = 7`
+- `matched_pair_count = 7`
+- `pair_precision = 1.0`
+- `pair_recall = 1.0`
+- `acceptance_passed = True`
+
+这说明：
+
+- 当前 `S0024` 这组 ordinary full pair 已经可以作为一份**真实样本、持久化、可复跑**的最小 precision / recall 基线
+- 它不再只是 synthetic fixture 的成功案例
+
+### 78.5 当前裁决
+
+这一轮之后，`M10` 的状态更准确地说是：
+
+1. 已经完成的层
+- synthetic `acceptance-mini`
+- scoped acceptance evaluator
+- 第一份真实样本 `pair precision / recall` 持久化 spec
+
+2. 仍未闭环的层
+- 扩更多真实页，避免只停在 `S0024`
+- 是否需要更细粒度的 `pair_key` 级 scope，来支持高密度页的“小样本标注”
+- texts / lines 非回退基线量化
+
+所以 current-head 最近的下一条缺口，已经不再是“有没有真实样本 precision / recall”，而更像是：
+
+1. 把 real-sample scoped spec 从 `1` 页扩到多页
+2. 把 texts / lines 基线也拉进同一套量化回归里
