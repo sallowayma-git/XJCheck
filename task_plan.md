@@ -558,3 +558,13 @@ Phase 41
   - first-set fresh `analyze-project + run-audit`: `.tmp/phase56_strip_component_safe_first/...` 产出 `component_mapping=10`，目标 `5KLP10-1 -> 5KLP9-1`、`5KLP10-2 -> 5n112` 均为 `pass/confidence=0.95/pair_kind=component_mapping`，逗号端点 component mapping = `0`，audit `issue_count=385`
   - second-set fresh `analyze-project + run-audit`: `.tmp/phase56_strip_component_safe_second/2_2` 产出 `component_mapping=8`，逗号端点 component mapping = `0`，audit `issue_count=584`
 - [ ] 下一刀建议：继续 `ComponentDiagramExtractor` 的 `4输出/6输出` 组件实例抽取，或补 first `S0019/S0020` 背板几何表格的静默空结果。
+
+### Phase 46: Backplate Geometric Table Endpoint Recovery
+- [x] 实现目标：补齐 first `S0019/S0020` 已路由到 `TableExtractor` 但 `table_mapping=0` 的背板几何表格空结果。
+- [x] 风险门槛：只扩展 `TableExtractor` 背板端点识别，不扩大 `PageClassifier` 路由；同一背板 header 至少 3 个端点命中才产出高置信 `table_mapping`。
+- [x] 验证命令与结果：
+  - targeted backplate tests -> `5 passed`
+  - `python -m pytest -q` -> `203 passed`
+  - first-set fresh `analyze-project + run-audit`: `.tmp/phase58_backplate_route_stable_first/...` 产出背板 `table_mapping`：`S0018=27`、`S0019=72`、`S0020=67`、`S0021=56`，代表关系 `NDY306A-3 -> 1-2QD1`、`NCZ343A-2 -> 1-4QD17`、`NDY306A-3 -> 3-2QD1`、`NCZ343A-2 -> 3-4QD17` 均命中
+  - second-set fresh `analyze-project + run-audit`: `.tmp/phase58_backplate_route_stable_second/2_2` 中 `S0017/S0018` 普通装置背板保持 `LayoutOnlyExtractor / classify_only`，背板 table mappings `0`，`LAN*` table mappings `0`
+- [ ] 下一刀建议：实现 `KK2P/KK3P` 多端口 `component_mapping`，需要把 `BlockRecord` 传入 `ComponentDiagramExtractor`，代表目标 first `S0022: 1DK-1 -> ZD9`、second `S0019: 1-21ZKK-2 -> 1-21n715`。

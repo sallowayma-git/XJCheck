@@ -434,8 +434,10 @@ def test_extract_table_pairs_builds_backplate_virtual_table_mappings() -> None:
         ),
         _make_text("R1", x=208.75, y=238.75, value="01", is_numeric_candidate=True, source_block_name="WBH-814E-E1SA-101"),
         _make_text("R2", x=233.75, y=238.75, value="02", is_numeric_candidate=True, source_block_name="WBH-814E-E1SA-101"),
+        _make_text("R3", x=208.75, y=233.75, value="03", is_numeric_candidate=True, source_block_name="WBH-814E-E1SA-101"),
         _make_text("E1", x=199.0, y=238.5, value="5FD15"),
         _make_text("E2", x=238.5, y=238.5, value="5FD16"),
+        _make_text("E3", x=199.0, y=233.5, value="5FD17"),
         _make_text("N1", x=213.0, y=239.0, value="调压重瓦斯开入", source_block_name="WBH-814E-E1SA-101"),
     ]
 
@@ -450,8 +452,60 @@ def test_extract_table_pairs_builds_backplate_virtual_table_mappings() -> None:
     assert pair_values == {
         ("NKR308A-1", "5FD15"),
         ("NKR308A-2", "5FD16"),
+        ("NKR308A-3", "5FD17"),
     }
     assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
     assert all(pair.evidence["pair_kind"] == "table_mapping" for pair in pairs)
     assert {pair.pair_kind for pair in pairs} == {"table_mapping"}
     assert pairs[0].evidence["table_mapping"]["source_block_name"] == "WBH-814E-E1SA-101"
+
+
+def test_extract_table_pairs_builds_backplate_prefixed_endpoint_mappings() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 300.0, 260.0))
+    sheet.filename = "18 高后备保护背板图.dwg"
+    sheet.sheet_title = "高后备保护背板图"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+
+    texts = [
+        _make_text("H1", x=120.0, y=230.0, value="NDY306A", source_block_name="WBH-813E-E1SH-201"),
+        _make_text("R1", x=116.0, y=220.0, value="01", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-201"),
+        _make_text("R2", x=116.0, y=215.0, value="02", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-201"),
+        _make_text("R3", x=116.0, y=210.0, value="03", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-201"),
+        _make_text("E1", x=111.0, y=220.2, value="& 1-2QD1"),
+        _make_text("E2", x=111.0, y=215.2, value="CD2"),
+        _make_text("E3", x=111.0, y=210.2, value="YD3"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert len(mappings) == 1
+    assert mappings[0]["mappings"][0]["mapping_mode"] == "backplate_virtual_table"
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {
+        ("NDY306A-1", "1-2QD1"),
+        ("NDY306A-2", "CD2"),
+        ("NDY306A-3", "YD3"),
+    }
+    assert {pair.pair_kind for pair in pairs} == {"table_mapping"}
+
+
+def test_extract_table_pairs_skips_sparse_backplate_header_group() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 300.0, 260.0))
+    sheet.filename = "18 高后备保护背板图.dwg"
+    sheet.sheet_title = "高后备保护背板图"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+
+    texts = [
+        _make_text("H1", x=120.0, y=230.0, value="LAN1", source_block_name="WBH-813E-E1SH-LAN"),
+        _make_text("R1", x=116.0, y=220.0, value="01", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-LAN"),
+        _make_text("R2", x=116.0, y=215.0, value="02", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-LAN"),
+        _make_text("E1", x=111.0, y=220.2, value="LAN1"),
+        _make_text("E2", x=111.0, y=215.2, value="LAN2"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert pairs == []
+    assert mappings == []

@@ -36,11 +36,15 @@ _TABLE_PAIR_CONFIDENCE = 0.95
 _HEADER_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9\-_/]*[A-Za-z][A-Za-z0-9\-_/]*$")
 _TERMINAL_ENDPOINT_PATTERN = re.compile(r"(?i).*[a-z]\d+$")
 _BACKPLATE_HEADER_PATTERN = re.compile(r"^[A-Za-z]{2,}[0-9]+[A-Za-z]?(?:[（(].*[）)])?$")
-_BACKPLATE_ENDPOINT_PATTERN = re.compile(r"^[0-9][A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?$")
+_BACKPLATE_ENDPOINT_PATTERN = re.compile(
+    r"^(?:[0-9](?:-[0-9]+)?[A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?|[A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?)$",
+    re.IGNORECASE,
+)
 _BACKPLATE_ROW_Y_TOL = 2.0
 _BACKPLATE_HEADER_X_TOL = 28.0
 _BACKPLATE_HEADER_Y_SPAN = 90.0
 _BACKPLATE_ENDPOINT_X_TOL = 28.0
+_BACKPLATE_MIN_HEADER_ENDPOINT_HITS = 3
 _TERMINAL_HEADER_ROW_X_TOL = 8.0
 _TERMINAL_HEADER_ROW_Y_SPAN = 260.0
 _TERMINAL_HEADER_ENDPOINT_Y_TOL = 1.2
@@ -691,6 +695,7 @@ def _build_backplate_virtual_mappings(
             and 0.0 < header.insert_y - row.insert_y <= _BACKPLATE_HEADER_Y_SPAN
             and abs(row.insert_x - header.insert_x) <= _BACKPLATE_HEADER_X_TOL
         ]
+        header_mappings: list[dict[str, Any]] = []
         for row in sorted(header_rows, key=lambda item: (-item.insert_y, item.insert_x, item.text_id)):
             endpoint = _nearest_backplate_endpoint(row, endpoints)
             if endpoint is None:
@@ -702,7 +707,7 @@ def _build_backplate_virtual_mappings(
             if dedupe_key in seen:
                 continue
             seen.add(dedupe_key)
-            mappings.append(
+            header_mappings.append(
                 {
                     "mapping_mode": "backplate_virtual_table",
                     "sheet_id": sheet.sheet_id,
@@ -734,6 +739,9 @@ def _build_backplate_virtual_mappings(
                     },
                 }
             )
+        if len(header_mappings) < _BACKPLATE_MIN_HEADER_ENDPOINT_HITS:
+            continue
+        mappings.extend(header_mappings)
     return mappings
 
 

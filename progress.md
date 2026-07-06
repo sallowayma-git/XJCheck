@@ -1826,3 +1826,39 @@
 - Concurrent/user changes preserved:
   - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
   - Did not revert concurrent/user work.
+
+## Session Update 2026-07-06 (Phase 46)
+- Completed the backplate geometric table endpoint recovery slice.
+- Implementation goal:
+  - Recover `table_mapping` rows for first `S0019/S0020`, which already routed to `TableExtractor` but previously produced empty mappings.
+  - Keep second-set ordinary device backplates as `LayoutOnlyExtractor / classify_only`.
+- Risk controls:
+  - Expanded only the TableExtractor backplate endpoint predicate; did not expand PageClassifier routing.
+  - Added a header-level minimum of 3 endpoint hits before emitting high-confidence backplate mappings.
+  - Caught and reverted a risky classifier broadening during real-sample validation because it promoted second-set ordinary backplates and produced `LAN*` mappings.
+- Verification:
+  - `python -m pytest -q tests\unit\test_table_extractor.py tests\integration\test_analyze_project.py -k "backplate_virtual or backplate"` -> `5 passed`
+  - `python -m pytest -q` -> `203 passed`
+- First-set real-sample evidence:
+  - Fresh output: `.tmp/phase58_backplate_route_stable_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `run-audit` succeeded.
+  - Backplate table mappings by sheet: `S0018=27`, `S0019=72`, `S0020=67`, `S0021=56`.
+  - Required representative mappings are present as `pass/confidence=0.95/pair_kind=table_mapping`:
+    - `S0019`: `NDY306A-3 -> 1-2QD1`
+    - `S0019`: `NCZ343A-2 -> 1-4QD17`
+    - `S0020`: `NDY306A-3 -> 3-2QD1`
+    - `S0020`: `NCZ343A-2 -> 3-4QD17`
+  - Existing `S0021`: `NKR308A-1 -> 5FD15` remains present.
+  - `LAN*` table mappings: `0`.
+  - Audit issue count is `453`; increase is expected because new high-confidence table evidence is now visible to rules.
+- Second-set real-sample evidence:
+  - Fresh output: `.tmp/phase58_backplate_route_stable_second/2_2`
+  - `run-audit` succeeded.
+  - `S0017/S0018` device backplates remain `LayoutOnlyExtractor / classify_only`.
+  - Backplate table mappings: `0`; `LAN*` table mappings: `0`.
+  - Overall `table_mapping=176` remains from terminal header table mappings; audit issue count is `584`.
+- Next slice candidate from subagent review:
+  - `KK2P/KK3P` multi-port component mapping for first `S0022` and second `S0019`, requiring blocks to be passed into component extraction.
+- Concurrent/user changes preserved:
+  - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.

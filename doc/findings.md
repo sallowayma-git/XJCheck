@@ -6927,3 +6927,49 @@ route status 仍稳定为：
 - 第二套 audit `issue_count = 584`；root cause 分布：`insufficient_evidence=287`、`pairing_wrong=174`、`rule_too_strict=70`、`candidate_noise=33`、`extractor_missing=20`
 
 本轮之后，`ComponentDiagramExtractor` 已不再是完全的 PairBuilder 包装，但只覆盖 `strip_two_port_component`。下一步仍应继续做元件接线图 `4输出/6输出` 或背板几何表格补齐，而不是继续扩 CLI。
+
+## 97. 2026-07-06 背板几何表格补齐：只补抽取，不扩大路由
+
+上一轮之后，first `S0019/S0020` 仍是 `backplate_geometric_table / TableExtractor` 但 `table_mapping_count=0`。并行只读审图确认：这两页不是没有结构，而是端点形态超出现有背板端点正则。
+
+根因：
+
+- `TableExtractor` 的背板虚拟表格逻辑只接受 `5FD15 / 1QD1` 这类端点。
+- `S0019/S0020` 的真实端点大量是 `1-2QD1`、`1-4QD17`、`1-2CLP1-2`、`CD2`、`YD3`、`3-2QD1`、`3-4QD17`。
+- 通用 grid 分支只记录 22/23 列空结构，不会为非三列表格产出映射。
+
+本轮完成的最小修正：
+
+- 只在 `TableExtractor` 背板虚拟表格端点识别里扩展 endpoint pattern，保留旧 `5FD15` 形态，同时接受带页/段前缀和纯字母前缀端点。
+- 增加 header 级安全闸：同一背板 header 至少要有 3 个端点命中才释放高置信 `table_mapping`，避免零散 `LAN1/LAN2` 类小组被提升。
+- 没有放宽 `PageClassifier` 背板路由条件。一次真实验收中曾发现若同步放宽分类器，会把第二套普通装置背板从 `LayoutOnlyExtractor` 升级为 `TableExtractor` 并产生 `LAN*` 映射；该路由放宽已撤回。
+
+测试验证：
+
+- `python -m pytest -q tests\unit\test_table_extractor.py tests\integration\test_analyze_project.py -k "backplate_virtual or backplate"` -> `5 passed`
+- `python -m pytest -q` -> `203 passed`
+
+真实样本验证：
+
+- 第一套 fresh 输出：[phase58_backplate_route_stable_first](/F:/workspace/XJToolkit/.tmp/phase58_backplate_route_stable_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第一套 audit 输出：[phase58 first audit](/F:/workspace/XJToolkit/.tmp/phase58_backplate_route_stable_first/audit)
+- first 背板 `table_mapping` 分布：`S0018=27`、`S0019=72`、`S0020=67`、`S0021=56`
+- first `S0019/S0020` 保持 `page_subtype=backplate_geometric_table`，但不再是空结果。
+- 代表关系已命中：
+  - `S0019`: `NDY306A-3 -> 1-2QD1`
+  - `S0019`: `NCZ343A-2 -> 1-4QD17`
+  - `S0020`: `NDY306A-3 -> 3-2QD1`
+  - `S0020`: `NCZ343A-2 -> 3-4QD17`
+  - `S0021`: `NKR308A-1 -> 5FD15` 保持不回退
+- first 背板 `LAN*` table mappings = `0`
+- first `pair_kind.table_mapping = 299`，audit `issue_count = 453`。issue 增加来自新增高置信表格信源进入规则图，不作为失败；后续应继续做 root-cause/规则语义，而不是为了降噪隐藏关系。
+- 第二套 fresh 输出：[phase58_backplate_route_stable_second](/F:/workspace/XJToolkit/.tmp/phase58_backplate_route_stable_second/2_2)
+- 第二套 audit 输出：[phase58 second audit](/F:/workspace/XJToolkit/.tmp/phase58_backplate_route_stable_second/audit)
+- second `S0017/S0018` 普通装置背板保持 `LayoutOnlyExtractor / classify_only`，没有被误升级为 TableExtractor。
+- second `pair_kind.table_mapping = 176`，全部仍来自端子图表头映射；背板 table mappings = `0`，`LAN*` table mappings = `0`，audit `issue_count = 584`。
+
+并行子代理给出的下一刀候选：
+
+- `KK2P/KK3P` 多端口组件映射可作为下一个 `ComponentDiagramExtractor` 子模式。
+- 代表目标包括 first `S0022`: `1DK-1 -> ZD9`、`1-2ZKK-6 -> 1-2n721`；second `S0019`: `1-21DK2-1 -> ZD8`、`1-21ZKK-2 -> 1-21n715`。
+- 该切片需要把 `BlockRecord` 传入 component extractor，改动面大于本轮背板正则补齐，适合作为下一轮独立提交。
