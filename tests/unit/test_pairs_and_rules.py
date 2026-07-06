@@ -417,6 +417,46 @@ def test_build_pairs_tags_single_sided_terminal_continuation_from_short_bridge_b
     assert pair.evidence["continuation_kind"] == "terminal_missing_left_continuation"
 
 
+def test_build_pairs_tags_terminal_short_bridge_cross_column_as_bridge_mapping() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=310.0,
+            start_y=226.0,
+            end_x=385.0,
+            end_y=226.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate("C0001", "G0001", "S0001", "F0001", "left", "T1", "1-21n110", "110", 1.0, "accepted", None, 311.0, 226.0, 7.0, 1.0, 311.0, 226.0),
+        TerminalCandidate("C0002", "G0001", "S0001", "F0001", "right", "T2", "3-21n330", "330", 0.8657, "accepted", None, 341.0, 226.0, 7.0, 1.0, 341.0, 226.0),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value == "110"
+    assert pair.right_value == "330"
+    assert pair.pair_kind == "bridge_mapping"
+    assert pair.status == "review"
+    assert pair.rationale.startswith("left=110 right=330 score=")
+    assert pair.rationale.endswith("; bridge mapping relation")
+    assert pair.evidence["pair_kind"] == "bridge_mapping"
+    assert pair.evidence["semantic_kind"] == "terminal_bridge_mapping"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["bridge_mapping_kind"] == "terminal_short_bridge_cross_column"
+
+
 def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None:
     groups = [
         LineGroup(
@@ -615,6 +655,60 @@ def test_rules_skip_single_sided_terminal_continuation_pairs_from_missing_side_a
 
     assert not any(issue.rule_id == "R-PAIR-MISSING-SIDE" and issue.pair_id == "P1" for issue in issues)
     assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P1" for issue in issues)
+
+
+def test_rules_skip_bridge_mapping_pairs_from_ordinary_audit() -> None:
+    pairs = [
+        Pair(
+            pair_id="P1",
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            selected_pair_candidate_id="PC1",
+            left_value="110",
+            right_value="330",
+            confidence=0.89,
+            status="review",
+            rationale="bridge mapping relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "21.dwg",
+                "pair_kind": "bridge_mapping",
+                "semantic_kind": "terminal_bridge_mapping",
+                "ordinary_pair_eligible": False,
+                "bridge_mapping_kind": "terminal_short_bridge_cross_column",
+            },
+            pair_kind="bridge_mapping",
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S2",
+            "F2",
+            "PC2",
+            "420",
+            "421",
+            0.97,
+            "pass",
+            "ok",
+            [],
+            "high",
+            {"filename": "28.dwg"},
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 310, 226, 385, 226, 75, 0.9, ["L1"], ["WIRE"], orientation="horizontal"),
+        LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True),
+        SheetRecord("S2", "F2", "28 回路图.dwg", 28, "28", "回路图", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.pair_id == "P1" for issue in issues)
 
 def test_rules_emit_one_to_many_review_for_same_sheet_multi_target() -> None:
     pairs = [

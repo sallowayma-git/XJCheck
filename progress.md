@@ -754,3 +754,47 @@
   - continuation 只出现在端子页 `S0025/S0027/S0028`
 - 本轮遇到一个非代码问题：
   - 第一次执行 `analyze-project --input test\\变压器测控柜(2圈变，2台测控)` 时，PowerShell 把未加引号的括号路径拆开；补上引号后重跑成功。
+
+## Session Update 2026-07-06 (Phase 21)
+- 先按 current-head 重新做了一次任务书审计，不再沿用历史判断：
+  - `phase23` 之后，single-sided continuation 已经有真实样本强证据
+  - 当前最近缺口改成 `bridge_mapping`，而不是继续扩大 continuation 或先做 semantic ledger
+- 并发只读子代理本轮尝试失败：
+  - 两个 explorer 都因上游代理 `502 Bad Gateway` 中断
+  - 主线程未等待外部结论，直接用 current-head 代码与真实样本产物继续审计和裁决
+- 在 `src/dwg_audit/audit/pairs.py` 新增最小 bridge-mapping 合同：
+  - 仅覆盖 `屏端子图 + horizontal + 70-80` 短桥接带
+  - 且左右两侧都来自 `n###` 派生文本
+  - 且左右值不同
+  - 命中后显式落：
+    - `pair_kind=bridge_mapping`
+    - `semantic_kind=terminal_bridge_mapping`
+    - `bridge_mapping_kind=terminal_short_bridge_cross_column`
+    - `ordinary_pair_eligible=False`
+- `src/dwg_audit/report/artifacts.py` 现在会把 `bridge_mapping_kind` 透传到 findings / audit markdown 语义摘要里。
+- 新增/更新测试：
+  - `tests/unit/test_pairs_and_rules.py`
+  - `tests/unit/test_report_artifacts.py`
+- 本轮验证：
+  - `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "bridge_mapping or continuation or terminal_numeric_channel_candidates"` -> `8 passed`
+  - `python -m pytest -q tests/unit/test_terminal_candidates.py -k "short_bridge or semantic_row or semantic_ac_row"` -> `4 passed`
+  - `python -m pytest -q tests/unit/test_report_artifacts.py -k "bridge_mapping or continuation or pair_kind or terminal_candidate_channels"` -> `4 passed`
+  - `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or supplemental or table_like_page_to_table_extractor"` -> `11 passed`
+  - `python -m pytest -q` -> `154 passed`
+- 真实样本 rerun：
+  - 第二套：[phase24_bridge_mapping_second](/F:/workspace/XJToolkit/.tmp/phase24_bridge_mapping_second)
+  - 第一套：[phase24_bridge_mapping_first](/F:/workspace/XJToolkit/.tmp/phase24_bridge_mapping_first)
+- 第二套 current-head 新证据：
+  - `pair_kind_counts: {'ordinary_pair': 1031, 'continuation': 177, 'bridge_mapping': 3}`
+  - `issue_count: 520 -> 518`
+  - `R-PAIR-LOW-CONFIDENCE: 203 -> 201`
+  - `R-PAIR-MISSING-SIDE: 317 -> 317`
+  - `110 -> 330`、`109 -> 329` 现在已是 `bridge_mapping`
+  - `21 -> 211`、`10 -> 131` 仍保持 `ordinary_pair`
+  - `? -> 328` 仍保持 `continuation`
+- 第一套 current-head 新证据：
+  - `pair_kind_counts: {'ordinary_pair': 943, 'continuation': 171, 'bridge_mapping': 3}`
+  - `issue_count: 347 -> 345`
+  - `R-PAIR-LOW-CONFIDENCE: 79 -> 77`
+  - 新 bridge pair 只出现在 `S0027 / 26 右侧端子图1.dwg`
+  - 代表样例：`429 -> 108`

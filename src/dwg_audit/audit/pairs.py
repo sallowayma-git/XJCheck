@@ -369,6 +369,14 @@ def _terminal_continuation_semantics(
     )
     if same_value_continuation:
         return same_value_continuation
+    bridge_mapping = _terminal_bridge_mapping_semantics(
+        group=group,
+        selected=selected,
+        left_candidate=left_candidate,
+        right_candidate=right_candidate,
+    )
+    if bridge_mapping:
+        return bridge_mapping
     return _single_sided_terminal_continuation_semantics(
         group=group,
         selected=selected,
@@ -412,6 +420,37 @@ def _same_value_terminal_continuation_semantics(
         "semantic_kind": "continuation_same_value",
         "ordinary_pair_eligible": False,
         "continuation_kind": "terminal_same_value_bridge",
+    }
+
+
+def _terminal_bridge_mapping_semantics(
+    *,
+    group: LineGroup,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> dict[str, object]:
+    if not selected.left_value or not selected.right_value:
+        return {}
+    if selected.left_value == selected.right_value:
+        return {}
+    if min(group.start_x, group.end_x) < 300.0:
+        return {}
+    if not _is_derived_numeric_candidate(left_candidate, selected.left_value):
+        return {}
+    if not _is_derived_numeric_candidate(right_candidate, selected.right_value):
+        return {}
+    left_raw = (left_candidate.text if left_candidate else "").strip()
+    right_raw = (right_candidate.text if right_candidate else "").strip()
+    if not _CONTINUATION_SUFFIX_PATTERN.search(left_raw):
+        return {}
+    if not _CONTINUATION_SUFFIX_PATTERN.search(right_raw):
+        return {}
+    return {
+        "pair_kind": "bridge_mapping",
+        "semantic_kind": "terminal_bridge_mapping",
+        "ordinary_pair_eligible": False,
+        "bridge_mapping_kind": "terminal_short_bridge_cross_column",
     }
 
 
@@ -467,11 +506,15 @@ def _apply_special_pair_semantics(
     rationale: str,
     pair_kind: str,
 ) -> tuple[str, str]:
-    if pair_kind != "continuation":
-        return status, rationale
-    if "continuation" not in rationale:
-        rationale = f"{rationale}; continuation relation"
-    return "review", rationale
+    if pair_kind == "continuation":
+        if "continuation" not in rationale:
+            rationale = f"{rationale}; continuation relation"
+        return "review", rationale
+    if pair_kind == "bridge_mapping":
+        if "bridge mapping" not in rationale:
+            rationale = f"{rationale}; bridge mapping relation"
+        return "review", rationale
+    return status, rationale
 
 
 def _is_derived_numeric_candidate(candidate: TerminalCandidate | None, value: str | None) -> bool:

@@ -823,6 +823,48 @@ def test_write_audit_outputs_shows_continuation_pair_semantics(tmp_path: Path) -
     assert "continuation_kind=terminal_same_value_bridge" in report_text
 
 
+def test_write_audit_outputs_shows_bridge_mapping_pair_semantics(tmp_path: Path) -> None:
+    bridge_pair = Pair(
+        pair_id="P0001",
+        line_group_id="G0001",
+        sheet_id="S0001",
+        file_id="F0001",
+        selected_pair_candidate_id="PC1",
+        left_value="110",
+        right_value="330",
+        confidence=0.89,
+        status="review",
+        rationale="bridge mapping relation",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="review",
+        evidence={
+            "filename": "21.dwg",
+            "sheet_no": "21",
+            "sheet_order": 21,
+            "line_group_id": "G0001",
+            "line_start": [310.0, 226.0],
+            "line_end": [385.0, 226.0],
+            "pair_kind": "bridge_mapping",
+            "bridge_mapping_kind": "terminal_short_bridge_cross_column",
+            "line_orientation": "horizontal",
+        },
+        pair_kind="bridge_mapping",
+    )
+
+    audit_dir = write_audit_outputs(
+        tmp_path / "project",
+        issues=[],
+        pairs=[bridge_pair],
+        source_files=[],
+        project_name="Demo 项目",
+        formats=["md"],
+    )
+    report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+
+    assert "pair_kind=bridge_mapping" in report_text
+    assert "bridge_mapping_kind=terminal_short_bridge_cross_column" in report_text
+
+
 def test_write_audit_outputs_respects_requested_report_formats(tmp_path: Path) -> None:
     issue = Issue(
         issue_id="I0001",

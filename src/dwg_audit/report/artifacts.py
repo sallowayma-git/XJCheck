@@ -223,6 +223,9 @@ def _pair_semantics_parts(payload: Any) -> list[str]:
     continuation_kind = evidence.get("continuation_kind")
     if not _is_blank_value(continuation_kind):
         parts.append(f"continuation_kind={continuation_kind}")
+    bridge_mapping_kind = evidence.get("bridge_mapping_kind")
+    if not _is_blank_value(bridge_mapping_kind):
+        parts.append(f"bridge_mapping_kind={bridge_mapping_kind}")
     orientation = evidence.get("line_orientation")
     if not _is_blank_value(orientation):
         parts.append(f"orientation={orientation}")

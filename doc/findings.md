@@ -3299,3 +3299,272 @@ Batch 2 已完成的端子页是：
 1. candidate 侧仍没有独立 `continuation_channel`
 2. `110 -> 330` 这类短桥接列关系仍是 ordinary pair，还没有显式 `bridge_mapping`
 3. `semantic_channel` 虽已完成候选旁路，但 pair / issue / report 仍缺 `semantic_mapping` 或 `suppressed_candidate_refs` 级证据
+
+## 65. 2026-07-06 current-head 任务书审计刷新：`bridge_mapping` 已经比 `semantic_mapping` 更接近下一刀
+
+在 `phase23` 之后，我又直接按当前头状态复核了任务书 7.4、7.5 和第 9 章，不再依据历史叙事，只依据当前代码、当前测试和最新真实样本产物：
+
+- 第二套：
+  - [phase23_single_sided_continuation_second/2_2](/F:/workspace/XJToolkit/.tmp/phase23_single_sided_continuation_second/2_2)
+- 第一套：
+  - [phase23_single_sided_continuation_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA](/F:/workspace/XJToolkit/.tmp/phase23_single_sided_continuation_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+### 65.1 当前强证据已经证明了什么
+
+- 页级分类 / 路由 / table extractor 的主链闭环，仍以前几轮 current-head rerun 结论为准，没有被 `phase23` 推翻。
+- terminal 语义列 candidate split 仍是已完成状态：
+  - `candidates.py` 已显式给出 `terminal_numeric_channel / semantic_channel / noise_channel`
+  - PairBuilder 仍只消费 `terminal_numeric_channel`
+- continuation 语义现在已经不只覆盖 same-value case，也覆盖单侧 half-pair：
+  - `? -> 328`
+  - `? -> 108`
+  - `10 -> ?`
+  这些在 `phase23` 的真实样本里都已经变成 `pair_kind=continuation`，并退出 ordinary `R-PAIR-MISSING-SIDE`。
+
+### 65.2 仍未完成、且离任务书主链最近的缺口是什么
+
+当前离任务书第 9 章最近的剩余缺口，已经不再是 single-sided continuation，而是：
+
+- **短桥接列里的双侧 cross-column relation 仍然停留在 ordinary pair，没有显式 `bridge_mapping`。**
+
+当前第二套真实样本里最典型的 remaining case 是：
+
+- `110 -> 330`
+- `109 -> 329`
+
+它们都位于 `S0021 / 21 左侧端子图1.dwg` 的右侧短桥接带中，当前仍表现为：
+
+- `pair_kind=ordinary_pair`
+- `status=review`
+- `rationale=left=110 right=330 score=0.895`
+
+而同一带里的单侧记录，例如：
+
+- `? -> 328`
+
+已经被 `phase23` 正确抬成 continuation。
+
+这说明当前系统已经能识别“单侧待续接”，但还没有把“局部跨列桥接映射”从 ordinary pair 中拆出来。
+
+### 65.3 为什么这更像 `bridge_mapping`，而不是继续扩大 `continuation`
+
+我直接核对了 `phase23` 真实样本里的三类端子页关系：
+
+1. `21 -> 211`
+   - 左侧是 plain numeric
+   - 右侧是 `3-21n211`
+   - 这仍更像普通端子行映射，可以继续保留在 ordinary pair
+2. `? -> 328`
+   - 单侧已知
+   - 另一侧被短桥列角色过滤掉
+   - 这符合任务书里 continuation 的“单侧待续接”定义
+3. `110 -> 330`
+   - 左右两侧都来自 `n###` 派生文本
+   - 同行中还夹着一列被 `terminal_short_bridge_role_filtered` 拒收的局部数字（例如 `81`）
+   - 这更像“短桥接列 / 局部跨列映射”，而不是普通端子对端子配对
+
+也就是说：
+
+- **continuation** 解决的是“只有一侧被保留”的关系
+- **bridge_mapping** 更适合解决“同一短桥接带内，两个派生列之间的局部 cross-column mapping”
+
+任务书第 9 章给的例子本身也支持这点：
+
+- `? -> 328`
+- `110 -> 330`
+- `10 -> ?`
+
+其中前后两类更像 continuation，而中间这类更像 bridge_mapping。
+
+### 65.4 为什么 `semantic_mapping` 现在还不是下一刀
+
+`semantic_channel` 当前已经完成到：
+
+- 候选被旁路
+- ordinary pair 不再消费它
+- findings 运行态能看到 channel counts
+
+但它还没有进入：
+
+- `semantic_mapping` relation object
+- semantic-specific rule input
+- semantic report ledger
+
+这当然仍是未完成项，但相比之下，它离当前已有骨架更远。
+
+而 `bridge_mapping` 现在只差：
+
+- 在 pair 层把一类已稳定识别出的端子页关系，从 `ordinary_pair` 改写成 `bridge_mapping`
+- 让它借用现有 `pair_kind != ordinary_pair` 的规则旁路能力
+
+所以从“最短闭环路径”看，下一刀应优先选 `bridge_mapping`，而不是先回头做 semantic relation ledger。
+
+### 65.5 当前最接近主链的单一核心切片
+
+基于以上 current-head 审计，下一刀最合理的单一核心切片应定义为：
+
+- **只把端子页右侧短桥接带里“左右两侧都来自 `n###` 派生文本、且两侧值不同”的关系，提升成显式 `pair_kind=bridge_mapping`。**
+
+这条切片故意不做以下扩张：
+
+- 不先引入 candidate 级 `continuation_channel`
+- 不先做泛化 `semantic_mapping`
+- 不把普通端子行映射如 `21 -> 211` 一起改写
+- 不把所有双侧 derived pair 都粗暴升级成 bridge
+
+### 65.6 本轮之后仍不该优先的方向
+
+当前仍不该优先的方向包括：
+
+1. 再回桌面端 / Tauri / preview
+2. 继续只盯 issue 总数升降
+3. 在 `candidates.py` 里继续堆更宽的全局阈值，而不显式回答“这是什么关系类型”
+4. 在还没建立 `bridge_mapping` 前，就把 `semantic_mapping` 和 `continuation_channel` 一起做成大改
+
+## 66. 2026-07-06 `phase24_bridge_mapping_{second,first}`：短桥接带里的 cross-column relation 已从 ordinary pair 升成显式 bridge_mapping
+
+这一轮只推进了一个比 `phase23` 更窄的关系语义切片：
+
+- 不扩大 continuation 的作用域
+- 不先做 `semantic_mapping`
+- 只处理端子页短桥接带里“双侧都来自 `n###` 派生文本、且数值不同”的 cross-column relation
+
+### 66.1 本轮代码变化
+
+- [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py)
+  - 在现有 terminal relation 语义分流里新增：
+    - `pair_kind=bridge_mapping`
+    - `semantic_kind=terminal_bridge_mapping`
+    - `bridge_mapping_kind=terminal_short_bridge_cross_column`
+  - 触发条件刻意保持很窄：
+    - `屏端子图`
+    - `horizontal`
+    - 线长 `70-80`
+    - 位于右侧短桥接带（`x>=300`）
+    - 左右两侧都来自派生 numeric
+    - 左右原文都匹配 `n###`
+    - 左右值不同
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+  - pair 语义摘要现在会显式输出：
+    - `bridge_mapping_kind`
+- [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py)
+  - 新增 `110 -> 330` 风格的 bridge_mapping 单测
+  - 新增规则层“bridge_mapping 不再参与 ordinary audit”单测
+- [test_report_artifacts.py](/F:/workspace/XJToolkit/tests/unit/test_report_artifacts.py)
+  - 新增 bridge_mapping 语义在 audit markdown 中可见的断言
+
+### 66.2 定向与全量测试结果
+
+- `python -m pytest -q tests/unit/test_pairs_and_rules.py -k "bridge_mapping or continuation or terminal_numeric_channel_candidates"`
+  - `8 passed`
+- `python -m pytest -q tests/unit/test_terminal_candidates.py -k "short_bridge or semantic_row or semantic_ac_row"`
+  - `4 passed`
+- `python -m pytest -q tests/unit/test_report_artifacts.py -k "bridge_mapping or continuation or pair_kind or terminal_candidate_channels"`
+  - `4 passed`
+- `python -m pytest -q tests/integration/test_analyze_project.py -k "terminal or page_findings or component or supplemental or table_like_page_to_table_extractor"`
+  - `11 passed`
+- `python -m pytest -q`
+  - `154 passed`
+
+### 66.3 第二套真实样本 rerun 结果
+
+- [phase24_bridge_mapping_second/2_2](/F:/workspace/XJToolkit/.tmp/phase24_bridge_mapping_second/2_2)
+
+相对 `phase23`，第二套 current-head 新证据如下：
+
+- `pair_kind_counts`
+  - 旧：`{'ordinary_pair': 1034, 'continuation': 177}`
+  - 新：`{'ordinary_pair': 1031, 'continuation': 177, 'bridge_mapping': 3}`
+- `issue_count`
+  - `520 -> 518`
+- `R-PAIR-LOW-CONFIDENCE`
+  - `203 -> 201`
+- `R-PAIR-MISSING-SIDE`
+  - 保持 `317`
+
+更重要的是语义边界：
+
+- `110 -> 330`
+- `109 -> 329`
+
+现在都已经变成：
+
+- `pair_kind=bridge_mapping`
+- `bridge_mapping_kind=terminal_short_bridge_cross_column`
+
+而以下关系保持不变：
+
+- `21 -> 211`
+  - 仍是 `ordinary_pair`
+- `10 -> 131`
+  - 仍是 `ordinary_pair`
+- `? -> 328`
+  - 仍是 `continuation`
+
+这说明这轮没有把普通端子行映射或单侧 continuation 混成同一类。
+
+### 66.4 第一套真实样本 rerun 结果
+
+- [phase24_bridge_mapping_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA](/F:/workspace/XJToolkit/.tmp/phase24_bridge_mapping_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+相对 `phase23`，第一套 current-head 新证据如下：
+
+- `pair_kind_counts`
+  - 旧：`{'ordinary_pair': 946, 'continuation': 171}`
+  - 新：`{'ordinary_pair': 943, 'continuation': 171, 'bridge_mapping': 3}`
+- `issue_count`
+  - `347 -> 345`
+- `R-PAIR-LOW-CONFIDENCE`
+  - `79 -> 77`
+
+新增 bridge_mapping 只出现在：
+
+- `S0027 / 26 右侧端子图1.dwg`
+
+代表样例为：
+
+- `429 -> 108`
+
+同样表现为：
+
+- 左右两侧都来自派生 numeric
+- 中间夹着被 `terminal_short_bridge_role_filtered` 的局部数字列
+
+因此它也更像 bridge 带内的局部 cross-column relation，而不是普通端子对端子配对。
+
+### 66.5 这轮对任务书主链的真正意义
+
+任务书第 9 章要求在进入规则引擎前，至少先分清：
+
+- `ordinary_pair`
+- `continuation`
+- `bridge_mapping`
+- `semantic_mapping`
+
+经过 `phase23 + phase24`，当前头状态已经从“只有 ordinary + continuation”往前推进到：
+
+- `ordinary_pair`：已完成
+- `continuation`：已完成到 same-value + single-sided
+- `bridge_mapping`：已完成到最小 pair 级短桥接带合同
+- `semantic_mapping`：仍未完成
+
+这意味着当前系统已经不再把任务书里最典型的三类端子页关系硬塞进同一种 ordinary pair 壳：
+
+- `? -> 328` -> continuation
+- `110 -> 330` -> bridge_mapping
+- `21 -> 211` -> ordinary_pair
+
+### 66.6 这轮之后最近的剩余缺口
+
+在 `phase24` 之后，离任务书主链最近的剩余缺口进一步收敛为：
+
+1. candidate 侧仍没有独立 `continuation_channel`
+2. `bridge_mapping` 目前只有最小 pair 级合同，还没有更系统的页内 bridge ledger
+3. `semantic_channel` 仍未形成真正的 `semantic_mapping` relation / report / rule input
+
+如果继续按“最短闭环路径”推进，下一刀更可能在：
+
+- `semantic_mapping`
+- 或更细的 bridge ledger
+
+之间做新的 current-head 审计裁决，而不是再回桌面端或继续堆全局阈值。
