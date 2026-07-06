@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 70
+Phase 71
 
 ## Phases
 
@@ -955,6 +955,23 @@ Phase 70
 - [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
+### Phase 71: Second Network-Time Function Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `d3bff0a`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四个只读 explorer 与主线程 Phase84 产物核查确认：second `S0007 / 07 网络对时回路图.dwg` 的 `TD1..TD5`、`B+/-`、`B code +/-`、`Device alarm` 属于网络/对时功能标签，旧候选层按 `not_numeric/noise_channel` 拒绝后留下 8 条普通缺边；本轮不混入 AC phase、first prefixed endpoints 或 backplate rules。
+- [x] 实现目标：沿 Phase70 的 `schematic_semantic_endpoint_channel` 窄扩 network/time sheet context，只接受 network-time 白名单标签；PairBuilder 复用完整“语义端 + 数字端”映射，并新增仅限 `schematic_network_time_label` 的同侧 annotation 语义，输出 `pair_kind=semantic_mapping` / `ordinary_pair_eligible=False`。
+- [x] 风险门槛：不把任意英文/中文说明文本提升为 endpoint；不碰 page_classifier/router、component/table extractor、rules 主逻辑、CLI/UI；单侧标签仍不得制造 ordinary missing-side。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `7 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `256 passed`
+  - second fresh `.tmp/phase85_network_time_second/2_2` + `.tmp/phase85_network_time_second_audit`: `pair_count=1460`, `issue_count=37`, `R-PAIR-MISSING-SIDE=27`, `semantic_mapping=172`；`S0007` issue 清零。
+  - second target relations include `TD4 -> 602`, `TD2 -> 601`, `TD3 -> 602`, `TD1 -> 601`, plus `Device alarm -> 110` and `B+ -> 601` annotation semantics as `semantic_mapping/review`。
+  - first fresh `.tmp/phase85_network_time_first/...` + `.tmp/phase85_network_time_first_audit`: `pair_count=1562`, `issue_count=258`, `R-PAIR-MISSING-SIDE=100`, `semantic_mapping=117`。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second wire/component/table structured redlines and first KLP/ZLP/component-prefixed structured mappings all held.
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -966,3 +983,4 @@ Phase 70
 | second-set verification helper `KeyError: right` | 用旧 `pairs.parquet` endpoint 列名检查 semantic endpoint rows | 改用当前 schema 的 `left_value/right_value` 重跑，确认 `semantic_table_mapping_pass_endpoint_count=0` |
 | `run-audit` 写 `issues.parquet` 时 `ArrowInvalid` | 新增 `row_numbers` evidence 使用整数列表，与既有字符串行号 evidence 混合 | 将新 evidence 的 `row_numbers` 统一为字符串列表并重跑 targeted/full/fresh audit 通过 |
 | terminal-header aggregation fresh first audit `TypeError: '<' not supported between instances of 'str' and 'int'` | natural sort key 同时比较数字开头端点和非数字开头字符串 | 将 `_natural_sort_key()` 改为稳定 tuple key 后重跑 targeted/full/fresh audit 通过 |
+| Phase71 issue summary helper `KeyError: 'filename'` | 将 `issues.parquet` 与 `pages.parquet` merge 后直接按 `filename` groupby | 改用显式 `filename2/route_target2/sheet_category2` 映射列重跑统计 |

@@ -8814,3 +8814,58 @@ fresh first-set 非回归证据：
 
 - 本轮是二次直流功能标签的语义关系收口，不是扩大普通数字端点解析，也不是隐藏 issue。
 - 下一轮候选收缩为：second AC phase-label semantic/covered mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics。
+
+## 124. 2026-07-07 second network-time function semantic mapping：网络对时标签进入 semantic review 关系
+
+只读审计确认，second `S0007 / 07 网络对时回路图.dwg` 的 8 条 `R-PAIR-MISSING-SIDE` 不是图纸缺边，而是 `TD1..TD5`、`B+/-`、`B code +/-`、`Device alarm` 等网络/对时功能标签被候选层拒为 `not_numeric/noise_channel`，导致相邻端子号 `110/601/602` 被 ordinary PairBuilder 报为缺边。
+
+本轮实现：
+
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 沿用 `schematic_semantic_endpoint_channel`，仅在 `二次原理图` 且 sheet filename/title 命中 `网络/对时/COMMUNICATION/TIME SYNCHRONIZATION` 时接受 network-time 标签。
+- 本切片只接受 `TD#`、`B+/-`、`B code +/-`、`Device alarm`，不把 AC phase label、一般中英文功能说明或 first prefixed external endpoint 混入。
+- 在 [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py) 复用完整“语义端 + 数字端” `semantic_mapping`，并新增仅限 `schematic_network_time_label` 的同侧 annotation 语义，用于 `601` 与同侧 `B+` 这类真实形态。
+- 单侧 network-time 标签不再制造 ordinary missing-side；输出仍是 `semantic_mapping/review`，保留人工复核证据。
+- 在 [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py) 增加 network-time 对侧语义端和同侧 annotation 单测。
+
+fresh second-set 证据：
+
+- `.tmp/phase85_network_time_second/2_2` + `.tmp/phase85_network_time_second_audit`
+- `pair_count=1460`
+- `issue_count=37`
+- `R-PAIR-MISSING-SIDE=27`
+- `semantic_mapping=172`
+- `S0007 / 07 网络对时回路图.dwg` issue 清零。
+- 新增/命中 semantic review 关系包括：
+  - `TD4 -> 602`
+  - `TD2 -> 601`
+  - `TD3 -> 602`
+  - `TD1 -> 601`
+  - `Device alarm -> 110`
+  - `B+ -> 601` annotation semantics
+
+fresh first-set 非回归证据：
+
+- `.tmp/phase85_network_time_first/...` + `.tmp/phase85_network_time_first_audit`
+- `pair_count=1562`
+- `issue_count=258`
+- `R-PAIR-MISSING-SIDE=100`
+- `semantic_mapping=117`
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 均保持命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `7 passed, 25 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `256 passed`
+
+裁决：
+
+- 本轮是网络/对时功能标签的语义关系收口，不是扩大普通数字端点解析，也不是 rules 静音。
+- 下一轮候选收缩为：second AC phase-label semantic/covered mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics。

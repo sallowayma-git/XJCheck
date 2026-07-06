@@ -365,6 +365,114 @@ def test_build_pairs_does_not_emit_single_sided_schematic_semantic_endpoint_revi
     assert pairs[0].right_value is None
 
 
+def test_build_terminal_candidates_accepts_schematic_network_time_label_mapping() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=282.5,
+            start_y=220.0,
+            end_x=362.5,
+            end_y=220.0,
+            length=80.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "07 网络对时回路图.dwg",
+            7,
+            "07",
+            "COMMUNICATION AND TIME SYNCHRONIZATION",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "TD4", "TD4", False, "TEXT", 0.0, 2.5, 281.0, 222.0, 280.0, 220.5, 286.0, 223.5),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "602", "602", True, "TEXT", 0.0, 2.5, 364.0, 220.7, 363.0, 219.5, 369.0, 222.5),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    semantic_candidate = next(item for item in candidates if item.text_id == "T1")
+    pair = pairs[0]
+
+    assert semantic_candidate.status == "accepted"
+    assert semantic_candidate.value == "TD4"
+    assert semantic_candidate.channel == "schematic_semantic_endpoint_channel"
+    assert semantic_candidate.channel_detail == "schematic_network_time_label"
+    assert pair.left_value == "TD4"
+    assert pair.right_value == "602"
+    assert pair.status == "review"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.evidence["semantic_mapping_kind"] == "schematic_network_time_label"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
+def test_build_pairs_marks_single_sided_network_time_label_as_semantic_annotation() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=360.0,
+            start_y=235.0,
+            end_x=400.0,
+            end_y=235.0,
+            length=40.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "07 网络对时回路图.dwg",
+            7,
+            "07",
+            "COMMUNICATION AND TIME SYNCHRONIZATION",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "B+", "B+", False, "TEXT", 0.0, 2.5, 358.0, 236.0, 357.0, 234.5, 362.0, 237.5),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "601", "601", True, "TEXT", 0.0, 2.5, 360.5, 239.3, 359.0, 238.0, 365.0, 241.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    semantic_candidate = next(item for item in candidates if item.text_id == "T1")
+    pair = pairs[0]
+
+    assert semantic_candidate.status == "accepted"
+    assert semantic_candidate.channel_detail == "schematic_network_time_label"
+    assert pair.left_value == "601"
+    assert pair.right_value is None
+    assert pair.status == "review"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.evidence["semantic_kind"] == "schematic_semantic_annotation"
+    assert pair.evidence["semantic_endpoint"] == "B+"
+    assert pair.evidence["numeric_endpoint"] == "601"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
 def test_build_terminal_candidates_deprioritizes_dim_single_character_numeric_text() -> None:
     line_groups = [
         LineGroup(

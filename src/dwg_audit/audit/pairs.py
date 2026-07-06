@@ -381,6 +381,15 @@ def _pair_evidence(
         )
     )
     evidence.update(
+        _single_sided_schematic_semantic_annotation(
+            sheet=sheet,
+            selected=selected,
+            left_candidate=left_candidate,
+            right_candidate=right_candidate,
+            group_candidates=group_candidates,
+        )
+    )
+    evidence.update(
         _terminal_continuation_semantics(
             group=group,
             sheet=sheet,
@@ -573,6 +582,56 @@ def _schematic_semantic_endpoint_mapping(
         "semantic_endpoint_raw": semantic_candidate.text,
         "semantic_endpoint_side": semantic_side,
         "numeric_endpoint": numeric_endpoint,
+        "numeric_endpoint_text_id": numeric_candidate.text_id,
+        "numeric_endpoint_raw": numeric_candidate.text,
+        "numeric_endpoint_side": numeric_side,
+        "ordinary_pair_eligible": False,
+    }
+
+
+def _single_sided_schematic_semantic_annotation(
+    *,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+    group_candidates: list[TerminalCandidate],
+) -> dict[str, object]:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return {}
+    if bool(selected.left_value) == bool(selected.right_value):
+        return {}
+
+    numeric_candidate = left_candidate if selected.left_value else right_candidate
+    numeric_value = selected.left_value if selected.left_value else selected.right_value
+    if numeric_candidate is None or numeric_candidate.channel != _CHANNEL_TERMINAL_NUMERIC or not numeric_value:
+        return {}
+
+    numeric_side = "left" if selected.left_value else "right"
+    missing_side = "right" if selected.left_value else "left"
+    semantic_candidates = [
+        candidate
+        for candidate in group_candidates
+        if candidate.status == "accepted"
+        and candidate.channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+        and candidate.channel_detail == "schematic_network_time_label"
+        and candidate.side == numeric_side
+    ]
+    if not semantic_candidates:
+        return {}
+    semantic_candidates.sort(key=lambda item: item.score, reverse=True)
+    semantic_candidate = semantic_candidates[0]
+    return {
+        "source": "semantic_mapping",
+        "pair_kind": "semantic_mapping",
+        "semantic_kind": "schematic_semantic_annotation",
+        "semantic_mapping_kind": semantic_candidate.channel_detail,
+        "semantic_mapping_missing_side": missing_side,
+        "semantic_endpoint": semantic_candidate.value,
+        "semantic_endpoint_text_id": semantic_candidate.text_id,
+        "semantic_endpoint_raw": semantic_candidate.text,
+        "semantic_endpoint_side": numeric_side,
+        "numeric_endpoint": numeric_value,
         "numeric_endpoint_text_id": numeric_candidate.text_id,
         "numeric_endpoint_raw": numeric_candidate.text,
         "numeric_endpoint_side": numeric_side,

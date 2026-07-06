@@ -2676,3 +2676,35 @@
   - second network-time/function-label semantic mapping.
   - first prefixed external endpoints.
   - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 71 second network-time function semantic mapping)
+- Started after commit `d3bff0a`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Closed stale subagent handles, then launched read-only explorers for taskbook alignment, Phase84 residual mining, source write-set audit, and validation design.
+- Read-only audit conclusions:
+  - Phase84 second `S0007 / 07 网络对时回路图.dwg` had 8 `R-PAIR-MISSING-SIDE` rows where `TD1..TD5`, `B+/-`, `B code +/-`, and `Device alarm` were rejected as `not_numeric/noise_channel`.
+  - Source audit recommended reusing the Phase70 `schematic_semantic_endpoint_channel` path rather than changing route/extractor/rules.
+  - AC phase-label and first prefixed endpoints remain valid future candidates, but this round stayed scoped to network-time labels.
+- Implementation:
+  - Added a network/time sheet-context label family in `candidates.py` for `TD#`, `B+/-`, `B code +/-`, and `Device alarm`.
+  - Kept these labels in `schematic_semantic_endpoint_channel` with `channel_detail=schematic_network_time_label`.
+  - Reused existing complete semantic endpoint mapping when a label and a numeric endpoint are on opposite sides.
+  - Added a PairBuilder helper for the real same-side annotation shape, limited to `schematic_network_time_label`, so `601` plus nearby `B+` can become `semantic_mapping/review` rather than ordinary missing-side.
+  - Added unit coverage for opposite-side network-time label mapping and same-side network-time annotation.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `7 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `256 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase85_network_time_second/2_2` + `.tmp/phase85_network_time_second_audit`: `pair_count=1460`, `issue_count=37`, `R-PAIR-MISSING-SIDE=27`, `semantic_mapping=172`.
+  - second `S0007` issues are now 0; target semantic mappings include `TD4 -> 602`, `TD2 -> 601`, `TD3 -> 602`, `TD1 -> 601`, `Device alarm -> 110`, and `B+ -> 601` annotation semantics.
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218`.
+  - first fresh `.tmp/phase85_network_time_first/...` + `.tmp/phase85_network_time_first_audit`: `pair_count=1562`, `issue_count=258`, `R-PAIR-MISSING-SIDE=100`, `semantic_mapping=117`.
+  - first redlines held: `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `1-2ZLP4-1 -> KD26`, `1-2ZLP4-2 -> 1-2n422`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.

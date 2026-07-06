@@ -26,6 +26,12 @@ _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^DC\s+0-5V/4-20mA\s*[+-]$", re.IGNORECASE),
     re.compile(r"^GND$", re.IGNORECASE),
 )
+_SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"^TD\d+$", re.IGNORECASE),
+    re.compile(r"^B\s*code\s*[+-]$", re.IGNORECASE),
+    re.compile(r"^B[+-]$", re.IGNORECASE),
+    re.compile(r"^Device alarm$", re.IGNORECASE),
+)
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
     re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
@@ -642,17 +648,33 @@ def _candidate_schematic_semantic_endpoint_value(
     sheet: SheetRecord | None,
     orientation: str,
 ) -> str | None:
+    if _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation) is None:
+        return None
+    return text.normalized_text.strip()
+
+
+def _candidate_schematic_semantic_endpoint_detail(
+    text: TextItem,
+    sheet: SheetRecord | None,
+    orientation: str,
+) -> str | None:
     if sheet is None or sheet.sheet_category != "二次原理图":
         return None
     if orientation not in {"horizontal", _ORIENTATION_GRID}:
         return None
     sheet_context = f"{sheet.filename} {sheet.sheet_title}".upper()
-    if "直流" not in sheet_context and "DC" not in sheet_context:
-        return None
     normalized = text.normalized_text.strip()
-    if not any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS):
-        return None
-    return normalized
+    if (
+        ("直流" in sheet_context or "DC" in sheet_context)
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_dc_function_label"
+    if (
+        any(marker in sheet_context for marker in ("网络", "对时", "COMMUNICATION", "TIME SYNCHRONIZATION"))
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_network_time_label"
+    return None
 
 
 def _is_terminal_strip_mode(sheet: SheetRecord | None, orientation: str) -> bool:
@@ -935,7 +957,9 @@ def _candidate_channel_hint(
         if _candidate_wire_logic_endpoint_value(text, sheet, orientation) == value:
             return _CHANNEL_WIRE_LOGIC_ENDPOINT, "schematic_wire_logic_endpoint"
         if _candidate_schematic_semantic_endpoint_value(text, sheet, orientation) == value:
-            return _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT, "schematic_dc_function_label"
+            return _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT, _candidate_schematic_semantic_endpoint_detail(
+                text, sheet, orientation
+            )
         return _CHANNEL_TERMINAL_NUMERIC, None
     return _CHANNEL_NOISE, "not_numeric"
 
