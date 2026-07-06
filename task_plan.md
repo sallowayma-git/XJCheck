@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 38
+Phase 39
 
 ## Phases
 
@@ -278,17 +278,25 @@ Phase 38
 - [x] 复跑 targeted pytest、full pytest，以及第二套真实样本 `analyze-session`
 - **Status:** complete
 
-### Phase 38: Desktop Session Service Boundary
-- [ ] 审计 desktop sidecar 中状态落库、事件输出、结果加载、预览、issue 状态更新的职责边界
-- [ ] 决定是否抽出 `SessionService`，让 exe worker 直接调用，而不是继续让 CLI sidecar 包装承担 orchestration
-- [ ] 单独处理 JSONL 事件输出中文 mojibake 风险，避免终端编码问题影响 Tauri 实时事件消费
-- [ ] 为 session service 准备 unit + real-sample smoke 验证
-- **Status:** in_progress
+### Phase 38: Backplate Virtual Table Closure
+- [x] 用 fresh phase44 产物审计任务书新增的 `20 非电量保护背板图.dwg` 背板表格型缺口
+- [x] 允许背板接线图展开必要 `INSERT.virtual_entities()`，让块内表头/行号进入抽取层
+- [x] 在 PageClassifier 中把“背板 + 块内表头/行号 + 外部端点”升级为 `背板表格型图 / TableExtractor`
+- [x] 在 TableExtractor 中新增 `backplate_virtual_table` 映射，输出 `NKR308A-1 -> 5FD15` 类高置信 `table_mapping`
+- [x] 补 unit + integration 测试，并跑两套真实样本 smoke
+- **Status:** complete
+
+### Phase 39: Component-Prefixed Signal Circuit
+- [ ] 针对 `16 高低压侧操作箱信号回路.dwg` 识别 `component_prefixed_signal_circuit` 子模式
+- [ ] 识别左右元件分区 bbox 与顶部前缀 `1-2n` / `3-2n`
+- [ ] 将分区内局部数字合成为 `1-2n218` / `3-2n218`，再与同线外侧端子生成结构化映射
+- [ ] 补窄单测、集成测试和第一套真实样本验证
+- **Status:** pending
 
 ## Key Questions
-1. `run_analysis_workflow()` 已收敛分析 + 可选审计执行后，desktop sidecar 里剩余的 session orchestration 是否应继续抽成 `SessionService`？
-2. JSONL 事件在当前终端存在中文 mojibake 显示风险；它是终端显示问题、stdout encoding 问题，还是 Tauri 事件消费也会遇到的问题？
-3. 下一刀是否应先稳定 session service 边界，再继续改桌面端前端调用层？
+1. `16 高低压侧操作箱信号回路.dwg` 的分区边界应优先用矩形框、垂直分隔线、连接线簇还是顶部前缀文本来定位？
+2. `wire_component_mapping` 是否应复用 `Pair` + `evidence.source` 合同，还是新增专门 pair_kind 后再进入规则引擎？
+3. 背板表格型页已进入 `TableExtractor` 后，是否需要在 page_findings 中进一步展开块名、原始表头、行号规范化和中文说明旁路字段？
 
 ## Decisions Made
 | Decision | Rationale |

@@ -6360,3 +6360,155 @@ route status 仍稳定为：
 
 - 把桌面端 session orchestration 继续整理成 exe worker 更稳定消费的 service boundary
 - 同时处理 JSONL 事件输出编码显示风险
+
+## 89. 2026-07-06 任务书新增页型 current-head 审计：背板表格型与组件前缀信号回路
+
+本轮按任务书最新要求重新审计 current-head，不再默认把下一步放在 CLI / desktop service 扩展上，而是回到真实 DWG 主链。fresh 产物来自：
+
+- [phase44 first set](/F:/workspace/XJToolkit/.tmp/phase44_taskbook_audit_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- [phase44 second set](/F:/workspace/XJToolkit/.tmp/phase44_taskbook_audit_second/2_2)
+
+### 89.1 强证据
+
+两套样本均已完成 analyze + audit。第一套目标页的 current-head 分类如下：
+
+- `16 高低压侧操作箱信号回路.dwg`
+  - `sheet_id = S0017`
+  - `page_type = 二次原理图`
+  - `page_subtype = grid_heavy_wire_diagram`
+  - `route_target = WireDiagramExtractor`
+  - `audit_disposition = audit_required`
+  - `pair_count = 28`
+- `20 非电量保护背板图.dwg`
+  - `sheet_id = S0021`
+  - `page_type = 背板接线图`
+  - `route_target = LayoutOnlyExtractor`
+  - `audit_disposition = classify_only`
+  - `pair_count = 0`
+
+### 89.2 未完成或偏航
+
+`20 非电量保护背板图.dwg` 是当前最硬的 MVP 主链缺口。任务书要求背板图中结构化插件/端子表不能被跳过，但 current-head 把该页直接留在 `LayoutOnlyExtractor / classify_only`，没有进入 `TableExtractor`，也没有产生 `table_mapping`。
+
+该页真实文本已经包含表格型信号：
+
+- 端点文本：`5FD15`、`5YD15`、`5KLP8-2` 等
+- 插件/块标识文本：`WBH-814E-E1SA-101`
+- 插件页/前缀文本：`5n`
+- 图面结构：大量水平行带和按列排布的端点文本，但缺少传统竖向网格线
+
+所以问题不是单纯 TableExtractor 三列表格不够强，而是两层同时缺：
+
+- 分类/路由层没有把“背板接线图 + 结构化端点表”升级为可审计表格型页
+- 表格抽取层目前偏向“有竖线/多段线网格”的三列表格，不理解这种“无竖线、行带 + 文本列 + 底部插件标识”的背板表
+
+`16 高低压侧操作箱信号回路.dwg` 是第二个缺口。它已经进入 `WireDiagramExtractor`，但 current-head 只生成 review 级普通 pair；任务书示例要求识别类似 `1-2n218 -> 1-4YD1` 的组件前缀信号回路映射。该页文本中已经存在 `1-2n`、`3-2n`、`218`、`1-4YD1`，但当前 pair 仍停在局部数字候选层。
+
+### 89.3 最近唯一切片裁决
+
+最近一刀应先做 `20 非电量保护背板图.dwg` 的背板表格型闭环，而不是继续扩 CLI 或先做 `16` 的前缀信号回路。
+
+理由：
+
+- `20` 当前是 0 pair / classify-only，和任务书新增硬要求直接冲突
+- 该页可以通过窄规则验证：路由到 `TableExtractor`，产出 `table_mapping`，并至少证明 `WBH-814E-E1SA-101` / `5n` / `5FD15` 这一类结构被理解
+- `16` 已经进入审计链，只是语义拼接不足；风险低于 `20` 这种整页被跳过
+
+本轮开发边界：
+
+- 不把所有背板图粗暴纳入普通线组审计
+- 不继续扩产品 CLI
+- 只补背板表格型页的分类信号与专用表格映射能力
+
+## 90. 2026-07-06 背板表格型页已闭环到 TableExtractor
+
+本轮按 section 89 的裁决完成了背板表格型最小闭环，没有继续扩 CLI surface。核心变化是：
+
+- 背板接线图现在允许展开必要的 `INSERT.virtual_entities()`
+- PageClassifier 会把“背板 + 块内表头/行号 + 外侧端点”的页面升级为 `背板表格型图`
+- Page Router 仍保持 `route_target = TableExtractor`，不新增产品命令或新 route 字面量
+- TableExtractor 新增 `backplate_virtual_table` 映射模式，复用现有 `table_mapping` pair/evidence 合同
+
+### 90.1 第一套真实样本验证
+
+最终实跑产物：
+
+- [phase46_backplate_first](/F:/workspace/XJToolkit/.tmp/phase46_backplate_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+关键页 `20 非电量保护背板图.dwg` 当前结果：
+
+- `page_type = 背板表格型图`
+- `page_subtype = backplate_virtual_terminal_table`
+- `route_target = TableExtractor`
+- `execution_status = executed`
+- `text_count = 406`
+- `table_mapping_count = 51`
+- `table_mapping_modes = {"backplate_virtual_table": 51}`
+- `table_header_prefixes = ["NDY306A", "NKR308A", "NTZ302A"]`
+
+任务书点名样例已经命中：
+
+- `NKR308A(非电量选配)` 被规范化为 `NKR308A`
+- 行号 `01` 被规范化为端口序号 `1`
+- 外侧端点 `5FD15` 被同 y 行锁定
+- 输出 pair：`NKR308A-1 -> 5FD15`
+- pair 状态：`pass`
+- confidence：`0.95`
+- evidence source：`table_mapping`
+- rationale：`Backplate virtual table mapping: normalized block header plus row number associated with external terminal endpoint.`
+
+第一套背板页现在整体路由为：
+
+- `17 差动保护背板图.dwg -> 背板表格型图 / backplate_virtual_terminal_table / TableExtractor`
+- `18 高后备保护背板图.dwg -> 背板表格型图 / backplate_geometric_table / TableExtractor`
+- `19 低后备保护背板图.dwg -> 背板表格型图 / backplate_geometric_table / TableExtractor`
+- `20 非电量保护背板图.dwg -> 背板表格型图 / backplate_virtual_terminal_table / TableExtractor`
+
+第一套最终 audit issue 总量为 `370`。
+
+### 90.2 第二套真实样本防误伤验证
+
+最终实跑产物：
+
+- [phase46_backplate_second](/F:/workspace/XJToolkit/.tmp/phase46_backplate_second/2_2)
+
+第二套结果保持稳定：
+
+- `sheet_count = 24`
+- `pair_count = 1211`
+- `issue_count = 519`
+- `17 测控1装置背板.dwg -> 背板接线图 / LayoutOnlyExtractor / classify_only`
+- `18 测控2装置背板.dwg -> 背板接线图 / LayoutOnlyExtractor / classify_only`
+- `table_extraction_summary.status = no_table_pages_detected`
+
+这说明本轮规则没有把普通测控背板页误拉进 `TableExtractor`。
+
+### 90.3 测试与并发复核
+
+新增/更新测试覆盖：
+
+- `tests/unit/test_page_classifier.py`
+- `tests/unit/test_table_extractor.py`
+- `tests/integration/test_analyze_project.py`
+
+验证结果：
+
+- `python -m pytest -q tests\unit\test_page_classifier.py tests\unit\test_table_extractor.py` -> `19 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "backplate_virtual_table or header_semantic_three_column_table_mapping or routes_table_like_page_to_table_extractor_and_emits_table_mapping"` -> `3 passed`
+- `python -m pytest -q` -> `182 passed`
+
+并发子代理只读复核结论已吸收：
+
+- 最小规则必须限定在 `sheet_category == 背板接线图`，避免误伤元件接线图、普通二次原理图、屏端子图
+- 不应发明新的 route 字面量，必须继续使用 `TableExtractor`
+- 新 mapping mode 必须显式接入 pair builder，否则会出现 findings 有 mapping 但 rules 没 pair 的半闭环
+
+### 90.4 下一刀
+
+背板表格型页的 MVP 主链已经从 `classify_only / 0 pair` 进入 `TableExtractor / table_mapping`。下一条最近主链缺口应转向：
+
+- `16 高低压侧操作箱信号回路.dwg`
+- 子模式：`component_prefixed_signal_circuit`
+- 目标映射：`1-2n218 -> 1-4YD1`
+
+这仍然是 DWG 审计主链，不是 CLI 扩张。

@@ -35,6 +35,12 @@ _TABLE_THREE_COLUMN_COUNT = 3
 _TABLE_PAIR_CONFIDENCE = 0.95
 _HEADER_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9\-_/]*[A-Za-z][A-Za-z0-9\-_/]*$")
 _TERMINAL_ENDPOINT_PATTERN = re.compile(r"(?i).*[a-z]\d+$")
+_BACKPLATE_HEADER_PATTERN = re.compile(r"^[A-Za-z]{2,}[0-9]+[A-Za-z]?(?:[（(].*[）)])?$")
+_BACKPLATE_ENDPOINT_PATTERN = re.compile(r"^[0-9][A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?$")
+_BACKPLATE_ROW_Y_TOL = 2.0
+_BACKPLATE_HEADER_X_TOL = 28.0
+_BACKPLATE_HEADER_Y_SPAN = 90.0
+_BACKPLATE_ENDPOINT_X_TOL = 28.0
 
 
 def extract_table_pairs(
@@ -69,6 +75,24 @@ def extract_table_pairs(
         sheet_polylines = polylines_by_sheet.get(sheet_id, [])
         if not sheet_texts or not sheet.audit_area_bbox:
             continue
+
+        if sheet.sheet_category == "背板接线图":
+            mappings = _build_backplate_virtual_mappings(sheet_texts, sheet)
+            if mappings:
+                for mapping in mappings:
+                    table_pairs.extend(_build_table_pairs(mapping, sheet, pair_ids))
+                table_mappings.append(
+                    {
+                        "sheet_id": sheet_id,
+                        "filename": sheet.filename,
+                        "sheet_no": sheet.sheet_no,
+                        "row_count": len(mappings),
+                        "col_count": 0,
+                        "three_column": False,
+                        "mappings": mappings,
+                    }
+                )
+                continue
 
         grid = _detect_table_grid(sheet_lines, sheet_polylines, sheet)
         if grid is None:
@@ -361,7 +385,7 @@ def _build_table_pairs(
     - 数值三列表格：优先生成 中列 -> 右列，若右列缺失则生成 中列 -> 左列
     - 表头型三列表格：为同一行左右两侧接线端分别生成 `logical_endpoint -> endpoint`
     """
-    if mapping.get("mapping_mode") == "header_semantic_three_column":
+    if mapping.get("mapping_mode") in {"header_semantic_three_column", "backplate_virtual_table"}:
         return _build_header_semantic_pairs(mapping, sheet, pair_ids)
 
     middle_value = mapping.get("middle_value")
@@ -481,7 +505,7 @@ def _build_header_semantic_pairs(
                 right_value=endpoint_value,
                 confidence=_TABLE_PAIR_CONFIDENCE,
                 status="pass",
-                rationale="Header semantic three-column table mapping: synthesized logical endpoint associated with row endpoint text.",
+                rationale=_table_pair_rationale(mapping),
                 alternative_pair_candidate_ids=[],
                 confidence_bucket="high",
                 evidence=evidence,
@@ -499,6 +523,119 @@ def _build_header_semantic_pairs(
             )
         )
     return pairs
+
+
+def _table_pair_rationale(mapping: dict[str, Any]) -> str:
+    if mapping.get("mapping_mode") == "backplate_virtual_table":
+        return "Backplate virtual table mapping: normalized block header plus row number associated with external terminal endpoint."
+    return "Header semantic three-column table mapping: synthesized logical endpoint associated with row endpoint text."
+
+
+def _build_backplate_virtual_mappings(
+    texts: list[TextItem],
+    sheet: SheetRecord,
+) -> list[dict[str, Any]]:
+    """Build mappings from backplate INSERT virtual rows to external terminal texts."""
+    audit_texts = [text for text in texts if _text_in_audit_area(text, sheet)]
+    virtual_texts = [text for text in audit_texts if text.source_block_name]
+    if not virtual_texts:
+        return []
+
+    headers = [text for text in virtual_texts if _looks_like_backplate_header(text.normalized_text)]
+    rows = [text for text in virtual_texts if _looks_like_backplate_row_number(text.normalized_text)]
+    endpoints = [
+        text
+        for text in audit_texts
+        if not text.source_block_name and _looks_like_backplate_endpoint(_normalize_backplate_endpoint(text.normalized_text))
+    ]
+    if not headers or not rows or not endpoints:
+        return []
+
+    mappings: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for header in sorted(headers, key=lambda item: (item.source_block_name or "", -item.insert_y, item.insert_x, item.text_id)):
+        header_prefix = _normalize_backplate_header_prefix(header.normalized_text)
+        if not header_prefix:
+            continue
+        header_rows = [
+            row
+            for row in rows
+            if row.source_block_name == header.source_block_name
+            and 0.0 < header.insert_y - row.insert_y <= _BACKPLATE_HEADER_Y_SPAN
+            and abs(row.insert_x - header.insert_x) <= _BACKPLATE_HEADER_X_TOL
+        ]
+        for row in sorted(header_rows, key=lambda item: (-item.insert_y, item.insert_x, item.text_id)):
+            endpoint = _nearest_backplate_endpoint(row, endpoints)
+            if endpoint is None:
+                continue
+            row_number = int(row.normalized_text)
+            endpoint_value = _normalize_backplate_endpoint(endpoint.normalized_text)
+            logical_endpoint = f"{header_prefix}-{row_number}"
+            dedupe_key = (header.text_id, row.text_id, endpoint.text_id, logical_endpoint)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            mappings.append(
+                {
+                    "mapping_mode": "backplate_virtual_table",
+                    "sheet_id": sheet.sheet_id,
+                    "filename": sheet.filename,
+                    "sheet_no": sheet.sheet_no,
+                    "source_block_name": header.source_block_name,
+                    "header_prefix": header_prefix,
+                    "raw_header_text": header.normalized_text,
+                    "header_text_id": header.text_id,
+                    "header_coord": [header.insert_x, header.insert_y],
+                    "row_number": row_number,
+                    "raw_row_number": row.normalized_text,
+                    "middle_value": row.normalized_text,
+                    "middle_text_id": row.text_id,
+                    "middle_coord": [row.insert_x, row.insert_y],
+                    "logical_endpoint": logical_endpoint,
+                    "left_value": None,
+                    "right_value": endpoint_value,
+                    "left_text_id": None,
+                    "right_text_id": endpoint.text_id,
+                    "left_coord": None,
+                    "right_coord": [endpoint.insert_x, endpoint.insert_y],
+                    "row_number_sequence_valid": True,
+                    "semantic_notes": _nearby_backplate_notes(row, virtual_texts),
+                    "column_roles": {
+                        "left": "virtual_row_number",
+                        "middle": "virtual_row_number",
+                        "right": "external_terminal_endpoint",
+                    },
+                }
+            )
+    return mappings
+
+
+def _nearest_backplate_endpoint(row: TextItem, endpoints: list[TextItem]) -> TextItem | None:
+    same_row = [
+        endpoint
+        for endpoint in endpoints
+        if abs(endpoint.insert_y - row.insert_y) <= _BACKPLATE_ROW_Y_TOL
+        and abs(endpoint.insert_x - row.insert_x) <= _BACKPLATE_ENDPOINT_X_TOL
+    ]
+    if not same_row:
+        return None
+    return sorted(
+        same_row,
+        key=lambda endpoint: (abs(endpoint.insert_x - row.insert_x), abs(endpoint.insert_y - row.insert_y), endpoint.text_id),
+    )[0]
+
+
+def _nearby_backplate_notes(row: TextItem, virtual_texts: list[TextItem]) -> list[str]:
+    notes: list[str] = []
+    for text in virtual_texts:
+        value = text.normalized_text
+        if text.text_id == row.text_id or _looks_like_backplate_row_number(value) or _looks_like_backplate_header(value):
+            continue
+        if abs(text.insert_y - row.insert_y) <= _BACKPLATE_ROW_Y_TOL and abs(text.insert_x - row.insert_x) <= 25.0:
+            notes.append(value)
+        if len(notes) >= 3:
+            break
+    return notes
 
 
 def _primary_cell_text(texts: list[TextItem]) -> TextItem | None:
@@ -552,6 +689,36 @@ def _looks_like_table_endpoint(value: str | None) -> bool:
     if not value:
         return False
     return bool(_TERMINAL_ENDPOINT_PATTERN.fullmatch(str(value)))
+
+
+def _normalize_backplate_header_prefix(value: str | None) -> str | None:
+    if not value:
+        return None
+    prefix = re.split(r"[（(]", str(value).strip(), maxsplit=1)[0].strip()
+    return prefix if _BACKPLATE_HEADER_PATTERN.fullmatch(prefix) else None
+
+
+def _normalize_backplate_endpoint(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"^[^0-9A-Za-z]+", "", str(value).strip()).replace(" ", "")
+
+
+def _looks_like_backplate_header(value: str | None) -> bool:
+    return _normalize_backplate_header_prefix(value) is not None
+
+
+def _looks_like_backplate_row_number(value: str | None) -> bool:
+    if not value or not str(value).isdigit():
+        return False
+    number = int(str(value))
+    return 1 <= number <= 64 and len(str(value)) <= 2
+
+
+def _looks_like_backplate_endpoint(value: str | None) -> bool:
+    if not value:
+        return False
+    return bool(_BACKPLATE_ENDPOINT_PATTERN.fullmatch(str(value).strip()))
 
 
 def _group_by_sheet(items) -> dict[str, list]:

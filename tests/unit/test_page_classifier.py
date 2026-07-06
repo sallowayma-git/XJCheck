@@ -95,6 +95,37 @@ def _make_numeric_text(text_id: str, sheet_id: str, x: float, y: float, value: s
     )
 
 
+def _make_text(
+    text_id: str,
+    sheet_id: str,
+    x: float,
+    y: float,
+    value: str,
+    *,
+    source_block_name: str | None = None,
+) -> TextItem:
+    return TextItem(
+        text_id=text_id,
+        sheet_id=sheet_id,
+        file_id="F1",
+        handle=f"TH{text_id}",
+        entity_type="TEXT",
+        text=value,
+        normalized_text=value,
+        is_numeric_candidate=value.isdigit(),
+        layer="TEXT",
+        rotation_deg=0.0,
+        height=2.5,
+        insert_x=x,
+        insert_y=y,
+        bbox_min_x=x - 2,
+        bbox_min_y=y - 2,
+        bbox_max_x=x + 2,
+        bbox_max_y=y + 2,
+        source_block_name=source_block_name,
+    )
+
+
 def test_classify_pages_marks_grid_heavy_wire_diagram() -> None:
     """强网格化开入回路页应被判为 grid_heavy_wire_diagram 子型。"""
     sheet = _make_sheet()
@@ -289,3 +320,30 @@ def test_classify_pages_marks_layout_page_as_classify_only() -> None:
     assert classification.page_type == "背板接线图"
     assert classification.route_target == "LayoutOnlyExtractor"
     assert classification.audit_disposition == "classify_only"
+
+
+def test_classify_pages_upgrades_structured_backplate_table_to_table_extractor() -> None:
+    """背板页出现块内表头/行号和外侧端点时，应升级为背板表格型审计页。"""
+    sheet = _make_sheet(
+        filename="20 非电量保护背板图.dwg",
+        sheet_title="非电量保护背板图",
+        sheet_category="背板接线图",
+        audit_role="secondary",
+        audit_area_bbox=(0.0, 0.0, 300.0, 260.0),
+    )
+    texts = [_make_text("H", "S1", 210.0, 240.0, "NKR308A(非电量选配)", source_block_name="WBH-814E-E1SA-101")]
+    for index in range(1, 9):
+        y = 240.0 - index * 5.0
+        texts.append(_make_text(f"R{index}", "S1", 210.0, y, f"{index:02d}", source_block_name="WBH-814E-E1SA-101"))
+        texts.append(_make_text(f"E{index}", "S1", 198.0, y, f"5FD{14 + index}"))
+
+    classifications = classify_pages([sheet], texts, [], [], [], DEFAULT_CONFIG)
+    classification = classifications["S1"]
+
+    assert classification.page_type == "背板表格型图"
+    assert classification.page_subtype == "backplate_virtual_terminal_table"
+    assert classification.table_like is True
+    assert classification.audit_disposition == "audit_required"
+    assert classification.route_target == "TableExtractor"
+    assert classification.features["backplate_virtual_header_count"] == 1
+    assert classification.features["backplate_virtual_row_number_count"] == 8

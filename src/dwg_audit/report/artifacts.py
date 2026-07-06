@@ -691,6 +691,8 @@ def _page_number_matching_strategy(
         return "No number matching is attempted because the page is currently marked as non-audit."
     if route_target.startswith("TableExtractor"):
         if table_mapping_count:
+            if page.sheet_category == "背板接线图":
+                return "Use expanded INSERT virtual text to combine normalized backplate headers and row numbers with same-row external terminal endpoints as high-confidence structured evidence."
             return "Use table grid rows/columns and emit middle-column-to-outer-column mappings as high-confidence structured evidence."
         return "Use the dedicated table path to search for stable row/column cell mappings before falling back to open questions."
     return "Only layout-level evidence is preserved for now; no dedicated number matching strategy is active on this page."

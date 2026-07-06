@@ -92,6 +92,7 @@ text:
 extract:
   insert_virtual_entity_categories:
     - "元件接线图"
+    - "背板接线图"
 
 page_category_overrides:
   二次原理图:

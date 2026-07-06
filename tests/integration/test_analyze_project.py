@@ -415,6 +415,84 @@ def test_analyze_project_supports_header_semantic_three_column_table_mapping(
     assert first_evidence["table_mapping"]["logical_endpoint"] in {"1-21QD1", "1-21QD2"}
 
 
+def test_analyze_project_routes_backplate_virtual_table_to_table_extractor(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "20 非电量保护背板图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 300.0, 260.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        block = doc.blocks.new(name="WBH-814E-E1SA-101")
+        block.add_text("NKR308A(非电量选配)", dxfattribs={"insert": (213.0, 243.75), "height": 2.5, "layer": "CH"})
+        block.add_text("调压重瓦斯开入", dxfattribs={"insert": (213.0, 239.0), "height": 2.0, "layer": "CH"})
+        msp = doc.modelspace()
+        msp.add_blockref("WBH-814E-E1SA-101", (0, 0))
+        for index in range(1, 9):
+            y = 238.75 - (index - 1) * 5.0
+            row_x = 208.75 if index % 2 else 233.75
+            endpoint_x = 199.0 if index % 2 else 238.5
+            block.add_text(f"{index:02d}", dxfattribs={"insert": (row_x, y), "height": 2.5, "layer": "0"})
+            msp.add_text(f"5FD{14 + index}", dxfattribs={"insert": (endpoint_x, y - 0.25), "height": 2.5, "layer": "TEXT"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+    texts = pd.read_parquet(findings_dir / "texts.parquet")
+
+    page = findings_payload["page_findings"][0]
+    assert page["page_type"] == "背板表格型图"
+    assert page["page_subtype"] == "backplate_virtual_terminal_table"
+    assert page["route_target"] == "TableExtractor"
+    assert page["executed_extractor"] == "TableExtractor"
+    assert page["structure_summary"]["table_mapping_modes"] == {"backplate_virtual_table": 8}
+    assert page["structure_summary"]["table_header_prefixes"] == ["NKR308A"]
+
+    assert "WBH-814E-E1SA-101" in set(texts["source_block_name"].dropna().tolist())
+    pair_values = {(row["left_value"], row["right_value"]) for _, row in pairs.iterrows()}
+    assert ("NKR308A-1", "5FD15") in pair_values
+    assert ("NKR308A-2", "5FD16") in pair_values
+    assert len(pair_values) == 8
+    first_evidence = json.loads(pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "table_mapping"
+    assert first_evidence["table_mapping"]["mapping_mode"] == "backplate_virtual_table"
+    assert first_evidence["table_mapping"]["raw_header_text"] == "NKR308A(非电量选配)"
+
+
 def test_analyze_project_executes_route_specific_pair_extractors(
     monkeypatch,
     tmp_path: Path,

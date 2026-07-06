@@ -90,7 +90,15 @@ def _make_numeric_text(text_id: str, x: float, y: float, value: str) -> TextItem
     )
 
 
-def _make_text(text_id: str, x: float, y: float, value: str, *, is_numeric_candidate: bool = False) -> TextItem:
+def _make_text(
+    text_id: str,
+    x: float,
+    y: float,
+    value: str,
+    *,
+    is_numeric_candidate: bool = False,
+    source_block_name: str | None = None,
+) -> TextItem:
     return TextItem(
         text_id=text_id,
         sheet_id="S1",
@@ -109,6 +117,7 @@ def _make_text(text_id: str, x: float, y: float, value: str, *, is_numeric_candi
         bbox_min_y=y - 2,
         bbox_max_x=x + 2,
         bbox_max_y=y + 2,
+        source_block_name=source_block_name,
     )
 
 
@@ -356,3 +365,42 @@ def test_extract_table_pairs_falls_back_to_numeric_mode_when_header_sequence_inv
     assert mappings[0]["mappings"][0]["mapping_mode"] == "numeric_three_column"
     pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
     assert pair_values == {("101", "102"), ("103", "104")}
+
+
+def test_extract_table_pairs_builds_backplate_virtual_table_mappings() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 300.0, 260.0))
+    sheet.filename = "20 非电量保护背板图.dwg"
+    sheet.sheet_title = "非电量保护背板图"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+
+    texts = [
+        _make_text(
+            "H1",
+            x=213.0,
+            y=243.75,
+            value="NKR308A(非电量选配)",
+            source_block_name="WBH-814E-E1SA-101",
+        ),
+        _make_text("R1", x=208.75, y=238.75, value="01", is_numeric_candidate=True, source_block_name="WBH-814E-E1SA-101"),
+        _make_text("R2", x=233.75, y=238.75, value="02", is_numeric_candidate=True, source_block_name="WBH-814E-E1SA-101"),
+        _make_text("E1", x=199.0, y=238.5, value="5FD15"),
+        _make_text("E2", x=238.5, y=238.5, value="5FD16"),
+        _make_text("N1", x=213.0, y=239.0, value="调压重瓦斯开入", source_block_name="WBH-814E-E1SA-101"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert len(mappings) == 1
+    assert mappings[0]["three_column"] is False
+    assert mappings[0]["mappings"][0]["mapping_mode"] == "backplate_virtual_table"
+    assert mappings[0]["mappings"][0]["header_prefix"] == "NKR308A"
+    assert mappings[0]["mappings"][0]["raw_header_text"] == "NKR308A(非电量选配)"
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {
+        ("NKR308A-1", "5FD15"),
+        ("NKR308A-2", "5FD16"),
+    }
+    assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
+    assert {pair.pair_kind for pair in pairs} == {"ordinary_pair"}
+    assert pairs[0].evidence["table_mapping"]["source_block_name"] == "WBH-814E-E1SA-101"

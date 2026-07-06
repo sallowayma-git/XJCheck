@@ -1602,3 +1602,47 @@
   - 第一层 service entry 已完成：CLI / UI / sidecar 复用同一条分析 + 可选审计执行链
   - 下一步应继续整理 desktop session orchestration，而不是继续增加 CLI 命令
   - 终端 JSONL 事件的中文显示存在 mojibake 风险，应作为后续 sidecar 输出层问题单独处理
+
+## Session Update 2026-07-06 (Phase 38 catchup)
+- Resumed from the previous handoff and ran planning-with-files session catchup.
+- Current worktree contains only user/unrelated uncommitted docs at resume time:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+- Current direction is re-aligned away from further CLI surface expansion and back to the DWG audit MVP main chain.
+- Fresh phase44 real-sample outputs already exist and are the next evidence source:
+  - `.tmp/phase44_taskbook_audit_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `.tmp/phase44_taskbook_audit_second/2_2`
+- Immediate audit focus:
+  - `16 高低压侧操作箱信号回路.dwg`
+  - `20 非电量保护背板图.dwg`
+
+## Session Update 2026-07-06 (Phase 38)
+- Completed the backplate virtual table MVP slice for `20 非电量保护背板图.dwg`.
+- Implemented:
+  - `DEFAULT_CONFIG.extract.insert_virtual_entity_categories` now includes `背板接线图`.
+  - PageClassifier upgrades structured backplate terminal/plugin tables to `背板表格型图 / TableExtractor`.
+  - TableExtractor emits `backplate_virtual_table` mappings using normalized virtual block headers, row numbers, and same-row external endpoints.
+  - Page findings number-matching text now explains expanded INSERT virtual text for backplate table pages.
+- Added/updated tests:
+  - `tests/unit/test_page_classifier.py`
+  - `tests/unit/test_table_extractor.py`
+  - `tests/integration/test_analyze_project.py`
+- Verification:
+  - `python -m pytest -q tests\unit\test_page_classifier.py tests\unit\test_table_extractor.py` -> `19 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "backplate_virtual_table or header_semantic_three_column_table_mapping or routes_table_like_page_to_table_extractor_and_emits_table_mapping"` -> `3 passed`
+  - `python -m pytest -q` -> `182 passed`
+- Real-sample evidence:
+  - First set output: `.tmp/phase46_backplate_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `20 非电量保护背板图.dwg` now routes to `TableExtractor` as `背板表格型图 / backplate_virtual_terminal_table`.
+  - It emits `51` `backplate_virtual_table` mappings, including `NKR308A-1 -> 5FD15` with `status=pass` and `confidence=0.95`.
+  - Second set output: `.tmp/phase46_backplate_second/2_2`
+  - Second set remains stable at `sheet_count=24`, `pair_count=1211`, `issue_count=519`; its two ordinary backplate pages remain `LayoutOnlyExtractor / classify_only`.
+- Subagent read-only review was integrated:
+  - Keep `route_target == TableExtractor`.
+  - Keep pair evidence source as `table_mapping`.
+  - Avoid broad table-routing rules that would steal component, terminal, or wire pages.
+- Next nearest MVP slice:
+  - `16 高低压侧操作箱信号回路.dwg`
+  - `component_prefixed_signal_circuit`
+  - target mapping `1-2n218 -> 1-4YD1`

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import asdict
+import re
 from typing import Any
 
 from dwg_audit.domain.models import BlockRecord
@@ -29,6 +30,10 @@ _TABLE_MIN_HORIZONTAL_RATIO = 0.6
 _GRID_HEAVY_MIN_BAND = 8
 _GRID_HEAVY_MIN_HORIZONTAL_RATIO = 0.7
 _VERTICAL_COMPONENT_MIN_VERTICAL_RATIO = 0.55
+_BACKPLATE_TABLE_MIN_ENDPOINTS = 8
+_BACKPLATE_TABLE_MIN_ROW_NUMBERS = 6
+_BACKPLATE_ENDPOINT_PATTERN = re.compile(r"^[&@\s]*[0-9][A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?$")
+_BACKPLATE_HEADER_PATTERN = re.compile(r"^[A-Za-z]{2,}[0-9]+[A-Za-z]?(?:[（(].*[）)])?$")
 _AUDIT_ROUTE_TARGETS = {
     "WireDiagramExtractor",
     "ComponentDiagramExtractor",
@@ -111,11 +116,18 @@ def _page_features(
     else:
         area = 1.0
 
-    numeric_text_count = sum(1 for text in texts if text.is_numeric_candidate and _text_in_audit_area(text, page))
+    audit_texts = [text for text in texts if _text_in_audit_area(text, page)]
+    numeric_text_count = sum(1 for text in audit_texts if text.is_numeric_candidate)
+    backplate_endpoint_count = sum(1 for text in audit_texts if _looks_like_backplate_endpoint(text.normalized_text))
+    backplate_virtual_row_count = sum(1 for text in audit_texts if text.source_block_name and _looks_like_backplate_row_number(text.normalized_text))
+    backplate_virtual_header_count = sum(1 for text in audit_texts if text.source_block_name and _looks_like_backplate_header(text.normalized_text))
 
     return {
         "text_count": len(texts),
         "numeric_text_count": numeric_text_count,
+        "backplate_endpoint_text_count": backplate_endpoint_count,
+        "backplate_virtual_row_number_count": backplate_virtual_row_count,
+        "backplate_virtual_header_count": backplate_virtual_header_count,
         "line_count": len(lines),
         "horizontal_line_count": horizontal_count,
         "vertical_line_count": vertical_count,
@@ -148,6 +160,9 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
     vertical_ratio = float(features.get("vertical_line_ratio", 0.0))
     polyline_count = int(features.get("polyline_count", 0))
     grid_band_count = int(features.get("grid_band_count", 0))
+    backplate_endpoint_count = int(features.get("backplate_endpoint_text_count", 0))
+    backplate_virtual_row_count = int(features.get("backplate_virtual_row_number_count", 0))
+    backplate_virtual_header_count = int(features.get("backplate_virtual_header_count", 0))
 
     grid_heavy = (
         grid_band_count >= grid_min_band
@@ -159,6 +174,13 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
         and grid_band_count >= _TABLE_MIN_GRID_BAND
         and not grid_heavy
     )
+    backplate_table_like = (
+        category == "背板接线图"
+        and backplate_endpoint_count >= _BACKPLATE_TABLE_MIN_ENDPOINTS
+        and backplate_virtual_row_count >= _BACKPLATE_TABLE_MIN_ROW_NUMBERS
+        and backplate_virtual_header_count >= 1
+    )
+    backplate_table_routed = category == "背板接线图" and (backplate_table_like or table_like)
 
     if page.audit_role == "skip":
         page_type = category or "非审计页"
@@ -172,6 +194,11 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
         subtype = "vertical_component" if vertical_ratio >= _VERTICAL_COMPONENT_MIN_VERTICAL_RATIO else "horizontal_component"
         confidence = 0.85 if subtype == "vertical_component" else 0.82
         route_target = "ComponentDiagramExtractor"
+    elif backplate_table_routed:
+        page_type = "背板表格型图"
+        subtype = "backplate_virtual_terminal_table" if backplate_table_like else "backplate_geometric_table"
+        confidence = 0.86
+        route_target = "TableExtractor"
     elif table_like:
         page_type = "表格型图"
         subtype = "three_column_candidate"
@@ -215,7 +242,7 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
         page_type=page_type,
         page_subtype=subtype,
         page_type_confidence=round(confidence, 2),
-        table_like=table_like,
+        table_like=table_like or backplate_table_routed,
         grid_heavy=grid_heavy,
         route_target=route_target,
         features=features,
@@ -261,3 +288,22 @@ def _text_in_audit_area(text: TextItem, page: SheetRecord) -> bool:
         return True
     min_x, min_y, max_x, max_y = bbox
     return min_x <= text.insert_x <= max_x and min_y <= text.insert_y <= max_y
+
+
+def _looks_like_backplate_endpoint(value: str | None) -> bool:
+    if not value:
+        return False
+    return bool(_BACKPLATE_ENDPOINT_PATTERN.fullmatch(str(value).strip()))
+
+
+def _looks_like_backplate_row_number(value: str | None) -> bool:
+    if not value or not str(value).isdigit():
+        return False
+    number = int(str(value))
+    return 1 <= number <= 64 and len(str(value)) <= 2
+
+
+def _looks_like_backplate_header(value: str | None) -> bool:
+    if not value:
+        return False
+    return bool(_BACKPLATE_HEADER_PATTERN.fullmatch(str(value).strip()))

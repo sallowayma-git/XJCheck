@@ -66,7 +66,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "block_internal_numeric_penalty": -0.15,
     },
     "extract": {
-        "insert_virtual_entity_categories": ["元件接线图"],
+        "insert_virtual_entity_categories": ["元件接线图", "背板接线图"],
     },
     "page_category_overrides": {
         "二次原理图": {
