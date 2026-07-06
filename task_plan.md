@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 26
+Phase 27
 
 ## Phases
 
@@ -186,6 +186,14 @@ Phase 26
 - [x] 收口单元格主文本选择，避免备注文本破坏 numeric fallback 或被抬成高置信 `table_mapping`
 - [x] 补齐 unit + `analyze-project` synthetic 证明，并复跑 full pytest 与两套真实样本
 - [x] 把“功能已补齐、M10 仍未闭环”的裁决回写 `doc/findings.md` / `progress.md`
+- **Status:** complete
+
+### Phase 27: M10 Acceptance-Mini Harness
+- [x] 重新按 current-head 任务书逐条审计，确认页级分类/路由主链已有强证据，而最近显式缺口已经收口到 `M10` / 第 19 节最小验收
+- [x] 增加持久化 `acceptance-mini` 5 页夹具与标注 spec，覆盖非回路页跳过、正常 pair、冲突、缺失、多候选 review
+- [x] 增加 `evaluate-acceptance` 评估链，量化 pair precision/recall、冲突命中、缺失命中、review 命中与 issue 字段完备性
+- [x] 复跑定向 pytest、full pytest，以及 second-set 当前头部 `analyze-project + run-audit`
+- [x] 把“acceptance 资产已补齐但 M10 仍未完全闭环”的裁决回写 `doc/findings.md` / `progress.md`
 - **Status:** complete
 
 ## Key Questions

@@ -4575,3 +4575,187 @@ synthetic `analyze-project` 主链证明也已经补上：
 
 1. `M10` 回归验证闭环
 2. 最小验收场景的故障注入与量化评估
+
+## 76. 2026-07-06 current-head 任务书完成度审计：主链已基本成形，最近显式缺口转到 `M10`
+
+在 section 75 完成表头型三列表格之后，我按当前仓库、当前测试、当前真实样本产物重新做了一轮任务书完成度审计，不再沿用历史叙事。
+
+### 76.1 已有强证据证明完成
+
+1. 真实样本里的页级分类 / 路由合同已经真实落盘
+- 第二套 current-head [phase31_acceptance_second](/F:/workspace/XJToolkit/.tmp/phase31_acceptance_second/2_2) 里，每页都能在 `findings.json.page_findings` 看到：
+  - `page_type`
+  - `audit_disposition`
+  - `route_target`
+- 同时真实样本里不同图种已经落到不同 route：
+  - `04 交流回路图1.dwg` -> `WireDiagramExtractor`
+  - `17 测控1装置背板.dwg` -> `LayoutOnlyExtractor`
+  - `19 元件接线图1.dwg` -> `ComponentDiagramExtractor`
+  - `21 左侧端子图1.dwg` -> `TerminalDiagramExtractor`
+
+2. 报告侧的 issue 可复核证据链已经具备 current-head 强证据
+- 当前真实样本 `issues.json` / `audit_report.md` 已稳定包含：
+  - `filename`
+  - `sheet_id`
+  - `line_group_id` 或几何锚点
+  - `left_value / right_value`
+  - `rule_id`
+  - `confidence`
+  - `message / explanation / recommended_action`
+  - `evidence_refs`
+
+3. 三类关系的最小功能闭环都已经有代码 + 测试 + rerun 证据
+- 端子对端子：
+  - ordinary pair + 普通 graph rules
+- 端子对语义端：
+  - `semantic_mapping` + `R-SEMANTIC-MAPPING-CONFLICT`
+- 表格对端子：
+  - `table_mapping` + `R-TABLE-MAPPING-SOURCE-CONFLICT`
+- 表头型三列表格本身也已具备 `header_prefix + row_number -> logical_endpoint` 的 synthetic 主链证明
+
+4. `page_findings` 默认内部运行态、非默认正式交付物，已经与任务书对齐
+- default runtime 下不再强制落盘 `page_findings/*.md|json`
+- 但 `findings.json` 内部仍保留结构化页级记录，满足内部 SSoT 目标
+
+### 76.2 只有部分实现，仍不能宣称完全闭环
+
+1. 页级分类器 / router 是“结果上成立”，但离任务书理想结构还有距离
+- current-head 已经能稳定产出 `route_target`
+- 但除 `TableExtractor` 外，其余页型目前更多还是“共用 PairBuilder 主链 + 图种专用分支/护栏”
+- 所以从工程结构看仍是部分实现，不等于已经完全演化成四条彻底独立的 extractor 链
+
+2. 表格页真分流在真实样本里仍没有命中
+- current real samples 里 `table_pages = 0 / total_mappings = 0`
+- 这说明 `TableExtractor` 的真实项目命中还没有强证据
+- 但任务书同时明确允许：若真实样本里表格页不足，可用隔离 synthetic / mutation 样本补验证
+- 所以这条更适合判定为“真实样本不足下的部分实现”，而不是当前最近的主缺口
+
+3. `pages.parquet` 与 `page_findings` 的结构信息仍不完全对称
+- `page_findings` 里有 `page_type`
+- `pages.parquet` 当前更侧重 `route_target / audit_disposition / confidence`
+- 这不影响当前 UI / report / rerun 主链，但从 findings 统一性上看仍可继续收口
+
+### 76.3 已明确未完成
+
+1. `M10`：回归测试与样本验证
+- current-head 已有 regression 脚手架，但 `precision / recall` 仍是 `None`
+- 还没有真实样本人工标注 pair 指标
+- 还没有 texts / lines 召回不回退的真实基线量化
+- 还没有把最小验收资产接成固定回归批次
+
+2. 第 19 节最小验收场景
+- 在本轮之前，repo 里还没有持久化的 5 页隔离故障注入验收夹具
+- 也没有与之绑定的量化报告产物
+
+### 76.4 当前裁决
+
+基于 current-head，这一轮最接近任务书主链的未完成项已经不是继续往 `candidates.py` 或 table 语义里加局部规则，而是：
+
+- **把 `M10` / 第 19 节最小验收从“脚手架”推进成“持久化资产 + 量化报告”。**
+
+不应继续优先的方向包括：
+
+1. 再回桌面端 / Tauri / preview
+2. 再用 issue 总数变化冒充主链进展
+3. 在 `M10` 仍空心时，继续大改 extractor 物理分层
+
+## 77. 2026-07-06 `acceptance-mini` 已落地：最小验收第一次变成可复跑资产
+
+在 section 76 把最近缺口收口到 `M10` 之后，我只推进了一条最短闭环切片：
+
+- 增加持久化的 `acceptance-mini` 5 页夹具
+- 增加与之绑定的标注 spec
+- 增加量化 acceptance evaluator + CLI
+
+### 77.1 新增资产
+
+代码与夹具位置：
+
+- [acceptance.py](/F:/workspace/XJToolkit/src/dwg_audit/report/acceptance.py)
+- [cli.py](/F:/workspace/XJToolkit/src/dwg_audit/cli.py)
+- [spec.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_mini/spec.json)
+- [project/](/F:/workspace/XJToolkit/tests/fixtures/acceptance_mini/project)
+- [test_acceptance_evaluation.py](/F:/workspace/XJToolkit/tests/integration/test_acceptance_evaluation.py)
+
+`acceptance-mini` 当前覆盖：
+
+- `1` 张非回路页
+- `10` 组正常 pair
+- `2` 组跨页冲突
+- `2` 组单侧缺失
+- `2` 组多候选 `review`
+
+### 77.2 新评估链现在量化什么
+
+`evaluate-acceptance` 当前会读取 `findings/ + audit/ + spec`，输出：
+
+- complete pair `precision`
+- complete pair `recall`
+- skip page recall
+- conflict issue recall
+- missing issue recall
+- review pair recall
+- issue 字段完备性检查
+
+这使任务书第 19 节里的 5 类最小验收要求，第一次变成了可量化、可落盘、可回归比较的资产，而不是只靠叙述说明。
+
+### 77.3 新增证明
+
+定向验证：
+
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `1 passed`
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py tests\integration\test_analyze_project.py -k "acceptance or table_extractor or header_semantic or mixed_source_conflict"` -> `4 passed`
+- `python -m pytest -q tests\unit\test_regression_metrics.py tests\unit\test_rerun_regression.py` -> `6 passed`
+
+全量回归：
+
+- `python -m pytest -q` -> `169 passed`
+
+Acceptance 集成测试已证明：
+
+- `analyze-project -> run-audit -> evaluate-acceptance`
+
+整条链可跑通，且在该 fixture 上当前结果为：
+
+- pair precision = `1.0`
+- pair recall = `1.0`
+- conflict recall = `1.0`
+- missing recall = `1.0`
+- review recall = `1.0`
+- skip page recall = `1.0`
+
+### 77.4 真实样本稳定性
+
+虽然这轮没有改动抽取主逻辑，我仍然按任务书要求复跑了第二套真实样本：
+
+- [phase31_acceptance_second](/F:/workspace/XJToolkit/.tmp/phase31_acceptance_second/2_2)
+
+current-head 结果保持稳定：
+
+- `issue_count = 519`
+- `R-PAIR-MISSING-SIDE = 317`
+- `R-PAIR-LOW-CONFIDENCE = 201`
+- `R-SEMANTIC-MAPPING-CONFLICT = 1`
+- `table_pages = 0 / total_mappings = 0`
+
+这说明本轮 acceptance 资产与新 CLI 没有把主链带偏。
+
+### 77.5 当前裁决
+
+到这一轮为止，`M10` 可以拆成两层来看：
+
+1. 已经具备的层
+- regression report 脚手架
+- rerun-from-findings golden snapshot
+- acceptance-mini 持久化夹具
+- acceptance 量化 CLI / report
+
+2. 仍未闭环的层
+- 真实样本人工标注 pair precision / recall
+- texts / lines 召回不回退的真实基线量化
+- 把 acceptance 评估正式接成固定项目级回归批次
+
+所以 current-head 最近的下一条缺口，更像是：
+
+1. 真实样本人工标注与 pair 指标量化
+2. texts / lines 回归基线量化

@@ -1023,3 +1023,55 @@
     - 人工标注 pair precision / recall
     - 5 张隔离故障注入样本
     - 端到端命中率/误报率评估
+
+## Session Update 2026-07-06 (Phase 27)
+- 先按 current-head 再做了一次任务书完成度审计，主线程明确把最近缺口从“是否再补 table/router”收口到 `M10` / 第 19 节最小验收：
+  - 页级分类 / 路由 / issue evidence 已有 current real-sample 强证据
+  - `regression.py` 仍只有 `pair_count / issue_count / rule delta`
+  - `precision / recall` 仍是 `None`
+  - repo 里还没有持久化的 5 页隔离故障注入验收夹具
+- 本轮只做这一条最短闭环切片：
+  - 新增 [acceptance.py](/F:/workspace/XJToolkit/src/dwg_audit/report/acceptance.py)
+  - 新增 CLI `evaluate-acceptance`
+  - 新增持久化夹具：
+    - [spec.json](/F:/workspace/XJToolkit/tests/fixtures/acceptance_mini/spec.json)
+    - [project/](/F:/workspace/XJToolkit/tests/fixtures/acceptance_mini/project)
+  - 新增端到端集成测试：
+    - [test_acceptance_evaluation.py](/F:/workspace/XJToolkit/tests/integration/test_acceptance_evaluation.py)
+- `acceptance-mini` 当前覆盖：
+  - `1` 张非回路页跳过
+  - `10` 组正常 pair
+  - `2` 组跨页冲突
+  - `2` 组单侧缺失
+  - `2` 组多候选 `review`
+- 新评估链当前量化输出：
+  - complete pair `precision / recall`
+  - skip page recall
+  - conflict issue recall
+  - missing issue recall
+  - review pair recall
+  - issue 定位字段完备性
+- 本轮新增/通过验证：
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `1 passed`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py tests\integration\test_analyze_project.py -k "acceptance or table_extractor or header_semantic or mixed_source_conflict"` -> `4 passed`
+  - `python -m pytest -q tests\unit\test_regression_metrics.py tests\unit\test_rerun_regression.py` -> `6 passed`
+  - `python -m pytest -q` -> `169 passed`
+- 真实样本 rerun：
+  - 第二套：[phase31_acceptance_second](/F:/workspace/XJToolkit/.tmp/phase31_acceptance_second/2_2)
+- 第二套 current-head 结果保持稳定：
+  - `issue_count = 519`
+  - `R-PAIR-MISSING-SIDE = 317`
+  - `R-PAIR-LOW-CONFIDENCE = 201`
+  - `R-SEMANTIC-MAPPING-CONFLICT = 1`
+  - `table_pages = 0 / total_mappings = 0`
+  - sample routes 继续保持：
+    - `04` -> `WireDiagramExtractor`
+    - `17` -> `LayoutOnlyExtractor`
+    - `19` -> `ComponentDiagramExtractor`
+    - `21` -> `TerminalDiagramExtractor`
+- 当前裁决：
+  - 任务书第 19 节现在首次有了持久化、可复跑、可量化的 acceptance 资产
+  - 但 `M10` 仍未完全闭环，因为还没有：
+    - 真实样本人工标注 pair precision / recall
+    - texts / lines 召回不回退的真实基线量化
+    - 把 acceptance 评估正式接成项目级固定回归批次

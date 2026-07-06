@@ -14,8 +14,10 @@ from dwg_audit.desktop import render_project_preview
 from dwg_audit.desktop import update_issue_status as update_desktop_issue_status
 from dwg_audit.pipeline import analyze_input_root
 from dwg_audit.report import compare_project_regressions
+from dwg_audit.report import evaluate_acceptance_project
 from dwg_audit.report import export_existing_reports
 from dwg_audit.report import rerun_audit_from_findings
+from dwg_audit.report import write_acceptance_report
 from dwg_audit.report import write_regression_report
 from dwg_audit.utils.config import load_config
 from dwg_audit.utils.config import write_default_config
@@ -135,6 +137,26 @@ def compare_regression(
     typer.echo("Regression comparison completed:")
     typer.echo(f"- pair_count delta: {comparison['delta']['pair_count']}")
     typer.echo(f"- issue_count delta: {comparison['delta']['issue_count']}")
+    typer.echo(f"- report_dir: {output_path}")
+
+
+@app.command("evaluate-acceptance")
+def evaluate_acceptance(
+    project: Path = typer.Option(..., "--project", exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+    spec: Path = typer.Option(..., "--spec", exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    output_path: Path | None = typer.Option(None, "--output", "-o", file_okay=False, dir_okay=True, resolve_path=True),
+) -> None:
+    manifest_path = project / "manifest.json"
+    if not manifest_path.exists():
+        raise typer.BadParameter(f"No manifest.json found under {project}")
+    if output_path is None:
+        output_path = project / "acceptance"
+    write_acceptance_report(project, spec, output_path)
+    evaluation = evaluate_acceptance_project(project, spec)
+    typer.echo("Acceptance evaluation completed:")
+    typer.echo(f"- pair_precision: {evaluation['pair_metrics']['precision']}")
+    typer.echo(f"- pair_recall: {evaluation['pair_metrics']['recall']}")
+    typer.echo(f"- acceptance_passed: {evaluation['acceptance_passed']}")
     typer.echo(f"- report_dir: {output_path}")
 
 
