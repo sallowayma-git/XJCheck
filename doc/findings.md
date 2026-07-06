@@ -8019,3 +8019,92 @@ fresh second-set 证据：
 - 本轮是 table extractor 语义端排除，不是 rules 降噪或关系隐藏。
 - `table_mapping` 总数从 Phase73 second 的 `176` 变为 `174`，仅少掉两条 `I0` 误 endpoint；正常 terminal header table 和结构化 wire/component 红线保持。
 - 下一轮候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`。
+
+## 114. 2026-07-07 component-prefixed 218 residual suppression：结构化元件分区映射覆盖裸局部号
+
+只读审计确认，`component_prefixed_signal_circuit` extractor 已经闭合，first-set `S0017 / 16 高低压侧操作箱信号回路.dwg` 能产出高置信结构化关系；剩余问题不是重新实现 extractor，而是旧普通 PairBuilder 仍把同一个局部号文本 `218` 作为裸 ordinary half-pair 报 review。
+
+真实缺陷：
+
+- first-set `S0017` 中，结构化关系已存在：
+  - `PWM0008 1-2n218 -> 1-4YD1 wire_component_mapping/pass/confidence=0.95`
+  - `PWM0021 3-2n218 -> 3-4YD1 wire_component_mapping/pass/confidence=0.95`
+- 同页旧普通 residual 仍出现：
+  - `PW0532 ? -> 218 review`
+  - `PW0534 ? -> 218 review`
+- 这些 `218` 是元件分区内局部号，已经通过 `1-2n` / `3-2n` 前缀合成完整逻辑端；继续裸用为跨页端子会制造伪 `R-PAIR-MISSING-SIDE`。
+
+本轮实现：
+
+- 在 [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py) 中把 input matrix 局部号覆盖逻辑扩展为通用 `wire_component_mapping` 覆盖逻辑。
+- `input_matrix_wire_mapping` 仍覆盖矩阵局部号文本；`component_prefixed_signal_circuit` 只覆盖 `evidence.local_number_text_id`，不覆盖外侧端子文本。
+- 被覆盖的普通 pair 标记为 `discard`、`confidence_bucket=low`、`ordinary_pair_eligible=False`，并写入 `covered_by_component_prefixed_signal_circuit=True`。
+- 不删除 `wire_component_mapping`，不改 rules，不扩 CLI/UI，不按数字 `218` 做全局抑制。
+- 在 [test_page_extractors.py](/F:/workspace/XJToolkit/tests/unit/test_page_extractors.py) 增加两条单测：局部号文本被覆盖，外侧端子文本不被覆盖。
+
+fresh first-set 证据：
+
+- `.tmp/phase75_component_218_first/...`
+- `pair_count=1550`
+- `issue_count=311`
+- pair_kind：
+  - `ordinary_pair=800`
+  - `wire_component_mapping=32`
+  - `component_mapping=138`
+  - `table_mapping=299`
+  - `continuation=175`
+  - `semantic_mapping=103`
+  - `bridge_mapping=3`
+- issue rule：
+  - `R-PAIR-MISSING-SIDE=147`
+  - `R-CROSS-PAGE-CONFLICT=66`
+  - `R-ONE-TO-MANY=44`
+  - `R-MANY-TO-ONE=37`
+  - `R-PAIR-LOW-CONFIDENCE=12`
+  - `R-DUPLICATE-PAIR=5`
+- `S0017` 旧 residual 已收口：
+  - `PW0532 ? -> 218` 为 `discard`，`covered_by_component_prefixed_signal_circuit=True`，`ordinary_pair_eligible=False`
+  - `PW0534 ? -> 218` 为 `discard`，`covered_by_component_prefixed_signal_circuit=True`，`ordinary_pair_eligible=False`
+  - `S0017 active ordinary 218 review count=0`
+- 结构化目标保持：
+  - `PWM0008 1-2n218 -> 1-4YD1` 仍为 `wire_component_mapping/pass/confidence=0.95`
+  - `PWM0021 3-2n218 -> 3-4YD1` 仍为 `wire_component_mapping/pass/confidence=0.95`
+- 非目标页未被误杀：
+  - `S0013` 的 `PW0336 ? -> 218` 仍为 review
+  - `S0013` 的 `PW0337 218 -> ?` 仍为 review
+  - `S0013` 的 `PW0338 218 -> 212` 仍为 discard
+
+fresh second-set 非回归证据：
+
+- `.tmp/phase75_component_218_second/2_2`
+- `pair_count=1460`
+- `issue_count=188`
+- pair_kind：
+  - `ordinary_pair=674`
+  - `wire_component_mapping=168`
+  - `component_mapping=82`
+  - `table_mapping=174`
+  - `continuation=202`
+  - `semantic_mapping=157`
+  - `bridge_mapping=3`
+- `input_matrix_wire_mapping_count=168`
+- `component_prefixed_signal_circuit_count=0`
+- `covered_component_prefixed_discard_count=0`
+- 红线保持：
+  - `1-21QD34 -> 1-21n218` 仍有 `wire_component_mapping/pass`
+  - `3-21QD28 -> 3-21n218` 仍有 `wire_component_mapping/pass`
+  - `1-21GD9 -> 1-21n218` 仍有 `table_mapping/pass`
+  - `semantic_table_mapping_pass_endpoint_count=0`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_page_extractors.py` -> `7 passed`
+- `python -m pytest -q tests\unit\test_wire_components.py -k "component_prefixed_signal or input_matrix"` -> `6 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "component_prefixed_signal_circuit_mapping or run_audit or mixed_source"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `234 passed`
+
+裁决：
+
+- 本轮修的是结构化 `wire_component_mapping` 与旧 ordinary pair 的覆盖语义，不是 extractor 补缺，也不是 issue 隐藏。
+- first issue_count 从 Phase73 的 `327` 降到 `311`，来自 `component_prefixed_signal_circuit` 覆盖的局部号 residual 收口；结构化 `wire_component_mapping` 数量保持 `32`。
+- 下一轮候选只剩：`inline KLP 116 residual suppression`、`backplate/component mapping rules semantics`。

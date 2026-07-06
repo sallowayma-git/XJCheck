@@ -2123,6 +2123,37 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-07 (Phase 61 component-prefixed 218 residual suppression)
+- Started after commit `9f2bc50`.
+- Read-only recovery:
+  - `planning-with-files` catchup reported unsynced context from the previous run; `git diff --stat` showed only the in-progress code/test slice before documentation updates.
+  - `git status --short` showed `src/dwg_audit/audit/page_extractors.py`, `tests/unit/test_page_extractors.py`, and external untracked `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Read `task_plan.md`, `progress.md`, `doc/findings.md`, and `doc/任务书.md`; Phase60 was complete and the active residual backlog still included `component-prefixed 218 residual suppression`.
+  - Four readonly audits from the previous active context converged on the same minimum slice: `S0017 / 16 高低压侧操作箱信号回路.dwg` has structured `wire_component_mapping` for `218`, but old ordinary `? -> 218` residual reviews remained.
+- Implementation:
+  - Generalized the old input-matrix local-number coverage helper in `page_extractors.py` into wire-component local-number coverage.
+  - `input_matrix_wire_mapping` continues to cover matrix local-number text ids; `component_prefixed_signal_circuit` covers only `evidence.local_number_text_id`, not the external endpoint.
+  - Covered ordinary pairs are marked `discard`, `confidence_bucket=low`, `ordinary_pair_eligible=False`, and `covered_by_component_prefixed_signal_circuit=True`.
+  - No rules, CLI/UI, classifier/router, or extractor generation behavior changed; structured `wire_component_mapping` rows stay in the graph.
+- Verification:
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `7 passed`
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "component_prefixed_signal or input_matrix"` -> `6 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component_prefixed_signal_circuit_mapping or run_audit or mixed_source"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `234 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase75_component_218_first/...`: `pair_count=1550`, `issue_count=311`, `ordinary_pair=800`, `wire_component_mapping=32`, `component_mapping=138`, `table_mapping=299`, `R-PAIR-MISSING-SIDE=147`.
+  - first `S0017` old residuals `PW0532 ? -> 218` and `PW0534 ? -> 218` are now `discard` with `covered_by_component_prefixed_signal_circuit=True`; active ordinary `218` reviews on `S0017` are `0`.
+  - first structured mappings remain: `PWM0008 1-2n218 -> 1-4YD1` and `PWM0021 3-2n218 -> 3-4YD1` are still `wire_component_mapping/pass/confidence=0.95`.
+  - first non-target `S0013` still exposes `PW0336 ? -> 218` and `PW0337 218 -> ?` as review, so the suppression is evidence-scoped rather than digit-scoped.
+  - second fresh `.tmp/phase75_component_218_second/2_2`: `pair_count=1460`, `issue_count=188`, `wire_component_mapping=168`, `input_matrix_wire_mapping=168`, `component_mapping=82`, `table_mapping=174`.
+  - second required mappings remain: `1-21QD34 -> 1-21n218` and `3-21QD28 -> 3-21n218` have `wire_component_mapping/pass`; `1-21GD9 -> 1-21n218` has `table_mapping/pass`; `semantic_table_mapping_pass_endpoint_count=0`.
+- External/concurrent files intentionally not touched or staged:
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+- Next candidates:
+  - `inline KLP 116 residual suppression`
+  - `backplate/component mapping rules semantics`
+
 ## Session Update 2026-07-07 (Phase 60 terminal header semantic endpoint exclusion)
 - Started after commit `0cac857`.
 - Read-only recovery:

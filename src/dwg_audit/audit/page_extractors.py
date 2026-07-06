@@ -177,7 +177,7 @@ def _extract_pairs_for_route(
             lines,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
         )
-        _mark_input_matrix_covered_ordinary_pairs(pairs, wire_component_pairs)
+        _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)
     if executed_extractor == "ComponentDiagramExtractor":
         component_pairs, consumed_group_ids = extract_strip_two_port_component_pairs(
@@ -268,35 +268,83 @@ def _mark_input_matrix_covered_ordinary_pairs(
     pairs: list[Pair],
     wire_component_pairs: list[Pair],
 ) -> None:
-    covered_text_ids = _input_matrix_local_number_text_ids(wire_component_pairs)
-    if not covered_text_ids:
+    _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
+
+
+def _mark_wire_component_covered_ordinary_pairs(
+    pairs: list[Pair],
+    wire_component_pairs: list[Pair],
+) -> None:
+    covered_text_reasons = _wire_component_local_number_text_reasons(wire_component_pairs)
+    if not covered_text_reasons:
         return
     for pair in pairs:
         if pair.pair_kind != "ordinary_pair":
             continue
         if pair.status == "discard":
             continue
-        if not _pair_uses_any_text_id(pair, covered_text_ids):
+        covered_reasons = _pair_text_coverage_reasons(pair, covered_text_reasons)
+        if not covered_reasons:
             continue
         pair.status = "discard"
         pair.confidence_bucket = "low"
-        pair.rationale = "Covered by input_matrix_wire_mapping; matrix local number must not be emitted as a bare ordinary pair."
+        pair.rationale = _wire_component_coverage_rationale(covered_reasons)
         pair.evidence["ordinary_pair_eligible"] = False
-        pair.evidence["covered_by_input_matrix_wire_mapping"] = True
+        for reason in covered_reasons:
+            pair.evidence[f"covered_by_{reason}"] = True
 
 
 def _input_matrix_local_number_text_ids(wire_component_pairs: list[Pair]) -> set[str]:
+    return {
+        text_id
+        for text_id, reason in _wire_component_local_number_text_reasons(wire_component_pairs).items()
+        if reason == "input_matrix_wire_mapping"
+    }
+
+
+def _wire_component_local_number_text_reasons(wire_component_pairs: list[Pair]) -> dict[str, str]:
+    text_reasons: dict[str, str] = {}
     text_ids: set[str] = set()
     for pair in wire_component_pairs:
         evidence = pair.evidence or {}
         if pair.pair_kind != "wire_component_mapping":
             continue
-        if evidence.get("component_submode") != "input_matrix_wire_mapping":
+        component_submode = evidence.get("component_submode")
+        if component_submode == "input_matrix_wire_mapping":
+            values = (pair.right_text_id, evidence.get("local_number_text_id"))
+        elif component_submode == "component_prefixed_signal_circuit":
+            values = (evidence.get("local_number_text_id"),)
+        else:
             continue
-        for value in (pair.right_text_id, evidence.get("local_number_text_id")):
+        for value in values:
             if isinstance(value, str) and value:
                 text_ids.add(value)
-    return text_ids
+                text_reasons[value] = str(component_submode)
+    return text_reasons
+
+
+def _pair_text_coverage_reasons(pair: Pair, covered_text_reasons: dict[str, str]) -> set[str]:
+    evidence = pair.evidence or {}
+    selected_ids = {
+        pair.left_text_id,
+        pair.right_text_id,
+        evidence.get("selected_left_text_id"),
+        evidence.get("selected_right_text_id"),
+    }
+    return {
+        covered_text_reasons[text_id]
+        for text_id in selected_ids
+        if isinstance(text_id, str) and text_id in covered_text_reasons
+    }
+
+
+def _wire_component_coverage_rationale(covered_reasons: set[str]) -> str:
+    if "component_prefixed_signal_circuit" in covered_reasons:
+        return (
+            "Covered by component_prefixed_signal_circuit; component local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    return "Covered by input_matrix_wire_mapping; matrix local number must not be emitted as a bare ordinary pair."
 
 
 def _mark_terminal_prefixed_endpoint_ordinary_pairs(

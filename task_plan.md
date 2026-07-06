@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 60
+Phase 61
 
 ## Phases
 
@@ -785,6 +785,24 @@ Phase 60
 - [ ] 下一刀候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
+### Phase 61: Component-Prefixed Local Number Residual Suppression
+- [x] 只读恢复并确认当前 HEAD 为 `9f2bc50`，受保护外部/并发路径仍只有 `doc/page_findings/`、`doc/page_task_queue.md` 未跟踪，未纳入本轮写集。
+- [x] 并发只读审计确认 `component_prefixed_signal_circuit` extractor 已闭合，first `S0017 / 16 高低压侧操作箱信号回路.dwg` 已稳定产出 `1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1` 等 `wire_component_mapping/pass`；本轮只处理旧普通 PairBuilder 裸 `218` residual。
+- [x] 实现目标：把被 `component_prefixed_signal_circuit` 结构化映射消费的局部号 ordinary pair 标记为 `discard`、`ordinary_pair_eligible=False`，不覆盖外侧端子、不移除 `wire_component_mapping` 入图、不改 rules/CLI/UI。
+- [x] 风险门槛：复用并扩展原 input matrix 覆盖逻辑；`input_matrix_wire_mapping` 仍覆盖矩阵局部号，`component_prefixed_signal_circuit` 只覆盖 `evidence.local_number_text_id`；非目标 `S0013` 裸 `218` review 不得被全局抑制。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `7 passed`
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "component_prefixed_signal or input_matrix"` -> `6 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component_prefixed_signal_circuit_mapping or run_audit or mixed_source"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `234 passed`
+  - first fresh `.tmp/phase75_component_218_first/...`: `pair_count=1550`, `issue_count=311`, `wire_component_mapping=32`, `component_mapping=138`, `table_mapping=299`；`R-PAIR-MISSING-SIDE=147`
+  - first `S0017` 旧 `PW0532 ? -> 218`、`PW0534 ? -> 218` 已为 `discard`，且 `covered_by_component_prefixed_signal_circuit=True`、`ordinary_pair_eligible=False`；结构化 `PWM0008 1-2n218 -> 1-4YD1`、`PWM0021 3-2n218 -> 3-4YD1` 保持 `wire_component_mapping/pass/confidence=0.95`
+  - first 非目标 `S0013` 的 `PW0336 ? -> 218`、`PW0337 218 -> ?` 仍为 review，证明没有全局按数字 `218` 抑制
+  - second fresh `.tmp/phase75_component_218_second/2_2`: `pair_count=1460`, `issue_count=188`, `wire_component_mapping=168`, `input_matrix_wire_mapping=168`, `component_mapping=82`, `table_mapping=174`
+  - second 红线保持：`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218` 仍有 `wire_component_mapping/pass`；`1-21GD9 -> 1-21n218` 仍有 `table_mapping/pass`；`semantic_table_mapping_pass_endpoint_count=0`
+- [ ] 下一刀候选只剩：`inline KLP 116 residual suppression`、`backplate/component mapping rules semantics`；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -793,3 +811,4 @@ Phase 60
 | `Select-Object -Index 740..785` 范围参数失败 | 读取本地 Tauri crate 源码片段 | 改用 `Select-Object -Skip ... -First ...` |
 | Tauri `cargo test` 首次失败：`frontendDist` 路径不存在 | 未先生成 `apps/desktop/dist` 时运行 Rust tests | 先执行 `npm run build` 生成 gitignored dist，再跑 cargo test |
 | Windows `link.exe` 间歇性 `LNK1104` 无法打开 test exe 输出 | 重跑 `cargo test` 时链接阶段偶发锁定输出路径 | 查无残留进程后立即重试，同命令通过；记录为 Windows target/linker 临时锁竞争 |
+| second-set verification helper `KeyError: right` | 用旧 `pairs.parquet` endpoint 列名检查 semantic endpoint rows | 改用当前 schema 的 `left_value/right_value` 重跑，确认 `semantic_table_mapping_pass_endpoint_count=0` |
