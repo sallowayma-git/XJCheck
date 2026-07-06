@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
@@ -214,6 +216,7 @@ def _extract_pairs_for_route(
             )
             _extend_unique_pairs(table_pairs, retry_pairs)
             table_mappings = _merge_table_mappings(table_mappings, retry_mappings)
+        _mark_terminal_prefixed_endpoint_ordinary_pairs(pairs, table_mappings)
         pairs.extend(table_pairs)
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
@@ -248,6 +251,82 @@ def _mark_consumed_component_ordinary_pairs(pairs: list[Pair], consumed_group_id
         pair.rationale = "Covered by component_mapping from ComponentDiagramExtractor."
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["covered_by_component_mapping"] = True
+
+
+def _mark_terminal_prefixed_endpoint_ordinary_pairs(
+    pairs: list[Pair],
+    table_mappings: list[dict[str, object]],
+) -> None:
+    covered_text_ids = _terminal_header_table_text_ids(table_mappings)
+    if not covered_text_ids:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.status == "discard":
+            continue
+        if not _uses_derived_prefixed_terminal_endpoint(pair):
+            continue
+        if not _pair_uses_any_selected_text_id(pair, covered_text_ids):
+            continue
+        pair.status = "discard"
+        pair.confidence_bucket = "low"
+        pair.rationale = "Covered by terminal structured endpoint; prefixed terminal text must not be reduced to a bare ordinary pair."
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["covered_by_terminal_structured_endpoint"] = True
+
+
+def _terminal_header_table_text_ids(table_mappings: list[dict[str, object]]) -> set[str]:
+    text_ids: set[str] = set()
+    for mapping in _iter_terminal_header_table_mappings(table_mappings):
+        if mapping.get("mapping_mode") != "terminal_header_table":
+            continue
+        for key in ("middle_text_id", "left_text_id", "right_text_id"):
+            value = mapping.get(key)
+            if isinstance(value, str) and value:
+                text_ids.add(value)
+    return text_ids
+
+
+def _iter_terminal_header_table_mappings(
+    table_mappings: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for item in table_mappings:
+        nested = item.get("mappings")
+        if isinstance(nested, list):
+            rows.extend(row for row in nested if isinstance(row, dict))
+        else:
+            rows.append(item)
+    return rows
+
+
+def _pair_uses_any_selected_text_id(pair: Pair, text_ids: set[str]) -> bool:
+    evidence = pair.evidence or {}
+    selected_ids = {
+        evidence.get("selected_left_text_id"),
+        evidence.get("selected_right_text_id"),
+    }
+    return any(isinstance(text_id, str) and text_id in text_ids for text_id in selected_ids)
+
+
+def _uses_derived_prefixed_terminal_endpoint(pair: Pair) -> bool:
+    evidence = pair.evidence or {}
+    left_raw = str(evidence.get("selected_left_raw_text") or "")
+    right_raw = str(evidence.get("selected_right_raw_text") or "")
+    left_derived = evidence.get("selected_left_is_derived_numeric") is True
+    right_derived = evidence.get("selected_right_is_derived_numeric") is True
+    return (
+        left_derived
+        and _looks_like_prefixed_terminal_endpoint(left_raw)
+    ) or (
+        right_derived
+        and _looks_like_prefixed_terminal_endpoint(right_raw)
+    )
+
+
+def _looks_like_prefixed_terminal_endpoint(value: str) -> bool:
+    return bool(re.fullmatch(r"(?i)\d+(?:-\d+)?n\d{3,}", value.strip()))
 
 
 def _terminal_header_table_retry_pages(

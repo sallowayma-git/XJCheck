@@ -1903,3 +1903,28 @@
 - Concurrent/user changes preserved:
   - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
   - Did not revert concurrent/user work.
+
+## Session Update 2026-07-06 (Phase 48)
+- Re-audited the current taskbook and phase60 real-sample outputs before making new edits.
+- Read-only subagent review:
+  - Terminal/continuation review confirmed the largest remaining terminal issue is not semantic markers entering ordinary pairs, but prefixed terminal texts such as `3-21n211` being reduced to bare suffix ordinary pairs like `21 -> 211`.
+  - Route/table review confirmed PageClassifier, Page Router, TableExtractor, ComponentDiagramExtractor, and findings contracts have current real-sample evidence; the next slice should be a narrow residual ordinary-pair cleanup, not route/UI expansion.
+- Implemented `TerminalDiagramExtractor` post-processing:
+  - If an ordinary pair uses a derived prefixed terminal endpoint and the selected text IDs are already covered by `terminal_header_table`, mark that ordinary pair `discard` and `ordinary_pair_eligible=False`.
+  - Synthetic row-lock terminal strips without table header coverage remain `review`, preserving existing tests.
+- Verification:
+  - `python -m pytest -q tests\unit\test_page_extractors.py tests\integration\test_analyze_project.py::test_analyze_project_row_locks_terminal_strip_candidates tests\integration\test_analyze_project.py::test_analyze_project_supports_mirrored_right_terminal_strip_candidates` -> `5 passed`
+  - `python -m pytest -q` -> `211 passed`
+- First-set real-sample evidence:
+  - Fresh output: `.tmp/phase62_terminal_structured_cover_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `run-audit` succeeded.
+  - Terminal ordinary review `104 -> 85`; covered demotions `19`; terminal ordinary low-confidence issues `66 -> 47`.
+  - `component_mapping=27` and `table_mapping=299` unchanged.
+- Second-set real-sample evidence:
+  - Fresh output: `.tmp/phase62_terminal_structured_cover_second/2_2`
+  - `run-audit` succeeded.
+  - Terminal ordinary review `200 -> 87`; covered demotions `113`; terminal ordinary low-confidence issues `176 -> 63`.
+  - `component_mapping=20` and `table_mapping=176` unchanged.
+- Concurrent/user changes preserved:
+  - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.

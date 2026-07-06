@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 47
+Phase 48
 
 ## Phases
 
@@ -581,3 +581,16 @@ Phase 47
   - first-set fresh `analyze-project + run-audit`: `.tmp/phase60_kk_multi_port_dedup_first/...` 中 `21 元件接线图1.dwg` 新增 `17` 条 `kk_multi_port_component`，全项目 `component_mapping=27`，重复端点检查 `0`
   - second-set fresh `analyze-project + run-audit`: `.tmp/phase60_kk_multi_port_dedup_second/2_2` 中 `19 元件接线图1.dwg` 新增 `12` 条 `kk_multi_port_component`，全项目 `component_mapping=20`，重复端点检查 `0`
 - [ ] 下一刀建议：继续补 `strip_two_port_component` 逗号外部端拆分，或进入端子图列角色/continuation 语义复核。
+
+### Phase 48: Terminal Structured Endpoint Ordinary Bypass
+- [x] 重新按任务书审计当前 phase60 主链，确认页级分类/路由/Table/Component 已有强证据，但端子页仍有被结构化表格映射覆盖的裸 suffix ordinary review。
+- [x] 用两个只读子代理复核：
+  - terminal/continuation 复核指出端子页仍有大量 `3-21n211 -> 211` 派生 suffix ordinary review。
+  - route/table 复核确认 PageClassifier/Page Router/TableExtractor 主链已有强证据，下一刀应只做残留 ordinary 降级，不扩大路由。
+- [x] 实现目标：端子页中已被 `terminal_header_table` 覆盖的完整端子文本，不再降级成裸数字 `ordinary_pair` review。
+- [x] 风险门槛：没有表头结构覆盖证据的 row-lock synthetic 仍保持 review；不改候选阈值、不改 UI、不改 component/table mapping 数量。
+- [x] 验证结果：
+  - `python -m pytest -q` -> `211 passed`
+  - first-set fresh `analyze-project + run-audit`: `.tmp/phase62_terminal_structured_cover_first/...`，terminal ordinary review `104 -> 85`，结构化映射不回退
+  - second-set fresh `analyze-project + run-audit`: `.tmp/phase62_terminal_structured_cover_second/2_2`，terminal ordinary review `200 -> 87`，结构化映射不回退
+- [ ] 下一刀建议：继续 terminal 剩余普通行列角色收敛，或补 `strip_two_port_component` 逗号端点拆分；二者都必须先有任务书审计证据再动手。

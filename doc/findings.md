@@ -7065,3 +7065,64 @@ route status 仍稳定为：
 - `ComponentDiagramExtractor` 已不再只是普通 PairBuilder 包装，已经覆盖 `strip_two_port_component` 与 `KK2P/KK3P` 多端口两类真实组件结构。
 - 仍不能宣称元件接线图完全完成：逗号外部端拆分仍未做，且 `KK2P/KK3P` 的端口编号真实语义还需要更多人工标注校准。
 - 下一刀更适合做 `strip_two_port_component` 逗号端点拆分，或转向端子图列角色 / continuation 语义复核；不应继续扩产品 CLI。
+
+## 100. 2026-07-06 phase60 后任务书审计：主链强证据与端子残留 ordinary 降级
+
+本轮重新按当前 [任务书](/F:/workspace/XJToolkit/doc/任务书.md) 审计 phase60 真实样本，而不是沿用历史完成叙事。任务书当前关键要求包括：第 31-48 行的 MVP 页型/报告标准，第 54-66 行的“通用 CAD 抽取 + 页级分类器 + 路由 + 专用脚本库”，第 920-940 行的七类关系类型，第 1723-1763 行的真实样本/故障注入/最终 MVP 定义。
+
+当前强证据：
+
+| 要求 | 当前证据 |
+|---|---|
+| 每页稳定 `page_type / route_target / audit_disposition` | phase60 first 为 `28` 页，route 分布 `Wire=13 / Component=3 / Terminal=4 / Table=4 / Skip=4`；phase60 second 为 `24` 页，route 分布 `Wire=13 / Component=2 / Terminal=4 / LayoutOnly=2 / Skip=3`。 |
+| 普通回路图不再只有普通 pair | first `wire_component_mapping=32`，已覆盖元件分区与线中 KLP 端口型。 |
+| 元件接线图进入专用关系 | phase60 first `component_mapping=27`，其中 `21 元件接线图1.dwg=17`；phase60 second `component_mapping=20`，其中 `19 元件接线图1.dwg=12`。 |
+| 表格/背板表格进入独立高置信信源 | phase60 first `table_mapping=299`，覆盖背板表格和端子表头；phase60 second `table_mapping=176`，覆盖端子表头。 |
+| 端子图已有语义/延续/桥接分流 | phase60 second 端子页已有 `semantic_mapping=157`、`continuation=20`、`bridge_mapping=3`、`table_mapping=176`。 |
+| issue 可复核字段 | phase60 两套 `issues.parquet` 均包含 `filename / sheet_no / sheet_id / line_group_id / left_value / right_value / rule_id / confidence / rationale / evidence / evidence_refs / root_cause`。 |
+
+部分实现但仍需继续收敛：
+
+| 要求 | 当前状态 | 缺口 |
+|---|---|---|
+| 端子图以行锁定、列角色和代号提取为主 | 已有 terminal header table、semantic/continuation/bridge channels | phase60 second 仍有端子页 `ordinary_pair review=200`，其中大量是 `3-21n211` 被降成裸 `211` 后与行号组成 `21 -> 211`。 |
+| continuation 不应制造伪普通冲突 | 已有 `pair_kind=continuation` 且普通规则会旁路非 ordinary | 覆盖仍不完整，仍有部分单侧短数字留在 ordinary review。 |
+| 表格/端子边界 | 端子页内 `terminal_header_table` 已产出 `table_mapping` | second 没有独立 `TableExtractor` 路由页；这是分类口径差异，不阻塞“有效映射可审计”，但仍需在后续验收说明中讲清。 |
+
+并行只读复核结论：
+
+- terminal/continuation 复核认为当前不足以宣称端子语义列/continuation 完全满足 MVP，因为端子页 ordinary review 仍多，且存在派生 `n###` suffix ordinary。
+- route/table 复核认为 PageClassifier、Page Router、TableExtractor、ComponentDiagramExtractor 主链已有强证据；若继续开发，应只做残留 ordinary cleanup，不应重回大范围路由/UI/CLI。
+
+主线程裁决：
+
+**本轮只做“terminal structured endpoint ordinary bypass”窄切片。**
+
+理由：
+
+- 这直接对应任务书第 62 行“端子图不再套用普通回路图端点近邻策略”和第 930-934 行“非普通关系不能塞进 ordinary pair”。
+- 它不扩大候选阈值，不修改路由，不碰 UI，不用 issue 总数下降冒充成功。
+- 它只在存在 `terminal_header_table` 覆盖证据时，把已由结构化表格解释过的完整端子文本从裸 suffix ordinary review 中降级。
+
+实现与验证：
+
+- `page_extractors.py` 新增端子 route 后处理：若 ordinary pair 一侧选中 `3-21n211` 这类完整端子文本但 PairBuilder 只取裸 suffix，且该文本 ID 已被 `terminal_header_table` 映射覆盖，则标记为 `discard`、`ordinary_pair_eligible=False`、`covered_by_terminal_structured_endpoint=True`。
+- 没有表头覆盖证据的 synthetic row-lock strip 保持 `review`，避免把普通端子行证据直接吞掉。
+- `python -m pytest -q` -> `211 passed`。
+
+真实样本验证：
+
+- 第一套 fresh 输出：[phase62 first](/F:/workspace/XJToolkit/.tmp/phase62_terminal_structured_cover_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第一套 audit 输出：[phase62 first audit](/F:/workspace/XJToolkit/.tmp/phase62_terminal_structured_cover_first/audit)
+- first 端子页 ordinary review `104 -> 85`，被结构化覆盖降级 `19` 条；terminal ordinary low-confidence issues `66 -> 47`。
+- first `component_mapping=27`、`table_mapping=299` 不回退。
+- 第二套 fresh 输出：[phase62 second](/F:/workspace/XJToolkit/.tmp/phase62_terminal_structured_cover_second/2_2)
+- 第二套 audit 输出：[phase62 second audit](/F:/workspace/XJToolkit/.tmp/phase62_terminal_structured_cover_second/audit)
+- second 端子页 ordinary review `200 -> 87`，被结构化覆盖降级 `113` 条；terminal ordinary low-confidence issues `176 -> 63`。
+- second `component_mapping=20`、`table_mapping=176` 不回退。
+
+当前剩余最靠近任务书主链的缺口：
+
+- 端子页仍有普通行列角色 residual ordinary review，需要继续按列角色/行锁定收敛，而不是全局调分。
+- `strip_two_port_component` 的逗号外部端拆分仍未实现。
+- 最小验收第 19 章的“真实正确样本 + 隔离故障注入样本”仍需要作为最终验收闭环重跑，不能只靠当前真实样本和单测宣称完成。
