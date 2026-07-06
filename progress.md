@@ -1979,3 +1979,41 @@
 - Next recommended focus:
   - Refresh/fix the MVP acceptance suite around current structured relationship semantics and fault-injected artifacts.
   - Or address rule semantics for newly visible `component_mapping` many-to-one / branch relationships.
+
+## Session Update 2026-07-06 (Phase 50 start)
+- Started Phase 50 after commit `bc5937b`.
+- Spawned two read-only subagents:
+  - `Erdos`: acceptance suite vs phase63 structured relationship semantics.
+  - `Archimedes`: component_mapping many-to-one / one-to-many rule semantics after phase63.
+- Spawned worker `Rawls` for a bounded rules-only patch:
+  - write scope: `src/dwg_audit/audit/rules.py`, `tests/unit/test_pairs_and_rules.py`
+  - goal: keep component mappings visible in graph, but label strip two-port component branch/many-to-one review semantics more accurately.
+- Read-only acceptance audit conclusion:
+  - Current `mvp_minimum_suite` still uses old ordinary-pair naked-number golden for `S0024` terminal pages.
+  - Phase63 now represents those rows primarily as structured `table_mapping/pass` relations, so the fixture/spec is stale.
+  - `fault_injected` alias/artifacts still need a stable suite binding.
+  - Recommended next acceptance slice: extend acceptance matching to structured relation assertions (`pair_kind`, `status`, `pair_key` / evidence checks) and refresh the real subset fixtures.
+- Read-only rules audit conclusion:
+  - Phase63 first net issue increase is `+14`, but the actual change is `+29` component_mapping graph review issues and `-15` ordinary missing-side issues.
+  - All added issues are `severity=review`, `pair_kind=component_mapping`, `root_cause=rule_too_strict`.
+  - This is a rule semantics/explanation gap, not an extractor regression.
+
+## Session Update 2026-07-06 (Phase 50 rule semantics complete)
+- Completed the component branch rule semantics slice via worker `Rawls`.
+- Implementation:
+  - `R-ONE-TO-MANY` now labels same-sheet `strip_two_port_component` component mappings as `one_to_many_classification=component_branch_review`.
+  - `R-MANY-TO-ONE` now labels the same narrow relation class as `many_to_one_classification=component_branch_review`.
+  - The issue remains `review`; `component_mapping` remains in the high-confidence project graph.
+  - The change is explanation/triage semantics only, not extraction or noise suppression.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or component_mapping"` -> `9 passed`
+  - `python -m pytest -q` -> `216 passed`
+- Real-sample verification:
+  - First rerun: `.tmp/phase64_component_branch_rules_first/audit`
+  - First `issue_count=458`, same as phase63.
+  - First `component_branch_review=27`, split as `R-ONE-TO-MANY=16` and `R-MANY-TO-ONE=11`.
+  - The remaining two many-to-one component issues did not pass the all-strip-two-port safety gate, so they remain generic review.
+  - Second rerun: `.tmp/phase64_component_branch_rules_second/audit`
+  - Second `issue_count=471`, same as phase63; `component_branch_review=0`.
+- Next recommended focus:
+  - Acceptance suite structured relation schema/fixture refresh.

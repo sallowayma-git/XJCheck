@@ -1005,6 +1005,122 @@ def test_rules_emit_one_to_many_review_for_same_sheet_multi_target() -> None:
     assert review.related_pair_ids == ["P2"]
     assert review.evidence["conflicting_values"] == ["201", "202"]
     assert review.evidence["one_to_many_classification"] == "review"
+    assert "component_branch_review" not in review.evidence.values()
+
+
+def test_rules_emit_one_to_many_component_branch_review_for_strip_two_port_component() -> None:
+    pairs = [
+        Pair(
+            "P1",
+            "G1",
+            "S1",
+            "F1",
+            "PC1",
+            "5KLP10-1",
+            "5KLP9-1",
+            0.97,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "a.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S1",
+            "F1",
+            "PC2",
+            "5KLP10-1",
+            "5KLP8-1",
+            0.96,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "a.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+            },
+            pair_kind="component_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["COMPONENT"]),
+        LineGroup("G2", "S1", "F1", 20, 0, 30, 0, 10, 0.9, ["L2"], ["COMPONENT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "元件接线图", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert review.severity == "review"
+    assert review.title == "组件端子分支映射待复核"
+    assert "冲突" not in review.explanation
+    assert "冲突" not in review.recommended_action
+    assert review.related_pair_ids == ["P2"]
+    assert review.evidence["conflicting_values"] == ["5KLP8-1", "5KLP9-1"]
+    assert review.evidence["one_to_many_classification"] == "component_branch_review"
+    assert review.evidence["component_submode"] == "strip_two_port_component"
+
+
+def test_rules_keep_regular_component_mapping_one_to_many_as_review() -> None:
+    pairs = [
+        Pair(
+            "P1",
+            "G1",
+            "S1",
+            "F1",
+            "PC1",
+            "5KLP10-1",
+            "5KLP9-1",
+            0.97,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {"filename": "a.dwg", "source": "component_mapping"},
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S1",
+            "F1",
+            "PC2",
+            "5KLP10-1",
+            "5KLP8-1",
+            0.96,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {"filename": "a.dwg", "source": "component_mapping"},
+            pair_kind="component_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["COMPONENT"]),
+        LineGroup("G2", "S1", "F1", 20, 0, 30, 0, 10, 0.9, ["L2"], ["COMPONENT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "元件接线图", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert review.severity == "review"
+    assert review.title == "一对多待复核"
+    assert review.evidence["one_to_many_classification"] == "review"
 
 
 def test_rules_emit_one_to_many_branch_when_left_value_allowlisted() -> None:
@@ -1167,10 +1283,76 @@ def test_rules_detect_many_to_one_conflict() -> None:
 
     conflict = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
     assert conflict.severity == "review"
+    assert conflict.title == "多对一配对"
     assert conflict.right_value == "201"
     assert conflict.related_pair_ids == ["P2"]
     assert conflict.evidence["conflicting_values"] == ["101", "102"]
+    assert "many_to_one_classification" not in conflict.evidence
     assert {ref["filename"] for ref in conflict.evidence_refs} == {"a.dwg", "b.dwg"}
+
+
+def test_rules_emit_many_to_one_component_branch_review_for_strip_two_port_component() -> None:
+    pairs = [
+        Pair(
+            "P1",
+            "G1",
+            "S1",
+            "F1",
+            "PC1",
+            "5KLP10-1",
+            "5KLP9-1",
+            0.97,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "a.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "P2",
+            "G2",
+            "S1",
+            "F1",
+            "PC2",
+            "5KLP8-1",
+            "5KLP9-1",
+            0.96,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "a.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+            },
+            pair_kind="component_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["COMPONENT"]),
+        LineGroup("G2", "S1", "F1", 20, 0, 30, 0, 10, 0.9, ["L2"], ["COMPONENT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "元件接线图", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert review.severity == "review"
+    assert review.title == "组件端子多入口映射待复核"
+    assert "冲突" not in review.explanation
+    assert "冲突" not in review.recommended_action
+    assert review.related_pair_ids == ["P2"]
+    assert review.evidence["conflicting_values"] == ["5KLP10-1", "5KLP8-1"]
+    assert review.evidence["many_to_one_classification"] == "component_branch_review"
+    assert review.evidence["component_submode"] == "strip_two_port_component"
 
 
 def test_rules_cluster_duplicate_missing_reciprocal_and_keep_duplicate_pair_issue() -> None:

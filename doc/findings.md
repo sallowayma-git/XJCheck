@@ -7174,3 +7174,41 @@ route status 仍稳定为：
 - 下一步不应继续扩 CLI；最近的两条主线候选是：
   - 验收红线收口：刷新 acceptance suite，使其以结构化关系口径验证真实样本，并固定 fault-injected artifacts。
   - 规则语义收口：解释新增 `component_mapping` 后暴露的 many-to-one / branch 关系，避免真实正确图纸产生 hard error 洪峰。
+
+## 102. 2026-07-06 组件分支 / 多入口规则语义：不隐藏关系，只修正 review 解释
+
+phase63 之后 first issue 从 `444` 到 `458`，表面上是 `+14`。只读子代理与主线程共同拆分后确认，真实变化是：
+
+- 新增 `29` 条 `component_mapping` 图关系 review issue。
+- 同时消失 `15` 条原先的 `ordinary_pair / R-PAIR-MISSING-SIDE / extractor_missing`。
+- 新增项全部是 `pair_kind=component_mapping`、`severity=review`、`root_cause=rule_too_strict`。
+- 新增规则分布为 `R-ONE-TO-MANY=16`、`R-MANY-TO-ONE=13`。
+
+这说明逗号拆分没有制造 hard error，而是把原先缺边症状提升成结构化组件映射后，让项目级图规则看到了组件端子分支 / 多入口关系。正确动作不是把 `component_mapping` 从高置信图里移除，也不是回滚抽取，而是把规则解释从“像冲突”改成“同页组件邻接结构待复核”。
+
+本轮完成的最小规则语义修正：
+
+- `R-ONE-TO-MANY`：当同页所有 linked pairs 都是 `pair_kind=component_mapping` 且 `component_submode=strip_two_port_component` 时，保留 `review`，但写入 `one_to_many_classification=component_branch_review`，标题改为“组件端子分支映射待复核”。
+- `R-MANY-TO-ONE`：同样条件下写入 `many_to_one_classification=component_branch_review`，标题改为“组件端子多入口映射待复核”。
+- 普通 `ordinary_pair`、普通 `component_mapping`、跨页关系与表格关系不走这个 specialized 文案。
+- `component_mapping` 继续作为 high-confidence graph input，不隐藏 issue。
+
+测试验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or component_mapping"` -> `9 passed`
+- `python -m pytest -q` -> `216 passed`
+
+真实样本验证：
+
+- first audit rerun：[phase64 first audit](/F:/workspace/XJToolkit/.tmp/phase64_component_branch_rules_first/audit)
+- first `issue_count=458`，与 phase63 一致。
+- first 中 `component_branch_review=27`，其中 `R-ONE-TO-MANY=16`、`R-MANY-TO-ONE=11`。
+- 剩余 2 条 many-to-one 没进 specialized 分类，是因为 linked pair 集合不是全员 `strip_two_port_component`，安全闸保持保守。
+- second audit rerun：[phase64 second audit](/F:/workspace/XJToolkit/.tmp/phase64_component_branch_rules_second/audit)
+- second `issue_count=471`，与 phase63 一致，`component_branch_review=0`，说明本轮没有影响第二套无逗号 strip 分支的关系图。
+
+当前剩余主线：
+
+- `mvp_minimum_suite` 仍需要刷新为结构化关系验收口径。当前失败主要来自旧 spec 仍断言 `S0024` 的裸数字 `ordinary_pair`，而当前系统已把这些关系表达为 `table_mapping/pass` 或结构化 review。
+- `fault_injected` artifacts / alias 仍需固定到 suite，保证内部 harness 可稳定复跑。
+- first 真实样本仍有一批 `R-CROSS-PAGE-CONFLICT` 与 `insufficient_evidence`，不能在最终验收里继续表现为 hard error 洪峰。

@@ -455,6 +455,27 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
             continue
 
         first = linked_pairs[0]
+        if _is_same_sheet_strip_two_port_component_mapping(linked_pairs):
+            issues.append(
+                context.issue_factory.build(
+                    "R-ONE-TO-MANY",
+                    "review",
+                    pair=first,
+                    message=f"Left value {left_value} maps to multiple strip two-port component endpoints on the same page.",
+                    title="组件端子分支映射待复核",
+                    explanation="同页 strip_two_port_component 组件映射中，同一组件端子关联多个邻接端点，更可能表示组件分支/邻接关系，需要按组件上下文复核。",
+                    recommended_action="核对组件本体、端子标注和相邻连接关系，确认这些端点是否属于同一组件分支映射。",
+                    related_pairs=linked_pairs,
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "component_branch_review",
+                        "component_submode": "strip_two_port_component",
+                    },
+                )
+            )
+            continue
+
         if left_value in branch_allowlist:
             issues.append(
                 context.issue_factory.build(
@@ -502,6 +523,28 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
             first = linked_pairs[0]
+            if _is_same_sheet_strip_two_port_component_mapping(linked_pairs):
+                sheet_ids = {pair.sheet_id for pair in linked_pairs}
+                issues.append(
+                    context.issue_factory.build(
+                        "R-MANY-TO-ONE",
+                        "review",
+                        pair=first,
+                        message=f"Right value {right_value} receives multiple strip two-port component endpoints on the same page.",
+                        title="组件端子多入口映射待复核",
+                        explanation="同页 strip_two_port_component 组件映射中，多个组件端子指向同一邻接端点，可能是组件端子多入口/邻接映射，需要按组件上下文复核。",
+                        recommended_action="核对组件本体、端子标注和相邻连接关系，确认这些入口是否属于同一组件邻接映射。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(lefts),
+                            "sheet_ids": sorted(sheet_ids),
+                            "many_to_one_classification": "component_branch_review",
+                            "component_submode": "strip_two_port_component",
+                        },
+                    )
+                )
+                continue
+
             issues.append(
                 context.issue_factory.build(
                     "R-MANY-TO-ONE",
@@ -708,6 +751,18 @@ def _graph_maps(
 def _one_to_many_branch_left_values(config: dict) -> set[str]:
     configured = config.get("rules", {}).get("one_to_many_branch_left_values", [])
     return {str(value) for value in configured if value is not None}
+
+
+def _is_same_sheet_strip_two_port_component_mapping(linked_pairs: list[Pair]) -> bool:
+    if not linked_pairs:
+        return False
+    if len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return False
+    return all(
+        pair.pair_kind == "component_mapping"
+        and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
+        for pair in linked_pairs
+    )
 
 
 def _semantic_mapping_terminal_value(pair: Pair) -> str | None:
