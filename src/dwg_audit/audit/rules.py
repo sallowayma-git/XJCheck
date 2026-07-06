@@ -578,10 +578,10 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
                     "R-ONE-TO-MANY",
                     "review",
                     pair=first,
-                    message=f"Terminal header table logical endpoint {left_value} maps to multiple terminal columns on the same row.",
-                    title="端子表左右列映射待复核",
-                    explanation="同页 terminal_header_table 表格映射中，同一表头逻辑端分别关联左列和右列端子，更可能是端子表同一行的多端列语义，需要按表格行复核。",
-                    recommended_action="核对端子表表头、行号和左右端子列，确认这些端点是否属于同一表格行的多端映射。",
+                    message=f"Terminal header table logical endpoint {left_value} maps to multiple terminal endpoints on the same row.",
+                    title="端子表多端点行映射待复核",
+                    explanation="同页 terminal_header_table 表格映射中，同一表头逻辑端在同一行关联多个端子文本，更可能是端子表同一行的多端点语义，需要按表格行复核。",
+                    recommended_action="核对端子表表头、行号、端子列和端子文本坐标，确认这些端点是否属于同一表格行的多端映射。",
                     related_pairs=linked_pairs,
                     extra={
                         "conflicting_values": sorted(rights),
@@ -1339,12 +1339,15 @@ def _terminal_header_table_multi_endpoint_info(
         return None
 
     endpoint_columns: set[str] = set()
+    endpoint_values: set[str] = set()
     for mapping in mappings:
         if mapping.get("left_value"):
             endpoint_columns.add("left_endpoint")
+            endpoint_values.add(str(mapping.get("left_value")))
         if mapping.get("right_value"):
             endpoint_columns.add("right_endpoint")
-    if not {"left_endpoint", "right_endpoint"}.issubset(endpoint_columns):
+            endpoint_values.add(str(mapping.get("right_value")))
+    if len(endpoint_values) < 2:
         return None
 
     result: dict[str, object] = {
@@ -1353,6 +1356,7 @@ def _terminal_header_table_multi_endpoint_info(
         "logical_endpoint": next(iter(logical_endpoints)),
         "row_number": next(iter(row_numbers)),
         "endpoint_columns": sorted(endpoint_columns),
+        "terminal_header_table_endpoint_values": sorted(endpoint_values),
     }
     if len(header_prefixes) == 1:
         result["header_prefix"] = next(iter(header_prefixes))

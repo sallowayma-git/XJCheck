@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 85
+Phase 86
 
 ## Phases
 
@@ -1188,6 +1188,21 @@ Phase 85
 - [ ] 下一刀候选收缩为：terminal_header_table interval / multi-endpoint default display layer；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
+### Phase 86: Terminal Header Same-Side Multi-Endpoint Review Layering
+- [x] 只读恢复并确认当前 HEAD 为 `f0f7ab8`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程实样核查一致确认：下一刀不重做 Phase81 的 `R-MANY-TO-ONE / terminal_header_table_shared_endpoint_review` 区间证据，而是收口 `R-ONE-TO-MANY / terminal_header_table_multi_endpoint_review` 的默认展示分层。
+- [x] 审计样本：second `S0024 / 24 右侧端子图2.dwg` 的 `1-21CD11 -> 1-21n508 / 1-21n512`、second `S0022 / 22 左侧端子图2.dwg` 的 `3-21WD2 -> 3-21n608 / 3-21GD7` 均已是 `terminal_header_table` table mapping，但旧规则因只接受 left+right 两列并存而落入 generic `one_to_many_classification=review`。
+- [x] 实现目标：只在 rules/display 语义层把同一表头、同一行、同一 logical endpoint 的多个 terminal endpoint 归入 `terminal_header_table_multi_endpoint_review`；保留 `endpoint_columns` 区分同侧或左右列，并在聚合证据中补齐 `aggregated_terminal_header_table_endpoint_values`。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table_multi_endpoint or terminal_header_table_shared_endpoint or terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q` -> `289 passed`
+- [x] Fresh rules-only verification：
+  - second `.tmp/phase86_terminal_header_multi_endpoint_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`；`I0017 / 3-21WD2` now title `端子表多端点行映射待复核`, `endpoint_columns=["right_endpoint"]`, `terminal_header_table_endpoint_values=["3-21GD7","3-21n608"]`；`I0060/I0061` row `10/11` 聚合并保留 `aggregated_terminal_header_table_endpoint_values=["1-21n403","1-21n508","1-21n511","1-21n512"]`。
+  - first `.tmp/phase86_terminal_header_multi_endpoint_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；terminal header generic one-to-many reviews also reduced to `0`。
+- [ ] 下一刀候选收缩为：terminal_header_table large row-band range display / report projection；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -1200,3 +1215,4 @@ Phase 85
 | `run-audit` 写 `issues.parquet` 时 `ArrowInvalid` | 新增 `row_numbers` evidence 使用整数列表，与既有字符串行号 evidence 混合 | 将新 evidence 的 `row_numbers` 统一为字符串列表并重跑 targeted/full/fresh audit 通过 |
 | terminal-header aggregation fresh first audit `TypeError: '<' not supported between instances of 'str' and 'int'` | natural sort key 同时比较数字开头端点和非数字开头字符串 | 将 `_natural_sort_key()` 改为稳定 tuple key 后重跑 targeted/full/fresh audit 通过 |
 | Phase71 issue summary helper `KeyError: 'filename'` | 将 `issues.parquet` 与 `pages.parquet` merge 后直接按 `filename` groupby | 改用显式 `filename2/route_target2/sheet_category2` 映射列重跑统计 |
+| `python -m black` unavailable | Phase86 末尾想机械格式化 3 个 Python 文件 | 环境缺少 `black`；改为手动按现有风格折行，不重复该命令 |

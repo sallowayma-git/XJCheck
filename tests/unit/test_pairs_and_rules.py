@@ -1086,7 +1086,11 @@ def test_rules_emit_one_to_many_terminal_header_table_multi_endpoint_review() ->
 
     review = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
     assert review.severity == "review"
-    assert review.title == "端子表左右列映射待复核"
+    assert review.title == "端子表多端点行映射待复核"
+    assert (
+        review.summary
+        == "Terminal header table logical endpoint 1-21QD1 maps to multiple terminal endpoints on the same row."
+    )
     assert review.related_pair_ids == ["PTMR0043"]
     assert review.evidence["conflicting_values"] == ["1-21n116", "1-21n524"]
     assert (
@@ -1099,6 +1103,95 @@ def test_rules_emit_one_to_many_terminal_header_table_multi_endpoint_review() ->
     assert review.evidence["header_prefix"] == "1-21QD"
     assert review.evidence["row_number"] == "1"
     assert review.evidence["endpoint_columns"] == ["left_endpoint", "right_endpoint"]
+    assert review.evidence["terminal_header_table_endpoint_values"] == ["1-21n116", "1-21n524"]
+
+
+def test_rules_emit_one_to_many_terminal_header_table_same_side_multi_endpoint_review() -> None:
+    pairs = [
+        Pair(
+            "PTMR0159",
+            None,
+            "S1",
+            "F1",
+            "PC1",
+            "1-21CD11",
+            "1-21n508",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "filename": "24 右侧端子图2.dwg",
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21CD",
+                    "row_number": 11,
+                    "logical_endpoint": "1-21CD11",
+                    "left_value": None,
+                    "right_value": "1-21n508",
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PTMR0160",
+            None,
+            "S1",
+            "F1",
+            "PC2",
+            "1-21CD11",
+            "1-21n512",
+            0.95,
+            "pass",
+            "table mapping",
+            [],
+            "high",
+            {
+                "filename": "24 右侧端子图2.dwg",
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "header_prefix": "1-21CD",
+                    "row_number": 11,
+                    "logical_endpoint": "1-21CD11",
+                    "left_value": None,
+                    "right_value": "1-21n512",
+                    "row_number_sequence_valid": True,
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "24 右侧端子图2.dwg",
+            24,
+            "24",
+            "RIGHT TERMINAL 2",
+            "端子图",
+            "primary",
+            "filename",
+            True,
+        ),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert review.severity == "review"
+    assert review.title == "端子表多端点行映射待复核"
+    assert review.evidence["one_to_many_classification"] == "terminal_header_table_multi_endpoint_review"
+    assert review.evidence["terminal_header_table_classification"] == "multi_endpoint_row_review"
+    assert review.evidence["logical_endpoint"] == "1-21CD11"
+    assert review.evidence["header_prefix"] == "1-21CD"
+    assert review.evidence["row_number"] == "11"
+    assert review.evidence["endpoint_columns"] == ["right_endpoint"]
+    assert review.evidence["terminal_header_table_endpoint_values"] == ["1-21n508", "1-21n512"]
 
 
 def test_rules_cluster_terminal_header_table_multi_endpoint_reviews_by_header() -> None:
@@ -1221,12 +1314,18 @@ def test_rules_cluster_terminal_header_table_multi_endpoint_reviews_by_header() 
     reviews = [item for item in issues if item.rule_id == "R-ONE-TO-MANY"]
     assert len(reviews) == 1
     review = reviews[0]
-    assert review.title == "端子表左右列映射待复核"
+    assert review.title == "端子表多端点行映射待复核"
     assert review.evidence["cluster_size"] == 2
     assert review.evidence["terminal_header_table_aggregate_review"] is True
     assert review.evidence["aggregated_logical_endpoints"] == ["1-21QD1", "1-21QD2"]
     assert review.evidence["aggregated_row_numbers"] == ["1", "2"]
     assert review.evidence["aggregated_conflicting_values"] == [
+        "1-21n116",
+        "1-21n117",
+        "1-21n524",
+        "1-21n525",
+    ]
+    assert review.evidence["aggregated_terminal_header_table_endpoint_values"] == [
         "1-21n116",
         "1-21n117",
         "1-21n524",

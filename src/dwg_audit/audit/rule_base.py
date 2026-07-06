@@ -333,6 +333,18 @@ def _merge_terminal_header_table_cluster_evidence(
             + _as_list(duplicate_evidence.get("aggregated_conflicting_values"))
             + _as_list(duplicate_evidence.get("conflicting_values"))
         )
+        primary_evidence["aggregated_terminal_header_table_endpoint_values"] = (
+            _merge_sorted_values(
+                _as_list(
+                    primary_evidence.get("aggregated_terminal_header_table_endpoint_values")
+                )
+                + _as_list(primary_evidence.get("terminal_header_table_endpoint_values"))
+                + _as_list(
+                    duplicate_evidence.get("aggregated_terminal_header_table_endpoint_values")
+                )
+                + _as_list(duplicate_evidence.get("terminal_header_table_endpoint_values"))
+            )
+        )
         return
 
     if (

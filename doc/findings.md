@@ -9534,3 +9534,45 @@ second 非回归证据：
 
 - Phase85 是 rules/display 语义分层：让纯表格共享端点不再被默认描述成 component+table 汇合。
 - 下一轮候选收缩为：terminal_header_table interval / multi-endpoint default display layer；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 139. 2026-07-07 terminal_header_table：同侧多端点行映射不再落入 generic 一对多
+
+只读审计确认，Phase85 后剩余 terminal_header_table 缺口不是 Phase81 已闭环的 shared endpoint interval，也不是 TableExtractor 抽取缺失。真实 second-set 产物中，`terminal_header_table` table mapping 已经存在，但 `R-ONE-TO-MANY` 的分类 helper 只接受同一行同时出现 `left_endpoint` 与 `right_endpoint`，导致同侧多个端子文本仍被写成普通 `一对多待复核`。
+
+典型样本：
+
+- second `S0024 / 24 右侧端子图2.dwg`，旧 `I0061`：`1-21CD11 -> 1-21n508` 与 `1-21CD11 -> 1-21n512`，两条 evidence 都是 `mapping_mode=terminal_header_table`、`row_number=11`、`right_endpoint`。
+- second `S0022 / 22 左侧端子图2.dwg`，旧 `I0017`：`3-21WD2 -> 3-21n608` 与 `3-21WD2 -> 3-21GD7`，同样是同一表头、同一行、同侧多个 terminal endpoint。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 放宽 `_terminal_header_table_multi_endpoint_info()`：只要同一 `terminal_header_table` 表头逻辑端、同一行号对应多个 terminal endpoint values，就归入 `terminal_header_table_multi_endpoint_review`，不再强制 `left_endpoint + right_endpoint` 两列同时存在。
+- 端子表一对多 issue 文案改为 `端子表多端点行映射待复核`，说明同一行多个端子文本，而不是只写“左右列”。
+- 新增 `terminal_header_table_endpoint_values` 证据；在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 的 row-band 聚合中补 `aggregated_terminal_header_table_endpoint_values`，避免聚合后只保留 primary 行的 endpoint values。
+- 不改 `TableExtractor`、PairBuilder、graph input、page classifier/router、report/UI 产品表面，也不隐藏或移除 `table_mapping`。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table_multi_endpoint or terminal_header_table_shared_endpoint or terminal_header_table"` -> `6 passed, 59 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+- `python -m pytest -q` -> `289 passed`
+
+fresh rules-only 证据：
+
+- second `.tmp/phase86_terminal_header_multi_endpoint_second_audit`
+- `pair_count=1462`，pair kind 分布不变。
+- `issue_count=22`，相对 Phase85 的 `23` 只来自连续 terminal-header row-band review 聚合。
+- `generic_one_to_many_review_count=0`。
+- `I0017 / 3-21WD2` 现在为 `端子表多端点行映射待复核`，`endpoint_columns=["right_endpoint"]`，`terminal_header_table_endpoint_values=["3-21GD7","3-21n608"]`。
+- `I0060/I0061` 的 row `10/11` 聚合为一个 terminal-header row-band review，保留 `aggregated_terminal_header_table_endpoint_values=["1-21n403","1-21n508","1-21n511","1-21n512"]`。
+
+first 非回归证据：
+
+- first `.tmp/phase86_terminal_header_multi_endpoint_first_audit`
+- `pair_count=1581`，pair kind 分布不变。
+- `issue_count=131`，terminal-header generic one-to-many reviews 同样降为 `0`。
+
+裁决：
+
+- Phase86 是 terminal_header_table rules/display 分类边界收口：同侧多端点行不再被写成普通一对多。
+- 下一轮候选收缩为：terminal_header_table large row-band range display / report projection；packaged sidecar/exe smoke 仍为独立产品切片。

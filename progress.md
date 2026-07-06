@@ -3141,3 +3141,34 @@
 - Next candidates:
   - terminal_header_table interval / multi-endpoint default display layer.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 86 terminal header same-side multi-endpoint review layering)
+- Started after commit `f0f7ab8`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned two read-only explorers for taskbook alignment and terminal-header real-sample mining. Both concluded the next rules-mainline slice should target `R-ONE-TO-MANY / terminal_header_table_multi_endpoint_review`, not packaged sidecar smoke and not Phase81 shared-endpoint interval rework.
+- Read-only audit conclusions:
+  - Phase81 already closed `I0062 / R-MANY-TO-ONE / terminal_header_table_shared_endpoint_review` interval display for `1-21GD1..21` and `1-21QD26..46` sharing `1-21n210..230`.
+  - Remaining P0 samples were same-side terminal-header multi-endpoint rows that still fell through to generic review:
+    - second `S0024 / 24 右侧端子图2.dwg`, `I0061`, `1-21CD11 -> 1-21n508 / 1-21n512`, both `right_endpoint`.
+    - second `S0022 / 22 左侧端子图2.dwg`, `I0017`, `3-21WD2 -> 3-21n608 / 3-21GD7`, both `right_endpoint`.
+  - The cause was a rules helper requiring both `left_endpoint` and `right_endpoint`; findings already had `table_mapping / terminal_header_table` evidence, so this was not a TableExtractor miss.
+- Implementation:
+  - Relaxed `_terminal_header_table_multi_endpoint_info()` in `rules.py` to classify same-row terminal-header rows when a single logical endpoint maps to multiple terminal endpoint values, regardless of whether the endpoint texts sit on one side or both sides.
+  - Updated terminal-header one-to-many issue wording from left/right-column-specific to `端子表多端点行映射待复核`.
+  - Added `terminal_header_table_endpoint_values` evidence and merged it into `aggregated_terminal_header_table_endpoint_values` for row-band clusters in `rule_base.py`.
+  - Added unit coverage for same-side `right_endpoint` multi-endpoint rows and strengthened aggregate evidence assertions.
+  - Did not touch `table_extractor.py`, PairBuilder, graph input, page routing/classification, report/UI product surface, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table_multi_endpoint or terminal_header_table_shared_endpoint or terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q` -> `289 passed`
+- Fresh rules-only verification:
+  - second `.tmp/phase86_terminal_header_multi_endpoint_second_audit`: `pair_count=1462`, `issue_count=22`; pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `semantic_mapping=183`, `continuation=204`, `component_mapping=84`, `bridge_mapping=3`, `table_mapping=174`.
+  - second `generic_one_to_many_review_count=0`; `I0017 / 3-21WD2` is now `端子表多端点行映射待复核` with `endpoint_columns=["right_endpoint"]` and `terminal_header_table_endpoint_values=["3-21GD7","3-21n608"]`.
+  - second `I0060/I0061` row `10/11` now forms one terminal-header row-band review with `aggregated_terminal_header_table_endpoint_values=["1-21n403","1-21n508","1-21n511","1-21n512"]`.
+  - first `.tmp/phase86_terminal_header_multi_endpoint_first_audit`: `pair_count=1581`, `issue_count=131`; pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`; terminal-header generic one-to-many reviews reduced to `0`.
+- Next candidates:
+  - terminal_header_table large row-band range display / report projection.
+  - packaged sidecar/exe smoke only as a separate product slice.
