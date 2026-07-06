@@ -1165,6 +1165,81 @@ def test_rules_emit_one_to_many_component_branch_review_for_strip_two_port_compo
     assert review.evidence["component_submode"] == "strip_two_port_component"
 
 
+def test_rules_emit_one_to_many_component_split_endpoint_group_review() -> None:
+    pairs = [
+        Pair(
+            "PCM0001",
+            "GC0048",
+            "S1",
+            "F1",
+            "PC1",
+            "3-2KLP1-1",
+            "3-2QD2",
+            0.97,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "22 元件接线图2.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+                "logical_endpoint": "3-2KLP1-1",
+                "external_endpoint": "3-2QD2",
+                "external_endpoint_raw": "3-2QD2,3-2KLP3-1",
+                "external_endpoint_split": "3-2QD2",
+                "external_endpoint_text_id": "T3623",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "PCM0002",
+            "GC0048",
+            "S1",
+            "F1",
+            "PC2",
+            "3-2KLP1-1",
+            "3-2KLP3-1",
+            0.96,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "22 元件接线图2.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+                "logical_endpoint": "3-2KLP1-1",
+                "external_endpoint": "3-2KLP3-1",
+                "external_endpoint_raw": "3-2QD2,3-2KLP3-1",
+                "external_endpoint_split": "3-2KLP3-1",
+                "external_endpoint_text_id": "T3623",
+            },
+            pair_kind="component_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("GC0048", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["COMPONENT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "22 元件接线图2.dwg", 22, "22", "元件接线图", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-ONE-TO-MANY")
+    assert review.severity == "review"
+    assert review.title == "组件逗号端点拆分待复核"
+    assert review.related_pair_ids == ["PCM0002"]
+    assert review.evidence["conflicting_values"] == ["3-2KLP3-1", "3-2QD2"]
+    assert review.evidence["one_to_many_classification"] == "component_split_endpoint_group_review"
+    assert review.evidence["component_submode"] == "strip_two_port_component"
+    assert review.evidence["component_branch_kind"] == "split_endpoint_group"
+    assert review.evidence["external_endpoint_text_ids"] == ["T3623"]
+    assert review.evidence["external_endpoint_raw_values"] == ["3-2QD2,3-2KLP3-1"]
+    assert review.evidence["external_endpoint_splits"] == ["3-2KLP3-1", "3-2QD2"]
+
+
 def test_rules_keep_regular_component_mapping_one_to_many_as_review() -> None:
     pairs = [
         Pair(
@@ -1546,6 +1621,84 @@ def test_rules_emit_many_to_one_component_branch_review_for_strip_two_port_compo
     assert review.evidence["conflicting_values"] == ["5KLP10-1", "5KLP8-1"]
     assert review.evidence["many_to_one_classification"] == "component_branch_review"
     assert review.evidence["component_submode"] == "strip_two_port_component"
+
+
+def test_rules_emit_many_to_one_component_split_endpoint_group_review() -> None:
+    pairs = [
+        Pair(
+            "PCM0002",
+            "GC0048",
+            "S1",
+            "F1",
+            "PC1",
+            "3-2KLP1-1",
+            "3-2KLP3-1",
+            0.97,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "22 元件接线图2.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+                "logical_endpoint": "3-2KLP1-1",
+                "external_endpoint": "3-2KLP3-1",
+                "external_endpoint_raw": "3-2QD2,3-2KLP3-1",
+                "external_endpoint_split": "3-2KLP3-1",
+                "external_endpoint_text_id": "T3623",
+            },
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "PCM0073",
+            "GC0137",
+            "S2",
+            "F2",
+            "PC2",
+            "3-2KLP5-1",
+            "3-2KLP3-1",
+            0.96,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "filename": "23 元件接线图3.dwg",
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+                "logical_endpoint": "3-2KLP5-1",
+                "external_endpoint": "3-2KLP3-1",
+                "external_endpoint_raw": "3-2KLP3-1,3-2KLP4-1",
+                "external_endpoint_split": "3-2KLP3-1",
+                "external_endpoint_text_id": "T3855",
+            },
+            pair_kind="component_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("GC0048", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["COMPONENT"]),
+        LineGroup("GC0137", "S2", "F2", 20, 0, 30, 0, 10, 0.9, ["L2"], ["COMPONENT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "22 元件接线图2.dwg", 22, "22", "元件接线图", "元件接线图", "supplemental", "filename", True),
+        SheetRecord("S2", "F2", "23 元件接线图3.dwg", 23, "23", "元件接线图", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    review = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
+    assert review.severity == "review"
+    assert review.title == "组件逗号端点邻接待复核"
+    assert review.related_pair_ids == ["PCM0073"]
+    assert review.evidence["conflicting_values"] == ["3-2KLP1-1", "3-2KLP5-1"]
+    assert review.evidence["many_to_one_classification"] == "component_split_endpoint_group_review"
+    assert review.evidence["component_submode"] == "strip_two_port_component"
+    assert review.evidence["component_branch_kind"] == "split_endpoint_group"
+    assert review.evidence["sheet_ids"] == ["S1", "S2"]
+    assert review.evidence["shared_endpoint"] == "3-2KLP3-1"
+    assert review.evidence["external_endpoint_text_ids"] == ["T3623", "T3855"]
+    assert review.evidence["external_endpoint_splits"] == ["3-2KLP3-1"]
 
 
 def test_rules_cluster_duplicate_missing_reciprocal_and_keep_duplicate_pair_issue() -> None:

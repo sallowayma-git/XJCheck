@@ -2154,6 +2154,40 @@
   - `inline KLP 116 residual suppression`
   - `backplate/component mapping rules semantics`
 
+## Session Update 2026-07-07 (Phase 62 component split endpoint rules semantics)
+- Started after commit `7fb59b9`.
+- Read-only recovery:
+  - Ran `planning-with-files` catchup; it reported unsynced context from the previous working run and recommended checking diff/stat plus planning files.
+  - Read `task_plan.md`, `progress.md`, `doc/findings.md`, `doc/任务书.md`, and `git status --short`.
+  - Current worktree before documentation updates had rules/test changes plus external/concurrent `doc/任务书.md`, `doc/page_findings/`, and `doc/page_task_queue.md`.
+  - Read-only audit found the old inline KLP 116 backlog is now stale as an active implementation slice: representative KLP 116 rows already pass as `wire_component_mapping`.
+- Implementation:
+  - Added a strip-two-port split endpoint detector in `rules.py` for `component_mapping` pairs with `component_submode=strip_two_port_component` and comma-derived `external_endpoint_raw` / `external_endpoint_split` evidence.
+  - `R-ONE-TO-MANY` now emits title `组件逗号端点拆分待复核` with `one_to_many_classification=component_split_endpoint_group_review` when multiple endpoints come from the same raw comma text.
+  - `R-MANY-TO-ONE` now emits title `组件逗号端点邻接待复核` with `many_to_one_classification=component_split_endpoint_group_review` when shared endpoints are adjacent through comma split groups, including cross component pages.
+  - Added focused rules unit tests for one-to-many and many-to-one split endpoint group reviews.
+  - No extractor, pair generation, acceptance fixture, CLI/UI, or graph relationship behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or component_branch or split_endpoint or backplate or terminal_header"` -> `11 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `48 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `236 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase76_component_split_rules_first/...`: `pair_count=1550`, `issue_count=311`, pair kinds unchanged (`ordinary_pair=800`, `component_mapping=138`, `table_mapping=299`, `wire_component_mapping=32`, `continuation=175`, `semantic_mapping=103`, `bridge_mapping=3`).
+  - first rule counts unchanged; only classification/title changed for split endpoint reviews: `R-ONE-TO-MANY` has `component_split_endpoint_group_review=16`, `R-MANY-TO-ONE` has `component_split_endpoint_group_review=12`.
+  - Target issues: `I0226` is now `组件逗号端点拆分待复核` with `one_to_many_classification=component_split_endpoint_group_review`; `I0270` is now `组件逗号端点邻接待复核` with `many_to_one_classification=component_split_endpoint_group_review`.
+  - Component mappings remain visible and passing, including `PCM0001 3-2KLP1-1 -> 3-2QD2`, `PCM0002 3-2KLP1-1 -> 3-2KLP3-1`, `PCM0003 3-2KLP1-2 -> 3-2n116`, and `PCM0039 1-2KLP1-2 -> 1-2n116`.
+  - second fresh `.tmp/phase76_component_split_rules_second/2_2`: `pair_count=1460`, `issue_count=188`, pair kinds unchanged (`ordinary_pair=674`, `wire_component_mapping=168`, `component_mapping=82`, `table_mapping=174`, `continuation=202`, `semantic_mapping=157`, `bridge_mapping=3`).
+  - second split issue count remains `0`; redlines hold: `input_matrix_wire_mapping_count=168`, `component_prefixed_signal_circuit_count=0`, `semantic_table_mapping_pass_endpoint_count=0`.
+- External/concurrent files intentionally not staged for this rules slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+- Next candidates:
+  - `backplate virtual table same-sheet one-to-many scope semantics`
+  - `terminal_header_table issue aggregation`
+  - `inline signal page ordinary residual taxonomy guardrail`
+
 ## Session Update 2026-07-07 (Phase 60 terminal header semantic endpoint exclusion)
 - Started after commit `0cac857`.
 - Read-only recovery:

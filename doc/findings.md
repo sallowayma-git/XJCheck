@@ -8108,3 +8108,93 @@ fresh second-set 非回归证据：
 - 本轮修的是结构化 `wire_component_mapping` 与旧 ordinary pair 的覆盖语义，不是 extractor 补缺，也不是 issue 隐藏。
 - first issue_count 从 Phase73 的 `327` 降到 `311`，来自 `component_prefixed_signal_circuit` 覆盖的局部号 residual 收口；结构化 `wire_component_mapping` 数量保持 `32`。
 - 下一轮候选只剩：`inline KLP 116 residual suppression`、`backplate/component mapping rules semantics`。
+
+## 115. 2026-07-07 component split endpoint rules semantics：逗号拆分端点保留关系但改为专用复核分类
+
+只读审计确认，`strip_two_port_component(KLP/CLP)` extractor 本身已经闭合，逗号外部端点也已拆成独立 `component_mapping/pass` 关系。本轮不移除这些关系，也不把 issue 隐藏；目标只是把由逗号拆分文本自然造成的 component fanout / shared endpoint issue，从泛化 branch review 改成更具体的 rules 语义分类。
+
+真实缺陷：
+
+- first-set `S0023 / 22 元件接线图2.dwg` 中，`3-2KLP1-1` 的外部端来自同一原始文本 `3-2QD2,3-2KLP3-1`。
+- 结构化关系本身正确且必须保留：
+  - `PCM0001 3-2KLP1-1 -> 3-2QD2 component_mapping/pass`
+  - `PCM0002 3-2KLP1-1 -> 3-2KLP3-1 component_mapping/pass`
+  - `PCM0003 3-2KLP1-2 -> 3-2n116 component_mapping/pass`
+  - `PCM0039 1-2KLP1-2 -> 1-2n116 component_mapping/pass`
+- 旧 issue 文案只表现为泛化 one-to-many / many-to-one component branch review，不能直接说明“多个端点来自逗号拆分文本组”。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 新增 strip 双端口逗号拆分端点识别 helper。
+- `R-ONE-TO-MANY` 对同一 raw comma text 拆出的多个端点输出：
+  - title：`组件逗号端点拆分待复核`
+  - `one_to_many_classification=component_split_endpoint_group_review`
+  - evidence：`component_branch_kind=split_endpoint_group`、`external_endpoint_splits`、`external_endpoint_raw_values`、`external_endpoint_text_ids`、`logical_endpoints`
+- `R-MANY-TO-ONE` 对共享端点来自逗号拆分组的邻接输出：
+  - title：`组件逗号端点邻接待复核`
+  - `many_to_one_classification=component_split_endpoint_group_review`
+  - evidence 额外包含 `shared_endpoint`
+- 在 [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py) 增加 one-to-many 与 many-to-one 两条专用规则单测。
+- 不改 extractor、PairBuilder、acceptance fixture、CLI/UI，也不改变 `component_mapping` 入图。
+
+fresh first-set 证据：
+
+- `.tmp/phase76_component_split_rules_first/...`
+- `pair_count=1550`
+- `issue_count=311`
+- pair_kind 未漂移：
+  - `ordinary_pair=800`
+  - `component_mapping=138`
+  - `table_mapping=299`
+  - `wire_component_mapping=32`
+  - `continuation=175`
+  - `semantic_mapping=103`
+  - `bridge_mapping=3`
+- rule count 未漂移：
+  - `R-CROSS-PAGE-CONFLICT=66`
+  - `R-DUPLICATE-PAIR=5`
+  - `R-MANY-TO-ONE=37`
+  - `R-ONE-TO-MANY=44`
+  - `R-PAIR-LOW-CONFIDENCE=12`
+  - `R-PAIR-MISSING-SIDE=147`
+- 分类变化：
+  - `R-ONE-TO-MANY`：`component_split_endpoint_group_review=16`
+  - `R-MANY-TO-ONE`：`component_split_endpoint_group_review=12`
+- 点名 issue：
+  - `I0226` 现在为 `组件逗号端点拆分待复核`，`one_to_many_classification=component_split_endpoint_group_review`，text id `T3623`
+  - `I0270` 现在为 `组件逗号端点邻接待复核`，`many_to_one_classification=component_split_endpoint_group_review`，text ids `T3623/T3855`
+
+fresh second-set 非回归证据：
+
+- `.tmp/phase76_component_split_rules_second/2_2`
+- `pair_count=1460`
+- `issue_count=188`
+- pair_kind 未漂移：
+  - `ordinary_pair=674`
+  - `wire_component_mapping=168`
+  - `component_mapping=82`
+  - `table_mapping=174`
+  - `continuation=202`
+  - `semantic_mapping=157`
+  - `bridge_mapping=3`
+- `split issue count=0`
+- 红线保持：
+  - `input_matrix_wire_mapping_count=168`
+  - `component_prefixed_signal_circuit_count=0`
+  - `semantic_table_mapping_pass_endpoint_count=0`
+  - `1-21QD34 -> 1-21n218` 仍有 `wire_component_mapping/pass`
+  - `3-21QD28 -> 3-21n218` 仍有 `wire_component_mapping/pass`
+  - `1-21GD9 -> 1-21n218` 仍有 `table_mapping/pass`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or component_branch or split_endpoint or backplate or terminal_header"` -> `11 passed, 37 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `48 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+- `python -m pytest -q` -> `236 passed`
+
+裁决：
+
+- 本轮是 rules/acceptance 质量问题收口，不是 extractor 缺失，也不是 issue 降噪隐藏。
+- `component_mapping/pass` 仍进入图；issue 数量和 pair 分布不漂移，只让 review 文案表达真实成因。
+- 下一轮候选收缩为：`backplate virtual table same-sheet one-to-many scope semantics`、`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`。

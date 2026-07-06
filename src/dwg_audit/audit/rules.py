@@ -516,6 +516,31 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
             )
             continue
 
+        split_endpoint_info = _strip_two_port_component_split_endpoint_info(linked_pairs)
+        if split_endpoint_info is not None:
+            issues.append(
+                context.issue_factory.build(
+                    "R-ONE-TO-MANY",
+                    "review",
+                    pair=first,
+                    message=f"Left value {left_value} maps to multiple endpoints split from the same component text.",
+                    title="组件逗号端点拆分待复核",
+                    explanation=(
+                        "同页 strip_two_port_component 组件映射中，同一组件端子关联的多个邻接端来自逗号分隔文本拆分。"
+                        "这通常表示同一标注文本内列出了多个邻接端，应按组件端口和原始文本一起复核。"
+                    ),
+                    recommended_action="核对组件本体、端口、原始逗号文本和拆分端点，确认这些拆分端是否都属于同一组件邻接关系。",
+                    related_pairs=linked_pairs,
+                    extra={
+                        "conflicting_values": sorted(rights),
+                        "sheet_ids": sorted(sheet_ids),
+                        "one_to_many_classification": "component_split_endpoint_group_review",
+                        **split_endpoint_info,
+                    },
+                )
+            )
+            continue
+
         if _is_same_sheet_strip_two_port_component_mapping(linked_pairs):
             issues.append(
                 context.issue_factory.build(
@@ -605,6 +630,36 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                             "sheet_ids": sorted(sheet_ids),
                             "many_to_one_classification": "terminal_header_table_shared_endpoint_review",
                             **terminal_header_info,
+                        },
+                    )
+                )
+                continue
+
+            split_endpoint_info = _strip_two_port_component_split_endpoint_info(
+                linked_pairs,
+                require_same_sheet=False,
+                shared_value=right_value,
+            )
+            if split_endpoint_info is not None:
+                sheet_ids = {pair.sheet_id for pair in linked_pairs}
+                issues.append(
+                    context.issue_factory.build(
+                        "R-MANY-TO-ONE",
+                        "review",
+                        pair=first,
+                        message=f"Right value {right_value} is referenced by multiple component endpoints from comma-split text groups.",
+                        title="组件逗号端点邻接待复核",
+                        explanation=(
+                            "同页 strip_two_port_component 组件映射中，共享邻接端来自一个或多个逗号分隔端点组。"
+                            "这更像组件链路中的拆分端点邻接关系，需要按原始文本组和组件端口复核。"
+                        ),
+                        recommended_action="核对共享端点、逗号原始文本、组件本体和端口序号，确认这些入口是否属于同一组件链路邻接。",
+                        related_pairs=linked_pairs,
+                        extra={
+                            "conflicting_values": sorted(lefts),
+                            "sheet_ids": sorted(sheet_ids),
+                            "many_to_one_classification": "component_split_endpoint_group_review",
+                            **split_endpoint_info,
                         },
                     )
                 )
@@ -870,6 +925,94 @@ def _is_same_sheet_strip_two_port_component_mapping(linked_pairs: list[Pair]) ->
         and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
         for pair in linked_pairs
     )
+
+
+def _strip_two_port_component_split_endpoint_info(
+    linked_pairs: list[Pair],
+    *,
+    require_same_sheet: bool = True,
+    shared_value: str | None = None,
+) -> dict[str, object] | None:
+    if not linked_pairs:
+        return None
+    if require_same_sheet and len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return None
+    if not all(
+        pair.pair_kind == "component_mapping"
+        and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
+        for pair in linked_pairs
+    ):
+        return None
+
+    split_mappings: list[dict[str, object]] = []
+    for pair in linked_pairs:
+        evidence = pair.evidence or {}
+        raw_value = evidence.get("external_endpoint_raw")
+        split_value = evidence.get("external_endpoint_split")
+        if not isinstance(raw_value, str) or "," not in raw_value:
+            continue
+        if not isinstance(split_value, str) or not split_value:
+            continue
+        if shared_value is not None and pair.right_value != shared_value:
+            continue
+        split_mappings.append(evidence)
+
+    if not split_mappings:
+        return None
+
+    if shared_value is None:
+        raw_text_ids = {
+            str(mapping.get("external_endpoint_text_id"))
+            for mapping in split_mappings
+            if mapping.get("external_endpoint_text_id")
+        }
+        raw_values = {
+            str(mapping.get("external_endpoint_raw"))
+            for mapping in split_mappings
+            if mapping.get("external_endpoint_raw")
+        }
+        if len(split_mappings) < 2 or (len(raw_text_ids) != 1 and len(raw_values) != 1):
+            return None
+
+    result: dict[str, object] = {
+        "component_submode": "strip_two_port_component",
+        "component_branch_kind": "split_endpoint_group",
+        "external_endpoint_splits": sorted(
+            {
+                str(mapping.get("external_endpoint_split"))
+                for mapping in split_mappings
+                if mapping.get("external_endpoint_split")
+            }
+        ),
+        "external_endpoint_raw_values": sorted(
+            {
+                str(mapping.get("external_endpoint_raw"))
+                for mapping in split_mappings
+                if mapping.get("external_endpoint_raw")
+            }
+        ),
+    }
+    text_ids = sorted(
+        {
+            str(mapping.get("external_endpoint_text_id"))
+            for mapping in split_mappings
+            if mapping.get("external_endpoint_text_id")
+        }
+    )
+    if text_ids:
+        result["external_endpoint_text_ids"] = text_ids
+    logical_endpoints = sorted(
+        {
+            str(mapping.get("logical_endpoint"))
+            for mapping in split_mappings
+            if mapping.get("logical_endpoint")
+        }
+    )
+    if logical_endpoints:
+        result["logical_endpoints"] = logical_endpoints
+    if shared_value is not None:
+        result["shared_endpoint"] = shared_value
+    return result
 
 
 def _terminal_header_table_multi_endpoint_info(

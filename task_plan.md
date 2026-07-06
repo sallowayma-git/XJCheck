@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 61
+Phase 62
 
 ## Phases
 
@@ -801,6 +801,22 @@ Phase 61
   - second fresh `.tmp/phase75_component_218_second/2_2`: `pair_count=1460`, `issue_count=188`, `wire_component_mapping=168`, `input_matrix_wire_mapping=168`, `component_mapping=82`, `table_mapping=174`
   - second 红线保持：`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218` 仍有 `wire_component_mapping/pass`；`1-21GD9 -> 1-21n218` 仍有 `table_mapping/pass`；`semantic_table_mapping_pass_endpoint_count=0`
 - [ ] 下一刀候选只剩：`inline KLP 116 residual suppression`、`backplate/component mapping rules semantics`；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 62: Component Split Endpoint Rules Semantics
+- [x] 只读恢复并确认当前 HEAD 为 `7fb59b9`；`doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md` 仍按外部/并发改动处理，不纳入本轮 rules 写集。
+- [x] 只读审计确认 `inline KLP 116 residual suppression` 作为 active slice 已过期/收缩：first-set 代表 `1KLP1-2 -> 1n116`、`1-2KLP1-2 -> 1-2n116`、`3-2KLP1-2 -> 3-2n116` 已为 `wire_component_mapping/pass`；本轮不重开已闭合 extractor。
+- [x] 实现目标：保留 `strip_two_port_component` 逗号拆分后的 `component_mapping/pass` 图关系和 issue 可见性，只把由同一原始逗号文本或拆分端点邻接产生的 one-to-many / many-to-one review 改为专用 `component_split_endpoint_group_review` 分类与文案。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；不改 extractor、pair 生成、acceptance fixture、CLI/UI，也不为了降低 issue_count 隐藏 component_mapping。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or component_branch or split_endpoint or backplate or terminal_header"` -> `11 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `48 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `236 passed`
+  - first fresh `.tmp/phase76_component_split_rules_first/...`: `pair_count=1550`, `issue_count=311`, pair_kind unchanged；`R-ONE-TO-MANY` 中 `component_split_endpoint_group_review=16`，`R-MANY-TO-ONE` 中 `component_split_endpoint_group_review=12`
+  - first target issue 已重分类：`I0226` 为“组件逗号端点拆分待复核”，`I0270` 为“组件逗号端点邻接待复核”；`PCM0001/PCM0002/PCM0003/PCM0039` 等 component mappings 仍为 pass。
+  - second fresh `.tmp/phase76_component_split_rules_second/2_2`: `pair_count=1460`, `issue_count=188`, pair_kind unchanged；split issue count `0`，`wire_component_mapping=168`、`component_mapping=82`、`table_mapping=174`、`semantic_table_mapping_pass_endpoint_count=0`
+- [ ] 下一刀候选收缩为：`backplate virtual table same-sheet one-to-many scope semantics`、`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
 ## Errors Encountered
