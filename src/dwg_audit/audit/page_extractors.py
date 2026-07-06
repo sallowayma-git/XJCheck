@@ -167,6 +167,7 @@ def _extract_pairs_for_route(
             extract_component_prefixed_signal_pairs(
                 pages,
                 texts,
+                lines,
                 pair_id_factory=IdFactory(f"P{id_stem}M"),
             )
         )

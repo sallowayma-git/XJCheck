@@ -1731,3 +1731,35 @@
 - Concurrent/user changes preserved:
   - Did not stage or modify unrelated `doc/page_findings/` and `doc/page_task_queue.md`.
   - Did not revert concurrent/user work.
+
+## Session Update 2026-07-06 (Phase 43)
+- Completed the line-in KLP component port mapping slice.
+- Implementation goal:
+  - Recover KLP inline component mappings in normal wire diagrams without reopening global single-character terminal candidates.
+  - Emit `wire_component_mapping` pairs for `KLP body + explicit port 1/2 -> same-row external endpoint`.
+  - Normalize bare three-digit right endpoints only inside this line-supported KLP pattern, e.g. `116 -> 1n116` or `3-2n116`.
+- Risk controls added after subagent code review:
+  - The KLP mode now requires supporting horizontal line evidence before emitting pass pairs.
+  - Unit coverage includes a no-line negative test so nearby `KLP`/`1`/`2`/`116` text alone cannot become high-confidence mapping.
+  - Existing `component_prefixed_signal_circuit` remains independent and still works without line input.
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_components.py` -> `4 passed`
+  - `python -m pytest -q tests\unit\test_wire_components.py tests\integration\test_analyze_project.py -k "component_prefixed_signal_circuit_mapping or inline_klp_component_port_mapping"` -> `2 passed`
+  - `python -m pytest -q` -> `193 passed`
+  - `git diff --check` -> no whitespace errors, only existing CRLF warnings
+- First-set real-sample evidence:
+  - Fresh output: `.tmp/phase52_inline_klp_line_gated_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`
+  - `run-audit` succeeded.
+  - `inline_klp_component_port_mapping=6`, `wire_component_mapping=32`, `pair_count=1293`, `issue_count=390`.
+  - Required taskbook mappings are present as `pass/confidence=0.95`:
+    - `S0009`: `1KLP1-1 -> 1QD2`
+    - `S0009`: `1KLP1-2 -> 1n116`
+    - `S0011`: `3-2KLP1-1 -> 3-2QD2`
+    - `S0011`: `3-2KLP1-2 -> 3-2n116`
+  - The same narrow pattern also recovered `S0010`: `1-2KLP1-1 -> 1-2QD2` and `1-2KLP1-2 -> 1-2n116`.
+- Second-set guard evidence:
+  - Fresh output: `.tmp/phase52_inline_klp_line_gated_second/2_2`
+  - `inline_klp=0`, `wire_component_mapping=0`; no accidental trigger on the second project.
+- Concurrent/user changes preserved:
+  - Did not stage or modify unrelated `doc/任务书.md`, `doc/page_findings/`, or `doc/page_task_queue.md`.
+  - Did not revert concurrent/user work.

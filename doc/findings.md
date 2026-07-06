@@ -6762,3 +6762,32 @@ route status 仍稳定为：
 - `20 非电量保护背板图.dwg` 中 `NKR308A-1 -> 5FD15` 仍为 `backplate_virtual_table / pass / confidence=0.95`
 
 为了避免把零散端子文本误提升为高置信表格关系，本轮还补了 group-level 结构证据门槛：同一表头组至少要有足够同行端点命中，且新增 sparse header-like 负向测试。
+
+## 94. 2026-07-06 线中 KLP 端口型普通回路图完成证据
+
+本轮补齐 `inline_klp_component_port_mapping`，用于普通二次原理图中的线中 KLP 端口关系。
+
+规则边界：
+
+- 只追加 `wire_component_mapping`，不放开普通单字符 `1/2` 候选。
+- 必须有 KLP-like 本体、端口 `1/2`、左右外部端点，以及左右水平线证据。
+- 裸三位数右端点只在该线支撑模式下按 KLP 前缀归一化，例如 `116 -> 1n116` 或 `3-2n116`。
+
+真实样本证据：
+
+- 第一套 fresh 输出：[phase52_inline_klp_line_gated_first](/F:/workspace/XJToolkit/.tmp/phase52_inline_klp_line_gated_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- `inline_klp_component_port_mapping = 6`
+- `wire_component_mapping = 32`
+- `pair_count = 1293`
+- `issue_count = 390`
+- `S0009 / 08 差动保护及信号回路.dwg`: `1KLP1-1 -> 1QD2`、`1KLP1-2 -> 1n116` 均为 `pass / confidence=0.95`
+- `S0011 / 10 低后备保护及信号回路.dwg`: `3-2KLP1-1 -> 3-2QD2`、`3-2KLP1-2 -> 3-2n116` 均为 `pass / confidence=0.95`
+- 同模式自然恢复 `S0010`: `1-2KLP1-1 -> 1-2QD2`、`1-2KLP1-2 -> 1-2n116`
+
+第二套守门证据：
+
+- 第二套 fresh 输出：[phase52_inline_klp_line_gated_second](/F:/workspace/XJToolkit/.tmp/phase52_inline_klp_line_gated_second/2_2)
+- `inline_klp = 0`
+- `wire_component_mapping = 0`
+
+这说明本轮不是靠放宽候选召回，而是把一个明确的线中元件端口关系补成结构化 mapping。下一步更适合继续做元件接线图 `component_mapping`，或者让规则层更好理解这些结构化 mapping，避免把正确的一对多结构误报成普通冲突。

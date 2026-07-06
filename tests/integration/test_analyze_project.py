@@ -560,6 +560,81 @@ def test_analyze_project_emits_component_prefixed_signal_circuit_mapping(
     assert first_evidence["component_submode"] == "component_prefixed_signal_circuit"
 
 
+def test_analyze_project_emits_inline_klp_component_port_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "09 操作回路图.dwg").write_bytes(b"AC1018demo")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "layout": {
+                    "audit_area": {
+                        "mode": "manual",
+                        "manual_bbox": [0.0, 0.0, 260.0, 160.0],
+                    }
+                }
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        msp = doc.modelspace()
+        msp.add_line((116.0, 100.0), (144.0, 100.0), dxfattribs={"layer": "CONNECT"})
+        msp.add_line((90.0, 100.0), (120.0, 100.0), dxfattribs={"layer": "CONNECT"})
+        msp.add_line((140.0, 100.0), (170.0, 100.0), dxfattribs={"layer": "CONNECT"})
+        for text, x, y in (
+            ("3-2KLP1", 130.0, 105.0),
+            ("1", 120.0, 100.0),
+            ("3-2QD2", 90.0, 105.5),
+            ("2", 140.0, 100.0),
+            ("116", 170.0, 104.5),
+        ):
+            msp.add_text(text, dxfattribs={"insert": (x, y), "height": 2.5, "layer": "DIM"})
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+
+    runner = CliRunner()
+    output_dir = tmp_path / "artifacts"
+    result = runner.invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir), "--config", str(config_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings_dir = Path(run_summary[0]["artifact_dir"]) / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    pairs = pd.read_parquet(findings_dir / "pairs.parquet")
+
+    page = findings_payload["page_findings"][0]
+    assert page["route_target"] == "WireDiagramExtractor"
+    mapping_pairs = pairs[pairs["pair_kind"] == "wire_component_mapping"]
+    assert {
+        (row["left_value"], row["right_value"])
+        for _, row in mapping_pairs.iterrows()
+    } == {
+        ("3-2KLP1-1", "3-2QD2"),
+        ("3-2KLP1-2", "3-2n116"),
+    }
+    first_evidence = json.loads(mapping_pairs.iloc[0]["evidence"])
+    assert first_evidence["source"] == "wire_component_mapping"
+    assert first_evidence["component_submode"] == "inline_klp_component_port_mapping"
+    assert first_evidence["component_body"] == "3-2KLP1"
+
+
 def test_analyze_project_executes_route_specific_pair_extractors(
     monkeypatch,
     tmp_path: Path,

@@ -524,3 +524,14 @@ Phase 41
 - [ ] 下一刀建议：优先二选一切小片，不独占代码库：
   - line-in KLP port：补 `3-2KLP1-1 -> 3-2QD2` 这类 line-in component port 映射
   - component diagram mapping：继续收口元件接线图的结构化 component mapping
+
+### Phase 43: Line-In KLP Component Port Mapping
+- [x] 实现目标：在普通二次原理图中识别线中 `KLP` 本体、端口 `1/2`、左右外部端点，并追加 `wire_component_mapping` pass pair。
+- [x] 风险门槛：不放开普通单字符端口候选；`inline_klp_component_port_mapping` 必须有左右水平线证据，裸三位数只在该线证据场景下按 KLP 前缀归一化为 `n###`。
+- [x] 验证命令与结果：
+  - `python -m pytest -q tests\unit\test_wire_components.py` -> `4 passed`
+  - targeted integration slice -> `2 passed`
+  - `python -m pytest -q` -> `193 passed`
+  - first-set fresh `analyze-project + run-audit`: `.tmp/phase52_inline_klp_line_gated_first/...` 产出 `6` 条 `inline_klp_component_port_mapping`，其中四个目标 `1KLP1-1 -> 1QD2`、`1KLP1-2 -> 1n116`、`3-2KLP1-1 -> 3-2QD2`、`3-2KLP1-2 -> 3-2n116` 均为 `pass/confidence=0.95`
+  - second-set fresh `analyze-project`: `.tmp/phase52_inline_klp_line_gated_second/2_2` 中 `inline_klp=0`，未在第二套误触发
+- [ ] 下一刀建议：继续收口 `ComponentDiagramExtractor` 的元件接线图结构化 `component_mapping`，或处理 `R-ONE-TO-MANY` 对结构化表格/组件映射的规则语义。
