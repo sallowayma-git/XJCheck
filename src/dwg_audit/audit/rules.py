@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 
 from dwg_audit.audit.graph_builder import PairGraphSummary
 from dwg_audit.audit.graph_builder import build_pair_graph
@@ -15,6 +16,15 @@ from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.utils.ids import IdFactory
+
+_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"(KLP\d+-\d+)", re.IGNORECASE),
+    re.compile(r"(CLP\d+-\d+)", re.IGNORECASE),
+    re.compile(r"(DK\d*-\d+)", re.IGNORECASE),
+    re.compile(r"((?:K)?ZKK-\d+)", re.IGNORECASE),
+    re.compile(r"(KK-[A-Z0-9+\-]+)", re.IGNORECASE),
+    re.compile(r"(ZK-\d+)", re.IGNORECASE),
+)
 
 
 def build_issues(
@@ -290,6 +300,80 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
     return issues
 
 
+def _run_semantic_mapping_conflict(context: RuleContext) -> list[Issue]:
+    by_terminal_sheet: dict[str, dict[str, dict[str, object]]] = defaultdict(dict)
+    for pair in context.pairs:
+        if getattr(pair, "pair_kind", "ordinary_pair") != "semantic_mapping":
+            continue
+        terminal_value = _semantic_mapping_terminal_value(pair)
+        if not terminal_value:
+            continue
+        endpoints = _normalized_semantic_endpoints(pair)
+        if len(endpoints) != 1:
+            continue
+        sheet_entry = by_terminal_sheet[terminal_value].setdefault(
+            pair.sheet_id,
+            {"targets": set(), "pairs": []},
+        )
+        sheet_entry["targets"].update(endpoints)
+        sheet_entry["pairs"].append(pair)
+
+    issues: list[Issue] = []
+    for terminal_value, sheet_entries in by_terminal_sheet.items():
+        stable_entries = {
+            sheet_id: entry
+            for sheet_id, entry in sheet_entries.items()
+            if len(entry["targets"]) == 1
+        }
+        if len(stable_entries) <= 1:
+            continue
+
+        endpoint_by_sheet = {
+            sheet_id: next(iter(entry["targets"]))
+            for sheet_id, entry in stable_entries.items()
+        }
+        distinct_endpoints = sorted(set(endpoint_by_sheet.values()))
+        if len(distinct_endpoints) <= 1:
+            continue
+
+        ordered_sheet_entries = sorted(
+            stable_entries.items(),
+            key=lambda item: (
+                _sheet_order_key(context.sheet_map.get(item[0])),
+                item[0],
+            ),
+        )
+        primary_sheet_id, primary_entry = ordered_sheet_entries[0]
+        primary_pair = _semantic_conflict_primary_pair(primary_entry["pairs"])
+
+        related_pairs: list[Pair] = []
+        for _, entry in ordered_sheet_entries:
+            related_pairs.extend(entry["pairs"])
+
+        issues.append(
+            context.issue_factory.build(
+                "R-SEMANTIC-MAPPING-CONFLICT",
+                "review",
+                primary_pair,
+                f"Terminal value {terminal_value} maps to different semantic endpoints across sheets.",
+                title="端子-语义映射冲突",
+                explanation="同一端子号在不同图页被稳定映射到不同的语义端，存在 terminal-to-semantic consistency 风险。",
+                recommended_action="优先复核相关端子页的语义行、端子列和跨页引用，确认这些 semantic endpoint 是否本应一致。",
+                related_pairs=related_pairs,
+                extra={
+                    "terminal_value": terminal_value,
+                    "semantic_targets": {
+                        sheet_id: endpoint_by_sheet[sheet_id]
+                        for sheet_id, _ in ordered_sheet_entries
+                    },
+                    "conflicting_values": distinct_endpoints,
+                    "semantic_conflict_kind": "cross_sheet_semantic_endpoint_mismatch",
+                },
+            )
+        )
+    return issues
+
+
 def _run_one_to_many(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     graph, left_to_pairs, _ = _graph_maps(_high_confidence_pairs(context))
@@ -539,6 +623,63 @@ def _one_to_many_branch_left_values(config: dict) -> set[str]:
     return {str(value) for value in configured if value is not None}
 
 
+def _semantic_mapping_terminal_value(pair: Pair) -> str | None:
+    if pair.left_value:
+        return str(pair.left_value)
+    if pair.right_value:
+        return str(pair.right_value)
+    return None
+
+
+def _normalized_semantic_endpoints(pair: Pair) -> set[str]:
+    evidence = pair.evidence or {}
+    marker_texts = evidence.get("semantic_marker_texts")
+    if not isinstance(marker_texts, list):
+        return set()
+
+    endpoints: set[str] = set()
+    for marker_text in marker_texts:
+        if not isinstance(marker_text, str):
+            continue
+        normalized = _normalize_semantic_endpoint(marker_text)
+        if normalized:
+            endpoints.add(normalized)
+    return endpoints
+
+
+def _normalize_semantic_endpoint(marker_text: str) -> str | None:
+    for pattern in _SEMANTIC_ENDPOINT_PATTERNS:
+        match = pattern.search(marker_text)
+        if match:
+            return match.group(1).upper()
+    return None
+
+
+def _semantic_conflict_primary_pair(pairs: list[Pair]) -> Pair:
+    return sorted(
+        pairs,
+        key=lambda pair: (
+            _sheet_order_key(pair),
+            pair.pair_id,
+        ),
+    )[0]
+
+
+def _sheet_order_key(sheet_or_pair) -> int:
+    if isinstance(sheet_or_pair, SheetRecord):
+        return int(sheet_or_pair.sheet_order or 0)
+    if isinstance(sheet_or_pair, Pair):
+        evidence = sheet_or_pair.evidence or {}
+        sheet_order = evidence.get("sheet_order")
+        if isinstance(sheet_order, int):
+            return sheet_order
+        try:
+            return int(sheet_order)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
 def _ambiguous_candidate_groups(
     terminal_candidates: list[TerminalCandidate],
     duplicate_delta: float,
@@ -593,6 +734,15 @@ _RULES = [
         runner=_run_cross_page_conflict,
         input_tables=("pairs", "pages"),
         output_issue_type="cross_page_conflict",
+    ),
+    AuditRule(
+        rule_id="R-SEMANTIC-MAPPING-CONFLICT",
+        name="Semantic Mapping Conflict",
+        description="The same terminal value maps to different normalized semantic endpoints across sheets.",
+        severity_default="review",
+        runner=_run_semantic_mapping_conflict,
+        input_tables=("pairs", "pages"),
+        output_issue_type="semantic_mapping_conflict",
     ),
     AuditRule(
         rule_id="R-ONE-TO-MANY",

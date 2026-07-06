@@ -904,3 +904,43 @@
     - `semantic_channel`
     - `noise_channel`
   - 同时 ordinary / semantic pair 行为和真实样本 issue 结果都没有回退
+
+## Session Update 2026-07-06 (Phase 24)
+- 先按 current-head 重新做了一次任务书缺口裁决，并接入只读子代理复核，结论一致：
+  - `semantic_mapping` 已被识别和落盘
+  - 但项目级 `RuleEngine` 还没有覆盖 terminal-to-semantic consistency
+- 在 `src/dwg_audit/audit/rules.py` 落了最小 semantic-specific 项目级规则：
+  - 新增 `R-SEMANTIC-MAPPING-CONFLICT`
+  - 只处理 `pair_kind=semantic_mapping`
+  - 只正规化稳定 semantic family：`DK / KLP / CLP / ZKK / KK / ZK`
+  - 只在“各 sheet 内稳定到单一 endpoint、但跨 sheet 彼此冲突”时出 review issue
+- 同步更新：
+  - `src/dwg_audit/utils/config.py`
+  - `configs/default.yml`
+  - `tests/unit/test_pairs_and_rules.py`
+- 本轮新增验证：
+  - `python -m pytest -q tests\\unit\\test_pairs_and_rules.py -k "semantic_mapping_conflict or semantic_mapping or table_mapping"` -> `5 passed`
+  - `python -m pytest -q` -> `160 passed`
+- 真实样本 rerun：
+  - 第二套：[phase27_semantic_rule_second](/F:/workspace/XJToolkit/.tmp/phase27_semantic_rule_second/2_2)
+  - 第一套：[phase27_semantic_rule_first](/F:/workspace/XJToolkit/.tmp/phase27_semantic_rule_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 第二套 current-head 新证据：
+  - `issue_count: 518 -> 519`
+  - `R-SEMANTIC-MAPPING-CONFLICT = 1`
+  - 唯一命中为 terminal `114`：
+    - `S0021 / 21 左侧端子图1.dwg -> KLP2-1`
+    - `S0023 / 23 右侧端子图1.dwg -> ZK-3`
+  - 其余 rule counts 保持：
+    - `R-PAIR-MISSING-SIDE = 317`
+    - `R-PAIR-LOW-CONFIDENCE = 201`
+- 第一套 current-head 新证据：
+  - `issue_count` 保持 `345`
+  - `R-SEMANTIC-MAPPING-CONFLICT = 0`
+  - 其余 rule counts 保持：
+    - `R-PAIR-MISSING-SIDE = 267`
+    - `R-PAIR-LOW-CONFIDENCE = 77`
+    - `R-DUPLICATE-PAIR = 1`
+- 这轮结论已经比较清楚：
+  - 新规则没有 flood
+  - 真实样本只新增了 `1` 条可解释 semantic conflict
+  - semantic-specific project consistency 现在已经有最小闭环证明

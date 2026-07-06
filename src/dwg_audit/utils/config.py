@@ -117,6 +117,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "R-PAIR-LOW-CONFIDENCE",
             "R-DUPLICATE-SAME-LINE",
             "R-CROSS-PAGE-CONFLICT",
+            "R-SEMANTIC-MAPPING-CONFLICT",
             "R-ONE-TO-MANY",
             "R-MANY-TO-ONE",
             "R-MISSING-RECIPROCAL",

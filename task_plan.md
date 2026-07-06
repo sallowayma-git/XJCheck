@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 23
+Phase 24
 
 ## Phases
 
@@ -166,9 +166,16 @@ Phase 23
 - [x] 复跑 targeted pytest、full pytest，以及 first/second-set 当前头部 `analyze-project + run-audit`
 - **Status:** complete
 
+### Phase 24: Semantic Mapping Project Consistency Rule
+- [x] 重新按 current-head 任务书审计，确认最近缺口是 semantic-specific project rule，而不是再回页级路由或桌面层
+- [x] 为 `pair_kind=semantic_mapping` 落一条最小跨页一致性规则，只处理 stable-singleton normalized endpoint 冲突
+- [x] 复跑 targeted pytest、full pytest，以及 first/second-set 当前头部 `analyze-project + run-audit`
+- [x] 把结果回写 `doc/findings.md` / `progress.md`，并准备本地提交
+- **Status:** complete
+
 ## Key Questions
-1. `continuation_channel` 现已最小落地；下一步最近缺口是 semantic-specific 项目级一致性规则，还是更系统的 bridge / semantic relation ledger？
-2. `bridge_mapping` 与 `semantic_mapping` 现在都只有最小 pair 级合同；是否需要把它们继续扩成更细的页内 index / report ledger？
+1. `semantic_mapping` 现在已有最小项目级冲突规则；下一步最近缺口更像是 `table_mapping` 对 `ordinary_pair` 的 mixed-source consistency，还是更系统的 semantic / bridge ledger？
+2. 当前 semantic endpoint normalization 只覆盖 `DK / KLP / CLP / ZKK / KK / ZK`；是否还需要在保持低误报前提下，再逐步纳入更多 family？
 3. `continuation_channel` 当前只做 selected candidate 回标；后续是否需要把它显式接入更多 findings 摘要或 rule input，而不影响 PairBuilder 仍只消费 `terminal_numeric_channel`？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
@@ -201,6 +208,7 @@ Phase 23
 | `bridge_mapping` 的第一刀应只覆盖端子页短桥接带里“双侧都来自 `n###` 派生文本且数值不同”的 cross-column relation | 这能把 `110 -> 330 / 109 -> 329` 这类任务书例子从 ordinary pair 中拆出，同时避免把正常端子行如 `21 -> 211` 一起误收 |
 | `semantic_mapping` 的第一刀应只覆盖 terminal 页里“单侧 numeric relation + 同组存在真实语义 marker”的 relation | 这能把 `? -> 108` 与 `KLP/AC230V/I0'` 这类语义行从 continuation 中拆出，同时不误伤 `? -> 328` 或普通端子行 |
 | `continuation_channel` 的第一刀只回标已在 pair 层识别成 `continuation` / `bridge_mapping` 的 selected numeric candidate | 这能最小风险地补齐任务书 7.4 的 candidate 四通道合同，同时不重写候选搜索、排序或 semantic mapping 边界 |
+| semantic-specific 项目级规则的第一刀只做 `R-SEMANTIC-MAPPING-CONFLICT` | 这能直接消费现有 `semantic_mapping` pair 证据补上 terminal-to-semantic consistency，而不提前扩成更大的 semantic ledger |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

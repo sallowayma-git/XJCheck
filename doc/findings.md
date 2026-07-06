@@ -4057,3 +4057,194 @@ candidate 层新增证据则更丰富：
 
 - semantic-specific project rule input
 - 或更系统的 bridge / semantic ledger
+
+## 71. 2026-07-06 current-head 任务书审计刷新：下一刀应是 semantic-specific project rule，而不是再回页级路由或桌面层
+
+在 `phase26` 之后，我又按 current-head 重新对照了任务书主链，不再沿用历史叙事，而是直接核查：
+
+- [任务书.md](/F:/workspace/XJToolkit/doc/任务书.md)
+- 当前代码：
+  - [page_classifier.py](/F:/workspace/XJToolkit/src/dwg_audit/page_classifier.py)
+  - [page_router.py](/F:/workspace/XJToolkit/src/dwg_audit/page_router.py)
+  - [pipeline.py](/F:/workspace/XJToolkit/src/dwg_audit/pipeline.py)
+  - [table_extractor.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/table_extractor.py)
+  - [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py)
+- 当前测试：
+  - [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py)
+  - [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py)
+- 当前真实样本产物：
+  - [phase26_continuation_channel_second/2_2](/F:/workspace/XJToolkit/.tmp/phase26_continuation_channel_second/2_2)
+  - [phase26_continuation_channel_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA](/F:/workspace/XJToolkit/.tmp/phase26_continuation_channel_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+### 71.1 为什么页级分类器 / 路由器 / TableExtractor 暂时不是最近缺口
+
+按任务书第 4/5 层，当前已经有几条足够强的 current-head 证据：
+
+- `pipeline.py` 已在 extract 后显式调用 `classify_pages()`，并用 `enrich_pages_from_classifications()` 把 `route_target / audit_disposition` 回填到 page 运行态。
+- 当前 pipeline 已真实分流为：
+  - PairBuilder 链
+  - TableExtractor 链
+  - Layout / Skip 路径
+- `test_analyze_project.py` 已覆盖：
+  - 普通回路页走 `WireDiagramExtractor`
+  - 表格页走 `TableExtractor`
+  - 并产出 `table_mapping`
+- 当前两套真实样本里，页级 findings / pages.parquet 已稳定带：
+  - `page_type`
+  - `route_target`
+  - `audit_disposition`
+- 真实样本中暂未出现稳定命中的表格页，但任务书明确允许在真实样本不足时，用隔离 synthetic / mutation case 证明 `TableExtractor` 命中路径；当前仓库已经有这条 synthetic 闭环证明。
+
+直接结论：
+
+- 这条链当前仍可继续增强，但它已经不再是“主链完全没证明”的状态。
+- 如果现在继续把主要精力投入 page router / TableExtractor，本质上更像“加固已有证明”，而不是补最近的主链断点。
+
+### 71.2 为什么 table mapping consistency 也不是最近缺口
+
+任务书要求三类一致性之一是：
+
+- 表格映射与图内端子映射之间的一致性
+
+current-head 上，这条并不是完全空白：
+
+- `table_extractor.py` 生成的 `table_mapping` pair 当前是高置信 `pass`
+- `rules.py` 的 `_high_confidence_pairs()` 已明确把 `evidence.source == "table_mapping"` 纳入项目级 graph
+- `test_pairs_and_rules.py` 已有单测证明：
+  - `table_mapping` pair 会作为高置信信源参与 `R-CROSS-PAGE-CONFLICT`
+
+这说明 table mapping 至少已经不是“识别出来就消失”，而是能进入现有项目级规则主链。
+
+### 71.3 当前真正缺的，是 terminal -> semantic 的项目级一致性
+
+任务书在开头就把 MVP 审计目标明确成三类一致性：
+
+1. 端子号对端子号
+2. 端子号对语义端
+3. 表格映射对图内端子映射
+
+其中 current-head 的最弱一条正是第 2 类：
+
+- `semantic_mapping` 现在已经能被识别并落为显式 `pair_kind`
+- 但 `rules.py` 当前所有项目级 graph / conflict / one-to-many 规则仍只吃：
+  - `ordinary_pair`
+  - 外加 `table_mapping` 作为 ordinary graph 的高置信信源
+- `semantic_mapping` 当前只做到了：
+  - 可落盘
+  - 可展示
+  - 可旁路 ordinary missing-side / low-confidence
+- 但它**还没有任何 semantic-specific 项目级一致性规则**
+
+这意味着系统现在已经能说出：
+
+- “这是一条 terminal -> semantic relation”
+
+却还不能进一步回答：
+
+- “同一个 terminal 在不同页是否对应了冲突的 semantic endpoint”
+
+这正是任务书主链里目前最接近、也最具体的剩余空洞。
+
+### 71.4 下一刀应收窄成什么
+
+基于 current-head 审计，下一刀最合理的单一核心切片应定义为：
+
+- **只给 `semantic_mapping` 增加一条最小的项目级一致性规则：当同一 terminal 在不同 sheet 上稳定映射到不同的 normalized semantic endpoint 时，输出一条 semantic conflict issue。**
+
+这条切片故意保持很窄：
+
+- 只处理 `pair_kind = semantic_mapping`
+- 只处理能正规化成稳定 semantic endpoint family 的 marker
+  - 如 `DK / KLP / CLP / ZKK / KK / ZK`
+- 只处理“每个 sheet 内各自已稳定到单一 endpoint”的 case
+- 只处理跨 `sheet_id` 的冲突
+- 不尝试一次性解决：
+  - `IA/IB/IC/UN/3U0/I0` 这类相量/量纲复合 marker
+  - semantic ledger 全量重构
+  - 同页多 marker 噪声
+  - bridge-specific 项目级规则
+
+### 71.5 为什么这轮不该优先做别的
+
+当前仍不该优先的方向：
+
+1. 再回桌面端 / Tauri / preview
+2. 继续只拧 `candidates.py` 全局阈值
+3. 再去泛化 TableExtractor，而不先补 terminal -> semantic 一致性规则
+4. 在 semantic rule 还没出现前，就先做更大的 bridge / semantic ledger 重构
+
+## 72. 2026-07-06 semantic-specific project rule 已最小落地：`R-SEMANTIC-MAPPING-CONFLICT`
+
+在 section 71 已经明确“下一刀应是 semantic-specific project rule”之后，我把这条规则按最小边界直接落进了 current-head：
+
+- 新规则：`R-SEMANTIC-MAPPING-CONFLICT`
+- 代码位置：
+  - [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py)
+  - [config.py](/F:/workspace/XJToolkit/src/dwg_audit/utils/config.py)
+  - [default.yml](/F:/workspace/XJToolkit/configs/default.yml)
+  - [test_pairs_and_rules.py](/F:/workspace/XJToolkit/tests/unit/test_pairs_and_rules.py)
+
+### 72.1 规则边界
+
+这次没有去做更大的 semantic ledger，只做了一条窄规则：
+
+- 只消费 `pair_kind == "semantic_mapping"`
+- 只从 `semantic_marker_texts` 中正规化少数稳定 family：
+  - `DK`
+  - `KLP`
+  - `CLP`
+  - `ZKK / KZKK`
+  - `KK`
+  - `ZK`
+- 只接受“每个 sheet 内稳定到单一 normalized endpoint”的 terminal
+- 只报跨 sheet 冲突
+- 同页多 marker 噪声、`IA/IB/IC/UN/3U0/I0`、更大的 bridge/semantic ledger 都继续留到后面
+
+也就是说，这条规则当前只回答一个问题：
+
+- 同一个 terminal value，在不同页里是否稳定指向了不同 semantic endpoint
+
+### 72.2 测试与回归结果
+
+本轮新增验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping_conflict or semantic_mapping or table_mapping"` -> `5 passed`
+- `python -m pytest -q` -> `160 passed`
+
+新增单测只覆盖两件事：
+
+- 跨 sheet 的 stable-singleton semantic endpoint 会报冲突
+- 某个 sheet 内如果本地 endpoint 不稳定，则不报冲突
+
+### 72.3 真实样本结果
+
+第二套样本：
+
+- 输出路径：[phase27_semantic_rule_second](/F:/workspace/XJToolkit/.tmp/phase27_semantic_rule_second/2_2)
+- 总 issue：`518 -> 519`
+- 新增 issue 仅 `1` 条，而且正是预期的 `R-SEMANTIC-MAPPING-CONFLICT`
+- 具体冲突：
+  - terminal `114`
+  - `S0021 / 21 左侧端子图1.dwg -> KLP2-1`
+  - `S0023 / 23 右侧端子图1.dwg -> ZK-3`
+
+第一套样本：
+
+- 输出路径：[phase27_semantic_rule_first](/F:/workspace/XJToolkit/.tmp/phase27_semantic_rule_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+- 总 issue 保持 `345`
+- `R-SEMANTIC-MAPPING-CONFLICT = 0`
+
+这说明当前边界至少满足三件事：
+
+- 没有 flood
+- 没有打乱 ordinary / continuation / bridge / semantic 既有 pair 分布
+- 能在真实样本里命中一条可解释的 terminal-to-semantic inconsistency
+
+### 72.4 当前裁决
+
+这条 semantic-specific rule 已经从“任务书缺口”推进到了“current-head 已有最小闭环证明”。
+
+因此下一步不该回去重做 page router / TableExtractor，也不该立刻扩大 semantic family；更合理的下一个候选缺口会是二选一：
+
+1. `table_mapping` 对 `ordinary_pair` 的 mixed-source consistency 专项规则
+2. 更系统的 semantic / bridge ledger，但前提是继续保持窄切片
