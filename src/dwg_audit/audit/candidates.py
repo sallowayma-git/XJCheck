@@ -201,6 +201,7 @@ def build_terminal_candidates(
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
     _apply_terminal_strip_row_lock(results, group_map, sheet_map)
     _apply_terminal_short_bridge_roles(results, group_map, sheet_map)
+    _apply_terminal_row_number_local_numeric_filter(results, group_map, sheet_map)
     _apply_terminal_semantic_row_local_numeric_filter(results, group_map, sheet_map)
     _prefer_derived_numeric_on_vertical_component_page(results, group_map, sheet_map)
     _assign_candidate_ranks(results)
@@ -464,6 +465,21 @@ def _apply_terminal_semantic_row_local_numeric_filter(
                 continue
             _reject_candidate(candidate, "terminal_semantic_local_numeric")
             candidate.channel = _CHANNEL_SEMANTIC
+
+
+def _apply_terminal_row_number_local_numeric_filter(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> None:
+    row_text_ids = _terminal_row_number_text_ids(candidates, group_map, sheet_map)
+    if not row_text_ids:
+        return
+    for candidate in candidates:
+        if candidate.status != "accepted" or candidate.text_id not in row_text_ids:
+            continue
+        _reject_candidate(candidate, "terminal_row_number_local_numeric")
+        candidate.channel = _CHANNEL_SEMANTIC
 
 
 def _prefer_derived_numeric_on_vertical_component_page(
@@ -758,6 +774,73 @@ def _is_terminal_semantic_local_numeric_candidate(candidate: TerminalCandidate) 
     text = candidate.text.strip()
     value = (candidate.value or "").strip()
     return text == value and value.isdigit() and len(value) <= 2
+
+
+def _terminal_row_number_text_ids(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> set[str]:
+    by_sheet_column: dict[tuple[str, int], dict[str, TerminalCandidate]] = defaultdict(dict)
+    for candidate in candidates:
+        if candidate.status != "accepted" or not _is_terminal_row_number_candidate(candidate):
+            continue
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        if group is None or sheet is None:
+            continue
+        if not _is_terminal_strip_mode(sheet, group.orientation):
+            continue
+        column_key = int(round(candidate.text_insert_x / 1.0))
+        by_sheet_column[(candidate.sheet_id, column_key)].setdefault(candidate.text_id, candidate)
+
+    row_text_ids: set[str] = set()
+    for column_candidates in by_sheet_column.values():
+        ordered = sorted(
+            column_candidates.values(),
+            key=lambda item: (-item.text_insert_y, int(item.value or "0"), item.text_id),
+        )
+        for run in _terminal_row_number_runs(ordered):
+            if len(run) >= 5:
+                row_text_ids.update(item.text_id for item in run)
+    return row_text_ids
+
+
+def _terminal_row_number_runs(candidates: list[TerminalCandidate]) -> list[list[TerminalCandidate]]:
+    runs: list[list[TerminalCandidate]] = []
+    current: list[TerminalCandidate] = []
+    for candidate in candidates:
+        if not current:
+            current = [candidate]
+            continue
+        previous = current[-1]
+        if _continues_terminal_row_number_run(previous, candidate):
+            current.append(candidate)
+            continue
+        runs.append(current)
+        current = [candidate]
+    if current:
+        runs.append(current)
+    return runs
+
+
+def _continues_terminal_row_number_run(previous: TerminalCandidate, candidate: TerminalCandidate) -> bool:
+    previous_value = int(previous.value or "0")
+    value = int(candidate.value or "0")
+    return (
+        abs(candidate.text_insert_y - previous.text_insert_y) <= 6.0
+        and abs(candidate.text_insert_x - previous.text_insert_x) <= 1.0
+        and abs(value - previous_value) == 1
+    )
+
+
+def _is_terminal_row_number_candidate(candidate: TerminalCandidate) -> bool:
+    text = candidate.text.strip()
+    value = (candidate.value or "").strip()
+    if text != value or not value.isdigit() or len(value) > 2:
+        return False
+    number = int(value)
+    return 1 <= number <= 99
 
 
 def _reject_candidate(candidate: TerminalCandidate, reason: str) -> None:

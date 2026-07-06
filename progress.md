@@ -2123,6 +2123,36 @@
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
 
+## Session Update 2026-07-07 (Phase 58 terminal row number local numeric suppression)
+- Started after commit `7a4af5b`.
+- Read-only recovery:
+  - `planning-with-files` catchup detected unsynced context; actual owned diff before continuing was only `src/dwg_audit/audit/candidates.py`.
+  - `git status --short` also showed protected external/concurrent files: `doc/任务书.md`, `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Read-only explorers converged on terminal bare local numeric as a narrow audit-quality slice; examples included first `S0025 8 -> ?`, first `S0027 ? -> 4`, second `S0022 9 -> 116`, and second `S0021 69 -> 318`.
+- Implementation:
+  - Added a terminal row-number detector in `src/dwg_audit/audit/candidates.py`.
+  - It only applies to `屏端子图` non-vertical groups and rejects accepted bare `1..99` candidates when they belong to a same-sheet, same-column, y-continuous run of at least five adjacent row numbers.
+  - Rejection reason is `terminal_row_number_local_numeric`; channel is `semantic_channel`.
+  - The detector runs before semantic-row local numeric suppression so full continuous index columns are classified together; derived/full endpoint texts such as `3-21n116` remain available numeric candidates.
+  - Added a unit test proving a `13..18` terminal row-number column is suppressed while same-row full endpoint texts remain numeric.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py` -> `24 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "missing_side or low_confidence or continuation or semantic_mapping"` -> `14 passed, 32 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal or row_lock or run_audit"` -> `5 passed, 15 deselected`
+  - `python -m pytest -q` -> `230 passed`
+  - First fresh `.tmp/phase72_terminal_row_number_first_v2/...`: `pair_count=1586`, `issue_count=361`, `ordinary_pair=836`, `continuation=175`, `terminal_row_number_local_numeric=289`, `R-PAIR-LOW-CONFIDENCE=12`, `R-PAIR-MISSING-SIDE=196`.
+  - Second fresh `.tmp/phase72_terminal_row_number_second_v2/2_2`: `pair_count=1637`, `issue_count=198`, `ordinary_pair=849`, `continuation=202`, `terminal_row_number_local_numeric=418`, `R-PAIR-LOW-CONFIDENCE=3`, `R-PAIR-MISSING-SIDE=125`.
+  - Pointed false pairs are gone: first `S0025 8 -> ?`, first `S0027 ? -> 4`, second `S0022 9 -> 116`, second `S0021 69 -> 318`.
+  - Second-set redlines held: `wire_component_mapping=168`, `table_mapping=176`, `component_mapping=82`.
+  - Acceptance suite on fresh second `.tmp/phase72_terminal_row_number_acceptance_v2`: required `3/3`, `acceptance_passed=True`.
+- Note:
+  - One acceptance run failed when launched in parallel with `run-audit` and attempted to read `issues.json` before audit wrote it. Rerunning after audit completion passed; recorded as command scheduling error, not product failure.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
 ## Session Update 2026-07-06 (Phase 57 terminal header table multi-endpoint review)
 - Started after commit `e33854d`.
 - Read-only recovery:

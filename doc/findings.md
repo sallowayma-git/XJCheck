@@ -7768,3 +7768,104 @@ fresh second-set 证据：
 - 本轮没有改抽取器、没有删 `table_mapping`、没有扩 CLI/UI，也没有通过减少 issue_count 让报告变好看。
 - 改善点是规则解释层：端子表头表格的真实多端关系现在有专用 review 语义，便于人工按表格行列复核。
 - 下一刀更适合继续只读审计 terminal bare local numeric discard，或切到 wire inline split half-pair；Phase51 packaged sidecar smoke 仍是独立交付链。
+
+## 111. 2026-07-07 端子图连续行号列：裸本地序号不再参与 ordinary pair 竞争
+
+只读审计确认，最新真实样本中仍有一类稳定伪问题：端子图表格行号 / 序号列被当成普通端子数字候选，进而形成 `ordinary_pair/review`。
+
+代表样本：
+
+- first-set `S0025 / 24 左侧端子图1.dwg`：`PT0027` 为 `8 -> ?`，同列上下文是 `13,12,11,10,9,8,7,6,5,4,3`。
+- first-set `S0027 / 26 右侧端子图1.dwg`：`? -> 4`，同列上下文是 `9,8,7,6,5,4,3,2,1`。
+- second-set `S0022 / 22 左侧端子图2.dwg`：`9 -> 116`，左侧 `9` 是本地行号，右侧 `3-21n116` 才是完整端子文本。
+- second-set `S0021 / 21 左侧端子图1.dwg`：`69 -> 318`，`69` 是连续行号列，`3-21n318` 是同行完整端子文本。
+
+裁决：
+
+- 这类裸数字不是跨页端子端点，也不应作为普通 `ordinary_pair` 的左右候选参与竞争。
+- 它也不是应当隐藏的关系；应在候选层保留可解释拒绝原因，转入语义/说明证据通道。
+- 完整派生端子文本，例如 `3-21n116`、`3-21n318`，必须继续作为可用 numeric candidate 保留。
+
+本轮实现：
+
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 中新增端子图连续行号列检测。
+- 检测门槛保持窄口径：
+  - 只作用于 `屏端子图` 非 vertical line group。
+  - 候选文本必须是裸 `1..99`，且原文等于候选值。
+  - 按同 sheet、近似同 x 列聚合。
+  - 按 y 连续扫描，要求相邻 y 步进不超过 `6.0`、x 漂移不超过 `1.0`、数字相邻。
+  - 只有连续 run 长度至少 `5` 才拒绝整列。
+- 拒绝原因写为 `terminal_row_number_local_numeric`，候选通道写为 `semantic_channel`。
+- 行号列检测放在 `terminal_semantic_local_numeric` 之前，使混有语义行的完整连续序号列先按更具体的 row-index 语义归类。
+- 在 [test_terminal_candidates.py](/F:/workspace/XJToolkit/tests/unit/test_terminal_candidates.py) 增加 `13..18` 行号列单测，证明行号被拒绝而同行完整端子仍留在 numeric 通道。
+
+fresh first-set 证据：
+
+- `.tmp/phase72_terminal_row_number_first_v2/...`
+- `pair_count=1586`，保持不变。
+- `issue_count=441 -> 361`
+- pair_kind：
+  - `ordinary_pair=836`
+  - `continuation=175`
+  - `table_mapping=299`
+  - `component_mapping=138`
+  - `semantic_mapping=103`
+  - `wire_component_mapping=32`
+  - `bridge_mapping=3`
+- 候选拒绝：
+  - `terminal_row_number_local_numeric=289`
+  - `terminal_semantic_local_numeric=16`
+- issue 变化：
+  - `R-PAIR-LOW-CONFIDENCE=58 -> 12`
+  - `R-PAIR-MISSING-SIDE=230 -> 196`
+- 点名伪 pair 已消失：
+  - `S0025 8 -> ?`
+  - `S0027 ? -> 4`
+
+fresh second-set 证据：
+
+- `.tmp/phase72_terminal_row_number_second_v2/2_2`
+- `pair_count=1637`，保持不变。
+- `issue_count=285 -> 198`
+- pair_kind：
+  - `ordinary_pair=849`
+  - `continuation=202`
+  - `table_mapping=176`
+  - `component_mapping=82`
+  - `semantic_mapping=157`
+  - `wire_component_mapping=168`
+  - `bridge_mapping=3`
+- 候选拒绝：
+  - `terminal_row_number_local_numeric=418`
+  - `terminal_semantic_local_numeric=9`
+- issue 变化：
+  - `R-PAIR-LOW-CONFIDENCE=66 -> 3`
+  - `R-PAIR-MISSING-SIDE=149 -> 125`
+- 点名伪 pair 已消失：
+  - `S0022 9 -> 116`
+  - `S0021 69 -> 318`
+- 红线未漂移：
+  - `wire_component_mapping=168`
+  - `table_mapping=176`
+  - `component_mapping=82`
+  - input matrix 代表目标仍命中。
+
+验收红线：
+
+- `.tmp/phase72_terminal_row_number_acceptance_v2`
+- required `3/3`
+- `acceptance_passed=True`
+
+验证：
+
+- `python -m pytest -q tests\unit\test_terminal_candidates.py` -> `24 passed`
+- `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "missing_side or low_confidence or continuation or semantic_mapping"` -> `14 passed, 32 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal or row_lock or run_audit"` -> `5 passed, 15 deselected`
+- `python -m pytest -q` -> `230 passed`
+
+裁决：
+
+- 本轮没有移除结构化 `table_mapping/component_mapping/wire_component_mapping`，也没有扩 CLI/UI。
+- 改善点是候选语义：端子图行号列不再伪装成跨页端子候选，因而不再制造低置信和缺边伪 issue。
+- 下一刀可继续只读审计 wire inline split half-pair，或回到 Phase51 packaged sidecar/exe smoke；两者仍应分开推进。

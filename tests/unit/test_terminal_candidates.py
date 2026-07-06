@@ -641,6 +641,100 @@ def test_build_terminal_candidates_bypasses_terminal_strip_annotation_text() -> 
         assert rejected.rejection_reason == "terminal_strip_bypass_text"
 
 
+def test_build_terminal_candidates_suppresses_terminal_row_number_column() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id=f"G{index}",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=127.5,
+            start_y=220.0 - index * 5.0,
+            end_x=202.5,
+            end_y=220.0 - index * 5.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=[f"L{index}"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+        for index in range(6)
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    texts = []
+    for index, number in enumerate(range(13, 19)):
+        y = 221.0 - index * 5.0
+        texts.extend(
+            [
+                TextItem(
+                    f"N{index}",
+                    "S1",
+                    "F1",
+                    f"HN{index}",
+                    "TEXT",
+                    str(number),
+                    str(number),
+                    True,
+                    "TEXT",
+                    0.0,
+                    3.0,
+                    151.0,
+                    y,
+                    149.0,
+                    y - 2.0,
+                    153.0,
+                    y + 2.0,
+                ),
+                TextItem(
+                    f"E{index}",
+                    "S1",
+                    "F1",
+                    f"HE{index}",
+                    "TEXT",
+                    f"3-21n{130 + index}",
+                    f"3-21n{130 + index}",
+                    False,
+                    "TEXT",
+                    0.0,
+                    3.0,
+                    158.5,
+                    y,
+                    155.0,
+                    y - 2.0,
+                    164.0,
+                    y + 2.0,
+                ),
+            ]
+        )
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    row_numbers = [
+        item
+        for index in range(6)
+        for item in candidates
+        if item.text_id == f"N{index}" and item.line_group_id == f"G{index}" and item.side == "left"
+    ]
+    endpoints = [
+        item
+        for index in range(6)
+        for item in candidates
+        if item.text_id == f"E{index}" and item.line_group_id == f"G{index}" and item.side == "right"
+    ]
+    endpoint_channels = {item.channel for item in endpoints}
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    assert {item.text_id for item in row_numbers} == {f"N{index}" for index in range(6)}
+    assert {item.rejection_reason for item in row_numbers} == {"terminal_row_number_local_numeric"}
+    assert {item.channel for item in row_numbers} == {"semantic_channel"}
+    assert {item.channel_detail for item in row_numbers} == {"terminal_row_number_local_numeric"}
+    assert {item.status for item in endpoints} == {"accepted"}
+    assert endpoint_channels == {"terminal_numeric_channel"}
+    assert {pair.left_value for pair in pairs} == {None}
+    assert {pair.right_value for pair in pairs} == {str(value) for value in range(130, 136)}
+
+
 def test_build_terminal_candidates_supports_mirrored_right_terminal_strip_columns() -> None:
     line_groups = [
         LineGroup(

@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 57
+Phase 58
 
 ## Phases
 
@@ -733,6 +733,23 @@ Phase 57
   - second 代表 issue 已重分类：`I0223 / PTMR0042+PTMR0043` 为“端子表左右列映射待复核”，`I0267 / PTM0042+PTMR0096` 为“端子表共享端点待复核”
   - acceptance suite on fresh second -> required `3/3`, `acceptance_passed=True`
 - [ ] 下一刀建议：先做只读审计后在 terminal bare local numeric discard、wire inline split half-pair、或 Phase51 packaged sidecar smoke 中选一个独立切片。
+- **Status:** complete
+
+### Phase 58: Terminal Row Number Local Numeric Suppression
+- [x] 只读恢复并确认当前受保护外部/并发改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`；当前 HEAD 为 `7a4af5b`。
+- [x] 两个只读 explorer 与主线程真实样本核查一致确认：端子图中连续行号列仍会作为裸数字 ordinary pair 进入 review，例如 first `S0025 8 -> ?`、first `S0027 ? -> 4`、second `S0022 9 -> 116`、second `S0021 69 -> 318`。
+- [x] 实现目标：在 `build_terminal_candidates()` 中对 `屏端子图` 同列连续 1..99 裸数字行号列做候选级抑制，标记为 `terminal_row_number_local_numeric / semantic_channel`，不再参与 ordinary pair 竞争。
+- [x] 风险门槛：仅匹配同 sheet、同 x 列、纵向步进连续、数值相邻、长度至少 5 的端子图行号列；完整派生端子文本如 `3-21n116` 仍保留为 numeric 候选。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py` -> `24 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py` -> `5 passed`
+  - rules targeted slice -> `14 passed, 32 deselected`
+  - `python -m pytest -q` -> `230 passed`
+  - first fresh `.tmp/phase72_terminal_row_number_first_v2/...`: `pair_count=1586`, `issue_count=361`, `ordinary_pair=836`, `continuation=175`, `terminal_row_number_local_numeric=289`; `R-PAIR-LOW-CONFIDENCE 58 -> 12`，`R-PAIR-MISSING-SIDE 230 -> 196`
+  - second fresh `.tmp/phase72_terminal_row_number_second_v2/2_2`: `pair_count=1637`, `issue_count=198`, `ordinary_pair=849`, `continuation=202`, `terminal_row_number_local_numeric=418`; `R-PAIR-LOW-CONFIDENCE 66 -> 3`，`R-PAIR-MISSING-SIDE 149 -> 125`
+  - 点名伪 pair 已消失：first `S0025 8 -> ?`、first `S0027 ? -> 4`、second `S0022 9 -> 116`、second `S0021 69 -> 318`
+  - second 红线保持：`wire_component_mapping=168`、`table_mapping=176`、`component_mapping=82`，acceptance suite required `3/3`
+- [ ] 下一刀建议：继续只读审计后处理 wire inline split half-pair，或回到 Phase51 packaged sidecar/exe smoke；不要把 issue_count 下降当成隐藏关系目标。
 - **Status:** complete
 
 ## Errors Encountered
