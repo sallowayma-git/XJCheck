@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 29
+Phase 30
 
 ## Phases
 
@@ -213,10 +213,18 @@ Phase 29
 - [x] 把“下一条缺口才更像 texts/lines 基线量化”的裁决回写 `doc/findings.md` / `progress.md`
 - **Status:** complete
 
+### Phase 30: Text And Line Non-Regression Quantification
+- [x] 重新按 current-head 任务书审计，确认最近单一缺口已切到 `M10` 的“文本抽取不回退 / 线段召回不回退”
+- [x] 在 `report/regression.py` 增加 `texts / numeric_texts / lines / line_groups` 抽取计数与 `texts / lines` 页级 no-regression 检查
+- [x] 让 per-page 回归比较改用稳定页键 `filename + sheet_order`，并补 `sheet_order` 非数值容错
+- [x] 复跑 targeted pytest、full pytest，以及 second-set current-head `compare-regression` 真实样本验证
+- [x] 把结果回写 `doc/findings.md` / `progress.md`，并准备本地提交
+- **Status:** complete
+
 ## Key Questions
-1. mixed-source consistency 现在已有最小 rule contract；下一步最近缺口更像是表头型三列表格的“表头前缀 + 行号 -> 逻辑语义端”合成，还是 M10 / 最小验收场景中的隔离故障注入证明？
-2. 当前 `TableExtractor` 仍只证明了数值三列表格；是否需要下一刀直接把 `1-21QD` + `1` => `1-21QD1` 这类逻辑语义端合成落为 `table_mapping` / `semantic_mapping` 复合证据？
-3. `continuation_channel` 当前只做 selected candidate 回标；后续是否需要把它显式接入更多 findings 摘要或 rule input，而不影响 PairBuilder 仍只消费 `terminal_numeric_channel`？
+1. `M10` 里下一条最近缺口是继续扩 real-sample pair baseline 到更多页型，还是把 `line_groups` 也升级成显式 no-regression status？
+2. 若继续扩 real-sample baseline，优先纳入哪一类页更值当：更多 terminal 页、更多 component 页，还是首次纳入普通 wire 页？
+3. 当前 `compare-regression` 已量化 texts / lines totals 与 per-page drops；是否还需要把这些指标显式接入 acceptance / CI 固定批次？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
 ## Decisions Made
@@ -250,6 +258,8 @@ Phase 29
 | `continuation_channel` 的第一刀只回标已在 pair 层识别成 `continuation` / `bridge_mapping` 的 selected numeric candidate | 这能最小风险地补齐任务书 7.4 的 candidate 四通道合同，同时不重写候选搜索、排序或 semantic mapping 边界 |
 | semantic-specific 项目级规则的第一刀只做 `R-SEMANTIC-MAPPING-CONFLICT` | 这能直接消费现有 `semantic_mapping` pair 证据补上 terminal-to-semantic consistency，而不提前扩成更大的 semantic ledger |
 | mixed-source 项目级规则的第一刀只做 `R-TABLE-MAPPING-SOURCE-CONFLICT` | 这能把第三类一致性从“table_mapping 进入通用 graph”升级成显式 source-aware contract，同时不先重写 `TableExtractor` 语义模型 |
+| `texts / lines` 非回退量化应落在 `report/regression.py`，而不是继续塞进 acceptance evaluator | 这条指标比较的是 findings/audit 快照稳定性，不是人工标注 spec 命中率 |
+| 页级 non-regression 比较必须优先使用 `filename + sheet_order` 这类稳定页键，而不是 `sheet_id` | fresh rerun 中 `sheet_id` 可能重编，直接按 `sheet_id` 比会把无回退误判成回退 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -343,10 +353,26 @@ Phase 29
   - `S0024` 从“左右两侧常选到同一文本”收口为 `review:54 / discard:38`，开始稳定产出 `421 -> 45`、`417 -> 41` 这类 mirrored pair
   - 第二套总体 issue `597 -> 654`，主要新增为 `S0023/S0024` 被显性化后的 `R-PAIR-LOW-CONFIDENCE`
   - 第一套总体 issue `446 -> 559`，同样是右侧端子页从大量 discard 翻到 review 的显性化副作用，不应当被当作简单回退
-  - 这轮之后端子图方向的下一步已更清晰地收敛到：
+- 这轮之后端子图方向的下一步已更清晰地收敛到：
     - `310-385` 短桥接列带单独列角色解释
     - `DK/KLP/ZKK` / `CLP` 等语义列是否进入 pair 或改走语义通道
     - 端子页 review pair 的提置信与去重，而不是继续放宽召回
+- 最新 `phase35_regression_with_extraction_second` 已确认：
+  - `compare-regression` 现在会同时输出：
+    - `extraction_counts.pages/texts/numeric_texts/lines/line_groups`
+    - `non_regression_checks.texts`
+    - `non_regression_checks.lines`
+  - second-set current-head 基线对比 `phase31 -> phase33` 结果为：
+    - `pair_count delta = 0`
+    - `issue_count delta = 0`
+    - `texts delta = 0`
+    - `lines delta = 0`
+    - `line_groups delta = 0`
+    - `numeric_texts delta = 0`
+    - `texts status = ok`
+    - `lines status = ok`
+  - 额外容错已补：
+    - `sheet_order` 非数值时回退到 `filename` 页键，不会在 markdown/json report 生成时崩溃
 - 最新 `phase15_terminal_short_bridge_{second,first}` 真实样本已确认：
   - 第二套总体 issue `654 -> 648`
   - 第一套总体 issue `559 -> 518`

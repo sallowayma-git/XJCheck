@@ -1159,3 +1159,45 @@
   - 这一轮之后，最近缺口才更像：
     - 扩到更多真实页 / 更多 page type 的 pair baseline
     - 或开始补 texts / lines 非回退量化
+
+## Session Update 2026-07-06 (Phase 30)
+- 先按 current-head 再做了一次任务书裁决，确认在 multi-page real-sample pair baseline 之后，最近单一缺口已切到 `M10` 的后两条：
+  - `文本抽取不回退`
+  - `线段召回不回退`
+- 这一轮只做 `regression.py` 里的量化闭环，不回到 extractor / router / desktop：
+  - `src/dwg_audit/report/regression.py`
+    - 新增 `extraction_counts.pages/texts/numeric_texts/lines/line_groups`
+    - 新增 `non_regression_checks.texts`
+    - 新增 `non_regression_checks.lines`
+    - per-page 对比显式改用稳定页键 `filename + sheet_order`
+    - `sheet_order` 非数值时安全回退到 `filename`，不让 report 生成崩溃
+    - 当缺少 `sheet_id` 无法页级对齐时，不再把“total drop”误报成 `ok`，而是按 totals-only 仍判 `regressed`
+  - `tests/unit/test_regression_metrics.py`
+    - 补 extraction counts 断言
+    - 补 stable page key 断言
+    - 补 `sheet_order` 非数字容错断言
+    - 补缺 `sheet_id` 但 total drop 仍应判 regression 的断言
+- 本轮定向验证：
+  - `python -m pytest -q tests\unit\test_regression_metrics.py` -> `6 passed`
+  - `python -m pytest -q tests\unit\test_cli.py -k "compare_regression"` -> `1 passed`
+  - `python -m pytest -q tests\unit\test_rerun_regression.py` -> `2 passed`
+- 全量回归：
+  - `python -m pytest -q` -> `173 passed`
+- second-set current-head 真实样本 regression：
+  - `python -m dwg_audit.cli compare-regression --baseline .tmp\phase31_acceptance_second\2_2 --current .tmp\phase33_regression_second\2_2 --output .tmp\phase35_regression_with_extraction_second`
+  - 结果：
+    - `pair_count delta = 0`
+    - `issue_count delta = 0`
+    - `texts delta = 0`
+    - `lines delta = 0`
+    - `line_groups delta = 0`
+    - `numeric_texts delta = 0`
+    - `texts status = ok`
+    - `lines status = ok`
+    - `comparison_mode = per_page`
+- 并发只读子代理 `Hegel` 的结论已吸收：
+  - 无阻塞级崩溃发现
+  - 中风险问题里，已直接修掉“缺 `sheet_id` 时 total drop 仍返回 `ok`”这一条
+  - 其余两条留作后续裁决：
+    - `pages` 映射缺失时仍可能退回 `sheet_id`
+    - `line_groups` 尚未进入显式 no-regression status

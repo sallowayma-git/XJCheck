@@ -5051,3 +5051,190 @@ current-head rerun 结果保持稳定：
 
 1. 继续扩 real-sample pair baseline 到更多页 / 更多 page type
 2. 补 `texts / lines` 非回退量化，让 `M10` 的后两项开始成形
+
+## 80. 2026-07-06 `texts / lines` 非回退量化已经进入 current-head regression report
+
+在 section 79 把最近缺口重新裁决到 `M10` 之后，我这轮没有再扩 extractor 或 acceptance 范围，而是只补一条更短的闭环：
+
+- 让 `compare-regression` 不再只比较：
+  - `pair_count`
+  - `issue_count`
+  - `rule_counts`
+- 而是显式量化：
+  - `texts`
+  - `numeric_texts`
+  - `lines`
+  - `line_groups`
+  - 以及 `texts / lines` 的页级 non-regression status
+
+### 80.1 为什么这条要落在 regression，而不是 acceptance
+
+这一条衡量的不是：
+
+- 人工标注 spec 命中率
+
+而是：
+
+- findings / audit 快照在 fresh rerun 之间是否出现抽取回退
+
+所以它应该落在：
+
+- [regression.py](/F:/workspace/XJToolkit/src/dwg_audit/report/regression.py)
+
+而不是继续塞进：
+
+- [acceptance.py](/F:/workspace/XJToolkit/src/dwg_audit/report/acceptance.py)
+
+这点现在已经通过代码结构正式体现出来。
+
+### 80.2 current-head 现在具体会输出什么
+
+`compare-regression` 当前新增两块结果：
+
+1. `delta.extraction_counts`
+- `pages`
+- `texts`
+- `numeric_texts`
+- `lines`
+- `line_groups`
+
+2. `non_regression_checks`
+- `texts`
+- `lines`
+
+每项当前都显式带：
+
+- `status`
+- `comparison_mode`
+- `baseline_total`
+- `current_total`
+- `total_delta`
+- `dropped_sheets`
+
+其中 `comparison_mode` 用来说明这次比较到底是：
+
+- `per_page`
+- 还是 `totals_only`
+
+这能避免“由于元数据不全而根本没法逐页比”时，还把结果包装成误导性的 `ok`。
+
+### 80.3 页级比较现在如何避免 `sheet_id` 假回归
+
+本轮最关键的实现收口是：
+
+- 页级比较优先使用稳定页键 `filename + sheet_order`
+
+而不是：
+
+- `sheet_id`
+
+原因是 fresh rerun 中 `sheet_id` 可能重编，直接按 `sheet_id` 比，明明没回退也会被误判成回退。
+
+当前页键逻辑已经改成：
+
+1. 有整数型 `sheet_order` 且有 `filename`
+- 用 `0004:04 xxx.dwg` 这类稳定键
+
+2. `sheet_order` 缺失或不是数字
+- 安全回退到 `filename`
+
+3. 只有在再没有别的页身份信息时
+- 才回退到 `sheet_id`
+
+额外容错也已经补上：
+
+- `sheet_order` 非数字时不再在 report 生成时崩溃
+
+### 80.4 这轮还顺手修掉了一个“误报 ok”的边界
+
+并发只读子代理 `Hegel` 帮我抓到了一个中风险边界：
+
+- 当 `texts` 或 `lines` 缺 `sheet_id` 列时
+- `_page_counts()` 会直接返回空
+- 旧实现只看 `dropped_sheets` 是否为空
+- 所以就算 `current_total < baseline_total`，也会误报 `status = ok`
+
+这条现在已经修掉：
+
+- 缺 `sheet_id` 无法逐页比时，会落到 `comparison_mode = totals_only`
+- 只要 `total_delta < 0`，就仍然判定为 `regressed`
+
+也就是说：
+
+- “不可逐页定位”
+
+不再等价于：
+
+- “没有回退”
+
+### 80.5 新增证明
+
+定向验证：
+
+- `python -m pytest -q tests\unit\test_regression_metrics.py` -> `6 passed`
+- `python -m pytest -q tests\unit\test_cli.py -k "compare_regression"` -> `1 passed`
+- `python -m pytest -q tests\unit\test_rerun_regression.py` -> `2 passed`
+
+全量回归：
+
+- `python -m pytest -q` -> `173 passed`
+
+### 80.6 second-set current-head 真实样本结果
+
+我直接用 second-set 现成的 current-head rerun 重新生成了 regression report：
+
+- baseline:
+  - [phase31_acceptance_second](/F:/workspace/XJToolkit/.tmp/phase31_acceptance_second/2_2)
+- current:
+  - [phase33_regression_second](/F:/workspace/XJToolkit/.tmp/phase33_regression_second/2_2)
+- output:
+  - [phase35_regression_with_extraction_second](/F:/workspace/XJToolkit/.tmp/phase35_regression_with_extraction_second)
+
+结果现在已经明确写进：
+
+- [regression_report.json](/F:/workspace/XJToolkit/.tmp/phase35_regression_with_extraction_second/regression_report.json)
+- [regression_report.md](/F:/workspace/XJToolkit/.tmp/phase35_regression_with_extraction_second/regression_report.md)
+
+关键值为：
+
+- `pair_count delta = 0`
+- `issue_count delta = 0`
+- `texts delta = 0`
+- `lines delta = 0`
+- `line_groups delta = 0`
+- `numeric_texts delta = 0`
+- `texts status = ok`
+- `lines status = ok`
+- 两项 `comparison_mode` 都是 `per_page`
+
+这说明 current-head 在 second-set 这份真实样本上，已经不只是“pair / issue 没回退”，而是：
+
+- 文本抽取总量没有回退
+- 线段抽取总量没有回退
+- 且逐页上也没有观察到掉页式回退
+
+### 80.7 当前裁决
+
+到这一轮为止，`M10` 可以更准确地分成三层：
+
+1. 已有 current-head 强证据
+- synthetic `acceptance-mini`
+- real-sample multi-page pair precision / recall baseline
+- regression report 中的 `texts / lines` 非回退量化
+
+2. 已做但还不是最终形态
+- `line_groups` 目前只有显式 count delta，还没有独立 non-regression status
+- 当 `pages` 元数据缺失时，页级 identity 仍可能回退到 `sheet_id`
+
+3. 最近下一条缺口
+- 继续扩 real-sample pair baseline 到更多页型
+- 或把 `line_groups` 也升级成显式 no-regression status
+
+也就是说，当前已经不适合再说：
+
+- “texts / lines 非回退还没有量化”
+
+更准确的说法应该是：
+
+- `texts / lines` 已量化
+- 但 `line_groups` 仍只是 count 级别，没有独立 status
