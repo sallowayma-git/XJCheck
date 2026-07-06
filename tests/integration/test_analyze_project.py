@@ -270,6 +270,9 @@ def test_analyze_project_routes_table_like_page_to_table_extractor_and_emits_tab
     assert findings_payload["table_extraction_summary"]["table_pages"] == 1
     assert findings_payload["table_extraction_summary"]["three_column_pages"] == 1
     assert findings_payload["table_extraction_summary"]["total_mappings"] == 3
+    assert findings_payload["table_extraction_summary"]["status"] == "table_mappings_recovered"
+    assert findings_payload["table_extraction_summary"]["classified_table_pages"] == 1
+    assert findings_payload["table_extraction_summary"]["classified_table_filenames"] == ["05 回路表格图.dwg"]
     assert pages_by_file["04 回路图.dwg"]["page_type"] == "二次原理图"
     assert pages_by_file["04 回路图.dwg"]["route_target"] == "WireDiagramExtractor"
     assert bool(pages_by_file["04 回路图.dwg"]["grid_heavy"]) is False

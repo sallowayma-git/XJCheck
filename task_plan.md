@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 31
+Phase 32
 
 ## Phases
 
@@ -229,9 +229,17 @@ Phase 31
 - [x] 把任务书完成度审计与本轮裁决回写 `doc/findings.md` / `progress.md`，并准备本地提交
 - **Status:** complete
 
+### Phase 32: Table Real-No-Hit Findings Contract
+- [x] 重新按 current-head 任务书审计，确认最近核心切片已收口到“把真实样本暂无 table hit 变成显式 findings 合同”
+- [x] 在 `table_extraction_summary` 中显式持久化 `status / status_reason / classified_table_pages / classified_table_filenames / table_like_non_routed_pages`
+- [x] 把 `findings.md` 项目级摘要补上 `## Table Extraction`，不再要求人工从 `table_pages=0` 反推结论
+- [x] 核对 first/second fresh rerun，确认两套样本都显式输出 `no_table_pages_detected`，并记录第一套 `S0023` 的 table-like 非路由边界
+- [x] 复跑 targeted pytest、full pytest，并把结果回写 `doc/findings.md` / `progress.md`
+- **Status:** complete
+
 ## Key Questions
-1. 现在页级分类/路由已成为 `pages.parquet` 一等字段后，最近主链缺口是否已经收口到 `TableExtractor` 的 real-hit / real-no-hit 证明？
-2. 若真实样本仍稳定 `table_pages=0`，下一刀更适合补“真实样本无命中的显式证明合同”，还是继续扩变异/合成 table acceptance 资产？
+1. 在 real-sample no-hit 已显式落盘后，最近主链缺口更应该先转向 `issue` JSON 顶层可复核字段，还是继续解释 `table_like_non_routed_pages` 的边界？
+2. 第一套 `S0023 / 22 元件接线图2.dwg` 当前 `table_like_geometry=true` 但仍走 `ComponentDiagramExtractor`，这是否已经是理想解释，还是还需要再收窄 `table_like` 几何判据？
 3. `issue` JSON 是否需要把 `filename / sheet_no / rationale` 也提升成顶层字段，还是当前 `evidence + evidence_refs + report markdown` 已足够满足 MVP 可复核合同？
 4. `S0020` 当前已回到 `ComponentDiagramExtractor`，但 `page_subtype` 仍是 `horizontal_component` 而 line_groups 是 `vertical`；是否需要单独收口这一层 subtype 判定？
 
@@ -270,6 +278,8 @@ Phase 31
 | 页级 non-regression 比较必须优先使用 `filename + sheet_order` 这类稳定页键，而不是 `sheet_id` | fresh rerun 中 `sheet_id` 可能重编，直接按 `sheet_id` 比会把无回退误判成回退 |
 | 页级分类/路由的 MVP 合同不能只停留在 `findings.json.page_findings` 里；`pages.parquet` 也应显式携带 `page_type / page_subtype / route_target / audit_disposition` | `pages.parquet` 是默认 findings SSoT 的主表之一，若它缺少 `page_type`，任务书中的“先分类再路由”只能通过聚合 JSON 间接证明 |
 | 页级 `recognition_strategy` 不能继续写成“来自 filename/.prj/title keywords”，必须反映真实 `PageClassifier -> Page Router` 证据 | 否则 current-head 明明已由几何分类驱动路由，页级解释文案却仍在削弱甚至误述主链闭环程度 |
+| 当真实样本当前 `table_pages=0` 时，`findings` 必须显式输出 `no_table_pages_detected`，不能要求人工从计数为零自行反推 | 任务书允许真实样本暂无 table hit，但前提是 current-head 要把“暂无命中”写成正式合同 |
+| `table_like_geometry` 与最终 `route_target` 不应被混为一谈 | 第一套 `S0023` 已证明某些 component 页可以几何上偏 table-heavy，但语义上仍应走 `ComponentDiagramExtractor` |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -278,6 +288,7 @@ Phase 31
 | `spawn_agent` 在 `fork_context=true` 时不能指定 `agent_type` | 1 | 改为无历史分叉的 explorer 子代理 |
 | 子代理并发名额已满 | 1 | 复用现有子代理 `Parfit` 执行第二个只读审查任务 |
 | `tauri build` 在 NSIS 资源下载阶段报 `timeout: global` | 1 | 先手动预热 NSIS 缓存，再重跑构建完成安装包产出 |
+| 本轮尝试再拉一个只读 explorer 时命中 agent thread limit | 1 | 停止等待子代理，改为主线程本地直接核对 phase37 rerun 的 `findings.json` 关键字段 |
 
 ## Notes
 - 本轮不要触碰其他 agent 正在改的文件内容；若发生重叠，先读清现状再合并。

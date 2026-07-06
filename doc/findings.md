@@ -5440,3 +5440,113 @@ current-head report markdown 已经能展示：
 - 桌面承载层
 - issue 总量下降
 - 候选层大范围调参
+
+## 82. 2026-07-06 `TableExtractor` real-no-hit 证明已显式落盘
+
+在 section 81 之后，我没有继续扩 extractor 或追 issue 数，而是只补一个更窄的 findings 合同：
+
+- 当真实样本当前没有任何表格页命中时
+- `findings.json` / `findings.md` 必须把这个结论显式写出来
+- 不能再只靠人工去读 `table_pages=0` 自己推断
+
+### 82.1 这轮代码上实际补了什么
+
+代码位置：
+
+- [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py)
+
+`table_extraction_summary` 现在不再只是：
+
+- `table_pages`
+- `three_column_pages`
+- `total_mappings`
+
+而是额外带上：
+
+- `status`
+- `status_reason`
+- `classified_table_pages`
+- `classified_table_sheet_ids`
+- `classified_table_filenames`
+- `table_like_non_routed_pages`
+
+也就是说，current-head 现在能区分三种状态：
+
+1. `table_mappings_recovered`
+2. `table_pages_routed_without_mappings`
+3. `no_table_pages_detected`
+
+同时 `findings.md` 也新增了 `## Table Extraction` 段，避免这个判断只藏在 JSON 里。
+
+### 82.2 fresh real-sample rerun 现在如何写结论
+
+我直接核对了两套 fresh rerun：
+
+- [phase37_table_no_hit_second findings.json](/F:/workspace/XJToolkit/.tmp/phase37_table_no_hit_second/2_2/findings/findings.json)
+- [phase37_table_no_hit_first findings.json](/F:/workspace/XJToolkit/.tmp/phase37_table_no_hit_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings/findings.json)
+
+第二套当前写成：
+
+- `status = no_table_pages_detected`
+- `status_reason = No page in this run was classified as a table page or routed to TableExtractor.`
+- `classified_table_pages = 0`
+- `classified_table_filenames = []`
+- `table_like_non_routed_pages = []`
+
+第一套当前也写成：
+
+- `status = no_table_pages_detected`
+- `classified_table_pages = 0`
+- `classified_table_filenames = []`
+
+这说明 current-head 已经能把“真实样本当前没有表格命中”作为稳定合同输出，而不是继续停留在隐式推断。
+
+### 82.3 同时暴露出来的边界
+
+第一套并不是“完全没有任何表格感几何”，因为它还显式保留了：
+
+- `table_like_non_routed_pages = [{sheet_id: S0023, filename: 22 元件接线图2.dwg, page_type: 元件接线图, route_target: ComponentDiagramExtractor}]`
+
+结合这页的 `page_findings` 当前表述，结论更准确地说是：
+
+- 几何上有一页看起来偏 table-heavy
+- 但 `PageClassifier` 仍把它收口成 `元件接线图 / horizontal_component`
+- route target 仍然是 `ComponentDiagramExtractor`
+
+所以这一轮证明的是：
+
+- **真实样本当前没有任何页被正式分类成表格页，也没有任何页被路由到 `TableExtractor`。**
+
+而不是：
+
+- **真实样本里完全不存在带表格感几何的页面。**
+
+### 82.4 新增测试与稳定性
+
+本轮新增了：
+
+- [test_report_artifacts.py](/F:/workspace/XJToolkit/tests/unit/test_report_artifacts.py) 中的 `no_table_pages_detected` 合同测试
+- [test_analyze_project.py](/F:/workspace/XJToolkit/tests/integration/test_analyze_project.py) 中对 `table_mappings_recovered / classified_table_filenames` 的集成断言
+
+本轮验证结果：
+
+- `python -m pytest -q tests\unit\test_report_artifacts.py -k "no_table_pages_detected or page_classification_fields"` -> `2 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "routes_table_like_page_to_table_extractor_and_emits_table_mapping"` -> `1 passed`
+- `python -m pytest -q` -> `175 passed`
+
+### 82.5 当前裁决
+
+到这一轮为止，任务书里关于 `TableExtractor` 的 current-head 说法需要更新成：
+
+1. 已有强证据
+- synthetic `analyze-project` 已证明表格页会走 `TableExtractor` 并产出 `table_mapping`
+- real-sample findings 已显式证明当前两套样本暂无正式 table hit
+
+2. 仍未完全闭环
+- 还没有真实样本 `table_mappings_recovered`
+- 第一套仍有 `table_like_non_routed_pages` 边界，说明 `table_like` 几何和最终路由并不等价
+
+所以 current-head 最近的下一条缺口，更像是二选一：
+
+1. 继续收口 `issue` JSON 顶层可复核字段
+2. 或专门处理 `table_like_non_routed_pages` 这类“几何像表格、但语义仍应走 component”的解释边界

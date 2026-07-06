@@ -1256,3 +1256,55 @@
   - 而更像是：
     - `TableExtractor` 的 real-hit / real-no-hit 证明
     - 以及 `issue` 可复核字段是否还要再上提到顶层合同
+
+## Session Update 2026-07-06 (Phase 32)
+- 先按 current-head 与 section 81 的裁决继续收窄，只做一个最小闭环：
+  - 把“真实样本当前没有表格命中”从隐式现象升级成 `findings` 显式合同
+- 本轮实现：
+  - `src/dwg_audit/report/artifacts.py`
+    - `_build_table_extraction_summary()` 现在同时消费 `table_mappings + page_findings`
+    - 新增结构化状态：
+      - `table_mappings_recovered`
+      - `table_pages_routed_without_mappings`
+      - `no_table_pages_detected`
+    - 新增字段：
+      - `status`
+      - `status_reason`
+      - `classified_table_pages`
+      - `classified_table_sheet_ids`
+      - `classified_table_filenames`
+      - `table_like_non_routed_pages`
+    - `findings.md` 新增 `## Table Extraction` 段
+  - `tests/unit/test_report_artifacts.py`
+    - 新增 `test_write_project_artifacts_marks_no_table_pages_detected_in_summary`
+  - `tests/integration/test_analyze_project.py`
+    - 现有 table 路由集成测试补断言：
+      - `status == "table_mappings_recovered"`
+      - `classified_table_pages == 1`
+      - `classified_table_filenames == ["05 回路表格图.dwg"]`
+- fresh real-sample rerun 核验：
+  - 第二套：[phase37_table_no_hit_second](/F:/workspace/XJToolkit/.tmp/phase37_table_no_hit_second/2_2)
+    - `table_extraction_summary.status = no_table_pages_detected`
+    - `classified_table_pages = 0`
+    - `classified_table_filenames = []`
+    - `table_like_non_routed_pages = []`
+  - 第一套：[phase37_table_no_hit_first](/F:/workspace/XJToolkit/.tmp/phase37_table_no_hit_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+    - `table_extraction_summary.status = no_table_pages_detected`
+    - `classified_table_pages = 0`
+    - `classified_table_filenames = []`
+    - `table_like_non_routed_pages` 保留 1 页：
+      - `S0023 / 22 元件接线图2.dwg / 元件接线图 / ComponentDiagramExtractor`
+- 这条边界当前是可接受的：
+  - 它说明第一套里存在“几何上偏 table-heavy”的 component 页
+  - 但 current-head 没有把它误路由成 `TableExtractor`
+- 本轮验证：
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "no_table_pages_detected or page_classification_fields"` -> `2 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "routes_table_like_page_to_table_extractor_and_emits_table_mapping"` -> `1 passed`
+  - `python -m pytest -q` -> `175 passed`
+- 当前裁决：
+  - `TableExtractor` 现在已有两类 current-head 证据同时成立：
+    - synthetic table hit
+    - real-sample explicit no-hit
+  - 最近下一条缺口更像是：
+    - `issue` JSON 顶层可复核字段
+    - 或 `table_like_non_routed_pages` 的解释边界是否还要更窄收口

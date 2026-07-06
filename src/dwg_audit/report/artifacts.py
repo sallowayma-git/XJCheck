@@ -876,20 +876,68 @@ def _build_page_findings(
     return page_findings
 
 
-def _build_table_extraction_summary(table_mappings: list[dict[str, Any]] | None) -> dict[str, Any]:
+def _build_table_extraction_summary(
+    table_mappings: list[dict[str, Any]] | None,
+    page_findings: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    page_findings = page_findings or []
+    routed_table_pages = [
+        item
+        for item in page_findings
+        if item.get("route_target") == "TableExtractor"
+    ]
+    routed_table_sheet_ids = [str(item.get("sheet_id")) for item in routed_table_pages if item.get("sheet_id")]
+    routed_table_filenames = [str(item.get("filename")) for item in routed_table_pages if item.get("filename")]
+    table_like_non_routed = [
+        {
+            "sheet_id": item.get("sheet_id"),
+            "filename": item.get("filename"),
+            "page_type": item.get("page_type"),
+            "route_target": item.get("route_target"),
+        }
+        for item in page_findings
+        if bool((item.get("structure_summary") or {}).get("table_like_geometry"))
+        and item.get("route_target") != "TableExtractor"
+    ]
+
     if not table_mappings:
+        if routed_table_pages:
+            return {
+                "status": "table_pages_routed_without_mappings",
+                "status_reason": "Some pages were routed to TableExtractor, but no stable table mappings were recovered.",
+                "table_pages": 0,
+                "three_column_pages": 0,
+                "total_mappings": 0,
+                "classified_table_pages": len(routed_table_pages),
+                "classified_table_sheet_ids": routed_table_sheet_ids,
+                "classified_table_filenames": routed_table_filenames,
+                "table_like_non_routed_pages": table_like_non_routed,
+                "mappings": [],
+            }
         return {
+            "status": "no_table_pages_detected",
+            "status_reason": "No page in this run was classified as a table page or routed to TableExtractor.",
             "table_pages": 0,
             "three_column_pages": 0,
             "total_mappings": 0,
+            "classified_table_pages": 0,
+            "classified_table_sheet_ids": [],
+            "classified_table_filenames": [],
+            "table_like_non_routed_pages": table_like_non_routed,
             "mappings": [],
         }
     three_column_pages = sum(1 for item in table_mappings if item.get("three_column"))
     total_mappings = sum(len(item.get("mappings", [])) for item in table_mappings)
     return {
+        "status": "table_mappings_recovered",
+        "status_reason": f"Recovered {total_mappings} structured table mappings from {len(table_mappings)} routed table page(s).",
         "table_pages": len(table_mappings),
         "three_column_pages": three_column_pages,
         "total_mappings": total_mappings,
+        "classified_table_pages": len(routed_table_pages),
+        "classified_table_sheet_ids": routed_table_sheet_ids,
+        "classified_table_filenames": routed_table_filenames,
+        "table_like_non_routed_pages": table_like_non_routed,
         "mappings": table_mappings,
     }
 
@@ -974,7 +1022,7 @@ def _build_findings_payload(
         "pair_evidence_summary": _build_pair_findings_summary(artifacts.pairs),
         "page_findings_count": len(page_findings),
         "page_findings": page_findings,
-        "table_extraction_summary": _build_table_extraction_summary(table_mappings),
+        "table_extraction_summary": _build_table_extraction_summary(table_mappings, page_findings),
         "one_to_many_review_table": _build_one_to_many_review_table(artifacts.pairs, config=config),
         "failed_files": [
             {
@@ -1120,6 +1168,16 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             f"- StatusCounts: `{json.dumps(pair_summary['status_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ConfidenceBuckets: `{json.dumps(pair_summary['confidence_bucket_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ReviewPairs: `{pair_summary['review_pairs']}`",
+            "",
+            "## Table Extraction",
+            "",
+            f"- Status: `{payload['table_extraction_summary']['status']}`",
+            f"- Reason: `{payload['table_extraction_summary']['status_reason']}`",
+            f"- ClassifiedTablePages: `{payload['table_extraction_summary']['classified_table_pages']}`",
+            f"- TablePagesWithMappings: `{payload['table_extraction_summary']['table_pages']}`",
+            f"- ThreeColumnPages: `{payload['table_extraction_summary']['three_column_pages']}`",
+            f"- TotalTableMappings: `{payload['table_extraction_summary']['total_mappings']}`",
+            f"- ClassifiedTableFilenames: `{json.dumps(payload['table_extraction_summary']['classified_table_filenames'], ensure_ascii=False)}`",
             "",
             "## 待复核 Pair 概览",
             "",
