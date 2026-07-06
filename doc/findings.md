@@ -6613,3 +6613,88 @@ route status 仍稳定为：
 - 目标形态：`3-2KLP1-1 -> 3-2QD2`、`3-2KLP1-2 -> 3-2n116`
 
 下一步应继续沿用“结构化 pair_kind + evidence.source”的路线，而不是回到裸数字候选排名。
+
+## 92. 2026-07-06 Issue root-cause audit 已接入 post-audit 主链
+
+用户最新闭环要求把 `issue_count` 视为“症状集合”，先做归因而不是先降噪。本轮新增了 post-audit 诊断层：
+
+- 给每条 issue 补 `root_cause`
+- 补 `root_cause_confidence`
+- 补 `root_cause_rationale`
+- 补 `diagnostic_tags`
+- 补 `diagnostic_context`
+- 输出聚合产物 `audit/issue_root_cause_audit.json`
+- 输出可读产物 `audit/issue_root_cause_audit.md`
+
+首版 root-cause 分类与用户建议保持一致：
+
+- `page_misclassified`
+- `extractor_missing`
+- `candidate_noise`
+- `pairing_wrong`
+- `relationship_missing`
+- `rule_too_strict`
+- `insufficient_evidence`
+
+这层只解释症状，不改变规则引擎结果，也不直接压低 issue 数量。
+
+### 92.1 第二套真实样本诊断结果
+
+复用现有 findings，只重跑 audit：
+
+- [phase47_component_second](/F:/workspace/XJToolkit/.tmp/phase47_component_second/2_2)
+
+结果：
+
+- `issue_count = 519`
+- `candidate_noise = 33`
+- `extractor_missing = 24`
+- `insufficient_evidence = 287`
+- `pairing_wrong = 174`
+- `rule_too_strict = 1`
+
+按页看，最强信号是：
+
+- `08 测控1开入回路图1.dwg`: `47/49` 为 `pairing_wrong`
+- `09 测控1开入回路图2.dwg`: `43/43` 为 `pairing_wrong`
+- `12 测控2开入回路图1.dwg`: `41/48` 为 `pairing_wrong`
+- `13 测控2开入回路图2.dwg`: `43/43` 为 `pairing_wrong`
+- `20 元件接线图2.dwg`: `24/24` 为 `extractor_missing`
+- `21/23` 端子图仍以 `insufficient_evidence` 为主，说明当前字段还不足以自动确认真实语义
+
+这说明第二套的最大显性症状不是“规则太多”，而是两类工程缺口：
+
+- 网格化开入回路里的 inline 数字断线 / 半链组合问题
+- 元件接线图中专用 `component_mapping` 仍缺失
+
+### 92.2 第一套真实样本诊断结果
+
+复用现有 findings，只重跑 audit：
+
+- [phase47_component_first](/F:/workspace/XJToolkit/.tmp/phase47_component_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA)
+
+结果：
+
+- `issue_count = 370`
+- `candidate_noise = 68`
+- `extractor_missing = 68`
+- `insufficient_evidence = 199`
+- `pairing_wrong = 35`
+
+第一套 top pages 显示：
+
+- `24 左侧端子图1.dwg`: `43` issues，其中 `candidate_noise = 20`
+- `22 元件接线图2.dwg`: `30` issues，全部为 `extractor_missing`
+- `11 非电量开入回路.dwg`: `28` issues，其中 `pairing_wrong = 14`
+
+第一套与第二套共同确认：元件接线图的下一步不应继续靠 ordinary pair 调分，而应继续补 `ComponentDiagramExtractor` 的结构化 mapping。
+
+### 92.3 下一刀裁决
+
+短期优先级从“看总 issue 数”改为“按 root_cause 最大桶处理”：
+
+- 第一优先：`pairing_wrong`，尤其第二套 `08/09/12/13` 的 inline wire split。这里适合继续做 line chain 合并或把 complementary half-pair 从 issue 转成 review evidence。
+- 第二优先：`extractor_missing`，尤其两套的 `元件接线图2`。这里应补 component 专用 mapping，而不是让普通 pair 报低置信。
+- 第三优先：`insufficient_evidence`。这里不是马上写规则，而是补更细的候选/规则 cause hints，或等待人工语义反馈。
+
+因此 Phase 40 的线中元件端口型回路仍是任务书主链缺口，但在当前用户闭环下，下一轮更稳的入口应先用 root-cause 聚合选择最大的症状类，不再凭 issue_count 直觉行动。

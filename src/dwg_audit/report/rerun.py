@@ -15,6 +15,7 @@ from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.report.artifacts import _issue_frame
 from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
+from dwg_audit.services.issue_diagnostics import write_issue_root_cause_audit
 
 
 def rerun_audit_from_findings(
@@ -62,9 +63,7 @@ def rerun_audit_from_findings(
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
-    issues_frame = _issue_frame(issues)
-    issues_frame.to_parquet(audit_dir / "issues.parquet", index=False)
-    issues_frame.to_json(audit_dir / "issues.json", orient="records", force_ascii=False, indent=2)
+    issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
     export_existing_reports(project_dir)
     if event_sink is not None:
         event_sink.emit(
@@ -76,7 +75,15 @@ def rerun_audit_from_findings(
 
     if output_dir is not None and output_dir.resolve() != audit_dir.resolve():
         output_dir.mkdir(parents=True, exist_ok=True)
-        for name in ("issues.parquet", "issues.json", "audit_report.md", "audit_report.html", "issues.xlsx"):
+        for name in (
+            "issues.parquet",
+            "issues.json",
+            "issue_root_cause_audit.json",
+            "issue_root_cause_audit.md",
+            "audit_report.md",
+            "audit_report.html",
+            "issues.xlsx",
+        ):
             copy2(audit_dir / name, output_dir / name)
         return output_dir
     return audit_dir

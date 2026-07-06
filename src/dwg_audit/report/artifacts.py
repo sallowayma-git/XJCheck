@@ -1615,6 +1615,14 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
         details.append(f"- LineSemantics: `{semantics}`")
     if not _is_blank_value(triage):
         details.append(f"- OneToManyTriage: `{triage}`")
+    root_cause = row.get("root_cause")
+    if not _is_blank_value(root_cause):
+        confidence = row.get("root_cause_confidence")
+        rationale = row.get("root_cause_rationale")
+        details.append(
+            f"- RootCause: `{root_cause}`"
+            f" (confidence={_format_confidence(confidence)}): {_display_value(rationale)}"
+        )
     for label, key in (
         ("Summary", "summary"),
         ("Explanation", "explanation"),

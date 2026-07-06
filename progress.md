@@ -1665,3 +1665,30 @@
   - Second set remains stable at `sheet_count=24`, `pair_count=1211`, `issue_count=519`, and `wire_component_mapping=0`.
 - Next nearest MVP slice:
   - line-in component port circuit mappings such as `3-2KLP1-1 -> 3-2QD2`.
+
+## Session Update 2026-07-06 (Phase 41)
+- Re-routed the next slice according to the user's loop: first classify issue symptoms by root cause instead of trying to reduce issue count.
+- Implemented a post-audit service layer:
+  - `src/dwg_audit/services/issue_diagnostics.py`
+  - `issues.parquet/json` now receive `root_cause`, `root_cause_confidence`, `root_cause_rationale`, `diagnostic_tags`, `diagnostic_context`, `page_type`, `route_target`, and `pair_kind`.
+  - `audit/issue_root_cause_audit.json` and `audit/issue_root_cause_audit.md` are written next to normal audit outputs.
+- Fixed the `dwg_audit.services` package import cycle by making service exports lazy.
+- Report markdown now displays `RootCause` for each issue when present.
+- Subagent read-only review confirmed the same direction:
+  - existing fields are enough for a first root-cause pass
+  - `page_misclassified` / `extractor_missing` should be conservative
+  - follow-up precision will benefit from adding richer rule cause hints later
+- Verification:
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py tests\unit\test_rerun_audit.py` -> `4 passed`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py tests\unit\test_rerun_audit.py tests\unit\test_report_artifacts.py tests\unit\test_execution_service.py tests\unit\test_sidecar.py` -> `27 passed`
+  - `python -m pytest -q` -> `186 passed`
+- Real-sample reruns based on existing findings:
+  - `python -m dwg_audit.cli run-audit --findings ".tmp\phase47_component_second\2_2\findings"` -> success
+  - `python -m dwg_audit.cli run-audit --findings ".tmp\phase47_component_first\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\findings"` -> success
+- Root-cause evidence:
+  - Second set: `issue_count=519`, `pairing_wrong=174`, `extractor_missing=24`, `candidate_noise=33`, `rule_too_strict=1`, `insufficient_evidence=287`
+  - First set: `issue_count=370`, `pairing_wrong=35`, `extractor_missing=68`, `candidate_noise=68`, `insufficient_evidence=199`
+- Concurrent/user changes preserved:
+  - Did not stage or edit `doc/page_findings/`
+  - Did not stage or edit `doc/page_task_queue.md`
+  - Did not stage `doc/任务书.md`, which was already modified outside this slice

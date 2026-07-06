@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 40
+Phase 41
 
 ## Phases
 
@@ -299,6 +299,13 @@ Phase 40
 - [ ] 确认局部端口序号不再作为裸普通端子进入跨页审计
 - [ ] 补窄单测、集成测试和真实样本验证
 - **Status:** pending
+
+### Phase 41: Issue Root-Cause Diagnostics
+- [x] 按用户闭环把 `issue_count` 视为症状集合，建立 root_cause 临时归因分类
+- [x] 新增 post-audit service 层能力，给 `issues.parquet/json` 补 `root_cause / diagnostic_context` 并输出聚合报告
+- [x] 在第一套、第二套真实样本上只基于现有 findings 重跑 audit，确认归因产物可用
+- [x] 用归因结果反推下一刀应优先看 `pairing_wrong` 的 inline wire split 与 component extractor missing，而不是盲目降噪
+- **Status:** complete
 
 ## Key Questions
 1. 线中元件端口型回路是否和 `component_prefixed_signal_circuit` 共用 `wire_component_mapping` pair_kind？
