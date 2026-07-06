@@ -2613,3 +2613,35 @@
   - first prefixed external endpoint mapping.
   - first ZLP two-port component mapping.
   - backplate/component/table mapping rules semantics as a separate rules/acceptance/display slice.
+
+## Session Update 2026-07-07 (Phase 69 ZLP strip two-port component mapping)
+- Started after commit `691ed3b`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Confirmed Phase60 terminal-header semantic endpoint exclusion was already complete, so this round did not reopen `TableExtractor`.
+  - Confirmed protected external paths remained untracked and untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - Explorer evidence and Phase82 fresh parquet showed first `S0023 / 22 元件接线图2.dwg` has a true ZLP long strip component: `1-2ZLP4`, block ports `1/2`, external endpoints `KD26 / 1-2n422`, and vertical support groups `GC0090/GC0094`.
+  - Current output had `PC0090 ? -> 422` because the strip body regex accepted `KLP/CLP` but not `ZLP`.
+- Implementation:
+  - Extended `strip_two_port_component` body matching to include `ZLP`.
+  - Added a focused ZLP unit test for `1-2ZLP4-1 -> KD26` and `1-2ZLP4-2 -> 1-2n422`.
+  - Did not change candidates, PairBuilder, rules, acceptance fixture, CLI/UI, or existing KLP/CLP logic.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or zlp"` -> `9 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `18 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip or run_audit"` -> `10 passed, 10 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `59 passed`
+  - `python -m pytest -q` -> `251 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase83_zlp_first/...` + `.tmp/phase83_zlp_first_audit`: `pair_count=1562`, `issue_count=272`, `component_mapping=150`, `R-PAIR-MISSING-SIDE=114`.
+  - first targets `1-2ZLP4-1 -> KD26` and `1-2ZLP4-2 -> 1-2n422` are `component_mapping/pass/confidence=0.95`.
+  - former ordinary residuals `PC0090 ? -> 422` and `PC0104 ? -> 422` are now `discard`, covered by `component_mapping`.
+  - second fresh `.tmp/phase83_zlp_second/2_2` + `.tmp/phase83_zlp_second_audit`: `pair_count=1460`, `issue_count=51`, pair_kind unchanged from Phase82.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - second DC/GND/function-label semantic mapping.
+  - second network-time/function-label semantic mapping.
+  - first prefixed external endpoint mapping.
+  - backplate/component/table mapping rules semantics.

@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 68
+Phase 69
 
 ## Phases
 
@@ -918,6 +918,25 @@ Phase 68
   - fresh first `.tmp/phase82_complementary_first_audit`: `pair_count=1550`, `issue_count=278`, pair_kind unchanged；`table_mapping=299`, `component_mapping=138`, `wire_component_mapping=32`
   - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系；first `1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307` 仍命中。
 - [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、first ZLP component two-port mapping；backplate/component/table mapping 继续按 rules/acceptance/display 质量单独切片。
+- **Status:** complete
+
+### Phase 69: ZLP Strip Two-Port Component Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `691ed3b`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 复核确认用户早前点名的 Phase60 `terminal_header_table semantic endpoint exclusion`、Phase61 `component-prefixed 218 residual suppression`、Phase62 `inline KLP 116 residual` 收缩均已完成；本轮不重开 `TableExtractor`、KLP/CLP extractor 或 rules 聚合。
+- [x] 两个只读 explorer 与主线程 Phase82 产物核查一致确认：first `S0023 / 22 元件接线图2.dwg` 的 `1-2ZLP4` 与既有 KLP/CLP 长条双端口结构同构，块内端口 `1/2`、外部 `KD26 / 1-2n422` 和 vertical support line 都存在；旧输出仅因 body regex 不认 `ZLP` 留下 `PC0090 ? -> 422`。
+- [x] 实现目标：把 `strip_two_port_component` body family 从 `KLP/CLP` 窄扩到同构 `ZLP`，输出 `component_mapping/pass`；不改候选层、PairBuilder、rules、CLI/UI、acceptance fixture，也不移除普通 pair graph 输入。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or zlp"` -> `9 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `18 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip or run_audit"` -> `10 passed, 10 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `59 passed`
+  - `python -m pytest -q` -> `251 passed`
+  - first fresh `.tmp/phase83_zlp_first/...` + `.tmp/phase83_zlp_first_audit`: `pair_count=1562`, `issue_count=272`, `component_mapping=150`, `R-PAIR-MISSING-SIDE=114`。
+  - first target hit: `1-2ZLP4-1 -> KD26` and `1-2ZLP4-2 -> 1-2n422` are `component_mapping/pass/confidence=0.95/component_submode=strip_two_port_component`; former `PC0090 ? -> 422` and sibling `PC0104 ? -> 422` are now `discard` covered by component mapping.
+  - first KLP/CLP and prefixed redlines held: `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1` remain structured pass mappings.
+  - second fresh `.tmp/phase83_zlp_second/2_2` + `.tmp/phase83_zlp_second_audit`: `pair_count=1460`, `issue_count=51`, pair_kind unchanged from Phase82；`wire_component_mapping=245`, `table_mapping=174`, `component_mapping=82`。
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain expected structured relations.
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
 ## Errors Encountered

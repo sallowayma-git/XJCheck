@@ -166,6 +166,32 @@ def test_extract_strip_two_port_component_pairs_accepts_clp_body() -> None:
     assert all(pair.evidence["component_submode"] == "strip_two_port_component" for pair in pairs)
 
 
+def test_extract_strip_two_port_component_pairs_accepts_zlp_body() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("T3513", "1-2ZLP4", 250.73, 200.31, layer="MARK"),
+        _make_text("T3511", "1", 254.58, 185.06, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3510", "2", 254.64, 170.06, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3647", "KD26", 252.23, 190.41),
+        _make_text("T3648", "1-2n422", 249.98, 164.81),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs(
+        [sheet],
+        texts,
+        [_make_vertical_group("GC0090", x=252.74, start_y=186.31, end_y=171.31)],
+    )
+
+    assert consumed == {"GC0090"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1-2ZLP4-1", "KD26"),
+        ("1-2ZLP4-2", "1-2n422"),
+    }
+    assert {pair.pair_kind for pair in pairs} == {"component_mapping"}
+    assert all(pair.status == "pass" for pair in pairs)
+    assert all(pair.evidence["component_submode"] == "strip_two_port_component" for pair in pairs)
+
+
 def test_extract_strip_two_port_component_pairs_requires_supporting_vertical_group() -> None:
     sheet = _make_sheet()
     texts = [

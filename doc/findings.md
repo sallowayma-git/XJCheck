@@ -8704,3 +8704,59 @@ fresh first-set 证据：
 - 本轮是 rules 诊断语义和 findings rerun 保真修复，不是 extractor 补缺。
 - issue_count 下降来自互补半链聚合：两条普通缺边合并成一条 review，而不是隐藏关系。
 - 下一轮候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、first ZLP component two-port mapping；backplate/component/table mapping 继续作为 rules/acceptance/display 质量问题单独切。
+
+## 122. 2026-07-07 ZLP strip two-port component mapping：同构长条双端口组件进入结构化关系
+
+只读审计确认，first `S0023 / 22 元件接线图2.dwg` 中 `1-2ZLP4` 与已闭合的 KLP/CLP 长条双端口结构同构：上方本体编号为 `1-2ZLP4`，块内端口为 `1/2`，上端外部端为 `KD26`，下端外部端为 `1-2n422`，并有 vertical support line。旧输出只因为 `_COMPONENT_BODY_PATTERN` 未包含 `ZLP`，留下普通缺边 `PC0090 ? -> 422`。
+
+本轮实现：
+
+- 在 [component_diagrams.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/component_diagrams.py) 中把 `strip_two_port_component` body family 从 `KLP/CLP` 扩为 `KLP/CLP/ZLP`。
+- 在 [test_component_diagrams.py](/F:/workspace/XJToolkit/tests/unit/test_component_diagrams.py) 中增加 ZLP 同构夹具，覆盖 `1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422`。
+- 本轮不改候选层、PairBuilder、rules、CLI/UI 或 acceptance fixture；KLP/CLP 既有行为保持。
+
+fresh first-set 证据：
+
+- `.tmp/phase83_zlp_first/...` + `.tmp/phase83_zlp_first_audit`
+- `pair_count=1562`
+- `issue_count=272`
+- `component_mapping=150`
+- `R-PAIR-MISSING-SIDE=114`
+- 目标关系：
+  - `1-2ZLP4-1 -> KD26`：`component_mapping/pass/confidence=0.95`
+  - `1-2ZLP4-2 -> 1-2n422`：`component_mapping/pass/confidence=0.95`
+- 原 `PC0090 ? -> 422` 和同构 sibling `PC0104 ? -> 422` 均为 `discard`，理由为被 `ComponentDiagramExtractor` 的 `component_mapping` 覆盖。
+
+fresh second-set 非回归证据：
+
+- `.tmp/phase83_zlp_second/2_2` + `.tmp/phase83_zlp_second_audit`
+- `pair_count=1460`
+- `issue_count=51`
+- pair_kind 与 Phase82 保持一致：
+  - `ordinary_pair=597`
+  - `wire_component_mapping=245`
+  - `continuation=202`
+  - `table_mapping=174`
+  - `semantic_mapping=157`
+  - `component_mapping=82`
+  - `bridge_mapping=3`
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系
+- first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1` 均保持命中
+
+验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or zlp"` -> `9 passed, 9 deselected`
+- `python -m pytest -q tests\unit\test_component_diagrams.py` -> `18 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip or run_audit"` -> `10 passed, 10 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `59 passed`
+- `python -m pytest -q` -> `251 passed`
+
+裁决：
+
+- 本轮是同构组件 family 漏收补齐，不是重新实现 KLP/CLP extractor，也不是 rules 静音。
+- 下一轮候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics。
