@@ -2122,3 +2122,30 @@
   - `doc/任务书.md`
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
+
+## Session Update 2026-07-06 (Phase 53 small port box component mapping)
+- Started after commit `9127db5`.
+- Read-only recovery:
+  - Current worktree still only has external/concurrent changes in `doc/任务书.md`, `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Taskbook now explicitly calls out `small_port_box_component` for `AK/A'/KZKK/JR`.
+- Read-only audit conclusions:
+  - `small_port_box_component` had no implementation or tests.
+  - `4输出/6输出` KK2P/KK3P binding remains a separate known偏差 and should be the next slice, not mixed into this one.
+- Implementation:
+  - Added `extract_small_port_box_component_pairs()` in `component_diagrams.py`.
+  - Wired it into `ComponentDiagramExtractor` in `page_extractors.py`.
+  - Emits `component_mapping/pass/confidence=0.95` with `component_submode=small_port_box_component`.
+  - Keeps evidence for body/port/endpoint/block/bbox and strips leading/trailing `&` from endpoint values.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `16 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip"` -> `9 passed, 11 deselected`
+  - `python -m pytest -q` -> `225 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase67_small_port_first_v2/...`: `pair_count=1533`, `issue_count=458`, `component_mapping=85`, `small_port_box_component=10`.
+  - second fresh `.tmp/phase67_small_port_second/2_2`: `pair_count=1585`, `issue_count=303`, `component_mapping=30`, `small_port_box_component=10`.
+  - Target pairs hit on both first `S0022` and second `S0019`: `AK-1->JD1`, `AK-2->A'-1`, `A'-1->AK-2`, `A'-2->JD6`, `KZKK-1->JD8`, `KZKK-2->K-5`, `KZKK-3->JD3`, `KZKK-4->K-6`, `JR-1->K-3`, `JR-2->K-4`.
+  - Phase52 second input-matrix evidence did not regress: `input_matrix_wire_mapping=168`, `covered_input_matrix_ordinary=336`, `issue_count=303`.
+- External/concurrent files intentionally not touched for this slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`

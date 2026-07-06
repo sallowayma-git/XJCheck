@@ -7387,3 +7387,72 @@ fresh first-set 非回归：
 - second-set `08/12` 开入矩阵已从 `? -> 127` 这类裸数字 review 转为结构化 `wire_component_mapping/pass`。
 - `issue_count 471 -> 303` 是由被结构化关系覆盖的 ordinary 半边降级造成，不是隐藏或删除结构化关系。
 - first-set 未出现 input-matrix 误触发，说明该门槛仍足够窄。
+
+## 106. 2026-07-06 小型端口盒 small_port_box_component：AK / A' / KZKK / JR 结构化映射
+
+本轮只读审计确认，任务书新增明确的 `small_port_box_component` 仍是空白能力：
+
+- `component_diagrams.py` 只有 `strip_two_port_component` 和 `kk_multi_port_component`。
+- first `S0022 / 21 元件接线图1.dwg` 与 second `S0019 / 19 元件接线图1.dwg` 都存在同构小端口盒。
+- 真实文本证据包括：
+  - 本体：`AK`、`A'`、`KZKK`、`JR`
+  - 块内端口：`1/2` 或 `1/2/3/4`
+  - 外部端：`JD1`、`A'-1`、`AK-2`、`JD6`、`JD8`、`K-5`、`JD3`、`K-6`、`K-3`、`K-4`
+- 当前系统此前没有输出这些 `component_mapping`，小端口号仍只表现为被 discard 的普通端口线噪声。
+
+本轮实现：
+
+- 新增 [component_diagrams.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/component_diagrams.py) 中的 `extract_small_port_box_component_pairs()`。
+- 在 [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py) 的 `ComponentDiagramExtractor` 分支接入该子模式。
+- 抽取门槛保持窄：
+  - 仅 `元件接线图 / horizontal_component / ComponentDiagramExtractor`
+  - 仅 `KK1P`、`KK2P`、`JR-01` 小盒块
+  - 本体必须是纯字母/撇号形态，例如 `AK`、`A'`、`KZKK`、`JR`
+  - 块内端口集合必须完整
+  - 外部端必须在端口上方或下方邻近位置
+- 输出为 `pair_kind=component_mapping`、`status=pass`、`confidence=0.95`。
+- evidence 记录 `component_submode=small_port_box_component`、本体/端口/外部端 text id、block id/name、bbox、supporting line ids。
+
+fresh first-set 证据：
+
+- `.tmp/phase67_small_port_first_v2/...`
+- `pair_count=1533`
+- `issue_count=458`
+- `component_mapping=85`
+- `small_port_box_component=10`
+- first `S0022` 目标全部命中：
+  - `AK-1 -> JD1`
+  - `AK-2 -> A'-1`
+  - `A'-1 -> AK-2`
+  - `A'-2 -> JD6`
+  - `KZKK-1 -> JD8`
+  - `KZKK-2 -> K-5`
+  - `KZKK-3 -> JD3`
+  - `KZKK-4 -> K-6`
+  - `JR-1 -> K-3`
+  - `JR-2 -> K-4`
+
+fresh second-set 证据：
+
+- `.tmp/phase67_small_port_second/2_2`
+- `pair_count=1585`
+- `issue_count=303`
+- `component_mapping=30`
+- `small_port_box_component=10`
+- second `S0019` 命中同一组 small-port 目标。
+- Phase52 开入矩阵未回退：
+  - `input_matrix_wire_mapping=168`
+  - `covered_input_matrix_ordinary=336`
+  - `1-21QD12 -> 1-21n127` 与 `3-21QD6 -> 3-21n127` 仍命中。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_component_diagrams.py` -> `16 passed`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip"` -> `9 passed, 11 deselected`
+- `python -m pytest -q` -> `225 passed`
+
+裁决：
+
+- `small_port_box_component` 已从“未实现”推进到 first/second 真实样本双命中。
+- 本轮没有通过降低 issue_count 来证明正确性；结构化关系新增后 project `issue_count` 保持稳定。
+- `4输出/6输出` 的 KK2P/KK3P 端口绑定偏差仍未闭合，下一刀应单独处理，不能把本轮 small-port 视为 ComponentDiagramExtractor 全完成。

@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 52
+Phase 53
 
 ## Phases
 
@@ -646,6 +646,21 @@ Phase 52
   - second-set 目标命中：`S0008` 的 `1-21QD12 -> 1-21n127`、`1-21QD28 -> 1-21n212`、`1-21QD44 -> 1-21n228`；`S0012` 的 `3-21QD6 -> 3-21n127`、`3-21QD22 -> 3-21n212`、`3-21QD38 -> 3-21n228`
   - first-set fresh non-regression: `.tmp/phase66_input_matrix_cover_first/...` 中 `input_matrix_wire_mapping=0`、`covered_input_matrix_ordinary=0`、`issue_count=458`
 - [ ] 下一刀建议：回到 Phase51 packaged sidecar/exe smoke，或继续按任务书审计 `small_port_box_component` / 输出几何 mismatch；二者都先做只读审计。
+- **Status:** complete
+
+### Phase 53: Small Port Box Component Mapping
+- [x] 只读恢复并确认当前外部/并发改动仍限于 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md`。
+- [x] 并发审计确认 `small_port_box_component` 是任务书点名且当前未闭合的 ComponentDiagramExtractor 子模式；同时记录 `4输出/6输出` 端口绑定偏差留作下一刀。
+- [x] 实现目标：在 `ComponentDiagramExtractor` 中识别 `AK/A'/KZKK/JR` 小型端口盒，输出 `component_mapping/pass`。
+- [x] 风险门槛：只接受元件接线图路由下的 `KK1P/KK2P/JR-01` 小盒块、纯字母本体、块内完整端口集合，以及端口上下邻近外部端；不改普通候选、rules、TableExtractor 或 WireDiagramExtractor。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `16 passed`
+  - targeted integration component slice -> `9 passed, 11 deselected`
+  - `python -m pytest -q` -> `225 passed`
+  - first-set fresh `.tmp/phase67_small_port_first_v2/...`: `pair_count=1533`, `issue_count=458`, `component_mapping=85`, `small_port_box_component=10`
+  - second-set fresh `.tmp/phase67_small_port_second/2_2`: `pair_count=1585`, `issue_count=303`, `component_mapping=30`, `small_port_box_component=10`
+  - 目标命中：`AK-1 -> JD1`、`AK-2 -> A'-1`、`A'-1 -> AK-2`、`A'-2 -> JD6`、`KZKK-1 -> JD8`、`KZKK-2 -> K-5`、`KZKK-3 -> JD3`、`KZKK-4 -> K-6`、`JR-1 -> K-3`、`JR-2 -> K-4`
+- [ ] 下一刀建议：优先修正 `4输出/6输出` 的 KK2P/KK3P 端口几何绑定偏差，尤其 `5DK-2/4` 与 `1-2ZKK-2/4/6` 的真实人工标注口径。
 - **Status:** complete
 
 ## Errors Encountered

@@ -197,6 +197,17 @@ def _extract_pairs_for_route(
             )
             component_pairs.extend(kk_pairs)
             consumed_group_ids.update(kk_consumed_group_ids)
+        small_port_extractor = getattr(component_diagrams, "extract_small_port_box_component_pairs", None)
+        if callable(small_port_extractor):
+            small_port_pairs, small_port_consumed_group_ids = small_port_extractor(
+                pages,
+                texts,
+                line_groups,
+                blocks=blocks or [],
+                pair_id_factory=IdFactory(f"P{id_stem}S"),
+            )
+            component_pairs.extend(small_port_pairs)
+            consumed_group_ids.update(small_port_consumed_group_ids)
         if component_pairs:
             _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
             pairs.extend(component_pairs)

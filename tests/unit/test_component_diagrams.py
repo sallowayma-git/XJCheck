@@ -1,4 +1,5 @@
 from dwg_audit.audit.component_diagrams import extract_kk_multi_port_component_pairs
+from dwg_audit.audit.component_diagrams import extract_small_port_box_component_pairs
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineGroup
@@ -390,3 +391,116 @@ def test_extract_kk_multi_port_component_pairs_deduplicates_same_group_side_endp
     assert len(pairs) == 1
     assert pairs[0].left_value in {"1-21ZKK-4", "1-21ZKK-6"}
     assert pairs[0].right_value == "1-21n715"
+
+
+def test_extract_small_port_box_component_pairs_builds_vertical_two_port_boxes() -> None:
+    sheet = _make_sheet()
+    ak_block = _make_block("B_AK", "KK1P", x=47.5, y=192.0)
+    a_prime_block = _make_block("B_AP", "KK1P", x=77.5, y=192.0)
+    texts = [
+        _make_text("AK_BODY", "AK", 46.0, 218.5, layer="MARK"),
+        _make_text("AK_P1", "1", 46.75, 201.79, layer="0", source_block_name="KK1P"),
+        _make_text("AK_P2", "2", 46.75, 179.3, layer="0", source_block_name="KK1P"),
+        _make_text("AK_E1", "JD1", 45.25, 208.6),
+        _make_text("AK_E2", "A'-1", 44.5, 173.0),
+        _make_text("AP_BODY", "A'", 76.0, 218.5, layer="MARK"),
+        _make_text("AP_P1", "1", 76.75, 201.79, layer="0", source_block_name="KK1P"),
+        _make_text("AP_P2", "2", 76.75, 179.3, layer="0", source_block_name="KK1P"),
+        _make_text("AP_E1", "AK-2", 74.5, 208.6),
+        _make_text("AP_E2", "JD6", 75.25, 173.0),
+    ]
+    groups = [
+        _make_horizontal_group("G_AK1", 207.0, start_x=40.0, end_x=55.0),
+        _make_horizontal_group("G_AK2", 177.0, start_x=40.0, end_x=55.0),
+        _make_horizontal_group("G_AP1", 207.0, start_x=70.0, end_x=85.0),
+        _make_horizontal_group("G_AP2", 177.0, start_x=70.0, end_x=85.0),
+    ]
+
+    pairs, consumed = extract_small_port_box_component_pairs([sheet], texts, groups, [ak_block, a_prime_block])
+
+    assert consumed == {"G_AK1", "G_AK2", "G_AP1", "G_AP2"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("AK-1", "JD1"),
+        ("AK-2", "A'-1"),
+        ("A'-1", "AK-2"),
+        ("A'-2", "JD6"),
+    }
+    first = next(pair for pair in pairs if pair.left_value == "AK-1")
+    assert first.status == "pass"
+    assert first.pair_kind == "component_mapping"
+    assert first.evidence["component_submode"] == "small_port_box_component"
+    assert first.evidence["component_block_name"] == "KK1P"
+    assert first.evidence["component_port_text_id"] == "AK_P1"
+    assert first.evidence["external_endpoint_text_id"] == "AK_E1"
+
+
+def test_extract_small_port_box_component_pairs_builds_four_port_box() -> None:
+    sheet = _make_sheet()
+    block = _make_block("B_KZKK", "KK2P", x=117.5, y=192.5)
+    texts = [
+        _make_text("BODY", "KZKK", 114.5, 219.0, layer="MARK"),
+        _make_text("P1", "1", 109.25, 202.29, layer="0", source_block_name="KK2P"),
+        _make_text("P2", "2", 109.25, 179.8, layer="0", source_block_name="KK2P"),
+        _make_text("P3", "3", 124.25, 202.28, layer="0", source_block_name="KK2P"),
+        _make_text("P4", "4", 124.25, 179.8, layer="0", source_block_name="KK2P"),
+        _make_text("E1", "& JD8", 103.75, 209.1),
+        _make_text("E2", "K-5", 105.25, 173.5),
+        _make_text("E3", "& JD3", 123.75, 209.1),
+        _make_text("E4", "K-6", 125.25, 173.5),
+    ]
+    groups = [
+        _make_horizontal_group("G1", 207.5, start_x=105.0, end_x=130.0),
+        _make_horizontal_group("G2", 177.5, start_x=105.0, end_x=130.0),
+    ]
+
+    pairs, consumed = extract_small_port_box_component_pairs([sheet], texts, groups, [block])
+
+    assert consumed == {"G1", "G2"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("KZKK-1", "JD8"),
+        ("KZKK-2", "K-5"),
+        ("KZKK-3", "JD3"),
+        ("KZKK-4", "K-6"),
+    }
+    assert {pair.evidence["external_endpoint_raw"] for pair in pairs if pair.right_value in {"JD8", "JD3"}} == {
+        "& JD8",
+        "& JD3",
+    }
+
+
+def test_extract_small_port_box_component_pairs_builds_horizontal_jr_box() -> None:
+    sheet = _make_sheet()
+    block = _make_block("B_JR", "JR-01", x=207.5, y=39.5)
+    texts = [
+        _make_text("BODY", "JR", 206.0, 64.0, layer="MARK"),
+        _make_text("P1", "1", 202.9, 35.5, layer="0", source_block_name="JR-01"),
+        _make_text("P2", "2", 210.4, 35.5, layer="0", source_block_name="JR-01"),
+        _make_text("E1", "K-3 &", 205.25, 40.5, bbox=(205.25, 39.45, 214.55, 42.9)),
+        _make_text("E2", "K-4 &", 212.75, 40.5, bbox=(212.75, 39.45, 222.05, 42.9)),
+    ]
+    groups: list[LineGroup] = []
+
+    pairs, consumed = extract_small_port_box_component_pairs([sheet], texts, groups, [block])
+
+    assert consumed == set()
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("JR-1", "K-3"),
+        ("JR-2", "K-4"),
+    }
+
+
+def test_extract_small_port_box_component_pairs_requires_plain_mark_body() -> None:
+    sheet = _make_sheet()
+    block = _make_block("B_BAD", "KK1P", x=47.5, y=192.0)
+    texts = [
+        _make_text("BODY", "1DK", 46.0, 218.5, layer="MARK"),
+        _make_text("P1", "1", 46.75, 201.79, layer="0", source_block_name="KK1P"),
+        _make_text("P2", "2", 46.75, 179.3, layer="0", source_block_name="KK1P"),
+        _make_text("E1", "JD1", 45.25, 208.6),
+        _make_text("E2", "A'-1", 44.5, 173.0),
+    ]
+
+    pairs, consumed = extract_small_port_box_component_pairs([sheet], texts, [], [block])
+
+    assert pairs == []
+    assert consumed == set()
