@@ -64,6 +64,17 @@ def _issue_one_to_many_classification(row: pd.Series) -> str:
     return ""
 
 
+def _issue_many_to_one_classification(row: pd.Series) -> str:
+    evidence = _jsonish(row.get("evidence"))
+    if isinstance(evidence, dict) and evidence.get("many_to_one_classification") is not None:
+        return str(evidence["many_to_one_classification"])
+    return ""
+
+
+def _issue_review_classification(row: pd.Series) -> str:
+    return _issue_one_to_many_classification(row) or _issue_many_to_one_classification(row)
+
+
 def _pair_evidence_mapping(value: Any) -> dict[str, Any]:
     payload = _jsonish(value)
     if not isinstance(payload, dict):
@@ -220,7 +231,9 @@ def _issue_detail(issue_row: pd.Series) -> None:
                 "confidence": issue_row.get("confidence"),
                 "sheet_no": _issue_sheet_no(issue_row),
                 "values": _issue_values_text(issue_row),
+                "review_classification": _issue_review_classification(issue_row),
                 "one_to_many_classification": _issue_one_to_many_classification(issue_row),
+                "many_to_one_classification": _issue_many_to_one_classification(issue_row),
                 **semantics,
             }
         )
@@ -395,6 +408,8 @@ def main() -> None:
             else:
                 issues = issues.copy()
                 issues["one_to_many_classification"] = issues.apply(_issue_one_to_many_classification, axis=1)
+                issues["many_to_one_classification"] = issues.apply(_issue_many_to_one_classification, axis=1)
+                issues["review_classification"] = issues.apply(_issue_review_classification, axis=1)
                 issues["line_orientation"] = issues["evidence"].apply(
                     lambda value: _line_semantics_dict(value).get("line_orientation", "")
                 )
@@ -427,7 +442,7 @@ def main() -> None:
                         "issue_id",
                         "severity",
                         "rule_id",
-                        "one_to_many_classification",
+                        "review_classification",
                         "status",
                         "confidence",
                         "line_orientation",

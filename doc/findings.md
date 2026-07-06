@@ -9361,3 +9361,50 @@ fresh first-set 非回归证据：
 
 - 本轮是 terminal_header_table shared endpoint 的区间证据和报告说明收口，不是 issue 静音，也不是表格抽取补漏。
 - 下一轮候选收缩为：component split endpoint review 展示、many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 135. 2026-07-07 component split endpoint：逗号拆分 review 分类透出到报告和 UI
+
+只读审计确认，Phase81 后 first `.tmp/phase81_terminal_header_interval_first_audit` 中仍有 `28` 条 `component_split_endpoint_group_review`：`R-ONE-TO-MANY=16`、`R-MANY-TO-ONE=12`。这些不是 `strip_two_port_component` extractor 缺失；证据中已经包含 `component_branch_kind=split_endpoint_group`、`external_endpoint_raw_values`、`external_endpoint_splits`、`external_endpoint_text_ids` 和 `logical_endpoints`。典型样本是 first `S0024 / 23 元件接线图3.dwg` 的 `I0138 / PCM0066`：`5KLP5-1 -> 5KLP3-1` 来自原始逗号文本 `5KLP3-1,5KLP2-1`，拆分端为 `5KLP2-1` 与 `5KLP3-1`，文本 ID 为 `T3841`。
+
+本轮实现：
+
+- 在 [artifacts.py](/F:/workspace/XJToolkit/src/dwg_audit/report/artifacts.py) 的报告 frame 中新增 `many_to_one_classification` 和统一 `review_classification`。
+- `audit_report.md` issue 块现在同时展示 `ReviewClassification`、`OneToManyTriage` 与 `ManyToOneTriage`。
+- LineSemantics 摘要改为合并读取 issue 顶层 evidence 与 nested `pair_evidence`，能显示 `component_submode=strip_two_port_component`、`component_branch_kind=split_endpoint_group`、`shared_endpoint`、`external_endpoint_splits`。
+- 在 [app.py](/F:/workspace/XJToolkit/src/dwg_audit/ui/app.py) 给内部 Streamlit UI 增加 `many_to_one_classification` 和 `review_classification` 投影，问题表默认显示统一分类，详情仍保留来源字段。
+- 不改 `ComponentDiagramExtractor`、`PairBuilder`、rules 判定、issue 聚合、graph input 或 CLI/UI 产品表面。
+
+fresh rules-only 证据：
+
+- first `.tmp/phase82_component_split_display_first_audit`
+- `issue_count=136`，与 Phase81 保持一致。
+- `component_split_endpoint_group_review=28`：
+  - `R-ONE-TO-MANY=16`
+  - `R-MANY-TO-ONE=12`
+- `audit_report.md` 已包含：
+  - `ReviewClassification: component_split_endpoint_group_review`
+  - `OneToManyTriage: component_split_endpoint_group_review`
+  - `ManyToOneTriage: component_split_endpoint_group_review`
+  - `component_submode=strip_two_port_component`
+  - `component_branch_kind=split_endpoint_group`
+  - `external_endpoint_splits=5KLP2-1|5KLP3-1`
+- `issues.xlsx` 中 `review_classification=component_split_endpoint_group_review` 命中 `28` 行，`many_to_one_classification=component_split_endpoint_group_review` 命中 `12` 行。
+
+second 非回归证据：
+
+- second `.tmp/phase82_component_split_display_second_audit`
+- `issue_count=23`，与 Phase81 保持一致。
+- `component_split_endpoint_group_review=0`。
+- pair graph 未漂移：first `pair_count=1581`，second `pair_count=1462`。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_report_artifacts.py -k "many_to_one_component_split or evidence_display"` -> `2 passed, 15 deselected`
+- `python -m pytest -q tests\unit\test_ui_app.py -k "classification"` -> `2 passed, 3 deselected`
+- `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py` -> `22 passed`
+- `python -m pytest -q` -> `284 passed`
+
+裁决：
+
+- 本轮是 component split endpoint review 的报告/UI 展示语义收口，不是 issue 静音，也不是组件抽取器补漏。
+- 下一轮候选收缩为：many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示、acceptance golden 口径；packaged sidecar/exe smoke 仍为独立产品切片。

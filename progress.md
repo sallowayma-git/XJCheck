@@ -3013,3 +3013,37 @@
   - many-to-one/shared endpoint default display layering.
   - backplate/component cross-scope shared endpoint display.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 82 component split endpoint review display)
+- Started after commit `092798c`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Confirmed the older terminal_header_table semantic endpoint exclusion request was already completed in Phase60/Phase74-era records and current code: `I0/IA/UA/UB/UC/UN/3U0` are excluded from `table_mapping/pass` endpoints and retained as semantic evidence.
+  - Spawned two read-only explorers for first-set component split issue mining and report/UI source boundary. Both concluded this slice should be display semantics, not extractor/rules graph changes.
+- Read-only audit conclusions:
+  - first `.tmp/phase81_terminal_header_interval_first_audit` had `28` `component_split_endpoint_group_review` issues: `R-ONE-TO-MANY=16`, `R-MANY-TO-ONE=12`.
+  - Key sample: first `S0024 / 23 元件接线图3.dwg`, `I0138 / PCM0066`, `5KLP5-1 -> 5KLP3-1`, with raw comma text `5KLP3-1,5KLP2-1`, splits `5KLP2-1 / 5KLP3-1`, and `external_endpoint_text_id=T3841`.
+  - The evidence already proves comma split/text-group semantics; the display gap was that report/UI projected `one_to_many_classification` but not `many_to_one_classification`, and LineSemantics did not surface component split fields.
+- Implementation:
+  - Updated `report/artifacts.py` to add `many_to_one_classification` and unified `review_classification` to report frames.
+  - Markdown issue blocks now show `ReviewClassification`, keep `OneToManyTriage`, and add `ManyToOneTriage` when present.
+  - LineSemantics now merges top-level issue evidence with nested `pair_evidence`, so component split reports show `component_submode`, `component_branch_kind`, `shared_endpoint`, and `external_endpoint_splits`.
+  - Updated `ui/app.py` to expose `_issue_many_to_one_classification()` and `_issue_review_classification()`, show unified `review_classification` in the issue table, and retain both source fields in detail.
+  - Did not modify extractors, PairBuilder, rules issue triggering, issue clustering, graph inclusion, CLI, or product workflow.
+- Verification:
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "many_to_one_component_split or evidence_display"` -> `2 passed, 15 deselected`
+  - `python -m pytest -q tests\unit\test_ui_app.py -k "classification"` -> `2 passed, 3 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py` -> `22 passed`
+  - `python -m pytest -q` -> `284 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase82_component_split_display_first_audit`: `issue_count=136`; `component_split_endpoint_group_review=28` (`R-ONE-TO-MANY=16`, `R-MANY-TO-ONE=12`).
+  - first report output now contains `ReviewClassification: component_split_endpoint_group_review`, `OneToManyTriage`, `ManyToOneTriage`, `component_submode=strip_two_port_component`, `component_branch_kind=split_endpoint_group`, and target split summary such as `external_endpoint_splits=5KLP2-1|5KLP3-1`.
+  - first `issues.xlsx` contains `review_classification`, `one_to_many_classification`, and `many_to_one_classification`; `review_classification=component_split_endpoint_group_review` appears in `28` rows and `many_to_one_classification=component_split_endpoint_group_review` in `12` rows.
+  - second rules-only `.tmp/phase82_component_split_display_second_audit`: `issue_count=23`; `component_split_endpoint_group_review=0`.
+  - Pair graph did not drift: first `pair_count=1581`, second `pair_count=1462`.
+- Next candidates:
+  - many-to-one/shared endpoint default display layering.
+  - backplate/component cross-scope shared endpoint display.
+  - acceptance golden wording/fixture refresh for structured relations.
+  - packaged sidecar/exe smoke only as a separate product slice.

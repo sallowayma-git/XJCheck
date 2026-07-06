@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 81
+Phase 82
 
 ## Phases
 
@@ -1124,6 +1124,21 @@ Phase 81
   - first rules-only audit `.tmp/phase81_terminal_header_interval_first_audit`: `issue_count=136` 保持不变；聚合 terminal-header shared endpoint issue 增加 `aggregated_*_ranges` 和区间化 summary。
   - second rules-only audit `.tmp/phase81_terminal_header_interval_second_audit`: `issue_count=23` 保持不变；`I0062` summary 显示 `logical=1-21GD1..1-21GD21, 1-21QD26..1-21QD46; shared=1-21n210..1-21n230`，recommended action 显示行号区间 `1..21, 26..46`。
 - [ ] 下一刀候选收缩为：component split endpoint review 展示、many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 82: Component Split Endpoint Review Display
+- [x] 只读恢复并确认当前 HEAD 为 `092798c`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 Phase81 产物核查一致确认：first `S0024 / 23 元件接线图3.dwg` 的 `component_split_endpoint_group_review` 已有 `external_endpoint_raw_values`、`external_endpoint_splits`、`external_endpoint_text_ids`、`logical_endpoints` 证据；缺口是报告/UI 只显式展示 `one_to_many_classification`，`R-MANY-TO-ONE` 的 split review 没有同等一等展示字段。
+- [x] 实现目标：只在报告与内部 Streamlit UI 展示层透出 `many_to_one_classification` 和统一 `review_classification`，并在 LineSemantics 摘要中显示 `component_submode`、`component_branch_kind`、`shared_endpoint`、`external_endpoint_splits`；不改 extractor、pair graph、rules 判定、issue 聚合或 CLI 产品表面。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "many_to_one_component_split or evidence_display"` -> `2 passed, 15 deselected`
+  - `python -m pytest -q tests\unit\test_ui_app.py -k "classification"` -> `2 passed, 3 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py` -> `22 passed`
+  - `python -m pytest -q` -> `284 passed`
+  - first rules-only audit `.tmp/phase82_component_split_display_first_audit`: `issue_count=136` 保持不变；`component_split_endpoint_group_review=28`，其中 `R-ONE-TO-MANY=16`、`R-MANY-TO-ONE=12`；Markdown 出现 `ReviewClassification`、`OneToManyTriage`、`ManyToOneTriage` 与 split semantics，XLSX `review_classification` 命中 28 行、`many_to_one_classification` 命中 12 行。
+  - second rules-only audit `.tmp/phase82_component_split_display_second_audit`: `issue_count=23` 保持不变；`component_split_endpoint_group_review=0`。
+  - Phase78 findings pair counts 未漂移：first `pair_count=1581`，second `pair_count=1462`。
+- [ ] 下一刀候选收缩为：many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示、acceptance golden 口径；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered

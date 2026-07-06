@@ -1236,6 +1236,13 @@ def test_write_audit_outputs_adds_evidence_display_to_html_and_excel(tmp_path: P
         line_group_id="G0001",
         left_value="101",
         right_value="201",
+        evidence={
+            "many_to_one_classification": "component_split_endpoint_group_review",
+            "component_submode": "strip_two_port_component",
+            "component_branch_kind": "split_endpoint_group",
+            "shared_endpoint": "5KLP3-1",
+            "external_endpoint_splits": ["5KLP3-1"],
+        },
         evidence_refs=[
             {
                 "filename": "04.dwg",
@@ -1266,6 +1273,60 @@ def test_write_audit_outputs_adds_evidence_display_to_html_and_excel(tmp_path: P
     assert "ref1: filename=04.dwg, sheet_no=04, sheet_order=4" in html
     assert "evidence_display" in excel_issues.columns
     assert "one_to_many_classification" in excel_issues.columns
+    assert "many_to_one_classification" in excel_issues.columns
+    assert "review_classification" in excel_issues.columns
     assert "filename=04.dwg" in excel_issues.loc[0, "evidence_display"]
     assert "left_value=101" in excel_issues.loc[0, "evidence_display"]
     assert excel_issues.loc[0, "one_to_many_classification"] == "conflict"
+    assert excel_issues.loc[0, "many_to_one_classification"] == "component_split_endpoint_group_review"
+    assert excel_issues.loc[0, "review_classification"] == "conflict"
+
+
+def test_write_audit_outputs_shows_many_to_one_component_split_review(tmp_path: Path) -> None:
+    issue = Issue(
+        issue_id="I0183",
+        rule_id="R-MANY-TO-ONE",
+        severity="review",
+        status="open",
+        confidence=0.97,
+        message="Right value 5KLP3-1 is referenced by multiple component endpoints.",
+        sheet_id="S0024",
+        file_id="F0024",
+        pair_id="PCM0066",
+        line_group_id="GC0124",
+        left_value="5KLP5-1",
+        right_value="5KLP3-1",
+        evidence={
+            "filename": "23 元件接线图3.dwg",
+            "sheet_no": "23",
+            "sheet_order": 24,
+            "many_to_one_classification": "component_split_endpoint_group_review",
+            "component_submode": "strip_two_port_component",
+            "component_branch_kind": "split_endpoint_group",
+            "shared_endpoint": "5KLP3-1",
+            "external_endpoint_raw_values": ["5KLP3-1,5KLP2-1"],
+            "external_endpoint_splits": ["5KLP3-1"],
+            "external_endpoint_text_ids": ["T3841"],
+        },
+        title="组件逗号端点邻接待复核",
+        summary="组件逗号拆分端点邻接待复核。",
+        explanation="共享邻接端来自逗号分隔端点组。",
+        recommended_action="按原始逗号文本和组件端口复核。",
+    )
+
+    audit_dir = write_audit_outputs(
+        tmp_path / "project",
+        issues=[issue],
+        pairs=[],
+        source_files=[],
+        project_name="Demo 项目",
+        formats="md",
+    )
+    report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+
+    assert "- ReviewClassification: `component_split_endpoint_group_review`" in report_text
+    assert "- ManyToOneTriage: `component_split_endpoint_group_review`" in report_text
+    assert "component_submode=strip_two_port_component" in report_text
+    assert "component_branch_kind=split_endpoint_group" in report_text
+    assert "shared_endpoint=5KLP3-1" in report_text
+    assert "external_endpoint_splits=5KLP3-1" in report_text

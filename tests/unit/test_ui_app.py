@@ -6,7 +6,9 @@ from pathlib import Path
 import pandas as pd
 
 from dwg_audit.ui.app import _filter_issues
+from dwg_audit.ui.app import _issue_many_to_one_classification
 from dwg_audit.ui.app import _issue_one_to_many_classification
+from dwg_audit.ui.app import _issue_review_classification
 from dwg_audit.ui.app import _one_to_many_cluster_rows
 from dwg_audit.ui.app import _persist_issue_status
 
@@ -79,6 +81,21 @@ def test_issue_one_to_many_classification_reads_from_evidence() -> None:
     )
 
     assert _issue_one_to_many_classification(row) == "conflict"
+
+
+def test_issue_review_classification_reads_many_to_one_from_evidence() -> None:
+    row = pd.Series(
+        {
+            "issue_id": "I1",
+            "evidence": json.dumps(
+                {"many_to_one_classification": "component_split_endpoint_group_review"},
+                ensure_ascii=False,
+            ),
+        }
+    )
+
+    assert _issue_many_to_one_classification(row) == "component_split_endpoint_group_review"
+    assert _issue_review_classification(row) == "component_split_endpoint_group_review"
 
 
 def test_one_to_many_cluster_rows_builds_summary_frame() -> None:

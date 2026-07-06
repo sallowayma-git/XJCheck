@@ -217,29 +217,52 @@ def _pair_evidence_mapping(payload: Any) -> dict[str, Any]:
 
 def _pair_semantics_parts(payload: Any) -> list[str]:
     evidence = _pair_evidence_mapping(payload)
+    top_level = payload if isinstance(payload, dict) else {}
     parts: list[str] = []
-    pair_kind = evidence.get("pair_kind")
+
+    def semantic_value(key: str) -> Any:
+        value = evidence.get(key)
+        if not _is_blank_value(value):
+            return value
+        return top_level.get(key)
+
+    pair_kind = semantic_value("pair_kind")
     if not _is_blank_value(pair_kind):
         parts.append(f"pair_kind={pair_kind}")
-    continuation_kind = evidence.get("continuation_kind")
+    continuation_kind = semantic_value("continuation_kind")
     if not _is_blank_value(continuation_kind):
         parts.append(f"continuation_kind={continuation_kind}")
-    bridge_mapping_kind = evidence.get("bridge_mapping_kind")
+    bridge_mapping_kind = semantic_value("bridge_mapping_kind")
     if not _is_blank_value(bridge_mapping_kind):
         parts.append(f"bridge_mapping_kind={bridge_mapping_kind}")
-    semantic_mapping_kind = evidence.get("semantic_mapping_kind")
+    semantic_mapping_kind = semantic_value("semantic_mapping_kind")
     if not _is_blank_value(semantic_mapping_kind):
         parts.append(f"semantic_mapping_kind={semantic_mapping_kind}")
-    semantic_marker_texts = evidence.get("semantic_marker_texts")
+    semantic_marker_texts = semantic_value("semantic_marker_texts")
     if isinstance(semantic_marker_texts, list) and semantic_marker_texts:
         parts.append(f"semantic_markers={'|'.join(str(item) for item in semantic_marker_texts[:3])}")
-    orientation = evidence.get("line_orientation")
+    component_submode = semantic_value("component_submode")
+    if not _is_blank_value(component_submode):
+        parts.append(f"component_submode={component_submode}")
+    component_branch_kind = semantic_value("component_branch_kind")
+    if not _is_blank_value(component_branch_kind):
+        parts.append(f"component_branch_kind={component_branch_kind}")
+    shared_endpoint = semantic_value("shared_endpoint")
+    if not _is_blank_value(shared_endpoint):
+        parts.append(f"shared_endpoint={shared_endpoint}")
+    external_endpoint_splits = semantic_value("external_endpoint_splits")
+    if isinstance(external_endpoint_splits, list) and external_endpoint_splits:
+        parts.append(f"external_endpoint_splits={'|'.join(str(item) for item in external_endpoint_splits[:4])}")
+    external_endpoint_split = semantic_value("external_endpoint_split")
+    if not _is_blank_value(external_endpoint_split) and _is_blank_value(external_endpoint_splits):
+        parts.append(f"external_endpoint_split={external_endpoint_split}")
+    orientation = semantic_value("line_orientation")
     if not _is_blank_value(orientation):
         parts.append(f"orientation={orientation}")
-    left_side = evidence.get("left_side_label")
+    left_side = semantic_value("left_side_label")
     if not _is_blank_value(left_side):
         parts.append(f"left_side={left_side}")
-    right_side = evidence.get("right_side_label")
+    right_side = semantic_value("right_side_label")
     if not _is_blank_value(right_side):
         parts.append(f"right_side={right_side}")
     return parts
@@ -1606,7 +1629,9 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
         title = row.get("message")
     evidence = row.get("evidence_display") or _evidence_display(row)
     semantics = _pair_semantics_summary(_decode_jsonish(row.get("evidence")))
-    triage = row.get("one_to_many_classification")
+    one_to_many_triage = row.get("one_to_many_classification")
+    many_to_one_triage = row.get("many_to_one_classification")
+    review_classification = row.get("review_classification")
     details = [
         f"### `{_display_value(row.get('issue_id'))}` {_display_value(title)}",
         "",
@@ -1625,8 +1650,12 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
     ]
     if semantics:
         details.append(f"- LineSemantics: `{semantics}`")
-    if not _is_blank_value(triage):
-        details.append(f"- OneToManyTriage: `{triage}`")
+    if not _is_blank_value(review_classification):
+        details.append(f"- ReviewClassification: `{review_classification}`")
+    if not _is_blank_value(one_to_many_triage):
+        details.append(f"- OneToManyTriage: `{one_to_many_triage}`")
+    if not _is_blank_value(many_to_one_triage):
+        details.append(f"- ManyToOneTriage: `{many_to_one_triage}`")
     root_cause = row.get("root_cause")
     if not _is_blank_value(root_cause):
         confidence = row.get("root_cause_confidence")
@@ -1655,6 +1684,18 @@ def _prepare_report_frame(frame: pd.DataFrame) -> pd.DataFrame:
     if "rule_id" in report_frame.columns:
         report_frame["one_to_many_classification"] = report_frame.apply(
             lambda row: _display_value(_read_evidence_key(row, "one_to_many_classification"), default=""),
+            axis=1,
+        )
+        report_frame["many_to_one_classification"] = report_frame.apply(
+            lambda row: _display_value(_read_evidence_key(row, "many_to_one_classification"), default=""),
+            axis=1,
+        )
+        report_frame["review_classification"] = report_frame.apply(
+            lambda row: _display_value(
+                _read_evidence_key(row, "one_to_many_classification")
+                or _read_evidence_key(row, "many_to_one_classification"),
+                default="",
+            ),
             axis=1,
         )
     return report_frame
