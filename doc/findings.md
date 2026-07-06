@@ -9143,3 +9143,46 @@ fresh second-set 非回归证据：
 
 - 本轮是 FD 型 first prefixed external endpoint residual 的窄扩展，只允许 `QD|FD`，不是任意字母端泛化。
 - 下一轮候选收缩为：second inline wire split `505` half-chain bridge、second component vertical `401` mapping upgrade、backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 仍为独立产品切片。
+
+## 130. 2026-07-07 second inline wire split 505：互补半链转为 continuation 证据
+
+只读审计确认，second `S0014 / 14 测控2开入回路图3.dwg` 中的 `PW0438 ? -> 505` 与 `PW0440 505 -> ?` 不是两个真实缺端点。两条线共享 `T1479=505`，位于同一 `RBW0169` 行带，`GW0438 [87.5,135.0] -> [127.5,135.0]` 与 `GW0440 [146.25,135.0] -> [237.5,135.0]` 的 `bridge_gap=18.75`，`bridge_y_delta=0.0`。它们是 `Emergency stop / 调压急停` 元件区域里一条水平连接链被内联数字/元件符号切开的 half-chain。
+
+本轮实现：
+
+- 在 [page_extractors.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/page_extractors.py) 增加 `_mark_inline_wire_split_continuation_pairs()`，只在 `WireDiagramExtractor` `build_pairs()` 后处理二次原理图互补 ordinary half-pairs。
+- 命中条件保持窄范围：同 `sheet_id/text_id/value`、一条 missing-left 一条 missing-right、horizontal/grid line group、同 row band、合法 y delta 和 bridge gap。
+- 命中后保留 pair 为 `review`，但把 `pair_kind` 改为 `continuation`，并写入 `ordinary_pair_eligible=False`、`semantic_kind=continuation_inline_wire_split`、`continuation_kind=schematic_inline_wire_split_half_chain`、`covered_by_inline_wire_split_half_chain=True`、`shared_text_id`、`shared_value`、`bridge_gap` 和 related pair 证据。
+- 在 [test_page_extractors.py](/F:/workspace/XJToolkit/tests/unit/test_page_extractors.py) 增加正例、非二次/跨行负例，并断言标记后不会再触发 `R-PAIR-MISSING-SIDE`。
+- 不改 `pairs.py` 的端子 continuation / bridge 语义，不调 `line_groups.py` 合并阈值，不改 rules 主逻辑，不碰 KLP residual、401 component vertical、backplate/component/table rules 或 CLI/UI。
+
+fresh second-set 证据：
+
+- `.tmp/phase77_inline_wire_split_second/2_2` + `.tmp/phase77_inline_wire_split_second_audit`
+- `pair_count=1460`
+- `issue_count=25`
+- `R-PAIR-MISSING-SIDE=15`
+- `continuation=204`
+- `PW0438` 与 `PW0440` 现在均为 `continuation/review`，共享 `T1479=505`，`bridge_gap=18.75`，并互相记录 related pair。
+- `505` / `PW0438` / `PW0440` 不再出现在 issue 中。
+- `PW0439 505 -> 506` 保持 `ordinary_pair/discard`，没有被误升为普通 pass。
+- 邻近 `PW0442 ? -> 501` 保持 `ordinary_pair/review`，仍作为独立 missing-side issue，不被本轮覆盖吞掉。
+
+红线保持：
+
+- `semantic_table_mapping_pass_endpoint_count=0`。
+- `input_matrix_wire_mapping=168`。
+- second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`。
+- second `1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化关系。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_wire_split or input_matrix or prefixed or ac_phase"` -> `14 passed`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side or continuation"` -> `10 passed, 49 deselected`
+- `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+- `python -m pytest -q` -> `276 passed`
+
+裁决：
+
+- 本轮是 second `505` inline wire split half-chain 的 pair 语义收口，不是 rules 静音，也不是全局线组合并阈值调整。
+- 下一轮候选收缩为：second component vertical `401` mapping upgrade、backplate/component/table mapping rules semantics；packaged sidecar/exe smoke 仍为独立产品切片。

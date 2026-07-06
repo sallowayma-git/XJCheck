@@ -171,6 +171,8 @@ def _extract_pairs_for_route(
         pair_id_factory=IdFactory(f"P{id_stem}"),
     )
     if executed_extractor == "WireDiagramExtractor":
+        _mark_inline_wire_split_continuation_pairs(pairs, line_groups, pages, config)
+    if executed_extractor == "WireDiagramExtractor":
         _mark_schematic_ac_phase_covered_ordinary_pairs(pairs, pages)
     if executed_extractor == "WireDiagramExtractor":
         wire_component_pairs = extract_component_prefixed_signal_pairs(
@@ -309,6 +311,135 @@ def _ordinary_single_sided_text_ids(pairs: list[Pair]) -> set[str]:
         for value in _pair_selected_text_ids(pair):
             text_ids.add(value)
     return text_ids
+
+
+def _mark_inline_wire_split_continuation_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    pages: list[SheetRecord],
+    config: dict,
+) -> None:
+    sheet_map = {page.sheet_id: page for page in pages}
+    group_map = {group.line_group_id: group for group in line_groups}
+    missing_left: list[Pair] = []
+    missing_right_by_key: dict[tuple[str, str, str], list[Pair]] = {}
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair" or pair.status == "discard":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if pair.left_value is None and pair.right_value and pair.right_text_id:
+            missing_left.append(pair)
+            continue
+        if pair.right_value is None and pair.left_value and pair.left_text_id:
+            key = (pair.sheet_id, pair.left_text_id, pair.left_value)
+            missing_right_by_key.setdefault(key, []).append(pair)
+
+    inline_gap = float(config.get("geometry", {}).get("inline_numeric_bridge_gap", 13.0))
+    inline_y_tol = float(config.get("geometry", {}).get("inline_numeric_bridge_y_tolerance", 4.0))
+    used_pair_ids: set[str] = set()
+    for left_pair in missing_left:
+        if left_pair.pair_id in used_pair_ids:
+            continue
+        key = (left_pair.sheet_id, left_pair.right_text_id or "", left_pair.right_value or "")
+        candidates = [
+            pair
+            for pair in missing_right_by_key.get(key, [])
+            if pair.pair_id not in used_pair_ids
+        ]
+        matches = [
+            (float(evidence["bridge_gap"]), right_pair, evidence)
+            for right_pair in candidates
+            if (evidence := _inline_wire_split_evidence(left_pair, right_pair, group_map, inline_gap, inline_y_tol))
+            is not None
+        ]
+        if not matches:
+            continue
+        _, right_pair, evidence = sorted(matches, key=lambda item: item[0])[0]
+        _tag_inline_wire_split_pair(left_pair, right_pair, evidence)
+        _tag_inline_wire_split_pair(right_pair, left_pair, evidence)
+        used_pair_ids.add(left_pair.pair_id)
+        used_pair_ids.add(right_pair.pair_id)
+
+
+def _inline_wire_split_evidence(
+    missing_left: Pair,
+    missing_right: Pair,
+    group_map: dict[str, LineGroup],
+    inline_gap: float,
+    inline_y_tol: float,
+) -> dict[str, object] | None:
+    left_group = group_map.get(missing_left.line_group_id)
+    right_group = group_map.get(missing_right.line_group_id)
+    if left_group is None or right_group is None:
+        return None
+    if not _inline_wire_split_group_candidate(left_group, inline_y_tol):
+        return None
+    if not _inline_wire_split_group_candidate(right_group, inline_y_tol):
+        return None
+    if abs(left_group.start_y - right_group.start_y) > inline_y_tol:
+        return None
+    if left_group.row_band_id and right_group.row_band_id and left_group.row_band_id != right_group.row_band_id:
+        return None
+
+    bridge_gap = right_group.start_x - left_group.end_x
+    min_gap, max_gap = _inline_wire_split_gap_bounds(left_group, right_group, inline_gap)
+    if bridge_gap < min_gap or bridge_gap > max_gap:
+        return None
+    if missing_left.right_coord_y is None or missing_right.left_coord_y is None:
+        return None
+    bridge_y_delta = abs(missing_left.right_coord_y - missing_right.left_coord_y)
+    if bridge_y_delta > inline_y_tol:
+        return None
+
+    return {
+        "semantic_kind": "continuation_inline_wire_split",
+        "continuation_kind": "schematic_inline_wire_split_half_chain",
+        "shared_text_id": missing_left.right_text_id,
+        "shared_value": missing_left.right_value,
+        "bridge_gap": round(bridge_gap, 4),
+        "bridge_gap_min": round(min_gap, 4),
+        "bridge_gap_max": round(max_gap, 4),
+        "bridge_y_delta": round(bridge_y_delta, 4),
+        "line_group_y_delta": round(abs(left_group.start_y - right_group.start_y), 4),
+    }
+
+
+def _inline_wire_split_group_candidate(group: LineGroup, inline_y_tol: float) -> bool:
+    if group.orientation not in {"horizontal", "grid"}:
+        return False
+    if abs(group.start_y - group.end_y) > inline_y_tol:
+        return False
+    layers = {str(layer).upper() for layer in group.layer_hints}
+    if layers and layers.issubset({"DIM"}):
+        return False
+    return group.wire_candidate_score >= 0.55
+
+
+def _inline_wire_split_gap_bounds(left_group: LineGroup, right_group: LineGroup, inline_gap: float) -> tuple[float, float]:
+    if "grid" in {left_group.orientation, right_group.orientation}:
+        return -3.0, max(inline_gap, 20.0)
+    return 0.0, inline_gap
+
+
+def _tag_inline_wire_split_pair(pair: Pair, related_pair: Pair, evidence: dict[str, object]) -> None:
+    pair.pair_kind = "continuation"
+    pair.evidence["pair_kind"] = "continuation"
+    pair.evidence["semantic_kind"] = evidence["semantic_kind"]
+    pair.evidence["continuation_kind"] = evidence["continuation_kind"]
+    pair.evidence["ordinary_pair_eligible"] = False
+    pair.evidence["covered_by_inline_wire_split_half_chain"] = True
+    pair.evidence["related_inline_wire_split_pair_id"] = related_pair.pair_id
+    pair.evidence["shared_text_id"] = evidence["shared_text_id"]
+    pair.evidence["shared_value"] = evidence["shared_value"]
+    pair.evidence["bridge_gap"] = evidence["bridge_gap"]
+    pair.evidence["bridge_gap_min"] = evidence["bridge_gap_min"]
+    pair.evidence["bridge_gap_max"] = evidence["bridge_gap_max"]
+    pair.evidence["bridge_y_delta"] = evidence["bridge_y_delta"]
+    pair.evidence["line_group_y_delta"] = evidence["line_group_y_delta"]
+    if "continuation relation" not in pair.rationale:
+        pair.rationale = f"{pair.rationale}; continuation relation"
 
 
 def _mark_schematic_ac_phase_covered_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:

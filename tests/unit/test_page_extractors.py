@@ -1,20 +1,26 @@
 from dwg_audit.audit.page_extractors import _mark_input_matrix_covered_ordinary_pairs
+from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation_pairs
 from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
+from dwg_audit.audit.rules import build_issues
+from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
+from dwg_audit.utils.config import DEFAULT_CONFIG
 
 
 def _pair(
     evidence: dict[str, object],
     *,
+    pair_id: str = "P1",
+    line_group_id: str = "G1",
     pair_kind: str = "ordinary_pair",
     left_text_id: str | None = None,
     right_text_id: str | None = None,
 ) -> Pair:
     return Pair(
-        pair_id="P1",
-        line_group_id="G1",
+        pair_id=pair_id,
+        line_group_id=line_group_id,
         sheet_id="S1",
         file_id="F1",
         selected_pair_candidate_id="PC1",
@@ -34,6 +40,108 @@ def _pair(
 
 def _sheet(category: str = "二次原理图") -> SheetRecord:
     return SheetRecord("S1", "F1", "04 交流回路图1.dwg", 4, "04", "CT AND VT INPUT", category, "primary", "filename", True)
+
+
+def _line_group(
+    line_group_id: str,
+    *,
+    start_x: float,
+    end_x: float,
+    start_y: float = 135.0,
+    end_y: float = 135.0,
+    row_band_id: str = "RB1",
+    orientation: str = "grid",
+    wire_score: float = 0.85,
+) -> LineGroup:
+    return LineGroup(
+        line_group_id=line_group_id,
+        sheet_id="S1",
+        file_id="F1",
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        length=abs(end_x - start_x),
+        wire_candidate_score=wire_score,
+        member_line_ids=[],
+        layer_hints=[],
+        orientation=orientation,
+        row_band_id=row_band_id,
+    )
+
+
+def test_mark_inline_wire_split_continuation_pairs_tags_shared_text_half_chain() -> None:
+    left_half = _pair(
+        {"selected_right_text_id": "T505"},
+        pair_id="PW0438",
+        line_group_id="GW0438",
+        right_text_id="T505",
+    )
+    left_half.left_value = None
+    left_half.right_value = "505"
+    left_half.right_coord_y = 135.6
+    right_half = _pair(
+        {"selected_left_text_id": "T505"},
+        pair_id="PW0440",
+        line_group_id="GW0440",
+        left_text_id="T505",
+    )
+    right_half.left_value = "505"
+    right_half.right_value = None
+    right_half.left_coord_y = 135.6
+    line_groups = [
+        _line_group("GW0438", start_x=87.5, end_x=127.5),
+        _line_group("GW0440", start_x=146.25, end_x=237.5),
+    ]
+
+    _mark_inline_wire_split_continuation_pairs([left_half, right_half], line_groups, [_sheet()], {})
+
+    assert left_half.pair_kind == "continuation"
+    assert right_half.pair_kind == "continuation"
+    assert left_half.evidence["ordinary_pair_eligible"] is False
+    assert right_half.evidence["ordinary_pair_eligible"] is False
+    assert left_half.evidence["covered_by_inline_wire_split_half_chain"] is True
+    assert right_half.evidence["related_inline_wire_split_pair_id"] == "PW0438"
+    assert left_half.evidence["continuation_kind"] == "schematic_inline_wire_split_half_chain"
+    assert left_half.evidence["shared_text_id"] == "T505"
+    assert left_half.evidence["bridge_gap"] == 18.75
+    assert "continuation relation" in left_half.rationale
+    assert not any(
+        issue.rule_id == "R-PAIR-MISSING-SIDE"
+        for issue in build_issues([left_half, right_half], line_groups, [_sheet()], DEFAULT_CONFIG)
+    )
+
+
+def test_mark_inline_wire_split_continuation_pairs_keeps_cross_row_or_non_schematic_pairs() -> None:
+    left_half = _pair(
+        {"selected_right_text_id": "T505"},
+        pair_id="P1",
+        line_group_id="G1",
+        right_text_id="T505",
+    )
+    left_half.left_value = None
+    left_half.right_value = "505"
+    left_half.right_coord_y = 135.0
+    right_half = _pair(
+        {"selected_left_text_id": "T505"},
+        pair_id="P2",
+        line_group_id="G2",
+        left_text_id="T505",
+    )
+    right_half.left_value = "505"
+    right_half.right_value = None
+    right_half.left_coord_y = 145.0
+    line_groups = [
+        _line_group("G1", start_x=87.5, end_x=127.5, row_band_id="RB1"),
+        _line_group("G2", start_x=146.25, end_x=237.5, start_y=145.0, end_y=145.0, row_band_id="RB2"),
+    ]
+
+    _mark_inline_wire_split_continuation_pairs([left_half, right_half], line_groups, [_sheet("屏端子图")], {})
+
+    assert left_half.pair_kind == "ordinary_pair"
+    assert right_half.pair_kind == "ordinary_pair"
+    assert "covered_by_inline_wire_split_half_chain" not in left_half.evidence
+    assert "ordinary_pair_eligible" not in right_half.evidence
 
 
 def test_mark_terminal_prefixed_endpoint_ordinary_pairs_discards_bare_suffix_pair() -> None:

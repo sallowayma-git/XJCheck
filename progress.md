@@ -2869,3 +2869,34 @@
   - second component vertical `401` mapping upgrade.
   - backplate/component/table mapping rules semantics.
   - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 77 second inline wire split 505 half-chain continuation)
+- Started after commit `29168e4`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned read-only explorers for real-sample `505` residual and source boundary review.
+- Read-only audit conclusions:
+  - second `S0014 / 14 测控2开入回路图3.dwg` had `PW0438 ? -> 505` and `PW0440 505 -> ?` aggregated as one `R-PAIR-MISSING-SIDE` review issue with tags `complementary_half_pair` and `inline_wire_split`.
+  - Shared anchor is `T1479=505` at `(125.622905, 135.657933)`.
+  - `GW0438` spans `(87.5,135.0)->(127.5,135.0)` and `GW0440` spans `(146.25,135.0)->(237.5,135.0)` in row band `RBW0169`; `bridge_gap=18.75`, `bridge_y_delta=0.0`, `line_group_y_delta=0.0`.
+  - The structure is an inline wire split around the `Emergency stop / 调压急停` area, not two real ordinary missing endpoints.
+- Implementation:
+  - Added `_mark_inline_wire_split_continuation_pairs()` in `page_extractors.py` after `WireDiagramExtractor` `build_pairs()`.
+  - The helper only marks 二次原理图 ordinary complementary half-pairs that share `sheet_id/text_id/value`, have horizontal/grid line groups, same row band when present, legal y delta, and bridge gap within the existing inline numeric bridge bounds.
+  - Matching half-pairs remain as review evidence but become `pair_kind=continuation` with `ordinary_pair_eligible=False`, `semantic_kind=continuation_inline_wire_split`, `continuation_kind=schematic_inline_wire_split_half_chain`, `covered_by_inline_wire_split_half_chain=True`, and related pair/shared anchor evidence.
+  - Did not change `pairs.py` terminal continuation, `line_groups.py` merge thresholds, rules main logic, table/component extractors, CLI/UI, or KLP/401/backplate semantics.
+- Verification:
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_wire_split or input_matrix or prefixed or ac_phase"` -> `14 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side or continuation"` -> `10 passed, 49 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `276 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase77_inline_wire_split_second/2_2` + `.tmp/phase77_inline_wire_split_second_audit`: `pair_count=1460`, `issue_count=25`, `R-PAIR-MISSING-SIDE=15`, `continuation=204`.
+  - `PW0438` and `PW0440` are now `continuation/review`; no `505`, `PW0438`, or `PW0440` issue remains.
+  - `PW0439 505 -> 506` remains `ordinary_pair/discard`; neighboring `PW0442 ? -> 501` remains `ordinary_pair/review` and still produces its own missing-side issue.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `input_matrix_wire_mapping=168`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`.
+- Next candidates:
+  - second component vertical `401` mapping upgrade.
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.

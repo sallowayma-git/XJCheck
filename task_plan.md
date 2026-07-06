@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 76
+Phase 77
 
 ## Phases
 
@@ -1056,6 +1056,21 @@ Phase 76
   - second fresh `.tmp/phase76_fd_prefixed_second/2_2` + `.tmp/phase76_fd_prefixed_second_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`。
   - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first KLP/ZLP/218 structured redlines held。
 - [ ] 下一刀候选收缩为：second inline wire split `505` half-chain bridge；second component vertical `401` mapping upgrade；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 77: Second Inline Wire Split 505 Half-Chain Continuation
+- [x] 只读恢复并确认当前 HEAD 为 `29168e4`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 主线程与两个只读 explorer 核查一致确认：second `S0014 / 14 测控2开入回路图3.dwg` 的 `PW0438 ? -> 505` 与 `PW0440 505 -> ?` 共享 `T1479=505`、同 row band、`bridge_gap=18.75`，属于 `Emergency stop / 调压急停` 元件区域的一条 inline wire split half-chain，不是两个真实普通缺端。
+- [x] 实现目标：在 `WireDiagramExtractor` 的 pair 后处理层增加窄范围 inline split continuation 标记，只处理二次原理图内同 sheet/text/value 的互补普通半边、horizontal/grid 线组、同 row band、gap/y delta 合法的场景；命中后保留 pair 证据为 `pair_kind=continuation` / `ordinary_pair_eligible=False`，不改 `pairs.py` 端子 continuation、不调 `line_groups.py` 阈值、不动 rules 主逻辑或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_wire_split or input_matrix or prefixed or ac_phase"` -> `14 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side or continuation"` -> `10 passed, 49 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `276 passed`
+  - second fresh `.tmp/phase77_inline_wire_split_second/2_2` + `.tmp/phase77_inline_wire_split_second_audit`: `pair_count=1460`, `issue_count=25`, `R-PAIR-MISSING-SIDE=15`, `continuation=204`。
+  - `PW0438` and `PW0440` are now `continuation/review` with `semantic_kind=continuation_inline_wire_split`, `continuation_kind=schematic_inline_wire_split_half_chain`, `covered_by_inline_wire_split_half_chain=True`, `shared_text_id=T1479`, `shared_value=505`, `bridge_gap=18.75`; no `505` issue remains.
+  - Guardrails held: `PW0439 505 -> 506` remains `ordinary_pair/discard`; `PW0442 ? -> 501` remains an ordinary missing-side review; `semantic_table_mapping_pass_endpoint_count=0`; `input_matrix_wire_mapping=168`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain structured relations.
+- [ ] 下一刀候选收缩为：second component vertical `401` mapping upgrade；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
 - **Status:** complete
 
 ## Errors Encountered
