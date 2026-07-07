@@ -9721,3 +9721,35 @@ second 非回归证据：
 
 - Phase89 是规则/报告默认视角的聚合收口：把同一 grid row-band 的重复端点缺口合成可复核簇，同时保留底层 pair refs。
 - 下一轮若继续样本误解主线，应转向真正 grid row-band endpoint inference 的证据设计与窄实现；若走产品线，则独立推进 packaged sidecar/exe smoke。
+
+## 143. 2026-07-07 desktop：packaged sidecar 构建与 Tauri 资源打包 smoke
+
+只读审计确认，Phase89 后继续直接改 grid row-band pair graph 的证据仍不足以泛化。当前更稳的独立产品化切片是 `packaged sidecar/exe smoke`：任务书 M9/M11 已要求正式桌面端不依赖开发者手工 CLI，而此前桌面 README 仍写着 packaged `dwg-audit-sidecar` binary 尚待产出和绑定。
+
+本轮实现：
+
+- 新增 [sidecar_entry.py](/F:/workspace/XJToolkit/src/dwg_audit/desktop/sidecar_entry.py)，作为 PyInstaller 的最小入口，复用现有 `dwg_audit.cli:run` 合同。
+- 新增 [build-sidecar.ps1](/F:/workspace/XJToolkit/apps/desktop/scripts/build-sidecar.ps1)，将 `dwg-audit-sidecar.exe` 构建到 `apps/desktop/src-tauri/resources/sidecar`。
+- 在 [tauri.conf.json](/F:/workspace/XJToolkit/apps/desktop/src-tauri/tauri.conf.json) 中加入 `bundle.resources`，把 `resources/sidecar/*` 映射到应用资源根的 `sidecar/`，与 Rust resolver 的 `sidecar/dwg-audit-sidecar.exe` 候选路径对齐。
+- 新增 [README.md](/F:/workspace/XJToolkit/apps/desktop/src-tauri/resources/sidecar/README.md) 作为资源目录占位说明，并在 [apps/desktop/README.md](/F:/workspace/XJToolkit/apps/desktop/README.md) 写明 release build 顺序。
+- 在 [apps/desktop/.gitignore](/F:/workspace/XJToolkit/apps/desktop/.gitignore) 忽略生成的 `dwg-audit-sidecar*` 二进制，避免把本地打包产物提交进仓库。
+- 新增 [test_desktop_packaging.py](/F:/workspace/XJToolkit/tests/unit/test_desktop_packaging.py) 固定 Tauri resource mapping、构建脚本路径和 Python entrypoint 合同。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_desktop_packaging.py tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `10 passed`
+- `cd apps\desktop; npm run build` -> passed
+- `cd apps\desktop\src-tauri; cargo test sidecar_runtime` -> `5 passed`
+- `cd apps\desktop; .\scripts\build-sidecar.ps1 -Clean` -> 生成 `src-tauri\resources\sidecar\dwg-audit-sidecar.exe`
+- packaged sidecar `--help` 能列出 `analyze-session / list-recent-projects / load-result / set-issue-status / render-preview`
+- packaged sidecar `list-recent-projects --state-db .tmp\phase90_sidecar_smoke\desktop_state.db` -> `{ "projects": [] }`
+- `cd apps\desktop; npm run tauri:build` -> 生成 release app 与 NSIS 安装包；release 输出包含 `target\release\sidecar\dwg-audit-sidecar.exe`
+- packaged sidecar 对 Phase84 真实 acceptance fixtures 运行 `evaluate-acceptance`：first review、second component subset、second terminal S0024 均 `acceptance_passed=True`，second 两个 pair fixture precision/recall 均 `1.0`
+- `python -m pytest -q` -> `294 passed`
+
+裁决：
+
+- Phase90 是产品打包链的最小闭环：已经能重复构建 sidecar、绑定进 Tauri resources，并产出包含 sidecar 的 release/NSIS 包。
+- 本轮没有改审计规则、extractor、PairBuilder、report semantics 或 UI 行为。
+- 下一轮产品线可做“安装后 exe 主流程 smoke”：真实启动桌面端、导入样本、加载结果、确认不走源码 fallback。
+- 若转回规则线，只能做极窄的 Wire-only row-band inference 设计：first `05 交流回路图2.dwg` 的 `RBW0014-RBW0016` 具备重复 `v->v` anchor 和 `v->?` 缺右端证据；second 单症状行带和 `?->709/707/...` 行带不得泛化生成新 pair graph 事实。

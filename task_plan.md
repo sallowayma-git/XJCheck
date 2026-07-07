@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 89
+Phase 90
 
 ## Phases
 
@@ -1248,6 +1248,23 @@ Phase 89
   - first `.tmp/phase89_grid_row_band_aggregation_first_audit`: `pair_count=1581`，pair_kind distribution unchanged；`issue_count=117`（Phase88 `131 -> 117`）；`grid_row_band_endpoint_gap_review=8`；`RBW0014` 聚合为 1 条 review，`cluster_size=4`，`cluster_pair_ids=["PW0043","PW0044","PW0047","PW0048"]`。
   - second `.tmp/phase89_grid_row_band_aggregation_second_audit`: `pair_count=1462`，`issue_count=22`，pair_kind distribution unchanged；多数 row-band 只有单症状，因此不触发聚合，`pairing_wrong=15` 保持可见。
 - [ ] 下一刀候选收缩为：真正 grid row-band endpoint inference（需更强证据后再改 pair graph）或 packaged sidecar/exe smoke 独立产品切片；不要重开已闭环 extractor，也不要通过隐藏 ordinary pair 降噪。
+- **Status:** complete
+
+### Phase 90: Packaged Sidecar Executable Smoke
+- [x] 只读恢复并确认当前 HEAD 为 `c09ce23`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 三路只读审计裁决：Phase89 后不应立刻广义改 grid row-band pair graph；本轮转向独立产品化切片 `packaged sidecar/exe smoke`。同时记录未来 row-band inference 只能从 first `05 交流回路图2.dwg` 的 `RBW0014-RBW0016` 这类重复 `v->v` anchor + `v->?` 缺右端窄模式开始，不能扩到 second 或 `?->709/707/...`。
+- [x] 实现目标：新增 Python sidecar entrypoint、PowerShell PyInstaller 构建脚本、Tauri `bundle.resources` 映射和桌面 README smoke 流程；生成的 `dwg-audit-sidecar.exe` 作为本地构建产物被 `.gitignore` 排除，不纳入仓库；不改审计规则、extractor、PairBuilder、CLI 产品表面或 UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_desktop_packaging.py tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `10 passed`
+  - `cd apps\desktop; npm run build` -> passed
+  - `cd apps\desktop\src-tauri; cargo test sidecar_runtime` -> `5 passed`
+  - `cd apps\desktop; .\scripts\build-sidecar.ps1 -Clean` -> built `src-tauri\resources\sidecar\dwg-audit-sidecar.exe`
+  - `dwg-audit-sidecar.exe --help` -> listed desktop/internal commands including `analyze-session`, `list-recent-projects`, `load-result`, `set-issue-status`, `render-preview`
+  - `dwg-audit-sidecar.exe list-recent-projects --state-db .tmp\phase90_sidecar_smoke\desktop_state.db` -> `{"projects":[]}`
+  - `cd apps\desktop; npm run tauri:build` -> built release app and NSIS installer `DWG Audit Desktop_0.1.0_x64-setup.exe`; release output includes `target\release\sidecar\dwg-audit-sidecar.exe`
+  - packaged sidecar `evaluate-acceptance` smoke on Phase84 real fixtures passed for first review fixture and second component / terminal pair fixtures
+  - `python -m pytest -q` -> `294 passed`
+- [ ] 下一刀候选收缩为：安装后 exe 主流程 smoke（真实桌面启动/导入/结果回看），或极窄 grid row-band endpoint inference 设计（只从 `RBW0014-RBW0016` 缺右端同值推断开始）；二者仍保持独立切片。
 - **Status:** complete
 
 ## Errors Encountered

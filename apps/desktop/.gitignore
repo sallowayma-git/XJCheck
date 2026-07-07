@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+src-tauri/resources/sidecar/dwg-audit-sidecar*
+!src-tauri/resources/sidecar/README.md
 
 # Editor directories and files
 .vscode/*

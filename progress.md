@@ -3259,3 +3259,34 @@
 - Next candidates:
   - True grid row-band endpoint inference, only after stronger row-band evidence design.
   - packaged sidecar/exe smoke as an independent product slice.
+
+## Session Update 2026-07-07 (Phase 90 packaged sidecar executable smoke)
+- Started after commit `c09ce23`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned three read-only explorers. Documentation alignment recommended the independent product slice `packaged sidecar/exe smoke`; source-boundary review said any future row-band inference must stay in `page_extractors.py` Wire-only post-processing; real-sample mining found only first `05 交流回路图2.dwg` `RBW0014-RBW0016` has strong enough future evidence for a narrow `v->?` right-end inference.
+- Implementation:
+  - Added `src/dwg_audit/desktop/sidecar_entry.py` as the PyInstaller entrypoint for the existing Typer CLI contract.
+  - Added `apps/desktop/scripts/build-sidecar.ps1` to build `dwg-audit-sidecar.exe` with PyInstaller into `apps/desktop/src-tauri/resources/sidecar`.
+  - Added Tauri `bundle.resources` mapping from `resources/sidecar/*` to packaged `sidecar/`, matching the Rust runtime resolver candidates.
+  - Added `apps/desktop/src-tauri/resources/sidecar/README.md`, updated desktop README, and ignored the generated sidecar executable so binary build outputs are not committed.
+  - Added packaging contract tests in `tests/unit/test_desktop_packaging.py`.
+  - Did not change extractor output, candidates, PairBuilder, rules, report semantics, UI behavior, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_desktop_packaging.py tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `10 passed`
+  - `cd apps\desktop; npm run build` -> passed
+  - `cd apps\desktop\src-tauri; cargo test sidecar_runtime` -> `5 passed`
+  - Initial `.\scripts\build-sidecar.ps1 -Clean` failed because PyInstaller was not installed; installed PyInstaller in the local Python environment and reran successfully.
+  - `cd apps\desktop; .\scripts\build-sidecar.ps1 -Clean` -> built `src-tauri\resources\sidecar\dwg-audit-sidecar.exe`.
+  - `apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe --help` -> command list includes `analyze-session`, `list-recent-projects`, `load-result`, `set-issue-status`, and `render-preview`.
+  - `apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe list-recent-projects --state-db .tmp\phase90_sidecar_smoke\desktop_state.db` -> `{ "projects": [] }`.
+  - `cd apps\desktop; npm run tauri:build` -> built `apps\desktop\src-tauri\target\release\dwg_audit_desktop.exe` and NSIS installer `apps\desktop\src-tauri\target\release\bundle\nsis\DWG Audit Desktop_0.1.0_x64-setup.exe`; release output contains `target\release\sidecar\dwg-audit-sidecar.exe`.
+  - Packaged sidecar acceptance smoke:
+    - first review fixture -> `acceptance_passed=True`
+    - second component subset -> `pair_precision=1.0`, `pair_recall=1.0`, `acceptance_passed=True`
+    - second terminal S0024 subset -> `pair_precision=1.0`, `pair_recall=1.0`, `acceptance_passed=True`
+  - `python -m pytest -q` -> `294 passed`
+- Next candidates:
+  - Product line: installed-exe desktop smoke with real launch/import/result reload, using the bundled sidecar rather than dev fallback.
+  - Rules line: only a narrow Wire-only row-band endpoint inference design for first `05 交流回路图2.dwg` `RBW0014-RBW0016`; do not generalize to second-set single-symptom rows or `?->709/707/...` row bands.
