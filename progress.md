@@ -3409,3 +3409,43 @@
   - Continue hard root-cause work on remaining ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`, especially `05 交流回路图2.dwg` and `06 直流回路图.dwg`.
   - Define default user problem list vs internal review evidence layering as a separate slice.
   - Keep backplate/component mapping rules semantics as a quality-layering track, not extractor-missing work.
+
+## Session Update 2026-07-07 (Phase 95 binary input manual-closing description semantic mapping)
+- Started after commit `f432beb`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree still had external unstaged `doc/任务书.md` planning edits plus protected untracked `doc/page_findings/` and `doc/page_task_queue.md`; this round did not overwrite them.
+- Target issue cluster:
+  - Project: second real sample `test\变压器测控柜(2圈变，2台测控)`.
+  - `S0008 / 08 测控1开入回路图1.dwg`: before `I0006 / PW0209 / GW0209`, line `[77.5,205.0] -> [145.0,205.0]`, `115 -> ?`, nearby `Manual closing of synchronization` (`T0500`) and `手合同期`.
+  - `S0012 / 12 测控2开入回路图1.dwg`: before `I0008 / PW0368 / GW0368`, line `[105.0,205.0] -> [145.0,205.0]`, `115 -> ?`, nearby `Manual closing of synchronization` (`T1171`) and `手合同期`.
+- Current wrong output:
+  - Both rows were ordinary `R-PAIR-MISSING-SIDE` because manual-closing function text was rejected as `not_numeric` noise.
+- Taskbook expected semantics:
+  - On BINARY INPUT / 开入 pages, row-level function descriptions are semantic evidence; they must not compete as ordinary endpoints or leave the local numeric row as a missing ordinary pair.
+- Suspected root cause:
+  - Phase94 recognized `BI n/BCDn` / `开入 n/BCDn`, but did not cover manual-closing function descriptions in the same binary-input matrix.
+- Minimal slice:
+  - Added `schematic_binary_input_function_description` in `candidates.py`, scoped to sheet context containing `BINARY INPUT` or `开入` and text matching `Manual closing of synchronization` or `手合同期`.
+  - Added same-row guard `abs(dy)<=6.0` and score capping below numeric candidates.
+  - Extended `pairs.py` single-sided schematic semantic annotation to emit `semantic_mapping/review` for this detail.
+  - Added positive candidate/pair tests and a CONTROL OUTPUT negative test.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or control_output"` -> `3 passed, 39 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_description_row or binary_input_function_row"` -> `2 passed, 68 deselected`
+  - `python -m pytest -q` -> `301 passed`
+  - second fresh `analyze-project + run-audit` -> `.tmp/phase95_binary_input_description_second_audit`
+  - first fresh `analyze-project + run-audit` -> `.tmp/phase95_binary_input_description_first_audit`
+- Fresh evidence:
+  - second before/after: `pair_count=1462` unchanged; `ordinary_pair 563 -> 561`; `semantic_mapping 189 -> 191`; `issue_count 15 -> 13`; `R-PAIR-MISSING-SIDE 9 -> 7`.
+  - `PW0209` after: `115 -> Manual closing of synchronization`, `semantic_mapping/review`, `semantic_mapping_kind=schematic_binary_input_function_description`, `ordinary_pair_eligible=False`, semantic text `T0500`.
+  - `PW0368` after: `115 -> Manual closing of synchronization`, `semantic_mapping/review`, `semantic_mapping_kind=schematic_binary_input_function_description`, `ordinary_pair_eligible=False`, semantic text `T1171`.
+  - Non-target `PW0291` and `PW0442` remain ordinary `R-PAIR-MISSING-SIDE`, so CONTROL OUTPUT / 调压 rows were not generalized away.
+  - first before/after: `pair_count=1581`, `issue_count=117`, pair kind distribution and status buckets unchanged.
+- Independent audit:
+  - Read-only subagent confirmed before/after pair_id sets are identical, pair_count stays `1462`, only changed pair_ids are `PW0209/PW0368`.
+  - Reduction is exactly `ordinary_pair -> semantic_mapping`, not hidden/filter/severity-only/aggregation-only/pair deletion/report-only.
+- Next candidates:
+  - `06 直流回路图.dwg` DK/ZD/3-21n structure missing-side cluster.
+  - first `05 交流回路图2.dwg` extremely narrow row-band endpoint inference.
+  - Default user problem list vs internal review evidence layering as a separate slice.

@@ -683,6 +683,98 @@ def test_build_pairs_tags_binary_input_function_row_as_semantic_mapping() -> Non
     assert pair.evidence["ordinary_pair_eligible"] is False
 
 
+def test_build_pairs_tags_binary_input_description_row_as_semantic_mapping() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=105.0,
+            start_y=205.0,
+            end_x=145.0,
+            end_y=205.0,
+            length=40.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="grid",
+            row_band_id="RBW0137",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S0001",
+            "F0001",
+            "12 测控2开入回路图1.dwg",
+            12,
+            "12",
+            "3-21n BINARY INPUT 1",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T1",
+            "115",
+            "115",
+            0.5975,
+            "accepted",
+            None,
+            105.0,
+            205.0,
+            14.3771,
+            0.6649,
+            90.622905,
+            205.664933,
+            channel="terminal_numeric_channel",
+        ),
+        TerminalCandidate(
+            "C0002",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T2",
+            "Manual closing of synchronization",
+            "Manual closing of synchronization",
+            0.42,
+            "accepted",
+            None,
+            105.0,
+            205.0,
+            2.5667,
+            1.53,
+            107.5667,
+            206.53,
+            channel="schematic_semantic_endpoint_channel",
+            channel_detail="schematic_binary_input_function_description",
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value == "115"
+    assert pair.right_value is None
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.status == "review"
+    assert pair.rationale == "missing right candidate; semantic mapping relation"
+    assert pair.evidence["semantic_kind"] == "schematic_semantic_annotation"
+    assert pair.evidence["semantic_mapping_kind"] == "schematic_binary_input_function_description"
+    assert pair.evidence["semantic_endpoint"] == "Manual closing of synchronization"
+    assert pair.evidence["semantic_endpoint_text_id"] == "T2"
+    assert pair.evidence["numeric_endpoint"] == "115"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
 def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None:
     groups = [
         LineGroup(

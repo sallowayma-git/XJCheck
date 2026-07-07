@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 94
+Phase 95
 
 ## Phases
 
@@ -1328,6 +1328,22 @@ Phase 94
   - `PW0368 / 115 -> ?` 保持 ordinary `R-PAIR-MISSING-SIDE`，因为同排不是 BI/BCD 功能文本，避免过度吞掉 manual-closing 语义缺口。
   - first `.tmp/phase94_binary_input_semantic_first_audit`: `pair_count=1581`、`issue_count=117`、pair kind distribution 与 Phase93 first 基线一致。
 - [ ] 下一轮候选收缩为：继续处理真实剩余 ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 成因，优先 `05 交流回路图2.dwg`、`06 直流回路图.dwg` 等；另起切片定义默认用户问题列表与内部 review 证据分层；backplate/component mapping rules semantics 只作为质量分层线继续。
+- **Status:** complete
+
+### Phase 95: Binary Input Manual Closing Description Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `f432beb`；工作区仍有外部未暂存 `doc/任务书.md` 规划改动和受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，本轮不覆盖。
+- [x] 目标簇选择 second `S0008 / 08 测控1开入回路图1.dwg` 的 `I0006/PW0209` 与 `S0012 / 12 测控2开入回路图1.dwg` 的 `I0008/PW0368`：两条都是 BINARY INPUT 页中 `115 -> ?` ordinary `R-PAIR-MISSING-SIDE`，同排文本为 `Manual closing of synchronization / 手合同期`。
+- [x] 当前错误输出：系统把同排功能说明当作 `not_numeric` noise，于是把 `115` 留成普通缺侧；任务书期望开入页中文/英文功能说明进入 semantic evidence，不参与 ordinary endpoint 竞争。
+- [x] suspected root cause：Phase94 只识别 `BI n/BCDn` / `开入 n/BCDn` 功能行，未覆盖同一 BINARY INPUT 页里的 manual-closing 功能描述。
+- [x] 最小代码切片：在 candidate 层新增 `schematic_binary_input_function_description`，仅限 sheet context 含 `BINARY INPUT` 或 `开入` 且文本匹配 `Manual closing of synchronization` / `手合同期`；PairBuilder 将该语义候选纳入单侧二次原理图 `semantic_mapping`。
+- [x] 反作弊验证：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or control_output"` -> `3 passed, 39 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_description_row or binary_input_function_row"` -> `2 passed, 68 deselected`
+  - `python -m pytest -q` -> `301 passed`
+  - second fresh `.tmp/phase95_binary_input_description_second_audit`: `pair_count=1462` 不变；`ordinary_pair 563 -> 561`，`semantic_mapping 189 -> 191`；`issue_count 15 -> 13`，`R-PAIR-MISSING-SIDE 9 -> 7`。
+  - first fresh `.tmp/phase95_binary_input_description_first_audit`: `pair_count=1581`、`issue_count=117`、pair kind/status distribution 全部不变。
+- [x] 独立审计结论：only changed pair_ids 为 `PW0209/PW0368`，before/after pair_id set 完全一致；两条均为 `ordinary_pair -> semantic_mapping`，evidence 含 `semantic_mapping_kind=schematic_binary_input_function_description`、`ordinary_pair_eligible=False`；`PW0291/PW0442` 仍为 ordinary missing issue，证明未泛化吞掉 CONTROL OUTPUT / 调压行。
+- [ ] 下一轮候选继续收缩为：`06 直流回路图.dwg` DK/ZD/3-21n 结构缺侧、first `05 交流回路图2.dwg` 极窄 row-band endpoint inference，或默认用户问题列表与内部 review 证据分层。
 - **Status:** complete
 
 ## Errors Encountered

@@ -619,6 +619,7 @@ def _single_sided_schematic_semantic_annotation(
             "schematic_network_time_label",
             "schematic_ac_phase_label",
             "schematic_binary_input_function_label",
+            "schematic_binary_input_function_description",
         }
         and candidate.side == numeric_side
     ]

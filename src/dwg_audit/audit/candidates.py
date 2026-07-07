@@ -39,6 +39,10 @@ _SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^BI\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
     re.compile(r"^开入\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
 )
+_SCHEMATIC_BINARY_INPUT_DESCRIPTION_ENDPOINT_PATTERNS = (
+    re.compile(r"^Manual closing of synchronization$", re.IGNORECASE),
+    re.compile(r"^手合同期$"),
+)
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
     re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
@@ -165,6 +169,16 @@ def build_terminal_candidates(
                     channel = _CHANNEL_NOISE
                     channel_detail = reason
                 elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_binary_input_function_description"
+                    and abs(dy) > 6.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
                     len(value.strip()) == 1
                     and text.layer.upper() in profile["single_char_reject_layers"]
                 ):
@@ -212,7 +226,10 @@ def build_terminal_candidates(
                         horizontal_distance_weight=profile["terminal_strip_distance_x_weight"],
                         cross_axis_distance_weight=profile["terminal_strip_distance_y_weight"],
                     )
-                    if channel_detail == "schematic_binary_input_function_label":
+                    if channel_detail in {
+                        "schematic_binary_input_function_label",
+                        "schematic_binary_input_function_description",
+                    }:
                         score = round(0.35 + (min(score, 1.0) * 0.1), 4)
                     status = "accepted"
                     reason = None
@@ -826,6 +843,11 @@ def _candidate_schematic_semantic_endpoint_detail(
         and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS)
     ):
         return "schematic_binary_input_function_label"
+    if (
+        any(marker in sheet_context for marker in ("BINARY INPUT", "开入"))
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_BINARY_INPUT_DESCRIPTION_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_binary_input_function_description"
     return None
 
 

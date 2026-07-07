@@ -120,6 +120,77 @@ def test_build_terminal_candidates_marks_binary_input_function_label_as_semantic
     assert semantic.score < numeric.score
 
 
+def test_build_terminal_candidates_marks_binary_input_description_as_semantic_endpoint() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=105.0,
+            start_y=205.0,
+            end_x=145.0,
+            end_y=205.0,
+            length=40.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="grid",
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "115", "115", True, "DIM", 0.0, 2.5, 90.6, 206.1, 90.6, 205.2, 95.3, 208.1),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "Manual closing of synchronization", "Manual closing of synchronization", False, "DIM", 0.0, 2.5, 108.2, 207.1, 108.2, 206.2, 157.2, 209.1),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "08 测控1开入回路图1.dwg", 8, "08", "1-21n BINARY INPUT 1", "二次原理图", "primary", "filename", True)
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    numeric = next(item for item in candidates if item.text_id == "T1" and item.side == "left")
+    semantic = next(item for item in candidates if item.text_id == "T2" and item.side == "left")
+    assert numeric.status == "accepted"
+    assert numeric.rank == 1
+    assert semantic.status == "accepted"
+    assert semantic.rank == 2
+    assert semantic.value == "Manual closing of synchronization"
+    assert semantic.channel == "schematic_semantic_endpoint_channel"
+    assert semantic.channel_detail == "schematic_binary_input_function_description"
+    assert semantic.score < numeric.score
+
+
+def test_build_terminal_candidates_keeps_control_output_description_out_of_binary_input_semantics() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=92.5,
+            start_y=235.0,
+            end_x=173.8,
+            end_y=235.0,
+            length=81.3,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="grid",
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "Manual closing of synchronization", "Manual closing of synchronization", False, "DIM", 0.0, 2.5, 160.0, 236.2, 160.0, 235.3, 210.0, 238.2)
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "10 测控1控制回路图1.dwg", 10, "10", "1-21n CONTROL OUTPUT", "二次原理图", "primary", "filename", True)
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    rejected = next(item for item in candidates if item.text_id == "T1")
+    assert rejected.status == "rejected"
+    assert rejected.channel == "noise_channel"
+    assert rejected.channel_detail == "not_numeric"
+
+
 def test_build_terminal_candidates_accepts_schematic_logic_endpoint_mapping() -> None:
     line_groups = [
         LineGroup(
