@@ -3375,3 +3375,37 @@
   - Next mainline should stop doing pure display/diagnostics unless it directly changes the default user-visible problem list.
   - Prioritize hard root-cause work for remaining `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` ordinary pair symptoms on pages such as `05 交流回路图2.dwg`, `06 直流回路图.dwg`, and `12 测控2开入回路图1.dwg`.
   - In parallel or as a separate product/rules slice, define the default user problem list vs internal review evidence layering so structural `rule_too_strict` reviews do not permanently flood the primary user list.
+
+## Session Update 2026-07-07 (Phase 94 binary input function row semantic mapping)
+- Started after commit `018c958`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread current plan/progress/findings/taskbook context, `git status --short`, `git diff --stat`, and current code/test diffs.
+  - Protected untracked `doc/page_findings/` and `doc/page_task_queue.md` were left untouched.
+  - Existing `doc/任务书.md` had unrelated concurrent planning edits; this slice only added a narrow Phase94 status note.
+- Target cluster:
+  - second `S0012 / 12 测控2开入回路图1.dwg`.
+  - Before symptoms were ordinary `R-PAIR-MISSING-SIDE` for `PW0350..PW0365`: `121 -> ?`, `120 -> ?`, `119 -> ?`, `118 -> ?`, `117 -> ?`, `116 -> ?`.
+  - Taskbook semantics: on BINARY INPUT / 测控开入 rows, same-row `BI n/BCDn` / `开入 n/BCDn` text is semantic evidence, not a missing ordinary endpoint.
+  - `PW0368 / 115 -> ?` was kept out of scope because the same-row text is manual-closing semantics, not BI/BCD.
+- Implementation:
+  - Added `schematic_binary_input_function_label` candidate recognition in `src/dwg_audit/audit/candidates.py`.
+  - Required same-row alignment with `abs(dy)<=3.0`, normalized whitespace around `/`, and capped semantic scores below numeric endpoint candidates.
+  - Extended `_single_sided_schematic_semantic_annotation()` in `src/dwg_audit/audit/pairs.py` so binary-input function rows become `semantic_mapping/review` with `ordinary_pair_eligible=False`.
+  - Added focused unit coverage in `tests/unit/test_terminal_candidates.py` and `tests/unit/test_pairs_and_rules.py`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or semantic"` -> `8 passed, 32 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_function_row or semantic_mapping or missing_side"` -> `10 passed, 59 deselected`
+  - `python -m pytest -q` -> `298 passed`
+- Fresh evidence:
+  - second `.tmp/phase94_binary_input_semantic_second_v4_audit`: `pair_count=1462`; `ordinary_pair 569 -> 563`; `semantic_mapping 183 -> 189`; `issue_count 21 -> 15`; `R-PAIR-MISSING-SIDE 15 -> 9`.
+  - `PW0350/PW0353/PW0356/PW0359/PW0362/PW0365` are now `semantic_mapping/review`, `semantic_mapping_kind=schematic_binary_input_function_label`, `ordinary_pair_eligible=False`, with semantic endpoints `BI 10/BCD6` through `BI 5/BCD1`.
+  - `PW0368 / 115 -> ?` remains `ordinary_pair/review` and still raises `R-PAIR-MISSING-SIDE`.
+  - first `.tmp/phase94_binary_input_semantic_first_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged from Phase93 first baseline.
+- Independent audit:
+  - Read-only subagent confirmed before/after `pair_id` sets are identical and after `pair_count=1462`.
+  - The six reduced issues are exactly `ordinary_pair -> semantic_mapping` conversions; no hidden/filter/suppress fields, no severity/status downgrade, no report-only aggregation.
+  - Bucket counts stayed `review=440`, `pass=431`, `discard=591`, and `PW0368/GW0368` remains open `R-PAIR-MISSING-SIDE`.
+- Next candidates:
+  - Continue hard root-cause work on remaining ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`, especially `05 交流回路图2.dwg` and `06 直流回路图.dwg`.
+  - Define default user problem list vs internal review evidence layering as a separate slice.
+  - Keep backplate/component mapping rules semantics as a quality-layering track, not extractor-missing work.

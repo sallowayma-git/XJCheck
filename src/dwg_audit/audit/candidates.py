@@ -35,6 +35,10 @@ _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
 _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|UX'?|3U0'?)$", re.IGNORECASE),
 )
+_SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"^BI\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
+    re.compile(r"^开入\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
+)
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
     re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
@@ -151,6 +155,16 @@ def build_terminal_candidates(
                     channel = _CHANNEL_NOISE
                     channel_detail = reason
                 elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_binary_input_function_label"
+                    and abs(dy) > 3.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
                     len(value.strip()) == 1
                     and text.layer.upper() in profile["single_char_reject_layers"]
                 ):
@@ -198,6 +212,8 @@ def build_terminal_candidates(
                         horizontal_distance_weight=profile["terminal_strip_distance_x_weight"],
                         cross_axis_distance_weight=profile["terminal_strip_distance_y_weight"],
                     )
+                    if channel_detail == "schematic_binary_input_function_label":
+                        score = round(0.35 + (min(score, 1.0) * 0.1), 4)
                     status = "accepted"
                     reason = None
                 results.append(
@@ -776,7 +792,7 @@ def _candidate_schematic_semantic_endpoint_value(
 ) -> str | None:
     if _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation) is None:
         return None
-    return text.normalized_text.strip()
+    return _normalize_schematic_semantic_endpoint_value(text.normalized_text.strip())
 
 
 def _candidate_schematic_semantic_endpoint_detail(
@@ -805,7 +821,18 @@ def _candidate_schematic_semantic_endpoint_detail(
         and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS)
     ):
         return "schematic_ac_phase_label"
+    if (
+        any(marker in sheet_context for marker in ("BINARY INPUT", "开入", "测控"))
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_binary_input_function_label"
     return None
+
+
+def _normalize_schematic_semantic_endpoint_value(normalized: str) -> str:
+    value = re.sub(r"\s*/\s*", "/", normalized.strip())
+    value = re.sub(r"\s+", " ", value)
+    return value
 
 
 def _is_terminal_strip_mode(sheet: SheetRecord | None, orientation: str) -> bool:

@@ -590,6 +590,99 @@ def test_build_pairs_tags_terminal_semantic_row_as_semantic_mapping() -> None:
     assert candidates[2].channel == "terminal_numeric_channel"
 
 
+def test_build_pairs_tags_binary_input_function_row_as_semantic_mapping() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=105.0,
+            start_y=195.0,
+            end_x=145.0,
+            end_y=195.0,
+            length=40.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="grid",
+            row_band_id="RBW0136",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S0001",
+            "F0001",
+            "12 测控2开入回路图1.dwg",
+            12,
+            "12",
+            "3-21n BINARY INPUT 1",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T1",
+            "116",
+            "116",
+            0.5978,
+            "accepted",
+            None,
+            105.0,
+            195.0,
+            14.3771,
+            0.6579,
+            90.622905,
+            195.657933,
+            channel="terminal_numeric_channel",
+        ),
+        TerminalCandidate(
+            "C0002",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T2",
+            "BI 5/BCD1",
+            "BI 5/BCD1",
+            0.82,
+            "accepted",
+            None,
+            105.0,
+            195.0,
+            3.2105,
+            1.1014,
+            108.210463,
+            196.10138,
+            channel="schematic_semantic_endpoint_channel",
+            channel_detail="schematic_binary_input_function_label",
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value == "116"
+    assert pair.right_value is None
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.status == "review"
+    assert pair.rationale == "missing right candidate; semantic mapping relation"
+    assert pair.evidence["pair_kind"] == "semantic_mapping"
+    assert pair.evidence["semantic_kind"] == "schematic_semantic_annotation"
+    assert pair.evidence["semantic_mapping_kind"] == "schematic_binary_input_function_label"
+    assert pair.evidence["semantic_endpoint"] == "BI 5/BCD1"
+    assert pair.evidence["semantic_endpoint_text_id"] == "T2"
+    assert pair.evidence["numeric_endpoint"] == "116"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
 def test_build_pairs_only_consumes_terminal_numeric_channel_candidates() -> None:
     groups = [
         LineGroup(

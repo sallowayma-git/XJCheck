@@ -614,7 +614,12 @@ def _single_sided_schematic_semantic_annotation(
         for candidate in group_candidates
         if candidate.status == "accepted"
         and candidate.channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
-        and candidate.channel_detail in {"schematic_network_time_label", "schematic_ac_phase_label"}
+        and candidate.channel_detail
+        in {
+            "schematic_network_time_label",
+            "schematic_ac_phase_label",
+            "schematic_binary_input_function_label",
+        }
         and candidate.side == numeric_side
     ]
     if not semantic_candidates:

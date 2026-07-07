@@ -9865,3 +9865,49 @@ first 非回归：
 - 后续更硬的两类工作应是：
   - 真正处理剩余 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 的成因，优先审计 `05 交流回路图2.dwg`、`06 直流回路图.dwg`、`12 测控2开入回路图1.dwg` 等普通 pair 缺侧页。
   - 定义“默认用户问题列表”和“内部 review 证据”的分层机制，让结构现象 / `rule_too_strict` review 不再长期混在主问题列表里。
+
+## 147. 2026-07-07 extractor/pairing：开入功能行转为语义映射
+
+只读审计确认，second `S0012 / 12 测控2开入回路图1.dwg` 的 `121..116 -> ?` 并不是普通 pair 真缺侧。每条横线同排都有 `BI n/BCDn` 功能文本，且页上下文包含 `BINARY INPUT / 开入 / 测控`。这些文本是二次原理图的开入功能语义标注，应成为 `semantic_mapping` evidence，而不是普通右端 endpoint。
+
+本轮目标簇：
+
+- `PW0350`: `121 -> ?`，同排 `BI 10/BCD6`。
+- `PW0353`: `120 -> ?`，同排 `BI 9/BCD5`。
+- `PW0356`: `119 -> ?`，同排 `BI 8/BCD4`。
+- `PW0359`: `118 -> ?`，同排 `BI 7/BCD3`。
+- `PW0362`: `117 -> ?`，同排 `BI 6/BCD2`。
+- `PW0365`: `116 -> ?`，同排 `BI 5/BCD1`。
+
+本轮实现：
+
+- 在 [candidates.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/candidates.py) 中新增 `schematic_binary_input_function_label` 识别，仅在二次原理图且 sheet context 含 `BINARY INPUT`、`开入` 或 `测控` 时接受 `BI n/BCDn` / `开入 n/BCDn`。
+- 对该类 semantic endpoint 增加同排保护：`abs(dy)>3.0` 时拒收为 `schematic_semantic_out_of_row`，避免把上一行功能文本吸到下一行。
+- 对语义候选评分压低到 numeric endpoint 之后，保证本地数字 `116/117/...` 仍是 rank 1，语义文本只作为同排 annotation。
+- 在 [pairs.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/pairs.py) 中让单侧二次原理图语义标注接受 `schematic_binary_input_function_label`，生成 `semantic_mapping/review` 且 `ordinary_pair_eligible=False`。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or semantic"` -> `8 passed, 32 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_function_row or semantic_mapping or missing_side"` -> `10 passed, 59 deselected`
+- `python -m pytest -q` -> `298 passed`
+
+fresh 证据：
+
+- second `.tmp/phase94_binary_input_semantic_second_v4_audit`
+- `pair_count=1462`，没有删 pair graph。
+- `ordinary_pair 569 -> 563`，`semantic_mapping 183 -> 189`。
+- `issue_count 21 -> 15`，`R-PAIR-MISSING-SIDE 15 -> 9`。
+- `PW0350/PW0353/PW0356/PW0359/PW0362/PW0365` 全部为 `semantic_mapping/review`，`semantic_mapping_kind=schematic_binary_input_function_label`，`ordinary_pair_eligible=False`。
+- `PW0368 / 115 -> ?` 仍为 `ordinary_pair/review` 并保留 `R-PAIR-MISSING-SIDE`，因为该行是 `Manual closing of synchronization / 手合同期` 语义，不属于本轮 BI/BCD 功能行。
+
+first 非回归：
+
+- first `.tmp/phase94_binary_input_semantic_first_audit`
+- `pair_count=1581`，`issue_count=117`，pair kind 分布相对 Phase93 first 基线不变。
+
+裁决：
+
+- `12 测控2开入回路图1.dwg` 中 `121..116` 六条开入功能行 residual 已闭环，不再作为 ordinary missing-side 待实现项。
+- `115` manual-closing 行仍是后续语义识别候选，不能用 BI/BCD 规则吞掉。
+- 下一轮硬主线继续从剩余 ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 的真实成因入手，优先 `05 交流回路图2.dwg`、`06 直流回路图.dwg` 等页；默认用户问题列表与内部 review 证据分层可另起一刀。

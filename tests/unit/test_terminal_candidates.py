@@ -81,6 +81,45 @@ def test_build_terminal_candidates_accepts_numeric_text_inside_line_endpoint_win
     assert right_candidate.score > 0.0
 
 
+def test_build_terminal_candidates_marks_binary_input_function_label_as_semantic_endpoint() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=105.0,
+            start_y=195.0,
+            end_x=145.0,
+            end_y=195.0,
+            length=40.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="grid",
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "116", "116", True, "DIM", 0.0, 2.5, 90.6, 195.7, 90.6, 194.8, 95.3, 197.7),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "BI 5/BCD1", "BI 5/BCD1", False, "DIM", 0.0, 2.5, 108.2, 196.1, 108.2, 195.2, 122.2, 198.1),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "12 测控2开入回路图1.dwg", 12, "12", "3-21n BINARY INPUT 1", "二次原理图", "primary", "filename", True)
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    numeric = next(item for item in candidates if item.text_id == "T1" and item.side == "left")
+    semantic = next(item for item in candidates if item.text_id == "T2" and item.side == "left")
+    assert numeric.status == "accepted"
+    assert numeric.rank == 1
+    assert semantic.status == "accepted"
+    assert semantic.rank == 2
+    assert semantic.value == "BI 5/BCD1"
+    assert semantic.channel == "schematic_semantic_endpoint_channel"
+    assert semantic.channel_detail == "schematic_binary_input_function_label"
+    assert semantic.score < numeric.score
+
+
 def test_build_terminal_candidates_accepts_schematic_logic_endpoint_mapping() -> None:
     line_groups = [
         LineGroup(

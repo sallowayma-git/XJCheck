@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 93
+Phase 94
 
 ## Phases
 
@@ -1312,6 +1312,22 @@ Phase 93
   - second `.tmp/phase93_semantic_conflict_scope_second_fresh_audit`: `pair_count=1462`，pair kind distribution unchanged；`issue_count=21`；`R-SEMANTIC-MAPPING-CONFLICT=0`；`PT0117/PT0260` remain `semantic_mapping/review` evidence with full raw endpoints `3-21n114` and `1-21n114`。
   - first `.tmp/phase93_semantic_conflict_scope_first_audit`: `pair_count=1581`，`issue_count=117`，pair kind distribution unchanged。
 - [ ] 下一轮主线收缩为：优先处理剩余 ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 的成因（如 `05 交流回路图2.dwg`、`06 直流回路图.dwg`、`12 测控2开入回路图1.dwg`），并单独定义默认用户问题列表与内部 review 证据分层；terminal/input-matrix `218`、second row-band `116`、backplate/component rules semantics 只能在这两条硬目标下继续。
+- **Status:** complete
+
+### Phase 94: Binary Input Function Row Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `018c958`；工作区已有本轮代码改动，同时保留受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 不纳入写集。
+- [x] 目标簇选择 second `S0012 / 12 测控2开入回路图1.dwg` 中 `121..116` 的 ordinary `R-PAIR-MISSING-SIDE`：这些行同排存在 `BI n/BCDn` 或 `开入 n/BCDn` 功能文本，应作为二次原理图开入语义标注，而不是普通缺侧端点。
+- [x] 实现目标：在 candidate 层识别 `schematic_binary_input_function_label` 语义端点；限制为同排 `abs(dy)<=3.0`；将语义候选评分压低到 numeric candidate 之后；PairBuilder 将该类单侧 numeric+语义文本转为 `semantic_mapping/review`，不删除 pair graph。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or semantic"` -> `8 passed, 32 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_function_row or semantic_mapping or missing_side"` -> `10 passed, 59 deselected`
+  - `python -m pytest -q` -> `298 passed`
+- [x] Fresh verification：
+  - second `.tmp/phase94_binary_input_semantic_second_v4_audit`: `pair_count=1462` 不变；`ordinary_pair 569 -> 563`，`semantic_mapping 183 -> 189`；`issue_count 21 -> 15`，`R-PAIR-MISSING-SIDE 15 -> 9`。
+  - `PW0350/PW0353/PW0356/PW0359/PW0362/PW0365` 分别从 `121..116 -> ?` ordinary 缺侧转为 `semantic_mapping/review`，semantic endpoint 为 `BI 10/BCD6` 到 `BI 5/BCD1`，`ordinary_pair_eligible=False`。
+  - `PW0368 / 115 -> ?` 保持 ordinary `R-PAIR-MISSING-SIDE`，因为同排不是 BI/BCD 功能文本，避免过度吞掉 manual-closing 语义缺口。
+  - first `.tmp/phase94_binary_input_semantic_first_audit`: `pair_count=1581`、`issue_count=117`、pair kind distribution 与 Phase93 first 基线一致。
+- [ ] 下一轮候选收缩为：继续处理真实剩余 ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 成因，优先 `05 交流回路图2.dwg`、`06 直流回路图.dwg` 等；另起切片定义默认用户问题列表与内部 review 证据分层；backplate/component mapping rules semantics 只作为质量分层线继续。
 - **Status:** complete
 
 ## Errors Encountered
