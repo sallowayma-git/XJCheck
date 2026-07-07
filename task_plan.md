@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 88
+Phase 89
 
 ## Phases
 
@@ -1232,6 +1232,22 @@ Phase 88
   - first `.tmp/phase88_grid_row_band_diagnostics_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；root cause counts become `pairing_wrong=60`, `rule_too_strict=60`, `insufficient_evidence=11`；`05 交流回路图2.dwg` has 22 `grid_row_band_endpoint_gap` samples with row-band context.
   - second `.tmp/phase88_grid_row_band_diagnostics_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；root cause counts become `pairing_wrong=15`, `rule_too_strict=7`。
 - [ ] 下一刀候选收缩为：grid row-band endpoint inference/aggregation on CT/VT and DC pages；packaged sidecar/exe smoke remains an independent product slice.
+- **Status:** complete
+
+### Phase 89: Grid Row-Band Endpoint Gap Review Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `6fb8a93`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两路只读 explorer 与主线程实样核查一致确认：Phase88 已把 grid row-band 症状诊断为 `pairing_wrong`，但同一 row-band 内仍以多条 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 分散显示；直接做 pair inference 风险较高，因为不少缺侧症状没有稳定 alternative endpoint。
+- [x] 审计样本：first `S0006 / 05 交流回路图2.dwg` 的 `RBW0014` 同时有 `PW0043/PW0047 721->721` 低置信同号短线和 `PW0044/PW0048 721->?` 缺侧线；`RBW0015/RBW0016/RBW0018/RBW0020/RBW0022/RBW0023/RBW0024` 同构。
+- [x] 实现目标：只在 `rule_base.cluster_issues()` 中把同一 sheet/file/row_band 的 grid ordinary endpoint-gap symptoms 聚合为 `grid_row_band_endpoint_gap_review`，补 `cluster_pair_ids`、`aggregated_rule_ids`、`aggregated_endpoint_values`、`aggregated_missing_sides`、`aggregated_line_group_ids` 和 line spans；不改 extractor、candidate、PairBuilder、pair_kind、pair_count、CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band_endpoint_gap or low_confidence_pairs_for_cross_page_conflict"` -> `2 passed, 64 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band or terminal_header_table or backplate_structured or low_confidence or missing_side"` -> `16 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `291 passed`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase89_grid_row_band_aggregation_first_audit`: `pair_count=1581`，pair_kind distribution unchanged；`issue_count=117`（Phase88 `131 -> 117`）；`grid_row_band_endpoint_gap_review=8`；`RBW0014` 聚合为 1 条 review，`cluster_size=4`，`cluster_pair_ids=["PW0043","PW0044","PW0047","PW0048"]`。
+  - second `.tmp/phase89_grid_row_band_aggregation_second_audit`: `pair_count=1462`，`issue_count=22`，pair_kind distribution unchanged；多数 row-band 只有单症状，因此不触发聚合，`pairing_wrong=15` 保持可见。
+- [ ] 下一刀候选收缩为：真正 grid row-band endpoint inference（需更强证据后再改 pair graph）或 packaged sidecar/exe smoke 独立产品切片；不要重开已闭环 extractor，也不要通过隐藏 ordinary pair 降噪。
 - **Status:** complete
 
 ## Errors Encountered

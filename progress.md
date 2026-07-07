@@ -3231,3 +3231,31 @@
 - Next candidates:
   - grid row-band endpoint inference/aggregation on CT/VT and DC pages.
   - packaged sidecar/exe smoke remains an independent product slice.
+
+## Session Update 2026-07-07 (Phase 89 grid row-band endpoint gap review aggregation)
+- Started after commit `6fb8a93`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned two read-only explorers for real-sample row-band mining and source boundary review. Both advised against first-step true pair inference; the safer minimum slice was row-band issue aggregation/display.
+- Read-only audit conclusions:
+  - Phase88 already diagnosed grid row-band endpoint gaps as `pairing_wrong`, but repeated symptoms in the same row-band still appeared as separate default issues.
+  - first `S0006 / 05 交流回路图2.dwg` was the clearest target: `RBW0014` had `PW0043/PW0047 721->721` low-confidence same-value short links plus `PW0044/PW0048 721->?` missing-side pairs; row bands `RBW0015/RBW0016/RBW0018/RBW0020/RBW0022/RBW0023/RBW0024` had the same clustered shape.
+  - second-set symptoms were mostly single symptom per row-band, especially `12 测控2开入回路图1.dwg` rows `121..115 -> ?`, so they should remain visible until a real inference rule has stronger evidence.
+- Implementation:
+  - Added grid row-band endpoint gap aggregation in `rule_base.cluster_issues()` for same sheet/file/row_band ordinary `R-PAIR-MISSING-SIDE` and same-value `R-PAIR-LOW-CONFIDENCE` symptoms.
+  - Added `grid_row_band_endpoint_gap_review` evidence with `cluster_pair_ids`, `aggregated_rule_ids`, `aggregated_endpoint_values`, `aggregated_missing_sides`, `aggregated_line_group_ids`, and `aggregated_line_spans`.
+  - Refreshed aggregate title/summary/explanation/action to make clear this is row-band-level pairing interpretation evidence, not a new inferred pair.
+  - Did not change extractor output, candidates, PairBuilder, pair_kind, pair_count, CLI/UI, acceptance fixtures, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band_endpoint_gap or low_confidence_pairs_for_cross_page_conflict"` -> `2 passed, 64 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band or terminal_header_table or backplate_structured or low_confidence or missing_side"` -> `16 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `291 passed`
+- Fresh rules-only verification:
+  - first `.tmp/phase89_grid_row_band_aggregation_first_audit`: `pair_count=1581`, pair kind distribution unchanged at `ordinary_pair=728`, `table_mapping=299`, `continuation=231`, `component_mapping=150`, `semantic_mapping=119`, `wire_component_mapping=51`, `bridge_mapping=3`; `issue_count=117`; root causes `rule_too_strict=60`, `pairing_wrong=46`, `insufficient_evidence=11`; `grid_row_band_endpoint_gap_review=8`.
+  - first `RBW0014` now aggregates to one review with `cluster_size=4`, `cluster_pair_ids=["PW0043","PW0044","PW0047","PW0048"]`, `aggregated_rule_ids=["R-PAIR-LOW-CONFIDENCE","R-PAIR-MISSING-SIDE"]`, `aggregated_endpoint_values=["721"]`, `aggregated_missing_sides=["right"]`.
+  - second `.tmp/phase89_grid_row_band_aggregation_second_audit`: `pair_count=1462`, `issue_count=22`, pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`; root causes `pairing_wrong=15`, `rule_too_strict=7`.
+- Next candidates:
+  - True grid row-band endpoint inference, only after stronger row-band evidence design.
+  - packaged sidecar/exe smoke as an independent product slice.

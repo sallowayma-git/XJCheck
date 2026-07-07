@@ -9663,3 +9663,61 @@ second 非回归证据：
 
 - Phase88 是诊断标注闭环：把 grid row-band 的缺侧线 / 同号短线从“证据不足”提升为可行动的行带配对解释缺口。
 - 下一轮若继续样本误解主线，候选应收缩到 CT/VT、直流、测控开入页的 grid row-band endpoint inference / aggregation；packaged sidecar/exe smoke 仍是独立产品切片。
+
+## 142. 2026-07-07 grid row-band：同一行带端点缺口聚合为可复核 review
+
+只读审计确认，Phase88 后 grid row-band 症状已经被标为 `pairing_wrong / grid_row_band_endpoint_gap`，但默认 issue 仍按单条 ordinary pair 展开。first `S0006 / 05 交流回路图2.dwg` 的典型结构是同一 `row_band_id` 内同时出现低置信同号短线和缺侧线：
+
+- `RBW0014`：`PW0043/PW0047 721 -> 721`，以及 `PW0044/PW0048 721 -> ?`。
+- `RBW0015`：`720 -> 720` 与 `720 -> ?`。
+- `RBW0016`：`719 -> 719` 与 `719 -> ?`。
+- `RBW0018/RBW0020/RBW0022/RBW0023/RBW0024`：同一行带内重复 `? -> 709/707/705/703/701`。
+
+裁决：这些症状目前不适合直接生成 inferred pair。second `12 测控2开入回路图1.dwg` 中大量 `121..115 -> ?` 只有单侧症状，缺少稳定 alternative endpoint；贸然改 PairBuilder 会把行带解释缺口伪装成事实连接，进而影响跨页、一对多和 reciprocal 规则。更稳的本轮切片是 issue 聚合和默认文案分层。
+
+本轮实现：
+
+- 在 [rule_base.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rule_base.py) 的 `cluster_issues()` 中新增 grid row-band endpoint gap 聚合。
+- 聚合同一 sheet/file/`row_band_id` 内的 ordinary `R-PAIR-MISSING-SIDE` 与同号 `R-PAIR-LOW-CONFIDENCE` 症状。
+- 聚合 evidence 包含：
+  - `grid_row_band_endpoint_gap_review=true`
+  - `cluster_pair_ids`
+  - `aggregated_rule_ids`
+  - `aggregated_endpoint_values`
+  - `aggregated_missing_sides`
+  - `aggregated_line_group_ids`
+  - `aggregated_line_spans`
+- 聚合 issue 标题改为 `网格行带端点缺口待复核`，summary 默认显示 row-band、症状数、规则类型和端点值。
+- 不改 `WireDiagramExtractor`、candidate 搜索、PairBuilder、pair_kind、pair_count、CLI/UI 或 acceptance fixtures。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band_endpoint_gap or low_confidence_pairs_for_cross_page_conflict"` -> `2 passed, 64 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band or terminal_header_table or backplate_structured or low_confidence or missing_side"` -> `16 passed, 50 deselected`
+- `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+- `python -m pytest -q` -> `291 passed`
+
+fresh rules-only 证据：
+
+- first `.tmp/phase89_grid_row_band_aggregation_first_audit`
+- `pair_count=1581`，pair kind 分布不变。
+- `issue_count=117`，相对 Phase88 `131` 下降 `14`，来自 first `05 交流回路图2.dwg` 同一 row-band 内重复症状聚合。
+- `grid_row_band_endpoint_gap_review=8`。
+- `RBW0014` 聚合为 1 条 review：
+  - `cluster_size=4`
+  - `cluster_pair_ids=["PW0043","PW0044","PW0047","PW0048"]`
+  - `aggregated_rule_ids=["R-PAIR-LOW-CONFIDENCE","R-PAIR-MISSING-SIDE"]`
+  - `aggregated_endpoint_values=["721"]`
+  - `aggregated_missing_sides=["right"]`
+
+second 非回归证据：
+
+- second `.tmp/phase89_grid_row_band_aggregation_second_audit`
+- `pair_count=1462`，`issue_count=22`，pair kind 分布不变。
+- root cause counts 保持 `pairing_wrong=15`、`rule_too_strict=7`。
+- second 大多是单 row-band 单症状，不触发本轮聚合，保留为下一轮真正 endpoint inference 的候选证据。
+
+裁决：
+
+- Phase89 是规则/报告默认视角的聚合收口：把同一 grid row-band 的重复端点缺口合成可复核簇，同时保留底层 pair refs。
+- 下一轮若继续样本误解主线，应转向真正 grid row-band endpoint inference 的证据设计与窄实现；若走产品线，则独立推进 packaged sidecar/exe smoke。

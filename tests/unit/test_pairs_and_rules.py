@@ -263,6 +263,86 @@ def test_rules_ignore_low_confidence_pairs_for_cross_page_conflict() -> None:
     assert any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" for issue in issues)
 
 
+def test_rules_cluster_grid_row_band_endpoint_gap_reviews() -> None:
+    pairs = [
+        Pair(
+            "PW0043",
+            "GW0043",
+            "S1",
+            "F1",
+            "PC1",
+            "721",
+            "721",
+            0.7877,
+            "review",
+            "same value short link",
+            [],
+            "review",
+            {"pair_kind": "ordinary_pair", "line_orientation": "grid", "row_band_id": "RBW0014"},
+        ),
+        Pair(
+            "PW0044",
+            "GW0044",
+            "S1",
+            "F1",
+            "PC2",
+            "721",
+            None,
+            0.2748,
+            "review",
+            "missing right",
+            [],
+            "review",
+            {"pair_kind": "ordinary_pair", "line_orientation": "grid", "row_band_id": "RBW0014"},
+        ),
+        Pair(
+            "PW0048",
+            "GW0048",
+            "S1",
+            "F1",
+            "PC3",
+            "721",
+            None,
+            0.2748,
+            "review",
+            "missing right",
+            [],
+            "review",
+            {"pair_kind": "ordinary_pair", "line_orientation": "grid", "row_band_id": "RBW0014"},
+        ),
+    ]
+    groups = [
+        LineGroup("GW0043", "S1", "F1", 122.5, 135.0, 135.0, 135.0, 12.5, 0.85, ["L1"], ["CONNECT"], orientation="grid", row_band_id="RBW0014"),
+        LineGroup("GW0044", "S1", "F1", 152.5, 135.0, 187.5, 135.0, 35.0, 0.85, ["L2"], ["CONNECT"], orientation="grid", row_band_id="RBW0014"),
+        LineGroup("GW0048", "S1", "F1", 355.0, 135.0, 390.0, 135.0, 35.0, 0.85, ["L3"], ["CONNECT"], orientation="grid", row_band_id="RBW0014"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "05 交流回路图2.dwg", 5, "05", "CT AND VT INPUT 2", "二次原理图", "primary", "filename", True)
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    grid_reviews = [
+        issue
+        for issue in issues
+        if issue.evidence.get("grid_row_band_endpoint_gap_review")
+    ]
+    assert len(grid_reviews) == 1
+    review = grid_reviews[0]
+    assert review.title == "网格行带端点缺口待复核"
+    assert review.evidence["cluster_size"] == 3
+    assert review.evidence["row_band_id"] == "RBW0014"
+    assert review.evidence["aggregated_rule_ids"] == [
+        "R-PAIR-LOW-CONFIDENCE",
+        "R-PAIR-MISSING-SIDE",
+    ]
+    assert review.evidence["aggregated_endpoint_values"] == ["721"]
+    assert review.evidence["aggregated_missing_sides"] == ["right"]
+    assert set(review.evidence["cluster_pair_ids"]) == {"PW0043", "PW0044", "PW0048"}
+    assert set(review.evidence["aggregated_line_group_ids"]) == {"GW0043", "GW0044", "GW0048"}
+    assert "row-band RBW0014" in review.summary
+
+
 def test_build_pairs_tags_same_value_terminal_continuation_semantics() -> None:
     groups = [
         LineGroup(

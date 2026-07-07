@@ -154,6 +154,16 @@ def cluster_issues(issues: list[Issue]) -> list[Issue]:
     clustered: list[Issue] = []
     index_by_key: dict[tuple[Any, ...], int] = {}
     for issue in issues:
+        if _is_grid_row_band_endpoint_gap_aggregation_issue(issue):
+            key = _grid_row_band_endpoint_gap_cluster_key(issue)
+            existing_index = index_by_key.get(key)
+            if existing_index is None:
+                index_by_key[key] = len(clustered)
+                clustered.append(issue)
+                continue
+            clustered[existing_index] = _merge_issue_cluster(clustered[existing_index], issue)
+            continue
+
         if _is_backplate_scope_aggregation_issue(issue):
             key = _backplate_scope_cluster_key(issue)
             existing_index = index_by_key.get(key)
@@ -265,13 +275,41 @@ def _merge_issue_cluster(primary: Issue, duplicate: Issue) -> Issue:
     if sheet_ids:
         evidence["cluster_sheet_ids"] = sorted(sheet_ids)
     _merge_terminal_header_table_cluster_evidence(evidence, duplicate.evidence)
+    _merge_grid_row_band_endpoint_gap_evidence(evidence, primary, duplicate)
     _merge_backplate_scope_cluster_evidence(evidence, primary, duplicate)
     _merge_backplate_same_sheet_scope_cluster_evidence(evidence, primary, duplicate)
     _merge_backplate_structured_shared_endpoint_cluster_evidence(evidence, duplicate.evidence)
     primary.evidence = evidence
+    _refresh_grid_row_band_endpoint_gap_issue(primary)
     _refresh_terminal_header_table_interval_issue(primary)
     _refresh_backplate_structured_shared_endpoint_issue(primary)
     return primary
+
+
+def _refresh_grid_row_band_endpoint_gap_issue(issue: Issue) -> None:
+    evidence = issue.evidence
+    if not evidence.get("grid_row_band_endpoint_gap_review"):
+        return
+    row_band_id = evidence.get("row_band_id")
+    endpoint_values = _as_list(evidence.get("aggregated_endpoint_values"))
+    rule_ids = _as_list(evidence.get("aggregated_rule_ids"))
+    cluster_size = int(evidence.get("cluster_size", 1))
+    values_text = ", ".join(str(value) for value in endpoint_values) if endpoint_values else "unknown"
+    rules_text = ", ".join(str(value) for value in rule_ids) if rule_ids else "grid endpoint rules"
+
+    issue.title = "网格行带端点缺口待复核"
+    issue.summary = (
+        f"Grid row-band {row_band_id} has {cluster_size} endpoint-gap symptoms "
+        f"across {rules_text}; values={values_text}."
+    )
+    issue.explanation = (
+        "同一 grid row-band 内同时出现缺侧端点或同号低置信短线，说明当前普通 Pair 仍按线段局部解释，"
+        "更像行带级端点配对/续接解释缺口。该聚合不生成新的端点关系，只把同一行带的重复症状收拢为一条可复核 review。"
+    )
+    issue.recommended_action = (
+        "按聚合后的 row_band_id、cluster_pair_ids、line_group_id 和端点值复核该行带，"
+        "再决定是否进入下一轮 WireDiagramExtractor row-band endpoint inference。"
+    )
 
 
 def _refresh_terminal_header_table_interval_issue(issue: Issue) -> None:
@@ -488,6 +526,34 @@ def _is_terminal_header_table_aggregation_issue(issue: Issue) -> bool:
     )
 
 
+def _is_grid_row_band_endpoint_gap_aggregation_issue(issue: Issue) -> bool:
+    if issue.rule_id not in {"R-PAIR-MISSING-SIDE", "R-PAIR-LOW-CONFIDENCE"}:
+        return False
+    pair_evidence = _pair_evidence(issue)
+    if pair_evidence.get("pair_kind") not in {None, "", "ordinary_pair"}:
+        return False
+    if pair_evidence.get("line_orientation") != "grid":
+        return False
+    row_band_id = _string_value(pair_evidence.get("row_band_id"))
+    if not row_band_id:
+        return False
+    left_value = _string_value(issue.left_value)
+    right_value = _string_value(issue.right_value)
+    if issue.rule_id == "R-PAIR-MISSING-SIDE":
+        return bool(left_value) != bool(right_value)
+    return bool(left_value) and left_value == right_value and left_value.isdigit()
+
+
+def _grid_row_band_endpoint_gap_cluster_key(issue: Issue) -> tuple[Any, ...]:
+    pair_evidence = _pair_evidence(issue)
+    return (
+        "grid_row_band_endpoint_gap",
+        issue.sheet_id or "",
+        issue.file_id or "",
+        _string_value(pair_evidence.get("row_band_id")),
+    )
+
+
 def _is_backplate_scope_aggregation_issue(issue: Issue) -> bool:
     return (
         issue.rule_id == "R-CROSS-PAGE-CONFLICT"
@@ -553,6 +619,76 @@ def _backplate_same_sheet_scope_cluster_base_key(issue: Issue) -> tuple[Any, ...
         tuple(_merge_sorted_values(_as_list(issue.evidence.get("raw_header_texts")))),
         tuple(_merge_sorted_values(_as_list(issue.evidence.get("header_text_ids")))),
     )
+
+
+def _merge_grid_row_band_endpoint_gap_evidence(
+    evidence: dict[str, Any],
+    primary: Issue,
+    duplicate: Issue,
+) -> None:
+    if not (
+        _is_grid_row_band_endpoint_gap_aggregation_issue(primary)
+        and _is_grid_row_band_endpoint_gap_aggregation_issue(duplicate)
+    ):
+        return
+
+    primary_pair_evidence = _pair_evidence(primary)
+    duplicate_pair_evidence = _pair_evidence(duplicate)
+    evidence["grid_row_band_endpoint_gap_review"] = True
+    evidence["row_band_id"] = _string_value(primary_pair_evidence.get("row_band_id")) or _string_value(
+        duplicate_pair_evidence.get("row_band_id")
+    )
+    evidence["line_orientation"] = "grid"
+    evidence["aggregated_rule_ids"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_rule_ids"))
+        + _as_list(primary.rule_id)
+        + _as_list(duplicate.rule_id)
+    )
+    evidence["aggregated_endpoint_values"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_endpoint_values"))
+        + _as_list(primary.left_value)
+        + _as_list(primary.right_value)
+        + _as_list(duplicate.left_value)
+        + _as_list(duplicate.right_value)
+    )
+    evidence["aggregated_missing_sides"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_missing_sides"))
+        + _grid_row_band_missing_sides(primary)
+        + _grid_row_band_missing_sides(duplicate)
+    )
+    evidence["aggregated_line_group_ids"] = _merge_sorted_values(
+        _as_list(evidence.get("aggregated_line_group_ids"))
+        + _as_list(primary.line_group_id)
+        + _as_list(duplicate.line_group_id)
+    )
+    evidence["aggregated_line_spans"] = _dedupe_dict_records(
+        _as_list(evidence.get("aggregated_line_spans"))
+        + [_grid_row_band_line_span(primary), _grid_row_band_line_span(duplicate)]
+    )
+
+
+def _grid_row_band_missing_sides(issue: Issue) -> list[str]:
+    if issue.rule_id != "R-PAIR-MISSING-SIDE":
+        return []
+    missing: list[str] = []
+    if not _string_value(issue.left_value):
+        missing.append("left")
+    if not _string_value(issue.right_value):
+        missing.append("right")
+    return missing
+
+
+def _grid_row_band_line_span(issue: Issue) -> dict[str, Any]:
+    return {
+        "pair_id": issue.primary_pair_id or issue.pair_id,
+        "line_group_id": issue.line_group_id,
+        "rule_id": issue.rule_id,
+        "left_value": issue.left_value,
+        "right_value": issue.right_value,
+        "confidence": issue.confidence,
+        "line_start": issue.evidence.get("line_start"),
+        "line_end": issue.evidence.get("line_end"),
+    }
 
 
 def _merge_backplate_scope_cluster_evidence(
@@ -880,6 +1016,18 @@ def _as_list(value: Any) -> list[Any]:
     if isinstance(value, tuple):
         return list(value)
     return [value]
+
+
+def _string_value(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    return "" if text.lower() in {"nan", "none", "null"} else text
+
+
+def _pair_evidence(issue: Issue) -> dict[str, Any]:
+    value = issue.evidence.get("pair_evidence")
+    return value if isinstance(value, dict) else {}
 
 
 def _is_real_line_group(value: Any) -> bool:
