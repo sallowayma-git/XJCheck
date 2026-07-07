@@ -975,6 +975,146 @@ def test_rules_emit_semantic_mapping_conflict_for_cross_sheet_stable_singleton_e
     assert {ref["pair_id"] for ref in issue.evidence_refs} == {"P1", "P2"}
 
 
+def test_rules_scope_semantic_mapping_conflict_by_full_terminal_endpoint_text() -> None:
+    pairs = [
+        Pair(
+            pair_id="P1",
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            selected_pair_candidate_id="PC1",
+            left_value=None,
+            right_value="114",
+            confidence=0.86,
+            status="review",
+            rationale="semantic mapping relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "21 左侧端子图1.dwg",
+                "sheet_no": "21",
+                "sheet_order": 21,
+                "pair_kind": "semantic_mapping",
+                "semantic_kind": "terminal_semantic_mapping",
+                "semantic_mapping_kind": "terminal_semantic_row",
+                "selected_right_raw_text": "3-21n114",
+                "semantic_marker_texts": ["3-21KLP2-1"],
+            },
+            pair_kind="semantic_mapping",
+        ),
+        Pair(
+            pair_id="P2",
+            line_group_id="G2",
+            sheet_id="S2",
+            file_id="F2",
+            selected_pair_candidate_id="PC2",
+            left_value="114",
+            right_value=None,
+            confidence=0.87,
+            status="review",
+            rationale="semantic mapping relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "23 右侧端子图1.dwg",
+                "sheet_no": "23",
+                "sheet_order": 23,
+                "pair_kind": "semantic_mapping",
+                "semantic_kind": "terminal_semantic_mapping",
+                "semantic_mapping_kind": "terminal_semantic_row",
+                "selected_left_raw_text": "1-21n114",
+                "semantic_marker_texts": ["1-21ZK-3"],
+            },
+            pair_kind="semantic_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["WIRE"]),
+        LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True),
+        SheetRecord("S2", "F2", "23 右侧端子图1.dwg", 23, "23", "右侧端子图1", "屏端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert not any(item.rule_id == "R-SEMANTIC-MAPPING-CONFLICT" for item in issues)
+
+
+def test_rules_keep_semantic_mapping_conflict_for_same_full_terminal_endpoint_text() -> None:
+    pairs = [
+        Pair(
+            pair_id="P1",
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            selected_pair_candidate_id="PC1",
+            left_value=None,
+            right_value="114",
+            confidence=0.86,
+            status="review",
+            rationale="semantic mapping relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "21 左侧端子图1.dwg",
+                "sheet_no": "21",
+                "sheet_order": 21,
+                "pair_kind": "semantic_mapping",
+                "semantic_kind": "terminal_semantic_mapping",
+                "semantic_mapping_kind": "terminal_semantic_row",
+                "selected_right_raw_text": "3-21n114",
+                "semantic_marker_texts": ["3-21KLP2-1"],
+            },
+            pair_kind="semantic_mapping",
+        ),
+        Pair(
+            pair_id="P2",
+            line_group_id="G2",
+            sheet_id="S2",
+            file_id="F2",
+            selected_pair_candidate_id="PC2",
+            left_value="114",
+            right_value=None,
+            confidence=0.87,
+            status="review",
+            rationale="semantic mapping relation",
+            alternative_pair_candidate_ids=[],
+            confidence_bucket="review",
+            evidence={
+                "filename": "23 右侧端子图1.dwg",
+                "sheet_no": "23",
+                "sheet_order": 23,
+                "pair_kind": "semantic_mapping",
+                "semantic_kind": "terminal_semantic_mapping",
+                "semantic_mapping_kind": "terminal_semantic_row",
+                "selected_left_raw_text": "3-21n114",
+                "semantic_marker_texts": ["3-21ZK-3"],
+            },
+            pair_kind="semantic_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["WIRE"]),
+        LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["WIRE"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True),
+        SheetRecord("S2", "F2", "23 右侧端子图1.dwg", 23, "23", "右侧端子图1", "屏端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    issue = next(item for item in issues if item.rule_id == "R-SEMANTIC-MAPPING-CONFLICT")
+    assert issue.evidence["terminal_value"] == "114"
+    assert issue.evidence["terminal_scope_key"] == "3-21N114"
+    assert issue.evidence["semantic_targets"] == {
+        "S1": "KLP2-1",
+        "S2": "ZK-3",
+    }
+
+
 def test_rules_ignore_semantic_mapping_conflict_when_sheet_local_target_is_not_stable() -> None:
     pairs = [
         Pair(

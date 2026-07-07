@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 92
+Phase 93
 
 ## Phases
 
@@ -1298,6 +1298,20 @@ Phase 92
   - first `.tmp/phase92_terminal_component_shared_first_audit`: `pair_count=1581`，`issue_count=117`，pair_kind distribution unchanged；`KD23` 与 `KD6` 从 `多对一配对` 分层为 `端子表组件共享端点待复核`，evidence 含 `many_to_one_classification=terminal_header_component_shared_endpoint_review`、`pair_kinds=["component_mapping","table_mapping"]`、`table_mapping_modes=["terminal_header_table"]`。
   - second `.tmp/phase92_terminal_component_shared_second_audit`: `pair_count=1462`，`issue_count=22`，pair_kind distribution unchanged；未新增 terminal-header/component shared endpoint 分类。
 - [ ] 下一轮候选收缩为：terminal/input-matrix 218 continuation residual review、second row-band 116 单症状聚合或语义行冲突 rules 分层；`inline KLP 116` 与 `component-prefixed 218` 代表 extractor/residual 不再作为待实现主项。
+- **Status:** complete
+
+### Phase 93: Terminal Semantic Conflict Scoped Endpoint
+- [x] 只读恢复并确认当前 HEAD 为 `6525c66`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四路只读审计结论：`116` row-band 和 `218` continuation 仍可能牵动 pair graph / 覆盖策略；本轮最小规则切片选择 second `S0021/S0023` 的 semantic-row conflict 误分组。
+- [x] 实现目标：只在 `rules.py` 中让 `R-SEMANTIC-MAPPING-CONFLICT` 优先按完整端子文本作用域分组，例如 `3-21n114` 与 `1-21n114` 不再因裸数字 `114` 相同而冲突；缺少完整文本时保留旧裸数字 fallback。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping_conflict or terminal_semantic_row"` -> `5 passed, 63 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or terminal_header_component or backplate_structured or structured_mapping_shared_endpoint or many_to_one"` -> `15 passed, 53 deselected`
+  - `python -m pytest -q` -> `296 passed`
+- [x] Fresh verification：
+  - second `.tmp/phase93_semantic_conflict_scope_second_fresh_audit`: `pair_count=1462`，pair kind distribution unchanged；`issue_count=21`；`R-SEMANTIC-MAPPING-CONFLICT=0`；`PT0117/PT0260` remain `semantic_mapping/review` evidence with full raw endpoints `3-21n114` and `1-21n114`。
+  - first `.tmp/phase93_semantic_conflict_scope_first_audit`: `pair_count=1581`，`issue_count=117`，pair kind distribution unchanged。
+- [ ] 下一轮主线收缩为：优先处理剩余 ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 的成因（如 `05 交流回路图2.dwg`、`06 直流回路图.dwg`、`12 测控2开入回路图1.dwg`），并单独定义默认用户问题列表与内部 review 证据分层；terminal/input-matrix `218`、second row-band `116`、backplate/component rules semantics 只能在这两条硬目标下继续。
 - **Status:** complete
 
 ## Errors Encountered

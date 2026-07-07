@@ -9822,3 +9822,46 @@ second 非回归证据：
 
 - Phase92 是 backplate/component mapping rules semantics 下的一个默认视角分层收口：把端子表行与组件端口共用接线端从 generic 多对一提升为可复核结构化 review。
 - 下一轮若继续规则线，应只从 fresh audit 中选真实可见剩余项，例如 terminal/input-matrix `218` continuation residual review、second row-band `116` 单症状聚合/证据设计、terminal semantic-row conflict 分层；不要重开已闭合的代表性 `inline KLP 116` 或 `component-prefixed 218` extractor/residual。
+
+## 146. 2026-07-07 rules：端子语义冲突按完整端子作用域分组
+
+只读审计确认，second `R-SEMANTIC-MAPPING-CONFLICT` 的剩余单例不是图纸错误，也不是 terminal semantic extractor 缺失。根因是规则把 terminal semantic mapping 按裸数字分组：`S0021 / 21 左侧端子图1.dwg` 的 `3-21n114 -> 3-21KLP2-1` 与 `S0023 / 23 右侧端子图1.dwg` 的 `1-21n114 -> 1-21ZK-3` 都被归成 terminal value `114`，于是误报为跨页 semantic endpoint mismatch。
+
+真实 findings 已经保留完整端子文本：
+
+- `PT0117`: `selected_right_raw_text=3-21n114`, `semantic_marker_texts=["3-21KLP2-1"]`。
+- `PT0260`: `selected_left_raw_text=1-21n114`, `semantic_marker_texts=["1-21ZK-3"]`。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 中让 `R-SEMANTIC-MAPPING-CONFLICT` 优先按完整 selected terminal endpoint 文本分组。
+- `3-21n114` 与 `1-21n114` 不再因为裸数字 `114` 相同而形成同一 semantic consistency key。
+- 缺少完整 endpoint 文本时保留旧裸数字 fallback，避免削弱旧合成测试和真实缺字段场景。
+- 不改 extractor、PairBuilder、pair graph、CLI/UI 或 report 聚合。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping_conflict or terminal_semantic_row"` -> `5 passed, 63 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or terminal_header_component or backplate_structured or structured_mapping_shared_endpoint or many_to_one"` -> `15 passed, 53 deselected`
+- `python -m pytest -q` -> `296 passed`
+
+fresh 证据：
+
+- second `.tmp/phase93_semantic_conflict_scope_second_fresh_audit`
+- `pair_count=1462`，pair kind 分布不变。
+- `issue_count=21`，相对 Phase92 second `22` 减少 1。
+- `R-SEMANTIC-MAPPING-CONFLICT=0`。
+- `PT0117/PT0260` 仍保留为 `semantic_mapping/review` evidence，没有被隐藏或删除。
+
+first 非回归：
+
+- first `.tmp/phase93_semantic_conflict_scope_first_audit`
+- `pair_count=1581`，`issue_count=117`，pair kind 分布不变。
+
+裁决：
+
+- `terminal semantic-row conflict rules layering` 已闭环，不再列入 active backlog。
+- 用户明确指出最近几轮虽降低误解成本，但还没有让默认用户视角问题列表明显下降。下一轮主线应停止纯 display/diagnostics，除非它直接影响默认用户可见列表。
+- 后续更硬的两类工作应是：
+  - 真正处理剩余 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 的成因，优先审计 `05 交流回路图2.dwg`、`06 直流回路图.dwg`、`12 测控2开入回路图1.dwg` 等普通 pair 缺侧页。
+  - 定义“默认用户问题列表”和“内部 review 证据”的分层机制，让结构现象 / `rule_too_strict` review 不再长期混在主问题列表里。

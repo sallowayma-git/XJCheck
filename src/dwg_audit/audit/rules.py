@@ -399,18 +399,20 @@ def _run_semantic_mapping_conflict(context: RuleContext) -> list[Issue]:
         terminal_value = _semantic_mapping_terminal_value(pair)
         if not terminal_value:
             continue
+        terminal_scope_key = _semantic_mapping_terminal_scope_key(pair, terminal_value)
         endpoints = _normalized_semantic_endpoints(pair)
         if len(endpoints) != 1:
             continue
-        sheet_entry = by_terminal_sheet[terminal_value].setdefault(
+        sheet_entry = by_terminal_sheet[terminal_scope_key].setdefault(
             pair.sheet_id,
-            {"targets": set(), "pairs": []},
+            {"targets": set(), "pairs": [], "terminal_values": set()},
         )
         sheet_entry["targets"].update(endpoints)
         sheet_entry["pairs"].append(pair)
+        sheet_entry["terminal_values"].add(terminal_value)
 
     issues: list[Issue] = []
-    for terminal_value, sheet_entries in by_terminal_sheet.items():
+    for terminal_scope_key, sheet_entries in by_terminal_sheet.items():
         stable_entries = {
             sheet_id: entry
             for sheet_id, entry in sheet_entries.items()
@@ -436,6 +438,15 @@ def _run_semantic_mapping_conflict(context: RuleContext) -> list[Issue]:
         )
         primary_sheet_id, primary_entry = ordered_sheet_entries[0]
         primary_pair = _semantic_conflict_primary_pair(primary_entry["pairs"])
+        terminal_values = sorted(
+            {
+                str(value)
+                for _, entry in ordered_sheet_entries
+                for value in entry.get("terminal_values", set())
+                if value
+            }
+        )
+        terminal_value = terminal_values[0] if len(terminal_values) == 1 else terminal_scope_key
 
         related_pairs: list[Pair] = []
         for _, entry in ordered_sheet_entries:
@@ -453,6 +464,7 @@ def _run_semantic_mapping_conflict(context: RuleContext) -> list[Issue]:
                 related_pairs=related_pairs,
                 extra={
                     "terminal_value": terminal_value,
+                    "terminal_scope_key": terminal_scope_key,
                     "semantic_targets": {
                         sheet_id: endpoint_by_sheet[sheet_id]
                         for sheet_id, _ in ordered_sheet_entries
@@ -1460,6 +1472,43 @@ def _semantic_mapping_terminal_value(pair: Pair) -> str | None:
         return str(pair.left_value)
     if pair.right_value:
         return str(pair.right_value)
+    return None
+
+
+def _semantic_mapping_terminal_scope_key(pair: Pair, terminal_value: str) -> str:
+    evidence = pair.evidence if isinstance(pair.evidence, dict) else {}
+    raw_text_keys = (
+        "selected_left_raw_text" if pair.left_value else None,
+        "selected_right_raw_text" if pair.right_value else None,
+        "selected_left_raw_text",
+        "selected_right_raw_text",
+    )
+    for key in raw_text_keys:
+        if not key:
+            continue
+        raw_text = evidence.get(key)
+        if not isinstance(raw_text, str):
+            continue
+        normalized = _normalize_semantic_terminal_scope(raw_text, terminal_value)
+        if normalized:
+            return normalized
+    return str(terminal_value)
+
+
+def _normalize_semantic_terminal_scope(raw_text: str, terminal_value: str) -> str | None:
+    text = re.sub(r"\s+", "", raw_text).upper()
+    if not text:
+        return None
+    terminal = str(terminal_value).strip().upper()
+    if not terminal:
+        return None
+    match = re.search(rf"[A-Z0-9\-]*N{re.escape(terminal)}\b", text)
+    if match:
+        return match.group(0)
+    if text == terminal:
+        return None
+    if text.endswith(terminal):
+        return text
     return None
 
 

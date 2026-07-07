@@ -3348,3 +3348,30 @@
   - second row-band `116` single-symptom aggregation or evidence design.
   - terminal semantic-row conflict rules layering.
   - Do not reopen representative `inline KLP 116` or `component-prefixed 218` extractor/residual work unless a fresh audit finds a new uncovered target.
+
+## Session Update 2026-07-07 (Phase 93 terminal semantic conflict scoped endpoint)
+- Started after commit `6525c66`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md`; neither was touched.
+  - Collected four read-only subagent conclusions. The hard `218` continuation and `116` row-band candidates may require pair graph / coverage work; the narrowest rules bug was the second-set semantic-row conflict keyed by bare terminal number.
+- Audit conclusion:
+  - second `R-SEMANTIC-MAPPING-CONFLICT` on terminal value `114` was caused by grouping semantic mappings by bare `left_value/right_value`.
+  - The underlying pairs already preserve full selected endpoint text: `PT0117` has `selected_right_raw_text=3-21n114`; `PT0260` has `selected_left_raw_text=1-21n114`.
+  - These are different terminal strip scoped endpoints and should not be treated as the same terminal-to-semantic consistency key.
+- Implementation:
+  - Updated `R-SEMANTIC-MAPPING-CONFLICT` in `rules.py` to prefer full selected terminal endpoint text as the grouping scope key, with a bare-number fallback when raw endpoint text is absent.
+  - Added regression coverage for different full endpoints with the same local number not conflicting, while the same full endpoint still conflicts when semantic targets differ.
+  - Did not change extractors, PairBuilder, pair graph output, CLI/UI, report aggregation, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping_conflict or terminal_semantic_row"` -> `5 passed, 63 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or terminal_header_component or backplate_structured or structured_mapping_shared_endpoint or many_to_one"` -> `15 passed, 53 deselected`
+  - `python -m pytest -q` -> `296 passed`
+- Fresh verification:
+  - second fresh `.tmp/phase93_semantic_conflict_scope_second_fresh_audit`: `pair_count=1462`, pair kind distribution unchanged, `issue_count=21`, `R-SEMANTIC-MAPPING-CONFLICT=0`.
+  - `PT0117` and `PT0260` remain `semantic_mapping/review`; evidence is preserved rather than hidden.
+  - first rules-only `.tmp/phase93_semantic_conflict_scope_first_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged.
+- User strategy update:
+  - Next mainline should stop doing pure display/diagnostics unless it directly changes the default user-visible problem list.
+  - Prioritize hard root-cause work for remaining `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` ordinary pair symptoms on pages such as `05 交流回路图2.dwg`, `06 直流回路图.dwg`, and `12 测控2开入回路图1.dwg`.
+  - In parallel or as a separate product/rules slice, define the default user problem list vs internal review evidence layering so structural `rule_too_strict` reviews do not permanently flood the primary user list.
