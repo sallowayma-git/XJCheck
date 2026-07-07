@@ -3290,3 +3290,30 @@
 - Next candidates:
   - Product line: installed-exe desktop smoke with real launch/import/result reload, using the bundled sidecar rather than dev fallback.
   - Rules line: only a narrow Wire-only row-band endpoint inference design for first `05 交流回路图2.dwg` `RBW0014-RBW0016`; do not generalize to second-set single-symptom rows or `?->709/707/...` row bands.
+
+## Session Update 2026-07-07 (Phase 91 terminal header semantic endpoint exclusion revalidation)
+- Started after commit `1e41890`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md`; neither was touched.
+  - Two row-band read-only subagents completed during this turn, but their findings were kept out of this slice because the user requested only terminal-header semantic endpoint exclusion.
+- Audit conclusion:
+  - The requested `terminal_header_table semantic endpoint exclusion` slice was already implemented in Phase60 and remains present in current `src/dwg_audit/audit/table_extractor.py`.
+  - Current unit coverage includes `test_extract_terminal_header_table_pairs_excludes_semantic_endpoint_labels`, which keeps `I0/3U0` out of terminal-header table endpoints.
+  - No extractor/rules/source code change was needed; this round is a revalidation and taskbook-status refresh.
+- Verification:
+  - `python -m pytest -q tests\unit\test_table_extractor.py tests\unit\test_page_extractors.py tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `17 passed, 31 deselected`
+  - `python -m dwg_audit.cli analyze-project --input "test\变压器测控柜(2圈变，2台测控)" --output .tmp\phase91_terminal_header_semantic_second` -> completed
+  - `python -m dwg_audit.cli run-audit --findings .tmp\phase91_terminal_header_semantic_second\2_2\findings --output .tmp\phase91_terminal_header_semantic_second_audit` -> completed
+  - `python -m pytest -q` -> `294 passed`
+- Fresh second-set evidence:
+  - `.tmp\phase91_terminal_header_semantic_second\2_2\findings`: `pair_count=1462`, pair kind counts `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`.
+  - `.tmp\phase91_terminal_header_semantic_second_audit`: `issue_count=22`.
+  - `S0021 / 21 左侧端子图1.dwg`: `3-21ID9 -> I0` and `3-21QD7 -> I0` have `table_mapping/pass` count `0`.
+  - Normal terminal-header mappings remain: `3-21ID9 -> 3-21n707` and `3-21QD7 -> 3-21n128`.
+  - Semantic labels remain as text-level evidence in S0021: `3U0`, `I0`, `IA`, `UA`, `UB`, `UC`, `UN`.
+  - `terminal_header_table` mapping counts by sheet remain `S0021=32`, `S0022=7`, `S0023=112`, `S0024=23`.
+- Next candidates:
+  - `inline KLP 116 residual suppression`.
+  - `component-prefixed 218 residual suppression`.
+  - `backplate/component mapping rules semantics`.

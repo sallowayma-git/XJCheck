@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 90
+Phase 91
 
 ## Phases
 
@@ -1265,6 +1265,23 @@ Phase 90
   - packaged sidecar `evaluate-acceptance` smoke on Phase84 real fixtures passed for first review fixture and second component / terminal pair fixtures
   - `python -m pytest -q` -> `294 passed`
 - [ ] 下一刀候选收缩为：安装后 exe 主流程 smoke（真实桌面启动/导入/结果回看），或极窄 grid row-band endpoint inference 设计（只从 `RBW0014-RBW0016` 缺右端同值推断开始）；二者仍保持独立切片。
+- **Status:** complete
+
+### Phase 91: Terminal Header Semantic Endpoint Exclusion Revalidation
+- [x] 只读恢复并确认当前 HEAD 为 `1e41890`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 按用户要求重读 `task_plan.md`、`progress.md` 尾部、`doc/findings.md` 尾部、完整 `doc/任务书.md` 和 `git status --short`。
+- [x] 审计结论：本轮推荐切片 `terminal_header_table semantic endpoint exclusion` 已由 Phase60 落地，当前 `table_extractor.py` 仍有 `_TERMINAL_HEADER_SEMANTIC_ENDPOINTS` gate，单测也已有 `I0/3U0` 负向断言；因此本轮不重复改 extractor，不混入 KLP/218 residual 或 rules 大改。
+- [x] Fresh second-set 验证结果：
+  - `python -m pytest -q tests\unit\test_table_extractor.py tests\unit\test_page_extractors.py tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `17 passed, 31 deselected`
+  - `python -m dwg_audit.cli analyze-project --input "test\变压器测控柜(2圈变，2台测控)" --output .tmp\phase91_terminal_header_semantic_second` -> completed
+  - `python -m dwg_audit.cli run-audit --findings .tmp\phase91_terminal_header_semantic_second\2_2\findings --output .tmp\phase91_terminal_header_semantic_second_audit` -> completed
+  - `python -m pytest -q` -> `294 passed`
+  - fresh second `pair_count=1462`, `issue_count=22`, `table_mapping=174`
+  - `S0021 / 21 左侧端子图1.dwg` 中 `3-21ID9 -> I0`、`3-21QD7 -> I0` 的 `table_mapping/pass` 均为 `0`
+  - 正常 `terminal_header_table` 关系保持：`3-21ID9 -> 3-21n707`、`3-21QD7 -> 3-21n128` 仍为 `table_mapping/pass`
+  - `I0/IA/UA/UB/UC/UN/3U0` 仍保留为 `texts` 级语义/非数值证据，未进入 endpoint
+  - `terminal_header_table` by sheet 保持 `S0021=32`, `S0022=7`, `S0023=112`, `S0024=23`
+- [ ] 下一轮候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`。
 - **Status:** complete
 
 ## Errors Encountered

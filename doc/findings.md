@@ -9753,3 +9753,28 @@ second 非回归证据：
 - 本轮没有改审计规则、extractor、PairBuilder、report semantics 或 UI 行为。
 - 下一轮产品线可做“安装后 exe 主流程 smoke”：真实启动桌面端、导入样本、加载结果、确认不走源码 fallback。
 - 若转回规则线，只能做极窄的 Wire-only row-band inference 设计：first `05 交流回路图2.dwg` 的 `RBW0014-RBW0016` 具备重复 `v->v` anchor 和 `v->?` 缺右端证据；second 单症状行带和 `?->709/707/...` 行带不得泛化生成新 pair graph 事实。
+
+## 144. 2026-07-07 terminal_header_table：语义端排除复验闭环
+
+本轮按任务书红线复验 `terminal_header_table semantic endpoint exclusion`。只读审计发现，该切片已在 Phase60 实现：`TableExtractor` 的 terminal-header endpoint 谓词已经排除 `I0/I0'/IA/UA/UB/UC/UN/3U0/3U0'` 等语义代号，现有单测也覆盖了 `I0/3U0` 不得进入 `table_mapping/pass` endpoint。因此本轮没有重复修改 extractor，也没有混入 KLP residual、component-prefixed residual 或 rules 大改。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_table_extractor.py tests\unit\test_page_extractors.py tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `17 passed, 31 deselected`
+- `python -m dwg_audit.cli analyze-project --input "test\变压器测控柜(2圈变，2台测控)" --output .tmp\phase91_terminal_header_semantic_second` -> completed
+- `python -m dwg_audit.cli run-audit --findings .tmp\phase91_terminal_header_semantic_second\2_2\findings --output .tmp\phase91_terminal_header_semantic_second_audit` -> completed
+- `python -m pytest -q` -> `294 passed`
+
+fresh second-set 证据：
+
+- `.tmp/phase91_terminal_header_semantic_second/2_2/findings`
+- `pair_count=1462`，`issue_count=22`，`table_mapping=174`。
+- `S0021 / 21 左侧端子图1.dwg` 中 `3-21ID9 -> I0` 与 `3-21QD7 -> I0` 的 `table_mapping/pass` 均为 `0`。
+- 正常关系保持：`3-21ID9 -> 3-21n707`、`3-21QD7 -> 3-21n128` 仍为 `table_mapping/pass`。
+- `I0/IA/UA/UB/UC/UN/3U0` 仍保留在 `texts` 级证据中，作为非数值/语义文本供复核，不进入 terminal-header table endpoint。
+- `terminal_header_table` by sheet 保持 `S0021=32`、`S0022=7`、`S0023=112`、`S0024=23`。
+
+裁决：
+
+- `terminal_header_table semantic endpoint exclusion` 已闭环，不再列为 active P0。
+- 下一轮候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`。
