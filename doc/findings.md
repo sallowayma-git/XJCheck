@@ -9778,3 +9778,47 @@ fresh second-set 证据：
 
 - `terminal_header_table semantic endpoint exclusion` 已闭环，不再列为 active P0。
 - 下一轮候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`。
+
+## 145. 2026-07-07 rules：端子表与组件映射共享端点分层
+
+只读审计确认，Phase91 后继续把代表性 `inline KLP 116` 或 `component-prefixed 218` 写成 extractor/residual 主缺口会偏航：第一套中 `1KLP1-2 -> 1n116`、`1-2KLP1-2 -> 1-2n116`、`3-2KLP1-2 -> 3-2n116` 已是 `wire_component_mapping/pass`；`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1` 已是 `wire_component_mapping/pass`，对应裸 `218` ordinary residual 已被 `covered_by_component_prefixed_signal_circuit` discard。
+
+本轮收口的实际可见缺口是 first rules 语义中 `component_mapping + terminal_header_table` 共享同一端点仍落入 generic `多对一配对`。典型样本：
+
+- `KD23`：`3-2ZLP2-1 -> KD23` 的 `component_mapping/pass` 与 `1-2QD7/1-2QD8 -> KD23` 的 `terminal_header_table` 映射共同指向同一端点。
+- `KD6`：`1CLP2-1 -> KD6` 的 `component_mapping/pass` 与 `3-4QD7/5FD5 -> KD6` 的 `terminal_header_table` 映射共同指向同一端点。
+
+裁决：这不是 extractor 缺失，也不应通过隐藏 `component_mapping` 或 `table_mapping` 降噪。它是 rules / 默认展示口径质量问题，应保留结构化关系入图，同时把用户可见 issue 从普通多对一改成端子表与组件端口汇合的 review。
+
+本轮实现：
+
+- 在 [rules.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/rules.py) 的 structured shared endpoint helper 中新增窄分支：仅当 `pair_kinds={"component_mapping","table_mapping"}` 且 `table_mapping_modes={"terminal_header_table"}` 时，输出 `terminal_header_component_shared_endpoint_review`。
+- 新增 `structured_scope_kind=terminal_header_component_shared_endpoint`，并保留 `shared_endpoint`、`pair_kinds`、`table_mapping_modes`、`component_submodes`、`header_prefixes` 和 `logical_endpoints` evidence。
+- 保留 terminal-only `terminal_header_table` shared endpoint 的 generic 负例，不把纯端子表共享端点误归入组件汇合语义。
+- 不改 extractor、PairBuilder、pair graph、CLI/UI 或 report 聚合。
+
+验证：
+
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_component or terminal_only_shared_endpoint or backplate_structured or structured_mapping_shared_endpoint or shared_endpoint"` -> `8 passed, 58 deselected`
+- `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or structured_mapping_shared_endpoint or shared_endpoint or many_to_one or terminal_header"` -> `20 passed, 46 deselected`
+- `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 18 deselected`
+- `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+- `python -m pytest -q` -> `294 passed`
+
+fresh rules-only 证据：
+
+- first `.tmp/phase92_terminal_component_shared_first_audit`
+- `pair_count=1581`，`issue_count=117`，pair kind 分布不变。
+- `KD23` 与 `KD6` 从 `多对一配对` 改为 `端子表组件共享端点待复核`。
+- 目标 evidence：`many_to_one_classification=terminal_header_component_shared_endpoint_review`、`pair_kinds=["component_mapping","table_mapping"]`、`structured_scope_kind=terminal_header_component_shared_endpoint`、`table_mapping_modes=["terminal_header_table"]`。
+
+second 非回归证据：
+
+- second `.tmp/phase92_terminal_component_shared_second_audit`
+- `pair_count=1462`，`issue_count=22`，pair kind 分布不变。
+- 未新增 `terminal_header_component_shared_endpoint_review`。
+
+裁决：
+
+- Phase92 是 backplate/component mapping rules semantics 下的一个默认视角分层收口：把端子表行与组件端口共用接线端从 generic 多对一提升为可复核结构化 review。
+- 下一轮若继续规则线，应只从 fresh audit 中选真实可见剩余项，例如 terminal/input-matrix `218` continuation residual review、second row-band `116` 单症状聚合/证据设计、terminal semantic-row conflict 分层；不要重开已闭合的代表性 `inline KLP 116` 或 `component-prefixed 218` extractor/residual。

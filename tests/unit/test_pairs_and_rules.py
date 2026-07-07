@@ -3673,7 +3673,7 @@ def test_build_issues_keeps_terminal_only_shared_endpoint_on_generic_many_to_one
     assert "many_to_one_classification" not in issue.evidence
 
 
-def test_build_issues_keeps_non_backplate_structured_shared_endpoint_generic() -> None:
+def test_build_issues_classifies_terminal_header_component_shared_endpoint_review() -> None:
     config = deepcopy(DEFAULT_CONFIG)
     pairs = [
         Pair(
@@ -3733,8 +3733,21 @@ def test_build_issues_keeps_non_backplate_structured_shared_endpoint_generic() -
     issues = build_issues(pairs, [], sheets, config)
 
     issue = next(item for item in issues if item.rule_id == "R-MANY-TO-ONE")
-    assert issue.title == "多对一配对"
-    assert "many_to_one_classification" not in issue.evidence
+    assert issue.title == "端子表组件共享端点待复核"
+    assert (
+        issue.evidence["many_to_one_classification"]
+        == "terminal_header_component_shared_endpoint_review"
+    )
+    assert issue.evidence["shared_endpoint"] == "KD6"
+    assert issue.evidence["pair_kinds"] == ["component_mapping", "table_mapping"]
+    assert (
+        issue.evidence["structured_scope_kind"]
+        == "terminal_header_component_shared_endpoint"
+    )
+    assert issue.evidence["component_submodes"] == ["strip_two_port_component"]
+    assert issue.evidence["table_mapping_modes"] == ["terminal_header_table"]
+    assert issue.evidence["header_prefixes"] == ["3-4QD"]
+    assert issue.evidence["logical_endpoints"] == ["1CLP2-1", "3-4QD7"]
 
 
 def test_build_issues_treats_component_mapping_pairs_as_high_confidence_source() -> None:

@@ -934,19 +934,26 @@ def _structured_mapping_shared_endpoint_scope_info(
             if isinstance(submode, str) and submode:
                 component_submodes.add(submode)
 
-    # Keep terminal/component-only fan-in on their narrower paths. This branch is
-    # only for shared physical endpoints involving a backplate virtual table.
-    if "backplate_virtual_table" not in table_modes:
+    if "backplate_virtual_table" in table_modes:
+        structured_scope_kind = (
+            "backplate_table_shared_endpoint"
+            if pair_kinds == {"table_mapping"}
+            else "backplate_table_component_shared_endpoint"
+        )
+        classification = "backplate_structured_shared_endpoint_review"
+    elif (
+        pair_kinds == {"component_mapping", "table_mapping"}
+        and table_modes == {"terminal_header_table"}
+    ):
+        structured_scope_kind = "terminal_header_component_shared_endpoint"
+        classification = "terminal_header_component_shared_endpoint_review"
+    else:
         return None
 
-    structured_scope_kind = (
-        "backplate_table_shared_endpoint"
-        if pair_kinds == {"table_mapping"}
-        else "backplate_table_component_shared_endpoint"
-    )
     result: dict[str, object] = {
         "shared_endpoint": shared_value,
         "pair_kinds": sorted(str(kind) for kind in pair_kinds),
+        "many_to_one_classification": classification,
         "structured_scope_kind": structured_scope_kind,
         "logical_endpoints": sorted(logical_endpoints),
     }
@@ -967,7 +974,8 @@ def _structured_mapping_shared_endpoint_issue_text(
     shared_value: str,
     structured_scope_info: dict[str, object],
 ) -> dict[str, str]:
-    if structured_scope_info.get("structured_scope_kind") == "backplate_table_shared_endpoint":
+    structured_scope_kind = structured_scope_info.get("structured_scope_kind")
+    if structured_scope_kind == "backplate_table_shared_endpoint":
         return {
             "message": f"Backplate table mappings share endpoint {shared_value} across table scopes.",
             "title": "背板表格共享端点待复核",
@@ -977,6 +985,17 @@ def _structured_mapping_shared_endpoint_issue_text(
                 "应按表格证据复核，而不是按普通线端多对一直接解释。"
             ),
             "recommended_action": "核对共享端点、背板表格行、端子表行、source block 和表头前缀，确认这些表格关系是否共同引用同一物理端子。",
+        }
+    if structured_scope_kind == "terminal_header_component_shared_endpoint":
+        return {
+            "message": f"Terminal header table and component mappings share endpoint {shared_value}.",
+            "title": "端子表组件共享端点待复核",
+            "explanation": (
+                "端子表 terminal_header_table 映射与元件端口 component_mapping 共同指向同一个端点。"
+                "这通常表示端子表行与元件端口在同一接线端汇合，应按结构化证据复核，"
+                "而不是按普通线端多对一直接解释。"
+            ),
+            "recommended_action": "核对共享端点、端子表表头/行号、组件本体和端口序号，确认这些结构化关系是否共同引用同一物理端子。",
         }
     return {
         "message": f"Backplate structured mappings share endpoint {shared_value} across table/component scopes.",

@@ -3317,3 +3317,34 @@
   - `inline KLP 116 residual suppression`.
   - `component-prefixed 218 residual suppression`.
   - `backplate/component mapping rules semantics`.
+
+## Session Update 2026-07-07 (Phase 92 terminal-header/component shared endpoint review)
+- Started after commit `39aca77`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md`; neither was touched.
+  - Closed four read-only subagents after collecting their conclusions.
+- Audit conclusion:
+  - Representative `inline KLP 116` and `component-prefixed 218` structural mappings are already present and residual ordinary rows are already discarded or belong to other semantic surfaces.
+  - The clearest minimal rules slice was first-set `KD23/KD6`: `component_mapping` plus `terminal_header_table` table mappings share the same endpoint but were still displayed as generic `多对一配对`.
+- Implementation:
+  - Extended `_structured_mapping_shared_endpoint_scope_info()` in `rules.py` with a narrow `terminal_header_component_shared_endpoint` branch.
+  - Added review text `端子表组件共享端点待复核` with `many_to_one_classification=terminal_header_component_shared_endpoint_review`.
+  - Updated the existing non-backplate structured shared endpoint test into a positive terminal-header/component review assertion, while keeping terminal-only shared endpoint generic.
+  - Did not change extractor output, PairBuilder, pair graph input, CLI/UI, report aggregation, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_component or terminal_only_shared_endpoint or backplate_structured or structured_mapping_shared_endpoint or shared_endpoint"` -> `8 passed, 58 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or structured_mapping_shared_endpoint or shared_endpoint or many_to_one or terminal_header"` -> `20 passed, 46 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 18 deselected`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - First rules-only audit initially failed because `.tmp\phase89_grid_row_band_aggregation_first\...\findings` does not exist; reran against `.tmp\phase78_component_vertical_401_first\...\findings` successfully.
+  - `python -m pytest -q` -> `294 passed`
+- Fresh rules-only evidence:
+  - first `.tmp/phase92_terminal_component_shared_first_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`.
+  - first `KD23` and `KD6` are now `端子表组件共享端点待复核` with `many_to_one_classification=terminal_header_component_shared_endpoint_review`, `pair_kinds=["component_mapping","table_mapping"]`, `structured_scope_kind=terminal_header_component_shared_endpoint`, `table_mapping_modes=["terminal_header_table"]`.
+  - second `.tmp/phase92_terminal_component_shared_second_audit`: `pair_count=1462`, `issue_count=22`, pair kind distribution unchanged; no terminal-header/component shared endpoint review introduced.
+- Next candidates:
+  - terminal/input-matrix `218` continuation residual review.
+  - second row-band `116` single-symptom aggregation or evidence design.
+  - terminal semantic-row conflict rules layering.
+  - Do not reopen representative `inline KLP 116` or `component-prefixed 218` extractor/residual work unless a fresh audit finds a new uncovered target.

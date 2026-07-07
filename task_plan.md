@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 91
+Phase 92
 
 ## Phases
 
@@ -1284,6 +1284,22 @@ Phase 91
 - [ ] 下一轮候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`。
 - **Status:** complete
 
+### Phase 92: Terminal Header Component Shared Endpoint Review
+- [x] 只读恢复并确认当前 HEAD 为 `39aca77`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四路只读审计结论：`inline KLP 116` 与 `component-prefixed 218` 的代表结构化映射和 residual suppression 已闭合；继续把它们当 extractor 缺失会偏航。本轮最小切片转向 `backplate/component mapping rules semantics` 中仍可见的 generic `component_mapping + terminal_header_table` 多对一分层。
+- [x] 实现目标：只在 `rules.py` 中把 `component_mapping` 与 `terminal_header_table` 共同指向同一端点的场景标为 `terminal_header_component_shared_endpoint_review`；保留 terminal-only shared endpoint generic 负例，不改 extractor、PairBuilder、pair graph、CLI/UI 或 report 聚合。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_component or terminal_only_shared_endpoint or backplate_structured or structured_mapping_shared_endpoint or shared_endpoint"` -> `8 passed, 58 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or structured_mapping_shared_endpoint or shared_endpoint or many_to_one or terminal_header"` -> `20 passed, 46 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 18 deselected`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `294 passed`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase92_terminal_component_shared_first_audit`: `pair_count=1581`，`issue_count=117`，pair_kind distribution unchanged；`KD23` 与 `KD6` 从 `多对一配对` 分层为 `端子表组件共享端点待复核`，evidence 含 `many_to_one_classification=terminal_header_component_shared_endpoint_review`、`pair_kinds=["component_mapping","table_mapping"]`、`table_mapping_modes=["terminal_header_table"]`。
+  - second `.tmp/phase92_terminal_component_shared_second_audit`: `pair_count=1462`，`issue_count=22`，pair_kind distribution unchanged；未新增 terminal-header/component shared endpoint 分类。
+- [ ] 下一轮候选收缩为：terminal/input-matrix 218 continuation residual review、second row-band 116 单症状聚合或语义行冲突 rules 分层；`inline KLP 116` 与 `component-prefixed 218` 代表 extractor/residual 不再作为待实现主项。
+- **Status:** complete
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -1297,3 +1313,4 @@ Phase 91
 | terminal-header aggregation fresh first audit `TypeError: '<' not supported between instances of 'str' and 'int'` | natural sort key 同时比较数字开头端点和非数字开头字符串 | 将 `_natural_sort_key()` 改为稳定 tuple key 后重跑 targeted/full/fresh audit 通过 |
 | Phase71 issue summary helper `KeyError: 'filename'` | 将 `issues.parquet` 与 `pages.parquet` merge 后直接按 `filename` groupby | 改用显式 `filename2/route_target2/sheet_category2` 映射列重跑统计 |
 | `python -m black` unavailable | Phase86 末尾想机械格式化 3 个 Python 文件 | 环境缺少 `black`；改为手动按现有风格折行，不重复该命令 |
+| Phase92 first rules-only audit path missing | 首次用 `.tmp\phase89_grid_row_band_aggregation_first\...\findings` 跑 `run-audit` | 该阶段只保留 audit 目录；改用 `.tmp\phase78_component_vertical_401_first\...\findings` 重跑 current-head rules-only audit 成功 |
