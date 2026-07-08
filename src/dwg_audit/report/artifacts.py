@@ -27,6 +27,9 @@ from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.domain.models import TerminalStrip
 from dwg_audit.domain.models import TextItem
 from dwg_audit.domain.models import record_dict
+from dwg_audit.audit.coverage import build_entity_coverage_summary
+from dwg_audit.audit.coverage import build_text_assignment_frame
+from dwg_audit.audit.wire_topology import build_wire_topology_frames
 
 _REPORT_FORMATS = ("md", "html", "xlsx")
 _ISSUE_STRUCTURED_COLUMNS = ("evidence", "related_pair_ids", "sheet_ids", "values", "evidence_refs")
@@ -110,12 +113,30 @@ def write_project_artifacts(
     _frame(artifacts.pair_candidates, PairCandidate).to_parquet(findings_dir / "pair_candidates.parquet", index=False)
     _frame(artifacts.pairs, Pair).to_parquet(findings_dir / "pairs.parquet", index=False)
     _frame(artifacts.extraction_warnings, ExtractionWarning).to_parquet(findings_dir / "extraction_warnings.parquet", index=False)
+    text_assignments = build_text_assignment_frame(
+        artifacts,
+        page_classifications=page_classifications,
+    )
+    entity_coverage_summary_frame, entity_coverage_summary = build_entity_coverage_summary(
+        text_assignments,
+        artifacts=artifacts,
+        page_classifications=page_classifications,
+    )
+    wire_junctions, wire_networks, _ = build_wire_topology_frames(
+        artifacts,
+        config=config,
+    )
+    text_assignments.to_parquet(findings_dir / "text_assignments.parquet", index=False)
+    entity_coverage_summary_frame.to_parquet(findings_dir / "entity_coverage_summary.parquet", index=False)
+    wire_junctions.to_parquet(findings_dir / "wire_junctions.parquet", index=False)
+    wire_networks.to_parquet(findings_dir / "wire_networks.parquet", index=False)
 
     findings_payload = _build_findings_payload(
         artifacts,
         config=config,
         page_classifications=page_classifications,
         table_mappings=table_mappings,
+        entity_coverage_summary=entity_coverage_summary,
     )
     if persist_page_findings:
         for page_finding in findings_payload["page_findings"]:
@@ -1145,6 +1166,7 @@ def _build_findings_payload(
     *,
     page_classifications: dict[str, PageClassification] | None = None,
     table_mappings: list[dict[str, Any]] | None = None,
+    entity_coverage_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     manifest = artifacts.scan.manifest
     primary_pages = [page for page in artifacts.scan.pages if page.audit_role == "primary"]
@@ -1175,6 +1197,10 @@ def _build_findings_payload(
         "terminal_candidates.parquet",
         "pair_candidates.parquet",
         "pairs.parquet",
+        "text_assignments.parquet",
+        "entity_coverage_summary.parquet",
+        "wire_junctions.parquet",
+        "wire_networks.parquet",
         "extraction_warnings.parquet",
         "source_files.parquet",
         "sidecars.parquet",
@@ -1217,6 +1243,7 @@ def _build_findings_payload(
             "extraction_warnings": len(artifacts.extraction_warnings),
         },
         "pair_evidence_summary": _build_pair_findings_summary(artifacts.pairs),
+        "entity_coverage_summary": entity_coverage_summary or {},
         "page_findings_count": len(page_findings),
         "page_findings": page_findings,
         "extractor_execution_summary": _build_extractor_execution_summary(artifacts.extractor_runs),
@@ -1244,6 +1271,8 @@ def _build_findings_payload(
                 "audit_report.md",
                 "audit_report.html",
                 "issues.xlsx",
+                "topology_shadow_report.json",
+                "topology_shadow_report.md",
             ],
         },
     }
@@ -1367,6 +1396,20 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             f"- StatusCounts: `{json.dumps(pair_summary['status_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ConfidenceBuckets: `{json.dumps(pair_summary['confidence_bucket_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ReviewPairs: `{pair_summary['review_pairs']}`",
+            "",
+            "## Coverage Contract",
+            "",
+            f"- TotalTexts: `{payload['entity_coverage_summary'].get('total_texts', 0)}`",
+            f"- AuditScopeTexts: `{payload['entity_coverage_summary'].get('audit_scope_texts', 0)}`",
+            f"- AssignedTexts: `{payload['entity_coverage_summary'].get('assigned_texts', 0)}`",
+            f"- UnexplainedTexts: `{payload['entity_coverage_summary'].get('unexplained_texts', 0)}`",
+            f"- UnexplainedNumericTexts: `{payload['entity_coverage_summary'].get('unexplained_numeric_texts', 0)}`",
+            f"- UnassignedWireSegments: `{payload['entity_coverage_summary'].get('unassigned_wire_segments', 0)}`",
+            f"- UnclassifiedBlocks: `{payload['entity_coverage_summary'].get('unclassified_blocks', 0)}`",
+            f"- OutOfScopeTexts: `{payload['entity_coverage_summary'].get('out_of_scope_texts', 0)}`",
+            f"- CoverageRatio: `{payload['entity_coverage_summary'].get('coverage_ratio', 0.0)}`",
+            f"- AssignmentKindCounts: `{json.dumps(payload['entity_coverage_summary'].get('assignment_kind_counts', {}), ensure_ascii=False, sort_keys=True)}`",
+            f"- ContractChecks: `{json.dumps(payload['entity_coverage_summary'].get('contract_checks', {}), ensure_ascii=False, sort_keys=True)}`",
             "",
             "## Table Extraction",
             "",
@@ -1861,6 +1904,10 @@ def load_report_frames(project_dir: Path) -> dict[str, pd.DataFrame]:
         "terminal_candidates",
         "pair_candidates",
         "pairs",
+        "text_assignments",
+        "entity_coverage_summary",
+        "wire_junctions",
+        "wire_networks",
         "source_files",
         "sidecars",
         "terminal_strips",

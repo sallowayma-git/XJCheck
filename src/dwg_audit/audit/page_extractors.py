@@ -180,7 +180,6 @@ def _extract_pairs_for_route(
             texts,
             lines,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
-            first_prefixed_eligible_local_text_ids=_ordinary_single_sided_text_ids(pairs),
         )
         _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)
@@ -521,7 +520,13 @@ def _wire_component_local_number_text_reasons(wire_component_pairs: list[Pair]) 
         component_submode = evidence.get("component_submode")
         if component_submode == "input_matrix_wire_mapping":
             values = (pair.right_text_id, evidence.get("local_number_text_id"))
-        elif component_submode in {"component_prefixed_signal_circuit", "first_prefixed_external_endpoint_mapping"}:
+        elif component_submode in {
+            "component_prefixed_signal_circuit",
+            "first_prefixed_external_endpoint_mapping",
+            "scoped_visible_prefix_external_endpoint_mapping",
+            "inline_klp_component_port_mapping",
+            "inline_body_port_mapping",
+        }:
             values = (evidence.get("local_number_text_id"),)
         else:
             continue
@@ -560,6 +565,19 @@ def _wire_component_coverage_rationale(covered_reasons: set[str]) -> str:
     if "first_prefixed_external_endpoint_mapping" in covered_reasons:
         return (
             "Covered by first_prefixed_external_endpoint_mapping; prefixed external local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    if "scoped_visible_prefix_external_endpoint_mapping" in covered_reasons:
+        return (
+            "Covered by scoped_visible_prefix_external_endpoint_mapping; scoped local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    if {
+        "inline_klp_component_port_mapping",
+        "inline_body_port_mapping",
+    } & covered_reasons:
+        return (
+            "Covered by inline body-port mapping; structured component local number "
             "must not be emitted as a bare ordinary pair."
         )
     return "Covered by input_matrix_wire_mapping; matrix local number must not be emitted as a bare ordinary pair."

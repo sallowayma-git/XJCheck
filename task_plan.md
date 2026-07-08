@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 95
+Phase 99 (Topology Track T2)
 
 ## Phases
 
@@ -354,6 +354,8 @@ Phase 95
 | 当 `Wire / Component / Terminal` 已有执行证据后，下一条更近的主链切片不是回到几何调参，而是把 `Table / LayoutOnly / Skip` 的执行或明确未执行状态补到同层级合同 | 否则 route matrix 仍只对三类 audited pair page 强，而对“表格暂无命中”“背板 classify_only”“封面 skip”还停留在间接说明 |
 | `evaluate-acceptance-suite` 只允许作为内部验收 harness 存在，不构成继续扩产品 CLI 的方向许可 | 用户已明确要求产品主链转向 exe 可调用的单一执行入口，CLI 只保留调试/自动化/验收用途 |
 | 第一层 exe 可调用入口应抽成 `run_analysis_workflow()`，而不是先大改 desktop sidecar | 这能让 CLI / UI / sidecar 立刻共享分析 + 可选审计主链，并把更复杂的状态落库与预览职责留给下一轮 session service |
+| 主线从"逐 issue 窄规则"切换为拓扑轨 T0-T4：先量化提取覆盖率，再影子构建 wire network，再灰度切换端点归属，再符号库化块知识，最后收缩补偿规则 | 近 50 个 Phase 证明窄规则是对两套样本的记忆而非识别能力；缺侧/半链/row-band 类问题的公共根因是缺少连通性模型，应在结构层一次性解决（2026-07-07 用户确认） |
+| 人工标注不单独立项；真值获取改为"覆盖率合同 + agent 对 DXF 的结构裁决 + 人工抽查仲裁" | 两套样本默认全对、任务书已沉淀期望语义样例，"是否全部提取"可以变成机器可算指标；归属数据天然成为后续可解释 ML / GNN 的弱标签，无需独立标注工程 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -1346,6 +1348,140 @@ Phase 95
 - [ ] 下一轮候选继续收缩为：`06 直流回路图.dwg` DK/ZD/3-21n 结构缺侧、first `05 交流回路图2.dwg` 极窄 row-band endpoint inference，或默认用户问题列表与内部 review 证据分层。
 - **Status:** complete
 
+### Phase 96: Remaining Hard Ordinary Pair Closure Plan
+- [ ] 只读恢复：先确认最新 HEAD、`git status --short`、`progress.md` 末尾、`doc/findings.md` 末尾、`doc/任务书.md` 的 Phase95 后状态；不要覆盖外部/并发文档目录。
+- [ ] Fresh audit inventory：在最新代码上重跑或复用最近 fresh first/second audit，列出仍然默认用户可见的 `ordinary_pair` `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`，按 `filename / sheet_id / pair_id / line_group_id / row_band_id / root_cause / candidate evidence` 分组。
+- [ ] 优先审计候选 A：`06 直流回路图.dwg` 的 DK/ZD/3-21n 结构缺侧。目标是确认是否缺少电气结构关系、符号/端口作用域、wire network 连接，还是仅为 semantic evidence；若没有稳定结构证据，不要先写 suppress/filter。
+- [ ] 优先审计候选 B：first `05 交流回路图2.dwg` 的极窄 grid row-band endpoint inference。只能从已知重复 `v->v` anchor + 同 row-band `v->?` 缺右端这类窄模式入手；禁止泛化到 second-set 单症状或没有 anchor 的 `?->X`。
+- [ ] 独立候选 C：定义“默认用户问题列表”和“内部 review 证据”分层。该切片必须直接改变默认用户可见列表或导出字段；不得只做 display/diagnostics，不得隐藏 hard error，不得删除 pair graph。
+- [ ] 质量线候选 D：`backplate/component mapping rules semantics` 只作为结构化 review 质量分层继续；除非 fresh audit 证明 findings 缺结构化关系，不得重新写成 extractor missing。
+- [ ] 本轮选择规则：优先做一个能实质减少真实正确样本误解的最小切片；不要同时混入 KLP/218 已闭合代表 extractor、acceptance-only 改动、产品化 exe smoke、原生 DWG/GNN 长线架构。
+- [ ] 验证要求：targeted unit/integration tests、full `python -m pytest -q`、first/second fresh real-sample audit；必须报告 `pair_count`、`ordinary_pair`、`semantic_mapping/component_mapping/table_mapping` 相关分布、issue_count 与 changed pair_ids，证明不是 filter/hide/severity-only/report-only/pair deletion。
+- [ ] 完成后更新 `task_plan.md` / `progress.md` / `doc/findings.md` / `doc/任务书.md`，并只 stage 本轮自己改动的文件。
+- **Status:** superseded —— 2026-07-07 经用户确认并入拓扑轨（Phase 97-101）：候选 A/B（`06 直流回路图` 缺侧、`05 交流回路图2` row-band 推断）由 T1 影子线网 + T2 灰度切换按连通性结构承接，不再逐页写窄规则；候选 C（默认用户问题列表分层）由 T4 承接；候选 D（rules 质量线）并入 T4。本阶段不再单独执行。
+
+### Phase 97: Topology T0 — Entity Coverage Contract（实体覆盖率合同）
+- [x] 只读恢复：确认最新 HEAD 与 `git status --short`；受保护并发路径 `doc/page_findings/`、`doc/page_task_queue.md` 不纳入写集；`doc/任务书.md` 只允许追加拓扑轨相关内容，不得回滚他人段落。重读任务书 18.7.1、18.7.4-18.7.7。
+- [x] 开发前审查（至少 2 个并发只读 explorer）：
+  - 盘点 findings 运行态中已有的"解释痕迹"：`terminal_candidates` 的 `channel / rejection_reason`、pair evidence 中的 `covered_by_*` 字段、`page_findings.open_questions`，确认 T0 只做汇总合同，不重复造记录、不重跑几何。
+  - 在 first `05 交流回路图2.dwg`、second `06 直流回路图.dwg`、second `21 左侧端子图1.dwg` 三页人工点数：audit 区内数字/端子样文本总数 vs 出现在任何 candidate/pair/mapping 证据中的数量，形成实现后的 sanity 对照表。
+- [x] 实现目标（写集：`src/dwg_audit/audit/coverage.py` 新模块 + pipeline 挂接 + 测试；不碰 candidates/pairs/rules/extractor/classifier 行为）：
+  - 从现有运行态推导每个 audit 区文本的 `assignment_kind`，判定优先级 `pair_endpoint > structured_mapping_endpoint > semantic_evidence > continuation_evidence > covered_discard > rejected_candidate > out_of_scope > unexplained`（schema 见任务书 18.7.1）。
+  - 落盘 `findings/text_assignments.parquet`；`findings.json` 顶层新增 `entity_coverage_summary`，含项目级与分页 `unexplained_numeric_texts / unassigned_wire_segments / unclassified_blocks` 三指标；页级 findings 附 coverage 摘要与 unexplained 实体 id 列表。
+  - 线覆盖从 `line_groups` 成员关系与既有排除理由推导（`assigned_line_group / excluded_reason / unassigned`）；块覆盖从现有子模式命中记录推导（`matched_submode / unclassified_block`）。
+- [x] 风险门槛：pair graph、issue 输出、pair_kind 分布与本刀开始时 fresh 基线零漂移；不得为把 unexplained 做小而扩大 `out_of_scope` 判定——`out_of_scope` 仅限图框/标题栏/页码等版面角色，且必须带理由。
+- [x] 验证：
+  - `tests/unit/test_coverage.py`：每种 assignment_kind 至少 1 正例 + unexplained 判定负例 + 恒等式断言（各类计数之和 = audit 区文本总数）。
+  - integration：`analyze-project` 后 coverage 摘要存在性与恒等式断言。
+  - `python -m pytest -q` 全绿；first/second fresh `analyze-project + run-audit`，报告两套三指标基线并与审查点数对照；主链产物零漂移证明。
+- [x] 产出：把两套 unexplained 清单按页导出为 coverage 审计队列（`doc/page_findings/coverage_batch1/` 或 `.tmp`），作为 Phase 98 审查输入。
+- **Status:** complete
+
+### Phase 98: Topology T1 — Wire Network Shadow Builder（影子线网构建）
+- [x] 只读恢复 + 保护边界确认；重读任务书 18.7.2、18.7.4-18.7.6。
+- [x] 先行低风险切片：在不碰并发 `candidates.py` 写集的前提下，先把 `wire_components.py` 的 `scoped visible prefix + local-number column + structured external-endpoint column` 通用 family 补齐，并解除 `page_extractors.py` 中把 `first_prefixed` 绑死在 ordinary single-sided 错误链上的 gate；该切片只做结构重分类，不替代后续 `wire_topology.py` 影子线网构建。
+- [x] 开发前审查：
+  - [x] 按页派只读 agent 裁决 Phase 97 的 unexplained 队列（裁决模板见任务书 18.7.4），标出属于"连通性缺失"的缺口子集；当前共识已写入 `doc/human_arbitration_phase98.md` / `progress.md` / `doc/findings.md`。
+  - [x] 普通回路 H01 的共性审计已收敛：first `04/05/11` 不是裸数字真缺侧，而是 `scoped prefix + local-number column + external-endpoint column` 结构没有进入通用识别链；现有 `wire_components.py` family 与 candidate grammar 过窄，且 `first_prefixed_eligible_local_text_ids` 把结构化恢复绑在 ordinary 错误链上。
+  - [x] 主线程盘点 `line_groups.py` 合并规则与 `_has_inline_numeric_bridge` 等桥接特例，形成 T1 必须吸收的特例清单：inline 文本桥接、块跨越桥接、共线延续容差、row band 内断线。
+- [x] 实现目标（写集：`src/dwg_audit/audit/wire_topology.py` 新模块 + schema + 影子报告 helper + 测试）：
+  - junction 判定：端点重合（snap 容差 `topology.junction_snap_tolerance`，默认对齐现有 `line_y_tolerance` 量级）与 T 型（端点落在另一线身上）并网；十字穿越（双方都穿过交点）默认不并网，记为 `crossing_observation`，由 `topology.merge_crossings=false` 显式控制——二次原理图中交叉不等于电气连接。
+  - 输出 `findings/wire_junctions.parquet` 与 `findings/wire_networks.parquet`（字段见任务书 18.7.2）；`line_group_ids` 作为 network 内水平 run 投影保持向后兼容。
+  - 影子对比报告：对本刀 fresh audit 的每条 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`，判断缺侧 line group 所在 network 是否存在可达 degree-1 端点 + 可归属数字文本，输出 `topology_recoverable=true/false` 与理由，落 `topology_shadow_report.json/md`。
+- [x] 风险门槛：严格影子——不改 candidates/pairs/rules 任何行为；主链产物零漂移；新 parquet 只增不改旧表。
+- [x] 验证：
+  - `tests/unit/test_wire_topology.py`：端点并网、T 型并网、十字不并网、inline 文本桥、块跨越桥、双网隔离，每种至少 1 例。
+  - `python -m pytest -q` -> `315 passed in 7.03s`；新增 `tests/unit/test_wire_topology.py`、`test_report_artifacts.py`、`test_rerun_audit.py` 合同覆盖。
+  - first fresh `.tmp/phase98_topology_first/...`：`pair_count=1705`、`issue_count=102`、pair kind distribution 与 scoped-prefix 基线完全一致；新增 `wire_junctions=23148`、`wire_networks=609`；`topology_shadow_report` 对 `37` 条 ordinary missing/low-confidence 候选给出 `37/37 recoverable`。
+  - second fresh `.tmp/phase98_topology_second/2_2`：`pair_count=1597`、`issue_count=12`、pair kind distribution 与 scoped-prefix 基线完全一致；新增 `wire_junctions=18929`、`wire_networks=358`；`topology_shadow_report` 对 `6` 条候选给出 `4/6 recoverable`。
+- [x] T1 真值化复审（2026-07-08，Phase 99 预备审计）：
+  - 初版 shadow 结论过宽，误把 `scoped local number / body-port / semantic local` 页面当成 topology recoverable；根因是旧逻辑只要看到 `extra_relevant_text + bridge` 就判可恢复。
+  - `wire_topology.py` 已改为先做 network text role classification，再区分 `topology_recoverable_external_endpoint_present`、`scoped_local_number_cluster`、`body_port_cluster`、`semantic_local_cluster`、`no_additional_topology_signal`。
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `10 passed`；`python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `30 passed`；`python -m pytest -q` -> `318 passed in 8.47s`。
+  - first rerun `.tmp/phase99_shadow_tight_first_audit`：`pair_count=1705`、`issue_count=102` 不变；shadow 从 `37/37 recoverable` 收紧为 `6/37 recoverable`，且仅 first `14/15` 两页 6 条为 `topology_recoverable_external_endpoint_present`；其余原候选改判为 `body_port_cluster=26`、`scoped_local_number_cluster=3`、`semantic_local_cluster=2`。
+  - second rerun `.tmp/phase99_shadow_tight_second_audit`：`pair_count=1597`、`issue_count=12` 不变；shadow 从 `4/6 recoverable` 收紧为 `0/6 recoverable`，原候选分解为 `body_port_cluster=1`、`scoped_local_number_cluster=2`、`semantic_local_cluster=1`、`no_additional_topology_signal=2`。
+- **Status:** complete
+
+### Phase 99: Topology T2 — Endpoint Assignment Gray Switchover（端点归属灰度切换）
+- [x] 只读恢复 + T1 真值化复审；首批灰度页已从旧计划的 first `05/06`、second 同构 grid 页修正为仅 first `14 高操作回路图.dwg`、`15 低操作回路图.dwg`。first `05/06/08/09/10/11/25/26/27` 与 second `06/10/14` 当前都不再视为 topology gray 候选，而是 `scoped local number / body-port / semantic local` 结构队列。
+- [x] 在 `wire_topology.py` 增加 branch-local shadow 提案层：对每条 ordinary missing/low-confidence issue 输出 `branch_local_status / branch_local_reason / branch_local_candidates / branch_local_contexts`，只增强 `topology_shadow_report` 的解释力，不改 pair graph、candidates 或 issues 行为。
+- [x] 用真实样本 rerun 验证 T2 仍不应直接切 `on`：first `14/15` 的 6 条 residual 里，`PW0413/PW0463` 仅收敛为 `ambiguous_candidates`（`1-4QD24` vs `1-4QD5`、`3-4QD24` vs `3-4QD5`），`PW0417/PW0420/PW0467/PW0470` 仍只有 `context_only`，尚无安全唯一候选。
+- [x] 在 branch-local shadow 上继续增加 `open_endpoint` 锚定：同 row 同侧候选只有贴近缺侧 `open_endpoint_junction` 时才进入可接管集合。真实样本 rerun 后，`PW0413/PW0463 (? -> 224)` 已从 `ambiguous_candidates` 收敛为 `unique_candidate`（分别锚定 `1-4QD5` / `3-4QD5`），而 `PW0417/PW0420/PW0467/PW0470` 仍为 `context_only`。
+- [ ] 实现目标：
+  - 配置 `topology.endpoint_assignment: off|shadow|on` + 页型/文件名灰度名单，默认 off。
+  - 灰度页内：`WireDiagramExtractor` 的 ordinary 候选搜索输入从 line_group 端点窗口改为 network open endpoint + `text_assignments` 归属；四通道合同、置信度模型、pair_kind 合同不变；非灰度页零行为变化。
+  - 旧补偿路径（inline bridge、complementary half-chain、row-band gap 症状）在灰度页内应因 network 桥接自然失效，不得以 filter/suppress 实现。
+- [ ] 风险门槛：任务书 18.7.7 红线关系逐条保持；coverage 三指标不得回升；若首批页收益未达影子报告预测的大半，停止扩页、回审 T1 构建质量，不得继续切换。
+- [ ] 验证：targeted unit/integration + `python -m pytest -q` 全绿；两套 fresh run；反作弊独立审计（before/after pair_id 全集 diff、changed pair_ids 逐条列出、每条 issue 下降对应到 junction/bridge 证据）；灰度页 issue 与 unexplained 变化写回 findings/progress。
+- **Status:** in_progress —— 2026-07-08 已完成 branch-local shadow + open-endpoint anchoring。当前 next slice 不再是“整页 `14/15` 直接 `on`”，而是只对 `unique_candidate` 的支路级候选评估灰度切换；`222/206` 这类 `context_only` 条目仍需更深的 branch/path 结构化能力。
+
+### Phase 100: Topology T3 — Symbol Library Bootstrap（符号库自举）
+- [ ] 开发前审查（可与 Phase 99 并行，写集不重叠）：
+  - 并发统计两套样本全部 `INSERT`：block name、出现页型、实例数、bbox 尺寸、旋转/镜像/缩放变体、内部实体构成（线/圆/文本/ATTRIB 计数）、attribute tags、与现有 mapping/issue 的关联度。
+  - 按几何指纹聚类形成 symbol family 候选清单，人审 Top N 高频族后再入库。
+- [ ] 实现目标：
+  - 新增 `configs/symbol_library.yml`（字段按任务书 18.6 符号库规范）与 `findings/symbol_instances.parquet`。
+  - 迁移现有硬编码块知识为库条目：`FJL-25-2A_Mirror`→strip_two_port、`KK2P/KK3P`→kk_multi_port、`JR-01/KK1P`→small_port_box、`WBH-814E-E1SA-101`→backplate_virtual_table；`component_diagrams.py` / `table_extractor.py` 改为查库。本刀是纯迁移刀，行为必须零漂移，功能增强另切。
+  - coverage 的 `unclassified_blocks` 接入符号库归类：每个 audit 区 INSERT 归入 family 或显式 `annotation / non_electrical`。
+  - 支持项目级 override 文件，企业自定义符号不被通用库覆盖。
+- [ ] 验证：迁移零漂移证明（两套 fresh run 的 component/table mapping 计数与点名 pair 逐一保持）；`python -m pytest -q` 全绿；`unclassified_blocks` 基线 → 收敛数字写回。
+- [ ] 泛化探针检查点：若能取得第三套真实图纸，只读跑 T0 coverage + T1 影子报告并记录新失败模式清单（只记录，不为其写规则）；暂无第三套则显式记 deferred，不得虚构。
+- **Status:** pending
+
+### Phase 101: Topology T4 — Rules Shrink & Default List Layering（规则收缩与默认列表分层）
+- [ ] 开发前审查：盘点 `rules.py` / `rule_base.py` 中的补偿性规则与分类清单（Phase66 DIM guardrail、Phase68/82 complementary half-chain、Phase89 row-band aggregation、continuation/bridge 特例等），逐条标注"拓扑层是否已结构性解释 / 可简化为消费 network 证据 / 必须保留"。
+- [ ] 实现目标：
+  - 已被拓扑解释的补偿规则逐条简化或删除；每删一条给出前后 issue 对照与证据回查路径，默认 issue 列表不得变差。
+  - Issue 合同新增 `display_layer: user|internal`：`rule_too_strict` 结构现象与聚合 review 证据归 internal；默认导出/UI 仅显示 user 层，internal 层可显式展开与完整导出；任何 evidence 不删除。
+- [ ] 风险门槛：分层不得变成隐藏——internal 层计数在报告 summary 公开；任务书 18.7.7 红线保持；全量证据可导出可回查。
+- [ ] 验证：`python -m pytest -q` 全绿；两套 fresh run；反作弊独立审计；报告两层问题数与每条 user 层保留项的"为何保留、为何不算最终错误"理由（对齐任务书 5.3 / M11 "默认用户可见列表逼近 0"目标）。
+- **Status:** pending
+
+### 2026-07-08 Addendum: H01/H02 Arbitration Closure
+- [x] 用户最新裁决已锁定：
+  - `H02`：`GND` 按 semantic/ground ignore；`101/103/105/132` 一律视为需补 scope 的 local number；`132 -> 132` 一律按误配。
+  - `H01`：`04/05/11` 的剩余 ordinary 症状继续按 `scoped prefix + structured external endpoint + local-number/body-port` 通用结构处理，不为单页值写记忆规则。
+- [x] 读并发 dirty diff 后确认：
+  - `wire_components.py` 已有 `scoped_visible_prefix_external_endpoint_mapping` 通用切片。
+  - `page_extractors.py` 已去掉把 `first_prefixed` 绑在 ordinary single-sided 错误链上的 gate。
+  - 本轮不触碰上述并发文件；写集只保留文档。
+- [ ] 下一刀进一步收缩为：
+  - body-port/token-role 通用识别：优先 first `05` `719/720/721`、first/second `06` residual `101/105`、first `11` `601/310/.../207`。
+  - `H01/H06` 局部数字政策：`124/125`、`10/13/14`、`501/507/710` 是否统一退出裸 ordinary 审计。
+  - `H03/H04/H05` 默认 `internal` 分层与 `H07` 最小符号人审保持并行，但不阻塞上述主线。
+- **Status:** note only; Phase 98/99 主状态不变。
+
+### 2026-07-08 Addendum: Generic body-port slice completed
+- [x] `wire_components.py` 已将旧 `inline_klp` 提升为通用 `inline body-port` family：
+  - 支持 one-sided `KLP` 右侧局部号映射，不再要求整行左右两端同时完整
+  - 支持 multi-row `ZKK` body-port 映射，按 `body-port -> local/endpoint` 发结构化 `wire_component_mapping`
+  - family 语义保持显式：`KLP` 右侧三位数归一化为 `*n###`；`ZKK` 保持原局部号/端子样值
+- [x] `page_extractors.py` 已将 `inline_klp_component_port_mapping` / `inline_body_port_mapping` 纳入 covered ordinary 消费链；局部号 ordinary residual 现在会诚实 discard，而不是继续暴露给默认用户列表。
+- [x] 质量回退防线：
+  - 初版放宽到两位 port token 时，在 first `11` 真实样本误生出 `5KLP10-13 -> 5FD4`
+  - 已将 port token 收紧回 family-appropriate 的单字符 `1..6`，保留泛化能力并消除假阳性
+- [x] 验证：
+  - targeted：`tests\unit\test_wire_components.py` + `tests\unit\test_page_extractors.py` -> `32 passed`
+  - integration smoke：`tests\integration\test_analyze_project.py -k "inline_klp_component_port_mapping or component_prefixed_signal_circuit_mapping"` -> `2 passed`
+  - full：`python -m pytest -q` -> `323 passed in 31.57s`
+  - first fresh `.tmp/phase100_body_port_first_v2/...`：
+    - `pair_count 1705 -> 1717`
+    - `wire_component_mapping 175 -> 187`
+    - `ordinary_pair 728 -> 728` 不变
+    - `issue_count 102 -> 91`
+    - first `05` residual `3 -> 0`
+    - first `11` residual `10 -> 2`
+  - second fresh `.tmp/phase100_body_port_second/...`：
+    - `pair_count 1597 -> 1615`
+    - `wire_component_mapping 380 -> 398`
+    - `ordinary_pair 561 -> 561` 不变
+    - `issue_count 12 -> 12`
+- [ ] 下一刀继续收缩为：
+  - first `06` 的三条 `101 -> ?` 是否按通用 semantic-ground policy 退出默认 ordinary 审计
+  - first `11` 剩余 `PW0284 ? -> 601` 与 `PW0285 601 -> 602` 是否属于新的结构 family，或应进入默认 internal/display-layer 队列
+  - `H01/H06` 局部数字政策（`124/125`、`10/13/14`、`501/507/710`）与 `H03/H04/H05` internal 分层继续等待用户业务裁决
+- **Status:** note only; Phase 98/99 主状态不变，H01 body-port 结构线已明显收缩。
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -1360,3 +1496,4 @@ Phase 95
 | Phase71 issue summary helper `KeyError: 'filename'` | 将 `issues.parquet` 与 `pages.parquet` merge 后直接按 `filename` groupby | 改用显式 `filename2/route_target2/sheet_category2` 映射列重跑统计 |
 | `python -m black` unavailable | Phase86 末尾想机械格式化 3 个 Python 文件 | 环境缺少 `black`；改为手动按现有风格折行，不重复该命令 |
 | Phase92 first rules-only audit path missing | 首次用 `.tmp\phase89_grid_row_band_aggregation_first\...\findings` 跑 `run-audit` | 该阶段只保留 audit 目录；改用 `.tmp\phase78_component_vertical_401_first\...\findings` 重跑 current-head rules-only audit 成功 |
+| inline body-port 初版误吸两位数端子 `13` | fresh first `11` 生成假阳性 `5KLP10-13 -> 5FD4` | 将 inline port token 从宽松两位数收紧回 family-appropriate 单字符 `1..6` 后重跑 targeted/full/fresh audit 通过 |

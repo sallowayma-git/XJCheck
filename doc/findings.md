@@ -9961,3 +9961,527 @@ first 非回归：
 
 - second `08/12 测控开入回路图1` 中 `115` 手合同期功能说明 residual 已闭环，不再列为 ordinary missing-side 待实现项。
 - 下一轮若继续 hard root-cause，应转向 `06 直流回路图.dwg` 的 DK/ZD/3-21n 结构缺侧，或 first `05 交流回路图2.dwg` 的极窄 row-band endpoint inference；默认用户列表 vs internal review 分层可作为独立产品/规则切片。
+
+## 149. 2026-07-08 topology T0：实体覆盖率合同落盘
+
+Phase 97 已把任务书 18.7.1 的 coverage contract 落成 findings 一等产物。本轮没有改变识别行为，只新增覆盖率解释状态：
+
+- `findings/text_assignments.parquet`：每个 text 一行，按 `pair_endpoint > structured_mapping_endpoint > semantic_evidence > continuation_evidence > covered_discard > rejected_candidate > out_of_scope > unexplained` 判定 `assignment_kind`。
+- `findings/entity_coverage_summary.parquet`：项目级/页级/route/page_type 摘要，包含 `unexplained_numeric_texts`、`unassigned_wire_segments`、`unclassified_blocks`。
+- `findings.json` / `findings.md`：新增 `entity_coverage_summary` 和 `Coverage Contract` 摘要。
+
+T0 的一个关键边界已明确：`rejected_candidate` 是显式解释，不计入 unexplained；`out_of_scope` 只用于页面处置、图框、标题栏和 audit 区外文本，并且不进入 audit-scope 恒等式分母。
+
+验证结果：
+
+- `python -m pytest -q` -> `305 passed`。
+- second fresh `.tmp/phase97_coverage_second_v2_audit`：`pair_count=1462`、`issue_count=13`、`table_mapping=174`，与 Phase95 基线零漂移。
+- first fresh `.tmp/phase97_coverage_first_v2_audit`：`pair_count=1581`、`issue_count=117`，与 Phase95 基线零漂移。
+
+Coverage 基线：
+
+- second：`total_texts=4795`，`audit_scope_texts=2484`，`assigned_texts=2484`，`unexplained_numeric_texts=0`，`unassigned_wire_segments=5305`，`unclassified_blocks=1126`，`identity_ok=True`。
+- first：`total_texts=5076`，`audit_scope_texts=3169`，`assigned_texts=3169`，`unexplained_numeric_texts=0`，`unassigned_wire_segments=6868`，`unclassified_blocks=1034`，`identity_ok=True`。
+- 两套均为 `suspicious_out_of_scope_expansion=False`。
+
+Phase 98 输入队列已导出到 `.tmp/phase97_coverage_queue/`：
+
+- `second_page_gap_queue.csv`
+- `second_unexplained_text_queue.csv`
+- `first_page_gap_queue.csv`
+- `first_unexplained_text_queue.csv`
+
+裁决：
+
+- T0 合同已完成，文本侧当前没有 unexplained 队列；这不是清零作弊，而是因为现有 candidate/rejection 通道已经给出了显式解释。
+- 后续 T1 不应从文本 unexplained 入手，而应从高 `unassigned_wire_segments` 页构建 shadow wire network，优先把“未进入 line_group 的线段”区分为图框/表格/符号线/真实导线断裂。
+
+## 150. 2026-07-08 topology T1 pre-review：人工裁决范围已收窄
+
+基于四个只读子代理对 `doc/任务书.md`、Phase 97 fresh findings/audit 和代表性预览图的并行预审，Phase 98 当前 7 类人工裁决项已经可以先按“结构性问题”与“显示分层问题”分开：
+
+- `H01/H02/H06` 属于结构性识别缺口：
+  - `H01` 中 first `04/05/14/15` 的一批 bare-number missing-side 更像 T1 shadow wire-network 应承接的连通性缺口。
+  - `H02` 中 `101/103/105/132` 以及 `H06` 中 `10/13/14/501/507/710` 更像 scoped/local number，不能再把裸数字直接喂给 `ordinary_pair`。
+  - `132 -> 132` 当前证据更像 scope 丢失后的假自配，不像合法同名连接。
+- `H03/H04/H05` 更像显示分层/作用域合同问题：
+  - `component_mapping` 的一对多/多对一大多是逗号拆分、公共端共享或链式分支；默认建议转 `internal`。
+  - 背板表和 terminal header table 的 review 大多缺 `page-device instance`、`subtable`、`header_text_id/x-span`、`table_instance`、`endpoint_column_role` 等 scope，不足以支撑 user-visible 冲突。
+  - 当前没有收敛出值得默认 user-visible 的代表簇；更合理的 T4 合同是“补足 scope 后仍互斥才升级为用户问题”。
+- `H07` 已出现最小符号库输入集合：
+  - likely wire-bridge families：`SYMB2_M_PWF165`、`SYMB2_M_PWF231`、`SYMB2_M_PWF191`、`SYMB2_M_PWF194`
+  - likely endpoint-bearing families：`SYMB2_M_PWF224`、`SYMB2_M_PWF234`、`SYMB2_M_PWF243`、`FJL-25-2A_Mirror`、`KK2P`
+  - 最小人工标注不需要逐页散标，只需 7 个 family-level screenshot tasks 即可支撑 `symbol_library.yml` 初始落库。
+
+裁决：
+
+- Phase 98 的人工输入需求已经从“逐页/逐 issue 复核”收窄为“少量业务规则确认 + 7 个块族 family 定类任务”。
+- Phase 98/99 的主技术线不应再围绕 `H03/H04/H05` 写新窄规则；它们优先进入 T4 `display_layer` / scope contract 设计。
+- 下一个真正阻塞 T1/T2 的人工问题主要是：
+  - `PW0107` / `132 -> 132` 是否确认视为 scoped self-pair artifact。
+  - `PW0108` / `101 -> ?` 是否确认必须补成带前缀完整端。
+  - `124/125`、`10/13/14`、`501/507/710` 是否归入同一“局部数字不裸审 ordinary”政策。
+
+## 151. 2026-07-08 user ruling：H01 明确转向“结构识别”，拒绝样本记忆化
+
+用户对 H01 的第一轮人工裁决明确了一个关键边界：目标不是继续累积样本记忆性的映射规则，而是把 ordinary circuit 的识别主链改成更通用的结构算法。
+
+用户确认的 H01 证据：
+
+- first `04 交流回路图1.dwg`：
+  - 当前缺口不是 OCR 或简单缺线，而是系统没有识别左侧连接端子、也没有利用上方装置框/元器件结构产生 scoped endpoint。
+  - 目标关系应类似 `1ID* -> 1n70x`，不能继续把 `701/703/705/...` 作为裸 ordinary endpoint。
+- first `05 交流回路图2.dwg`：
+  - `719/720/721` 不是裸数字缺侧，而是 `3-2ZKK` 结构没有进入识别主链。
+  - 用户给出的代表性真实关系是：`3-2ZKK-6 -> 721`、`3-2ZKK-4 -> 720`、`3-2ZKK-2 -> 719`。
+- first `11 非电量开入回路.dwg`：
+  - 当前 `601/310/309/308/307/210/209/208/207` 这簇 issue 在原图中未被用户确认，不能继续把它们当成可信 ordinary business endpoints。
+  - 用户给出的代表性真实关系是：`5FD25 -> 5n105`、`5FD26 -> 5n132`、`5KLP1-2 -> 5n207`。
+
+裁决：
+
+- H01 已经证明：ordinary-circuit 残余问题的主根因不是“再补几个窄 pair 规则”，而是缺少通用的结构识别组合：
+  - wire topology / 连通性
+  - inline component / device-frame recognition
+  - scoped prefix composition（如 `1n701`、`5n207`）
+  - connected-terminal recognition
+- Phase 98/99 若继续实现，应优先让 T1/T2 能消费这些结构信号；不应把 H01 继续退化成样本级 endpoint 白名单或固定 pair 记忆。
+- H01 仍有部分子项待用户继续裁决：first `08/09/10` 的 `13/14/124/125` 与 first `14/15` 的 `224/222/206`。
+
+## 152. 2026-07-08 ordinary-circuit audit：H01 已收敛到通用结构框架缺口
+
+针对 first `04/05/11` 的 fresh findings、pairs/texts/blocks 坐标和代码链路做并行审计后，H01 的问题已经可以从“若干页的 ordinary missing-side”收敛为同一个通用结构缺口：
+
+- 页面结构共性：
+  - page top / zone top 存在 scoped prefix：`1n`、`1-2n / 3-2n`、`5n`
+  - 报错的三位数字落在内部 local-number 列，不是外侧 external endpoint 列
+  - 真正 external endpoint 都是更外侧的结构化 token：`1ID*`、`1-2ID* / 3-2ID* / 1-2UD* / 3-2UD*`、`5FD* / 5KLP*`
+- 代码链路共性：
+  - 候选阶段只把极窄 grammar 识别成 `wire_logic_endpoint`；大量真实 external endpoint 在 `candidates.py` 中直接走到 `not_numeric`
+  - `wire_components.py` 里的结构化补救已经存在，但 family 过窄，且拆成了多个平行小 extractor
+  - `first_prefixed_external_endpoint_mapping` 被 `first_prefixed_eligible_local_text_ids` 限制，必须先出现错误 ordinary 单侧 pair 才能触发结构化恢复
+
+最重要的工程结论：
+
+- H01 不该再继续靠 page-specific pair 规则、固定 endpoint 白名单或局部 suppress 收口。
+- 更合理的第一刀是新增一个通用 endpoint parser，把 token 统一解析为：
+  - `scope_prefix`
+  - `family_code`
+  - `ordinal`
+  - `local_number`
+- 然后把当前分散的 `component_prefixed`、`input_matrix`、`first_prefixed` 统一抽象成同一个 `prefix-column / row-endpoint / local-number` 结构框架；页面上只要能识别出这三类角色，就直接产出 `wire_component_mapping`，不再依赖 ordinary 错误链兜底。
+
+建议的低风险实现顺序：
+
+1. 扩出通用 endpoint grammar / parser，不再把大量 external endpoint 当 `not_numeric`
+2. 让结构化 family 全量运行，而不是依赖 `first_prefixed_eligible_local_text_ids`
+3. 用页面级布局归纳替代写死的 `external-left/local-right` 和固定 `2.5/75/3` 阈值
+4. 在新框架稳定后，再逐步删除旧的窄 family 和 ordinary 补偿逻辑
+
+裁决：
+
+- H01 已经提供了足够强的证据，支持 Phase 98/99 的第一刀直接落在“parser + family 抽象”上。
+- 这条线与用户要求一致：改进应是通用结构算法，而不是对单套图的记忆式规则。
+
+## 153. 2026-07-08 extractor/pairing：visible scoped prefix 通用 family 落地
+
+基于 H01/H02 的人工裁决与 fresh `texts/pairs` 证据，本轮没有再补页级白名单，而是在 [wire_components.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/wire_components.py) 落了一刀更通用的结构恢复：
+
+- 新增 `scoped_visible_prefix_external_endpoint_mapping`。
+- 识别条件不是“这个 local number 已经在 ordinary missing-side 里报错”，而是：
+  - 页面上有可见 `*n` scoped prefix，如 `1n / 1-2n / 3-2n / 5n / 3-21n`
+  - 同 scope 下存在结构化 external endpoint，如 `1ID4 / 1QD5 / 3-2ID7 / 3-21WD2 / 5FD25`
+  - 中间存在同列 local number，按行和左右列角色组合成逻辑端，例如 `1n701 / 3-2n709 / 5n105`
+- `page_extractors.py` 不再把 `first_prefixed_external_endpoint_mapping` 绑在 `_ordinary_single_sided_text_ids(pairs)` 上；结构化 family 现在全量运行，再由 coverage/rationale 把被覆盖的 ordinary naked-number pair 显式降为 `discard`。
+
+这刀刻意保守：
+
+- `first_prefixed` fallback 仍只允许旧的 `QD/FD` 家族，不直接放宽到全部字母族，避免重新吸入 `DK/YD/FX` 这类还没被证明安全的 token。
+- `input_matrix_wire_mapping` 和 `inline_klp_component_port_mapping` 仍保留独立 family；新 family 会显式避开 `input_matrix` row endpoint 与 `KLP` 这类 inline component body。
+
+验证：
+
+- `python -m pytest -q` -> `308 passed in 6.94s`。
+- first fresh `.tmp/phase98_scoped_prefix_first_audit`：
+  - `pair_count 1581 -> 1705`
+  - `wire_component_mapping 51 -> 175`
+  - `issue_count 117 -> 102`
+  - `ordinary_pair` 计数保持 `728`
+  - 只有 3 个页的 issue 下降：`04 交流回路图1.dwg (6 -> 0)`、`05 交流回路图2.dwg (8 -> 3)`、`06 直流回路图.dwg (7 -> 3)`
+- second fresh `.tmp/phase98_scoped_prefix_second_audit`：
+  - `pair_count 1462 -> 1597`
+  - `wire_component_mapping 245 -> 380`
+  - `issue_count 13 -> 12`
+  - `ordinary_pair` 计数保持 `561`
+  - 唯一变化页是 `06 直流回路图.dwg (5 -> 4)`
+
+目标页证据：
+
+- first `04 交流回路图1.dwg`
+  - 新增 `1ID1 -> 1n701`、`1ID2 -> 1n703`、`1ID3 -> 1n705`、`1ID4 -> 1n702` ... `1ID12 -> 1n712`
+  - 原来 `? -> 701/703/705/707/709/711` 六条 ordinary missing-side 全部变为 `discard`
+- first `05 交流回路图2.dwg`
+  - 新增 `1-2ID1 -> 1-2n701`、`1-2ID4 -> 1-2n702`、`3-2ID1 -> 3-2n701`、`3-2ID4 -> 3-2n702` 等 16 条结构化映射
+  - `701/703/705/707/709` 这一批 ordinary missing-side 被清掉
+  - 剩余 only `719/720/721 -> ?`，与用户人工裁决一致：这已经不是 scoped prefix 列问题，而是 `3-2ZKK` body-port 结构缺口
+- first `06 直流回路图.dwg`
+  - 新增 `1QD5 -> 1n105`、`1QD6 -> 1n132`、`3-2QD12 -> 3-2n105`、`3-2QD13 -> 3-2n132` 等
+  - 四条 `132 -> 132` low-confidence 假自配全部被结构映射覆盖
+  - 还剩三条 `101 -> ?`
+- first `11 非电量开入回路.dwg`
+  - 新增多条 `5FD* -> 5n###`
+  - 但 `601/310/309/308/307/210/209/208/207` 和 `601 -> 602` 没有下降，说明这一页残余已经从“看不见 visible scope prefix”收窄成“inline body-port / topology / KLP 结构”问题
+
+工程结论：
+
+- 这刀证明用户的方向是对的：把 layout 共性抽象成 `scoped prefix + local column + structured endpoint column`，比继续补 ordinary pair 局部规则有效得多。
+- 但它还不是 topology 层。当前没解决的是两类残余：
+  - `ZKK/KLP` 这类 component body + port 的结构识别
+  - 没有 visible prefix 或需要跨块/跨断线连通才能补全的网络问题
+- 因此下一刀不该继续把 `first_prefixed` 放大成“任意字母 family”，而应优先补 inline component/body-port 结构，再进入 `wire_topology` 影子线网。
+
+## 154. 2026-07-08 topology：T1 影子线网已落地，且主链零漂移
+
+本轮已把拓扑轨 T1 真正落到代码和真实样本上，但严格保持“影子先行”。
+
+实现面：
+
+- 新增 [wire_topology.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/wire_topology.py)，构建 raw line 级：
+  - `endpoint_merge`
+  - `t_cross`
+  - `crossing_observation`
+  - `bridge`（`inline_text` / `block_span`）
+- `analyze-project` 现落盘：
+  - `findings/wire_junctions.parquet`
+  - `findings/wire_networks.parquet`
+- `run-audit` 现落盘：
+  - `audit/topology_shadow_report.json`
+  - `audit/topology_shadow_report.md`
+
+验证面：
+
+- `python -m pytest -q` -> `315 passed in 7.03s`。
+- first fresh `.tmp/phase98_topology_first/...`：
+  - `pair_count=1705`
+  - `issue_count=102`
+  - pair kind distribution 与 scoped-prefix 基线完全一致
+  - 新增 `wire_junctions=23148`、`wire_networks=609`
+  - shadow report 对 `37` 条 ordinary missing/low-confidence 候选给出 `37/37 recoverable`
+- second fresh `.tmp/phase98_topology_second/2_2`：
+  - `pair_count=1597`
+  - `issue_count=12`
+  - pair kind distribution 与 scoped-prefix 基线完全一致
+  - 新增 `wire_junctions=18929`、`wire_networks=358`
+  - shadow report 对 `6` 条候选给出 `4/6 recoverable`
+
+工程判断：
+
+- 这证明 T1 已具备进入 Phase 99 灰度切换的证据基础；尤其 first 集剩余 ordinary 缺侧/低置信，在线网层几乎全部可解释。
+- 但 T1 仍然只是 shadow，不是主链 switchover。最后一轮只读代码盘点确认：
+  - 当前主链已有 `line_groups.py` 的 `inline_numeric_bridge`、`page_extractors.py` 的 half-chain continuation、route-specific `wire_component_mapping/component_mapping` 覆盖逻辑；
+  - `wire_topology.py` 里的 `inline_text_bridge` 范围故意更宽、`block_span` 证据故意更弱，不能直接前移替代主链；
+  - Phase 99 的最小挂接点仍应是 `page_extractors.py` 候选构建之后、pair/rule 消费之前，让灰度页把 ordinary endpoint assignment 改为 network 查询，同时保留既有 structured families 与 pair/rule contract。
+
+因此，T1 这一刀已经完成。下一刀不该再补新的 ordinary page-specific 规则，而应把 topology shadow 的可恢复页按灰度名单切入主链。
+
+## 155. 2026-07-08 topology diagnostics：shadow report 必须先判“文本角色”，不能把结构页误当 topology
+
+对 `.tmp/phase98_topology_first/second` 的 shadow report 做逐页回看后，发现初版 T1 报告有一个关键失真：
+
+- 旧逻辑只要看到 `extra_relevant_texts + bridged_gaps`，就把 issue 判为 `recoverable`。
+- 这会把大量其实属于 `scoped local number`、`body-port`、`semantic local` 的结构页误报成“纯 topology 缺口”。
+- first `05/06/11` 与 second `10/14` 都命中了这个问题；它们的 network 上确实挂了很多文本，但那些文本不是“另一侧外部端点”，而是：
+  - `*n` scoped prefix
+  - pure local numerics
+  - `KLP / CLP / ZKK / ZK / KK / FA` 之类元件体或端口体名
+  - 单个端口号 `1..14`
+  - 语义标签或 terminal bypass 文本
+
+因此 T1 的 shadow 结论必须先经过 network text role classification，再决定是否允许进入 Phase 99 灰度切换。
+
+本轮收敛出的角色分类：
+
+- `topology_recoverable_external_endpoint_present`
+  - network 上存在真正的结构化外部端点信号，如 `1ID4`、`1-4QD28`、`1DK-2`
+  - 且同时存在 bridge 或足够的 open-endpoint 拓扑信号
+- `scoped_local_number_cluster`
+  - network 上出现 `*n` scoped prefix 或 `*n###` scoped local endpoint，同时伴随 pure local numerics
+  - 这类问题应回到 scoped-prefix / local-column 结构识别，不应推进 topology gray
+- `body_port_cluster`
+  - network 上出现 `KLP / CLP / ZKK / ZK / KK / FA` 等 body family，并与端口号或 local numerics 混杂
+  - 这类问题应回到 inline component / body-port 结构识别
+- `semantic_local_cluster`
+  - network 上只有 local numerics、语义标签、range/group 文本，没有真正的外部端点信号
+- `no_additional_topology_signal`
+  - network 上没有足够信息，只剩单端口噪声或 bridge 本身
+
+按这个更诚实的分类重跑 report-side audit 后：
+
+- first `.tmp/phase99_shadow_tight_first_audit`
+  - `pair_count=1705`
+  - `issue_count=102`
+  - shadow 从 `37/37 recoverable` 收紧为 `6/37 recoverable`
+  - 仅 first `14/15` 的 6 条 residual 仍属于 `topology_recoverable_external_endpoint_present`
+  - first `05/06/08/09/10/11/25/26/27` 全部被重新归为结构问题，而不是 topology 问题
+- second `.tmp/phase99_shadow_tight_second_audit`
+  - `pair_count=1597`
+  - `issue_count=12`
+  - shadow 从 `4/6 recoverable` 收紧为 `0/6 recoverable`
+  - second `06/10/14` 全部不是 topology gray 候选
+
+工程结论：
+
+- Phase 99 的第一批 gray pages 不该是旧计划里的 first `05/06` 和 second grid pages。
+- 现在唯一可信的 topology T2 起点是 first `14 高操作回路图.dwg` 与 `15 低操作回路图.dwg`。
+- first `05/06/11`、second `06/10/14` 这类页的下一刀应该继续走结构识别能力建设：
+  - scoped prefix + local-number column
+  - inline component / body-port
+  - connected terminal recognition
+  - 必要时再由 topology 辅助，但不能把它们误表述为“纯拓扑已可恢复”
+
+## 156. 2026-07-08 Phase 99 branch-local shadow：我们现在能解释“为什么没抽到”，但还不能诚实地切主链
+
+本轮没有推进 `endpoint_assignment=on`，而是先把 `topology_shadow_report` 从“是否 recoverable”升级成“缺侧行在 branch/row-local 上到底看到了什么”。
+
+新增的 report-side 字段：
+
+- `branch_local_status`
+- `branch_local_reason`
+- `branch_local_missing_side`
+- `branch_local_candidate_count`
+- `branch_local_candidates`
+- `branch_local_contexts`
+
+其判定严格只基于结构，不基于样本记忆：
+
+- 同一 `wire_network`
+- 同一 row / near-row（默认 `3.5`）
+- 缺侧方向必须与 `line_group` 几何侧一致
+- 端点候选仅允许三类角色：
+  - `external_endpoint_candidate`
+  - `body_port_endpoint`
+  - `scoped_local_endpoint`
+- 同 row 但不满足端点候选的结构文本单独进入 `branch_local_contexts`
+
+这刀的意义不是“再降几条 issue”，而是把人审与后续算法切片分开：
+
+- `unique_candidate`
+  - 表示 topology / branch-local 已经给到一个明确同 row 同侧候选，后续才值得考虑灰度接主链
+- `ambiguous_candidates`
+  - 表示 topology 确实找到局部结构，但仍有多候选竞争，不能直接 `on`
+- `context_only`
+  - 表示这里只看到了结构上下文（语义、body、端口号、说明），却没有安全唯一端点；下一刀应继续做结构识别，不应误写成 topology 已可恢复
+- `no_candidate`
+  - 表示当前连局部结构信号都不够
+
+真实样本 rerun 结论非常关键：
+
+- first `.tmp/phase99_branch_local_first_audit`
+  - `candidate_issue_count=37`
+  - `recoverable_issue_count=6`
+  - `branch_local_status_counts={"ambiguous_candidates": 2, "context_only": 33, "not_single_sided": 2}`
+- second `.tmp/phase99_branch_local_second_audit`
+  - `candidate_issue_count=6`
+  - `recoverable_issue_count=0`
+  - `branch_local_status_counts={"context_only": 4, "no_candidate": 2}`
+
+更重要的是 first `14/15` 这 6 条 residual 的真相：
+
+- `PW0413` / `PW0463`（`? -> 224`）
+  - 不再只是“shadow 说 recoverable”
+  - 现在可以明确看到是 `ambiguous_candidates`
+  - 候选分别为：
+    - `1-4QD24` vs `1-4QD5`
+    - `3-4QD24` vs `3-4QD5`
+  - 这说明 topology 已经把范围缩到 branch-local，但还没有缩到唯一可切换级别
+- `PW0417/PW0420/PW0467/PW0470`
+  - 仍只有 `context_only`
+  - 当前同 row 同侧没有安全唯一 structured endpoint
+  - 只能看到 `Closing position`、`TBJ/跳闸线圈` 这类上下文
+
+因此，Phase 99 的工程裁决应更新为：
+
+- 不能因为 T1 shadow 里 first `14/15` 仍属 `topology_recoverable_external_endpoint_present`，就直接把它们视为可 `on`
+- 真正的下一个最小切片应该是：
+  - 继续做 **branch-local narrowing**
+  - 把 `14/15` 从 network 级 recoverable 收窄到 row/branch 级唯一候选
+  - 只有当 `ambiguous_candidates/context_only` 进一步收敛到 `unique_candidate`，才讨论灰度主链切换
+
+这与用户给出的 H01 方向是完全一致的：
+
+- first `04/05/11` 这类页，本质不是 ordinary missing-side，而是 `scoped prefix + local number + external/body-port` 结构没进主链
+- branch-local shadow 现在能把这种判断写成机器可读证据，而不是靠口头解释
+- 但它也诚实地证明：当前 topology 还没有把 `14/15` 缩到足够安全，不能为了追求“看起来要收敛了”而提前切换
+
+## 157. 2026-07-08 Phase 99 anchor narrowing：`224` 已经缩到可接管支路，`222/206` 还没有
+
+在上一轮 branch-local shadow 里，first `14/15` 的 `? -> 224` 还停在：
+
+- `1-4QD24` vs `1-4QD5`
+- `3-4QD24` vs `3-4QD5`
+
+这说明“同 row 同侧结构化文本”仍然过宽。问题不在于没有候选，而在于没有把“真正的端点”与“网络内部同 row 文本”区分开。
+
+本轮继续把 shadow 收窄为 **open-endpoint anchored candidate**：
+
+- 候选仍必须满足：
+  - 同一 `wire_network`
+  - 同 row / near-row
+  - 缺侧方向一致
+- 但额外要求：
+  - 候选必须贴近 **缺侧的 `open_endpoint_junction`**
+  - 否则它只能算 network 内部结构文本，不算可接管 ordinary endpoint
+
+这是个关键的通用约束，因为 T2 的未来主链目标本来就不是“在整个 network 上找看起来像端子的文本”，而是：
+
+- 先找缺侧 open endpoint
+- 再用 `text_assignments` 把该 open endpoint 归属到正确文本
+
+真实样本 rerun 之后，first `14/15` 的状态发生了本质变化：
+
+- first `.tmp/phase99_anchor_first_audit`
+  - `branch_local_status_counts={"context_only": 33, "not_single_sided": 2, "unique_candidate": 2}`
+- second `.tmp/phase99_anchor_second_audit`
+  - `branch_local_status_counts={"context_only": 4, "no_candidate": 2}`
+
+最有价值的条目是：
+
+- `PW0413 ? -> 224`
+  - 由 `ambiguous_candidates` 收敛为 `unique_candidate`
+  - 唯一候选：`1-4QD5`
+  - `open_endpoint_anchor_distance=2.5`
+- `PW0463 ? -> 224`
+  - mirror 同构收敛为 `3-4QD5`
+  - `open_endpoint_anchor_distance=2.5`
+
+也就是说，对这两条我们现在终于能说出一个更像未来主链的话：
+
+- 不是“这个 network 上可能有两个同 row 端子样文本”
+- 而是“缺侧 open endpoint 锚定到 `1-4QD5 / 3-4QD5`，另一个 `*QD24` 只是 network 内部同 row 文本，不该参与 ordinary endpoint takeover”
+
+相对地，`222/206` 这四条仍然没有过线：
+
+- `PW0417/PW0467 ? -> 222`
+  - 仍是 `context_only`
+  - 只能看到 `Closing position`
+- `PW0420/PW0470 ? -> 206`
+  - 仍是 `context_only`
+  - 只能看到 `TBJ / 跳闸线圈`
+
+这里的工程含义非常明确：
+
+- `224` 这两条已经不再是“页级灰度候选”
+  - 它们更像 **支路级 gray candidate**
+  - 如果将来做 T2 `on`，可以考虑只对 `unique_candidate` 分支开放
+- `222/206` 还不是 `on` 候选
+  - 需要更深一层的 branch/path topology
+  - 或者它们最终根本不该回到 ordinary endpoint，而应进入别的结构模式
+
+因此，Phase 99 的正确 next step 不再是：
+
+- “把 first `14/15` 当整页切换”
+
+而应改成：
+
+- “只对已经满足 `network + row + side + open-endpoint anchoring` 的 residual branch 做最小灰度验证”
+
+这一步把 T2 从“页级勇敢切换”改成了“支路级诚实切换”，更符合当前证据，也更符合用户要求的通用结构路线。
+
+## 158. 2026-07-08 H01/H02 用户裁决收口：剩余 backlog 是 scoped-local/body-port 通用能力，不是 ordinary 窄规则
+
+用户在本轮明确补上了 H02 的业务裁决：
+
+- `GND` 在直流页里按语义/地处理，可忽略，不进入 ordinary endpoint 审计。
+- `101/103/105/132` 这一簇必须结合 `*n` 作用域和结构端点解释，不是裸跨页端子号。
+- `132 -> 132` 统一按误配/假自配处理，不是合法同名连接。
+
+把这条业务裁决与 fresh `pairs/text_assignments/topology_shadow_report` 对回去后，H01/H02 的工程结论更清楚了：
+
+- first `04`、`05`、`06`、`11` 共享同一个抽象模式：`scoped prefix + structured external endpoint + local-number/body-port`。
+- 能直接靠 `visible scoped prefix` 解释的行，本轮 dirty tree 已经开始稳定转成 `wire_component_mapping`：
+  - `04`：`1ID* -> 1n70x`
+  - `06`：`1QD5 -> 1n105`、`1QD6 -> 1n132`、`3-2QD12 -> 3-2n105`、`3-2QD13 -> 3-2n132`
+- 因而 first `06` 的四条 `132 -> 132` 已不再是“是否允许同名连接”的问题，而是 scope 丢失后的假自配；剩余 only `101 -> ?`。
+- second `06` 也被影子报告稳定归到 `scoped_local_number_cluster`，说明 residual `101/105` 不该再被理解成 topology gray 候选；它缺的是更通用的 token-role / body-port 识别，而不是 wire-network 接管。
+- first `11` 的 `601/310/.../207` 与 `601 -> 602` 同样已从“visible prefix 缺失”收缩为 `body_port_cluster` 残留，下一刀不该再回 ordinary 窗口启发式。
+
+因此，H01/H02 的 next slice 应继续沿下面这条通用路线推进，而不是回到样本记忆：
+
+- `token role`：区分 `scoped_prefix / structured_external_endpoint / component_body / port_number / local_number / semantic_ground`
+- `slot composition`：组合 `scope + local_number` 与 `component_body + port_number`
+- `relation inference`：同 row / 同 scope / 同 network 下优先产出结构化 mapping，ordinary 裸数字只留兜底
+
+仍需用户最终拍板的业务边界也继续缩小，只剩：
+
+- `124/125`、`10/13/14`、`501/507/710` 是否统一按局部号，不裸进 ordinary
+- `H03/H04/H05` 是否默认 internal，只有补足 scope 后仍互斥才 user-visible
+- `H07` 是否继续只为 `PWF224/PWF234/PWF243/KK2P` 做最小符号截图裁决
+
+## 159. 2026-07-08 通用 body-port 抽取已落地：`05` 关闭、`11` 大幅收缩、`06` 只剩语义簇
+
+本轮没有回到 ordinary 邻近窗口启发式，而是直接把旧 `inline_klp` 提升成通用的 `body + port + supported side branch` 结构抽取器：
+
+- family 仍然显式，只承认当前已知的结构语义：
+  - `KLP`：奇数口在左，偶数口在右，右侧三位数局部号归一化为 `*n###`
+  - `ZKK`：奇偶口按 body-port 直接发 pair，右侧局部号保留原值，左侧显式端子样文本保留原值
+- 不再要求“整行左右都齐全”才产出 pair
+  - 因此 first `11` 这类一侧挂总线、一侧才有局部号的 `KLP` 行终于可以只发 `-2 -> *n###`
+  - first/second `05` 这类多行 `ZKK` 终于可以按 `2/4/6` 或 `1..6` 逐端子位发结构化 pair
+
+验证结果非常干净：
+
+- first fresh `.tmp/phase100_body_port_first_v2/...`
+  - `pair_count 1705 -> 1717`
+  - `wire_component_mapping 175 -> 187`
+  - `ordinary_pair 728 -> 728` 不变
+  - `issue_count 102 -> 91`
+  - 所有下降都体现在 `R-PAIR-MISSING-SIDE 35 -> 24`
+- second fresh `.tmp/phase100_body_port_second/...`
+  - `pair_count 1597 -> 1615`
+  - `wire_component_mapping 380 -> 398`
+  - `ordinary_pair 561 -> 561` 不变
+  - `issue_count 12 -> 12` 不变
+
+这说明本轮是典型的“补结构、消费旧裸 ordinary”，不是 hide/filter/severity-only：
+
+- 没有删 ordinary pair graph
+- 没有把别的 pair_kind 压回去
+- 只是让更多旧裸局部号被结构化 `wire_component_mapping` 覆盖后诚实 discard
+
+最关键的页面级结果：
+
+- first `05 交流回路图2.dwg`
+  - 原 `3` 条 missing-side residual 已归零
+  - 新命中：
+    - `1-2ZKK-2/4/6 -> 719/720/721`
+    - `3-2ZKK-2/4/6 -> 719/720/721`
+- first `11 非电量开入回路.dwg`
+  - 原 `10` 条 residual 收缩到 `2`
+  - 新命中：
+    - `5KLP1-2 -> 5n207`
+    - `5KLP2-2 -> 5n208`
+    - `5KLP3-2 -> 5n209`
+    - `...`
+    - `5KLP10-2 -> 5n112`
+- second `05 交流回路图2.dwg`
+  - 通用 `ZKK` family 也自动触发，说明这刀不是 first-set 记忆规则
+  - 例如：
+    - `3-21ZKK-1 -> 3-21UD1`
+    - `3-21ZKK-2 -> 715`
+    - `3-21ZKK-3 -> 3-21UD2`
+    - `...`
+    - `3-21ZKK-6 -> 719`
+
+本轮还发现并修掉了一个很有价值的泛化陷阱：
+
+- 初版把 inline port token 放宽到两位数后，在真实样本 first `11` 错生出 `5KLP10-13 -> 5FD4`
+- 这证明“更通用”不等于“更宽松”；对当前 `KLP/ZKK` family，端子位本身仍应受 family 语义约束
+- 于是最终把 port token 收紧为单字符 `1..6`，保留泛化能力，同时杀掉假阳性
+
+结论：
+
+- H01 这条线上，`05` 已经不再需要人盯 ordinary residual
+- `11` 只剩两条真正值得继续审：
+  - `PW0284 ? -> 601`
+  - `PW0285 601 -> 602`
+- H02 这条线上，first `06` 已经只剩用户已裁定的 `101 -> ?` 语义簇；如果继续推进，下一刀更像“generic semantic-ground policy / display layering”，而不是继续补 body-port 几何

@@ -312,6 +312,50 @@ def test_mark_input_matrix_covered_ordinary_pairs_discards_first_prefixed_extern
     assert "prefixed external local number" in ordinary.rationale
 
 
+def test_mark_input_matrix_covered_ordinary_pairs_discards_scoped_visible_prefix_local_number_pair() -> None:
+    ordinary = _pair({}, right_text_id="LOCAL701")
+    component_pair = _pair(
+        {
+            "component_submode": "scoped_visible_prefix_external_endpoint_mapping",
+            "local_number_text_id": "LOCAL701",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="EXT1",
+        right_text_id="LOCAL701",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_scoped_visible_prefix_external_endpoint_mapping"] is True
+    assert "scoped local number" in ordinary.rationale
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_discards_inline_body_port_local_number_pair() -> None:
+    ordinary = _pair({}, right_text_id="LOCAL207")
+    component_pair = _pair(
+        {
+            "component_submode": "inline_klp_component_port_mapping",
+            "local_number_text_id": "LOCAL207",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="PORT2",
+        right_text_id="LOCAL207",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_inline_klp_component_port_mapping"] is True
+    assert "inline body-port mapping" in ordinary.rationale
+
+
 def test_mark_input_matrix_covered_ordinary_pairs_keeps_first_prefixed_external_endpoint_pair() -> None:
     ordinary = _pair({}, right_text_id="EXT1")
     component_pair = _pair(

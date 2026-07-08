@@ -35,6 +35,7 @@ _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
 _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|UX'?|3U0'?)$", re.IGNORECASE),
 )
+_SCHEMATIC_AC_PHASE_SEMANTIC_PHRASE_PATTERNS: tuple[re.Pattern[str], ...] = ()
 _SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^BI\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
     re.compile(r"^开入\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
@@ -807,9 +808,15 @@ def _candidate_schematic_semantic_endpoint_value(
     sheet: SheetRecord | None,
     orientation: str,
 ) -> str | None:
-    if _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation) is None:
+    detail = _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation)
+    if detail is None:
         return None
-    return _normalize_schematic_semantic_endpoint_value(text.normalized_text.strip())
+    normalized = text.normalized_text.strip()
+    if detail == "schematic_ac_phase_label":
+        phase = _extract_schematic_ac_phase_endpoint(normalized)
+        if phase is not None:
+            return phase
+    return _normalize_schematic_semantic_endpoint_value(normalized)
 
 
 def _candidate_schematic_semantic_endpoint_detail(
@@ -835,7 +842,7 @@ def _candidate_schematic_semantic_endpoint_detail(
         return "schematic_network_time_label"
     if (
         any(marker in sheet_context for marker in ("交流", "AC", "CT AND VT", "VOLTAGE", "CURRENT"))
-        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS)
+        and _extract_schematic_ac_phase_endpoint(normalized) is not None
     ):
         return "schematic_ac_phase_label"
     if (
@@ -855,6 +862,18 @@ def _normalize_schematic_semantic_endpoint_value(normalized: str) -> str:
     value = re.sub(r"\s*/\s*", "/", normalized.strip())
     value = re.sub(r"\s+", " ", value)
     return value
+
+
+def _extract_schematic_ac_phase_endpoint(normalized: str) -> str | None:
+    stripped = normalized.strip()
+    for pattern in _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS:
+        if pattern.fullmatch(stripped):
+            return stripped.upper()
+    for pattern in _SCHEMATIC_AC_PHASE_SEMANTIC_PHRASE_PATTERNS:
+        matched = pattern.fullmatch(stripped)
+        if matched is not None:
+            return matched.group("phase").upper()
+    return None
 
 
 def _is_terminal_strip_mode(sheet: SheetRecord | None, orientation: str) -> bool:

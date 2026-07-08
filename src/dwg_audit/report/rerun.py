@@ -8,6 +8,8 @@ from typing import Any
 import pandas as pd
 
 from dwg_audit.audit import build_issues
+from dwg_audit.audit.wire_topology import build_topology_shadow_report
+from dwg_audit.audit.wire_topology import render_topology_shadow_report_markdown
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
@@ -64,6 +66,23 @@ def rerun_audit_from_findings(
     audit_dir.mkdir(parents=True, exist_ok=True)
 
     issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
+    topology_shadow_payload = build_topology_shadow_report(
+        issues_frame=issues_frame,
+        pairs_frame=frames.get("pairs", pd.DataFrame()),
+        line_groups_frame=frames.get("line_groups", pd.DataFrame()),
+        wire_networks_frame=frames.get("wire_networks", pd.DataFrame()),
+        wire_junctions_frame=frames.get("wire_junctions", pd.DataFrame()),
+        text_assignments_frame=frames.get("text_assignments", pd.DataFrame()),
+        config=config,
+    )
+    (audit_dir / "topology_shadow_report.json").write_text(
+        json.dumps(topology_shadow_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (audit_dir / "topology_shadow_report.md").write_text(
+        render_topology_shadow_report_markdown(topology_shadow_payload),
+        encoding="utf-8",
+    )
     export_existing_reports(project_dir)
     if event_sink is not None:
         event_sink.emit(
@@ -83,6 +102,8 @@ def rerun_audit_from_findings(
             "audit_report.md",
             "audit_report.html",
             "issues.xlsx",
+            "topology_shadow_report.json",
+            "topology_shadow_report.md",
         ):
             copy2(audit_dir / name, output_dir / name)
         return output_dir

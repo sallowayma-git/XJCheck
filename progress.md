@@ -3449,3 +3449,417 @@
   - `06 直流回路图.dwg` DK/ZD/3-21n structure missing-side cluster.
   - first `05 交流回路图2.dwg` extremely narrow row-band endpoint inference.
   - Default user problem list vs internal review evidence layering as a separate slice.
+
+## Session Update 2026-07-07 (Topology track T0-T4 planned, per-issue narrow-rule mainline superseded)
+- Context: user reviewed the overall state (second fresh issue 13, first 117, 301 tests green including uncommitted AC phrase-label work in `candidates.py`) and confirmed the strategic diagnosis: recent ~50 phases are sample memorization, not recognition capability; the common root cause of missing-side / half-chain / row-band symptoms is the absence of a connectivity model.
+- Decisions (user-confirmed):
+  - Mainline switches from per-issue narrow rules to the topology track T0-T4; narrow slices are only allowed again when the topology track proves a gap is not a connectivity/symbol/table-structure problem.
+  - No standalone human-labeling effort. Ground truth = entity coverage contract (machine-checkable) + per-page agent adjudication against DXF + human spot arbitration. Assignments double as future ML/GNN weak labels.
+- Docs written this session (append-only, no concurrent edits reverted, nothing staged):
+  - `task_plan.md`: Current Phase -> Phase 97; two new Decisions rows; Phase 96 marked superseded (A/B -> T1/T2, C -> T4, D -> T4); new detailed Phase 97-101 entries (T0 coverage contract, T1 wire network shadow builder, T2 endpoint assignment gray switchover, T3 symbol library bootstrap, T4 rules shrink & display layering).
+  - `doc/任务书.md`: new section 18.7 with coverage contract semantics + `text_assignments` schema, `wire_junctions`/`wire_networks` schema with electrical merge constraints (crossing does NOT merge by default), T0-T4 table with hard boundaries and acceptance gates, agent audit protocol (recovery reading list, DXF-first fan-out, per-entity adjudication template, >=3-page escalation rule, human arbitration boundary), agent development rules (one root cause per slice, shadow-first, IdFactory, zero-drift migration), 8-step test/anti-cheating ladder, named redline relation list, and linkage to Phase 96 / M11 / GNN preconditions; 18.5 got a pointer paragraph.
+- Next executable step: Phase 97 (T0) — read-only audit of existing explanation traces, then implement `src/dwg_audit/audit/coverage.py` + `text_assignments.parquet` + `entity_coverage_summary` with zero drift on both real-sample fresh runs.
+
+## Session Update 2026-07-08 (Phase 97 Topology T0 entity coverage contract)
+- Started from HEAD `6fc050b`; preserved protected untracked `doc/page_findings/` and `doc/page_task_queue.md`.
+- Reviewed the concurrent partial T0 work and found an intermediate mismatch: old `.tmp/phase97_baseline_*` coverage parquet used stale names such as `candidate_explained`, `structured_mapping`, and `extraction_gap`, while `findings.json` still had an empty `entity_coverage_summary`.
+- Implementation:
+  - Moved the coverage contract module to `src/dwg_audit/audit/coverage.py`.
+  - Added fixed-schema `text_assignments.parquet` and `entity_coverage_summary.parquet`.
+  - Added `findings.json` / `findings.md` coverage summary fields: `unexplained_numeric_texts`, `unassigned_wire_segments`, `unclassified_blocks`, assignment-kind counts, out-of-scope reason counts, and contract checks.
+  - Kept candidates, pairs, rules, extractors, and classifiers unchanged.
+- Verification:
+  - `python -m pytest -q tests\unit\test_coverage.py tests\unit\test_report_artifacts.py tests\integration\test_analyze_project.py -k "coverage or findings or artifacts or page"` -> `31 passed, 11 deselected`.
+  - `python -m pytest -q` -> `305 passed`.
+  - second fresh `.tmp/phase97_coverage_second_v2_audit`: `pair_count=1462`, `issue_count=13`, pair kind distribution unchanged: `ordinary_pair=561`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=191`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`.
+  - first fresh `.tmp/phase97_coverage_first_v2_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged: `ordinary_pair=728`, `table_mapping=299`, `continuation=231`, `component_mapping=150`, `semantic_mapping=119`, `wire_component_mapping=51`, `bridge_mapping=3`.
+- Coverage baselines:
+  - second: `total_texts=4795`, `audit_scope_texts=2484`, `assigned_texts=2484`, `unexplained_texts=0`, `unexplained_numeric_texts=0`, `unassigned_wire_segments=5305`, `unclassified_blocks=1126`, `out_of_scope_texts=2311`, `coverage_ratio=1.0`, `identity_ok=True`.
+  - first: `total_texts=5076`, `audit_scope_texts=3169`, `assigned_texts=3169`, `unexplained_texts=0`, `unexplained_numeric_texts=0`, `unassigned_wire_segments=6868`, `unclassified_blocks=1034`, `out_of_scope_texts=1907`, `coverage_ratio=1.0`, `identity_ok=True`.
+  - Both runs have `suspicious_out_of_scope_expansion=False` and `single_assignment_per_text=True`.
+- Queue output for Phase 98:
+  - `.tmp/phase97_coverage_queue/second_page_gap_queue.csv`
+  - `.tmp/phase97_coverage_queue/second_unexplained_text_queue.csv`
+  - `.tmp/phase97_coverage_queue/first_page_gap_queue.csv`
+  - `.tmp/phase97_coverage_queue/first_unexplained_text_queue.csv`
+- Next step: Phase 98 T1 shadow wire-network builder. Text-side unexplained queues are empty because rejected candidates are explicit explanations under the T0 priority order; T1 should start from the page gap queues, especially high `unassigned_wire_segments` pages.
+
+## Session Update 2026-07-08 (Phase 98 human arbitration packet)
+- User requested a full pass over both projects to identify what requires human labeling before continuing extraction/topology development.
+- Read current Phase97 fresh findings/audit outputs and generated machine-readable supporting details:
+  - `.tmp/phase98_human_review/first_issue_detail.csv`
+  - `.tmp/phase98_human_review/second_issue_detail.csv`
+  - `.tmp/phase98_human_review/first_block_name_counts.csv`
+  - `.tmp/phase98_human_review/second_block_name_counts.csv`
+- Created `doc/human_arbitration_phase98.md`.
+- The arbitration packet compresses current issue/noise into seven human decision clusters:
+  - H01 ordinary wire missing-side / broken physical row connectivity.
+  - H02 DC page `101/103/105/132` endpoint semantics.
+  - H03 component diagram one-to-many / many-to-one mapping semantics.
+  - H04 backplate table shared endpoint / cross-page scope semantics.
+  - H05 terminal header table multi-endpoint / shared endpoint semantics.
+  - H06 local small-number endpoint vs local-port/row/semantic-number semantics.
+  - H07 high-frequency unclassified block family labeling.
+- No extraction code or rules were changed in this packet.
+
+## Session Update 2026-07-08 (Phase 98 subagent pre-review convergence)
+- Ran four read-only subagents in parallel to pre-audit the Phase 98 human packet against `doc/任务书.md` and representative page previews.
+- Converged understanding:
+  - `H01` splits into true topology-recoverable wire connectivity gaps (`04/05/14/15` style bare numbers on real conductors) versus scoped/local-number misuse (`05` `719/720/721`, first `08/09/10` `13/14`, parts of first `11`).
+  - `H02` is primarily a scoped-prefix problem, not a raw topology gap: `101/103/105/132` should likely be completed with local `*n` / `DK/GD/QD` context; `132 -> 132` looks like false self-pairing after scope loss.
+  - `H03` current `component_mapping` extraction is broadly correct; most one-to-many / many-to-one is normal comma-split branching or shared endpoints and should default to `internal`.
+  - `H04/H05` current table reviews are mostly scope/display problems, not strong user-visible conflicts; the missing dimensions are `page-device instance`, `subtable`, `header_text_id/x-span`, `table_instance`, and `endpoint_column_role`.
+  - `H06` local small numbers `10/13/14` behave like row/port/contact numbers; bare `710/501/507` need full prefix/context and should not enter `ordinary_pair` naked.
+  - `H07` high-frequency unclassified blocks already separate into likely wire-bridge families (`PWF165/231/191/194`) and endpoint-bearing symbol families (`PWF224/234/243`, `FJL-25-2A_Mirror`, `KK2P`).
+- Human review scope was narrowed in `doc/human_arbitration_phase98.md`:
+  - Spot-check `PW0107` (`132 -> 132`) and `PW0108` (`101 -> ?`) for the H02 scoped-endpoint rule.
+  - Decide whether `124/125`, `10/13/14`, and `501/507/710` belong to the same “local/scoped number, not naked ordinary endpoint” policy.
+  - Confirm H03/H04/H05 default layering policy: `internal` unless fully scoped relations still conflict.
+  - If approved, next symbol-library input should be only 7 family-level screenshot labeling tasks, not page-by-page annotation.
+- Closed the four subagents after collecting their final results. No code/tests were run in this review-only step.
+
+## Session Update 2026-07-08 (User ruling received: H01 partial)
+- User confirmed the strategic goal explicitly: we should not build memorized labels or memorized per-sample algorithms; the ordinary-circuit path needs more general structural recognition.
+- H01 partial ruling captured in `doc/human_arbitration_phase98.md`:
+  - first `04 交流回路图1.dwg`: current failures are due to missing left-side terminal recognition and missing upper device/component structural recognition; desired output is structured relations of the form `1ID* -> 1n70x`, not naked `701/703/...`.
+  - first `05 交流回路图2.dwg`: `719/720/721` cluster should be explained by `3-2ZKK` structural recognition; user-provided representative relations are `3-2ZKK-6 -> 721`, `3-2ZKK-4 -> 720`, `3-2ZKK-2 -> 719`.
+  - first `11 非电量开入回路.dwg`: user did not find the current `601/310/309/308/307/210/209/208/207` naked-number cluster in the original drawing; current output should be treated as extraction/binding failure rather than a trusted business issue cluster. Representative intended relations: `5FD25 -> 5n105`, `5FD26 -> 5n132`, `5KLP1-2 -> 5n207`.
+- Engineering implication recorded for T1/T2/T3:
+  - move ordinary-circuit extraction away from “nearby naked number” heuristics toward a generic combination of wire topology, device/symbol structure recognition, scoped-prefix composition, and connected-terminal identification.
+- Remaining H01 subitems still pending user reply:
+  - first `08/09/10` `13/14/124/125`
+  - first `14/15` `224/222/206`
+- No code/tests were run in this doc-only update.
+
+## Session Update 2026-07-08 (Ordinary-circuit generic audit converged for H01)
+- Ran one read-only data explorer and one read-only code explorer in parallel against first `04/05/11`.
+- Data-side convergence:
+  - All three pages expose a stable `scoped prefix + local-number column + external-endpoint column` structure rather than true naked endpoint semantics.
+  - `04` uses `1n` plus outer `1ID*` columns; issue numbers `701/703/705/707/709/711` sit on an internal local-number column near repeated `PWF165/PWF229` symbols.
+  - `05` uses mirrored `1-2n` and `3-2n` zones; issue numbers `701/703/705/707/709/719/720/721` are internal local numbers, while true external endpoints are `1-2ID* / 3-2ID* / 1-2UD* / 3-2UD*`.
+  - `11` uses `5n`; current issue numbers `601/207/208/209/210/307/308/309/310` fall on an internal local-number column, while true structured endpoints are `5FD*` and `5KLP*`.
+- Code-side convergence:
+  - The failure happens before `pairs.py`: candidate extraction only recognizes a very narrow external-endpoint grammar, so many real external endpoints are rejected as `not_numeric`.
+  - Existing structured recovery in `wire_components.py` is fragmented into narrow families: `component_prefixed_signal_circuit`, `input_matrix_wire_mapping`, `first_prefixed_external_endpoint_mapping`, `inline_klp_component_port_mapping`.
+  - `first_prefixed_external_endpoint_mapping` is additionally gated by `first_prefixed_eligible_local_text_ids`, meaning it only runs for locals that already appeared in an erroneous ordinary single-sided pair.
+- Engineering implication:
+  - The next generic slice should start with a reusable endpoint parser and a unified `prefix-column / row-endpoint / local-number` framework, not page-specific endpoint whitelists.
+  - Planned low-risk order: parser/grammar -> full-run structured family detection -> remove ordinary single-sided gate -> only then simplify old narrow families.
+- No code/tests were run in this audit step; results were written to `doc/human_arbitration_phase98.md` and `doc/findings.md`.
+
+## Session Update 2026-07-08 (Phase 98 generic scoped visible prefix recovery slice)
+- Goal of this slice:
+  - Convert the H01/H02 common pattern from “ordinary naked number missing-side” into explicit `wire_component_mapping`, using a generic `visible scoped prefix + local-number column + structured external-endpoint column` layout rather than sample-memorized endpoint rules.
+  - Keep `first_prefixed` fallback conservative (`QD/FD` only) and stop gating it on existing ordinary single-sided failures.
+- Implementation:
+  - In `src/dwg_audit/audit/wire_components.py` added a generic scoped parser:
+    - `scope-prefix`: `1n / 1-2n / 3-2n / 5n / 3-21n`
+    - `structured external endpoint`: `1ID4 / 1QD5 / 3-2ID7 / 3-21WD2 / 5FD25 ...`
+  - Added new submode `scoped_visible_prefix_external_endpoint_mapping`:
+    - requires visible `*n` prefix above the local-number column;
+    - pairs same-row structured endpoint to the composed logical endpoint such as `1ID1 -> 1n701`, `1-2ID4 -> 1-2n702`, `5FD25 -> 5n105`;
+    - explicitly excludes `input_matrix` rows and inline component body families such as `KLP`, so the new family does not steal the existing matrix/KLP paths.
+  - In `src/dwg_audit/audit/page_extractors.py` removed the runtime gate that only allowed `first_prefixed_external_endpoint_mapping` when the local text had already surfaced in an ordinary single-sided pair.
+  - Extended coverage/rationale helpers so ordinary pairs covered by the new submode are discarded with explicit `covered_by_scoped_visible_prefix_external_endpoint_mapping` evidence.
+  - Added targeted unit coverage in:
+    - `tests/unit/test_wire_components.py`
+    - `tests/unit/test_page_extractors.py`
+- Verification:
+  - `python -m pytest -q tests\\unit\\test_wire_components.py` -> `14 passed`
+  - `python -m pytest -q tests\\unit\\test_page_extractors.py -k "input_matrix_covered or schematic_ac_phase or inline_wire_split"` -> `12 passed, 3 deselected`
+  - `python -m pytest -q` -> `308 passed in 6.94s`
+- Fresh real-sample evidence:
+  - first `.tmp/phase98_scoped_prefix_first_audit`:
+    - `pair_count 1581 -> 1705`
+    - `ordinary_pair` unchanged at `728`
+    - `wire_component_mapping 51 -> 175`
+    - `issue_count 117 -> 102`
+    - `R-PAIR-MISSING-SIDE 46 -> 35`
+    - `R-PAIR-LOW-CONFIDENCE 6 -> 2`
+    - only changed issue pages: `04 交流回路图1.dwg (6 -> 0)`, `05 交流回路图2.dwg (8 -> 3)`, `06 直流回路图.dwg (7 -> 3)`
+  - first targeted behavior:
+    - `04` now emits twelve structured pairs such as `1ID1 -> 1n701` ... `1ID12 -> 1n712`; the six previous ordinary missing-side issues disappear.
+    - `05` now emits sixteen structured pairs for the `701/703/705/707/709` and mirrored `702/704/706` rows across both `1-2n` and `3-2n` zones; only `719/720/721` remain, matching the user’s judgment that the unresolved residual is really the `3-2ZKK` body-port structure, not another naked-number column issue.
+    - `06` now converts the scoped DC rows into structured pairs such as `1QD5 -> 1n105`, `1QD6 -> 1n132`, `3-2QD13 -> 3-2n132`; all four `132 -> 132` low-confidence/self-scope artifacts disappear, leaving only the three `101 -> ?` rows unresolved.
+    - `11` gains many new `5FD* -> 5n###` relations, but `601/310/309/308/307/210/209/208/207` and `601 -> 602` remain unresolved; this confirms the residual is not “missing visible scope prefix” anymore, but likely inline component / body-port / topology logic around `KLP`-style rows.
+  - second `.tmp/phase98_scoped_prefix_second_audit`:
+    - `pair_count 1462 -> 1597`
+    - `ordinary_pair` unchanged at `561`
+    - `wire_component_mapping 245 -> 380`
+    - `issue_count 13 -> 12`
+    - only changed issue page: `06 直流回路图.dwg (5 -> 4)`
+    - newly added structured rows include `3-21WD1 -> 3-21n607`, `3-21WD2 -> 3-21n608`, `3-21DK1 -> 3-21n103`, `1-21GD20 -> 1-21n132`; the remaining residual is still the bare `101/105` cluster.
+- Anti-cheating / drift audit:
+  - Both projects keep `ordinary_pair` counts unchanged; the reduction comes from reclassifying existing naked-number ordinary reviews to `discard` once a structured `wire_component_mapping/pass` exists, not from deleting ordinary pairs or hiding issues.
+  - first ordinary diff is limited to `20` pre-existing ordinary pairs:
+    - `PW0005/PW0008/PW0011/PW0015/PW0018/PW0021`
+    - `PW0070/PW0073/PW0080/PW0083/PW0088/PW0091/PW0094/PW0097/PW0100/PW0103`
+    - `PW0107/PW0132/PW0149/PW0160`
+  - second ordinary diff is limited to `PW0118/PW0119`.
+  - No non-target page gained issues.
+- Conclusions:
+  - This slice confirms the user’s H01 diagnosis: the main blocker was not more narrow pair rules, but the absence of a generic scoped-prefix structural family.
+  - The slice is intentionally incomplete. It does not solve:
+    - `05` `719/720/721` (`3-2ZKK` body-port structure)
+    - `11` `601/310/.../207` and `601 -> 602`
+    - topology-only gaps where no visible scoped prefix or structured endpoint column exists
+  - The next high-value slice should target inline component/body-port structure and then wire topology shadowing, not broaden `first_prefixed` fallback to every letter family.
+
+## Session Update 2026-07-08 (Phase 98 T1 shadow wire-network landed with zero drift)
+- Implemented `src/dwg_audit/audit/wire_topology.py` as a strict shadow layer:
+  - endpoint-merge junctions;
+  - orthogonal `t_cross`;
+  - default non-merging `crossing_observation`;
+  - inline-text and block-span bridge junctions;
+  - per-network `member_line_ids / junction_ids / open_endpoint_junctions / bridged_gaps / touched_text_ids / line_group_ids / bbox / total_length`.
+- Integrated analyze-stage artifact writing:
+  - `findings/wire_junctions.parquet`
+  - `findings/wire_networks.parquet`
+- Integrated audit-stage shadow report writing:
+  - `audit/topology_shadow_report.json`
+  - `audit/topology_shadow_report.md`
+- Added topology config defaults in `src/dwg_audit/utils/config.py`:
+  - `junction_snap_tolerance`
+  - `cross_axis_tolerance`
+  - `bridge_gap_tolerance`
+  - `inline_text_bridge_gap`
+  - `block_span_bridge_gap`
+  - `text_touch_tolerance`
+  - `merge_crossings=false`
+- Added test coverage:
+  - `tests/unit/test_wire_topology.py` -> `7 passed`
+  - `tests/unit/test_report_artifacts.py -k "creates_findings_outputs"` -> `1 passed`
+  - `tests/unit/test_rerun_audit.py` -> `2 passed`
+  - `python -m pytest -q` -> `315 passed in 7.03s`
+- Fresh real-sample zero-drift validation:
+  - first `.tmp/phase98_topology_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`:
+    - `pair_count=1705`
+    - `issue_count=102`
+    - `pair_kind_counts` unchanged from scoped-prefix baseline:
+      - `ordinary_pair=728`
+      - `wire_component_mapping=175`
+      - `table_mapping=299`
+      - `semantic_mapping=119`
+      - `continuation=231`
+      - `component_mapping=150`
+      - `bridge_mapping=3`
+    - new shadow artifacts:
+      - `wire_junctions=23148`
+      - `wire_networks=609`
+      - `topology_shadow_report`: `37` candidate ordinary missing/low-confidence issues, `37/37` marked recoverable
+  - second `.tmp/phase98_topology_second/2_2`:
+    - `pair_count=1597`
+    - `issue_count=12`
+    - `pair_kind_counts` unchanged from scoped-prefix baseline:
+      - `ordinary_pair=561`
+      - `wire_component_mapping=380`
+      - `table_mapping=174`
+      - `semantic_mapping=191`
+      - `continuation=204`
+      - `component_mapping=84`
+      - `bridge_mapping=3`
+    - new shadow artifacts:
+      - `wire_junctions=18929`
+      - `wire_networks=358`
+      - `topology_shadow_report`: `6` candidate issues, `4/6` marked recoverable
+- Human-review implications tightened further:
+  - H01/H02 visual subagent audit confirms `04/05/06` are mixed `scoped local number + body-port` pages, not ordinary naked-endpoint pages.
+  - H07 block-family preclassification is already good enough to defer full screenshot labeling for `PWF165/PWF231`; next mandatory human symbol checks can focus on `PWF224/PWF234/PWF243` and pin-map confirmation for `KK2P`.
+
+## Session Update 2026-07-08 (T1 code-audit convergence: shadow is ready, mainline hook is Phase 99)
+- A final read-only code explorer audited `line_groups.py`, `page_extractors.py`, `pairs.py`, `wire_components.py`, `component_diagrams.py`, `wire_topology.py`, `models.py`, and `config.py`.
+- Converged engineering boundary:
+  - T1 is now correctly landed as a report-side shadow topology layer.
+  - It writes `wire_junctions/wire_networks` during `analyze-project` and `topology_shadow_report` during `run-audit`, but does not yet alter candidate search or pair selection.
+  - The minimal future mainline switchover point remains `page_extractors.py` after route-specific structured mappings and before final pair/rule consumption.
+- Key caution flags carried into Phase 99:
+  - shadow `inline_text_bridge` is intentionally broader than current mainline `inline_numeric_bridge`; do not promote it directly without narrowing.
+  - shadow `block_span` currently uses insert-point evidence only and must not replace existing stronger `wire_component_mapping` / `component_mapping` semantics.
+  - `row_band_id` and `Pair.evidence` semantics are already contractual and must remain zero-drift when topology starts feeding the mainline.
+
+## Session Update 2026-07-08 (T1 shadow truthfulness tightened; Phase 99 gray pages reselected)
+- Tightened `src/dwg_audit/audit/wire_topology.py` shadow diagnostics so report-side recoverability is no longer driven by the loose rule `extra_relevant_text + bridge => recoverable`.
+- Added role-based network text classification inside the shadow report path:
+  - `topology_recoverable_external_endpoint_present`
+  - `scoped_local_number_cluster`
+  - `body_port_cluster`
+  - `semantic_local_cluster`
+  - `no_additional_topology_signal`
+- Heuristic inputs now combine:
+  - `text_assignments.assignment_kind`
+  - `candidate_channel / rejection_reason / explain_reason`
+  - token shape such as scoped `*n`, scoped `*n###`, pure local numerics, single-port numerics `1..14`, body families like `KLP/CLP/ZKK/ZK/KK/FA`, and scoped structured endpoints like `1ID4 / 1-4QD28 / 1DK-2`.
+- Added focused unit coverage in `tests/unit/test_wire_topology.py` for:
+  - true topology-recoverable external endpoint case
+  - scoped-local false positive
+  - body-port false positive
+  - bridge + single-port noise false positive
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `30 passed`
+  - `python -m pytest -q` -> `318 passed in 8.47s`
+- Real-sample rerun on existing T1 findings:
+  - first `run-audit --findings .tmp/phase98_topology_first/.../findings --output .tmp/phase99_shadow_tight_first_audit`
+    - `pair_count=1705`
+    - `issue_count=102`
+    - shadow `37/37 recoverable -> 6/37 recoverable`
+    - reason split: `body_port_cluster=26`, `scoped_local_number_cluster=3`, `semantic_local_cluster=2`, `topology_recoverable_external_endpoint_present=6`
+    - only true topology-recoverable pages left: `14 高操作回路图.dwg` and `15 低操作回路图.dwg` (all 6 residual issues)
+  - second `run-audit --findings .tmp/phase98_topology_second/2_2/findings --output .tmp/phase99_shadow_tight_second_audit`
+    - `pair_count=1597`
+    - `issue_count=12`
+    - shadow `4/6 recoverable -> 0/6 recoverable`
+    - reason split: `body_port_cluster=1`, `scoped_local_number_cluster=2`, `semantic_local_cluster=1`, `no_additional_topology_signal=2`
+- Engineering consequence:
+  - Phase 99 gray switchover must not start from `05/06/11` or second `06/10/14`; those pages are structural extraction problems, not plain topology gaps.
+  - The first legitimate T2 gray candidates are now narrowed to first `14/15`.
+
+## Session Update 2026-07-08 (Phase 99 branch-local shadow proposals: explain first, switchover later)
+- Extended `src/dwg_audit/audit/wire_topology.py` so `topology_shadow_report` now emits per-issue branch-local diagnostics:
+  - `branch_local_status`
+  - `branch_local_reason`
+  - `branch_local_missing_side`
+  - `branch_local_candidate_count`
+  - `branch_local_candidates`
+  - `branch_local_contexts`
+- Scope boundary stayed strict:
+  - no edits to `candidates.py`, `page_extractors.py`, `pairs.py`
+  - no pair graph / issue behavior changes
+  - only report-side shadow explanation was enriched
+- Selection logic is deliberately narrow and structural:
+  - same network
+  - same row / near-row (`branch_local_row_y_tolerance` default `3.5`)
+  - missing-side direction check from `line_group.start_x/end_x`
+  - endpoint-like roles only (`external_endpoint_candidate`, `body_port_endpoint`, `scoped_local_endpoint`)
+  - non-endpoint same-row texts are retained separately as `branch_local_contexts`
+- New synthetic coverage in `tests/unit/test_wire_topology.py`:
+  - unique same-row structured candidate
+  - scoped-local cluster with unique row candidate but non-topology root cause
+  - body-port cluster with context-only result
+  - single-port noise => `no_candidate`
+  - ambiguous same-row structured candidates (`1-4QD24` vs `1-4QD5`)
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `11 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `31 passed`
+  - `python -m pytest -q` -> `319 passed in 11.92s`
+- Real-sample rerun on existing findings roots:
+  - first `.tmp/phase99_branch_local_first_audit`
+    - `candidate_issue_count=37`
+    - `recoverable_issue_count=6`
+    - `branch_local_status_counts={"ambiguous_candidates": 2, "context_only": 33, "not_single_sided": 2}`
+    - `PW0413/PW0463 (? -> 224)` now explicitly surface ambiguity:
+      - first side: `1-4QD24` vs `1-4QD5`
+      - mirror side: `3-4QD24` vs `3-4QD5`
+    - `PW0417/PW0420/PW0467/PW0470` stay `context_only`; no safe same-row same-side structured endpoint was found
+  - second `.tmp/phase99_branch_local_second_audit`
+    - `candidate_issue_count=6`
+    - `recoverable_issue_count=0`
+    - `branch_local_status_counts={"context_only": 4, "no_candidate": 2}`
+- Engineering conclusion:
+  - this slice strengthens the human-audit loop and gives concrete per-issue structure clues
+  - it does **not** justify enabling Phase 99 `endpoint_assignment=on` yet
+  - first `14/15` still need one more branch-local narrowing slice before any mainline switchover
+
+## Session Update 2026-07-08 (Phase 99 anchor narrowing: 224 is now unique, 222/206 are still context-only)
+- Continued the Phase 99 shadow track without touching mainline pairing:
+  - `build_topology_shadow_report()` now also consumes `wire_junctions`
+  - branch-local endpoint candidates are additionally scored against compatible missing-side `open_endpoint_junctions`
+  - only candidates within the configured anchor distance/tolerance are considered "truly take-over-ready"
+- This is a structural refinement, not a sample memory rule:
+  - still same network
+  - still same row / near-row
+  - still same missing-side direction
+  - but now adds the generic electrical constraint "candidate must actually sit on a missing-side open endpoint branch"
+- New test coverage:
+  - ambiguous same-row candidates with shared anchor remain ambiguous
+  - a `224`-style pattern with one far internal candidate and one open-endpoint candidate now collapses to a single anchored candidate
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `12 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `32 passed`
+  - `python -m pytest -q` -> `320 passed in 7.34s`
+- Real-sample rerun:
+  - first `.tmp/phase99_anchor_first_audit`
+    - `candidate_issue_count=37`
+    - `recoverable_issue_count=6`
+    - `branch_local_status_counts={"context_only": 33, "not_single_sided": 2, "unique_candidate": 2}`
+    - `PW0413 ? -> 224` => `unique_candidate`, reason `single_same_side_open_endpoint_anchored_candidate`, candidate `1-4QD5`, anchor distance `2.5`
+    - `PW0463 ? -> 224` => mirror `unique_candidate`, candidate `3-4QD5`, anchor distance `2.5`
+    - `PW0417/PW0420/PW0467/PW0470` remain `context_only`
+  - second `.tmp/phase99_anchor_second_audit`
+    - `candidate_issue_count=6`
+    - `recoverable_issue_count=0`
+    - `branch_local_status_counts={"context_only": 4, "no_candidate": 2}`
+- Engineering consequence:
+  - the first viable Phase 99 switchover unit is no longer "page 14/15"
+  - it is now "only those residual branches that already resolve to `unique_candidate` under network + row + side + open-endpoint anchoring"
+  - `222/206` still need deeper branch/path topology or a different structural mode; they are not yet eligible for any honest `on` switchover
+
+## Session Update 2026-07-08 (H01/H02 裁决收口与并发代码审计)
+- Synced the latest user rulings:
+  - `H02`: `GND` rows are ignorable semantic/ground evidence, `101/103/105/132` must be completed with scoped prefix/context, and `132 -> 132` is an extraction error rather than a valid same-name connection.
+  - `H01`: `04/05/11` remain a generic `scoped prefix + structured external endpoint + local-number/body-port` problem, not a request for sample-specific ordinary rules.
+- Re-checked fresh `pairs.parquet`, `text_assignments.parquet`, and `topology_shadow_report.json`:
+  - first `06` already shows the right structural direction in the current dirty tree: `1QD5 -> 1n105`, `1QD6 -> 1n132`, `3-2QD12 -> 3-2n105`, `3-2QD13 -> 3-2n132`; all four `132 -> 132` artifacts are covered, leaving only three `101 -> ?`.
+  - second `06` still sits in `scoped_local_number_cluster`; `3-21n`/`GND`/local-number rows are present, so the residual `101/105` issues are not honest topology candidates.
+  - first `11` residual `601/310/.../207` plus `601 -> 602` now look like `body_port_cluster` fallout around `KLP/FD` rows rather than missing visible prefix.
+- Read the concurrent dirty-tree diffs before editing:
+  - `wire_components.py` already contains a generic `scoped_visible_prefix_external_endpoint_mapping` slice.
+  - `page_extractors.py` already removes the `first_prefixed` recovery gate that depended on existing ordinary single-sided pairs.
+  - `candidates.py` current dirty diff is unrelated to this H01/H02 audit except for semantic phrase scaffolding; I did not overwrite it.
+- Decision from this session:
+  - keep this turn's write set to planning/arbitration docs only;
+  - the next implementation slice should target generic token-role/body-port structure for the remaining `719/720/721`, `101 -> ?`, and `601/310/...` clusters, not another ordinary-window heuristic.
+- Verification: no new code was changed in this session, so I did not rerun pytest here.
+
+## Session Update 2026-07-08 (Generic body-port extractor landed: one-sided KLP + multi-row ZKK)
+- Implemented the next H01/H02 structural slice in `wire_components.py` instead of `candidates.py`:
+  - generalized the old `inline_klp` row matcher into a generic inline body-port extractor for `KLP/ZKK`
+  - emits per-port `wire_component_mapping` when there is a supported same-row side branch; no longer requires both sides of the row to be complete
+  - keeps family semantics explicit instead of sample memory:
+    - `KLP`: odd port = left, even port = right, numeric right locals normalize to `*n###`
+    - `ZKK`: odd/even body ports are emitted directly as `body-port -> local/endpoint`
+- Tightened the structure contract after a real-sample false positive audit:
+  - initial wide `1..99` port token gate produced a bad pair `5KLP10-13 -> 5FD4`
+  - narrowed inline port tokens back to single-digit `1..6`, which matches current `KLP/ZKK` family semantics and removed the false positive without losing intended hits
+- Extended ordinary coverage consumption in `page_extractors.py`:
+  - `inline_klp_component_port_mapping`
+  - `inline_body_port_mapping`
+  - bare local-number ordinary pairs covered by these structured mappings now discard honestly instead of staying user-visible
+- New synthetic coverage:
+  - `tests/unit/test_wire_components.py`
+    - one-sided `KLP`: `5KLP1-2 -> 5n207`
+    - multi-row `ZKK`: `3-2ZKK-2/4/6 -> 719/720/721`
+  - `tests/unit/test_page_extractors.py`
+    - inline body-port covered local number discards old ordinary residuals
+- Verification:
+  - targeted:
+    - `python -m pytest -q tests\unit\test_wire_components.py tests\unit\test_page_extractors.py` -> `32 passed`
+    - `python -m pytest -q tests\integration\test_analyze_project.py -k "inline_klp_component_port_mapping or component_prefixed_signal_circuit_mapping"` -> `2 passed`
+  - full:
+    - `python -m pytest -q` -> `323 passed in 31.57s`
+- Fresh real-sample verification:
+  - first fresh `.tmp/phase100_body_port_first_v2/...` + `.tmp/phase100_body_port_first_v2_audit`
+    - `pair_count: 1705 -> 1717`
+    - `wire_component_mapping: 175 -> 187`
+    - `ordinary_pair: 728 -> 728` unchanged
+    - `issue_count: 102 -> 91`
+    - `R-PAIR-MISSING-SIDE: 35 -> 24`
+    - submodes: `scoped_visible_prefix_external_endpoint_mapping=106`, `inline_body_port_mapping=6`, `inline_klp_component_port_mapping=12`, `first_prefixed_external_endpoint_mapping=37`, `component_prefixed_signal_circuit=26`
+    - first `05 交流回路图2.dwg`: `3` residual missing-side issues -> `0`; new structured hits include `1-2ZKK-2/4/6 -> 719/720/721` and `3-2ZKK-2/4/6 -> 719/720/721`
+    - first `11 非电量开入回路.dwg`: `10` issues -> `2`; new structured hits include `5KLP1-2 -> 5n207`, `5KLP2-2 -> 5n208`, `...`, `5KLP10-2 -> 5n112`
+    - remaining first residuals are honest:
+      - `PW0284 ? -> 601`
+      - `PW0285 601 -> 602`
+      - first `06` still has `PW0120/PW0141/PW0158 = 101 -> ?` only
+  - second fresh `.tmp/phase100_body_port_second/...` + `.tmp/phase100_body_port_second_audit`
+    - `pair_count: 1597 -> 1615`
+    - `wire_component_mapping: 380 -> 398`
+    - `ordinary_pair: 561 -> 561` unchanged
+    - `issue_count: 12 -> 12` unchanged
+    - submodes: `schematic_wire_logic_endpoint=77`, `scoped_visible_prefix_external_endpoint_mapping=135`, `input_matrix_wire_mapping=168`, `inline_body_port_mapping=12`, `inline_klp_component_port_mapping=6`
+    - generic `ZKK` family now also appears on second-set `05 交流回路图2.dwg`, e.g. `3-21ZKK-1 -> 3-21UD1`, `3-21ZKK-2 -> 715`, `...`, `3-21ZKK-6 -> 719`
+- Engineering consequence:
+  - the H01 ordinary backlog is no longer “naked number everywhere”; `05` is now structurally closed, `11` is mostly closed, and `06` is reduced to the user-ruled semantic `101 -> ?` cluster
+  - next structural work should narrow to:
+    - whether first `06` `101 -> ?` should be downgraded/ignored via generic semantic-ground policy
+    - whether first `11` `? -> 601` / `601 -> 602` belong to another structure family or should be removed from default user-visible ordinary audit

@@ -190,6 +190,8 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
     assert (audit_dir / "audit_report.md").exists()
     assert (audit_dir / "audit_report.html").exists()
     assert (audit_dir / "issues.xlsx").exists()
+    assert (audit_dir / "topology_shadow_report.json").exists()
+    assert (audit_dir / "topology_shadow_report.md").exists()
 
     issues_json = json.loads((audit_dir / "issues.json").read_text(encoding="utf-8"))
     assert len(issues_json) == 1
@@ -233,6 +235,8 @@ def test_rerun_audit_from_findings_copies_outputs_to_output_dir(tmp_path: Path, 
         "audit_report.md",
         "audit_report.html",
         "issues.xlsx",
+        "topology_shadow_report.json",
+        "topology_shadow_report.md",
     ):
         assert (audit_dir / name).exists()
         assert (output_dir / name).exists()
