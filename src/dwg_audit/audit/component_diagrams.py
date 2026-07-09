@@ -20,9 +20,11 @@ _SMALL_PORT_BOX_BLOCK_PORTS = {
     "KK2P": {"1", "2", "3", "4"},
     "JR-01": {"1", "2"},
 }
-_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:KLP|CLP)\d+$", re.IGNORECASE)
+_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:KLP|CLP|ZLP)\d+$", re.IGNORECASE)
 _KK_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?[A-Za-z]{1,5}\d*$", re.IGNORECASE)
 _SMALL_PORT_BOX_BODY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z']{0,4}$", re.IGNORECASE)
+_STRIP_ENDPOINT_BRIDGE_TOP_PATTERN = re.compile(r"^(?P<prefix>\d+-\d+)ZK-(?P<port>\d+)$", re.IGNORECASE)
+_STRIP_ENDPOINT_BRIDGE_BOTTOM_PATTERN = re.compile(r"^(?P<prefix>\d+-\d+)n(?P<number>\d{3,})$", re.IGNORECASE)
 _EXTERNAL_ENDPOINT_PATTERN = re.compile(
     r"^(?:\d+(?:-\d+)?[A-Za-z]{1,4}\d+(?:-\d+)?|[A-Za-z]{1,4}\d+(?:-\d+)?)$",
     re.IGNORECASE,
@@ -130,6 +132,59 @@ def extract_strip_two_port_component_pairs(
                 continue
             consumed_group_ids.add(support_group.line_group_id)
             pairs.extend(built_pairs)
+    return pairs, consumed_group_ids
+
+
+def extract_strip_two_port_endpoint_bridge_pairs(
+    pages: list[SheetRecord],
+    texts: list[TextItem],
+    line_groups: list[LineGroup],
+    *,
+    pair_id_factory: IdFactory | None = None,
+) -> tuple[list[Pair], set[str]]:
+    """Recover direct ZK-to-n endpoint bridges on strip two-port component blocks."""
+
+    pair_ids = pair_id_factory or IdFactory("PCM")
+    texts_by_sheet: dict[str, list[TextItem]] = {}
+    for text in texts:
+        texts_by_sheet.setdefault(text.sheet_id, []).append(text)
+    groups_by_sheet: dict[str, list[LineGroup]] = {}
+    for group in line_groups:
+        groups_by_sheet.setdefault(group.sheet_id, []).append(group)
+
+    pairs: list[Pair] = []
+    consumed_group_ids: set[str] = set()
+    for page in pages:
+        if not _supports_strip_two_port_component(page):
+            continue
+        sheet_texts = texts_by_sheet.get(page.sheet_id, [])
+        sheet_groups = groups_by_sheet.get(page.sheet_id, [])
+        for port_top, port_bottom in _strip_port_pairs(sheet_texts):
+            top_endpoint = _nearest_strip_endpoint_bridge_endpoint(port_top, sheet_texts, side="top")
+            bottom_endpoint = _nearest_strip_endpoint_bridge_endpoint(port_bottom, sheet_texts, side="bottom")
+            if top_endpoint is None or bottom_endpoint is None:
+                continue
+            top_value = _clean_external_endpoint(top_endpoint.normalized_text)
+            bottom_value = _clean_external_endpoint(bottom_endpoint.normalized_text)
+            if not _is_valid_strip_endpoint_bridge(top_value, bottom_value):
+                continue
+            support_group = _nearest_supporting_vertical_group(port_top, port_bottom, sheet_groups)
+            if support_group is None:
+                continue
+            consumed_group_ids.add(support_group.line_group_id)
+            pairs.append(
+                _build_strip_endpoint_bridge_pair(
+                    page=page,
+                    port_top=port_top,
+                    port_bottom=port_bottom,
+                    top_endpoint=top_endpoint,
+                    bottom_endpoint=bottom_endpoint,
+                    top_value=top_value,
+                    bottom_value=bottom_value,
+                    support_group=support_group,
+                    pair_ids=pair_ids,
+                )
+            )
     return pairs, consumed_group_ids
 
 
@@ -737,6 +792,53 @@ def _nearest_strip_external_endpoints(
     return best_text, best_values
 
 
+def _nearest_strip_endpoint_bridge_endpoint(
+    port: TextItem,
+    texts: list[TextItem],
+    *,
+    side: str,
+) -> TextItem | None:
+    candidates = []
+    for text in texts:
+        if text.source_block_name:
+            continue
+        if text.layer.upper() == "MARK":
+            continue
+        value = _clean_external_endpoint(text.normalized_text)
+        if side == "top":
+            if _STRIP_ENDPOINT_BRIDGE_TOP_PATTERN.fullmatch(value) is None:
+                continue
+        elif _STRIP_ENDPOINT_BRIDGE_BOTTOM_PATTERN.fullmatch(value) is None:
+            continue
+        if abs(text.insert_x - port.insert_x) > _ENDPOINT_X_TOL:
+            continue
+        if side == "top":
+            if not (_TOP_ENDPOINT_Y_MIN_GAP <= text.insert_y - port.insert_y <= _TOP_ENDPOINT_Y_MAX_GAP):
+                continue
+        else:
+            if not (_BOTTOM_ENDPOINT_Y_MIN_GAP <= port.insert_y - text.insert_y <= _BOTTOM_ENDPOINT_Y_MAX_GAP):
+                continue
+        candidates.append(text)
+    if not candidates:
+        return None
+    return sorted(
+        candidates,
+        key=lambda item: (
+            abs(item.insert_x - port.insert_x),
+            abs(item.insert_y - port.insert_y),
+            item.text_id,
+        ),
+    )[0]
+
+
+def _is_valid_strip_endpoint_bridge(top_value: str, bottom_value: str) -> bool:
+    top_match = _STRIP_ENDPOINT_BRIDGE_TOP_PATTERN.fullmatch(top_value)
+    bottom_match = _STRIP_ENDPOINT_BRIDGE_BOTTOM_PATTERN.fullmatch(bottom_value)
+    if top_match is None or bottom_match is None:
+        return False
+    return top_match.group("prefix").lower() == bottom_match.group("prefix").lower()
+
+
 def _strip_external_endpoint_values(value: str | None) -> list[str]:
     cleaned = _clean_external_endpoint(value)
     if not cleaned:
@@ -969,6 +1071,84 @@ def _build_small_port_box_pair(
         right_coord_x=endpoint_x,
         right_coord_y=endpoint_y,
         pair_key=f"{logical_endpoint}->{endpoint_value}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="component_mapping",
+    )
+
+
+def _build_strip_endpoint_bridge_pair(
+    *,
+    page: SheetRecord,
+    port_top: TextItem,
+    port_bottom: TextItem,
+    top_endpoint: TextItem,
+    bottom_endpoint: TextItem,
+    top_value: str,
+    bottom_value: str,
+    support_group: LineGroup,
+    pair_ids: IdFactory,
+) -> Pair:
+    evidence = {
+        "source": "component_mapping",
+        "pair_kind": "component_mapping",
+        "component_submode": "strip_two_port_endpoint_bridge",
+        "filename": page.filename,
+        "sheet_no": page.sheet_no,
+        "sheet_order": page.sheet_order,
+        "sheet_title": page.sheet_title,
+        "component_block_name": port_top.source_block_name,
+        "top_port": port_top.normalized_text,
+        "top_port_text_id": port_top.text_id,
+        "top_port_coord": [port_top.insert_x, port_top.insert_y],
+        "bottom_port": port_bottom.normalized_text,
+        "bottom_port_text_id": port_bottom.text_id,
+        "bottom_port_coord": [port_bottom.insert_x, port_bottom.insert_y],
+        "top_endpoint": top_value,
+        "top_endpoint_raw": top_endpoint.normalized_text,
+        "top_endpoint_text_id": top_endpoint.text_id,
+        "top_endpoint_coord": [top_endpoint.insert_x, top_endpoint.insert_y],
+        "bottom_endpoint": bottom_value,
+        "bottom_endpoint_raw": bottom_endpoint.normalized_text,
+        "bottom_endpoint_text_id": bottom_endpoint.text_id,
+        "bottom_endpoint_coord": [bottom_endpoint.insert_x, bottom_endpoint.insert_y],
+        "logical_endpoint": top_value,
+        "external_endpoint": bottom_value,
+        "line_group_id": support_group.line_group_id,
+        "supporting_line_ids": support_group.member_line_ids,
+        "line_orientation": "strip_two_port_endpoint_bridge_vertical",
+        "left_side_label": "top_endpoint",
+        "right_side_label": "bottom_endpoint",
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_ids.next(),
+        line_group_id=support_group.line_group_id,
+        sheet_id=page.sheet_id,
+        file_id=page.file_id,
+        selected_pair_candidate_id=None,
+        left_value=top_value,
+        right_value=bottom_value,
+        confidence=_PAIR_CONFIDENCE,
+        status="pass",
+        rationale="Strip two-port endpoint bridge: top ZK endpoint associated with bottom n endpoint.",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=top_endpoint.text_id,
+        right_text_id=bottom_endpoint.text_id,
+        left_coord_x=top_endpoint.insert_x,
+        left_coord_y=top_endpoint.insert_y,
+        right_coord_x=bottom_endpoint.insert_x,
+        right_coord_y=bottom_endpoint.insert_y,
+        pair_key=f"{top_value}->{bottom_value}",
         left_score=1.0,
         right_score=1.0,
         wire_score=1.0,

@@ -91,6 +91,31 @@ def test_extract_component_prefixed_signal_pairs_builds_logical_endpoint_mapping
     assert first.evidence["component_prefix"] == "1-2n"
 
 
+def test_extract_component_prefixed_signal_pairs_builds_scoped_visible_prefix_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("P1", "1n", 165.0, 279.5),
+        _make_text("L1", "701", 135.6, 265.6),
+        _make_text("E1", "1ID1", 80.0, 267.0),
+        _make_text("L2", "702", 190.1, 265.6),
+        _make_text("E2", "1ID4", 207.5, 267.5),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts)
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1ID1", "1n701"),
+        ("1ID4", "1n702"),
+    }
+    first = next(pair for pair in pairs if pair.left_value == "1ID1")
+    assert first.status == "pass"
+    assert first.pair_kind == "wire_component_mapping"
+    assert first.evidence["component_submode"] == "scoped_visible_prefix_external_endpoint_mapping"
+    assert first.evidence["scoped_prefix"] == "1n"
+    assert first.evidence["external_endpoint"] == "1ID1"
+    assert first.evidence["logical_endpoint"] == "1n701"
+
+
 def test_extract_component_prefixed_signal_pairs_builds_input_matrix_wire_mapping() -> None:
     sheet = _make_sheet()
     texts = [
@@ -145,6 +170,144 @@ def test_extract_component_prefixed_signal_pairs_requires_input_matrix_gate() ->
     assert extract_component_prefixed_signal_pairs([missing_prefix_sheet], texts[2:]) == []
 
 
+def test_extract_component_prefixed_signal_pairs_builds_first_prefixed_external_endpoint_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("E1", "1QD5", 110.0, 229.2),
+        _make_text("N1", "105", 135.6, 228.2),
+        _make_text("E2", "1-2QD12", 110.0, 190.0),
+        _make_text("N2", "105", 136.0, 189.2),
+        _make_text("E3", "3-2QD12", 110.0, 150.0),
+        _make_text("N3", "105", 136.0, 149.2),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts)
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {
+        ("1QD5", "1n105"),
+        ("1-2QD12", "1-2n105"),
+        ("3-2QD12", "3-2n105"),
+    }
+    first = next(pair for pair in pairs if pair.left_value == "1QD5")
+    assert first.status == "pass"
+    assert first.pair_kind == "wire_component_mapping"
+    assert first.evidence["component_submode"] == "first_prefixed_external_endpoint_mapping"
+    assert first.evidence["external_endpoint"] == "1QD5"
+    assert first.evidence["local_number"] == "105"
+    assert first.evidence["logical_endpoint"] == "1n105"
+
+
+def test_extract_component_prefixed_signal_pairs_builds_fd_first_prefixed_external_endpoint_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("E1", "5FD25", 135.0, 262.0),
+        _make_text("N1", "105", 155.6, 260.7),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        first_prefixed_eligible_local_text_ids={"N1"},
+    )
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {("5FD25", "5n105")}
+    first = pairs[0]
+    assert first.evidence["component_submode"] == "first_prefixed_external_endpoint_mapping"
+    assert first.evidence["external_endpoint"] == "5FD25"
+    assert first.evidence["local_number"] == "105"
+    assert first.evidence["logical_endpoint"] == "5n105"
+
+
+def test_extract_component_prefixed_signal_pairs_prefers_visible_scope_over_first_prefixed_fallback() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("P1", "5n", 185.0, 279.5),
+        _make_text("E1", "5FD25", 135.0, 262.0),
+        _make_text("N1", "105", 155.6, 260.7),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts)
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {("5FD25", "5n105")}
+    assert len(pairs) == 1
+    assert pairs[0].evidence["component_submode"] == "scoped_visible_prefix_external_endpoint_mapping"
+
+
+def test_extract_component_prefixed_signal_pairs_filters_first_prefixed_by_eligible_local_text_ids() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("E1", "1QD5", 110.0, 229.2),
+        _make_text("N1", "105", 135.6, 228.2),
+        _make_text("E2", "1QD6", 110.0, 210.0),
+        _make_text("N2", "132", 136.0, 209.2),
+        _make_text("E3", "5FD25", 110.0, 190.0),
+        _make_text("N3", "105", 136.0, 189.2),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        first_prefixed_eligible_local_text_ids={"N1"},
+    )
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {("1QD5", "1n105")}
+
+
+def test_extract_component_prefixed_signal_pairs_keeps_input_matrix_separate_from_first_prefixed() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("MP1", "1-21n", 120.0, 274.5),
+        _make_text("MP2", "1-21n", 180.0, 274.5),
+        _make_text("RE1", "1-21QD12", 70.0, 87.12),
+        _make_text("N1", "127", 90.6, 85.67),
+        _make_text("RE2", "1-21QD28", 70.0, 120.0),
+        _make_text("N2", "212", 90.6, 119.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts)
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {
+        ("1-21QD12", "1-21n127"),
+        ("1-21QD28", "1-21n212"),
+    }
+    assert all(
+        pair.evidence["component_submode"] == "input_matrix_wire_mapping"
+        for pair in pairs
+    )
+
+
+def test_extract_component_prefixed_signal_pairs_rejects_unapproved_first_prefixed_letters() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("E1", "5DK25", 110.0, 229.2),
+        _make_text("N1", "105", 135.6, 228.2),
+        _make_text("E2", "5YD25", 110.0, 210.0),
+        _make_text("N2", "106", 136.0, 209.2),
+        _make_text("E3", "5FX25", 110.0, 190.0),
+        _make_text("N3", "107", 136.0, 189.2),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        first_prefixed_eligible_local_text_ids={"N1", "N2", "N3"},
+    )
+
+    assert pairs == []
+
+
+def test_extract_component_prefixed_signal_pairs_requires_secondary_sheet_for_first_prefixed() -> None:
+    sheet = _make_sheet(sheet_category="一次接线图")
+    texts = [
+        _make_text("E1", "1QD5", 110.0, 229.2),
+        _make_text("N1", "105", 135.6, 228.2),
+    ]
+
+    assert extract_component_prefixed_signal_pairs([sheet], texts) == []
+
+
 def test_extract_component_prefixed_signal_pairs_builds_inline_klp_port_mapping() -> None:
     sheet = _make_sheet()
     texts = [
@@ -185,6 +348,65 @@ def test_extract_component_prefixed_signal_pairs_builds_inline_klp_port_mapping(
     assert first.evidence["supporting_line_ids"]
 
 
+def test_extract_component_prefixed_signal_pairs_supports_single_sided_inline_klp_local_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("B1", "5KLP1", 115.0, 231.625),
+        _make_text("P1", "1", 109.374302, 227.252793),
+        _make_text("P2", "2", 119.374302, 227.252793),
+        _make_text("E1", "207", 155.622905, 230.657933),
+    ]
+
+    lines = [
+        _make_line("L1", 120.0, 230.0, 157.5, 230.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts, lines)
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("5KLP1-2", "5n207"),
+    }
+    first = pairs[0]
+    assert first.evidence["component_submode"] == "inline_klp_component_port_mapping"
+    assert first.evidence["local_number"] == "207"
+    assert first.evidence["local_number_text_id"] == "E1"
+    assert first.evidence["endpoint_side"] == "right"
+
+
+def test_extract_component_prefixed_signal_pairs_builds_inline_zkk_body_port_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("B1", "3-2ZKK", 315.0, 153.65),
+        _make_text("P1", "1", 304.374302, 150.934916),
+        _make_text("P2", "2", 324.374302, 150.941899),
+        _make_text("E1", "719", 335.625, 150.605016),
+        _make_text("P3", "3", 304.374302, 140.927933),
+        _make_text("P4", "4", 324.374302, 140.941899),
+        _make_text("E2", "720", 335.625, 140.605016),
+        _make_text("P5", "5", 304.374302, 130.941899),
+        _make_text("P6", "6", 324.374302, 130.927933),
+        _make_text("E3", "721", 335.625, 130.632793),
+    ]
+
+    lines = [
+        _make_line("L1", 325.0, 150.0, 337.5, 150.0),
+        _make_line("L2", 325.0, 140.0, 337.5, 140.0),
+        _make_line("L3", 325.0, 130.0, 337.5, 130.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts, lines)
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("3-2ZKK-2", "719"),
+        ("3-2ZKK-4", "720"),
+        ("3-2ZKK-6", "721"),
+    }
+    first = next(pair for pair in pairs if pair.left_value == "3-2ZKK-2")
+    assert first.evidence["component_submode"] == "inline_body_port_mapping"
+    assert first.evidence["component_family"] == "ZKK"
+    assert first.evidence["local_number_text_id"] == "E1"
+
+
 def test_extract_component_prefixed_signal_pairs_requires_inline_klp_line_evidence() -> None:
     sheet = _make_sheet()
     texts = [
@@ -200,18 +422,16 @@ def test_extract_component_prefixed_signal_pairs_requires_inline_klp_line_eviden
     assert pairs == []
 
 
-def test_extract_component_prefixed_signal_pairs_requires_complete_inline_klp_row() -> None:
+def test_extract_component_prefixed_signal_pairs_keeps_unanchored_inline_local_number_row() -> None:
     sheet = _make_sheet()
     texts = [
         _make_text("B1", "1KLP1", 130.0, 105.0),
         _make_text("P1", "1", 120.0, 100.0),
-        _make_text("E1", "1QD2", 90.0, 105.5),
         _make_text("P2", "2", 140.0, 100.0),
         _make_text("E2", "116", 170.0, 111.0),
     ]
 
     lines = [
-        _make_line("L1", 92.0, 100.0, 120.0, 100.0),
         _make_line("L2", 140.0, 100.0, 168.0, 100.0),
     ]
 

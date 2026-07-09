@@ -4,7 +4,9 @@ from collections import defaultdict
 import re
 
 from dwg_audit.audit.candidates import _CHANNEL_CONTINUATION
+from dwg_audit.audit.candidates import _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
 from dwg_audit.audit.candidates import _CHANNEL_TERMINAL_NUMERIC
+from dwg_audit.audit.candidates import _CHANNEL_WIRE_LOGIC_ENDPOINT
 from dwg_audit.audit.candidates import _looks_like_terminal_semantic_marker
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -44,6 +46,8 @@ def build_pairs(
         left_side, right_side = _pair_side_labels(group)
         left = _accepted_sorted(by_group_side[(group.line_group_id, left_side)])[:top_k]
         right = _accepted_sorted(by_group_side[(group.line_group_id, right_side)])[:top_k]
+        left, right = _scope_wire_logic_endpoint_candidates(left, right)
+        left, right = _scope_schematic_semantic_endpoint_candidates(left, right)
         group_pair_candidates: list[PairCandidate] = []
 
         if not left or not right:
@@ -251,9 +255,40 @@ def _accepted_sorted(candidates: list[TerminalCandidate]) -> list[TerminalCandid
         for item in candidates
         if item.status == "accepted"
         and item.value
-        and item.channel == _CHANNEL_TERMINAL_NUMERIC
+        and item.channel
+        in {
+            _CHANNEL_TERMINAL_NUMERIC,
+            _CHANNEL_WIRE_LOGIC_ENDPOINT,
+            _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT,
+        }
     ]
     return sorted(accepted, key=lambda item: item.score, reverse=True)
+
+
+def _scope_wire_logic_endpoint_candidates(
+    left: list[TerminalCandidate],
+    right: list[TerminalCandidate],
+) -> tuple[list[TerminalCandidate], list[TerminalCandidate]]:
+    left_has_numeric = any(item.channel == _CHANNEL_TERMINAL_NUMERIC for item in left)
+    right_has_numeric = any(item.channel == _CHANNEL_TERMINAL_NUMERIC for item in right)
+    if not right_has_numeric:
+        left = [item for item in left if item.channel != _CHANNEL_WIRE_LOGIC_ENDPOINT]
+    if not left_has_numeric:
+        right = [item for item in right if item.channel != _CHANNEL_WIRE_LOGIC_ENDPOINT]
+    return left, right
+
+
+def _scope_schematic_semantic_endpoint_candidates(
+    left: list[TerminalCandidate],
+    right: list[TerminalCandidate],
+) -> tuple[list[TerminalCandidate], list[TerminalCandidate]]:
+    left_has_numeric = any(item.channel == _CHANNEL_TERMINAL_NUMERIC for item in left)
+    right_has_numeric = any(item.channel == _CHANNEL_TERMINAL_NUMERIC for item in right)
+    if not right_has_numeric:
+        left = [item for item in left if item.channel != _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT]
+    if not left_has_numeric:
+        right = [item for item in right if item.channel != _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT]
+    return left, right
 
 
 def _pair_side_labels(group: LineGroup) -> tuple[str, str]:
@@ -329,6 +364,31 @@ def _pair_evidence(
         "alternative_pair_candidate_ids": alternative_ids or [],
         "pair_kind": "ordinary_pair",
     }
+    evidence.update(
+        _schematic_wire_logic_endpoint_mapping(
+            sheet=sheet,
+            selected=selected,
+            left_candidate=left_candidate,
+            right_candidate=right_candidate,
+        )
+    )
+    evidence.update(
+        _schematic_semantic_endpoint_mapping(
+            sheet=sheet,
+            selected=selected,
+            left_candidate=left_candidate,
+            right_candidate=right_candidate,
+        )
+    )
+    evidence.update(
+        _single_sided_schematic_semantic_annotation(
+            sheet=sheet,
+            selected=selected,
+            left_candidate=left_candidate,
+            right_candidate=right_candidate,
+            group_candidates=group_candidates,
+        )
+    )
     evidence.update(
         _terminal_continuation_semantics(
             group=group,
@@ -437,6 +497,152 @@ def _terminal_continuation_semantics(
         left_candidate=left_candidate,
         right_candidate=right_candidate,
     )
+
+
+def _schematic_wire_logic_endpoint_mapping(
+    *,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> dict[str, object]:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return {}
+    if not selected.left_value or not selected.right_value:
+        return {}
+    if left_candidate is None or right_candidate is None:
+        return {}
+
+    left_is_logic = left_candidate.channel == _CHANNEL_WIRE_LOGIC_ENDPOINT
+    right_is_logic = right_candidate.channel == _CHANNEL_WIRE_LOGIC_ENDPOINT
+    if left_is_logic == right_is_logic:
+        return {}
+
+    logic_candidate = left_candidate if left_is_logic else right_candidate
+    numeric_candidate = right_candidate if left_is_logic else left_candidate
+    if numeric_candidate.channel != _CHANNEL_TERMINAL_NUMERIC:
+        return {}
+
+    logic_endpoint = selected.left_value if left_is_logic else selected.right_value
+    numeric_endpoint = selected.right_value if left_is_logic else selected.left_value
+    logic_side = "left" if left_is_logic else "right"
+    numeric_side = "right" if left_is_logic else "left"
+    return {
+        "source": "wire_component_mapping",
+        "pair_kind": "wire_component_mapping",
+        "component_submode": "schematic_wire_logic_endpoint",
+        "logical_endpoint": logic_endpoint,
+        "logical_endpoint_text_id": logic_candidate.text_id,
+        "logical_endpoint_raw": logic_candidate.text,
+        "logical_endpoint_side": logic_side,
+        "numeric_endpoint": numeric_endpoint,
+        "numeric_endpoint_text_id": numeric_candidate.text_id,
+        "numeric_endpoint_raw": numeric_candidate.text,
+        "numeric_endpoint_side": numeric_side,
+        "ordinary_pair_eligible": False,
+    }
+
+
+def _schematic_semantic_endpoint_mapping(
+    *,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> dict[str, object]:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return {}
+    if not selected.left_value or not selected.right_value:
+        return {}
+    if left_candidate is None or right_candidate is None:
+        return {}
+
+    left_is_semantic = left_candidate.channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+    right_is_semantic = right_candidate.channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+    if left_is_semantic == right_is_semantic:
+        return {}
+
+    semantic_candidate = left_candidate if left_is_semantic else right_candidate
+    numeric_candidate = right_candidate if left_is_semantic else left_candidate
+    if numeric_candidate.channel != _CHANNEL_TERMINAL_NUMERIC:
+        return {}
+
+    semantic_endpoint = selected.left_value if left_is_semantic else selected.right_value
+    numeric_endpoint = selected.right_value if left_is_semantic else selected.left_value
+    semantic_side = "left" if left_is_semantic else "right"
+    numeric_side = "right" if left_is_semantic else "left"
+    mapping_kind = semantic_candidate.channel_detail or "schematic_semantic_endpoint"
+    return {
+        "source": "semantic_mapping",
+        "pair_kind": "semantic_mapping",
+        "semantic_kind": "schematic_semantic_endpoint",
+        "semantic_mapping_kind": mapping_kind,
+        "semantic_endpoint": semantic_endpoint,
+        "semantic_endpoint_text_id": semantic_candidate.text_id,
+        "semantic_endpoint_raw": semantic_candidate.text,
+        "semantic_endpoint_side": semantic_side,
+        "numeric_endpoint": numeric_endpoint,
+        "numeric_endpoint_text_id": numeric_candidate.text_id,
+        "numeric_endpoint_raw": numeric_candidate.text,
+        "numeric_endpoint_side": numeric_side,
+        "ordinary_pair_eligible": False,
+    }
+
+
+def _single_sided_schematic_semantic_annotation(
+    *,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+    group_candidates: list[TerminalCandidate],
+) -> dict[str, object]:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return {}
+    if bool(selected.left_value) == bool(selected.right_value):
+        return {}
+
+    numeric_candidate = left_candidate if selected.left_value else right_candidate
+    numeric_value = selected.left_value if selected.left_value else selected.right_value
+    if numeric_candidate is None or numeric_candidate.channel != _CHANNEL_TERMINAL_NUMERIC or not numeric_value:
+        return {}
+
+    numeric_side = "left" if selected.left_value else "right"
+    missing_side = "right" if selected.left_value else "left"
+    semantic_candidates = [
+        candidate
+        for candidate in group_candidates
+        if candidate.status == "accepted"
+        and candidate.channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+        and candidate.channel_detail
+        in {
+            "schematic_network_time_label",
+            "schematic_ac_phase_label",
+            "schematic_binary_input_function_label",
+            "schematic_binary_input_function_description",
+        }
+        and candidate.side == numeric_side
+    ]
+    if not semantic_candidates:
+        return {}
+    semantic_candidates.sort(key=lambda item: item.score, reverse=True)
+    semantic_candidate = semantic_candidates[0]
+    return {
+        "source": "semantic_mapping",
+        "pair_kind": "semantic_mapping",
+        "semantic_kind": "schematic_semantic_annotation",
+        "semantic_mapping_kind": semantic_candidate.channel_detail,
+        "semantic_mapping_missing_side": missing_side,
+        "semantic_endpoint": semantic_candidate.value,
+        "semantic_endpoint_text_id": semantic_candidate.text_id,
+        "semantic_endpoint_raw": semantic_candidate.text,
+        "semantic_endpoint_side": numeric_side,
+        "numeric_endpoint": numeric_value,
+        "numeric_endpoint_text_id": numeric_candidate.text_id,
+        "numeric_endpoint_raw": numeric_candidate.text,
+        "numeric_endpoint_side": numeric_side,
+        "ordinary_pair_eligible": False,
+    }
 
 
 def _is_terminal_continuation_scope(*, group: LineGroup, sheet: SheetRecord | None) -> bool:
@@ -643,6 +849,10 @@ def _apply_special_pair_semantics(
         if "semantic mapping" not in rationale:
             rationale = f"{rationale}; semantic mapping relation"
         return "review", rationale
+    if pair_kind == "wire_component_mapping":
+        if "wire component mapping" not in rationale:
+            rationale = f"{rationale}; wire component mapping relation"
+        return status, rationale
     return status, rationale
 
 

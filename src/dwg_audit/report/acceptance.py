@@ -25,6 +25,7 @@ def evaluate_acceptance_project(
     expected_conflicts = spec.get("expected_conflicts", [])
     expected_missing_issues = spec.get("expected_missing_issues", [])
     expected_review_pairs = spec.get("expected_review_pairs", [])
+    expected_review_issues = spec.get("expected_review_issues", [])
     pair_recall_threshold = float(spec.get("pair_recall_threshold", 0.9))
     pair_scope = spec.get("pair_scope") or {}
     scoped_pairs = _scoped_pairs(pairs, pair_scope)
@@ -38,6 +39,7 @@ def evaluate_acceptance_project(
     matched_conflicts = _matched_conflict_issues(issues_payload, expected_conflicts)
     matched_missing_issues = _matched_missing_issues(issues_payload, expected_missing_issues)
     matched_review_pairs = _matched_review_pairs(scoped_pairs, expected_review_pairs)
+    matched_review_issues = _matched_review_issues(issues_payload, expected_review_issues)
     issue_field_coverage = _issue_field_coverage(issues_payload)
 
     evaluation = {
@@ -87,6 +89,17 @@ def evaluate_acceptance_project(
             "matched_count": len(matched_review_pairs),
             "recall": _safe_ratio(len(matched_review_pairs), len(expected_review_pairs)),
             "matched_items": matched_review_pairs,
+        },
+        "review_issue_metrics": {
+            "expected_count": len(expected_review_issues),
+            "matched_count": len(matched_review_issues),
+            "recall": _safe_ratio(len(matched_review_issues), len(expected_review_issues)),
+            "matched_items": matched_review_issues,
+            "missing_items": [
+                item
+                for item in expected_review_issues
+                if not any(_review_issue_specs_equivalent(item, matched) for matched in matched_review_issues)
+            ],
         },
         "issue_field_coverage": issue_field_coverage,
     }
@@ -313,6 +326,98 @@ def _matched_review_pairs(pairs: pd.DataFrame, expected_review_pairs: list[dict[
     return matched
 
 
+def _matched_review_issues(
+    issues_payload: list[dict[str, Any]],
+    expected_review_issues: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    matched: list[dict[str, Any]] = []
+    for item in expected_review_issues:
+        if any(_review_issue_matches_spec(issue, item) for issue in issues_payload):
+            matched.append(item)
+    return matched
+
+
+def _review_issue_matches_spec(issue: dict[str, Any], spec: dict[str, Any]) -> bool:
+    for field in ("rule_id", "filename", "sheet_id", "severity", "status"):
+        if not _present(spec.get(field)):
+            continue
+        if str(issue.get(field) or "") != str(spec.get(field) or ""):
+            return False
+
+    classification = spec.get("review_classification") or spec.get("classification")
+    if _present(classification) and str(classification) not in _issue_review_classifications(issue):
+        return False
+
+    summary_contains = spec.get("summary_contains")
+    if summary_contains and not _text_contains(issue.get("summary"), summary_contains):
+        return False
+
+    action_contains = spec.get("recommended_action_contains")
+    if action_contains and not _text_contains(issue.get("recommended_action"), action_contains):
+        return False
+
+    evidence_contains = spec.get("evidence_contains") or {}
+    evidence = issue.get("evidence") or {}
+    if not isinstance(evidence, dict):
+        return False
+    for key, expected_value in evidence_contains.items():
+        if key not in evidence:
+            return False
+        if not _value_contains(evidence.get(key), expected_value):
+            return False
+    return True
+
+
+def _issue_review_classifications(issue: dict[str, Any]) -> set[str]:
+    evidence = issue.get("evidence") or {}
+    values = {
+        issue.get("review_classification"),
+        issue.get("one_to_many_classification"),
+        issue.get("many_to_one_classification"),
+    }
+    if isinstance(evidence, dict):
+        values.update(
+            {
+                evidence.get("review_classification"),
+                evidence.get("one_to_many_classification"),
+                evidence.get("many_to_one_classification"),
+            }
+        )
+    return {str(value) for value in values if _present(value)}
+
+
+def _text_contains(actual: object, expected: object) -> bool:
+    actual_text = str(actual or "")
+    if isinstance(expected, list):
+        return all(str(item) in actual_text for item in expected)
+    return str(expected) in actual_text
+
+
+def _value_contains(actual: object, expected: object) -> bool:
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return False
+        return all(key in actual and _value_contains(actual.get(key), value) for key, value in expected.items())
+    if isinstance(expected, list):
+        if not isinstance(actual, list):
+            return False
+        return all(any(_values_equal(actual_item, expected_item) for actual_item in actual) for expected_item in expected)
+    if isinstance(actual, list):
+        return any(_values_equal(actual_item, expected) for actual_item in actual)
+    return _values_equal(actual, expected)
+
+
+def _values_equal(actual: object, expected: object) -> bool:
+    if isinstance(expected, bool):
+        return actual is expected
+    if isinstance(expected, (int, float)) and not isinstance(expected, bool):
+        try:
+            return float(actual) == float(expected)
+        except (TypeError, ValueError):
+            return False
+    return str(actual) == str(expected)
+
+
 def _issue_field_coverage(issues_payload: list[dict[str, Any]]) -> dict[str, Any]:
     required = {
         "rule_id": True,
@@ -375,6 +480,7 @@ def _acceptance_passed(evaluation: dict[str, Any]) -> bool:
             _optional_recall_check(evaluation.get("conflict_issue_metrics", {})),
             _optional_recall_check(evaluation.get("missing_issue_metrics", {})),
             _optional_recall_check(evaluation.get("review_pair_metrics", {})),
+            _optional_recall_check(evaluation.get("review_issue_metrics", {})),
             bool(evaluation.get("issue_field_coverage", {}).get("all_required_fields_present")),
         ]
     )
@@ -386,6 +492,7 @@ def _format_acceptance_markdown(evaluation: dict[str, Any]) -> str:
     conflict_metrics = evaluation.get("conflict_issue_metrics", {})
     missing_metrics = evaluation.get("missing_issue_metrics", {})
     review_metrics = evaluation.get("review_pair_metrics", {})
+    review_issue_metrics = evaluation.get("review_issue_metrics", {})
     field_coverage = evaluation.get("issue_field_coverage", {})
     pair_scope = evaluation.get("pair_scope") or {}
     lines = [
@@ -415,6 +522,7 @@ def _format_acceptance_markdown(evaluation: dict[str, Any]) -> str:
             f"- Conflict issue recall: `{conflict_metrics.get('matched_count', 0)}` / `{conflict_metrics.get('expected_count', 0)}`",
             f"- Missing issue recall: `{missing_metrics.get('matched_count', 0)}` / `{missing_metrics.get('expected_count', 0)}`",
             f"- Review pair recall: `{review_metrics.get('matched_count', 0)}` / `{review_metrics.get('expected_count', 0)}`",
+            f"- Review issue recall: `{review_issue_metrics.get('matched_count', 0)}` / `{review_issue_metrics.get('expected_count', 0)}`",
             f"- Issue evidence fields complete: `{field_coverage.get('all_required_fields_present')}`",
             "",
             "## Field Coverage",
@@ -500,6 +608,10 @@ def _pair_matches_spec(row: dict[str, Any], spec: dict[str, Any]) -> bool:
 def _pair_specs_equivalent(left: dict[str, Any], right: dict[str, Any]) -> bool:
     fields = ("filename", "left_value", "right_value", "pair_kind", "status", "pair_key")
     return all(str(left.get(field) or "") == str(right.get(field) or "") for field in fields)
+
+
+def _review_issue_specs_equivalent(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return json.dumps(left, ensure_ascii=False, sort_keys=True) == json.dumps(right, ensure_ascii=False, sort_keys=True)
 
 
 def _optional_recall_check(metrics: dict[str, Any]) -> bool:

@@ -1,18 +1,26 @@
 from dwg_audit.audit.page_extractors import _mark_input_matrix_covered_ordinary_pairs
+from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation_pairs
+from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
+from dwg_audit.audit.rules import build_issues
+from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
+from dwg_audit.domain.models import SheetRecord
+from dwg_audit.utils.config import DEFAULT_CONFIG
 
 
 def _pair(
     evidence: dict[str, object],
     *,
+    pair_id: str = "P1",
+    line_group_id: str = "G1",
     pair_kind: str = "ordinary_pair",
     left_text_id: str | None = None,
     right_text_id: str | None = None,
 ) -> Pair:
     return Pair(
-        pair_id="P1",
-        line_group_id="G1",
+        pair_id=pair_id,
+        line_group_id=line_group_id,
         sheet_id="S1",
         file_id="F1",
         selected_pair_candidate_id="PC1",
@@ -28,6 +36,112 @@ def _pair(
         right_text_id=right_text_id,
         pair_kind=pair_kind,
     )
+
+
+def _sheet(category: str = "二次原理图") -> SheetRecord:
+    return SheetRecord("S1", "F1", "04 交流回路图1.dwg", 4, "04", "CT AND VT INPUT", category, "primary", "filename", True)
+
+
+def _line_group(
+    line_group_id: str,
+    *,
+    start_x: float,
+    end_x: float,
+    start_y: float = 135.0,
+    end_y: float = 135.0,
+    row_band_id: str = "RB1",
+    orientation: str = "grid",
+    wire_score: float = 0.85,
+) -> LineGroup:
+    return LineGroup(
+        line_group_id=line_group_id,
+        sheet_id="S1",
+        file_id="F1",
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        length=abs(end_x - start_x),
+        wire_candidate_score=wire_score,
+        member_line_ids=[],
+        layer_hints=[],
+        orientation=orientation,
+        row_band_id=row_band_id,
+    )
+
+
+def test_mark_inline_wire_split_continuation_pairs_tags_shared_text_half_chain() -> None:
+    left_half = _pair(
+        {"selected_right_text_id": "T505"},
+        pair_id="PW0438",
+        line_group_id="GW0438",
+        right_text_id="T505",
+    )
+    left_half.left_value = None
+    left_half.right_value = "505"
+    left_half.right_coord_y = 135.6
+    right_half = _pair(
+        {"selected_left_text_id": "T505"},
+        pair_id="PW0440",
+        line_group_id="GW0440",
+        left_text_id="T505",
+    )
+    right_half.left_value = "505"
+    right_half.right_value = None
+    right_half.left_coord_y = 135.6
+    line_groups = [
+        _line_group("GW0438", start_x=87.5, end_x=127.5),
+        _line_group("GW0440", start_x=146.25, end_x=237.5),
+    ]
+
+    _mark_inline_wire_split_continuation_pairs([left_half, right_half], line_groups, [_sheet()], {})
+
+    assert left_half.pair_kind == "continuation"
+    assert right_half.pair_kind == "continuation"
+    assert left_half.evidence["ordinary_pair_eligible"] is False
+    assert right_half.evidence["ordinary_pair_eligible"] is False
+    assert left_half.evidence["covered_by_inline_wire_split_half_chain"] is True
+    assert right_half.evidence["related_inline_wire_split_pair_id"] == "PW0438"
+    assert left_half.evidence["continuation_kind"] == "schematic_inline_wire_split_half_chain"
+    assert left_half.evidence["shared_text_id"] == "T505"
+    assert left_half.evidence["bridge_gap"] == 18.75
+    assert "continuation relation" in left_half.rationale
+    assert not any(
+        issue.rule_id == "R-PAIR-MISSING-SIDE"
+        for issue in build_issues([left_half, right_half], line_groups, [_sheet()], DEFAULT_CONFIG)
+    )
+
+
+def test_mark_inline_wire_split_continuation_pairs_keeps_cross_row_or_non_schematic_pairs() -> None:
+    left_half = _pair(
+        {"selected_right_text_id": "T505"},
+        pair_id="P1",
+        line_group_id="G1",
+        right_text_id="T505",
+    )
+    left_half.left_value = None
+    left_half.right_value = "505"
+    left_half.right_coord_y = 135.0
+    right_half = _pair(
+        {"selected_left_text_id": "T505"},
+        pair_id="P2",
+        line_group_id="G2",
+        left_text_id="T505",
+    )
+    right_half.left_value = "505"
+    right_half.right_value = None
+    right_half.left_coord_y = 145.0
+    line_groups = [
+        _line_group("G1", start_x=87.5, end_x=127.5, row_band_id="RB1"),
+        _line_group("G2", start_x=146.25, end_x=237.5, start_y=145.0, end_y=145.0, row_band_id="RB2"),
+    ]
+
+    _mark_inline_wire_split_continuation_pairs([left_half, right_half], line_groups, [_sheet("屏端子图")], {})
+
+    assert left_half.pair_kind == "ordinary_pair"
+    assert right_half.pair_kind == "ordinary_pair"
+    assert "covered_by_inline_wire_split_half_chain" not in left_half.evidence
+    assert "ordinary_pair_eligible" not in right_half.evidence
 
 
 def test_mark_terminal_prefixed_endpoint_ordinary_pairs_discards_bare_suffix_pair() -> None:
@@ -174,3 +288,171 @@ def test_mark_input_matrix_covered_ordinary_pairs_keeps_component_prefixed_exter
 
     assert ordinary.status == "review"
     assert "covered_by_component_prefixed_signal_circuit" not in ordinary.evidence
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_discards_first_prefixed_external_local_number_pair() -> None:
+    ordinary = _pair({}, right_text_id="LOCAL105")
+    component_pair = _pair(
+        {
+            "component_submode": "first_prefixed_external_endpoint_mapping",
+            "local_number_text_id": "LOCAL105",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="EXT1",
+        right_text_id="LOCAL105",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_first_prefixed_external_endpoint_mapping"] is True
+    assert "prefixed external local number" in ordinary.rationale
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_discards_scoped_visible_prefix_local_number_pair() -> None:
+    ordinary = _pair({}, right_text_id="LOCAL701")
+    component_pair = _pair(
+        {
+            "component_submode": "scoped_visible_prefix_external_endpoint_mapping",
+            "local_number_text_id": "LOCAL701",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="EXT1",
+        right_text_id="LOCAL701",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_scoped_visible_prefix_external_endpoint_mapping"] is True
+    assert "scoped local number" in ordinary.rationale
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_discards_inline_body_port_local_number_pair() -> None:
+    ordinary = _pair({}, right_text_id="LOCAL207")
+    component_pair = _pair(
+        {
+            "component_submode": "inline_klp_component_port_mapping",
+            "local_number_text_id": "LOCAL207",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="PORT2",
+        right_text_id="LOCAL207",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_inline_klp_component_port_mapping"] is True
+    assert "inline body-port mapping" in ordinary.rationale
+
+
+def test_mark_input_matrix_covered_ordinary_pairs_keeps_first_prefixed_external_endpoint_pair() -> None:
+    ordinary = _pair({}, right_text_id="EXT1")
+    component_pair = _pair(
+        {
+            "component_submode": "first_prefixed_external_endpoint_mapping",
+            "local_number_text_id": "LOCAL105",
+            "external_endpoint_text_id": "EXT1",
+        },
+        pair_kind="wire_component_mapping",
+        left_text_id="EXT1",
+        right_text_id="LOCAL105",
+    )
+
+    _mark_input_matrix_covered_ordinary_pairs([ordinary], [component_pair])
+
+    assert ordinary.status == "review"
+    assert "covered_by_first_prefixed_external_endpoint_mapping" not in ordinary.evidence
+
+
+def test_mark_schematic_ac_phase_covered_ordinary_pairs_discards_shared_numeric_half_pair() -> None:
+    ordinary = _pair(
+        {
+            "selected_right_text_id": "AC719",
+        },
+        right_text_id="AC719",
+    )
+    ordinary.left_value = None
+    ordinary.right_value = "719"
+    semantic = _pair(
+        {
+            "semantic_kind": "schematic_semantic_annotation",
+            "semantic_mapping_kind": "schematic_ac_phase_label",
+            "numeric_endpoint_text_id": "AC719",
+            "semantic_endpoint_text_id": "PHASE_UC",
+        },
+        pair_kind="semantic_mapping",
+        left_text_id="AC719",
+    )
+
+    _mark_schematic_ac_phase_covered_ordinary_pairs([ordinary, semantic], [_sheet()])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_schematic_ac_phase_label_semantic_mapping"] is True
+    assert "AC phase numeric text" in ordinary.rationale
+    assert semantic.status == "review"
+
+
+def test_mark_schematic_ac_phase_covered_ordinary_pairs_keeps_non_ac_semantic_and_complete_pairs() -> None:
+    ordinary = _pair({"selected_right_text_id": "DC611"}, right_text_id="DC611")
+    ordinary.left_value = None
+    ordinary.right_value = "611"
+    complete = _pair({"selected_left_text_id": "AC719"}, left_text_id="AC719")
+    complete.left_value = "719"
+    complete.right_value = "UC"
+    dc_semantic = _pair(
+        {
+            "semantic_mapping_kind": "schematic_dc_function_label",
+            "numeric_endpoint_text_id": "DC611",
+        },
+        pair_kind="semantic_mapping",
+        left_text_id="DC611",
+    )
+    ac_semantic = _pair(
+        {
+            "semantic_kind": "schematic_semantic_annotation",
+            "semantic_mapping_kind": "schematic_ac_phase_label",
+            "numeric_endpoint_text_id": "AC719",
+        },
+        pair_kind="semantic_mapping",
+        left_text_id="AC719",
+    )
+
+    _mark_schematic_ac_phase_covered_ordinary_pairs([ordinary, complete, dc_semantic, ac_semantic], [_sheet()])
+
+    assert ordinary.status == "review"
+    assert "covered_by_schematic_ac_phase_label_semantic_mapping" not in ordinary.evidence
+    assert complete.status == "review"
+    assert "covered_by_schematic_ac_phase_label_semantic_mapping" not in complete.evidence
+
+
+def test_mark_schematic_ac_phase_covered_ordinary_pairs_keeps_terminal_semantic_row_scope() -> None:
+    ordinary = _pair({"selected_right_text_id": "AC719"}, right_text_id="AC719")
+    ordinary.left_value = None
+    ordinary.right_value = "719"
+    terminal_semantic = _pair(
+        {
+            "semantic_kind": "terminal_semantic_mapping",
+            "semantic_mapping_kind": "terminal_semantic_row",
+            "numeric_endpoint_text_id": "AC719",
+        },
+        pair_kind="semantic_mapping",
+        left_text_id="AC719",
+    )
+
+    _mark_schematic_ac_phase_covered_ordinary_pairs([ordinary, terminal_semantic], [_sheet("屏端子图")])
+
+    assert ordinary.status == "review"
+    assert "covered_by_schematic_ac_phase_label_semantic_mapping" not in ordinary.evidence

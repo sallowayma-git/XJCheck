@@ -9,6 +9,12 @@
       "required": true
     },
     {
+      "case_id": "real_first_backplate_structured_shared_phase83",
+      "project_alias": "real_first",
+      "spec": "../acceptance_real_subset/first_set_backplate_structured_shared_phase83.json",
+      "required": true
+    },
+    {
       "case_id": "real_second_component_terminal_subset",
       "project_alias": "real_second",
       "spec": "../acceptance_real_subset/second_set_component_terminal_subset.json",

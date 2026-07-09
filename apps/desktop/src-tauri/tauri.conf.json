@@ -34,6 +34,9 @@
   "bundle": {
     "active": true,
     "targets": "nsis",
+    "resources": {
+      "resources/sidecar/*": "sidecar/"
+    },
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"

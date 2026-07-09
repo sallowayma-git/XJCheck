@@ -38,6 +38,7 @@ def _diagnostic_frames() -> dict[str, pd.DataFrame]:
                 {
                     "pair_id": "P1",
                     "sheet_id": "S1",
+                    "line_group_id": "G1",
                     "left_value": "1",
                     "right_value": "116",
                     "left_candidate_id": "C1",
@@ -48,6 +49,7 @@ def _diagnostic_frames() -> dict[str, pd.DataFrame]:
                 {
                     "pair_id": "P2",
                     "sheet_id": "S1",
+                    "line_group_id": "G2",
                     "left_value": None,
                     "right_value": "127",
                     "pair_kind": "ordinary_pair",
@@ -56,11 +58,39 @@ def _diagnostic_frames() -> dict[str, pd.DataFrame]:
                 {
                     "pair_id": "P3",
                     "sheet_id": "S2",
+                    "line_group_id": "G3",
                     "left_value": "43",
                     "right_value": "419",
                     "pair_kind": "ordinary_pair",
                     "evidence": json.dumps({"pair_kind": "ordinary_pair"}),
                 },
+                {
+                    "pair_id": "P4",
+                    "sheet_id": "S1",
+                    "line_group_id": "G4",
+                    "left_value": None,
+                    "right_value": "705",
+                    "pair_kind": "ordinary_pair",
+                    "evidence": json.dumps({"pair_kind": "ordinary_pair"}),
+                },
+                {
+                    "pair_id": "P5",
+                    "sheet_id": "S1",
+                    "line_group_id": "G5",
+                    "left_value": "721",
+                    "right_value": "721",
+                    "pair_kind": "ordinary_pair",
+                    "evidence": json.dumps({"pair_kind": "ordinary_pair"}),
+                },
+            ]
+        ),
+        "line_groups": pd.DataFrame(
+            [
+                {"line_group_id": "G1", "orientation": "horizontal", "row_band_id": None},
+                {"line_group_id": "G2", "orientation": "horizontal", "row_band_id": None},
+                {"line_group_id": "G3", "orientation": "vertical", "row_band_id": None},
+                {"line_group_id": "G4", "orientation": "grid", "row_band_id": "RBW0022"},
+                {"line_group_id": "G5", "orientation": "grid", "row_band_id": "RBW0014"},
             ]
         ),
         "terminal_candidates": pd.DataFrame(
@@ -124,6 +154,40 @@ def _issues_frame() -> pd.DataFrame:
                 "right_value": "419",
                 "evidence": {},
             },
+            {
+                "issue_id": "I4",
+                "rule_id": "R-PAIR-MISSING-SIDE",
+                "sheet_id": "S1",
+                "pair_id": "P4",
+                "filename": "05 交流回路图2.dwg",
+                "sheet_no": "05",
+                "left_value": None,
+                "right_value": "705",
+                "evidence": {
+                    "pair_evidence": {
+                        "line_group_id": "G4",
+                        "line_orientation": "grid",
+                        "row_band_id": "RBW0022",
+                    }
+                },
+            },
+            {
+                "issue_id": "I5",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "sheet_id": "S1",
+                "pair_id": "P5",
+                "filename": "05 交流回路图2.dwg",
+                "sheet_no": "05",
+                "left_value": "721",
+                "right_value": "721",
+                "evidence": {
+                    "pair_evidence": {
+                        "line_group_id": "G5",
+                        "line_orientation": "grid",
+                        "row_band_id": "RBW0014",
+                    }
+                },
+            },
         ]
     )
 
@@ -138,6 +202,66 @@ def test_enrich_issues_with_root_causes_classifies_core_symptoms() -> None:
     assert by_id["I2"]["diagnostic_context"]["bridge_gap"] == 12.5
     assert by_id["I3"]["root_cause"] == "extractor_missing"
     assert by_id["I3"]["route_target"] == "ComponentDiagramExtractor"
+    assert by_id["I4"]["root_cause"] == "pairing_wrong"
+    assert "grid_row_band_endpoint_gap" in by_id["I4"]["diagnostic_tags"]
+    assert by_id["I4"]["diagnostic_context"]["row_band_id"] == "RBW0022"
+    assert by_id["I5"]["root_cause"] == "pairing_wrong"
+    assert "row_band:RBW0014" in by_id["I5"]["diagnostic_tags"]
+
+
+def test_enrich_issues_with_root_causes_classifies_cross_page_table_mapping_as_rule_review() -> None:
+    frames = _diagnostic_frames()
+    frames["pairs"] = pd.concat(
+        [
+            frames["pairs"],
+            pd.DataFrame(
+                [
+                    {
+                        "pair_id": "P4",
+                        "sheet_id": "S1",
+                        "left_value": "NDY306A-3",
+                        "right_value": "1QD1",
+                        "pair_kind": "table_mapping",
+                        "evidence": json.dumps(
+                            {
+                                "source": "table_mapping",
+                                "table_mapping": {
+                                    "mapping_mode": "backplate_virtual_table",
+                                    "header_prefix": "NDY306A",
+                                },
+                            }
+                        ),
+                    },
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+    issues = pd.DataFrame(
+        [
+            {
+                "issue_id": "I4",
+                "rule_id": "R-CROSS-PAGE-CONFLICT",
+                "sheet_id": "S1",
+                "pair_id": "P4",
+                "filename": "17 差动保护背板图.dwg",
+                "sheet_no": "17",
+                "left_value": "NDY306A-3",
+                "right_value": "1QD1",
+                "evidence": {
+                    "one_to_many_classification": "backplate_table_scope_review",
+                    "table_mapping_mode": "backplate_virtual_table",
+                },
+            },
+        ]
+    )
+
+    enriched = enrich_issues_with_root_causes(frames, issues)
+
+    row = enriched.iloc[0]
+    assert row["root_cause"] == "rule_too_strict"
+    assert row["pair_kind"] == "table_mapping"
+    assert "specialized_relation_rule_review" in row["diagnostic_tags"]
 
 
 def test_write_issue_root_cause_audit_persists_summary(tmp_path: Path) -> None:
@@ -155,6 +279,6 @@ def test_write_issue_root_cause_audit_persists_summary(tmp_path: Path) -> None:
     assert summary["root_cause_counts"] == {
         "candidate_noise": 1,
         "extractor_missing": 1,
-        "pairing_wrong": 1,
+        "pairing_wrong": 3,
     }
-    assert summary["rule_root_cause_counts"]["R-PAIR-MISSING-SIDE"] == {"pairing_wrong": 1}
+    assert summary["rule_root_cause_counts"]["R-PAIR-MISSING-SIDE"] == {"pairing_wrong": 2}

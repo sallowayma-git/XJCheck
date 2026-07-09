@@ -157,6 +157,7 @@ class _FrameContext:
     def __init__(self, frames: dict[str, pd.DataFrame]) -> None:
         self.pages = _index_by(frames.get("pages", pd.DataFrame()), "sheet_id")
         self.pairs = _index_by(frames.get("pairs", pd.DataFrame()), "pair_id")
+        self.line_groups = _index_by(frames.get("line_groups", pd.DataFrame()), "line_group_id")
         self.candidates = _index_by(frames.get("terminal_candidates", pd.DataFrame()), "candidate_id")
         self.texts = _index_by(frames.get("texts", pd.DataFrame()), "text_id")
 
@@ -193,7 +194,13 @@ def _classify_issue(issue: pd.Series, context: _FrameContext) -> RootCauseDecisi
         )
 
     if pair_kind in _SPECIALIZED_PAIR_KINDS and pair_kind != "ordinary_pair":
-        if rule_id in {"R-SEMANTIC-MAPPING-CONFLICT", "R-TABLE-MAPPING-SOURCE-CONFLICT", "R-ONE-TO-MANY", "R-MANY-TO-ONE"}:
+        if rule_id in {
+            "R-CROSS-PAGE-CONFLICT",
+            "R-SEMANTIC-MAPPING-CONFLICT",
+            "R-TABLE-MAPPING-SOURCE-CONFLICT",
+            "R-ONE-TO-MANY",
+            "R-MANY-TO-ONE",
+        }:
             return RootCauseDecision(
                 "rule_too_strict",
                 0.6,
@@ -254,6 +261,21 @@ def _classify_issue(issue: pd.Series, context: _FrameContext) -> RootCauseDecisi
             base_context | {
                 "bridge_gap": evidence.get("bridge_gap"),
                 "shared_value": evidence.get("shared_value"),
+            },
+        )
+
+    grid_row_band_gap = _grid_row_band_endpoint_gap(issue, pair, pair_evidence, context)
+    if grid_row_band_gap is not None:
+        row_band_id, line_orientation = grid_row_band_gap
+        return RootCauseDecision(
+            "pairing_wrong",
+            0.7,
+            "Grid row-band symptoms combine same-value short links or missing endpoints; this likely needs row-band-level pairing interpretation.",
+            ["grid_row_band_endpoint_gap", f"row_band:{row_band_id}"],
+            base_context
+            | {
+                "row_band_id": row_band_id,
+                "line_orientation": line_orientation,
             },
         )
 
@@ -371,6 +393,62 @@ def _candidate_noise_tags(
         if layer in _NOISY_TEXT_LAYERS:
             tags.add(f"text_layer:{layer}")
     return sorted(tags) or ["candidate_noise"]
+
+
+def _grid_row_band_endpoint_gap(
+    issue: pd.Series,
+    pair: dict[str, Any],
+    pair_evidence: dict[str, Any],
+    context: _FrameContext,
+) -> tuple[str, str] | None:
+    rule_id = _string_cell(issue.get("rule_id"))
+    if rule_id not in {"R-PAIR-MISSING-SIDE", "R-PAIR-LOW-CONFIDENCE"}:
+        return None
+    row_band_id = _row_band_id(pair, pair_evidence, context)
+    if not row_band_id:
+        return None
+    line_orientation = (
+        _string_cell(pair_evidence.get("line_orientation"))
+        or _string_cell(_line_group(pair, pair_evidence, context).get("orientation"))
+    )
+    if line_orientation != "grid":
+        return None
+    left_value = _string_cell(issue.get("left_value")) or _string_cell(pair.get("left_value"))
+    right_value = _string_cell(issue.get("right_value")) or _string_cell(pair.get("right_value"))
+    if rule_id == "R-PAIR-MISSING-SIDE" and bool(left_value) != bool(right_value):
+        return row_band_id, line_orientation
+    if (
+        rule_id == "R-PAIR-LOW-CONFIDENCE"
+        and left_value
+        and left_value == right_value
+        and left_value.isdigit()
+    ):
+        return row_band_id, line_orientation
+    return None
+
+
+def _row_band_id(
+    pair: dict[str, Any],
+    pair_evidence: dict[str, Any],
+    context: _FrameContext,
+) -> str:
+    return (
+        _string_cell(pair_evidence.get("row_band_id"))
+        or _string_cell(_line_group(pair, pair_evidence, context).get("row_band_id"))
+    )
+
+
+def _line_group(
+    pair: dict[str, Any],
+    pair_evidence: dict[str, Any],
+    context: _FrameContext,
+) -> dict[str, Any]:
+    line_group_id = _string_cell(pair.get("line_group_id")) or _string_cell(
+        pair_evidence.get("line_group_id")
+    )
+    if not line_group_id:
+        return {}
+    return context.line_groups.get(line_group_id, {})
 
 
 def _selected_candidates(

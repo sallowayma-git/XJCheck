@@ -171,6 +171,10 @@ def _extract_pairs_for_route(
         pair_id_factory=IdFactory(f"P{id_stem}"),
     )
     if executed_extractor == "WireDiagramExtractor":
+        _mark_inline_wire_split_continuation_pairs(pairs, line_groups, pages, config)
+    if executed_extractor == "WireDiagramExtractor":
+        _mark_schematic_ac_phase_covered_ordinary_pairs(pairs, pages)
+    if executed_extractor == "WireDiagramExtractor":
         wire_component_pairs = extract_component_prefixed_signal_pairs(
             pages,
             texts,
@@ -186,6 +190,16 @@ def _extract_pairs_for_route(
             line_groups,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
         )
+        endpoint_bridge_extractor = getattr(component_diagrams, "extract_strip_two_port_endpoint_bridge_pairs", None)
+        if callable(endpoint_bridge_extractor):
+            endpoint_bridge_pairs, endpoint_bridge_consumed_group_ids = endpoint_bridge_extractor(
+                pages,
+                texts,
+                line_groups,
+                pair_id_factory=IdFactory(f"P{id_stem}B"),
+            )
+            component_pairs.extend(endpoint_bridge_pairs)
+            consumed_group_ids.update(endpoint_bridge_consumed_group_ids)
         kk_extractor = getattr(component_diagrams, "extract_kk_multi_port_component_pairs", None)
         if callable(kk_extractor):
             kk_pairs, kk_consumed_group_ids = kk_extractor(
@@ -294,6 +308,200 @@ def _mark_wire_component_covered_ordinary_pairs(
             pair.evidence[f"covered_by_{reason}"] = True
 
 
+def _ordinary_single_sided_text_ids(pairs: list[Pair]) -> set[str]:
+    text_ids: set[str] = set()
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.status == "discard":
+            continue
+        if bool(pair.left_value) == bool(pair.right_value):
+            continue
+        for value in _pair_selected_text_ids(pair):
+            text_ids.add(value)
+    return text_ids
+
+
+def _mark_inline_wire_split_continuation_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    pages: list[SheetRecord],
+    config: dict,
+) -> None:
+    sheet_map = {page.sheet_id: page for page in pages}
+    group_map = {group.line_group_id: group for group in line_groups}
+    missing_left: list[Pair] = []
+    missing_right_by_key: dict[tuple[str, str, str], list[Pair]] = {}
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair" or pair.status == "discard":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if pair.left_value is None and pair.right_value and pair.right_text_id:
+            missing_left.append(pair)
+            continue
+        if pair.right_value is None and pair.left_value and pair.left_text_id:
+            key = (pair.sheet_id, pair.left_text_id, pair.left_value)
+            missing_right_by_key.setdefault(key, []).append(pair)
+
+    inline_gap = float(config.get("geometry", {}).get("inline_numeric_bridge_gap", 13.0))
+    inline_y_tol = float(config.get("geometry", {}).get("inline_numeric_bridge_y_tolerance", 4.0))
+    used_pair_ids: set[str] = set()
+    for left_pair in missing_left:
+        if left_pair.pair_id in used_pair_ids:
+            continue
+        key = (left_pair.sheet_id, left_pair.right_text_id or "", left_pair.right_value or "")
+        candidates = [
+            pair
+            for pair in missing_right_by_key.get(key, [])
+            if pair.pair_id not in used_pair_ids
+        ]
+        matches = [
+            (float(evidence["bridge_gap"]), right_pair, evidence)
+            for right_pair in candidates
+            if (evidence := _inline_wire_split_evidence(left_pair, right_pair, group_map, inline_gap, inline_y_tol))
+            is not None
+        ]
+        if not matches:
+            continue
+        _, right_pair, evidence = sorted(matches, key=lambda item: item[0])[0]
+        _tag_inline_wire_split_pair(left_pair, right_pair, evidence)
+        _tag_inline_wire_split_pair(right_pair, left_pair, evidence)
+        used_pair_ids.add(left_pair.pair_id)
+        used_pair_ids.add(right_pair.pair_id)
+
+
+def _inline_wire_split_evidence(
+    missing_left: Pair,
+    missing_right: Pair,
+    group_map: dict[str, LineGroup],
+    inline_gap: float,
+    inline_y_tol: float,
+) -> dict[str, object] | None:
+    left_group = group_map.get(missing_left.line_group_id)
+    right_group = group_map.get(missing_right.line_group_id)
+    if left_group is None or right_group is None:
+        return None
+    if not _inline_wire_split_group_candidate(left_group, inline_y_tol):
+        return None
+    if not _inline_wire_split_group_candidate(right_group, inline_y_tol):
+        return None
+    if abs(left_group.start_y - right_group.start_y) > inline_y_tol:
+        return None
+    if left_group.row_band_id and right_group.row_band_id and left_group.row_band_id != right_group.row_band_id:
+        return None
+
+    bridge_gap = right_group.start_x - left_group.end_x
+    min_gap, max_gap = _inline_wire_split_gap_bounds(left_group, right_group, inline_gap)
+    if bridge_gap < min_gap or bridge_gap > max_gap:
+        return None
+    if missing_left.right_coord_y is None or missing_right.left_coord_y is None:
+        return None
+    bridge_y_delta = abs(missing_left.right_coord_y - missing_right.left_coord_y)
+    if bridge_y_delta > inline_y_tol:
+        return None
+
+    return {
+        "semantic_kind": "continuation_inline_wire_split",
+        "continuation_kind": "schematic_inline_wire_split_half_chain",
+        "shared_text_id": missing_left.right_text_id,
+        "shared_value": missing_left.right_value,
+        "bridge_gap": round(bridge_gap, 4),
+        "bridge_gap_min": round(min_gap, 4),
+        "bridge_gap_max": round(max_gap, 4),
+        "bridge_y_delta": round(bridge_y_delta, 4),
+        "line_group_y_delta": round(abs(left_group.start_y - right_group.start_y), 4),
+    }
+
+
+def _inline_wire_split_group_candidate(group: LineGroup, inline_y_tol: float) -> bool:
+    if group.orientation not in {"horizontal", "grid"}:
+        return False
+    if abs(group.start_y - group.end_y) > inline_y_tol:
+        return False
+    layers = {str(layer).upper() for layer in group.layer_hints}
+    if layers and layers.issubset({"DIM"}):
+        return False
+    return group.wire_candidate_score >= 0.55
+
+
+def _inline_wire_split_gap_bounds(left_group: LineGroup, right_group: LineGroup, inline_gap: float) -> tuple[float, float]:
+    if "grid" in {left_group.orientation, right_group.orientation}:
+        return -3.0, max(inline_gap, 20.0)
+    return 0.0, inline_gap
+
+
+def _tag_inline_wire_split_pair(pair: Pair, related_pair: Pair, evidence: dict[str, object]) -> None:
+    pair.pair_kind = "continuation"
+    pair.evidence["pair_kind"] = "continuation"
+    pair.evidence["semantic_kind"] = evidence["semantic_kind"]
+    pair.evidence["continuation_kind"] = evidence["continuation_kind"]
+    pair.evidence["ordinary_pair_eligible"] = False
+    pair.evidence["covered_by_inline_wire_split_half_chain"] = True
+    pair.evidence["related_inline_wire_split_pair_id"] = related_pair.pair_id
+    pair.evidence["shared_text_id"] = evidence["shared_text_id"]
+    pair.evidence["shared_value"] = evidence["shared_value"]
+    pair.evidence["bridge_gap"] = evidence["bridge_gap"]
+    pair.evidence["bridge_gap_min"] = evidence["bridge_gap_min"]
+    pair.evidence["bridge_gap_max"] = evidence["bridge_gap_max"]
+    pair.evidence["bridge_y_delta"] = evidence["bridge_y_delta"]
+    pair.evidence["line_group_y_delta"] = evidence["line_group_y_delta"]
+    if "continuation relation" not in pair.rationale:
+        pair.rationale = f"{pair.rationale}; continuation relation"
+
+
+def _mark_schematic_ac_phase_covered_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:
+    sheet_map = {page.sheet_id: page for page in pages}
+    covered_text_reasons = _schematic_ac_phase_numeric_text_reasons(pairs, sheet_map)
+    if not covered_text_reasons:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.status == "discard":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if bool(pair.left_value) == bool(pair.right_value):
+            continue
+        covered_reasons = _pair_text_coverage_reasons(pair, covered_text_reasons)
+        if not covered_reasons:
+            continue
+        pair.status = "discard"
+        pair.confidence_bucket = "low"
+        pair.rationale = (
+            "Covered by schematic_ac_phase_label semantic_mapping; AC phase numeric text "
+            "must not be emitted as a bare ordinary half-pair."
+        )
+        pair.evidence["ordinary_pair_eligible"] = False
+        for reason in covered_reasons:
+            pair.evidence[f"covered_by_{reason}"] = True
+
+
+def _schematic_ac_phase_numeric_text_reasons(
+    pairs: list[Pair],
+    sheet_map: dict[str, SheetRecord],
+) -> dict[str, str]:
+    text_reasons: dict[str, str] = {}
+    for pair in pairs:
+        evidence = pair.evidence or {}
+        if pair.pair_kind != "semantic_mapping":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if evidence.get("semantic_mapping_kind") != "schematic_ac_phase_label":
+            continue
+        if evidence.get("semantic_kind") not in {"schematic_semantic_endpoint", "schematic_semantic_annotation"}:
+            continue
+        value = evidence.get("numeric_endpoint_text_id")
+        if isinstance(value, str) and value:
+            text_reasons[value] = "schematic_ac_phase_label_semantic_mapping"
+    return text_reasons
+
+
 def _input_matrix_local_number_text_ids(wire_component_pairs: list[Pair]) -> set[str]:
     return {
         text_id
@@ -312,7 +520,13 @@ def _wire_component_local_number_text_reasons(wire_component_pairs: list[Pair]) 
         component_submode = evidence.get("component_submode")
         if component_submode == "input_matrix_wire_mapping":
             values = (pair.right_text_id, evidence.get("local_number_text_id"))
-        elif component_submode == "component_prefixed_signal_circuit":
+        elif component_submode in {
+            "component_prefixed_signal_circuit",
+            "first_prefixed_external_endpoint_mapping",
+            "scoped_visible_prefix_external_endpoint_mapping",
+            "inline_klp_component_port_mapping",
+            "inline_body_port_mapping",
+        }:
             values = (evidence.get("local_number_text_id"),)
         else:
             continue
@@ -324,24 +538,46 @@ def _wire_component_local_number_text_reasons(wire_component_pairs: list[Pair]) 
 
 
 def _pair_text_coverage_reasons(pair: Pair, covered_text_reasons: dict[str, str]) -> set[str]:
+    return {
+        covered_text_reasons[text_id]
+        for text_id in _pair_selected_text_ids(pair)
+        if text_id in covered_text_reasons
+    }
+
+
+def _pair_selected_text_ids(pair: Pair) -> set[str]:
     evidence = pair.evidence or {}
-    selected_ids = {
+    values = {
         pair.left_text_id,
         pair.right_text_id,
         evidence.get("selected_left_text_id"),
         evidence.get("selected_right_text_id"),
     }
-    return {
-        covered_text_reasons[text_id]
-        for text_id in selected_ids
-        if isinstance(text_id, str) and text_id in covered_text_reasons
-    }
+    return {value for value in values if isinstance(value, str) and value}
 
 
 def _wire_component_coverage_rationale(covered_reasons: set[str]) -> str:
     if "component_prefixed_signal_circuit" in covered_reasons:
         return (
             "Covered by component_prefixed_signal_circuit; component local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    if "first_prefixed_external_endpoint_mapping" in covered_reasons:
+        return (
+            "Covered by first_prefixed_external_endpoint_mapping; prefixed external local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    if "scoped_visible_prefix_external_endpoint_mapping" in covered_reasons:
+        return (
+            "Covered by scoped_visible_prefix_external_endpoint_mapping; scoped local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    if {
+        "inline_klp_component_port_mapping",
+        "inline_body_port_mapping",
+    } & covered_reasons:
+        return (
+            "Covered by inline body-port mapping; structured component local number "
             "must not be emitted as a bare ordinary pair."
         )
     return "Covered by input_matrix_wire_mapping; matrix local number must not be emitted as a bare ordinary pair."

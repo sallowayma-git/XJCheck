@@ -52,6 +52,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "grid_band_y_tolerance": 5.0,
         "grid_min_band_count": 8,
     },
+    "topology": {
+        "junction_snap_tolerance": 1.8,
+        "cross_axis_tolerance": 2.5,
+        "bridge_gap_tolerance": 18.0,
+        "inline_text_bridge_gap": 18.0,
+        "block_span_bridge_gap": 24.0,
+        "text_touch_tolerance": 4.0,
+        "merge_crossings": False,
+    },
     "text": {
         "numeric_pattern": r"^[0-9]+$",
         "allow_suffix": False,

@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 61
+Phase 99 (Topology Track T2)
 
 ## Phases
 
@@ -354,6 +354,8 @@ Phase 61
 | 当 `Wire / Component / Terminal` 已有执行证据后，下一条更近的主链切片不是回到几何调参，而是把 `Table / LayoutOnly / Skip` 的执行或明确未执行状态补到同层级合同 | 否则 route matrix 仍只对三类 audited pair page 强，而对“表格暂无命中”“背板 classify_only”“封面 skip”还停留在间接说明 |
 | `evaluate-acceptance-suite` 只允许作为内部验收 harness 存在，不构成继续扩产品 CLI 的方向许可 | 用户已明确要求产品主链转向 exe 可调用的单一执行入口，CLI 只保留调试/自动化/验收用途 |
 | 第一层 exe 可调用入口应抽成 `run_analysis_workflow()`，而不是先大改 desktop sidecar | 这能让 CLI / UI / sidecar 立刻共享分析 + 可选审计主链，并把更复杂的状态落库与预览职责留给下一轮 session service |
+| 主线从"逐 issue 窄规则"切换为拓扑轨 T0-T4：先量化提取覆盖率，再影子构建 wire network，再灰度切换端点归属，再符号库化块知识，最后收缩补偿规则 | 近 50 个 Phase 证明窄规则是对两套样本的记忆而非识别能力；缺侧/半链/row-band 类问题的公共根因是缺少连通性模型，应在结构层一次性解决（2026-07-07 用户确认） |
+| 人工标注不单独立项；真值获取改为"覆盖率合同 + agent 对 DXF 的结构裁决 + 人工抽查仲裁" | 两套样本默认全对、任务书已沉淀期望语义样例，"是否全部提取"可以变成机器可算指标；归属数据天然成为后续可解释 ML / GNN 的弱标签，无需独立标注工程 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -803,6 +805,683 @@ Phase 61
 - [ ] 下一刀候选只剩：`inline KLP 116 residual suppression`、`backplate/component mapping rules semantics`；每刀仍需先只读审计再做最小实现。
 - **Status:** complete
 
+### Phase 62: Component Split Endpoint Rules Semantics
+- [x] 只读恢复并确认当前 HEAD 为 `7fb59b9`；`doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md` 仍按外部/并发改动处理，不纳入本轮 rules 写集。
+- [x] 只读审计确认 `inline KLP 116 residual suppression` 作为 active slice 已过期/收缩：first-set 代表 `1KLP1-2 -> 1n116`、`1-2KLP1-2 -> 1-2n116`、`3-2KLP1-2 -> 3-2n116` 已为 `wire_component_mapping/pass`；本轮不重开已闭合 extractor。
+- [x] 实现目标：保留 `strip_two_port_component` 逗号拆分后的 `component_mapping/pass` 图关系和 issue 可见性，只把由同一原始逗号文本或拆分端点邻接产生的 one-to-many / many-to-one review 改为专用 `component_split_endpoint_group_review` 分类与文案。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；不改 extractor、pair 生成、acceptance fixture、CLI/UI，也不为了降低 issue_count 隐藏 component_mapping。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or component_branch or split_endpoint or backplate or terminal_header"` -> `11 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `48 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `236 passed`
+  - first fresh `.tmp/phase76_component_split_rules_first/...`: `pair_count=1550`, `issue_count=311`, pair_kind unchanged；`R-ONE-TO-MANY` 中 `component_split_endpoint_group_review=16`，`R-MANY-TO-ONE` 中 `component_split_endpoint_group_review=12`
+  - first target issue 已重分类：`I0226` 为“组件逗号端点拆分待复核”，`I0270` 为“组件逗号端点邻接待复核”；`PCM0001/PCM0002/PCM0003/PCM0039` 等 component mappings 仍为 pass。
+  - second fresh `.tmp/phase76_component_split_rules_second/2_2`: `pair_count=1460`, `issue_count=188`, pair_kind unchanged；split issue count `0`，`wire_component_mapping=168`、`component_mapping=82`、`table_mapping=174`、`semantic_table_mapping_pass_endpoint_count=0`
+- [ ] 下一刀候选收缩为：`backplate virtual table same-sheet one-to-many scope semantics`、`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 63: Backplate Virtual Table Same-Sheet Scope Review
+- [x] 只读恢复并确认当前 HEAD 为 `27e5435`；外部/并发 `doc/任务书.md`、`doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 四个只读 explorer 与主线程 phase76 产物核查一致确认：first `S0021 / 20 非电量保护背板图.dwg` 的 18 条 `NKR308A-*` 同页背板虚拟表 one-to-many 仍是 generic “一对多待复核”，而非背板表格作用域语义。
+- [x] 实现目标：保留所有 `backplate_virtual_table` `table_mapping/pass` 图关系和 issue 可见性，只把同页不同表格区域/表头 scope 的背板虚拟表 fanout 重分类为 `backplate_table_same_sheet_scope_review`。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；不改 `table_extractor.py`、classifier/router、PairBuilder、acceptance fixture、CLI/UI，也不减少 issue_count。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or one_to_many or many_to_one or component_split or terminal_header"` -> `13 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `50 passed`
+  - backplate/table targeted integration -> `6 passed, 28 deselected`
+  - `python -m pytest -q` -> `238 passed`
+  - first fresh `.tmp/phase77_backplate_same_sheet_first/...`: `pair_count=1550`, `issue_count=311`, pair_kind and rule counts unchanged；`backplate_table_same_sheet_scope_review=18`，generic one-to-many review 从 `20` 降到 `2`
+  - first target pairs remain pass `table_mapping`: `NKR308A-1 -> 5FD11`、`NKR308A-1 -> 5FD15`、`NKR308A-7 -> 5KLP1-2`、`NKR308A-7 -> 5KLP5-2`
+  - second fresh `.tmp/phase77_backplate_same_sheet_second/2_2`: `pair_count=1460`, `issue_count=188`, pair_kind unchanged；terminal_header_table and semantic endpoint redlines unchanged。
+- [ ] 下一刀候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual taxonomy guardrail`、`backplate/component many-to-one scope semantics`；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 64: Backplate Structured Shared Endpoint Review
+- [x] 只读恢复并确认当前 HEAD 为 `33b9681`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四个只读 explorer 与主线程 phase77 产物核查一致确认：first-set `R-MANY-TO-ONE` 剩余 18 条 generic 中，16 条含 `backplate_virtual_table` 与 `component_mapping`/`terminal_header_table`/背板虚拟表共享外部端点，属于 rules 语义过严；`KD6` component+terminal 与 `KD23` 纯 terminal-header 边界不纳入本轮。
+- [x] 实现目标：保留所有 `table_mapping/pass` 与 `component_mapping/pass` 图关系和 issue 可见性，只把含背板虚拟表的结构化共享端点 many-to-one 重分类为 `backplate_structured_shared_endpoint_review`。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；必须含 `backplate_virtual_table` 才触发；普通 pair、纯 `terminal_header_table`、component+terminal 非背板共享端点仍保持 generic。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or non_backplate_structured or many_to_one or backplate or terminal_header"` -> `11 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `53 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `241 passed`
+  - first fresh `.tmp/phase78_backplate_structured_shared_first/...`: `pair_count=1550`, `issue_count=311`, pair_kind unchanged；`R-MANY-TO-ONE` 中 `backplate_structured_shared_endpoint_review=16`，generic `多对一配对` 从 `18` 降到 `2`
+  - first target examples reclassified: `5KLP8-1` (`PCM0089 + P0211`), `1QD5` (`PCK0002 + P0002`), `5FD25` (`PCK0006 + P0168`)。
+  - remaining generic boundaries intentionally preserved: `KD6` (`PCM0050 + PTM0019 + PTM0025`) and `KD23` (`PTM0051 + PTM0054`)。
+  - second fresh `.tmp/phase78_backplate_structured_shared_second/2_2`: `pair_count=1460`, `issue_count=188`, pair_kind unchanged；`backplate_structured_shared_endpoint_review=0`，`terminal_header_table_shared_endpoint_review=21`。
+  - second redlines held: `1-21QD34 -> 1-21n218` and `3-21QD28 -> 3-21n218` remain `wire_component_mapping/pass`; `1-21GD9 -> 1-21n218` remains `table_mapping/pass`; `semantic_table_mapping_pass_endpoint_count=0`。
+- [ ] 下一刀候选：`terminal_header_table issue aggregation`、`inline signal page ordinary residual wire-chain guardrail`；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 65: Terminal Header Table Issue Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `ccd6ef6`；工作区有上一段代理留下的 `rule_base.py` / `test_pairs_and_rules.py` 未提交改动，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 只读审计结论：`terminal_header_table` 的 `table_mapping/pass` 关系和专用 review 分类正确，second-set 主要噪声来自 43 条左右列多端 review 与 21 条共享端点 review 的行级洪峰；本轮只做 rules 层聚合，不改 extractor、不移除结构化关系。
+- [x] 实现目标：在 `cluster_issues()` 中对 `terminal_header_table_multi_endpoint_review` 与 `terminal_header_table_shared_endpoint_review` 增加 range-aware 聚合；相邻 row range / shared endpoint suffix 连续时合并，间隔较远的自然簇保持分开。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rule_base.py` 与 rules 单测；`pair_count`、`pair_kind`、`table_mapping/pass` 不漂移；singleton review 仍保留为独立 issue，不为了降低 issue_count 隐藏图关系。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or one_to_many or many_to_one"` -> `14 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `56 passed`
+  - `python -m pytest -q tests\unit\test_table_extractor.py -k "terminal_header_table"` -> `3 passed, 11 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_mapping"` -> `4 passed, 16 deselected`
+  - `python -m pytest -q` -> `244 passed`
+  - first fresh `.tmp/phase79_terminal_header_aggregation_first/...`: `pair_count=1550`, `issue_count=305`, pair_kind unchanged；terminal-header 分类从 Phase78 的 8+7 行级 review 收敛为 `R-ONE-TO-MANY=5`、`R-MANY-TO-ONE=4`。
+  - second fresh `.tmp/phase79_terminal_header_aggregation_second/2_2`: `pair_count=1460`, `issue_count=129`, pair_kind unchanged；terminal-header 分类收敛为 5 个自然 issue：4 个 `R-ONE-TO-MANY`、1 个 `R-MANY-TO-ONE`。
+  - second 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系。
+- [ ] 下一刀候选收缩为：`inline signal page ordinary residual wire-chain guardrail`；若回到产品化，则单独切 Phase51 packaged sidecar/exe smoke，不与 rules 聚合混入。
+- **Status:** complete
+
+### Phase 66: Inline Wire-Chain DIM Guardrail
+- [x] 只读恢复并确认当前 HEAD 为 `3d6d0fd`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 phase79 产物核查一致确认：first `S0008 / 07 网络通讯回路图.dwg` 的 2 条 `complementary_half_pair` 来自 `CONNECT` 主水平线与 y 方向错位的纯 `DIM` 短线共享同一数字文本锚点，不应解释成同一根 inline broken wire chain。
+- [x] 实现目标：只在 rules 诊断层增加 wire-chain guardrail；互补半链聚合必须要求 line group y 差不超过 inline tolerance，且两侧都不是纯 `DIM` 线；普通 `R-PAIR-MISSING-SIDE` 也不再对纯 `DIM` line group 报缺边。
+- [x] 风险门槛：只改 `src/dwg_audit/audit/rules.py` 与 rules 单测；不改 `line_groups.py`、候选生成、PairBuilder、extractor、CLI/UI；不移除 pair graph input，`CONNECT` 主线缺边仍保持可见。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side"` -> `4 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q` -> `245 passed`
+  - first fresh `.tmp/phase80_inline_wire_chain_guardrail_first/...`: `pair_count=1550`, `issue_count=302`, pair_kind unchanged；`complementary_half_pair=0`；`R-PAIR-MISSING-SIDE=144`。
+  - first target residuals no longer emit `互补半链待复核`：`PW0178 ? -> 701` and `PW0202 ? -> 601` remain ordinary missing-side on `CONNECT` line groups; `PW0182/GW0182` and `PW0205/GW0205` pure `DIM` short-line issues are suppressed at rules issue level.
+  - second fresh `.tmp/phase80_inline_wire_chain_guardrail_second/2_2`: `pair_count=1460`, `issue_count=127`, pair_kind unchanged；`complementary_half_pair=0`。
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` remain structured pass relationships.
+- [ ] 下一刀候选：优先做只读审计后在剩余 ordinary missing-side/low-confidence 最大簇中选一个真实样本系统误解；若转向产品化，则单独切 Phase51 packaged sidecar/exe smoke。
+- **Status:** complete
+
+### Phase 67: Schematic Wire Logic Endpoint Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `2402b9a`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 Phase80 产物核查确认：second-set 最大剩余簇不是 terminal/header/table 规则问题，而是 `11/16 测控控制回路图2` 等二次原理图中 `1-21CD58`、`3-21CD58`、`1-21UD8` 这类逻辑端编号被 `not_numeric/noise_channel` 拒掉，导致 `? -> 511` ordinary missing-side。
+- [x] 实现目标：在候选层增加窄范围 `wire_logic_endpoint_channel`，只接受二次原理图 horizontal/grid 线组附近形如 `^[13]-21[A-Z]{2,4}\d{1,3}$` 的逻辑端；PairBuilder 只在对侧存在数字候选时消费该通道，并把“逻辑端 + 数字端”升为 `pair_kind=wire_component_mapping` / `component_submode=schematic_wire_logic_endpoint`。
+- [x] 风险门槛：不把普通非数字文本塞回 `terminal_numeric_channel`；逻辑端单侧不得制造新的 missing-side；不触碰 `table_extractor.py`、component/table extractor、rules、CLI/UI；保持端子表语义端 `I0/IA/UA/UB/UC/UN/3U0` 不进入 `table_mapping/pass` endpoint。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_logic_endpoint or semantic_marker or single_sided_schematic_logic"` -> `3 passed, 24 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or input_matrix or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `248 passed`
+  - first fresh `.tmp/phase81_schematic_logic_endpoint_first_v2/...`: `pair_count=1550`, `issue_count=302`, pair_kind unchanged from Phase80；`wire_logic_endpoint_channel=0`，证明第一套未漂移。
+  - second fresh `.tmp/phase81_schematic_logic_endpoint_second_v2/2_2`: `pair_count=1460`, `issue_count=58`; `R-PAIR-MISSING-SIDE=48`；`wire_component_mapping` 从 Phase80 的 `168` 增至 `245`，新增 77 条窄逻辑端结构化关系。
+  - second targets hit: `1-21CD58 -> 511`、`3-21CD58 -> 511` 均为 `wire_component_mapping/review`，`11/16 测控控制回路图2` 的 missing-side 均为 0。
+  - second 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` remain structured pass relationships。
+- [ ] 下一刀候选：继续只读审计 second 剩余 `R-PAIR-MISSING-SIDE=48` 与 first `R-PAIR-MISSING-SIDE=144` 的真实结构；若转产品化，则单独切 Phase51/M11 packaged sidecar/exe smoke。
+- **Status:** complete
+
+### Phase 68: Schematic Complementary Half-Chain Geometry Review
+- [x] 只读恢复并确认当前 HEAD 为 `75722bc`；工作区已有上一段代理留下的 `rules.py` / `test_pairs_and_rules.py` 未提交改动，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 复核确认 Phase60 `terminal_header_table semantic endpoint exclusion` 已完成并提交；本轮不重开 `TableExtractor`，只收口 Phase81 剩余 ordinary missing-side 中的几何互补半链 rules 语义。
+- [x] 实现目标：允许二次原理图 `grid` line group 在较宽符号间隙或小重叠下聚合为 `complementary_half_pair` review；保留 pair graph 和 missing-side 可见性，不把关系改成 pass/discard。
+- [x] 必要保真修复：`run-audit --findings` 的 rerun loader 现在恢复 `LineGroup.orientation` 与 `row_band_id`，避免历史 findings audit-only 把 `grid` 误当 `horizontal`，导致 rules 验证和 fresh analyze 不一致。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or dim"` -> `4 passed, 55 deselected`
+  - `python -m pytest -q tests\unit\test_rerun_audit.py` -> `2 passed`
+  - `python -m pytest -q` -> `250 passed`
+  - audit-only second `.tmp/phase82_complementary_audit_second_v2`: `issue_count=51`, `R-PAIR-MISSING-SIDE=41`, `complementary_half_pair=7`
+  - audit-only first `.tmp/phase82_complementary_audit_first_v2`: `issue_count=278`, `R-PAIR-MISSING-SIDE=120`, `complementary_half_pair=24`
+  - fresh second `.tmp/phase82_complementary_second_audit`: `pair_count=1460`, `issue_count=51`, pair_kind unchanged；`ordinary_pair=597`, `wire_component_mapping=245`, `table_mapping=174`, `component_mapping=82`
+  - fresh first `.tmp/phase82_complementary_first_audit`: `pair_count=1550`, `issue_count=278`, pair_kind unchanged；`table_mapping=299`, `component_mapping=138`, `wire_component_mapping=32`
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511` 仍为 `wire_component_mapping/review`；`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍为结构化 pass 关系；first `1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307` 仍命中。
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、first ZLP component two-port mapping；backplate/component/table mapping 继续按 rules/acceptance/display 质量单独切片。
+- **Status:** complete
+
+### Phase 69: ZLP Strip Two-Port Component Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `691ed3b`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 复核确认用户早前点名的 Phase60 `terminal_header_table semantic endpoint exclusion`、Phase61 `component-prefixed 218 residual suppression`、Phase62 `inline KLP 116 residual` 收缩均已完成；本轮不重开 `TableExtractor`、KLP/CLP extractor 或 rules 聚合。
+- [x] 两个只读 explorer 与主线程 Phase82 产物核查一致确认：first `S0023 / 22 元件接线图2.dwg` 的 `1-2ZLP4` 与既有 KLP/CLP 长条双端口结构同构，块内端口 `1/2`、外部 `KD26 / 1-2n422` 和 vertical support line 都存在；旧输出仅因 body regex 不认 `ZLP` 留下 `PC0090 ? -> 422`。
+- [x] 实现目标：把 `strip_two_port_component` body family 从 `KLP/CLP` 窄扩到同构 `ZLP`，输出 `component_mapping/pass`；不改候选层、PairBuilder、rules、CLI/UI、acceptance fixture，也不移除普通 pair graph 输入。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or zlp"` -> `9 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `18 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip or run_audit"` -> `10 passed, 10 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `59 passed`
+  - `python -m pytest -q` -> `251 passed`
+  - first fresh `.tmp/phase83_zlp_first/...` + `.tmp/phase83_zlp_first_audit`: `pair_count=1562`, `issue_count=272`, `component_mapping=150`, `R-PAIR-MISSING-SIDE=114`。
+  - first target hit: `1-2ZLP4-1 -> KD26` and `1-2ZLP4-2 -> 1-2n422` are `component_mapping/pass/confidence=0.95/component_submode=strip_two_port_component`; former `PC0090 ? -> 422` and sibling `PC0104 ? -> 422` are now `discard` covered by component mapping.
+  - first KLP/CLP and prefixed redlines held: `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1` remain structured pass mappings.
+  - second fresh `.tmp/phase83_zlp_second/2_2` + `.tmp/phase83_zlp_second_audit`: `pair_count=1460`, `issue_count=51`, pair_kind unchanged from Phase82；`wire_component_mapping=245`, `table_mapping=174`, `component_mapping=82`。
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain expected structured relations.
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second DC/GND/function-label semantic mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 70: Second DC/GND Function Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `92f8c3a`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 只读审计结论：second `S0006 / 06 直流回路图.dwg` 中 `DC 0-5V/4-20mA +/-` 与 `GND` 是二次原理图功能/语义端标签，旧候选层按 `not_numeric/noise_channel` 拒绝后留下普通缺边；本轮不触碰 AC phase、network-time、first prefixed endpoints 或 backplate/component/table rules。
+- [x] 实现目标：新增窄范围 `schematic_semantic_endpoint_channel`，只在二次原理图 horizontal/grid 且直流上下文中接受 `DC 0-5V/4-20mA +/-` 与 `GND`；PairBuilder 只在对侧存在真实 `terminal_numeric_channel` 时消费，并输出 `pair_kind=semantic_mapping` / `semantic_mapping_kind=schematic_dc_function_label` / `ordinary_pair_eligible=False`。
+- [x] 风险门槛：不把语义标签提升为 `terminal_numeric_channel` 或 ordinary hard pass；单侧语义标签不得制造新 missing-side review；端子图 `I0/IA/UA/UB/UC/UN/3U0` 仍只保留为 semantic / rejected candidate evidence，不进入 `table_mapping/pass` endpoint。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `5 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `254 passed`
+  - second fresh `.tmp/phase84_dc_semantic_second/2_2` + `.tmp/phase84_dc_semantic_second_audit`: `pair_count=1460`, `issue_count=45`, `R-PAIR-MISSING-SIDE=35`, `semantic_mapping=164`。
+  - second targets now include semantic review relations: `611 -> DC 0-5V/4-20mA +`, `609 -> DC 0-5V/4-20mA +`, `607 -> DC 0-5V/4-20mA +`, and `GND -> 101` as `semantic_mapping/review` with `ordinary_pair_eligible=False`。
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `I0/IA/UA/UB/UC/UN/3U0` remain `semantic_channel` rejected evidence on terminal pages; `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain expected structured relations.
+  - first fresh `.tmp/phase84_dc_semantic_first/...` + `.tmp/phase84_dc_semantic_first_audit`: `pair_count=1562`, `issue_count=269`, `R-PAIR-MISSING-SIDE=111`, `semantic_mapping=106`; KLP/CLP/ZLP and prefixed structured redlines held.
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、second network-time/function-label semantic mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 71: Second Network-Time Function Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `d3bff0a`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四个只读 explorer 与主线程 Phase84 产物核查确认：second `S0007 / 07 网络对时回路图.dwg` 的 `TD1..TD5`、`B+/-`、`B code +/-`、`Device alarm` 属于网络/对时功能标签，旧候选层按 `not_numeric/noise_channel` 拒绝后留下 8 条普通缺边；本轮不混入 AC phase、first prefixed endpoints 或 backplate rules。
+- [x] 实现目标：沿 Phase70 的 `schematic_semantic_endpoint_channel` 窄扩 network/time sheet context，只接受 network-time 白名单标签；PairBuilder 复用完整“语义端 + 数字端”映射，并新增仅限 `schematic_network_time_label` 的同侧 annotation 语义，输出 `pair_kind=semantic_mapping` / `ordinary_pair_eligible=False`。
+- [x] 风险门槛：不把任意英文/中文说明文本提升为 endpoint；不碰 page_classifier/router、component/table extractor、rules 主逻辑、CLI/UI；单侧标签仍不得制造 ordinary missing-side。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `7 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `256 passed`
+  - second fresh `.tmp/phase85_network_time_second/2_2` + `.tmp/phase85_network_time_second_audit`: `pair_count=1460`, `issue_count=37`, `R-PAIR-MISSING-SIDE=27`, `semantic_mapping=172`；`S0007` issue 清零。
+  - second target relations include `TD4 -> 602`, `TD2 -> 601`, `TD3 -> 602`, `TD1 -> 601`, plus `Device alarm -> 110` and `B+ -> 601` annotation semantics as `semantic_mapping/review`。
+  - first fresh `.tmp/phase85_network_time_first/...` + `.tmp/phase85_network_time_first_audit`: `pair_count=1562`, `issue_count=258`, `R-PAIR-MISSING-SIDE=100`, `semantic_mapping=117`。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second wire/component/table structured redlines and first KLP/ZLP/component-prefixed structured mappings all held.
+- [ ] 下一刀候选收缩为：second AC phase-label semantic/covered mapping、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 72: Second AC Phase-Label Semantic Annotation
+- [x] 只读恢复并确认当前 HEAD 为 `a5522b7`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 Phase85 产物核查确认：second `S0004/S0005 / 04/05 交流回路图*.dwg` 中 `UA/UB/UC/UN/UX/3U0` 是 CT/VT AC phase/function label，旧候选层按 `not_numeric/noise_channel` 拒绝后留下 ordinary missing-side；本轮不混入 terminal-row、first prefixed endpoints 或 backplate rules。
+- [x] 实现目标：沿 Phase70/71 的 `schematic_semantic_endpoint_channel` 窄扩 AC/CT-VT sheet context，只接受 `UA/UB/UC/UN/UX/3U0/3U0'`；PairBuilder 允许该 detail 进入同侧 annotation semantic，输出 `pair_kind=semantic_mapping` / `semantic_mapping_kind=schematic_ac_phase_label` / `ordinary_pair_eligible=False`。
+- [x] 风险门槛：不接受 `I0/IA/IB/IC/IN` 为 AC phase label；端子图 `UA/UB/UC/UN/3U0` 仍保留为 `semantic_channel` / rejected evidence，不进入 schematic semantic endpoint，也不进入 `table_mapping/pass` endpoint；不把局部单字符 `1..6` 或 `1-21ZKK/3-21ZKK` 回灌为普通 endpoint。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0 or network_time or schematic_dc or schematic_semantic_endpoint"` -> `8 passed, 27 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `259 passed`
+  - second fresh `.tmp/phase86_ac_phase_second/2_2` + `.tmp/phase86_ac_phase_second_audit`: `pair_count=1460`, `issue_count=33`, `R-PAIR-MISSING-SIDE=23`, `semantic_mapping=182`；新增 10 条 `schematic_ac_phase_label` semantic review。
+  - second AC targets hit: `721 -> 3U0`、`723 -> UX`、`719 -> UC`、`717 -> UB`、`715 -> UA` 在 `04/05 交流回路图*.dwg` 中按候选窗口命中；`724 -> UX'` 与 `? -> 715/717/719` 另一半链仍是下一刀 covered/window 扩展候选。
+  - first fresh `.tmp/phase86_ac_phase_first/...` + `.tmp/phase86_ac_phase_first_audit`: `pair_count=1562`, `issue_count=258`, `semantic_mapping=119`；新增 2 条 first AC semantic review，既有结构化红线保持。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
+- [ ] 下一刀候选收缩为：second AC phase-label covered/window residual (`724 -> UX'` 与 `? -> 715/717/719` 半链)、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 73: Second AC Phase-Label Covered Half-Lines
+- [x] 只读恢复并确认当前 HEAD 为 `9a8bd37`；工作区继承上一段未提交实现，仅涉及 `page_extractors.py` 与 `test_page_extractors.py`，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 审计结论：Phase86 second AC 剩余 7 条中，6 条 `? -> 715/717/719` sibling half-lines 与已存在的 `schematic_ac_phase_label` semantic mapping 共用同一个 numeric text，属于结构化语义关系覆盖下的普通半边 residual；`724 -> UX'` 尚无既有 semantic mapping，需要后续 strict nearby/window annotation 切片。
+- [x] 实现目标：只在 `WireDiagramExtractor` 输出后扫描二次原理图内 `schematic_ac_phase_label` semantic mapping 的 `numeric_endpoint_text_id`，把共享该 numeric text 的 ordinary 单侧半边 pair 降为 `discard`，并标记 `covered_by_schematic_ac_phase_label_semantic_mapping`；不改候选窗口、PairBuilder、rules、table/component extractor 或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0"` -> `3 passed, 32 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `262 passed`
+  - second fresh `.tmp/phase87_ac_covered_second/2_2` + `.tmp/phase87_ac_covered_second_audit`: `pair_count=1460`, `issue_count=27`, `ordinary_pair review=21`；6 条 AC sibling half-lines 被 coverage discard，AC residual 只剩 `PW0047/GW0047 724 -> ?`。
+  - first fresh `.tmp/phase87_ac_covered_first/...` + `.tmp/phase87_ac_covered_first_audit`: `pair_count=1562`, `issue_count=256`，既有 KLP/ZLP/218 structured redlines held。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
+- [ ] 下一刀候选收缩为：second AC `724 -> UX'` strict nearby/window annotation、first prefixed external endpoints、backplate/component/table mapping rules semantics；每刀仍需先只读审计再做最小实现。
+- **Status:** complete
+
+### Phase 74: Second AC UX Prime Strict Line-Span Annotation
+- [x] 只读恢复并确认当前 HEAD 为 `35cb72f`；工作区继承上一段未提交实现，仅涉及 `src/dwg_audit/audit/candidates.py` 与 `tests/unit/test_terminal_candidates.py`，受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 未纳入本轮写集。
+- [x] 审计结论：second `S0005 / 05 交流回路图2.dwg` 的 `PW0047/GW0047 724 -> ?` 是 AC 相量语义标注残留；数字 `724` 与 `UX'` 位于同一严格 line-span 行带内，应形成 `schematic_ac_phase_label` 的 `semantic_mapping/review`，而不是普通 missing-side。
+- [x] 实现目标：在 `build_terminal_candidates()` 中只为二次原理图 AC phase label 增加严格 line-span 候选补充，支持 `UX'`；新增跨行 AC 语义端 guard，但只作用于 `schematic_ac_phase_label`，避免误伤 DC/network-time 语义端。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or ac_phase or ux_prime or schematic_i0"` -> `10 passed, 29 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `266 passed`
+  - second fresh `.tmp/phase88_ac_ux_prime_second_v3/2_2` + `.tmp/phase88_ac_ux_prime_second_v3_audit`: `pair_count=1460`, `issue_count=26`, `ordinary_pair=571`, `semantic_mapping=183`, AC issue count `0`。
+  - second target hit: `PW0047/GW0047 724 -> ?` is now `semantic_mapping/review` with `semantic_endpoint=UX'`, `numeric_endpoint=724`, `ordinary_pair_eligible=False`；`GW0048/T0134 UX'` is rejected as `schematic_semantic_out_of_row`。
+  - DC regression held: `PW0106 607 -> DC 0-5V/4-20mA +` remains `semantic_mapping/review` after narrowing the row guard to AC labels only。
+  - first fresh `.tmp/phase88_ac_ux_prime_first/...` + `.tmp/phase88_ac_ux_prime_first_audit`: `pair_count=1562`, `issue_count=256`，KLP/ZLP/218 structured redlines held。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` 仍命中；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2n218 -> 1-4YD1`、`3-2n218 -> 3-4YD1`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` 仍命中。
+- [ ] 下一刀候选收缩为：first prefixed external endpoints、backplate/component/table mapping rules semantics；若转向产品化，packaged sidecar/exe smoke 必须作为独立切片。
+- **Status:** complete
+
+### Phase 75: First Prefixed External Endpoint Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `c0dc1f7`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：first `S0009/S0010/S0011` 中 `1QD5 / 1-2QD12 / 3-2QD12` 与同行裸 `105` 是前缀外部端到本页 `n###` 逻辑端的结构化关系；旧输出留下 `? -> 105` 普通缺边。`S0012` 的 `5FD25 -> 5n105` 属于 FD 变体，本轮不混入。
+- [x] 实现目标：在 `wire_components.py` 增加 `first_prefixed_external_endpoint_mapping` 子模式，只接受非 `*-21QD*` 的 QD 外部端与同行 3 位局部号；在 `WireDiagramExtractor` 中只对当前普通单侧 residual 的局部号启用该子模式，避免把整片 QD 表无差别提升入图。
+- [x] 覆盖策略：`page_extractors.py` 只用新结构关系的 `local_number_text_id` 覆盖普通半边 pair，外部端文本自身不被覆盖；`input_matrix_wire_mapping=168` 与 terminal semantic/table 红线保持隔离。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "prefixed or input_matrix or inline_klp"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "prefixed or input_matrix or terminal_prefixed"` -> `9 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "wire_component or missing_side or semantic_mapping"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `272 passed`
+  - first fresh `.tmp/phase75_prefixed_external_first_v2/...` + `.tmp/phase75_prefixed_external_first_v2_audit`: `pair_count=1584`, `issue_count=232`, `wire_component_mapping=54`；新增 `first_prefixed_external_endpoint_mapping=22`。
+  - first target hits: `1QD5 -> 1n105`、`1-2QD12 -> 1-2n105`、`3-2QD12 -> 3-2n105` are `wire_component_mapping/pass`；`PW0225/PW0250/PW0275 ? -> 105` are now `ordinary_pair/discard` with `covered_by_first_prefixed_external_endpoint_mapping=True`；`PW0309 ? -> 105` remains review because FD variant is out of scope.
+  - second fresh `.tmp/phase75_prefixed_external_second_v2/2_2` + `.tmp/phase75_prefixed_external_second_v2_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first KLP/ZLP/218 structured redlines held。
+- [ ] 下一刀候选收缩为：FD prefixed external endpoint residual (`5FD25 -> 5n105`)；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 76: FD Prefixed External Endpoint Residual
+- [x] 只读恢复并确认当前 HEAD 为 `1396809`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 parquet 核查一致确认：first `S0012 / 11 非电量开入回路.dwg` 的 `PW0309 ? -> 105` 是系统误解；`T0801=5FD25` 与 `T0830=105` 同行，页面 scope 为 `5n BINARY INPUT`，且背板/元件结构化证据中已有 `NDY306A-5 -> 5FD25`、`5DK-2 -> 5FD25` corroboration。
+- [x] 实现目标：将 `first_prefixed_external_endpoint_mapping` 的端点族从 QD 窄扩到 `QD|FD`，仍保留非 `*-21QD*`、二次原理图、同行、右侧局部号、ordinary 单侧 residual eligible gate；不改 rules、table/component extractor、candidate 主逻辑或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "prefixed or input_matrix or inline_klp"` -> `12 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "prefixed or input_matrix or terminal_prefixed"` -> `9 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "wire_component or missing_side or semantic_mapping"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `274 passed`
+  - first fresh `.tmp/phase76_fd_prefixed_first/...` + `.tmp/phase76_fd_prefixed_first_audit`: `pair_count=1589`, `issue_count=226`, `wire_component_mapping=59`；`first_prefixed_external_endpoint_mapping=27`。
+  - first FD targets hit: `5FD25 -> 5n105` plus same-family `5FD3 -> 5n114`、`5FD26 -> 5n132`、`5FD1 -> 5n103` on the 5n input page；`PW0309 ? -> 105` is now `ordinary_pair/discard` with `covered_by_first_prefixed_external_endpoint_mapping=True`。
+  - second fresh `.tmp/phase76_fd_prefixed_second/2_2` + `.tmp/phase76_fd_prefixed_second_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first KLP/ZLP/218 structured redlines held。
+- [ ] 下一刀候选收缩为：second inline wire split `505` half-chain bridge；second component vertical `401` mapping upgrade；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 77: Second Inline Wire Split 505 Half-Chain Continuation
+- [x] 只读恢复并确认当前 HEAD 为 `29168e4`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 主线程与两个只读 explorer 核查一致确认：second `S0014 / 14 测控2开入回路图3.dwg` 的 `PW0438 ? -> 505` 与 `PW0440 505 -> ?` 共享 `T1479=505`、同 row band、`bridge_gap=18.75`，属于 `Emergency stop / 调压急停` 元件区域的一条 inline wire split half-chain，不是两个真实普通缺端。
+- [x] 实现目标：在 `WireDiagramExtractor` 的 pair 后处理层增加窄范围 inline split continuation 标记，只处理二次原理图内同 sheet/text/value 的互补普通半边、horizontal/grid 线组、同 row band、gap/y delta 合法的场景；命中后保留 pair 证据为 `pair_kind=continuation` / `ordinary_pair_eligible=False`，不改 `pairs.py` 端子 continuation、不调 `line_groups.py` 阈值、不动 rules 主逻辑或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_wire_split or input_matrix or prefixed or ac_phase"` -> `14 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side or continuation"` -> `10 passed, 49 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `276 passed`
+  - second fresh `.tmp/phase77_inline_wire_split_second/2_2` + `.tmp/phase77_inline_wire_split_second_audit`: `pair_count=1460`, `issue_count=25`, `R-PAIR-MISSING-SIDE=15`, `continuation=204`。
+  - `PW0438` and `PW0440` are now `continuation/review` with `semantic_kind=continuation_inline_wire_split`, `continuation_kind=schematic_inline_wire_split_half_chain`, `covered_by_inline_wire_split_half_chain=True`, `shared_text_id=T1479`, `shared_value=505`, `bridge_gap=18.75`; no `505` issue remains.
+  - Guardrails held: `PW0439 505 -> 506` remains `ordinary_pair/discard`; `PW0442 ? -> 501` remains an ordinary missing-side review; `semantic_table_mapping_pass_endpoint_count=0`; `input_matrix_wire_mapping=168`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218` remain structured relations.
+- [ ] 下一刀候选收缩为：second component vertical `401` mapping upgrade；backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 78: Second Component Vertical 401 Endpoint Bridge
+- [x] 只读恢复并确认当前 HEAD 为 `e8d9ecd`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 parquet 核查一致确认：second `S0020 / 20 元件接线图2.dwg` 的 `PC0077 4 -> 401`、`PC0090 6 -> 401` 是 `FJL-25-2A_Mirror` 双端口块上下端点桥接，真实结构应为 `3-21ZK-4 -> 3-21n401` 与 `1-21ZK-6 -> 1-21n401`，旧 ordinary review 来自派生数字而非图纸问题。
+- [x] 实现目标：在 `ComponentDiagramExtractor` 中新增 `strip_two_port_endpoint_bridge` 窄 submode，只接受同前缀 `*-21ZK-#` 顶端点与 `*-21n###` 底端点、上下 pin `1/2`、支撑竖线同时成立的场景；输出直接 `component_mapping/pass`，并用 consumed line group 覆盖旧 ordinary pair。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or endpoint_bridge"` -> `12 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "component or inline_wire_split or input_matrix or prefixed"` -> `11 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `279 passed`
+  - second fresh `.tmp/phase78_component_vertical_401_second/2_2` + `.tmp/phase78_component_vertical_401_second_audit`: `pair_count=1462`, `issue_count=23`, `component_mapping=84`；新增 `PCB0001 3-21ZK-4 -> 3-21n401` 与 `PCB0002 1-21ZK-6 -> 1-21n401` 均为 `component_mapping/pass`。
+  - `PC0077 4 -> 401` 与 `PC0090 6 -> 401` 均已 `ordinary_pair/discard`，带 `covered_by_component_mapping=True`；`GC0077/GC0090` 不再产生 `401` 相关 issue。
+  - first fresh `.tmp/phase78_component_vertical_401_first/...` + `.tmp/phase78_component_vertical_401_first_audit`: `pair_count=1581`, `issue_count=212`, `component_mapping=150`；first KLP/ZLP/218 structured redlines held。
+  - 红线保持：`semantic_table_mapping_pass_endpoint_count=0`；second `1-21CD58 -> 511`、`3-21CD58 -> 511`、`1-21QD34 -> 1-21n218`、`3-21QD28 -> 3-21n218`、`1-21GD9 -> 1-21n218` held；first `5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1`、`5KLP5-2 -> 5n307`、`1-2ZLP4-1 -> KD26`、`1-2ZLP4-2 -> 1-2n422` held。
+- [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 79: Backplate Scope Review Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `813fed7`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：first fresh audit 的最大结构化 rules 噪声是 `R-CROSS-PAGE-CONFLICT=66`，全部为 `table_mapping/review` 背板虚拟表格作用域复用；证据中已有 `one_to_many_classification=backplate_table_scope_review`、`table_mapping_mode=backplate_virtual_table`、`source_block_names`、`header_prefixes`，不应写成 extractor 缺失。
+- [x] 实现目标：只在规则聚合 / 诊断层收口，不改 extractor、不移除 `table_mapping` 入图；按 `rule_id + classification + table_mapping_mode + header_prefixes + source_block_names` 聚合背板 cross-page scope review，并把 specialized `R-CROSS-PAGE-CONFLICT` 诊断为 `rule_too_strict`。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `7 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `281 passed`
+  - first rules-only audit `.tmp/phase79_backplate_scope_first_audit`: `issue_count=153`，`R-CROSS-PAGE-CONFLICT=7`，cross-page root cause 全部为 `rule_too_strict`；Phase78 first findings pair_count 保持 `1581`。
+  - second rules-only audit `.tmp/phase79_backplate_scope_second_audit`: `issue_count=23`，规则分布保持 `R-PAIR-MISSING-SIDE=15`、`R-ONE-TO-MANY=6`、`R-SEMANTIC-MAPPING-CONFLICT=1`、`R-MANY-TO-ONE=1`；Phase78 second findings pair_count 保持 `1462`。
+- [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics 的剩余同页 / many-to-one / 默认展示口径；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 80: Backplate Same-Sheet Scope Review Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `07614f5`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase79 后 first `S0021 / 20 非电量保护背板图.dwg` 的 `NKR308A-1..18` 仍以 `backplate_table_same_sheet_scope_review` 行级 review 散开；这是同一 source block、同一表头组、连续行号的同页虚拟表格作用域复用，属于 rules/display 聚合缺口，不是 extractor 缺失。
+- [x] 实现目标：只在 `rule_base.cluster_issues()` 聚合同页背板 scope review；按 sheet、source block、header prefix、raw header/header text ids 分簇，并仅合并连续行号范围，保留所有 related pair/evidence。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `8 passed, 53 deselected`
+  - `python -m pytest -q` -> `282 passed`
+  - first rules-only audit `.tmp/phase80_backplate_same_sheet_scope_first_audit`: `issue_count=136`，`R-ONE-TO-MANY=24`；`backplate_table_same_sheet_scope_review` 从 `18` 条聚合为 `1` 条，`cluster_size=18`，保留 `36` 个 `cluster_pair_ids`。
+  - second rules-only audit `.tmp/phase80_backplate_same_sheet_scope_second_audit`: `issue_count=23` 保持不变；Phase78 findings pair_count 保持 first `1581` / second `1462`。
+- [ ] 下一刀候选收缩为：backplate/component/table mapping rules semantics 的 many-to-one/shared endpoint 默认展示分层、terminal header shared endpoint 区间展示、component split endpoint review 展示；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 81: Terminal Header Shared Endpoint Interval Evidence
+- [x] 只读恢复并确认当前 HEAD 为 `a59a15e`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase80 后 second `S0023 / 23 右侧端子图1.dwg` 的 `terminal_header_table_shared_endpoint_review` 已聚合为 1 条，但报告仍以单个 `1-21n210` 表述，未显示真实结构是 `1-21GD1..21` 与 `1-21QD26..46` 共享 `1-21n210..230` 的连续区间。
+- [x] 实现目标：只在 `rule_base` 聚合证据和 issue summary/action 中补 terminal header shared endpoint 区间摘要；不改 TableExtractor、TerminalDiagramExtractor、PairBuilder、graph input、规则判定或 CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or backplate or shared_endpoint"` -> `13 passed, 48 deselected`
+  - `python -m pytest -q` -> `282 passed`
+  - first rules-only audit `.tmp/phase81_terminal_header_interval_first_audit`: `issue_count=136` 保持不变；聚合 terminal-header shared endpoint issue 增加 `aggregated_*_ranges` 和区间化 summary。
+  - second rules-only audit `.tmp/phase81_terminal_header_interval_second_audit`: `issue_count=23` 保持不变；`I0062` summary 显示 `logical=1-21GD1..1-21GD21, 1-21QD26..1-21QD46; shared=1-21n210..1-21n230`，recommended action 显示行号区间 `1..21, 26..46`。
+- [ ] 下一刀候选收缩为：component split endpoint review 展示、many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 82: Component Split Endpoint Review Display
+- [x] 只读恢复并确认当前 HEAD 为 `092798c`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程 Phase81 产物核查一致确认：first `S0024 / 23 元件接线图3.dwg` 的 `component_split_endpoint_group_review` 已有 `external_endpoint_raw_values`、`external_endpoint_splits`、`external_endpoint_text_ids`、`logical_endpoints` 证据；缺口是报告/UI 只显式展示 `one_to_many_classification`，`R-MANY-TO-ONE` 的 split review 没有同等一等展示字段。
+- [x] 实现目标：只在报告与内部 Streamlit UI 展示层透出 `many_to_one_classification` 和统一 `review_classification`，并在 LineSemantics 摘要中显示 `component_submode`、`component_branch_kind`、`shared_endpoint`、`external_endpoint_splits`；不改 extractor、pair graph、rules 判定、issue 聚合或 CLI 产品表面。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "many_to_one_component_split or evidence_display"` -> `2 passed, 15 deselected`
+  - `python -m pytest -q tests\unit\test_ui_app.py -k "classification"` -> `2 passed, 3 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py` -> `22 passed`
+  - `python -m pytest -q` -> `284 passed`
+  - first rules-only audit `.tmp/phase82_component_split_display_first_audit`: `issue_count=136` 保持不变；`component_split_endpoint_group_review=28`，其中 `R-ONE-TO-MANY=16`、`R-MANY-TO-ONE=12`；Markdown 出现 `ReviewClassification`、`OneToManyTriage`、`ManyToOneTriage` 与 split semantics，XLSX `review_classification` 命中 28 行、`many_to_one_classification` 命中 12 行。
+  - second rules-only audit `.tmp/phase82_component_split_display_second_audit`: `issue_count=23` 保持不变；`component_split_endpoint_group_review=0`。
+  - Phase78 findings pair counts 未漂移：first `pair_count=1581`，second `pair_count=1462`。
+- [ ] 下一刀候选收缩为：many-to-one/shared endpoint 默认展示分层、backplate/component cross-scope shared endpoint 展示、acceptance golden 口径；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 83: Backplate Structured Shared Endpoint Component-Scope Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `fe5476d`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase82 后 first 仍有 `16` 条 `backplate_structured_shared_endpoint_review`；其中 `11` 条为 backplate virtual table 与 component mapping 共同指向物理端点，已有 `pair_kinds`、`table_mapping_modes`、`component_submodes`、`source_block_names`、`header_prefixes` 等结构证据。缺口是同一组件线组内端点逐条散开显示，不是 extractor 缺失。
+- [x] 实现目标：只在 `rule_base.cluster_issues()` 聚合 `R-MANY-TO-ONE / backplate_structured_shared_endpoint_review` 的 component-scope 子集；按 sheet/file/line_group/pair kinds/table modes/component submodes/source block/header prefix 分簇，保留所有 related pair/evidence，并刷新聚合 summary/action。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate_structured or shared_endpoint or backplate or terminal_header"` -> `15 passed, 48 deselected`
+  - `python -m pytest -q` -> `286 passed`
+  - first rules-only audit `.tmp/phase83_backplate_structured_shared_first_audit`: `issue_count=132`，`R-MANY-TO-ONE=30`；`backplate_structured_shared_endpoint_review` 从 `16` 条聚合为 `12` 条，其中 `4` 条为 `backplate_structured_shared_endpoint_aggregate_review`，各 `cluster_size=2`。
+  - 典型聚合：`1QD1/1QD5`、`5FD1/5FD25`、`1-2QD1/1-2QD12`、`3-2QD1/3-2QD12` 均显示 component-scope endpoint cluster summary，并保留 `4` 个 `cluster_pair_ids`。
+  - second rules-only audit `.tmp/phase83_backplate_structured_shared_second_audit`: `issue_count=23` 保持不变；`backplate_structured_shared_endpoint_review=0`。
+  - Phase78 findings pair counts 未漂移：first `pair_count=1581`，second `pair_count=1462`。
+- [ ] 下一刀候选收缩为：acceptance golden 口径刷新、剩余 table-only shared endpoint 默认展示分层、packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 84: Structured Review Issue Acceptance Golden Refresh
+- [x] 只读恢复并确认当前 HEAD 为 `d75c708`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase83 后 extractor 红线已闭环，现有 acceptance suite 已支持 `pair_kind/status/pair_key` 精确 pair golden，但不能直接验收 `backplate_structured_shared_endpoint_aggregate_review` 这类结构化 review issue evidence。
+- [x] 实现目标：只扩 internal acceptance harness 的 spec 表达能力，新增 `expected_review_issues`，支持按 rule/filename/sheet/status/severity、review classification、summary 片段和 evidence 字段匹配；不改产品 CLI 表面、不改 extractor、rules、graph input、report/UI。
+- [x] 固化 first-set Phase83 真实 review fixture：新增 `first_set_backplate_structured_shared_phase83.json`，验收 `1QD1/1QD5`、`5FD1/5FD25`、`1-2QD1/1-2QD12`、`3-2QD1/3-2QD12` 四个 component-scope 聚合簇，并把它作为 `mvp_minimum_suite.json` 的 required case。
+- [x] 验证结果：
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `287 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite ...` -> `required_passed_case_count=4/4`, `acceptance_passed=True`
+  - fresh first review acceptance `.tmp/phase84_acceptance_first_review`: `expected_review_issues=4`, `matched=4`, `recall=1.0`, `acceptance_passed=True`
+  - fresh second component/terminal acceptance: `18/18` pairs, precision/recall `1.0`; second terminal S0024 acceptance: `6/6` pairs, precision/recall `1.0`
+  - first fresh rules-only audit: `pair_count=1581`, `issue_count=132`, `backplate_structured_shared_endpoint_aggregate_review=4`; second fresh analyze/audit: `pair_count=1462`, `issue_count=23`
+- [ ] 下一刀候选收缩为：剩余 table-only shared endpoint 默认展示分层；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 85: Table-Only Shared Endpoint Display Layering
+- [x] 只读恢复并确认当前 HEAD 为 `be18361`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase84 后剩余 P0 是 table-only shared endpoint 默认展示分层。first `I0202/I0204/I0211/I0212/I0213` 均为 `pair_kinds=["table_mapping"]`，但旧 summary/title 写成 table/component mixed；`I0191` 等 component+table mixed 是负例，必须保留原 mixed 语义。
+- [x] 实现目标：只在 `R-MANY-TO-ONE` 结构化 shared endpoint review 的 issue 文案/evidence 中区分 `backplate_table_shared_endpoint` 与 `backplate_table_component_shared_endpoint`；不改 extractor、PairBuilder、graph input、issue count、pair count、CLI、report/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or backplate_structured or terminal_only_shared_endpoint or non_backplate_structured"` -> `5 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or shared_endpoint or backplate_structured or terminal_header_table"` -> `14 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 17 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `288 passed`
+  - Phase85 fresh acceptance suite `.tmp/phase85_table_only_shared_acceptance_suite_fresh`: `required_passed_case_count=4/4`, `acceptance_passed=True`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase85_table_only_shared_first_audit`: `pair_count=1581`, `issue_count=132`, pair_kind distribution unchanged；5 table-only issues now title `背板表格共享端点待复核`, summary `across table scopes`, `structured_scope_kind=backplate_table_shared_endpoint`。
+  - second `.tmp/phase85_table_only_shared_second_audit`: `pair_count=1462`, `issue_count=23`, pair_kind distribution unchanged；table-only backplate shared endpoint count remains `0`。
+- [ ] 下一刀候选收缩为：terminal_header_table interval / multi-endpoint default display layer；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 86: Terminal Header Same-Side Multi-Endpoint Review Layering
+- [x] 只读恢复并确认当前 HEAD 为 `f0f7ab8`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两个只读 explorer 与主线程实样核查一致确认：下一刀不重做 Phase81 的 `R-MANY-TO-ONE / terminal_header_table_shared_endpoint_review` 区间证据，而是收口 `R-ONE-TO-MANY / terminal_header_table_multi_endpoint_review` 的默认展示分层。
+- [x] 审计样本：second `S0024 / 24 右侧端子图2.dwg` 的 `1-21CD11 -> 1-21n508 / 1-21n512`、second `S0022 / 22 左侧端子图2.dwg` 的 `3-21WD2 -> 3-21n608 / 3-21GD7` 均已是 `terminal_header_table` table mapping，但旧规则因只接受 left+right 两列并存而落入 generic `one_to_many_classification=review`。
+- [x] 实现目标：只在 rules/display 语义层把同一表头、同一行、同一 logical endpoint 的多个 terminal endpoint 归入 `terminal_header_table_multi_endpoint_review`；保留 `endpoint_columns` 区分同侧或左右列，并在聚合证据中补齐 `aggregated_terminal_header_table_endpoint_values`。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table_multi_endpoint or terminal_header_table_shared_endpoint or terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q` -> `289 passed`
+- [x] Fresh rules-only verification：
+  - second `.tmp/phase86_terminal_header_multi_endpoint_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`；`I0017 / 3-21WD2` now title `端子表多端点行映射待复核`, `endpoint_columns=["right_endpoint"]`, `terminal_header_table_endpoint_values=["3-21GD7","3-21n608"]`；`I0060/I0061` row `10/11` 聚合并保留 `aggregated_terminal_header_table_endpoint_values=["1-21n403","1-21n508","1-21n511","1-21n512"]`。
+  - first `.tmp/phase86_terminal_header_multi_endpoint_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；terminal header generic one-to-many reviews also reduced to `0`。
+- [ ] 下一刀候选收缩为：terminal_header_table large row-band range display / report projection；packaged sidecar/exe smoke only as a separate product slice.
+- **Status:** complete
+
+### Phase 87: Terminal Header Row-Band Range Report Projection
+- [x] 只读恢复并确认当前 HEAD 为 `4033851`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 审计结论：Phase86 后 `terminal_header_table_multi_endpoint_review` 已正确分层并聚合，但报告仍容易被 `evidence_refs` 淹没；second `S0023 / 23 右侧端子图1.dwg / I0021` 保留 76 条底层 refs，却缺少 `1-21QD1..1-21QD38`、行号 `1..38` 和端子区间的默认展示。
+- [x] 实现目标：只在 rules/report projection 层补 row-band range evidence 和 compact evidence display；不改 TableExtractor、PairBuilder、graph input、规则触发、CLI 产品表面或桌面端。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "evidence_display or terminal_header"` -> `2 passed, 16 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py` -> `18 passed`
+  - `python -m pytest -q` -> `290 passed`
+- [x] Fresh rules-only verification：
+  - second `.tmp/phase87_terminal_header_row_band_display_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`；`I0021` summary now shows `logical=1-21QD1..1-21QD38` and terminal endpoint ranges, Markdown/XLSX evidence display includes `pair_count=76` and no `ref76` flood.
+  - first `.tmp/phase87_terminal_header_row_band_display_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；`generic_one_to_many_review_count=0`。
+- [ ] 下一刀候选收缩为：packaged sidecar/exe smoke as a separate product slice；若继续规则语义，只做 backplate/component mapping rules semantics 的默认用户视角分层。
+- **Status:** complete
+
+### Phase 88: Grid Row-Band Endpoint Gap Diagnostics
+- [x] 只读恢复并确认当前 HEAD 为 `a8147d6`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 三路只读审计结论：抽取器红线和 terminal-header 展示链已闭合；产品线可独立推进 packaged sidecar/exe smoke；若继续样本误解主线，剩余 `insufficient_evidence` 中最清晰的新靶子是 WireDiagramExtractor 的 grid row-band endpoint gap。
+- [x] 审计样本：first `S0006 / 05 交流回路图2.dwg` 在同一 `row_band_id` 内同时出现 `721->721` 低置信同号短线、`721->?` 或 `?->705` 缺侧线；second `06 直流回路图.dwg`、`12 测控2开入回路图1.dwg` 也存在同类 grid row-band missing-side 症状。旧 root cause 统一为 `insufficient_evidence`，无法指导下一轮 row-band endpoint inference。
+- [x] 实现目标：只在 `services.issue_diagnostics` 中把 WireDiagramExtractor/grid/row_band 的 missing-side 或 same-value low-confidence symptoms 标注为 `pairing_wrong` + `grid_row_band_endpoint_gap`；不改 extractor、PairBuilder、rules、issue_count、pair_count、CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "RootCause or evidence_display"` -> `1 passed, 17 deselected`
+  - `python -m pytest -q` -> `290 passed`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase88_grid_row_band_diagnostics_first_audit`: `pair_count=1581`, `issue_count=131`，pair_kind distribution unchanged；root cause counts become `pairing_wrong=60`, `rule_too_strict=60`, `insufficient_evidence=11`；`05 交流回路图2.dwg` has 22 `grid_row_band_endpoint_gap` samples with row-band context.
+  - second `.tmp/phase88_grid_row_band_diagnostics_second_audit`: `pair_count=1462`, `issue_count=22`，pair_kind distribution unchanged；root cause counts become `pairing_wrong=15`, `rule_too_strict=7`。
+- [ ] 下一刀候选收缩为：grid row-band endpoint inference/aggregation on CT/VT and DC pages；packaged sidecar/exe smoke remains an independent product slice.
+- **Status:** complete
+
+### Phase 89: Grid Row-Band Endpoint Gap Review Aggregation
+- [x] 只读恢复并确认当前 HEAD 为 `6fb8a93`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 两路只读 explorer 与主线程实样核查一致确认：Phase88 已把 grid row-band 症状诊断为 `pairing_wrong`，但同一 row-band 内仍以多条 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 分散显示；直接做 pair inference 风险较高，因为不少缺侧症状没有稳定 alternative endpoint。
+- [x] 审计样本：first `S0006 / 05 交流回路图2.dwg` 的 `RBW0014` 同时有 `PW0043/PW0047 721->721` 低置信同号短线和 `PW0044/PW0048 721->?` 缺侧线；`RBW0015/RBW0016/RBW0018/RBW0020/RBW0022/RBW0023/RBW0024` 同构。
+- [x] 实现目标：只在 `rule_base.cluster_issues()` 中把同一 sheet/file/row_band 的 grid ordinary endpoint-gap symptoms 聚合为 `grid_row_band_endpoint_gap_review`，补 `cluster_pair_ids`、`aggregated_rule_ids`、`aggregated_endpoint_values`、`aggregated_missing_sides`、`aggregated_line_group_ids` 和 line spans；不改 extractor、candidate、PairBuilder、pair_kind、pair_count、CLI/UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band_endpoint_gap or low_confidence_pairs_for_cross_page_conflict"` -> `2 passed, 64 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band or terminal_header_table or backplate_structured or low_confidence or missing_side"` -> `16 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `291 passed`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase89_grid_row_band_aggregation_first_audit`: `pair_count=1581`，pair_kind distribution unchanged；`issue_count=117`（Phase88 `131 -> 117`）；`grid_row_band_endpoint_gap_review=8`；`RBW0014` 聚合为 1 条 review，`cluster_size=4`，`cluster_pair_ids=["PW0043","PW0044","PW0047","PW0048"]`。
+  - second `.tmp/phase89_grid_row_band_aggregation_second_audit`: `pair_count=1462`，`issue_count=22`，pair_kind distribution unchanged；多数 row-band 只有单症状，因此不触发聚合，`pairing_wrong=15` 保持可见。
+- [ ] 下一刀候选收缩为：真正 grid row-band endpoint inference（需更强证据后再改 pair graph）或 packaged sidecar/exe smoke 独立产品切片；不要重开已闭环 extractor，也不要通过隐藏 ordinary pair 降噪。
+- **Status:** complete
+
+### Phase 90: Packaged Sidecar Executable Smoke
+- [x] 只读恢复并确认当前 HEAD 为 `c09ce23`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 三路只读审计裁决：Phase89 后不应立刻广义改 grid row-band pair graph；本轮转向独立产品化切片 `packaged sidecar/exe smoke`。同时记录未来 row-band inference 只能从 first `05 交流回路图2.dwg` 的 `RBW0014-RBW0016` 这类重复 `v->v` anchor + `v->?` 缺右端窄模式开始，不能扩到 second 或 `?->709/707/...`。
+- [x] 实现目标：新增 Python sidecar entrypoint、PowerShell PyInstaller 构建脚本、Tauri `bundle.resources` 映射和桌面 README smoke 流程；生成的 `dwg-audit-sidecar.exe` 作为本地构建产物被 `.gitignore` 排除，不纳入仓库；不改审计规则、extractor、PairBuilder、CLI 产品表面或 UI。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_desktop_packaging.py tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `10 passed`
+  - `cd apps\desktop; npm run build` -> passed
+  - `cd apps\desktop\src-tauri; cargo test sidecar_runtime` -> `5 passed`
+  - `cd apps\desktop; .\scripts\build-sidecar.ps1 -Clean` -> built `src-tauri\resources\sidecar\dwg-audit-sidecar.exe`
+  - `dwg-audit-sidecar.exe --help` -> listed desktop/internal commands including `analyze-session`, `list-recent-projects`, `load-result`, `set-issue-status`, `render-preview`
+  - `dwg-audit-sidecar.exe list-recent-projects --state-db .tmp\phase90_sidecar_smoke\desktop_state.db` -> `{"projects":[]}`
+  - `cd apps\desktop; npm run tauri:build` -> built release app and NSIS installer `DWG Audit Desktop_0.1.0_x64-setup.exe`; release output includes `target\release\sidecar\dwg-audit-sidecar.exe`
+  - packaged sidecar `evaluate-acceptance` smoke on Phase84 real fixtures passed for first review fixture and second component / terminal pair fixtures
+  - `python -m pytest -q` -> `294 passed`
+- [ ] 下一刀候选收缩为：安装后 exe 主流程 smoke（真实桌面启动/导入/结果回看），或极窄 grid row-band endpoint inference 设计（只从 `RBW0014-RBW0016` 缺右端同值推断开始）；二者仍保持独立切片。
+- **Status:** complete
+
+### Phase 91: Terminal Header Semantic Endpoint Exclusion Revalidation
+- [x] 只读恢复并确认当前 HEAD 为 `1e41890`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 按用户要求重读 `task_plan.md`、`progress.md` 尾部、`doc/findings.md` 尾部、完整 `doc/任务书.md` 和 `git status --short`。
+- [x] 审计结论：本轮推荐切片 `terminal_header_table semantic endpoint exclusion` 已由 Phase60 落地，当前 `table_extractor.py` 仍有 `_TERMINAL_HEADER_SEMANTIC_ENDPOINTS` gate，单测也已有 `I0/3U0` 负向断言；因此本轮不重复改 extractor，不混入 KLP/218 residual 或 rules 大改。
+- [x] Fresh second-set 验证结果：
+  - `python -m pytest -q tests\unit\test_table_extractor.py tests\unit\test_page_extractors.py tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `17 passed, 31 deselected`
+  - `python -m dwg_audit.cli analyze-project --input "test\变压器测控柜(2圈变，2台测控)" --output .tmp\phase91_terminal_header_semantic_second` -> completed
+  - `python -m dwg_audit.cli run-audit --findings .tmp\phase91_terminal_header_semantic_second\2_2\findings --output .tmp\phase91_terminal_header_semantic_second_audit` -> completed
+  - `python -m pytest -q` -> `294 passed`
+  - fresh second `pair_count=1462`, `issue_count=22`, `table_mapping=174`
+  - `S0021 / 21 左侧端子图1.dwg` 中 `3-21ID9 -> I0`、`3-21QD7 -> I0` 的 `table_mapping/pass` 均为 `0`
+  - 正常 `terminal_header_table` 关系保持：`3-21ID9 -> 3-21n707`、`3-21QD7 -> 3-21n128` 仍为 `table_mapping/pass`
+  - `I0/IA/UA/UB/UC/UN/3U0` 仍保留为 `texts` 级语义/非数值证据，未进入 endpoint
+  - `terminal_header_table` by sheet 保持 `S0021=32`, `S0022=7`, `S0023=112`, `S0024=23`
+- [ ] 下一轮候选只剩：`inline KLP 116 residual suppression`、`component-prefixed 218 residual suppression`、`backplate/component mapping rules semantics`。
+- **Status:** complete
+
+### Phase 92: Terminal Header Component Shared Endpoint Review
+- [x] 只读恢复并确认当前 HEAD 为 `39aca77`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四路只读审计结论：`inline KLP 116` 与 `component-prefixed 218` 的代表结构化映射和 residual suppression 已闭合；继续把它们当 extractor 缺失会偏航。本轮最小切片转向 `backplate/component mapping rules semantics` 中仍可见的 generic `component_mapping + terminal_header_table` 多对一分层。
+- [x] 实现目标：只在 `rules.py` 中把 `component_mapping` 与 `terminal_header_table` 共同指向同一端点的场景标为 `terminal_header_component_shared_endpoint_review`；保留 terminal-only shared endpoint generic 负例，不改 extractor、PairBuilder、pair graph、CLI/UI 或 report 聚合。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_component or terminal_only_shared_endpoint or backplate_structured or structured_mapping_shared_endpoint or shared_endpoint"` -> `8 passed, 58 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or structured_mapping_shared_endpoint or shared_endpoint or many_to_one or terminal_header"` -> `20 passed, 46 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 18 deselected`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `294 passed`
+- [x] Fresh rules-only verification：
+  - first `.tmp/phase92_terminal_component_shared_first_audit`: `pair_count=1581`，`issue_count=117`，pair_kind distribution unchanged；`KD23` 与 `KD6` 从 `多对一配对` 分层为 `端子表组件共享端点待复核`，evidence 含 `many_to_one_classification=terminal_header_component_shared_endpoint_review`、`pair_kinds=["component_mapping","table_mapping"]`、`table_mapping_modes=["terminal_header_table"]`。
+  - second `.tmp/phase92_terminal_component_shared_second_audit`: `pair_count=1462`，`issue_count=22`，pair_kind distribution unchanged；未新增 terminal-header/component shared endpoint 分类。
+- [ ] 下一轮候选收缩为：terminal/input-matrix 218 continuation residual review、second row-band 116 单症状聚合或语义行冲突 rules 分层；`inline KLP 116` 与 `component-prefixed 218` 代表 extractor/residual 不再作为待实现主项。
+- **Status:** complete
+
+### Phase 93: Terminal Semantic Conflict Scoped Endpoint
+- [x] 只读恢复并确认当前 HEAD 为 `6525c66`；工作区仅有受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，未纳入本轮写集。
+- [x] 四路只读审计结论：`116` row-band 和 `218` continuation 仍可能牵动 pair graph / 覆盖策略；本轮最小规则切片选择 second `S0021/S0023` 的 semantic-row conflict 误分组。
+- [x] 实现目标：只在 `rules.py` 中让 `R-SEMANTIC-MAPPING-CONFLICT` 优先按完整端子文本作用域分组，例如 `3-21n114` 与 `1-21n114` 不再因裸数字 `114` 相同而冲突；缺少完整文本时保留旧裸数字 fallback。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping_conflict or terminal_semantic_row"` -> `5 passed, 63 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or terminal_header_component or backplate_structured or structured_mapping_shared_endpoint or many_to_one"` -> `15 passed, 53 deselected`
+  - `python -m pytest -q` -> `296 passed`
+- [x] Fresh verification：
+  - second `.tmp/phase93_semantic_conflict_scope_second_fresh_audit`: `pair_count=1462`，pair kind distribution unchanged；`issue_count=21`；`R-SEMANTIC-MAPPING-CONFLICT=0`；`PT0117/PT0260` remain `semantic_mapping/review` evidence with full raw endpoints `3-21n114` and `1-21n114`。
+  - first `.tmp/phase93_semantic_conflict_scope_first_audit`: `pair_count=1581`，`issue_count=117`，pair kind distribution unchanged。
+- [ ] 下一轮主线收缩为：优先处理剩余 ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 的成因（如 `05 交流回路图2.dwg`、`06 直流回路图.dwg`、`12 测控2开入回路图1.dwg`），并单独定义默认用户问题列表与内部 review 证据分层；terminal/input-matrix `218`、second row-band `116`、backplate/component rules semantics 只能在这两条硬目标下继续。
+- **Status:** complete
+
+### Phase 94: Binary Input Function Row Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `018c958`；工作区已有本轮代码改动，同时保留受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md` 不纳入写集。
+- [x] 目标簇选择 second `S0012 / 12 测控2开入回路图1.dwg` 中 `121..116` 的 ordinary `R-PAIR-MISSING-SIDE`：这些行同排存在 `BI n/BCDn` 或 `开入 n/BCDn` 功能文本，应作为二次原理图开入语义标注，而不是普通缺侧端点。
+- [x] 实现目标：在 candidate 层识别 `schematic_binary_input_function_label` 语义端点；限制为同排 `abs(dy)<=3.0`；将语义候选评分压低到 numeric candidate 之后；PairBuilder 将该类单侧 numeric+语义文本转为 `semantic_mapping/review`，不删除 pair graph。
+- [x] 验证结果：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or semantic"` -> `8 passed, 32 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_function_row or semantic_mapping or missing_side"` -> `10 passed, 59 deselected`
+  - `python -m pytest -q` -> `298 passed`
+- [x] Fresh verification：
+  - second `.tmp/phase94_binary_input_semantic_second_v4_audit`: `pair_count=1462` 不变；`ordinary_pair 569 -> 563`，`semantic_mapping 183 -> 189`；`issue_count 21 -> 15`，`R-PAIR-MISSING-SIDE 15 -> 9`。
+  - `PW0350/PW0353/PW0356/PW0359/PW0362/PW0365` 分别从 `121..116 -> ?` ordinary 缺侧转为 `semantic_mapping/review`，semantic endpoint 为 `BI 10/BCD6` 到 `BI 5/BCD1`，`ordinary_pair_eligible=False`。
+  - `PW0368 / 115 -> ?` 保持 ordinary `R-PAIR-MISSING-SIDE`，因为同排不是 BI/BCD 功能文本，避免过度吞掉 manual-closing 语义缺口。
+  - first `.tmp/phase94_binary_input_semantic_first_audit`: `pair_count=1581`、`issue_count=117`、pair kind distribution 与 Phase93 first 基线一致。
+- [ ] 下一轮候选收缩为：继续处理真实剩余 ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` 成因，优先 `05 交流回路图2.dwg`、`06 直流回路图.dwg` 等；另起切片定义默认用户问题列表与内部 review 证据分层；backplate/component mapping rules semantics 只作为质量分层线继续。
+- **Status:** complete
+
+### Phase 95: Binary Input Manual Closing Description Semantic Mapping
+- [x] 只读恢复并确认当前 HEAD 为 `f432beb`；工作区仍有外部未暂存 `doc/任务书.md` 规划改动和受保护未跟踪 `doc/page_findings/`、`doc/page_task_queue.md`，本轮不覆盖。
+- [x] 目标簇选择 second `S0008 / 08 测控1开入回路图1.dwg` 的 `I0006/PW0209` 与 `S0012 / 12 测控2开入回路图1.dwg` 的 `I0008/PW0368`：两条都是 BINARY INPUT 页中 `115 -> ?` ordinary `R-PAIR-MISSING-SIDE`，同排文本为 `Manual closing of synchronization / 手合同期`。
+- [x] 当前错误输出：系统把同排功能说明当作 `not_numeric` noise，于是把 `115` 留成普通缺侧；任务书期望开入页中文/英文功能说明进入 semantic evidence，不参与 ordinary endpoint 竞争。
+- [x] suspected root cause：Phase94 只识别 `BI n/BCDn` / `开入 n/BCDn` 功能行，未覆盖同一 BINARY INPUT 页里的 manual-closing 功能描述。
+- [x] 最小代码切片：在 candidate 层新增 `schematic_binary_input_function_description`，仅限 sheet context 含 `BINARY INPUT` 或 `开入` 且文本匹配 `Manual closing of synchronization` / `手合同期`；PairBuilder 将该语义候选纳入单侧二次原理图 `semantic_mapping`。
+- [x] 反作弊验证：
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or control_output"` -> `3 passed, 39 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_description_row or binary_input_function_row"` -> `2 passed, 68 deselected`
+  - `python -m pytest -q` -> `301 passed`
+  - second fresh `.tmp/phase95_binary_input_description_second_audit`: `pair_count=1462` 不变；`ordinary_pair 563 -> 561`，`semantic_mapping 189 -> 191`；`issue_count 15 -> 13`，`R-PAIR-MISSING-SIDE 9 -> 7`。
+  - first fresh `.tmp/phase95_binary_input_description_first_audit`: `pair_count=1581`、`issue_count=117`、pair kind/status distribution 全部不变。
+- [x] 独立审计结论：only changed pair_ids 为 `PW0209/PW0368`，before/after pair_id set 完全一致；两条均为 `ordinary_pair -> semantic_mapping`，evidence 含 `semantic_mapping_kind=schematic_binary_input_function_description`、`ordinary_pair_eligible=False`；`PW0291/PW0442` 仍为 ordinary missing issue，证明未泛化吞掉 CONTROL OUTPUT / 调压行。
+- [ ] 下一轮候选继续收缩为：`06 直流回路图.dwg` DK/ZD/3-21n 结构缺侧、first `05 交流回路图2.dwg` 极窄 row-band endpoint inference，或默认用户问题列表与内部 review 证据分层。
+- **Status:** complete
+
+### Phase 96: Remaining Hard Ordinary Pair Closure Plan
+- [ ] 只读恢复：先确认最新 HEAD、`git status --short`、`progress.md` 末尾、`doc/findings.md` 末尾、`doc/任务书.md` 的 Phase95 后状态；不要覆盖外部/并发文档目录。
+- [ ] Fresh audit inventory：在最新代码上重跑或复用最近 fresh first/second audit，列出仍然默认用户可见的 `ordinary_pair` `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`，按 `filename / sheet_id / pair_id / line_group_id / row_band_id / root_cause / candidate evidence` 分组。
+- [ ] 优先审计候选 A：`06 直流回路图.dwg` 的 DK/ZD/3-21n 结构缺侧。目标是确认是否缺少电气结构关系、符号/端口作用域、wire network 连接，还是仅为 semantic evidence；若没有稳定结构证据，不要先写 suppress/filter。
+- [ ] 优先审计候选 B：first `05 交流回路图2.dwg` 的极窄 grid row-band endpoint inference。只能从已知重复 `v->v` anchor + 同 row-band `v->?` 缺右端这类窄模式入手；禁止泛化到 second-set 单症状或没有 anchor 的 `?->X`。
+- [ ] 独立候选 C：定义“默认用户问题列表”和“内部 review 证据”分层。该切片必须直接改变默认用户可见列表或导出字段；不得只做 display/diagnostics，不得隐藏 hard error，不得删除 pair graph。
+- [ ] 质量线候选 D：`backplate/component mapping rules semantics` 只作为结构化 review 质量分层继续；除非 fresh audit 证明 findings 缺结构化关系，不得重新写成 extractor missing。
+- [ ] 本轮选择规则：优先做一个能实质减少真实正确样本误解的最小切片；不要同时混入 KLP/218 已闭合代表 extractor、acceptance-only 改动、产品化 exe smoke、原生 DWG/GNN 长线架构。
+- [ ] 验证要求：targeted unit/integration tests、full `python -m pytest -q`、first/second fresh real-sample audit；必须报告 `pair_count`、`ordinary_pair`、`semantic_mapping/component_mapping/table_mapping` 相关分布、issue_count 与 changed pair_ids，证明不是 filter/hide/severity-only/report-only/pair deletion。
+- [ ] 完成后更新 `task_plan.md` / `progress.md` / `doc/findings.md` / `doc/任务书.md`，并只 stage 本轮自己改动的文件。
+- **Status:** superseded —— 2026-07-07 经用户确认并入拓扑轨（Phase 97-101）：候选 A/B（`06 直流回路图` 缺侧、`05 交流回路图2` row-band 推断）由 T1 影子线网 + T2 灰度切换按连通性结构承接，不再逐页写窄规则；候选 C（默认用户问题列表分层）由 T4 承接；候选 D（rules 质量线）并入 T4。本阶段不再单独执行。
+
+### Phase 97: Topology T0 — Entity Coverage Contract（实体覆盖率合同）
+- [x] 只读恢复：确认最新 HEAD 与 `git status --short`；受保护并发路径 `doc/page_findings/`、`doc/page_task_queue.md` 不纳入写集；`doc/任务书.md` 只允许追加拓扑轨相关内容，不得回滚他人段落。重读任务书 18.7.1、18.7.4-18.7.7。
+- [x] 开发前审查（至少 2 个并发只读 explorer）：
+  - 盘点 findings 运行态中已有的"解释痕迹"：`terminal_candidates` 的 `channel / rejection_reason`、pair evidence 中的 `covered_by_*` 字段、`page_findings.open_questions`，确认 T0 只做汇总合同，不重复造记录、不重跑几何。
+  - 在 first `05 交流回路图2.dwg`、second `06 直流回路图.dwg`、second `21 左侧端子图1.dwg` 三页人工点数：audit 区内数字/端子样文本总数 vs 出现在任何 candidate/pair/mapping 证据中的数量，形成实现后的 sanity 对照表。
+- [x] 实现目标（写集：`src/dwg_audit/audit/coverage.py` 新模块 + pipeline 挂接 + 测试；不碰 candidates/pairs/rules/extractor/classifier 行为）：
+  - 从现有运行态推导每个 audit 区文本的 `assignment_kind`，判定优先级 `pair_endpoint > structured_mapping_endpoint > semantic_evidence > continuation_evidence > covered_discard > rejected_candidate > out_of_scope > unexplained`（schema 见任务书 18.7.1）。
+  - 落盘 `findings/text_assignments.parquet`；`findings.json` 顶层新增 `entity_coverage_summary`，含项目级与分页 `unexplained_numeric_texts / unassigned_wire_segments / unclassified_blocks` 三指标；页级 findings 附 coverage 摘要与 unexplained 实体 id 列表。
+  - 线覆盖从 `line_groups` 成员关系与既有排除理由推导（`assigned_line_group / excluded_reason / unassigned`）；块覆盖从现有子模式命中记录推导（`matched_submode / unclassified_block`）。
+- [x] 风险门槛：pair graph、issue 输出、pair_kind 分布与本刀开始时 fresh 基线零漂移；不得为把 unexplained 做小而扩大 `out_of_scope` 判定——`out_of_scope` 仅限图框/标题栏/页码等版面角色，且必须带理由。
+- [x] 验证：
+  - `tests/unit/test_coverage.py`：每种 assignment_kind 至少 1 正例 + unexplained 判定负例 + 恒等式断言（各类计数之和 = audit 区文本总数）。
+  - integration：`analyze-project` 后 coverage 摘要存在性与恒等式断言。
+  - `python -m pytest -q` 全绿；first/second fresh `analyze-project + run-audit`，报告两套三指标基线并与审查点数对照；主链产物零漂移证明。
+- [x] 产出：把两套 unexplained 清单按页导出为 coverage 审计队列（`doc/page_findings/coverage_batch1/` 或 `.tmp`），作为 Phase 98 审查输入。
+- **Status:** complete
+
+### Phase 98: Topology T1 — Wire Network Shadow Builder（影子线网构建）
+- [x] 只读恢复 + 保护边界确认；重读任务书 18.7.2、18.7.4-18.7.6。
+- [x] 先行低风险切片：在不碰并发 `candidates.py` 写集的前提下，先把 `wire_components.py` 的 `scoped visible prefix + local-number column + structured external-endpoint column` 通用 family 补齐，并解除 `page_extractors.py` 中把 `first_prefixed` 绑死在 ordinary single-sided 错误链上的 gate；该切片只做结构重分类，不替代后续 `wire_topology.py` 影子线网构建。
+- [x] 开发前审查：
+  - [x] 按页派只读 agent 裁决 Phase 97 的 unexplained 队列（裁决模板见任务书 18.7.4），标出属于"连通性缺失"的缺口子集；当前共识已写入 `doc/human_arbitration_phase98.md` / `progress.md` / `doc/findings.md`。
+  - [x] 普通回路 H01 的共性审计已收敛：first `04/05/11` 不是裸数字真缺侧，而是 `scoped prefix + local-number column + external-endpoint column` 结构没有进入通用识别链；现有 `wire_components.py` family 与 candidate grammar 过窄，且 `first_prefixed_eligible_local_text_ids` 把结构化恢复绑在 ordinary 错误链上。
+  - [x] 主线程盘点 `line_groups.py` 合并规则与 `_has_inline_numeric_bridge` 等桥接特例，形成 T1 必须吸收的特例清单：inline 文本桥接、块跨越桥接、共线延续容差、row band 内断线。
+- [x] 实现目标（写集：`src/dwg_audit/audit/wire_topology.py` 新模块 + schema + 影子报告 helper + 测试）：
+  - junction 判定：端点重合（snap 容差 `topology.junction_snap_tolerance`，默认对齐现有 `line_y_tolerance` 量级）与 T 型（端点落在另一线身上）并网；十字穿越（双方都穿过交点）默认不并网，记为 `crossing_observation`，由 `topology.merge_crossings=false` 显式控制——二次原理图中交叉不等于电气连接。
+  - 输出 `findings/wire_junctions.parquet` 与 `findings/wire_networks.parquet`（字段见任务书 18.7.2）；`line_group_ids` 作为 network 内水平 run 投影保持向后兼容。
+  - 影子对比报告：对本刀 fresh audit 的每条 `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`，判断缺侧 line group 所在 network 是否存在可达 degree-1 端点 + 可归属数字文本，输出 `topology_recoverable=true/false` 与理由，落 `topology_shadow_report.json/md`。
+- [x] 风险门槛：严格影子——不改 candidates/pairs/rules 任何行为；主链产物零漂移；新 parquet 只增不改旧表。
+- [x] 验证：
+  - `tests/unit/test_wire_topology.py`：端点并网、T 型并网、十字不并网、inline 文本桥、块跨越桥、双网隔离，每种至少 1 例。
+  - `python -m pytest -q` -> `315 passed in 7.03s`；新增 `tests/unit/test_wire_topology.py`、`test_report_artifacts.py`、`test_rerun_audit.py` 合同覆盖。
+  - first fresh `.tmp/phase98_topology_first/...`：`pair_count=1705`、`issue_count=102`、pair kind distribution 与 scoped-prefix 基线完全一致；新增 `wire_junctions=23148`、`wire_networks=609`；`topology_shadow_report` 对 `37` 条 ordinary missing/low-confidence 候选给出 `37/37 recoverable`。
+  - second fresh `.tmp/phase98_topology_second/2_2`：`pair_count=1597`、`issue_count=12`、pair kind distribution 与 scoped-prefix 基线完全一致；新增 `wire_junctions=18929`、`wire_networks=358`；`topology_shadow_report` 对 `6` 条候选给出 `4/6 recoverable`。
+- [x] T1 真值化复审（2026-07-08，Phase 99 预备审计）：
+  - 初版 shadow 结论过宽，误把 `scoped local number / body-port / semantic local` 页面当成 topology recoverable；根因是旧逻辑只要看到 `extra_relevant_text + bridge` 就判可恢复。
+  - `wire_topology.py` 已改为先做 network text role classification，再区分 `topology_recoverable_external_endpoint_present`、`scoped_local_number_cluster`、`body_port_cluster`、`semantic_local_cluster`、`no_additional_topology_signal`。
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `10 passed`；`python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `30 passed`；`python -m pytest -q` -> `318 passed in 8.47s`。
+  - first rerun `.tmp/phase99_shadow_tight_first_audit`：`pair_count=1705`、`issue_count=102` 不变；shadow 从 `37/37 recoverable` 收紧为 `6/37 recoverable`，且仅 first `14/15` 两页 6 条为 `topology_recoverable_external_endpoint_present`；其余原候选改判为 `body_port_cluster=26`、`scoped_local_number_cluster=3`、`semantic_local_cluster=2`。
+  - second rerun `.tmp/phase99_shadow_tight_second_audit`：`pair_count=1597`、`issue_count=12` 不变；shadow 从 `4/6 recoverable` 收紧为 `0/6 recoverable`，原候选分解为 `body_port_cluster=1`、`scoped_local_number_cluster=2`、`semantic_local_cluster=1`、`no_additional_topology_signal=2`。
+- **Status:** complete
+
+### Phase 99: Topology T2 — Endpoint Assignment Gray Switchover（端点归属灰度切换）
+- [x] 只读恢复 + T1 真值化复审；首批灰度页已从旧计划的 first `05/06`、second 同构 grid 页修正为仅 first `14 高操作回路图.dwg`、`15 低操作回路图.dwg`。first `05/06/08/09/10/11/25/26/27` 与 second `06/10/14` 当前都不再视为 topology gray 候选，而是 `scoped local number / body-port / semantic local` 结构队列。
+- [x] 在 `wire_topology.py` 增加 branch-local shadow 提案层：对每条 ordinary missing/low-confidence issue 输出 `branch_local_status / branch_local_reason / branch_local_candidates / branch_local_contexts`，只增强 `topology_shadow_report` 的解释力，不改 pair graph、candidates 或 issues 行为。
+- [x] 用真实样本 rerun 验证 T2 仍不应直接切 `on`：first `14/15` 的 6 条 residual 里，`PW0413/PW0463` 仅收敛为 `ambiguous_candidates`（`1-4QD24` vs `1-4QD5`、`3-4QD24` vs `3-4QD5`），`PW0417/PW0420/PW0467/PW0470` 仍只有 `context_only`，尚无安全唯一候选。
+- [x] 在 branch-local shadow 上继续增加 `open_endpoint` 锚定：同 row 同侧候选只有贴近缺侧 `open_endpoint_junction` 时才进入可接管集合。真实样本 rerun 后，`PW0413/PW0463 (? -> 224)` 已从 `ambiguous_candidates` 收敛为 `unique_candidate`（分别锚定 `1-4QD5` / `3-4QD5`），而 `PW0417/PW0420/PW0467/PW0470` 仍为 `context_only`。
+- [ ] 实现目标：
+  - 配置 `topology.endpoint_assignment: off|shadow|on` + 页型/文件名灰度名单，默认 off。
+  - 灰度页内：`WireDiagramExtractor` 的 ordinary 候选搜索输入从 line_group 端点窗口改为 network open endpoint + `text_assignments` 归属；四通道合同、置信度模型、pair_kind 合同不变；非灰度页零行为变化。
+  - 旧补偿路径（inline bridge、complementary half-chain、row-band gap 症状）在灰度页内应因 network 桥接自然失效，不得以 filter/suppress 实现。
+- [ ] 风险门槛：任务书 18.7.7 红线关系逐条保持；coverage 三指标不得回升；若首批页收益未达影子报告预测的大半，停止扩页、回审 T1 构建质量，不得继续切换。
+- [ ] 验证：targeted unit/integration + `python -m pytest -q` 全绿；两套 fresh run；反作弊独立审计（before/after pair_id 全集 diff、changed pair_ids 逐条列出、每条 issue 下降对应到 junction/bridge 证据）；灰度页 issue 与 unexplained 变化写回 findings/progress。
+- **Status:** in_progress —— 2026-07-08 已完成 branch-local shadow + open-endpoint anchoring。当前 next slice 不再是“整页 `14/15` 直接 `on`”，而是只对 `unique_candidate` 的支路级候选评估灰度切换；`222/206` 这类 `context_only` 条目仍需更深的 branch/path 结构化能力。
+
+### Phase 100: Topology T3 — Symbol Library Bootstrap（符号库自举）
+- [ ] 开发前审查（可与 Phase 99 并行，写集不重叠）：
+  - 并发统计两套样本全部 `INSERT`：block name、出现页型、实例数、bbox 尺寸、旋转/镜像/缩放变体、内部实体构成（线/圆/文本/ATTRIB 计数）、attribute tags、与现有 mapping/issue 的关联度。
+  - 按几何指纹聚类形成 symbol family 候选清单，人审 Top N 高频族后再入库。
+- [ ] 实现目标：
+  - 新增 `configs/symbol_library.yml`（字段按任务书 18.6 符号库规范）与 `findings/symbol_instances.parquet`。
+  - 迁移现有硬编码块知识为库条目：`FJL-25-2A_Mirror`→strip_two_port、`KK2P/KK3P`→kk_multi_port、`JR-01/KK1P`→small_port_box、`WBH-814E-E1SA-101`→backplate_virtual_table；`component_diagrams.py` / `table_extractor.py` 改为查库。本刀是纯迁移刀，行为必须零漂移，功能增强另切。
+  - coverage 的 `unclassified_blocks` 接入符号库归类：每个 audit 区 INSERT 归入 family 或显式 `annotation / non_electrical`。
+  - 支持项目级 override 文件，企业自定义符号不被通用库覆盖。
+- [ ] 验证：迁移零漂移证明（两套 fresh run 的 component/table mapping 计数与点名 pair 逐一保持）；`python -m pytest -q` 全绿；`unclassified_blocks` 基线 → 收敛数字写回。
+- [ ] 泛化探针检查点：若能取得第三套真实图纸，只读跑 T0 coverage + T1 影子报告并记录新失败模式清单（只记录，不为其写规则）；暂无第三套则显式记 deferred，不得虚构。
+- **Status:** pending
+
+### Phase 101: Topology T4 — Rules Shrink & Default List Layering（规则收缩与默认列表分层）
+- [ ] 开发前审查：盘点 `rules.py` / `rule_base.py` 中的补偿性规则与分类清单（Phase66 DIM guardrail、Phase68/82 complementary half-chain、Phase89 row-band aggregation、continuation/bridge 特例等），逐条标注"拓扑层是否已结构性解释 / 可简化为消费 network 证据 / 必须保留"。
+- [ ] 实现目标：
+  - 已被拓扑解释的补偿规则逐条简化或删除；每删一条给出前后 issue 对照与证据回查路径，默认 issue 列表不得变差。
+  - Issue 合同新增 `display_layer: user|internal`：`rule_too_strict` 结构现象与聚合 review 证据归 internal；默认导出/UI 仅显示 user 层，internal 层可显式展开与完整导出；任何 evidence 不删除。
+- [ ] 风险门槛：分层不得变成隐藏——internal 层计数在报告 summary 公开；任务书 18.7.7 红线保持；全量证据可导出可回查。
+- [ ] 验证：`python -m pytest -q` 全绿；两套 fresh run；反作弊独立审计；报告两层问题数与每条 user 层保留项的"为何保留、为何不算最终错误"理由（对齐任务书 5.3 / M11 "默认用户可见列表逼近 0"目标）。
+- **Status:** pending
+
+### 2026-07-08 Addendum: H01/H02 Arbitration Closure
+- [x] 用户最新裁决已锁定：
+  - `H02`：`GND` 按 semantic/ground ignore；`101/103/105/132` 一律视为需补 scope 的 local number；`132 -> 132` 一律按误配。
+  - `H01`：`04/05/11` 的剩余 ordinary 症状继续按 `scoped prefix + structured external endpoint + local-number/body-port` 通用结构处理，不为单页值写记忆规则。
+- [x] 读并发 dirty diff 后确认：
+  - `wire_components.py` 已有 `scoped_visible_prefix_external_endpoint_mapping` 通用切片。
+  - `page_extractors.py` 已去掉把 `first_prefixed` 绑在 ordinary single-sided 错误链上的 gate。
+  - 本轮不触碰上述并发文件；写集只保留文档。
+- [ ] 下一刀进一步收缩为：
+  - body-port/token-role 通用识别：优先 first `05` `719/720/721`、first/second `06` residual `101/105`、first `11` `601/310/.../207`。
+  - `H01/H06` 局部数字政策：`124/125`、`10/13/14`、`501/507/710` 是否统一退出裸 ordinary 审计。
+  - `H03/H04/H05` 默认 `internal` 分层与 `H07` 最小符号人审保持并行，但不阻塞上述主线。
+- **Status:** note only; Phase 98/99 主状态不变。
+
+### 2026-07-08 Addendum: Generic body-port slice completed
+- [x] `wire_components.py` 已将旧 `inline_klp` 提升为通用 `inline body-port` family：
+  - 支持 one-sided `KLP` 右侧局部号映射，不再要求整行左右两端同时完整
+  - 支持 multi-row `ZKK` body-port 映射，按 `body-port -> local/endpoint` 发结构化 `wire_component_mapping`
+  - family 语义保持显式：`KLP` 右侧三位数归一化为 `*n###`；`ZKK` 保持原局部号/端子样值
+- [x] `page_extractors.py` 已将 `inline_klp_component_port_mapping` / `inline_body_port_mapping` 纳入 covered ordinary 消费链；局部号 ordinary residual 现在会诚实 discard，而不是继续暴露给默认用户列表。
+- [x] 质量回退防线：
+  - 初版放宽到两位 port token 时，在 first `11` 真实样本误生出 `5KLP10-13 -> 5FD4`
+  - 已将 port token 收紧回 family-appropriate 的单字符 `1..6`，保留泛化能力并消除假阳性
+- [x] 验证：
+  - targeted：`tests\unit\test_wire_components.py` + `tests\unit\test_page_extractors.py` -> `32 passed`
+  - integration smoke：`tests\integration\test_analyze_project.py -k "inline_klp_component_port_mapping or component_prefixed_signal_circuit_mapping"` -> `2 passed`
+  - full：`python -m pytest -q` -> `323 passed in 31.57s`
+  - first fresh `.tmp/phase100_body_port_first_v2/...`：
+    - `pair_count 1705 -> 1717`
+    - `wire_component_mapping 175 -> 187`
+    - `ordinary_pair 728 -> 728` 不变
+    - `issue_count 102 -> 91`
+    - first `05` residual `3 -> 0`
+    - first `11` residual `10 -> 2`
+  - second fresh `.tmp/phase100_body_port_second/...`：
+    - `pair_count 1597 -> 1615`
+    - `wire_component_mapping 380 -> 398`
+    - `ordinary_pair 561 -> 561` 不变
+    - `issue_count 12 -> 12`
+- [ ] 下一刀继续收缩为：
+  - first `06` 的三条 `101 -> ?` 是否按通用 semantic-ground policy 退出默认 ordinary 审计
+  - first `11` 剩余 `PW0284 ? -> 601` 与 `PW0285 601 -> 602` 是否属于新的结构 family，或应进入默认 internal/display-layer 队列
+  - `H01/H06` 局部数字政策（`124/125`、`10/13/14`、`501/507/710`）与 `H03/H04/H05` internal 分层继续等待用户业务裁决
+- **Status:** note only; Phase 98/99 主状态不变，H01 body-port 结构线已明显收缩。
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -812,3 +1491,9 @@ Phase 61
 | Tauri `cargo test` 首次失败：`frontendDist` 路径不存在 | 未先生成 `apps/desktop/dist` 时运行 Rust tests | 先执行 `npm run build` 生成 gitignored dist，再跑 cargo test |
 | Windows `link.exe` 间歇性 `LNK1104` 无法打开 test exe 输出 | 重跑 `cargo test` 时链接阶段偶发锁定输出路径 | 查无残留进程后立即重试，同命令通过；记录为 Windows target/linker 临时锁竞争 |
 | second-set verification helper `KeyError: right` | 用旧 `pairs.parquet` endpoint 列名检查 semantic endpoint rows | 改用当前 schema 的 `left_value/right_value` 重跑，确认 `semantic_table_mapping_pass_endpoint_count=0` |
+| `run-audit` 写 `issues.parquet` 时 `ArrowInvalid` | 新增 `row_numbers` evidence 使用整数列表，与既有字符串行号 evidence 混合 | 将新 evidence 的 `row_numbers` 统一为字符串列表并重跑 targeted/full/fresh audit 通过 |
+| terminal-header aggregation fresh first audit `TypeError: '<' not supported between instances of 'str' and 'int'` | natural sort key 同时比较数字开头端点和非数字开头字符串 | 将 `_natural_sort_key()` 改为稳定 tuple key 后重跑 targeted/full/fresh audit 通过 |
+| Phase71 issue summary helper `KeyError: 'filename'` | 将 `issues.parquet` 与 `pages.parquet` merge 后直接按 `filename` groupby | 改用显式 `filename2/route_target2/sheet_category2` 映射列重跑统计 |
+| `python -m black` unavailable | Phase86 末尾想机械格式化 3 个 Python 文件 | 环境缺少 `black`；改为手动按现有风格折行，不重复该命令 |
+| Phase92 first rules-only audit path missing | 首次用 `.tmp\phase89_grid_row_band_aggregation_first\...\findings` 跑 `run-audit` | 该阶段只保留 audit 目录；改用 `.tmp\phase78_component_vertical_401_first\...\findings` 重跑 current-head rules-only audit 成功 |
+| inline body-port 初版误吸两位数端子 `13` | fresh first `11` 生成假阳性 `5KLP10-13 -> 5FD4` | 将 inline port token 从宽松两位数收紧回 family-appropriate 单字符 `1..6` 后重跑 targeted/full/fresh audit 通过 |

@@ -78,6 +78,8 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert (findings_dir / "findings.json").exists()
     assert (findings_dir / "polylines.parquet").exists()
     assert (findings_dir / "extraction_warnings.parquet").exists()
+    assert (findings_dir / "wire_junctions.parquet").exists()
+    assert (findings_dir / "wire_networks.parquet").exists()
     assert not page_findings_dir.exists()
     assert findings_payload["page_findings_count"] == 1
     assert len(findings_payload["page_findings"]) == 1
@@ -90,6 +92,8 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert findings_payload["page_findings"][0]["structure_summary"]["pair_count"] == 0
     assert findings_payload["audit_disposition_counts"] == {"skip_stable": 1}
     assert "page_findings/" not in findings_payload["artifacts"]["findings"]
+    assert "wire_junctions.parquet" in findings_payload["artifacts"]["findings"]
+    assert "wire_networks.parquet" in findings_payload["artifacts"]["findings"]
 
 
 def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path: Path) -> None:
@@ -1236,6 +1240,13 @@ def test_write_audit_outputs_adds_evidence_display_to_html_and_excel(tmp_path: P
         line_group_id="G0001",
         left_value="101",
         right_value="201",
+        evidence={
+            "many_to_one_classification": "component_split_endpoint_group_review",
+            "component_submode": "strip_two_port_component",
+            "component_branch_kind": "split_endpoint_group",
+            "shared_endpoint": "5KLP3-1",
+            "external_endpoint_splits": ["5KLP3-1"],
+        },
         evidence_refs=[
             {
                 "filename": "04.dwg",
@@ -1266,6 +1277,130 @@ def test_write_audit_outputs_adds_evidence_display_to_html_and_excel(tmp_path: P
     assert "ref1: filename=04.dwg, sheet_no=04, sheet_order=4" in html
     assert "evidence_display" in excel_issues.columns
     assert "one_to_many_classification" in excel_issues.columns
+    assert "many_to_one_classification" in excel_issues.columns
+    assert "review_classification" in excel_issues.columns
     assert "filename=04.dwg" in excel_issues.loc[0, "evidence_display"]
     assert "left_value=101" in excel_issues.loc[0, "evidence_display"]
     assert excel_issues.loc[0, "one_to_many_classification"] == "conflict"
+    assert excel_issues.loc[0, "many_to_one_classification"] == "component_split_endpoint_group_review"
+    assert excel_issues.loc[0, "review_classification"] == "conflict"
+
+
+def test_write_audit_outputs_compacts_terminal_header_row_band_evidence(tmp_path: Path) -> None:
+    issue = Issue(
+        issue_id="I0021",
+        rule_id="R-ONE-TO-MANY",
+        severity="review",
+        status="open",
+        confidence=0.97,
+        message="Terminal header table row-band multi-endpoint review.",
+        sheet_id="S0023",
+        file_id="F0023",
+        pair_id="PTM0001",
+        line_group_id=None,
+        left_value="1-21QD1",
+        right_value="1-21n116",
+        evidence={
+            "filename": "23 右侧端子图1.dwg",
+            "sheet_no": "23",
+            "sheet_order": 23,
+            "one_to_many_classification": "terminal_header_table_multi_endpoint_review",
+            "terminal_header_table_row_band_review": True,
+            "terminal_header_table_aggregate_review": True,
+            "aggregated_logical_endpoint_ranges": ["1-21QD1..1-21QD38"],
+            "aggregated_row_number_ranges": ["1..38"],
+            "aggregated_terminal_header_table_endpoint_ranges": [
+                "1-21n116..1-21n222",
+                "1-21n301..1-21n330",
+                "1-21n524..1-21n531",
+            ],
+            "header_prefix": "1-21QD",
+            "endpoint_columns": ["left_endpoint", "right_endpoint"],
+            "cluster_size": 38,
+            "cluster_pair_ids": [f"PTM{index:04d}" for index in range(1, 77)],
+        },
+        evidence_refs=[
+            {
+                "filename": "23 右侧端子图1.dwg",
+                "sheet_no": "23",
+                "sheet_order": 23,
+                "pair_id": f"PTM{index:04d}",
+                "left_value": f"1-21QD{index}",
+                "right_value": f"1-21n{115 + index}",
+            }
+            for index in range(1, 77)
+        ],
+        title="端子表多端点行映射待复核",
+        summary="Terminal header table row-band multi-endpoint review.",
+    )
+
+    audit_dir = write_audit_outputs(
+        tmp_path / "project",
+        issues=[issue],
+        pairs=[],
+        source_files=[],
+        project_name="Demo 项目",
+        formats="md,xlsx",
+    )
+    report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+    excel_issues = pd.read_excel(audit_dir / "issues.xlsx", sheet_name="issues")
+    evidence_display = excel_issues.loc[0, "evidence_display"]
+
+    assert "logical=1-21QD1..1-21QD38" in report_text
+    assert "terminal_endpoints=1-21n116..1-21n222|1-21n301..1-21n330|1-21n524..1-21n531" in report_text
+    assert "rows=1..38" in report_text
+    assert "pair_count=76" in report_text
+    assert "ref76:" not in report_text
+    assert "logical=1-21QD1..1-21QD38" in evidence_display
+    assert "pair_count=76" in evidence_display
+    assert "ref76:" not in evidence_display
+
+
+def test_write_audit_outputs_shows_many_to_one_component_split_review(tmp_path: Path) -> None:
+    issue = Issue(
+        issue_id="I0183",
+        rule_id="R-MANY-TO-ONE",
+        severity="review",
+        status="open",
+        confidence=0.97,
+        message="Right value 5KLP3-1 is referenced by multiple component endpoints.",
+        sheet_id="S0024",
+        file_id="F0024",
+        pair_id="PCM0066",
+        line_group_id="GC0124",
+        left_value="5KLP5-1",
+        right_value="5KLP3-1",
+        evidence={
+            "filename": "23 元件接线图3.dwg",
+            "sheet_no": "23",
+            "sheet_order": 24,
+            "many_to_one_classification": "component_split_endpoint_group_review",
+            "component_submode": "strip_two_port_component",
+            "component_branch_kind": "split_endpoint_group",
+            "shared_endpoint": "5KLP3-1",
+            "external_endpoint_raw_values": ["5KLP3-1,5KLP2-1"],
+            "external_endpoint_splits": ["5KLP3-1"],
+            "external_endpoint_text_ids": ["T3841"],
+        },
+        title="组件逗号端点邻接待复核",
+        summary="组件逗号拆分端点邻接待复核。",
+        explanation="共享邻接端来自逗号分隔端点组。",
+        recommended_action="按原始逗号文本和组件端口复核。",
+    )
+
+    audit_dir = write_audit_outputs(
+        tmp_path / "project",
+        issues=[issue],
+        pairs=[],
+        source_files=[],
+        project_name="Demo 项目",
+        formats="md",
+    )
+    report_text = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+
+    assert "- ReviewClassification: `component_split_endpoint_group_review`" in report_text
+    assert "- ManyToOneTriage: `component_split_endpoint_group_review`" in report_text
+    assert "component_submode=strip_two_port_component" in report_text
+    assert "component_branch_kind=split_endpoint_group" in report_text
+    assert "shared_endpoint=5KLP3-1" in report_text
+    assert "external_endpoint_splits=5KLP3-1" in report_text

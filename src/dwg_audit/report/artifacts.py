@@ -27,6 +27,9 @@ from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.domain.models import TerminalStrip
 from dwg_audit.domain.models import TextItem
 from dwg_audit.domain.models import record_dict
+from dwg_audit.audit.coverage import build_entity_coverage_summary
+from dwg_audit.audit.coverage import build_text_assignment_frame
+from dwg_audit.audit.wire_topology import build_wire_topology_frames
 
 _REPORT_FORMATS = ("md", "html", "xlsx")
 _ISSUE_STRUCTURED_COLUMNS = ("evidence", "related_pair_ids", "sheet_ids", "values", "evidence_refs")
@@ -110,12 +113,30 @@ def write_project_artifacts(
     _frame(artifacts.pair_candidates, PairCandidate).to_parquet(findings_dir / "pair_candidates.parquet", index=False)
     _frame(artifacts.pairs, Pair).to_parquet(findings_dir / "pairs.parquet", index=False)
     _frame(artifacts.extraction_warnings, ExtractionWarning).to_parquet(findings_dir / "extraction_warnings.parquet", index=False)
+    text_assignments = build_text_assignment_frame(
+        artifacts,
+        page_classifications=page_classifications,
+    )
+    entity_coverage_summary_frame, entity_coverage_summary = build_entity_coverage_summary(
+        text_assignments,
+        artifacts=artifacts,
+        page_classifications=page_classifications,
+    )
+    wire_junctions, wire_networks, _ = build_wire_topology_frames(
+        artifacts,
+        config=config,
+    )
+    text_assignments.to_parquet(findings_dir / "text_assignments.parquet", index=False)
+    entity_coverage_summary_frame.to_parquet(findings_dir / "entity_coverage_summary.parquet", index=False)
+    wire_junctions.to_parquet(findings_dir / "wire_junctions.parquet", index=False)
+    wire_networks.to_parquet(findings_dir / "wire_networks.parquet", index=False)
 
     findings_payload = _build_findings_payload(
         artifacts,
         config=config,
         page_classifications=page_classifications,
         table_mappings=table_mappings,
+        entity_coverage_summary=entity_coverage_summary,
     )
     if persist_page_findings:
         for page_finding in findings_payload["page_findings"]:
@@ -217,29 +238,52 @@ def _pair_evidence_mapping(payload: Any) -> dict[str, Any]:
 
 def _pair_semantics_parts(payload: Any) -> list[str]:
     evidence = _pair_evidence_mapping(payload)
+    top_level = payload if isinstance(payload, dict) else {}
     parts: list[str] = []
-    pair_kind = evidence.get("pair_kind")
+
+    def semantic_value(key: str) -> Any:
+        value = evidence.get(key)
+        if not _is_blank_value(value):
+            return value
+        return top_level.get(key)
+
+    pair_kind = semantic_value("pair_kind")
     if not _is_blank_value(pair_kind):
         parts.append(f"pair_kind={pair_kind}")
-    continuation_kind = evidence.get("continuation_kind")
+    continuation_kind = semantic_value("continuation_kind")
     if not _is_blank_value(continuation_kind):
         parts.append(f"continuation_kind={continuation_kind}")
-    bridge_mapping_kind = evidence.get("bridge_mapping_kind")
+    bridge_mapping_kind = semantic_value("bridge_mapping_kind")
     if not _is_blank_value(bridge_mapping_kind):
         parts.append(f"bridge_mapping_kind={bridge_mapping_kind}")
-    semantic_mapping_kind = evidence.get("semantic_mapping_kind")
+    semantic_mapping_kind = semantic_value("semantic_mapping_kind")
     if not _is_blank_value(semantic_mapping_kind):
         parts.append(f"semantic_mapping_kind={semantic_mapping_kind}")
-    semantic_marker_texts = evidence.get("semantic_marker_texts")
+    semantic_marker_texts = semantic_value("semantic_marker_texts")
     if isinstance(semantic_marker_texts, list) and semantic_marker_texts:
         parts.append(f"semantic_markers={'|'.join(str(item) for item in semantic_marker_texts[:3])}")
-    orientation = evidence.get("line_orientation")
+    component_submode = semantic_value("component_submode")
+    if not _is_blank_value(component_submode):
+        parts.append(f"component_submode={component_submode}")
+    component_branch_kind = semantic_value("component_branch_kind")
+    if not _is_blank_value(component_branch_kind):
+        parts.append(f"component_branch_kind={component_branch_kind}")
+    shared_endpoint = semantic_value("shared_endpoint")
+    if not _is_blank_value(shared_endpoint):
+        parts.append(f"shared_endpoint={shared_endpoint}")
+    external_endpoint_splits = semantic_value("external_endpoint_splits")
+    if isinstance(external_endpoint_splits, list) and external_endpoint_splits:
+        parts.append(f"external_endpoint_splits={'|'.join(str(item) for item in external_endpoint_splits[:4])}")
+    external_endpoint_split = semantic_value("external_endpoint_split")
+    if not _is_blank_value(external_endpoint_split) and _is_blank_value(external_endpoint_splits):
+        parts.append(f"external_endpoint_split={external_endpoint_split}")
+    orientation = semantic_value("line_orientation")
     if not _is_blank_value(orientation):
         parts.append(f"orientation={orientation}")
-    left_side = evidence.get("left_side_label")
+    left_side = semantic_value("left_side_label")
     if not _is_blank_value(left_side):
         parts.append(f"left_side={left_side}")
-    right_side = evidence.get("right_side_label")
+    right_side = semantic_value("right_side_label")
     if not _is_blank_value(right_side):
         parts.append(f"right_side={right_side}")
     return parts
@@ -1122,6 +1166,7 @@ def _build_findings_payload(
     *,
     page_classifications: dict[str, PageClassification] | None = None,
     table_mappings: list[dict[str, Any]] | None = None,
+    entity_coverage_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     manifest = artifacts.scan.manifest
     primary_pages = [page for page in artifacts.scan.pages if page.audit_role == "primary"]
@@ -1152,6 +1197,10 @@ def _build_findings_payload(
         "terminal_candidates.parquet",
         "pair_candidates.parquet",
         "pairs.parquet",
+        "text_assignments.parquet",
+        "entity_coverage_summary.parquet",
+        "wire_junctions.parquet",
+        "wire_networks.parquet",
         "extraction_warnings.parquet",
         "source_files.parquet",
         "sidecars.parquet",
@@ -1194,6 +1243,7 @@ def _build_findings_payload(
             "extraction_warnings": len(artifacts.extraction_warnings),
         },
         "pair_evidence_summary": _build_pair_findings_summary(artifacts.pairs),
+        "entity_coverage_summary": entity_coverage_summary or {},
         "page_findings_count": len(page_findings),
         "page_findings": page_findings,
         "extractor_execution_summary": _build_extractor_execution_summary(artifacts.extractor_runs),
@@ -1221,6 +1271,8 @@ def _build_findings_payload(
                 "audit_report.md",
                 "audit_report.html",
                 "issues.xlsx",
+                "topology_shadow_report.json",
+                "topology_shadow_report.md",
             ],
         },
     }
@@ -1344,6 +1396,20 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             f"- StatusCounts: `{json.dumps(pair_summary['status_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ConfidenceBuckets: `{json.dumps(pair_summary['confidence_bucket_counts'], ensure_ascii=False, sort_keys=True)}`",
             f"- ReviewPairs: `{pair_summary['review_pairs']}`",
+            "",
+            "## Coverage Contract",
+            "",
+            f"- TotalTexts: `{payload['entity_coverage_summary'].get('total_texts', 0)}`",
+            f"- AuditScopeTexts: `{payload['entity_coverage_summary'].get('audit_scope_texts', 0)}`",
+            f"- AssignedTexts: `{payload['entity_coverage_summary'].get('assigned_texts', 0)}`",
+            f"- UnexplainedTexts: `{payload['entity_coverage_summary'].get('unexplained_texts', 0)}`",
+            f"- UnexplainedNumericTexts: `{payload['entity_coverage_summary'].get('unexplained_numeric_texts', 0)}`",
+            f"- UnassignedWireSegments: `{payload['entity_coverage_summary'].get('unassigned_wire_segments', 0)}`",
+            f"- UnclassifiedBlocks: `{payload['entity_coverage_summary'].get('unclassified_blocks', 0)}`",
+            f"- OutOfScopeTexts: `{payload['entity_coverage_summary'].get('out_of_scope_texts', 0)}`",
+            f"- CoverageRatio: `{payload['entity_coverage_summary'].get('coverage_ratio', 0.0)}`",
+            f"- AssignmentKindCounts: `{json.dumps(payload['entity_coverage_summary'].get('assignment_kind_counts', {}), ensure_ascii=False, sort_keys=True)}`",
+            f"- ContractChecks: `{json.dumps(payload['entity_coverage_summary'].get('contract_checks', {}), ensure_ascii=False, sort_keys=True)}`",
             "",
             "## Table Extraction",
             "",
@@ -1544,7 +1610,87 @@ def _format_evidence_value(value: Any) -> str:
     return "" if payload is None else _format_evidence_part(payload)
 
 
+def _format_terminal_header_table_display(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    classification = payload.get("one_to_many_classification")
+    if classification == "terminal_header_table_multi_endpoint_review":
+        return _format_terminal_header_table_compact_display(
+            payload,
+            classification,
+            logical_key="aggregated_logical_endpoint_ranges",
+            endpoint_label="terminal_endpoints",
+            endpoint_key="aggregated_terminal_header_table_endpoint_ranges",
+        )
+    classification = payload.get("many_to_one_classification")
+    if classification == "terminal_header_table_shared_endpoint_review":
+        return _format_terminal_header_table_compact_display(
+            payload,
+            classification,
+            logical_key="aggregated_logical_endpoint_ranges",
+            endpoint_label="shared_endpoints",
+            endpoint_key="aggregated_shared_endpoint_ranges",
+        )
+    return ""
+
+
+def _format_terminal_header_table_compact_display(
+    payload: dict[str, Any],
+    classification: Any,
+    *,
+    logical_key: str,
+    endpoint_label: str,
+    endpoint_key: str,
+) -> str:
+    logical_ranges = _format_compact_evidence_list(
+        payload.get(logical_key) or payload.get("aggregated_logical_endpoints")
+    )
+    endpoint_ranges = _format_compact_evidence_list(
+        payload.get(endpoint_key)
+        or payload.get("aggregated_terminal_header_table_endpoint_values")
+        or payload.get("aggregated_shared_endpoints")
+    )
+    if not logical_ranges or not endpoint_ranges:
+        return ""
+
+    parts = [
+        f"review={_format_evidence_part(classification)}",
+        f"logical={logical_ranges}",
+        f"{endpoint_label}={endpoint_ranges}",
+    ]
+    row_ranges = _format_compact_evidence_list(
+        payload.get("aggregated_row_number_ranges") or payload.get("aggregated_row_numbers")
+    )
+    if row_ranges:
+        parts.append(f"rows={row_ranges}")
+    for key in ("header_prefix", "header_prefixes", "endpoint_columns"):
+        value = _format_compact_evidence_list(payload.get(key))
+        if value:
+            parts.append(f"{key}={value}")
+    cluster_size = payload.get("cluster_size")
+    if cluster_size is not None:
+        parts.append(f"cluster_size={_format_evidence_part(cluster_size)}")
+    pair_ids = _decode_jsonish(payload.get("cluster_pair_ids"))
+    if isinstance(pair_ids, list) and pair_ids:
+        parts.append(f"pair_count={len(pair_ids)}")
+    return ", ".join(parts)
+
+
+def _format_compact_evidence_list(value: Any) -> str:
+    payload = _decode_jsonish(value)
+    if payload is None:
+        return ""
+    if isinstance(payload, list):
+        return "|".join(_format_evidence_part(item) for item in payload)
+    return _format_evidence_part(payload)
+
+
 def _evidence_display(row: pd.Series) -> str:
+    terminal_header_display = _format_terminal_header_table_display(
+        _decode_jsonish(row.get("evidence"))
+    )
+    if terminal_header_display:
+        return terminal_header_display
     refs = _format_evidence_value(row.get("evidence_refs"))
     if refs:
         return refs
@@ -1606,7 +1752,9 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
         title = row.get("message")
     evidence = row.get("evidence_display") or _evidence_display(row)
     semantics = _pair_semantics_summary(_decode_jsonish(row.get("evidence")))
-    triage = row.get("one_to_many_classification")
+    one_to_many_triage = row.get("one_to_many_classification")
+    many_to_one_triage = row.get("many_to_one_classification")
+    review_classification = row.get("review_classification")
     details = [
         f"### `{_display_value(row.get('issue_id'))}` {_display_value(title)}",
         "",
@@ -1625,8 +1773,12 @@ def _format_issue_markdown_block(row: pd.Series) -> list[str]:
     ]
     if semantics:
         details.append(f"- LineSemantics: `{semantics}`")
-    if not _is_blank_value(triage):
-        details.append(f"- OneToManyTriage: `{triage}`")
+    if not _is_blank_value(review_classification):
+        details.append(f"- ReviewClassification: `{review_classification}`")
+    if not _is_blank_value(one_to_many_triage):
+        details.append(f"- OneToManyTriage: `{one_to_many_triage}`")
+    if not _is_blank_value(many_to_one_triage):
+        details.append(f"- ManyToOneTriage: `{many_to_one_triage}`")
     root_cause = row.get("root_cause")
     if not _is_blank_value(root_cause):
         confidence = row.get("root_cause_confidence")
@@ -1655,6 +1807,18 @@ def _prepare_report_frame(frame: pd.DataFrame) -> pd.DataFrame:
     if "rule_id" in report_frame.columns:
         report_frame["one_to_many_classification"] = report_frame.apply(
             lambda row: _display_value(_read_evidence_key(row, "one_to_many_classification"), default=""),
+            axis=1,
+        )
+        report_frame["many_to_one_classification"] = report_frame.apply(
+            lambda row: _display_value(_read_evidence_key(row, "many_to_one_classification"), default=""),
+            axis=1,
+        )
+        report_frame["review_classification"] = report_frame.apply(
+            lambda row: _display_value(
+                _read_evidence_key(row, "one_to_many_classification")
+                or _read_evidence_key(row, "many_to_one_classification"),
+                default="",
+            ),
             axis=1,
         )
     return report_frame
@@ -1740,6 +1904,10 @@ def load_report_frames(project_dir: Path) -> dict[str, pd.DataFrame]:
         "terminal_candidates",
         "pair_candidates",
         "pairs",
+        "text_assignments",
+        "entity_coverage_summary",
+        "wire_junctions",
+        "wire_networks",
         "source_files",
         "sidecars",
         "terminal_strips",

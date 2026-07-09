@@ -41,7 +41,19 @@ npm run tauri:dev
 npm run tauri:build
 ```
 
+Build the release sidecar before packaging:
+
+```powershell
+.\scripts\build-sidecar.ps1 -Clean
+npm run tauri:build
+```
+
+The script writes `src-tauri/resources/sidecar/dwg-audit-sidecar.exe`; Tauri
+bundles that directory into the app resource root as `sidecar/`. Debug builds
+may still use source fallback, but a release smoke should verify the bundled
+sidecar path or an explicit `DWG_AUDIT_SIDECAR_EXE`.
+
 ## Current limitations
 
-- The shell now has an explicit sidecar runtime contract, but the actual packaged `dwg-audit-sidecar` binary still needs to be produced and bundled before the installer is source-tree independent.
+- The shell now has an explicit sidecar runtime contract and a repeatable sidecar build hook; the release smoke still needs to run the packaged binary against a real sample before declaring the installer fully source-tree independent.
 - Result review already exposes evidence JSON, one-to-many triage and score breakdown, but richer evidence drawers, multi-reference preview switching and preview regeneration controls still need refinement.

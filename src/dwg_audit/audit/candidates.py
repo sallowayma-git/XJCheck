@@ -16,9 +16,34 @@ from dwg_audit.utils.ids import IdFactory
 _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
 _CHANNEL_TERMINAL_NUMERIC = "terminal_numeric_channel"
+_CHANNEL_WIRE_LOGIC_ENDPOINT = "wire_logic_endpoint_channel"
+_CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT = "schematic_semantic_endpoint_channel"
 _CHANNEL_CONTINUATION = "continuation_channel"
 _CHANNEL_SEMANTIC = "semantic_channel"
 _CHANNEL_NOISE = "noise_channel"
+_WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(r"^[13]-21[A-Z]{2,4}\d{1,3}$", re.IGNORECASE)
+_SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"^DC\s+0-5V/4-20mA\s*[+-]$", re.IGNORECASE),
+    re.compile(r"^GND$", re.IGNORECASE),
+)
+_SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"^TD\d+$", re.IGNORECASE),
+    re.compile(r"^B\s*code\s*[+-]$", re.IGNORECASE),
+    re.compile(r"^B[+-]$", re.IGNORECASE),
+    re.compile(r"^Device alarm$", re.IGNORECASE),
+)
+_SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"^(?:UA|UB|UC|UN|UX'?|3U0'?)$", re.IGNORECASE),
+)
+_SCHEMATIC_AC_PHASE_SEMANTIC_PHRASE_PATTERNS: tuple[re.Pattern[str], ...] = ()
+_SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS = (
+    re.compile(r"^BI\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
+    re.compile(r"^开入\s*\d+\s*/\s*BCD\d+$", re.IGNORECASE),
+)
+_SCHEMATIC_BINARY_INPUT_DESCRIPTION_ENDPOINT_PATTERNS = (
+    re.compile(r"^Manual closing of synchronization$", re.IGNORECASE),
+    re.compile(r"^手合同期$"),
+)
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
     re.compile(r"^(?:I0|I0'|IA|IA'|IB|IB'|IC|IC'|IN)$", re.IGNORECASE),
@@ -90,6 +115,10 @@ def build_terminal_candidates(
                 dx = text.insert_x - endpoint[0]
                 dy = text.insert_y - endpoint[1]
                 value = _candidate_numeric_value(text, profile["numeric_suffix_patterns"])
+                if value is None:
+                    value = _candidate_wire_logic_endpoint_value(text, sheet, orientation)
+                if value is None:
+                    value = _candidate_schematic_semantic_endpoint_value(text, sheet, orientation)
                 within_height = min_height <= text.height <= max_height
                 vertical_alignment_score = _cross_axis_alignment_score(dx, dy, radius_x, radius_y, orientation)
                 horizontal_side_score = _side_alignment_score(dx, dy, radius_x, radius_y, side, orientation)
@@ -120,6 +149,36 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "height_out_of_range"
                     score = 0.0
+                elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_ac_phase_label"
+                    and vertical_alignment_score <= 0.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_binary_input_function_label"
+                    and abs(dy) > 3.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_binary_input_function_description"
+                    and abs(dy) > 6.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
                 elif (
                     len(value.strip()) == 1
                     and text.layer.upper() in profile["single_char_reject_layers"]
@@ -168,6 +227,11 @@ def build_terminal_candidates(
                         horizontal_distance_weight=profile["terminal_strip_distance_x_weight"],
                         cross_axis_distance_weight=profile["terminal_strip_distance_y_weight"],
                     )
+                    if channel_detail in {
+                        "schematic_binary_input_function_label",
+                        "schematic_binary_input_function_description",
+                    }:
+                        score = round(0.35 + (min(score, 1.0) * 0.1), 4)
                     status = "accepted"
                     reason = None
                 results.append(
@@ -198,6 +262,14 @@ def build_terminal_candidates(
                         channel_detail=channel_detail if status == "accepted" else (reason or channel_detail),
                     )
                 )
+        _add_schematic_ac_phase_line_span_candidates(
+            results=results,
+            index=index,
+            group=group,
+            sheet=sheet,
+            profile=profile,
+            candidate_ids=candidate_ids,
+        )
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
     _apply_terminal_strip_row_lock(results, group_map, sheet_map)
     _apply_terminal_short_bridge_roles(results, group_map, sheet_map)
@@ -228,6 +300,111 @@ def _candidate_search_bbox(
         endpoint[0] + radius_x,
         endpoint[1] + radius_y,
     )
+
+
+def _add_schematic_ac_phase_line_span_candidates(
+    *,
+    results: list[TerminalCandidate],
+    index: TextSpatialIndex,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    profile: dict[str, object],
+    candidate_ids: IdFactory,
+) -> None:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return
+    orientation = group.orientation if group.orientation in {"horizontal", "grid"} else "horizontal"
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return
+
+    by_side = defaultdict(list)
+    existing_text_ids: set[str] = set()
+    for candidate in results:
+        if candidate.line_group_id != group.line_group_id:
+            continue
+        existing_text_ids.add(candidate.text_id)
+        if candidate.status == "accepted" and candidate.channel == _CHANNEL_TERMINAL_NUMERIC:
+            by_side[candidate.side].append(candidate)
+    numeric_sides = {side for side, candidates in by_side.items() if candidates}
+    if len(numeric_sides) != 1:
+        return
+
+    side = next(iter(numeric_sides))
+    endpoint_map = dict(_endpoints_for_group(group))
+    endpoint = endpoint_map[side]
+    min_x = min(group.start_x, group.end_x)
+    max_x = max(group.start_x, group.end_x)
+    y = (group.start_y + group.end_y) / 2.0
+    y_tolerance = 2.5
+    min_height = float(profile["min_height"])
+    max_height = float(profile["max_height"])
+    radius_x = float(profile["radius_x"])
+    radius_y = float(profile["radius_y"])
+    bbox = (min_x, y - y_tolerance, max_x, y + y_tolerance)
+
+    for text in index.query(bbox):
+        if text.text_id in existing_text_ids:
+            continue
+        if not (min_height <= text.height <= max_height):
+            continue
+        if not (min_x <= text.insert_x <= max_x and abs(text.insert_y - y) <= y_tolerance):
+            continue
+        value = _candidate_schematic_semantic_endpoint_value(text, sheet, orientation)
+        detail = _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation)
+        if value is None or detail != "schematic_ac_phase_label":
+            continue
+        dx = text.insert_x - endpoint[0]
+        dy = text.insert_y - endpoint[1]
+        score = _candidate_score(
+            dx,
+            dy,
+            radius_x,
+            radius_y,
+            text.height,
+            side,
+            orientation=orientation,
+            layer=text.layer,
+            value=value,
+            deprioritized_layers=profile["deprioritized_layers"],
+            deprioritized_layer_penalty=float(profile["deprioritized_layer_penalty"]),
+            single_char_penalty_layers=profile["single_char_penalty_layers"],
+            single_char_penalty=float(profile["single_char_penalty"]),
+            derived_numeric_penalty=0.0,
+            block_internal_numeric_penalty=float(profile["block_internal_numeric_penalty"]),
+            is_block_internal=False,
+            terminal_strip_mode=False,
+            horizontal_distance_weight=float(profile["terminal_strip_distance_x_weight"]),
+            cross_axis_distance_weight=float(profile["terminal_strip_distance_y_weight"]),
+        )
+        results.append(
+            TerminalCandidate(
+                candidate_id=candidate_ids.next(),
+                line_group_id=group.line_group_id,
+                sheet_id=group.sheet_id,
+                file_id=group.file_id,
+                side=side,
+                text_id=text.text_id,
+                text=text.text,
+                value=value,
+                score=score,
+                status="accepted",
+                rejection_reason=None,
+                endpoint_x=endpoint[0],
+                endpoint_y=endpoint[1],
+                distance_x=round(abs(dx), 4),
+                distance_y=round(abs(dy), 4),
+                text_insert_x=text.insert_x,
+                text_insert_y=text.insert_y,
+                vertical_alignment_score=_cross_axis_alignment_score(dx, dy, radius_x, radius_y, orientation),
+                horizontal_side_score=_side_alignment_score(dx, dy, radius_x, radius_y, side, orientation),
+                text_type_score=1.0,
+                height_score=1.0,
+                source_block_name=text.source_block_name,
+                channel=_CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT,
+                channel_detail=detail,
+            )
+        )
+        existing_text_ids.add(text.text_id)
 
 
 def _endpoints_for_group(group: LineGroup) -> tuple[tuple[str, tuple[float, float]], tuple[str, tuple[float, float]]]:
@@ -611,6 +788,94 @@ def _candidate_numeric_value(text: TextItem, patterns: list[re.Pattern[str]]) ->
     return None
 
 
+def _candidate_wire_logic_endpoint_value(
+    text: TextItem,
+    sheet: SheetRecord | None,
+    orientation: str,
+) -> str | None:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return None
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return None
+    normalized = text.normalized_text.strip()
+    if not _WIRE_LOGIC_ENDPOINT_PATTERN.fullmatch(normalized):
+        return None
+    return normalized
+
+
+def _candidate_schematic_semantic_endpoint_value(
+    text: TextItem,
+    sheet: SheetRecord | None,
+    orientation: str,
+) -> str | None:
+    detail = _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation)
+    if detail is None:
+        return None
+    normalized = text.normalized_text.strip()
+    if detail == "schematic_ac_phase_label":
+        phase = _extract_schematic_ac_phase_endpoint(normalized)
+        if phase is not None:
+            return phase
+    return _normalize_schematic_semantic_endpoint_value(normalized)
+
+
+def _candidate_schematic_semantic_endpoint_detail(
+    text: TextItem,
+    sheet: SheetRecord | None,
+    orientation: str,
+) -> str | None:
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return None
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return None
+    sheet_context = f"{sheet.filename} {sheet.sheet_title}".upper()
+    normalized = text.normalized_text.strip()
+    if (
+        ("直流" in sheet_context or "DC" in sheet_context)
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_dc_function_label"
+    if (
+        any(marker in sheet_context for marker in ("网络", "对时", "COMMUNICATION", "TIME SYNCHRONIZATION"))
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_network_time_label"
+    if (
+        any(marker in sheet_context for marker in ("交流", "AC", "CT AND VT", "VOLTAGE", "CURRENT"))
+        and _extract_schematic_ac_phase_endpoint(normalized) is not None
+    ):
+        return "schematic_ac_phase_label"
+    if (
+        any(marker in sheet_context for marker in ("BINARY INPUT", "开入", "测控"))
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_binary_input_function_label"
+    if (
+        any(marker in sheet_context for marker in ("BINARY INPUT", "开入"))
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_BINARY_INPUT_DESCRIPTION_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_binary_input_function_description"
+    return None
+
+
+def _normalize_schematic_semantic_endpoint_value(normalized: str) -> str:
+    value = re.sub(r"\s*/\s*", "/", normalized.strip())
+    value = re.sub(r"\s+", " ", value)
+    return value
+
+
+def _extract_schematic_ac_phase_endpoint(normalized: str) -> str | None:
+    stripped = normalized.strip()
+    for pattern in _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS:
+        if pattern.fullmatch(stripped):
+            return stripped.upper()
+    for pattern in _SCHEMATIC_AC_PHASE_SEMANTIC_PHRASE_PATTERNS:
+        matched = pattern.fullmatch(stripped)
+        if matched is not None:
+            return matched.group("phase").upper()
+    return None
+
+
 def _is_terminal_strip_mode(sheet: SheetRecord | None, orientation: str) -> bool:
     return sheet is not None and sheet.sheet_category == "屏端子图" and orientation != _ORIENTATION_VERTICAL
 
@@ -888,6 +1153,12 @@ def _candidate_channel_hint(
     ):
         return _CHANNEL_SEMANTIC, "terminal_semantic_marker"
     if value is not None:
+        if _candidate_wire_logic_endpoint_value(text, sheet, orientation) == value:
+            return _CHANNEL_WIRE_LOGIC_ENDPOINT, "schematic_wire_logic_endpoint"
+        if _candidate_schematic_semantic_endpoint_value(text, sheet, orientation) == value:
+            return _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT, _candidate_schematic_semantic_endpoint_detail(
+                text, sheet, orientation
+            )
         return _CHANNEL_TERMINAL_NUMERIC, None
     return _CHANNEL_NOISE, "not_numeric"
 

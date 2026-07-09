@@ -1,5 +1,6 @@
 from dwg_audit.audit.component_diagrams import extract_kk_multi_port_component_pairs
 from dwg_audit.audit.component_diagrams import extract_small_port_box_component_pairs
+from dwg_audit.audit.component_diagrams import extract_strip_two_port_endpoint_bridge_pairs
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineGroup
@@ -166,6 +167,32 @@ def test_extract_strip_two_port_component_pairs_accepts_clp_body() -> None:
     assert all(pair.evidence["component_submode"] == "strip_two_port_component" for pair in pairs)
 
 
+def test_extract_strip_two_port_component_pairs_accepts_zlp_body() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("T3513", "1-2ZLP4", 250.73, 200.31, layer="MARK"),
+        _make_text("T3511", "1", 254.58, 185.06, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3510", "2", 254.64, 170.06, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T3647", "KD26", 252.23, 190.41),
+        _make_text("T3648", "1-2n422", 249.98, 164.81),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs(
+        [sheet],
+        texts,
+        [_make_vertical_group("GC0090", x=252.74, start_y=186.31, end_y=171.31)],
+    )
+
+    assert consumed == {"GC0090"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1-2ZLP4-1", "KD26"),
+        ("1-2ZLP4-2", "1-2n422"),
+    }
+    assert {pair.pair_kind for pair in pairs} == {"component_mapping"}
+    assert all(pair.status == "pass" for pair in pairs)
+    assert all(pair.evidence["component_submode"] == "strip_two_port_component" for pair in pairs)
+
+
 def test_extract_strip_two_port_component_pairs_requires_supporting_vertical_group() -> None:
     sheet = _make_sheet()
     texts = [
@@ -273,6 +300,66 @@ def test_extract_strip_two_port_component_pairs_requires_two_valid_external_endp
     ]
 
     pairs, consumed = extract_strip_two_port_component_pairs([sheet], texts, [_make_vertical_group()])
+
+    assert pairs == []
+    assert consumed == set()
+
+
+def test_extract_strip_two_port_endpoint_bridge_pairs_builds_direct_zk_to_n_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("P1", "1", 301.844972, 193.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("P2", "2", 301.903631, 178.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("TOP", "3-21ZK-4", 296.493296, 199.103352),
+        _make_text("BOTTOM", "3-21n401", 296.493296, 173.5),
+    ]
+    group = _make_vertical_group("GC0077", x=300.0, start_y=195.0, end_y=180.0)
+
+    pairs, consumed = extract_strip_two_port_endpoint_bridge_pairs([sheet], texts, [group])
+
+    assert consumed == {"GC0077"}
+    assert len(pairs) == 1
+    pair = pairs[0]
+    assert pair.left_value == "3-21ZK-4"
+    assert pair.right_value == "3-21n401"
+    assert pair.left_text_id == "TOP"
+    assert pair.right_text_id == "BOTTOM"
+    assert pair.pair_kind == "component_mapping"
+    assert pair.status == "pass"
+    assert pair.evidence["component_submode"] == "strip_two_port_endpoint_bridge"
+    assert pair.evidence["top_port_text_id"] == "P1"
+    assert pair.evidence["bottom_port_text_id"] == "P2"
+    assert pair.evidence["component_block_name"] == "FJL-25-2A_Mirror"
+    assert pair.evidence["supporting_line_ids"] == ["L1"]
+
+
+def test_extract_strip_two_port_endpoint_bridge_pairs_requires_matching_prefix() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("P1", "1", 381.844972, 253.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("P2", "2", 381.903631, 238.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("TOP", "1-21ZK-6", 376.493296, 259.103352),
+        _make_text("BOTTOM", "3-21n401", 376.493296, 233.5),
+    ]
+    group = _make_vertical_group("GC0090", x=380.0, start_y=255.0, end_y=240.0)
+
+    pairs, consumed = extract_strip_two_port_endpoint_bridge_pairs([sheet], texts, [group])
+
+    assert pairs == []
+    assert consumed == set()
+
+
+def test_extract_strip_two_port_endpoint_bridge_pairs_rejects_plain_numeric_bottom() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("P1", "1", 301.844972, 193.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("P2", "2", 301.903631, 178.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("TOP", "3-21ZK-4", 296.493296, 199.103352),
+        _make_text("BOTTOM", "401", 296.493296, 173.5),
+    ]
+    group = _make_vertical_group("GC0077", x=300.0, start_y=195.0, end_y=180.0)
+
+    pairs, consumed = extract_strip_two_port_endpoint_bridge_pairs([sheet], texts, [group])
 
     assert pairs == []
     assert consumed == set()

@@ -2154,6 +2154,76 @@
   - `inline KLP 116 residual suppression`
   - `backplate/component mapping rules semantics`
 
+## Session Update 2026-07-07 (Phase 63 backplate virtual table same-sheet scope review)
+- Started after commit `27e5435`.
+- Read-only recovery:
+  - Ran `planning-with-files` catchup, read `task_plan.md`, `progress.md`, `doc/findings.md`, `doc/任务书.md`, and checked `git status --short`.
+  - Current worktree before edits only had external/concurrent `doc/任务书.md`, `doc/page_findings/`, and `doc/page_task_queue.md`.
+  - Four readonly explorers plus main-thread phase76 inspection converged on `backplate virtual table same-sheet one-to-many scope semantics` as the next narrow rules-only slice.
+  - Representative sample: first `S0021 / 20 非电量保护背板图.dwg`, `NKR308A-1 -> 5FD11 / 5FD15` through `NKR308A-18 -> 5YD4 / 5YD5`, all `table_mapping/pass` but reported as generic `一对多待复核`.
+- Implementation:
+  - Added a same-sheet backplate virtual table scope branch to `_run_one_to_many()` in `rules.py`.
+  - The new branch only applies to `pair_kind=table_mapping` with `mapping_mode=backplate_virtual_table`, same sheet, and multiple table-region/scope evidence such as different raw header text, header text ids, header coordinates, or source block names.
+  - Issues remain visible as `R-ONE-TO-MANY/review`, but now carry title `背板表格同页作用域待复核` and `one_to_many_classification=backplate_table_same_sheet_scope_review`.
+  - Added a positive rules unit test modeled on `NKR308A` same-sheet dual table regions and a negative test proving identical backplate scope still falls back to generic review.
+  - No extractor, pair generation, graph input, acceptance fixture, CLI/UI, or product workflow behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or one_to_many or many_to_one or component_split or terminal_header"` -> `13 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `50 passed`
+  - `python -m pytest -q tests\unit\test_table_extractor.py -k "backplate" tests\integration\test_analyze_project.py -k "backplate or run_audit or mixed_source"` -> `6 passed, 28 deselected`
+  - `python -m pytest -q` -> `238 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase77_backplate_same_sheet_first/...`: `pair_count=1550`, `issue_count=311`; pair kinds unchanged (`ordinary_pair=800`, `table_mapping=299`, `continuation=175`, `component_mapping=138`, `semantic_mapping=103`, `wire_component_mapping=32`, `bridge_mapping=3`).
+  - first rule counts unchanged: `R-PAIR-MISSING-SIDE=147`, `R-CROSS-PAGE-CONFLICT=66`, `R-ONE-TO-MANY=44`, `R-MANY-TO-ONE=37`, `R-PAIR-LOW-CONFIDENCE=12`, `R-DUPLICATE-PAIR=5`.
+  - first `R-ONE-TO-MANY` classifications now include `backplate_table_scope_review=66`, `backplate_table_same_sheet_scope_review=18`, `component_split_endpoint_group_review=16`, `terminal_header_table_multi_endpoint_review=8`, and generic `review=2`.
+  - Target pairs remain pass `table_mapping`: `NKR308A-1 -> 5FD11`, `NKR308A-1 -> 5FD15`, `NKR308A-7 -> 5KLP1-2`, `NKR308A-7 -> 5KLP5-2`.
+  - second fresh `.tmp/phase77_backplate_same_sheet_second/2_2`: `pair_count=1460`, `issue_count=188`; pair kinds unchanged (`ordinary_pair=674`, `continuation=202`, `table_mapping=174`, `wire_component_mapping=168`, `semantic_mapping=157`, `component_mapping=82`, `bridge_mapping=3`).
+  - second redlines hold: `terminal_header_table_multi_endpoint_review=43`, `terminal_header_table_shared_endpoint_review=21`, and `semantic_table_mapping_pass_endpoint_count=0`.
+- Error encountered:
+  - First `run-audit` attempt failed writing `issues.parquet` because the new `row_numbers` evidence used integer lists while existing issue evidence used string-like row numbers. Fixed by serializing new `row_numbers` as strings, then reran targeted/full/fresh audit successfully.
+- External/concurrent files intentionally not touched or staged:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+- Next candidates:
+  - `terminal_header_table issue aggregation`
+  - `inline signal page ordinary residual taxonomy guardrail`
+  - `backplate/component many-to-one scope semantics`
+
+## Session Update 2026-07-07 (Phase 62 component split endpoint rules semantics)
+- Started after commit `7fb59b9`.
+- Read-only recovery:
+  - Ran `planning-with-files` catchup; it reported unsynced context from the previous working run and recommended checking diff/stat plus planning files.
+  - Read `task_plan.md`, `progress.md`, `doc/findings.md`, `doc/任务书.md`, and `git status --short`.
+  - Current worktree before documentation updates had rules/test changes plus external/concurrent `doc/任务书.md`, `doc/page_findings/`, and `doc/page_task_queue.md`.
+  - Read-only audit found the old inline KLP 116 backlog is now stale as an active implementation slice: representative KLP 116 rows already pass as `wire_component_mapping`.
+- Implementation:
+  - Added a strip-two-port split endpoint detector in `rules.py` for `component_mapping` pairs with `component_submode=strip_two_port_component` and comma-derived `external_endpoint_raw` / `external_endpoint_split` evidence.
+  - `R-ONE-TO-MANY` now emits title `组件逗号端点拆分待复核` with `one_to_many_classification=component_split_endpoint_group_review` when multiple endpoints come from the same raw comma text.
+  - `R-MANY-TO-ONE` now emits title `组件逗号端点邻接待复核` with `many_to_one_classification=component_split_endpoint_group_review` when shared endpoints are adjacent through comma split groups, including cross component pages.
+  - Added focused rules unit tests for one-to-many and many-to-one split endpoint group reviews.
+  - No extractor, pair generation, acceptance fixture, CLI/UI, or graph relationship behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "one_to_many or many_to_one or component_branch or split_endpoint or backplate or terminal_header"` -> `11 passed, 37 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `48 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `236 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase76_component_split_rules_first/...`: `pair_count=1550`, `issue_count=311`, pair kinds unchanged (`ordinary_pair=800`, `component_mapping=138`, `table_mapping=299`, `wire_component_mapping=32`, `continuation=175`, `semantic_mapping=103`, `bridge_mapping=3`).
+  - first rule counts unchanged; only classification/title changed for split endpoint reviews: `R-ONE-TO-MANY` has `component_split_endpoint_group_review=16`, `R-MANY-TO-ONE` has `component_split_endpoint_group_review=12`.
+  - Target issues: `I0226` is now `组件逗号端点拆分待复核` with `one_to_many_classification=component_split_endpoint_group_review`; `I0270` is now `组件逗号端点邻接待复核` with `many_to_one_classification=component_split_endpoint_group_review`.
+  - Component mappings remain visible and passing, including `PCM0001 3-2KLP1-1 -> 3-2QD2`, `PCM0002 3-2KLP1-1 -> 3-2KLP3-1`, `PCM0003 3-2KLP1-2 -> 3-2n116`, and `PCM0039 1-2KLP1-2 -> 1-2n116`.
+  - second fresh `.tmp/phase76_component_split_rules_second/2_2`: `pair_count=1460`, `issue_count=188`, pair kinds unchanged (`ordinary_pair=674`, `wire_component_mapping=168`, `component_mapping=82`, `table_mapping=174`, `continuation=202`, `semantic_mapping=157`, `bridge_mapping=3`).
+  - second split issue count remains `0`; redlines hold: `input_matrix_wire_mapping_count=168`, `component_prefixed_signal_circuit_count=0`, `semantic_table_mapping_pass_endpoint_count=0`.
+- External/concurrent files intentionally not staged for this rules slice:
+  - `doc/任务书.md`
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+- Next candidates:
+  - `backplate virtual table same-sheet one-to-many scope semantics`
+  - `terminal_header_table issue aggregation`
+  - `inline signal page ordinary residual taxonomy guardrail`
+
 ## Session Update 2026-07-07 (Phase 60 terminal header semantic endpoint exclusion)
 - Started after commit `0cac857`.
 - Read-only recovery:
@@ -2183,6 +2253,40 @@
   - `inline KLP 116 residual suppression`
   - `component-prefixed 218 residual suppression`
   - `backplate/component mapping rules semantics`
+- External/concurrent paths intentionally not touched:
+  - `doc/page_findings/`
+  - `doc/page_task_queue.md`
+
+## Session Update 2026-07-07 (Phase 64 backplate structured shared endpoint review)
+- Started after commit `33b9681`.
+- Read-only recovery:
+  - Read `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Current dirty state before edits only had protected untracked external paths: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Four read-only explorers audited terminal-header aggregation, inline wire residuals, and remaining many-to-one rules semantics.
+- Audit conclusion:
+  - Phase77 first had `37` `R-MANY-TO-ONE`: `12` component split endpoint reviews, `7` terminal header shared endpoint reviews, and `18` generic `多对一配对`.
+  - Of the `18` generic issues, `16` involved `backplate_virtual_table` sharing an external endpoint with a component mapping, terminal-header table mapping, or another backplate virtual table row.
+  - Two non-backplate boundaries were intentionally left generic: `KD6` (`strip_two_port_component + terminal_header_table`) and `KD23` (pure `terminal_header_table`).
+- Implementation:
+  - Added `_structured_mapping_shared_endpoint_scope_info()` in `src/dwg_audit/audit/rules.py`.
+  - `_run_many_to_one()` now emits title `背板结构化端点汇合待复核` with `many_to_one_classification=backplate_structured_shared_endpoint_review` only when all linked pairs are structured `table_mapping/component_mapping` and at least one mapping is `backplate_virtual_table`.
+  - Added focused unit tests proving component+backplate shared endpoint is classified, while pure terminal and component+terminal non-backplate shared endpoints remain generic.
+  - No extractor, PairBuilder, CLI/UI, graph relationship, or acceptance fixture behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or non_backplate_structured or many_to_one or backplate or terminal_header"` -> `11 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `53 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "run_audit or mixed_source"` -> `1 passed, 19 deselected`
+  - `python -m pytest -q` -> `241 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase78_backplate_structured_shared_first/...`: `pair_count=1550`, `issue_count=311`, pair kinds unchanged (`ordinary_pair=800`, `table_mapping=299`, `continuation=175`, `component_mapping=138`, `semantic_mapping=103`, `wire_component_mapping=32`, `bridge_mapping=3`).
+  - first `R-MANY-TO-ONE` classifications: `backplate_structured_shared_endpoint_review=16`, `component_split_endpoint_group_review=12`, `terminal_header_table_shared_endpoint_review=7`, generic `<none>=2`.
+  - Representative reclassified issues: `5KLP8-1` (`PCM0089 + P0211`), `1QD5` (`PCK0002 + P0002`), `5FD25` (`PCK0006 + P0168`).
+  - Remaining generic boundaries intentionally preserved: `KD6` (`PCM0050 + PTM0019 + PTM0025`) and `KD23` (`PTM0051 + PTM0054`).
+  - second fresh `.tmp/phase78_backplate_structured_shared_second/2_2`: `pair_count=1460`, `issue_count=188`, pair kinds unchanged; `backplate_structured_shared_endpoint_review=0`.
+  - second redlines held: `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`, and `semantic_table_mapping_pass_endpoint_count=0`.
+- Next candidates:
+  - `terminal_header_table issue aggregation`
+  - `inline signal page ordinary residual wire-chain guardrail`
 - External/concurrent paths intentionally not touched:
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
@@ -2390,3 +2494,1372 @@
   - `doc/任务书.md`
   - `doc/page_findings/`
   - `doc/page_task_queue.md`
+
+## Session Update 2026-07-07 (Phase 65 terminal header table issue aggregation)
+- Started after commit `ccd6ef6`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup; it reported unsynced context from the prior in-progress terminal aggregation attempt.
+  - Read `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Confirmed Phase60 terminal semantic endpoint exclusion was already complete at `9f2bc50`; current uncommitted work was the Phase65 rules aggregation slice in `rule_base.py` and `test_pairs_and_rules.py`.
+  - Protected external paths remained untracked and untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Implementation:
+  - Kept the existing range-aware terminal-header aggregation in `cluster_issues()`.
+  - Fixed a fresh first-set audit crash by making `_natural_sort_key()` return stable tuple parts, so numeric-leading endpoints and nonnumeric strings sort together safely.
+  - Aggregation is limited to `terminal_header_table_multi_endpoint_review` and `terminal_header_table_shared_endpoint_review`; it does not alter pair generation, extractor behavior, or `table_mapping/pass` graph relationships.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or one_to_many or many_to_one"` -> `14 passed, 42 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `56 passed`
+  - `python -m pytest -q tests\unit\test_table_extractor.py -k "terminal_header_table"` -> `3 passed, 11 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "terminal_header_table or table_mapping"` -> `4 passed, 16 deselected`
+  - `python -m pytest -q` -> `244 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase79_terminal_header_aggregation_first/...`: `pair_count=1550`, `issue_count=305`; pair_kind unchanged from Phase78.
+  - first terminal-header classifications now show `R-ONE-TO-MANY terminal_header_table_multi_endpoint_review=5` and `R-MANY-TO-ONE terminal_header_table_shared_endpoint_review=4`.
+  - second fresh `.tmp/phase79_terminal_header_aggregation_second/2_2`: `pair_count=1460`, `issue_count=129`; pair_kind unchanged from Phase78.
+  - second terminal-header row-level flood collapsed from `43 + 21` source reviews into 5 natural issue entries: `1-21GD rows 3-4`, `1-21GD rows 20-21`, `1-21QD rows 1-38`, singleton `1-21CD row 10`, and shared endpoints `1-21n210-230`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+- Next candidates:
+  - `inline signal page ordinary residual wire-chain guardrail`
+  - packaged sidecar/exe smoke as a separate productization slice if the next round returns to Phase51/M11.
+
+## Session Update 2026-07-07 (Phase 66 inline wire-chain DIM guardrail)
+- Started after commit `3d6d0fd`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Current plan/taskbook pointed to `inline signal page ordinary residual wire-chain guardrail` as the next extraction/rules-quality slice.
+- Read-only audit conclusions:
+  - Explorer evidence confirmed first fresh Phase79 had exactly 2 `complementary_half_pair` issues, both in `S0008 / 07 网络通讯回路图.dwg`.
+  - Targets were `I0001 / PW0178 + PW0182` around shared `701`, and `I0002 / PW0202 + PW0205` around shared `601`.
+  - The related pairs used `CONNECT` main wire groups (`GW0178/GW0202`) plus y-offset pure `DIM` short-line groups (`GW0182/GW0205`), so the current rules wording overstated them as a single inline broken wire chain.
+- Implementation:
+  - Added `_line_groups_wire_chain_compatible()` and `_wire_chain_group_candidate()` in `rules.py`.
+  - Complementary half-chain aggregation now requires compatible horizontal line-group y and non-DIM wire-chain candidates.
+  - Added `_missing_side_line_group_candidate()` so pure `DIM` line groups do not emit generic `R-PAIR-MISSING-SIDE`.
+  - Kept pair graph inputs intact; no extractor, line grouping, candidate generation, PairBuilder, CLI/UI, or acceptance fixture behavior changed.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side"` -> `4 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q` -> `245 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase80_inline_wire_chain_guardrail_first/...`: `pair_count=1550`, `issue_count=302`, pair_kind unchanged from Phase79; `complementary_half_pair=0`, `R-PAIR-MISSING-SIDE=144`.
+  - first target rows now remain honest ordinary missing-side on main `CONNECT` groups: `PW0178 ? -> 701` and `PW0202 ? -> 601`; pure `DIM` short-line issues `PW0182/PW0205` no longer enter the user issue list.
+  - second fresh `.tmp/phase80_inline_wire_chain_guardrail_second/2_2`: `pair_count=1460`, `issue_count=127`, pair_kind unchanged from Phase79; `complementary_half_pair=0`.
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+- Next candidates:
+  - Run fresh readonly audit on the remaining largest ordinary missing-side/low-confidence clusters and choose one true system-misunderstanding slice.
+  - Keep packaged sidecar/exe smoke separate if the next round returns to productization.
+
+## Session Update 2026-07-07 (Phase 67 schematic wire logic endpoint mapping)
+- Started after commit `2402b9a`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only the Phase67 code/test/plan edits plus protected untracked paths: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Confirmed the stable extractor closures should not be reopened: `input_matrix_wire_mapping`, `small_port_box_component`, `kk_multi_port_component`, `strip_two_port_component(KLP/CLP)`, terminal-header semantic endpoint exclusion/aggregation, and inline DIM guardrail.
+- Read-only audit conclusions:
+  - The second-set largest remaining missing-side cluster was not a terminal-header/table extractor regression.
+  - In `11/16 测控控制回路图2` style schematic pages, logic endpoint labels such as `1-21CD58`, `3-21CD58`, and `1-21UD8` were rejected as `not_numeric/noise_channel`, leaving numeric line-side pairs like `? -> 511`.
+- Implementation:
+  - Added a narrow `wire_logic_endpoint_channel` in `candidates.py`, limited to `二次原理图` horizontal/grid groups and labels matching `^[13]-21[A-Z]{2,4}\d{1,3}$`.
+  - Let `pairs.py` consume that channel only when the opposite side has a real `terminal_numeric_channel` candidate.
+  - Promoted complete logic-endpoint + numeric-endpoint relations to `pair_kind=wire_component_mapping` with `component_submode=schematic_wire_logic_endpoint`.
+  - Kept single-sided logic labels from generating new missing-side review rows.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_logic_endpoint or semantic_marker or single_sided_schematic_logic"` -> `3 passed, 24 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `57 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or input_matrix or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `248 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase81_schematic_logic_endpoint_first_v2/...`: `pair_count=1550`, `issue_count=302`; pair_kind unchanged from Phase80; `wire_logic_endpoint_channel=0`.
+  - second fresh `.tmp/phase81_schematic_logic_endpoint_second_v2/2_2`: `pair_count=1460`, `issue_count=58`, `R-PAIR-MISSING-SIDE=48`, `wire_component_mapping=245`.
+  - Targets `1-21CD58 -> 511` and `3-21CD58 -> 511` are now `wire_component_mapping/review`; `11/16 测控控制回路图2` missing-side count is now 0.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+- Next candidates:
+  - Read-only audit of second remaining `R-PAIR-MISSING-SIDE=48`.
+  - Read-only audit of first remaining `R-PAIR-MISSING-SIDE=144`.
+  - Backplate/component/table mapping rules semantics.
+  - Packaged sidecar/exe smoke as a separate M11 productization slice.
+
+## Session Update 2026-07-07 (Phase 68 schematic complementary half-chain geometry review)
+- Started after commit `75722bc`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Confirmed Phase60 terminal-header semantic endpoint exclusion was already complete; `table_extractor.py` already excludes `I0/IA/UA/UB/UC/UN/3U0` from `table_mapping/pass`.
+  - Current dirty work was the inherited Phase68 rules slice in `rules.py` and `test_pairs_and_rules.py`; protected untracked paths remained `doc/page_findings/` and `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - Phase81 second-set remaining `R-PAIR-MISSING-SIDE=48` included AC measurement / grid half-chain residuals where two strong half-pairs share a numeric text across a wider symbol gap.
+  - Phase81 first-set had the same pattern in a larger set of pages, plus separate future candidates for prefixed external endpoints and ZLP two-port component mapping.
+  - The initial rules change matched private function checks but audit-only rerun did not move because `report/rerun.py` failed to restore `LineGroup.orientation` / `row_band_id` from findings.
+- Implementation:
+  - Kept the complementary half-pair rules change: `horizontal` and `grid` orientations are eligible; grid pairs allow a small overlap and a gap up to at least `20.0`.
+  - Added evidence fields `bridge_gap_min` and `bridge_gap_max`.
+  - Fixed `rerun_audit_from_findings()` line group reconstruction so audit-only validation preserves `orientation` and `row_band_id`.
+  - Added unit coverage for grid wider-gap, grid small-overlap, and rerun loader preservation.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or dim"` -> `4 passed, 55 deselected`
+  - `python -m pytest -q tests\unit\test_rerun_audit.py` -> `2 passed`
+  - `python -m pytest -q` -> `250 passed`
+- Real-sample verification:
+  - audit-only second `.tmp/phase82_complementary_audit_second_v2`: `issue_count=51`, `R-PAIR-MISSING-SIDE=41`, `complementary_half_pair=7`.
+  - audit-only first `.tmp/phase82_complementary_audit_first_v2`: `issue_count=278`, `R-PAIR-MISSING-SIDE=120`, `complementary_half_pair=24`.
+  - fresh second `.tmp/phase82_complementary_second_audit`: `pair_count=1460`, `issue_count=51`; pair_kind unchanged from Phase81 with `wire_component_mapping=245`, `table_mapping=174`, `component_mapping=82`.
+  - fresh first `.tmp/phase82_complementary_first_audit`: `pair_count=1550`, `issue_count=278`; pair_kind unchanged from Phase81 with `table_mapping=299`, `component_mapping=138`, `wire_component_mapping=32`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511` and `3-21CD58 -> 511` remain `wire_component_mapping/review`; `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218` remain structured pass relationships.
+  - First-set structured mapping redlines also held: `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, and `5KLP5-2 -> 5n307`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - second DC/GND/function-label semantic mapping.
+  - second network-time/function-label semantic mapping.
+  - first prefixed external endpoint mapping.
+  - first ZLP two-port component mapping.
+  - backplate/component/table mapping rules semantics as a separate rules/acceptance/display slice.
+
+## Session Update 2026-07-07 (Phase 69 ZLP strip two-port component mapping)
+- Started after commit `691ed3b`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - Confirmed Phase60 terminal-header semantic endpoint exclusion was already complete, so this round did not reopen `TableExtractor`.
+  - Confirmed protected external paths remained untracked and untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - Explorer evidence and Phase82 fresh parquet showed first `S0023 / 22 元件接线图2.dwg` has a true ZLP long strip component: `1-2ZLP4`, block ports `1/2`, external endpoints `KD26 / 1-2n422`, and vertical support groups `GC0090/GC0094`.
+  - Current output had `PC0090 ? -> 422` because the strip body regex accepted `KLP/CLP` but not `ZLP`.
+- Implementation:
+  - Extended `strip_two_port_component` body matching to include `ZLP`.
+  - Added a focused ZLP unit test for `1-2ZLP4-1 -> KD26` and `1-2ZLP4-2 -> 1-2n422`.
+  - Did not change candidates, PairBuilder, rules, acceptance fixture, CLI/UI, or existing KLP/CLP logic.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or zlp"` -> `9 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_component_diagrams.py` -> `18 passed`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "component or kk or strip or run_audit"` -> `10 passed, 10 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py` -> `59 passed`
+  - `python -m pytest -q` -> `251 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase83_zlp_first/...` + `.tmp/phase83_zlp_first_audit`: `pair_count=1562`, `issue_count=272`, `component_mapping=150`, `R-PAIR-MISSING-SIDE=114`.
+  - first targets `1-2ZLP4-1 -> KD26` and `1-2ZLP4-2 -> 1-2n422` are `component_mapping/pass/confidence=0.95`.
+  - former ordinary residuals `PC0090 ? -> 422` and `PC0104 ? -> 422` are now `discard`, covered by `component_mapping`.
+  - second fresh `.tmp/phase83_zlp_second/2_2` + `.tmp/phase83_zlp_second_audit`: `pair_count=1460`, `issue_count=51`, pair_kind unchanged from Phase82.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - second DC/GND/function-label semantic mapping.
+  - second network-time/function-label semantic mapping.
+  - first prefixed external endpoint mapping.
+  - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 70 second DC/GND function semantic mapping)
+- Started after commit `92f8c3a`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Confirmed already closed capabilities must not be reopened: terminal-header semantic endpoint exclusion, component-prefixed 218 suppression, inline KLP 116 rules decision, schematic wire logic endpoint mapping, grid complementary half-chain review, and strip two-port KLP/CLP/ZLP.
+- Read-only audit conclusions:
+  - second `S0006 / 06 直流回路图.dwg` had function/semantic labels such as `DC 0-5V/4-20mA +` and `GND` rejected as `not_numeric/noise_channel`, leaving ordinary missing-side rows like `611 -> ?` and `? -> 101`.
+  - This is a semantic relation closure, not a broad numeric parser expansion and not an AC/network-time slice.
+- Implementation:
+  - Added `schematic_semantic_endpoint_channel` in `candidates.py`, limited to `二次原理图` horizontal/grid groups in a DC/直流 sheet context.
+  - Accepted only `DC 0-5V/4-20mA +/-` and `GND` for this slice.
+  - Let `pairs.py` consume the channel only when the opposite side has a real `terminal_numeric_channel`, and promote the relation to `pair_kind=semantic_mapping` with `semantic_mapping_kind=schematic_dc_function_label` and `ordinary_pair_eligible=False`.
+  - Added unit coverage for DC function labels, GND, and the single-sided semantic endpoint guardrail.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `5 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `254 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase84_dc_semantic_second/2_2` + `.tmp/phase84_dc_semantic_second_audit`: `pair_count=1460`, `issue_count=45`, `R-PAIR-MISSING-SIDE=35`, `semantic_mapping=164`.
+  - second `S0006` now has semantic review relations including `611 -> DC 0-5V/4-20mA +`, `609 -> DC 0-5V/4-20mA +`, `607 -> DC 0-5V/4-20mA +`, and `GND -> 101`.
+  - second terminal-header redline held: `semantic_table_mapping_pass_endpoint_count=0`; `I0/IA/UA/UB/UC/UN/3U0` remain `semantic_channel` rejected evidence; `PTM0008/PTM0017` are no longer `... -> I0`.
+  - second structured redlines held: `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`.
+  - first fresh `.tmp/phase84_dc_semantic_first/...` + `.tmp/phase84_dc_semantic_first_audit`: `pair_count=1562`, `issue_count=269`, `R-PAIR-MISSING-SIDE=111`, `semantic_mapping=106`.
+  - first structured redlines held: `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - second network-time/function-label semantic mapping.
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 71 second network-time function semantic mapping)
+- Started after commit `d3bff0a`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Closed stale subagent handles, then launched read-only explorers for taskbook alignment, Phase84 residual mining, source write-set audit, and validation design.
+- Read-only audit conclusions:
+  - Phase84 second `S0007 / 07 网络对时回路图.dwg` had 8 `R-PAIR-MISSING-SIDE` rows where `TD1..TD5`, `B+/-`, `B code +/-`, and `Device alarm` were rejected as `not_numeric/noise_channel`.
+  - Source audit recommended reusing the Phase70 `schematic_semantic_endpoint_channel` path rather than changing route/extractor/rules.
+  - AC phase-label and first prefixed endpoints remain valid future candidates, but this round stayed scoped to network-time labels.
+- Implementation:
+  - Added a network/time sheet-context label family in `candidates.py` for `TD#`, `B+/-`, `B code +/-`, and `Device alarm`.
+  - Kept these labels in `schematic_semantic_endpoint_channel` with `channel_detail=schematic_network_time_label`.
+  - Reused existing complete semantic endpoint mapping when a label and a numeric endpoint are on opposite sides.
+  - Added a PairBuilder helper for the real same-side annotation shape, limited to `schematic_network_time_label`, so `601` plus nearby `B+` can become `semantic_mapping/review` rather than ordinary missing-side.
+  - Added unit coverage for opposite-side network-time label mapping and same-side network-time annotation.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or schematic_logic_endpoint"` -> `7 passed, 25 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `256 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase85_network_time_second/2_2` + `.tmp/phase85_network_time_second_audit`: `pair_count=1460`, `issue_count=37`, `R-PAIR-MISSING-SIDE=27`, `semantic_mapping=172`.
+  - second `S0007` issues are now 0; target semantic mappings include `TD4 -> 602`, `TD2 -> 601`, `TD3 -> 602`, `TD1 -> 601`, `Device alarm -> 110`, and `B+ -> 601` annotation semantics.
+  - second redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, and `1-21GD9 -> 1-21n218`.
+  - first fresh `.tmp/phase85_network_time_first/...` + `.tmp/phase85_network_time_first_audit`: `pair_count=1562`, `issue_count=258`, `R-PAIR-MISSING-SIDE=100`, `semantic_mapping=117`.
+  - first redlines held: `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `1-2ZLP4-1 -> KD26`, `1-2ZLP4-2 -> 1-2n422`.
+- Next candidates:
+  - second AC phase-label semantic/covered mapping.
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 72 second AC phase-label semantic annotation)
+- Started after commit `a5522b7`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - `git status --short` showed only protected untracked paths before edits: `doc/page_findings/`, `doc/page_task_queue.md`.
+  - Launched read-only explorers for Phase85 AC residual mining and AC semantic write-set audit.
+- Read-only audit conclusions:
+  - second `S0004/S0005 / 04/05 交流回路图*.dwg` had AC phase/function labels `UA/UB/UC/UN/UX/3U0/3U0'` rejected as `not_numeric/noise_channel`.
+  - The safe slice is schematic-only AC phase semantic annotation. Terminal-row semantics and `1-21ZKK/3-21ZKK` markers must remain out of ordinary endpoint parsing.
+  - Some residuals (`724 -> UX'`, and the `? -> 715/717/719` split half-lines) need a later covered/window slice because their phase label is outside the current candidate window or on the sibling half-chain.
+- Implementation:
+  - Added `_SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS` in `candidates.py`, gated to `二次原理图` and AC/CT-VT sheet context.
+  - Accepted only `UA/UB/UC/UN/UX/3U0/3U0'` as `schematic_semantic_endpoint_channel` with `channel_detail=schematic_ac_phase_label`.
+  - Extended PairBuilder same-side semantic annotation to cover `schematic_ac_phase_label`, still producing `pair_kind=semantic_mapping` and `ordinary_pair_eligible=False`.
+  - Added tests for AC annotation, terminal AC marker isolation, and `I0` not becoming an AC phase label.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0 or network_time or schematic_dc or schematic_semantic_endpoint"` -> `8 passed, 27 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `259 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase86_ac_phase_second/2_2` + `.tmp/phase86_ac_phase_second_audit`: `pair_count=1460`, `issue_count=33`, `R-PAIR-MISSING-SIDE=23`, `semantic_mapping=182`.
+  - Added 10 `schematic_ac_phase_label` semantic review relations, including `721 -> 3U0`, `723 -> UX`, `719 -> UC`, `717 -> UB`, and `715 -> UA` on `04/05 交流回路图*.dwg`.
+  - second AC issues dropped from 11 to 7. Remaining AC residuals are `? -> 715/717/719` sibling half-lines and `724 -> ?`; these are not hidden by this slice.
+  - first fresh `.tmp/phase86_ac_phase_first/...` + `.tmp/phase86_ac_phase_first_audit`: `pair_count=1562`, `issue_count=258`, `semantic_mapping=119`; first-set structured redlines held.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `1-2ZLP4-1 -> KD26`, `1-2ZLP4-2 -> 1-2n422`.
+- Next candidates:
+  - second AC phase-label covered/window residual (`724 -> UX'` and `? -> 715/717/719` sibling half-lines).
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 73 second AC phase-label covered half-lines)
+- Started after commit `9a8bd37`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Inherited uncommitted implementation only touched `src/dwg_audit/audit/page_extractors.py` and `tests/unit/test_page_extractors.py`.
+  - Protected untracked paths remained untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - Phase86 second AC residual had 7 AC-related issues.
+  - Six `? -> 715/717/719` sibling half-lines shared the same numeric text IDs with existing `schematic_ac_phase_label` semantic mappings, so they are ordinary half-pair residuals covered by structured semantic evidence.
+  - `724 -> UX'` has no existing semantic mapping and remains a separate strict nearby/window annotation candidate.
+- Implementation:
+  - Added `_mark_schematic_ac_phase_covered_ordinary_pairs()` in `page_extractors.py`.
+  - The helper runs only after `WireDiagramExtractor` `build_pairs()`, and only covers ordinary single-sided pairs on `二次原理图` when their selected text ID is already the numeric endpoint of a `schematic_ac_phase_label` semantic mapping.
+  - Covered ordinary half-pairs are marked `discard`, `confidence_bucket=low`, `ordinary_pair_eligible=False`, and tagged with `covered_by_schematic_ac_phase_label_semantic_mapping=True`.
+  - Did not change candidates, PairBuilder, rules, table/component extractors, CLI/UI, or the AC semantic window.
+- Verification:
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "ac_phase or terminal_ac_marker or schematic_i0"` -> `3 passed, 32 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `262 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase87_ac_covered_second/2_2` + `.tmp/phase87_ac_covered_second_audit`: `pair_count=1460`, `issue_count=27`.
+  - The six covered AC ordinary half-lines are `PW0015 ? -> 719`, `PW0019 ? -> 717`, `PW0023 ? -> 715`, `PW0057 ? -> 719`, `PW0061 ? -> 717`, and `PW0065 ? -> 715`.
+  - second AC residual is now only `PW0047/GW0047 724 -> ?`, with nearby `UX'` left for a later strict annotation slice.
+  - second `pair_kind` counts held: `ordinary_pair=572`, `wire_component_mapping=245`, `continuation=202`, `semantic_mapping=182`, `table_mapping=174`, `component_mapping=82`, `bridge_mapping=3`.
+  - first fresh `.tmp/phase87_ac_covered_first/...` + `.tmp/phase87_ac_covered_first_audit`: `pair_count=1562`, `issue_count=256`, `covered_by_schematic_ac_phase_label_count=2`, `semantic_table_mapping_pass_endpoint_count=0`.
+  - Redlines held: second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first `5KLP5-1 -> 5KLP3-1`, `5KLP5-1 -> 5KLP2-1`, `5KLP5-2 -> 5n307`, `1-2n218 -> 1-4YD1`, `3-2n218 -> 3-4YD1`, `1-2ZLP4-1 -> KD26`, `1-2ZLP4-2 -> 1-2n422`.
+- Next candidates:
+  - second AC `724 -> UX'` strict nearby/window annotation.
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.
+
+## Session Update 2026-07-07 (Phase 74 second AC UX prime strict line-span annotation)
+- Started after commit `35cb72f`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Inherited uncommitted implementation only touched `src/dwg_audit/audit/candidates.py` and `tests/unit/test_terminal_candidates.py`.
+  - Protected untracked paths remained untouched: `doc/page_findings/`, `doc/page_task_queue.md`.
+- Read-only audit conclusions:
+  - second `S0005 / 05 交流回路图2.dwg` had the final AC residual `PW0047/GW0047 724 -> ?`.
+  - Numeric text `724` and semantic text `UX'` sit on the same strict line-span row; this should be `schematic_ac_phase_label` semantic annotation evidence.
+  - A broad row guard initially regressed DC semantic endpoint mapping, so it was narrowed to AC labels only.
+- Implementation:
+  - Allowed `UX'` in the AC phase semantic endpoint pattern.
+  - Added `_add_schematic_ac_phase_line_span_candidates()` in `candidates.py`, limited to `二次原理图` horizontal/grid groups with exactly one accepted numeric side and strict line-span y tolerance.
+  - Added an AC-only cross-row rejection for endpoint-window semantic hits, leaving DC/network-time semantic endpoints unchanged.
+  - Added unit coverage for line-span `UX'`, far-y rejection, cross-row `UX'` rejection, and low-alignment DC non-regression.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "network_time or schematic_dc or schematic_semantic_endpoint or ac_phase or ux_prime or schematic_i0"` -> `10 passed, 29 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "ac_phase or input_matrix or terminal_prefixed"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or missing_side"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `266 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase88_ac_ux_prime_second_v3/2_2` + `.tmp/phase88_ac_ux_prime_second_v3_audit`: `pair_count=1460`, `issue_count=26`, `ordinary_pair=571`, `semantic_mapping=183`, AC issue count `0`.
+  - `PW0047/GW0047 724 -> ?` is now `semantic_mapping/review` with `semantic_endpoint=UX'`, `numeric_endpoint=724`, and `ordinary_pair_eligible=False`.
+  - `GW0047/T0134 UX'` is accepted as same-row line-span evidence; `GW0048/T0134 UX'` is rejected as `schematic_semantic_out_of_row`.
+  - `PW0106 607 -> DC 0-5V/4-20mA +` remains `semantic_mapping/review`, proving the row guard no longer regresses DC semantics.
+  - first fresh `.tmp/phase88_ac_ux_prime_first/...` + `.tmp/phase88_ac_ux_prime_first_audit`: `pair_count=1562`, `issue_count=256`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second wire/component/table structured redlines and first KLP/ZLP/218 structured mappings all held.
+- Next candidates:
+  - first prefixed external endpoints.
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 75 first prefixed external endpoint mapping)
+- Started after commit `c0dc1f7`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md`; neither was touched.
+- Read-only audit conclusions:
+  - Phase74 had closed terminal/AC semantic endpoint redlines; the next narrow extractor slice was first prefixed external endpoints.
+  - first `S0009/S0010/S0011` had QD external endpoint text rejected from ordinary numeric parsing while same-row local `105` became `? -> 105`.
+  - `S0012` `5FD25 -> 5n105` is an FD variant and was kept out of this QD-only slice.
+- Implementation:
+  - Added `first_prefixed_external_endpoint_mapping` in `wire_components.py` for non-`*-21QD*` QD endpoint plus same-row 3-digit local number.
+  - Gated the new submode from `WireDiagramExtractor` to local text IDs already used by ordinary single-sided residuals, preventing broad promotion of entire QD tables.
+  - Extended wire-component ordinary-pair coverage so only the local number text is discarded; the external endpoint text remains available evidence.
+  - Added unit coverage for QD positives, input-matrix isolation, non-secondary-sheet isolation, eligible-local filtering, and coverage/non-coverage behavior.
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "prefixed or input_matrix or inline_klp"` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "prefixed or input_matrix or terminal_prefixed"` -> `9 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "wire_component or missing_side or semantic_mapping"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `272 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase75_prefixed_external_first_v2/...` + `.tmp/phase75_prefixed_external_first_v2_audit`: `pair_count=1584`, `issue_count=232`, `wire_component_mapping=54`, `first_prefixed_external_endpoint_mapping=22`.
+  - Target hits: `1QD5 -> 1n105`, `1-2QD12 -> 1-2n105`, and `3-2QD12 -> 3-2n105` are `wire_component_mapping/pass`.
+  - Target ordinary residuals `PW0225/PW0250/PW0275 ? -> 105` are `discard` with `covered_by_first_prefixed_external_endpoint_mapping=True`; `PW0309 ? -> 105` remains review because FD was out of scope.
+  - second fresh `.tmp/phase75_prefixed_external_second_v2/2_2` + `.tmp/phase75_prefixed_external_second_v2_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first KLP/ZLP/218 structured mappings.
+- Next candidates:
+  - FD prefixed external endpoint residual (`5FD25 -> 5n105`).
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 76 FD prefixed external endpoint residual)
+- Started after commit `1396809`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits.
+  - Spawned read-only explorers for taskbook alignment, real-sample residual mining, and source/verification boundary review.
+- Read-only audit conclusions:
+  - Taskbook alignment picked FD prefixed external endpoint residual as the next P0 minimum slice; rules semantics was too broad for one round, and product smoke remains a separate product track.
+  - Real-sample audit confirmed `PW0309 / S0012 / 11 非电量开入回路.dwg` has `T0801=5FD25` and `T0830=105` on the same row, with page scope `5n BINARY INPUT`; expected relation is `5FD25 -> 5n105`.
+  - Corroborating structured evidence already exists in backplate/component mappings: `NDY306A-5 -> 5FD25` and `5DK-2 -> 5FD25`.
+- Implementation:
+  - Extended `_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN` from QD-only to `QD|FD`, still capturing only the numeric prefix.
+  - Kept the existing `first_prefixed_external_endpoint_mapping` submode, ordinary single-sided local-text eligibility gate, non-`*-21QD*` input-matrix guard, row/x constraints, and 二次原理图 route boundary.
+  - Updated rationale wording from QD-specific to prefixed endpoint.
+  - Added FD positive coverage, FD eligibility isolation, and unapproved letter negative cases (`DK/YD/FX`) in `test_wire_components.py`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_components.py -k "prefixed or input_matrix or inline_klp"` -> `12 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "prefixed or input_matrix or terminal_prefixed"` -> `9 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "wire_component or missing_side or semantic_mapping"` -> `7 passed, 52 deselected`
+  - `python -m pytest -q` -> `274 passed`
+- Real-sample verification:
+  - first fresh `.tmp/phase76_fd_prefixed_first/...` + `.tmp/phase76_fd_prefixed_first_audit`: `pair_count=1589`, `issue_count=226`, `wire_component_mapping=59`, `first_prefixed_external_endpoint_mapping=27`.
+  - Target hit: `5FD25 -> 5n105` is `wire_component_mapping/pass`; `PW0309 ? -> 105` is now `ordinary_pair/discard` with `covered_by_first_prefixed_external_endpoint_mapping=True`.
+  - Same-family first-set FD residuals also mapped: `5FD3 -> 5n114`, `5FD26 -> 5n132`, `5FD1 -> 5n103`.
+  - second fresh `.tmp/phase76_fd_prefixed_second/2_2` + `.tmp/phase76_fd_prefixed_second_audit`: `pair_count=1460`, `issue_count=26`, `wire_component_mapping=245`, `input_matrix_wire_mapping=168`, `first_prefixed_external_endpoint_mapping=0`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first KLP/ZLP/218 structured mappings.
+- Next candidates:
+  - second inline wire split `505` half-chain bridge.
+  - second component vertical `401` mapping upgrade.
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 77 second inline wire split 505 half-chain continuation)
+- Started after commit `29168e4`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned read-only explorers for real-sample `505` residual and source boundary review.
+- Read-only audit conclusions:
+  - second `S0014 / 14 测控2开入回路图3.dwg` had `PW0438 ? -> 505` and `PW0440 505 -> ?` aggregated as one `R-PAIR-MISSING-SIDE` review issue with tags `complementary_half_pair` and `inline_wire_split`.
+  - Shared anchor is `T1479=505` at `(125.622905, 135.657933)`.
+  - `GW0438` spans `(87.5,135.0)->(127.5,135.0)` and `GW0440` spans `(146.25,135.0)->(237.5,135.0)` in row band `RBW0169`; `bridge_gap=18.75`, `bridge_y_delta=0.0`, `line_group_y_delta=0.0`.
+  - The structure is an inline wire split around the `Emergency stop / 调压急停` area, not two real ordinary missing endpoints.
+- Implementation:
+  - Added `_mark_inline_wire_split_continuation_pairs()` in `page_extractors.py` after `WireDiagramExtractor` `build_pairs()`.
+  - The helper only marks 二次原理图 ordinary complementary half-pairs that share `sheet_id/text_id/value`, have horizontal/grid line groups, same row band when present, legal y delta, and bridge gap within the existing inline numeric bridge bounds.
+  - Matching half-pairs remain as review evidence but become `pair_kind=continuation` with `ordinary_pair_eligible=False`, `semantic_kind=continuation_inline_wire_split`, `continuation_kind=schematic_inline_wire_split_half_chain`, `covered_by_inline_wire_split_half_chain=True`, and related pair/shared anchor evidence.
+  - Did not change `pairs.py` terminal continuation, `line_groups.py` merge thresholds, rules main logic, table/component extractors, CLI/UI, or KLP/401/backplate semantics.
+- Verification:
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_wire_split or input_matrix or prefixed or ac_phase"` -> `14 passed`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "complementary or missing_side or continuation"` -> `10 passed, 49 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `276 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase77_inline_wire_split_second/2_2` + `.tmp/phase77_inline_wire_split_second_audit`: `pair_count=1460`, `issue_count=25`, `R-PAIR-MISSING-SIDE=15`, `continuation=204`.
+  - `PW0438` and `PW0440` are now `continuation/review`; no `505`, `PW0438`, or `PW0440` issue remains.
+  - `PW0439 505 -> 506` remains `ordinary_pair/discard`; neighboring `PW0442 ? -> 501` remains `ordinary_pair/review` and still produces its own missing-side issue.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; `input_matrix_wire_mapping=168`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`.
+- Next candidates:
+  - second component vertical `401` mapping upgrade.
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 78 second component vertical 401 endpoint bridge)
+- Started after commit `e8d9ecd`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Collected two read-only explorer results for real-sample `401` residual and ComponentDiagramExtractor source boundary.
+- Read-only audit conclusions:
+  - second `S0020 / 20 元件接线图2.dwg` had `PC0077 4 -> 401` and `PC0090 6 -> 401` as low-confidence ordinary reviews on `GC0077/GC0090`.
+  - The raw endpoints are `T3494=3-21ZK-4` with `T3495=3-21n401`, and `T3468=1-21ZK-6` with `T3469=1-21n401`.
+  - Both are supported by `FJL-25-2A_Mirror` pin `1/2` texts and vertical support lines, so the expected relation is direct endpoint bridge `component_mapping/pass`, not a derived numeric ordinary pair.
+- Implementation:
+  - Added `extract_strip_two_port_endpoint_bridge_pairs()` in `component_diagrams.py`.
+  - The submode only accepts top endpoints matching `prefix ZK-port`, bottom endpoints matching the same `prefix n###`, strip block pins `1/2`, and a supporting vertical line group.
+  - Registered the submode in `ComponentDiagramExtractor` and reused existing consumed-line coverage so the old ordinary pair remains as discarded evidence.
+  - Added positive and negative unit coverage in `test_component_diagrams.py`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_component_diagrams.py -k "strip_two_port or endpoint_bridge"` -> `12 passed, 9 deselected`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "component or inline_wire_split or input_matrix or prefixed"` -> `11 passed, 3 deselected`
+  - `python -m pytest -q tests\integration\test_analyze_project.py -k "wire_component or run_audit or terminal_header_table"` -> `2 passed, 18 deselected`
+  - `python -m pytest -q` -> `279 passed`
+- Real-sample verification:
+  - second fresh `.tmp/phase78_component_vertical_401_second/2_2` + `.tmp/phase78_component_vertical_401_second_audit`: `pair_count=1462`, `issue_count=23`, `component_mapping=84`.
+  - Target hits: `3-21ZK-4 -> 3-21n401` and `1-21ZK-6 -> 1-21n401` are `component_mapping/pass`.
+  - `PC0077 4 -> 401` and `PC0090 6 -> 401` are now `ordinary_pair/discard` with `covered_by_component_mapping=True`; no `GC0077/GC0090` or `401` issue remains.
+  - Existing S0020 strip sanity held, including `3-21CLP7-1 -> 3-21CD43` and `3-21CLP7-2 -> 3-21n419`.
+  - first fresh `.tmp/phase78_component_vertical_401_first/...` + `.tmp/phase78_component_vertical_401_first_audit`: `pair_count=1581`, `issue_count=212`, `component_mapping=150`.
+  - Redlines held: `semantic_table_mapping_pass_endpoint_count=0`; second `1-21CD58 -> 511`, `3-21CD58 -> 511`, `1-21QD34 -> 1-21n218`, `3-21QD28 -> 3-21n218`, `1-21GD9 -> 1-21n218`; first KLP/ZLP/218 structured mappings.
+- Next candidates:
+  - backplate/component/table mapping rules semantics.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 79 backplate scope review aggregation)
+- Started after commit `813fed7`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+- Read-only audit conclusions:
+  - Phase78 extractor redlines stayed closed; the next narrow slice was rules/display semantics, not another extractor.
+  - first `.tmp/phase78_component_vertical_401_first_audit` had `R-CROSS-PAGE-CONFLICT=66`, all `table_mapping/review` backplate virtual table scope reviews.
+  - Each issue already carried `one_to_many_classification=backplate_table_scope_review`, `table_mapping_mode=backplate_virtual_table`, `source_block_names`, and `header_prefixes`; the weak part was row-level review fan-out plus diagnostic root cause.
+- Implementation:
+  - Added backplate scope review aggregation in `rule_base.py`, keyed by rule/classification/table mode/header prefixes/source block names.
+  - Aggregated evidence now records `backplate_scope_aggregate_review`, `aggregated_logical_endpoints`, `aggregated_conflicting_values`, `cluster_pair_ids`, and `cluster_sheet_ids`.
+  - Updated `issue_diagnostics.py` so specialized `R-CROSS-PAGE-CONFLICT` issues classify as `rule_too_strict` instead of `insufficient_evidence`.
+  - Did not modify extractors, CLI/UI, pair graph inclusion, or hide/remove any structured `table_mapping`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `7 passed, 53 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `281 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase79_backplate_scope_first_audit`: `issue_count=153`; `R-CROSS-PAGE-CONFLICT` dropped from `66` row-level reviews to `7` scope clusters; cross-page root cause is `rule_too_strict=7`.
+  - first Phase78 findings pair_count remained `1581`; structured `table_mapping=299`, `component_mapping=150`.
+  - second rules-only `.tmp/phase79_backplate_scope_second_audit`: `issue_count=23`; rule counts held at `R-PAIR-MISSING-SIDE=15`, `R-ONE-TO-MANY=6`, `R-SEMANTIC-MAPPING-CONFLICT=1`, `R-MANY-TO-ONE=1`.
+  - second Phase78 findings pair_count remained `1462`; `3-21ZK-4 -> 3-21n401` and `1-21ZK-6 -> 1-21n401` stayed `component_mapping/pass`.
+- Next candidates:
+  - remaining backplate/component/table mapping rules semantics, especially same-sheet scope, many-to-one/shared endpoint, and default user-visible review grouping.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 80 backplate same-sheet scope review aggregation)
+- Started after commit `07614f5`.
+- Read-only recovery:
+  - Reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Ran `planning-with-files` session catchup; working tree only had protected untracked `doc/page_findings/` and `doc/page_task_queue.md` before edits.
+  - Spawned two read-only explorers for taskbook alignment and real-sample issue mining; both recommended the same P0 sample, first `S0021 / NKR308A` same-sheet backplate scope review.
+- Read-only audit conclusions:
+  - first Phase79 audit still had `backplate_table_same_sheet_scope_review=18` under `R-ONE-TO-MANY`, all from `S0021 / 20 非电量保护背板图.dwg`.
+  - The 18 rows share `source_block_names=["WBH-814E-E1SA-101"]`, `header_prefixes=["NKR308A"]`, raw headers `NKR308A / NKR308A(非电量选配)`, and contiguous row numbers `1..18`.
+  - This is the same rules/display pattern as Phase79 cross-page scope aggregation, not a new extractor task and not a reason to remove `table_mapping` from the graph.
+- Implementation:
+  - Added same-sheet backplate scope aggregation in `rule_base.py`.
+  - The cluster key includes rule/classification/table mode, sheet id, source block names, header prefixes, raw header texts, and header text ids.
+  - The merge only occurs when row ranges touch, reusing the existing integer-range guard, and records `backplate_scope_aggregate_review`, `aggregated_logical_endpoints`, `aggregated_row_numbers`, `aggregated_conflicting_values`, `cluster_pair_ids`, and `cluster_sheet_ids`.
+  - Added a unit test proving contiguous rows aggregate while a disjoint row range remains a separate review.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or cross_page"` -> `8 passed, 53 deselected`
+  - `python -m pytest -q` -> `282 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase80_backplate_same_sheet_scope_first_audit`: `issue_count=136`; `R-ONE-TO-MANY=24`; same-sheet backplate scope review count is `1` with `cluster_size=18`, rows `1..18`, `18` logical endpoints, `36` conflicting values, and `36` `cluster_pair_ids`.
+  - second rules-only `.tmp/phase80_backplate_same_sheet_scope_second_audit`: `issue_count=23`, unchanged from Phase79.
+  - Phase78 findings pair counts stayed unchanged: first `1581`, second `1462`.
+- Next candidates:
+  - many-to-one/shared endpoint default display layering.
+  - terminal header shared endpoint interval display.
+  - component split endpoint review display.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 81 terminal header shared endpoint interval evidence)
+- Started after commit `a59a15e`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned two read-only explorers for taskbook alignment and real-sample issue mining. Both selected terminal_header_table shared endpoint interval display as the best Phase81 rules/display slice.
+- Read-only audit conclusions:
+  - Phase80 second `S0023 / 23 右侧端子图1.dwg` had one large `R-MANY-TO-ONE / terminal_header_table_shared_endpoint_review` cluster, `I0062`, with `cluster_size=21`.
+  - The underlying structured relations are already `table_mapping/pass/high`; the weak part was report evidence: it named the first shared endpoint `1-21n210` but did not show the true intervals `1-21GD1..21`, `1-21QD26..46`, and `1-21n210..230`.
+  - This is not a TableExtractor or TerminalDiagramExtractor miss, and it should not remove `table_mapping` from the graph.
+- Implementation:
+  - Added terminal header interval evidence in `rule_base.py` for aggregated `terminal_header_table_shared_endpoint_review` issues.
+  - New evidence fields include `terminal_header_table_interval_review`, `aggregated_logical_endpoint_ranges`, `aggregated_shared_endpoint_ranges`, and `aggregated_row_number_ranges`.
+  - Refreshed the aggregated issue summary / explanation / recommended_action to name the interval structure in reports and desktop summary fields.
+  - Did not change issue triggering, severity/status, extractor behavior, graph input, CLI/UI, or acceptance harness.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table or backplate or shared_endpoint"` -> `13 passed, 48 deselected`
+  - `python -m pytest -q` -> `282 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase81_terminal_header_interval_first_audit`: `issue_count=136`; `R-MANY-TO-ONE=34` unchanged; terminal-header shared endpoint clusters now carry interval evidence and interval summary when aggregated.
+  - second rules-only `.tmp/phase81_terminal_header_interval_second_audit`: `issue_count=23`; `I0062` summary now says `logical=1-21GD1..1-21GD21, 1-21QD26..1-21QD46; shared=1-21n210..1-21n230`; recommended action records row ranges `1..21, 26..46`.
+- Next candidates:
+  - component split endpoint review display.
+  - many-to-one/shared endpoint default display layering.
+  - backplate/component cross-scope shared endpoint display.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 82 component split endpoint review display)
+- Started after commit `092798c`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Confirmed the older terminal_header_table semantic endpoint exclusion request was already completed in Phase60/Phase74-era records and current code: `I0/IA/UA/UB/UC/UN/3U0` are excluded from `table_mapping/pass` endpoints and retained as semantic evidence.
+  - Spawned two read-only explorers for first-set component split issue mining and report/UI source boundary. Both concluded this slice should be display semantics, not extractor/rules graph changes.
+- Read-only audit conclusions:
+  - first `.tmp/phase81_terminal_header_interval_first_audit` had `28` `component_split_endpoint_group_review` issues: `R-ONE-TO-MANY=16`, `R-MANY-TO-ONE=12`.
+  - Key sample: first `S0024 / 23 元件接线图3.dwg`, `I0138 / PCM0066`, `5KLP5-1 -> 5KLP3-1`, with raw comma text `5KLP3-1,5KLP2-1`, splits `5KLP2-1 / 5KLP3-1`, and `external_endpoint_text_id=T3841`.
+  - The evidence already proves comma split/text-group semantics; the display gap was that report/UI projected `one_to_many_classification` but not `many_to_one_classification`, and LineSemantics did not surface component split fields.
+- Implementation:
+  - Updated `report/artifacts.py` to add `many_to_one_classification` and unified `review_classification` to report frames.
+  - Markdown issue blocks now show `ReviewClassification`, keep `OneToManyTriage`, and add `ManyToOneTriage` when present.
+  - LineSemantics now merges top-level issue evidence with nested `pair_evidence`, so component split reports show `component_submode`, `component_branch_kind`, `shared_endpoint`, and `external_endpoint_splits`.
+  - Updated `ui/app.py` to expose `_issue_many_to_one_classification()` and `_issue_review_classification()`, show unified `review_classification` in the issue table, and retain both source fields in detail.
+  - Did not modify extractors, PairBuilder, rules issue triggering, issue clustering, graph inclusion, CLI, or product workflow.
+- Verification:
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "many_to_one_component_split or evidence_display"` -> `2 passed, 15 deselected`
+  - `python -m pytest -q tests\unit\test_ui_app.py -k "classification"` -> `2 passed, 3 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py` -> `22 passed`
+  - `python -m pytest -q` -> `284 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase82_component_split_display_first_audit`: `issue_count=136`; `component_split_endpoint_group_review=28` (`R-ONE-TO-MANY=16`, `R-MANY-TO-ONE=12`).
+  - first report output now contains `ReviewClassification: component_split_endpoint_group_review`, `OneToManyTriage`, `ManyToOneTriage`, `component_submode=strip_two_port_component`, `component_branch_kind=split_endpoint_group`, and target split summary such as `external_endpoint_splits=5KLP2-1|5KLP3-1`.
+  - first `issues.xlsx` contains `review_classification`, `one_to_many_classification`, and `many_to_one_classification`; `review_classification=component_split_endpoint_group_review` appears in `28` rows and `many_to_one_classification=component_split_endpoint_group_review` in `12` rows.
+  - second rules-only `.tmp/phase82_component_split_display_second_audit`: `issue_count=23`; `component_split_endpoint_group_review=0`.
+  - Pair graph did not drift: first `pair_count=1581`, second `pair_count=1462`.
+- Next candidates:
+  - many-to-one/shared endpoint default display layering.
+  - backplate/component cross-scope shared endpoint display.
+  - acceptance golden wording/fixture refresh for structured relations.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 83 backplate structured shared endpoint component-scope aggregation)
+- Started after commit `fe5476d`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+- Read-only audit conclusions:
+  - Phase82 first audit still had `16` `R-MANY-TO-ONE / backplate_structured_shared_endpoint_review` issues.
+  - The repeated default-display noise was the component-scope subset: backplate virtual table rows and component mappings share physical endpoints inside the same component line group, with existing evidence fields `pair_kinds`, `table_mapping_modes`, `component_submodes`, `source_block_names`, `header_prefixes`, and `logical_endpoints`.
+  - This is a rules/display aggregation problem, not a missing extractor relation and not a reason to remove `component_mapping` or `table_mapping` from the graph.
+- Implementation:
+  - Added `backplate_structured_shared_endpoint_review` component-scope aggregation in `rule_base.py`.
+  - The cluster key is constrained by rule/classification, sheet/file, line group, pair kinds, table mapping modes, component submodes, source block names, and header prefixes.
+  - Aggregated evidence now records `backplate_structured_shared_endpoint_aggregate_review`, `aggregated_shared_endpoints`, `aggregated_shared_endpoint_ranges`, `aggregated_logical_endpoints`, `aggregated_conflicting_values`, `cluster_pair_ids`, and `cluster_sheet_ids`.
+  - Refreshed aggregated issue summary / explanation / recommended_action to describe a component-scope endpoint cluster.
+  - Did not change extractors, PairBuilder, graph inclusion, rule triggering severity/status, CLI, UI, or acceptance harness.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate_structured or shared_endpoint or backplate or terminal_header"` -> `15 passed, 48 deselected`
+  - `python -m pytest -q` -> `286 passed`
+- Real-sample verification:
+  - first rules-only `.tmp/phase83_backplate_structured_shared_first_audit`: `issue_count=132`; `R-MANY-TO-ONE=30`; `backplate_structured_shared_endpoint_review=12`.
+  - Four component-scope aggregates were produced with `cluster_size=2`: `1QD1/1QD5`, `5FD1/5FD25`, `1-2QD1/1-2QD12`, and `3-2QD1/3-2QD12`; each preserves `4` `cluster_pair_ids`.
+  - first pair graph did not drift: `pair_count=1581`; `table_mapping=299`; `component_mapping=150`.
+  - second rules-only `.tmp/phase83_backplate_structured_shared_second_audit`: `issue_count=23`; `backplate_structured_shared_endpoint_review=0`.
+  - second pair graph did not drift: `pair_count=1462`; `component_mapping=84`.
+- Next candidates:
+  - acceptance golden wording/fixture refresh for structured relations.
+  - remaining table-only shared endpoint default display layering.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 84 structured review issue acceptance golden refresh)
+- Started after commit `d75c708`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Confirmed the older terminal_header_table semantic endpoint exclusion request was already closed in current code and project records; this round did not reopen `table_extractor.py`.
+  - Integrated read-only subagent conclusions: Phase84 should not mix rules/display, sidecar smoke, and acceptance; the smallest safe slice is acceptance golden wording/fixture refresh for structured relations.
+- Read-only audit conclusions:
+  - `src/dwg_audit/report/acceptance.py` already matched pair golden by optional `pair_kind`, `status`, and `pair_key`.
+  - The suite did not prove Phase83 structured review aggregation because it had no way to assert issue-level evidence such as `backplate_structured_shared_endpoint_aggregate_review`, `cluster_size`, or component/table source fields.
+  - Phase83 first audit had four stable component-scope aggregates: `1QD1/1QD5`, `5FD1/5FD25`, `1-2QD1/1-2QD12`, and `3-2QD1/3-2QD12`.
+- Implementation:
+  - Added `expected_review_issues` to the internal acceptance evaluator.
+  - Matching supports top-level `rule_id/filename/sheet_id/severity/status`, review classification from top-level or evidence fields, summary/recommended-action substring checks, and evidence field containment checks.
+  - Added synthetic integration coverage for matching and mismatch behavior.
+  - Added `tests/fixtures/acceptance_real_subset/first_set_backplate_structured_shared_phase83.json` and registered it as a required `real_first` case in `mvp_minimum_suite.json`.
+  - Did not change extractors, rules, graph input, report/UI, or product CLI surface.
+- Verification:
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `287 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite --suite tests\fixtures\acceptance_suite\mvp_minimum_suite.json --project-alias fault_injected=.tmp\phase65_fault_injected_run\artifacts\project --project-alias real_first=.tmp\phase84_acceptance_first_project --project-alias real_second=.tmp\phase78_component_vertical_401_second\2_2 --output .tmp\phase84_acceptance_suite` -> `required_passed_case_count=4/4`, `acceptance_passed=True`
+- Fresh real-sample verification:
+  - first rules-only `.tmp/phase84_acceptance_first_audit`: `pair_count=1581`, `issue_count=132`, `backplate_structured_shared_endpoint_aggregate_review=4`.
+  - first acceptance `.tmp/phase84_acceptance_first_review`: `expected_review_issues=4`, `matched_count=4`, `recall=1.0`, `acceptance_passed=True`.
+  - second fresh `.tmp/phase84_acceptance_second/2_2` + `.tmp/phase84_acceptance_second_audit`: `pair_count=1462`, `issue_count=23`; pair kind distribution stayed at `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`.
+  - second component/terminal acceptance `.tmp/phase84_acceptance_component_terminal`: `expected_pair_count=18`, `matched_pair_count=18`, precision/recall `1.0`, `acceptance_passed=True`.
+  - second terminal S0024 acceptance `.tmp/phase84_acceptance_terminal_s0024`: `expected_pair_count=6`, `matched_pair_count=6`, precision/recall `1.0`, `acceptance_passed=True`.
+- Next candidates:
+  - remaining table-only shared endpoint default display layering.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 85 table-only shared endpoint display layering)
+- Started after commit `be18361`.
+- Read-only recovery:
+  - Reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and `git diff --stat`.
+  - Ran `planning-with-files` session catchup.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned four read-only explorers for taskbook alignment, real-sample mining, source/verification boundaries, and validation design.
+- Read-only audit conclusions:
+  - Phase84 had closed acceptance golden wording for Phase83 review evidence; the remaining rules/acceptance candidate is table-only shared endpoint default display layering.
+  - first Phase84 audit had five table-only shared endpoint issues: `CD6`, `CD23`, `YD3`, `5FD26`, `5FD27`.
+  - These issues had `pair_kinds=["table_mapping"]` and table modes including `backplate_virtual_table`, but their title/summary still said table/component mixed scopes.
+  - Mixed examples such as `I0191 / 5KLP8-1` and the Phase83 component-scope aggregates must remain distinct component+table reviews.
+- Implementation:
+  - Updated `_structured_mapping_shared_endpoint_scope_info()` in `rules.py` to emit `structured_scope_kind=backplate_table_shared_endpoint` for table-only shared endpoints and `backplate_table_component_shared_endpoint` for mixed component/table endpoints.
+  - Added narrow issue text selection so table-only reviews use `背板表格共享端点待复核` and `across table scopes`, without mentioning component ports.
+  - Kept `many_to_one_classification=backplate_structured_shared_endpoint_review` stable for compatibility with report/UI/acceptance, and did not aggregate or suppress any issue.
+  - Added unit coverage for the table-only display layer and strengthened the mixed component/table guard.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "structured_mapping_shared_endpoint or backplate_structured or terminal_only_shared_endpoint or non_backplate_structured"` -> `5 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or shared_endpoint or backplate_structured or terminal_header_table"` -> `14 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 17 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - `python -m pytest -q` -> `288 passed`
+  - `python -m dwg_audit.cli evaluate-acceptance-suite --suite tests\fixtures\acceptance_suite\mvp_minimum_suite.json --project-alias fault_injected=.tmp\phase65_fault_injected_run\artifacts\project --project-alias real_first=.tmp\phase85_table_only_shared_first_project --project-alias real_second=.tmp\phase78_component_vertical_401_second\2_2 --output .tmp\phase85_table_only_shared_acceptance_suite_fresh` -> `required_passed_case_count=4/4`, `acceptance_passed=True`
+- Fresh rules-only verification:
+  - first `.tmp/phase85_table_only_shared_first_audit`: `pair_count=1581`, `issue_count=132`; pair kind distribution unchanged at `ordinary_pair=728`, `table_mapping=299`, `continuation=231`, `component_mapping=150`, `semantic_mapping=119`, `wire_component_mapping=51`, `bridge_mapping=3`.
+  - first table-only shared endpoint reviews count remains `5`; all now have title `背板表格共享端点待复核`, summary `across table scopes`, and `structured_scope_kind=backplate_table_shared_endpoint`.
+  - first mixed component/table structured shared endpoint reviews remain `7`, including `I0191` and Phase83 aggregates, with `structured_scope_kind=backplate_table_component_shared_endpoint`.
+  - second `.tmp/phase85_table_only_shared_second_audit`: `pair_count=1462`, `issue_count=23`; pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`; table-only backplate shared endpoint count remains `0`.
+- Next candidates:
+  - terminal_header_table interval / multi-endpoint default display layer.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 86 terminal header same-side multi-endpoint review layering)
+- Started after commit `f0f7ab8`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned two read-only explorers for taskbook alignment and terminal-header real-sample mining. Both concluded the next rules-mainline slice should target `R-ONE-TO-MANY / terminal_header_table_multi_endpoint_review`, not packaged sidecar smoke and not Phase81 shared-endpoint interval rework.
+- Read-only audit conclusions:
+  - Phase81 already closed `I0062 / R-MANY-TO-ONE / terminal_header_table_shared_endpoint_review` interval display for `1-21GD1..21` and `1-21QD26..46` sharing `1-21n210..230`.
+  - Remaining P0 samples were same-side terminal-header multi-endpoint rows that still fell through to generic review:
+    - second `S0024 / 24 右侧端子图2.dwg`, `I0061`, `1-21CD11 -> 1-21n508 / 1-21n512`, both `right_endpoint`.
+    - second `S0022 / 22 左侧端子图2.dwg`, `I0017`, `3-21WD2 -> 3-21n608 / 3-21GD7`, both `right_endpoint`.
+  - The cause was a rules helper requiring both `left_endpoint` and `right_endpoint`; findings already had `table_mapping / terminal_header_table` evidence, so this was not a TableExtractor miss.
+- Implementation:
+  - Relaxed `_terminal_header_table_multi_endpoint_info()` in `rules.py` to classify same-row terminal-header rows when a single logical endpoint maps to multiple terminal endpoint values, regardless of whether the endpoint texts sit on one side or both sides.
+  - Updated terminal-header one-to-many issue wording from left/right-column-specific to `端子表多端点行映射待复核`.
+  - Added `terminal_header_table_endpoint_values` evidence and merged it into `aggregated_terminal_header_table_endpoint_values` for row-band clusters in `rule_base.py`.
+  - Added unit coverage for same-side `right_endpoint` multi-endpoint rows and strengthened aggregate evidence assertions.
+  - Did not touch `table_extractor.py`, PairBuilder, graph input, page routing/classification, report/UI product surface, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table_multi_endpoint or terminal_header_table_shared_endpoint or terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q` -> `289 passed`
+- Fresh rules-only verification:
+  - second `.tmp/phase86_terminal_header_multi_endpoint_second_audit`: `pair_count=1462`, `issue_count=22`; pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `semantic_mapping=183`, `continuation=204`, `component_mapping=84`, `bridge_mapping=3`, `table_mapping=174`.
+  - second `generic_one_to_many_review_count=0`; `I0017 / 3-21WD2` is now `端子表多端点行映射待复核` with `endpoint_columns=["right_endpoint"]` and `terminal_header_table_endpoint_values=["3-21GD7","3-21n608"]`.
+  - second `I0060/I0061` row `10/11` now forms one terminal-header row-band review with `aggregated_terminal_header_table_endpoint_values=["1-21n403","1-21n508","1-21n511","1-21n512"]`.
+  - first `.tmp/phase86_terminal_header_multi_endpoint_first_audit`: `pair_count=1581`, `issue_count=131`; pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`; terminal-header generic one-to-many reviews reduced to `0`.
+- Next candidates:
+  - terminal_header_table large row-band range display / report projection.
+  - packaged sidecar/exe smoke only as a separate product slice.
+
+## Session Update 2026-07-07 (Phase 87 terminal header row-band range report projection)
+- Started after commit `4033851`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Confirmed Phase86 had already closed terminal-header same-side multi-endpoint classification; this round stayed in rules/report projection.
+- Read-only audit conclusions:
+  - second `.tmp/phase86_terminal_header_multi_endpoint_second_audit` already had compact machine evidence such as `aggregated_row_numbers`, `aggregated_logical_endpoints`, `aggregated_terminal_header_table_endpoint_values`, and `cluster_pair_ids`.
+  - The report layer still preferred expanded `evidence_refs`, so large terminal-header row-band clusters were hard to review.
+  - Primary sample was second `S0023 / 23 右侧端子图1.dwg / I0021`: 76 evidence refs, logical range `1-21QD1..1-21QD38`, row range `1..38`, and terminal endpoint ranges.
+- Implementation:
+  - Added terminal-header multi-endpoint row-band range evidence in `rule_base.py`: `terminal_header_table_row_band_review`, `aggregated_logical_endpoint_ranges`, `aggregated_row_number_ranges`, and `aggregated_terminal_header_table_endpoint_ranges`.
+  - Refreshed aggregated multi-endpoint issue summary/action to describe logical and terminal endpoint ranges instead of only the primary row.
+  - Updated report evidence projection in `artifacts.py` so terminal-header multi-endpoint/shared-endpoint review evidence displays compact semantic ranges before raw refs.
+  - Added focused unit coverage for range evidence and compact Markdown/XLSX evidence display; non-terminal issue evidence display remains ref-first.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_table"` -> `6 passed, 59 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "evidence_display or terminal_header"` -> `2 passed, 16 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "many_to_one or one_to_many or shared_endpoint or terminal_header_table or backplate_structured"` -> `20 passed, 45 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py` -> `18 passed`
+  - `python -m pytest -q` -> `290 passed`
+- Fresh rules-only verification:
+  - second `.tmp/phase87_terminal_header_row_band_display_second_audit`: `pair_count=1462`, `issue_count=22`, pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `semantic_mapping=183`, `continuation=204`, `component_mapping=84`, `bridge_mapping=3`, `table_mapping=174`; `generic_one_to_many_review_count=0`.
+  - second largest row-band issue `I0021 / S0023 / 23 右侧端子图1.dwg` keeps `76` bottom-level refs but now has summary `logical=1-21QD1..1-21QD38` and terminal endpoint ranges `1-21n116..1-21n131`, `1-21n201..1-21n222`, `1-21n301..1-21n330`, `1-21n524..1-21n531`.
+  - second Markdown/XLSX evidence display includes compact `logical=1-21QD1..1-21QD38`, `rows=1..38`, `pair_count=76`, and no `ref76` flood for `I0021`.
+  - first `.tmp/phase87_terminal_header_row_band_display_first_audit`: `pair_count=1581`, `issue_count=131`, pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`; `generic_one_to_many_review_count=0`.
+- Next candidates:
+  - packaged sidecar/exe smoke only as a separate product slice.
+  - If continuing rules semantics, keep it to backplate/component mapping default user-view layering, not extractor work.
+
+## Session Update 2026-07-07 (Phase 88 grid row-band endpoint gap diagnostics)
+- Started after commit `a8147d6`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned three read-only explorers for taskbook alignment, real-sample mining, and source boundary review. Two recommended packaged sidecar/exe smoke as an independent product slice; the real-sample miner also surfaced grid row-band ordinary missing-side/low-confidence clusters as the clearest remaining sample-understanding gap.
+- Read-only audit conclusions:
+  - Terminal-header interval/row-band reviews already have compact range evidence after Phase87; repeating that slice would be churn.
+  - first `S0006 / 05 交流回路图2.dwg` has repeated grid row-band symptoms: same row bands contain low-confidence same-value short links such as `721 -> 721` plus missing-side pairs such as `721 -> ?` or `? -> 705`.
+  - second `06 直流回路图.dwg` and `12 测控2开入回路图1.dwg` have the same grid row-band endpoint-gap shape.
+  - Old root-cause diagnostics labeled these as `insufficient_evidence`, which did not identify the likely next module: row-band-level pairing / endpoint inference.
+- Implementation:
+  - Added `line_groups` to `_FrameContext` in `services.issue_diagnostics`.
+  - Added a narrow grid row-band diagnostic: `R-PAIR-MISSING-SIDE` with exactly one side missing, or `R-PAIR-LOW-CONFIDENCE` with equal numeric endpoints, gets `root_cause=pairing_wrong` when the pair belongs to a `line_orientation=grid` row band.
+  - Added diagnostic tags/context: `grid_row_band_endpoint_gap`, `row_band:<id>`, `row_band_id`, and `line_orientation`.
+  - Did not change extractor output, pair graph input, issue generation, severity, CLI/UI, acceptance fixtures, or any protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py -k "RootCause or evidence_display"` -> `1 passed, 17 deselected`
+  - `python -m pytest -q` -> `290 passed`
+- Fresh rules-only verification:
+  - first `.tmp/phase88_grid_row_band_diagnostics_first_audit`: `pair_count=1581`, `issue_count=131`; pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`.
+  - first root cause counts changed to `pairing_wrong=60`, `rule_too_strict=60`, `insufficient_evidence=11`; `05 交流回路图2.dwg` has 22 `grid_row_band_endpoint_gap` samples with row-band context.
+  - second `.tmp/phase88_grid_row_band_diagnostics_second_audit`: `pair_count=1462`, `issue_count=22`; pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `semantic_mapping=183`, `continuation=204`, `component_mapping=84`, `bridge_mapping=3`, `table_mapping=174`.
+  - second root cause counts changed to `pairing_wrong=15`, `rule_too_strict=7`.
+- Next candidates:
+  - grid row-band endpoint inference/aggregation on CT/VT and DC pages.
+  - packaged sidecar/exe smoke remains an independent product slice.
+
+## Session Update 2026-07-07 (Phase 89 grid row-band endpoint gap review aggregation)
+- Started after commit `6fb8a93`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned two read-only explorers for real-sample row-band mining and source boundary review. Both advised against first-step true pair inference; the safer minimum slice was row-band issue aggregation/display.
+- Read-only audit conclusions:
+  - Phase88 already diagnosed grid row-band endpoint gaps as `pairing_wrong`, but repeated symptoms in the same row-band still appeared as separate default issues.
+  - first `S0006 / 05 交流回路图2.dwg` was the clearest target: `RBW0014` had `PW0043/PW0047 721->721` low-confidence same-value short links plus `PW0044/PW0048 721->?` missing-side pairs; row bands `RBW0015/RBW0016/RBW0018/RBW0020/RBW0022/RBW0023/RBW0024` had the same clustered shape.
+  - second-set symptoms were mostly single symptom per row-band, especially `12 测控2开入回路图1.dwg` rows `121..115 -> ?`, so they should remain visible until a real inference rule has stronger evidence.
+- Implementation:
+  - Added grid row-band endpoint gap aggregation in `rule_base.cluster_issues()` for same sheet/file/row_band ordinary `R-PAIR-MISSING-SIDE` and same-value `R-PAIR-LOW-CONFIDENCE` symptoms.
+  - Added `grid_row_band_endpoint_gap_review` evidence with `cluster_pair_ids`, `aggregated_rule_ids`, `aggregated_endpoint_values`, `aggregated_missing_sides`, `aggregated_line_group_ids`, and `aggregated_line_spans`.
+  - Refreshed aggregate title/summary/explanation/action to make clear this is row-band-level pairing interpretation evidence, not a new inferred pair.
+  - Did not change extractor output, candidates, PairBuilder, pair_kind, pair_count, CLI/UI, acceptance fixtures, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band_endpoint_gap or low_confidence_pairs_for_cross_page_conflict"` -> `2 passed, 64 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "grid_row_band or terminal_header_table or backplate_structured or low_confidence or missing_side"` -> `16 passed, 50 deselected`
+  - `python -m pytest -q tests\unit\test_issue_diagnostics.py` -> `3 passed`
+  - `python -m pytest -q` -> `291 passed`
+- Fresh rules-only verification:
+  - first `.tmp/phase89_grid_row_band_aggregation_first_audit`: `pair_count=1581`, pair kind distribution unchanged at `ordinary_pair=728`, `table_mapping=299`, `continuation=231`, `component_mapping=150`, `semantic_mapping=119`, `wire_component_mapping=51`, `bridge_mapping=3`; `issue_count=117`; root causes `rule_too_strict=60`, `pairing_wrong=46`, `insufficient_evidence=11`; `grid_row_band_endpoint_gap_review=8`.
+  - first `RBW0014` now aggregates to one review with `cluster_size=4`, `cluster_pair_ids=["PW0043","PW0044","PW0047","PW0048"]`, `aggregated_rule_ids=["R-PAIR-LOW-CONFIDENCE","R-PAIR-MISSING-SIDE"]`, `aggregated_endpoint_values=["721"]`, `aggregated_missing_sides=["right"]`.
+  - second `.tmp/phase89_grid_row_band_aggregation_second_audit`: `pair_count=1462`, `issue_count=22`, pair kind distribution unchanged at `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`; root causes `pairing_wrong=15`, `rule_too_strict=7`.
+- Next candidates:
+  - True grid row-band endpoint inference, only after stronger row-band evidence design.
+  - packaged sidecar/exe smoke as an independent product slice.
+
+## Session Update 2026-07-07 (Phase 90 packaged sidecar executable smoke)
+- Started after commit `c09ce23`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md` before edits; neither was touched.
+  - Spawned three read-only explorers. Documentation alignment recommended the independent product slice `packaged sidecar/exe smoke`; source-boundary review said any future row-band inference must stay in `page_extractors.py` Wire-only post-processing; real-sample mining found only first `05 交流回路图2.dwg` `RBW0014-RBW0016` has strong enough future evidence for a narrow `v->?` right-end inference.
+- Implementation:
+  - Added `src/dwg_audit/desktop/sidecar_entry.py` as the PyInstaller entrypoint for the existing Typer CLI contract.
+  - Added `apps/desktop/scripts/build-sidecar.ps1` to build `dwg-audit-sidecar.exe` with PyInstaller into `apps/desktop/src-tauri/resources/sidecar`.
+  - Added Tauri `bundle.resources` mapping from `resources/sidecar/*` to packaged `sidecar/`, matching the Rust runtime resolver candidates.
+  - Added `apps/desktop/src-tauri/resources/sidecar/README.md`, updated desktop README, and ignored the generated sidecar executable so binary build outputs are not committed.
+  - Added packaging contract tests in `tests/unit/test_desktop_packaging.py`.
+  - Did not change extractor output, candidates, PairBuilder, rules, report semantics, UI behavior, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_desktop_packaging.py tests\unit\test_sidecar.py tests\unit\test_execution_service.py` -> `10 passed`
+  - `cd apps\desktop; npm run build` -> passed
+  - `cd apps\desktop\src-tauri; cargo test sidecar_runtime` -> `5 passed`
+  - Initial `.\scripts\build-sidecar.ps1 -Clean` failed because PyInstaller was not installed; installed PyInstaller in the local Python environment and reran successfully.
+  - `cd apps\desktop; .\scripts\build-sidecar.ps1 -Clean` -> built `src-tauri\resources\sidecar\dwg-audit-sidecar.exe`.
+  - `apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe --help` -> command list includes `analyze-session`, `list-recent-projects`, `load-result`, `set-issue-status`, and `render-preview`.
+  - `apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe list-recent-projects --state-db .tmp\phase90_sidecar_smoke\desktop_state.db` -> `{ "projects": [] }`.
+  - `cd apps\desktop; npm run tauri:build` -> built `apps\desktop\src-tauri\target\release\dwg_audit_desktop.exe` and NSIS installer `apps\desktop\src-tauri\target\release\bundle\nsis\DWG Audit Desktop_0.1.0_x64-setup.exe`; release output contains `target\release\sidecar\dwg-audit-sidecar.exe`.
+  - Packaged sidecar acceptance smoke:
+    - first review fixture -> `acceptance_passed=True`
+    - second component subset -> `pair_precision=1.0`, `pair_recall=1.0`, `acceptance_passed=True`
+    - second terminal S0024 subset -> `pair_precision=1.0`, `pair_recall=1.0`, `acceptance_passed=True`
+  - `python -m pytest -q` -> `294 passed`
+- Next candidates:
+  - Product line: installed-exe desktop smoke with real launch/import/result reload, using the bundled sidecar rather than dev fallback.
+  - Rules line: only a narrow Wire-only row-band endpoint inference design for first `05 交流回路图2.dwg` `RBW0014-RBW0016`; do not generalize to second-set single-symptom rows or `?->709/707/...` row bands.
+
+## Session Update 2026-07-07 (Phase 91 terminal header semantic endpoint exclusion revalidation)
+- Started after commit `1e41890`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, and `git status --short`.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md`; neither was touched.
+  - Two row-band read-only subagents completed during this turn, but their findings were kept out of this slice because the user requested only terminal-header semantic endpoint exclusion.
+- Audit conclusion:
+  - The requested `terminal_header_table semantic endpoint exclusion` slice was already implemented in Phase60 and remains present in current `src/dwg_audit/audit/table_extractor.py`.
+  - Current unit coverage includes `test_extract_terminal_header_table_pairs_excludes_semantic_endpoint_labels`, which keeps `I0/3U0` out of terminal-header table endpoints.
+  - No extractor/rules/source code change was needed; this round is a revalidation and taskbook-status refresh.
+- Verification:
+  - `python -m pytest -q tests\unit\test_table_extractor.py tests\unit\test_page_extractors.py tests\integration\test_analyze_project.py -k "terminal_header_table or table_extractor"` -> `17 passed, 31 deselected`
+  - `python -m dwg_audit.cli analyze-project --input "test\变压器测控柜(2圈变，2台测控)" --output .tmp\phase91_terminal_header_semantic_second` -> completed
+  - `python -m dwg_audit.cli run-audit --findings .tmp\phase91_terminal_header_semantic_second\2_2\findings --output .tmp\phase91_terminal_header_semantic_second_audit` -> completed
+  - `python -m pytest -q` -> `294 passed`
+- Fresh second-set evidence:
+  - `.tmp\phase91_terminal_header_semantic_second\2_2\findings`: `pair_count=1462`, pair kind counts `ordinary_pair=569`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=183`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`.
+  - `.tmp\phase91_terminal_header_semantic_second_audit`: `issue_count=22`.
+  - `S0021 / 21 左侧端子图1.dwg`: `3-21ID9 -> I0` and `3-21QD7 -> I0` have `table_mapping/pass` count `0`.
+  - Normal terminal-header mappings remain: `3-21ID9 -> 3-21n707` and `3-21QD7 -> 3-21n128`.
+  - Semantic labels remain as text-level evidence in S0021: `3U0`, `I0`, `IA`, `UA`, `UB`, `UC`, `UN`.
+  - `terminal_header_table` mapping counts by sheet remain `S0021=32`, `S0022=7`, `S0023=112`, `S0024=23`.
+- Next candidates:
+  - `inline KLP 116 residual suppression`.
+  - `component-prefixed 218 residual suppression`.
+  - `backplate/component mapping rules semantics`.
+
+## Session Update 2026-07-07 (Phase 92 terminal-header/component shared endpoint review)
+- Started after commit `39aca77`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md`; neither was touched.
+  - Closed four read-only subagents after collecting their conclusions.
+- Audit conclusion:
+  - Representative `inline KLP 116` and `component-prefixed 218` structural mappings are already present and residual ordinary rows are already discarded or belong to other semantic surfaces.
+  - The clearest minimal rules slice was first-set `KD23/KD6`: `component_mapping` plus `terminal_header_table` table mappings share the same endpoint but were still displayed as generic `多对一配对`.
+- Implementation:
+  - Extended `_structured_mapping_shared_endpoint_scope_info()` in `rules.py` with a narrow `terminal_header_component_shared_endpoint` branch.
+  - Added review text `端子表组件共享端点待复核` with `many_to_one_classification=terminal_header_component_shared_endpoint_review`.
+  - Updated the existing non-backplate structured shared endpoint test into a positive terminal-header/component review assertion, while keeping terminal-only shared endpoint generic.
+  - Did not change extractor output, PairBuilder, pair graph input, CLI/UI, report aggregation, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "terminal_header_component or terminal_only_shared_endpoint or backplate_structured or structured_mapping_shared_endpoint or shared_endpoint"` -> `8 passed, 58 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "backplate or structured_mapping_shared_endpoint or shared_endpoint or many_to_one or terminal_header"` -> `20 passed, 46 deselected`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_ui_app.py -k "many_to_one or classification or evidence_display"` -> `5 passed, 18 deselected`
+  - `python -m pytest -q tests\integration\test_acceptance_evaluation.py` -> `6 passed`
+  - First rules-only audit initially failed because `.tmp\phase89_grid_row_band_aggregation_first\...\findings` does not exist; reran against `.tmp\phase78_component_vertical_401_first\...\findings` successfully.
+  - `python -m pytest -q` -> `294 passed`
+- Fresh rules-only evidence:
+  - first `.tmp/phase92_terminal_component_shared_first_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged at `ordinary_pair=728`, `semantic_mapping=119`, `continuation=231`, `wire_component_mapping=51`, `component_mapping=150`, `bridge_mapping=3`, `table_mapping=299`.
+  - first `KD23` and `KD6` are now `端子表组件共享端点待复核` with `many_to_one_classification=terminal_header_component_shared_endpoint_review`, `pair_kinds=["component_mapping","table_mapping"]`, `structured_scope_kind=terminal_header_component_shared_endpoint`, `table_mapping_modes=["terminal_header_table"]`.
+  - second `.tmp/phase92_terminal_component_shared_second_audit`: `pair_count=1462`, `issue_count=22`, pair kind distribution unchanged; no terminal-header/component shared endpoint review introduced.
+- Next candidates:
+  - terminal/input-matrix `218` continuation residual review.
+  - second row-band `116` single-symptom aggregation or evidence design.
+  - terminal semantic-row conflict rules layering.
+  - Do not reopen representative `inline KLP 116` or `component-prefixed 218` extractor/residual work unless a fresh audit finds a new uncovered target.
+
+## Session Update 2026-07-07 (Phase 93 terminal semantic conflict scoped endpoint)
+- Started after commit `6525c66`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree only had protected untracked paths `doc/page_findings/` and `doc/page_task_queue.md`; neither was touched.
+  - Collected four read-only subagent conclusions. The hard `218` continuation and `116` row-band candidates may require pair graph / coverage work; the narrowest rules bug was the second-set semantic-row conflict keyed by bare terminal number.
+- Audit conclusion:
+  - second `R-SEMANTIC-MAPPING-CONFLICT` on terminal value `114` was caused by grouping semantic mappings by bare `left_value/right_value`.
+  - The underlying pairs already preserve full selected endpoint text: `PT0117` has `selected_right_raw_text=3-21n114`; `PT0260` has `selected_left_raw_text=1-21n114`.
+  - These are different terminal strip scoped endpoints and should not be treated as the same terminal-to-semantic consistency key.
+- Implementation:
+  - Updated `R-SEMANTIC-MAPPING-CONFLICT` in `rules.py` to prefer full selected terminal endpoint text as the grouping scope key, with a bare-number fallback when raw endpoint text is absent.
+  - Added regression coverage for different full endpoints with the same local number not conflicting, while the same full endpoint still conflicts when semantic targets differ.
+  - Did not change extractors, PairBuilder, pair graph output, CLI/UI, report aggregation, or protected external docs.
+- Verification:
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping_conflict or terminal_semantic_row"` -> `5 passed, 63 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "semantic_mapping or terminal_header_component or backplate_structured or structured_mapping_shared_endpoint or many_to_one"` -> `15 passed, 53 deselected`
+  - `python -m pytest -q` -> `296 passed`
+- Fresh verification:
+  - second fresh `.tmp/phase93_semantic_conflict_scope_second_fresh_audit`: `pair_count=1462`, pair kind distribution unchanged, `issue_count=21`, `R-SEMANTIC-MAPPING-CONFLICT=0`.
+  - `PT0117` and `PT0260` remain `semantic_mapping/review`; evidence is preserved rather than hidden.
+  - first rules-only `.tmp/phase93_semantic_conflict_scope_first_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged.
+- User strategy update:
+  - Next mainline should stop doing pure display/diagnostics unless it directly changes the default user-visible problem list.
+  - Prioritize hard root-cause work for remaining `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE` ordinary pair symptoms on pages such as `05 交流回路图2.dwg`, `06 直流回路图.dwg`, and `12 测控2开入回路图1.dwg`.
+  - In parallel or as a separate product/rules slice, define the default user problem list vs internal review evidence layering so structural `rule_too_strict` reviews do not permanently flood the primary user list.
+
+## Session Update 2026-07-07 (Phase 94 binary input function row semantic mapping)
+- Started after commit `018c958`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread current plan/progress/findings/taskbook context, `git status --short`, `git diff --stat`, and current code/test diffs.
+  - Protected untracked `doc/page_findings/` and `doc/page_task_queue.md` were left untouched.
+  - Existing `doc/任务书.md` had unrelated concurrent planning edits; this slice only added a narrow Phase94 status note.
+- Target cluster:
+  - second `S0012 / 12 测控2开入回路图1.dwg`.
+  - Before symptoms were ordinary `R-PAIR-MISSING-SIDE` for `PW0350..PW0365`: `121 -> ?`, `120 -> ?`, `119 -> ?`, `118 -> ?`, `117 -> ?`, `116 -> ?`.
+  - Taskbook semantics: on BINARY INPUT / 测控开入 rows, same-row `BI n/BCDn` / `开入 n/BCDn` text is semantic evidence, not a missing ordinary endpoint.
+  - `PW0368 / 115 -> ?` was kept out of scope because the same-row text is manual-closing semantics, not BI/BCD.
+- Implementation:
+  - Added `schematic_binary_input_function_label` candidate recognition in `src/dwg_audit/audit/candidates.py`.
+  - Required same-row alignment with `abs(dy)<=3.0`, normalized whitespace around `/`, and capped semantic scores below numeric endpoint candidates.
+  - Extended `_single_sided_schematic_semantic_annotation()` in `src/dwg_audit/audit/pairs.py` so binary-input function rows become `semantic_mapping/review` with `ordinary_pair_eligible=False`.
+  - Added focused unit coverage in `tests/unit/test_terminal_candidates.py` and `tests/unit/test_pairs_and_rules.py`.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or semantic"` -> `8 passed, 32 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_function_row or semantic_mapping or missing_side"` -> `10 passed, 59 deselected`
+  - `python -m pytest -q` -> `298 passed`
+- Fresh evidence:
+  - second `.tmp/phase94_binary_input_semantic_second_v4_audit`: `pair_count=1462`; `ordinary_pair 569 -> 563`; `semantic_mapping 183 -> 189`; `issue_count 21 -> 15`; `R-PAIR-MISSING-SIDE 15 -> 9`.
+  - `PW0350/PW0353/PW0356/PW0359/PW0362/PW0365` are now `semantic_mapping/review`, `semantic_mapping_kind=schematic_binary_input_function_label`, `ordinary_pair_eligible=False`, with semantic endpoints `BI 10/BCD6` through `BI 5/BCD1`.
+  - `PW0368 / 115 -> ?` remains `ordinary_pair/review` and still raises `R-PAIR-MISSING-SIDE`.
+  - first `.tmp/phase94_binary_input_semantic_first_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged from Phase93 first baseline.
+- Independent audit:
+  - Read-only subagent confirmed before/after `pair_id` sets are identical and after `pair_count=1462`.
+  - The six reduced issues are exactly `ordinary_pair -> semantic_mapping` conversions; no hidden/filter/suppress fields, no severity/status downgrade, no report-only aggregation.
+  - Bucket counts stayed `review=440`, `pass=431`, `discard=591`, and `PW0368/GW0368` remains open `R-PAIR-MISSING-SIDE`.
+- Next candidates:
+  - Continue hard root-cause work on remaining ordinary `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`, especially `05 交流回路图2.dwg` and `06 直流回路图.dwg`.
+  - Define default user problem list vs internal review evidence layering as a separate slice.
+  - Keep backplate/component mapping rules semantics as a quality-layering track, not extractor-missing work.
+
+## Session Update 2026-07-07 (Phase 95 binary input manual-closing description semantic mapping)
+- Started after commit `f432beb`.
+- Read-only recovery:
+  - Ran `planning-with-files` session catchup and reread `task_plan.md`, `progress.md` tail, `doc/findings.md` tail, full `doc/任务书.md`, `git status --short`, `git diff --stat`, and recent git log.
+  - Working tree still had external unstaged `doc/任务书.md` planning edits plus protected untracked `doc/page_findings/` and `doc/page_task_queue.md`; this round did not overwrite them.
+- Target issue cluster:
+  - Project: second real sample `test\变压器测控柜(2圈变，2台测控)`.
+  - `S0008 / 08 测控1开入回路图1.dwg`: before `I0006 / PW0209 / GW0209`, line `[77.5,205.0] -> [145.0,205.0]`, `115 -> ?`, nearby `Manual closing of synchronization` (`T0500`) and `手合同期`.
+  - `S0012 / 12 测控2开入回路图1.dwg`: before `I0008 / PW0368 / GW0368`, line `[105.0,205.0] -> [145.0,205.0]`, `115 -> ?`, nearby `Manual closing of synchronization` (`T1171`) and `手合同期`.
+- Current wrong output:
+  - Both rows were ordinary `R-PAIR-MISSING-SIDE` because manual-closing function text was rejected as `not_numeric` noise.
+- Taskbook expected semantics:
+  - On BINARY INPUT / 开入 pages, row-level function descriptions are semantic evidence; they must not compete as ordinary endpoints or leave the local numeric row as a missing ordinary pair.
+- Suspected root cause:
+  - Phase94 recognized `BI n/BCDn` / `开入 n/BCDn`, but did not cover manual-closing function descriptions in the same binary-input matrix.
+- Minimal slice:
+  - Added `schematic_binary_input_function_description` in `candidates.py`, scoped to sheet context containing `BINARY INPUT` or `开入` and text matching `Manual closing of synchronization` or `手合同期`.
+  - Added same-row guard `abs(dy)<=6.0` and score capping below numeric candidates.
+  - Extended `pairs.py` single-sided schematic semantic annotation to emit `semantic_mapping/review` for this detail.
+  - Added positive candidate/pair tests and a CONTROL OUTPUT negative test.
+- Verification:
+  - `python -m pytest -q tests\unit\test_terminal_candidates.py -k "binary_input or control_output"` -> `3 passed, 39 deselected`
+  - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "binary_input_description_row or binary_input_function_row"` -> `2 passed, 68 deselected`
+  - `python -m pytest -q` -> `301 passed`
+  - second fresh `analyze-project + run-audit` -> `.tmp/phase95_binary_input_description_second_audit`
+  - first fresh `analyze-project + run-audit` -> `.tmp/phase95_binary_input_description_first_audit`
+- Fresh evidence:
+  - second before/after: `pair_count=1462` unchanged; `ordinary_pair 563 -> 561`; `semantic_mapping 189 -> 191`; `issue_count 15 -> 13`; `R-PAIR-MISSING-SIDE 9 -> 7`.
+  - `PW0209` after: `115 -> Manual closing of synchronization`, `semantic_mapping/review`, `semantic_mapping_kind=schematic_binary_input_function_description`, `ordinary_pair_eligible=False`, semantic text `T0500`.
+  - `PW0368` after: `115 -> Manual closing of synchronization`, `semantic_mapping/review`, `semantic_mapping_kind=schematic_binary_input_function_description`, `ordinary_pair_eligible=False`, semantic text `T1171`.
+  - Non-target `PW0291` and `PW0442` remain ordinary `R-PAIR-MISSING-SIDE`, so CONTROL OUTPUT / 调压 rows were not generalized away.
+  - first before/after: `pair_count=1581`, `issue_count=117`, pair kind distribution and status buckets unchanged.
+- Independent audit:
+  - Read-only subagent confirmed before/after pair_id sets are identical, pair_count stays `1462`, only changed pair_ids are `PW0209/PW0368`.
+  - Reduction is exactly `ordinary_pair -> semantic_mapping`, not hidden/filter/severity-only/aggregation-only/pair deletion/report-only.
+- Next candidates:
+  - `06 直流回路图.dwg` DK/ZD/3-21n structure missing-side cluster.
+  - first `05 交流回路图2.dwg` extremely narrow row-band endpoint inference.
+  - Default user problem list vs internal review evidence layering as a separate slice.
+
+## Session Update 2026-07-07 (Topology track T0-T4 planned, per-issue narrow-rule mainline superseded)
+- Context: user reviewed the overall state (second fresh issue 13, first 117, 301 tests green including uncommitted AC phrase-label work in `candidates.py`) and confirmed the strategic diagnosis: recent ~50 phases are sample memorization, not recognition capability; the common root cause of missing-side / half-chain / row-band symptoms is the absence of a connectivity model.
+- Decisions (user-confirmed):
+  - Mainline switches from per-issue narrow rules to the topology track T0-T4; narrow slices are only allowed again when the topology track proves a gap is not a connectivity/symbol/table-structure problem.
+  - No standalone human-labeling effort. Ground truth = entity coverage contract (machine-checkable) + per-page agent adjudication against DXF + human spot arbitration. Assignments double as future ML/GNN weak labels.
+- Docs written this session (append-only, no concurrent edits reverted, nothing staged):
+  - `task_plan.md`: Current Phase -> Phase 97; two new Decisions rows; Phase 96 marked superseded (A/B -> T1/T2, C -> T4, D -> T4); new detailed Phase 97-101 entries (T0 coverage contract, T1 wire network shadow builder, T2 endpoint assignment gray switchover, T3 symbol library bootstrap, T4 rules shrink & display layering).
+  - `doc/任务书.md`: new section 18.7 with coverage contract semantics + `text_assignments` schema, `wire_junctions`/`wire_networks` schema with electrical merge constraints (crossing does NOT merge by default), T0-T4 table with hard boundaries and acceptance gates, agent audit protocol (recovery reading list, DXF-first fan-out, per-entity adjudication template, >=3-page escalation rule, human arbitration boundary), agent development rules (one root cause per slice, shadow-first, IdFactory, zero-drift migration), 8-step test/anti-cheating ladder, named redline relation list, and linkage to Phase 96 / M11 / GNN preconditions; 18.5 got a pointer paragraph.
+- Next executable step: Phase 97 (T0) — read-only audit of existing explanation traces, then implement `src/dwg_audit/audit/coverage.py` + `text_assignments.parquet` + `entity_coverage_summary` with zero drift on both real-sample fresh runs.
+
+## Session Update 2026-07-08 (Phase 97 Topology T0 entity coverage contract)
+- Started from HEAD `6fc050b`; preserved protected untracked `doc/page_findings/` and `doc/page_task_queue.md`.
+- Reviewed the concurrent partial T0 work and found an intermediate mismatch: old `.tmp/phase97_baseline_*` coverage parquet used stale names such as `candidate_explained`, `structured_mapping`, and `extraction_gap`, while `findings.json` still had an empty `entity_coverage_summary`.
+- Implementation:
+  - Moved the coverage contract module to `src/dwg_audit/audit/coverage.py`.
+  - Added fixed-schema `text_assignments.parquet` and `entity_coverage_summary.parquet`.
+  - Added `findings.json` / `findings.md` coverage summary fields: `unexplained_numeric_texts`, `unassigned_wire_segments`, `unclassified_blocks`, assignment-kind counts, out-of-scope reason counts, and contract checks.
+  - Kept candidates, pairs, rules, extractors, and classifiers unchanged.
+- Verification:
+  - `python -m pytest -q tests\unit\test_coverage.py tests\unit\test_report_artifacts.py tests\integration\test_analyze_project.py -k "coverage or findings or artifacts or page"` -> `31 passed, 11 deselected`.
+  - `python -m pytest -q` -> `305 passed`.
+  - second fresh `.tmp/phase97_coverage_second_v2_audit`: `pair_count=1462`, `issue_count=13`, pair kind distribution unchanged: `ordinary_pair=561`, `wire_component_mapping=245`, `continuation=204`, `semantic_mapping=191`, `table_mapping=174`, `component_mapping=84`, `bridge_mapping=3`.
+  - first fresh `.tmp/phase97_coverage_first_v2_audit`: `pair_count=1581`, `issue_count=117`, pair kind distribution unchanged: `ordinary_pair=728`, `table_mapping=299`, `continuation=231`, `component_mapping=150`, `semantic_mapping=119`, `wire_component_mapping=51`, `bridge_mapping=3`.
+- Coverage baselines:
+  - second: `total_texts=4795`, `audit_scope_texts=2484`, `assigned_texts=2484`, `unexplained_texts=0`, `unexplained_numeric_texts=0`, `unassigned_wire_segments=5305`, `unclassified_blocks=1126`, `out_of_scope_texts=2311`, `coverage_ratio=1.0`, `identity_ok=True`.
+  - first: `total_texts=5076`, `audit_scope_texts=3169`, `assigned_texts=3169`, `unexplained_texts=0`, `unexplained_numeric_texts=0`, `unassigned_wire_segments=6868`, `unclassified_blocks=1034`, `out_of_scope_texts=1907`, `coverage_ratio=1.0`, `identity_ok=True`.
+  - Both runs have `suspicious_out_of_scope_expansion=False` and `single_assignment_per_text=True`.
+- Queue output for Phase 98:
+  - `.tmp/phase97_coverage_queue/second_page_gap_queue.csv`
+  - `.tmp/phase97_coverage_queue/second_unexplained_text_queue.csv`
+  - `.tmp/phase97_coverage_queue/first_page_gap_queue.csv`
+  - `.tmp/phase97_coverage_queue/first_unexplained_text_queue.csv`
+- Next step: Phase 98 T1 shadow wire-network builder. Text-side unexplained queues are empty because rejected candidates are explicit explanations under the T0 priority order; T1 should start from the page gap queues, especially high `unassigned_wire_segments` pages.
+
+## Session Update 2026-07-08 (Phase 98 human arbitration packet)
+- User requested a full pass over both projects to identify what requires human labeling before continuing extraction/topology development.
+- Read current Phase97 fresh findings/audit outputs and generated machine-readable supporting details:
+  - `.tmp/phase98_human_review/first_issue_detail.csv`
+  - `.tmp/phase98_human_review/second_issue_detail.csv`
+  - `.tmp/phase98_human_review/first_block_name_counts.csv`
+  - `.tmp/phase98_human_review/second_block_name_counts.csv`
+- Created `doc/human_arbitration_phase98.md`.
+- The arbitration packet compresses current issue/noise into seven human decision clusters:
+  - H01 ordinary wire missing-side / broken physical row connectivity.
+  - H02 DC page `101/103/105/132` endpoint semantics.
+  - H03 component diagram one-to-many / many-to-one mapping semantics.
+  - H04 backplate table shared endpoint / cross-page scope semantics.
+  - H05 terminal header table multi-endpoint / shared endpoint semantics.
+  - H06 local small-number endpoint vs local-port/row/semantic-number semantics.
+  - H07 high-frequency unclassified block family labeling.
+- No extraction code or rules were changed in this packet.
+
+## Session Update 2026-07-08 (Phase 98 subagent pre-review convergence)
+- Ran four read-only subagents in parallel to pre-audit the Phase 98 human packet against `doc/任务书.md` and representative page previews.
+- Converged understanding:
+  - `H01` splits into true topology-recoverable wire connectivity gaps (`04/05/14/15` style bare numbers on real conductors) versus scoped/local-number misuse (`05` `719/720/721`, first `08/09/10` `13/14`, parts of first `11`).
+  - `H02` is primarily a scoped-prefix problem, not a raw topology gap: `101/103/105/132` should likely be completed with local `*n` / `DK/GD/QD` context; `132 -> 132` looks like false self-pairing after scope loss.
+  - `H03` current `component_mapping` extraction is broadly correct; most one-to-many / many-to-one is normal comma-split branching or shared endpoints and should default to `internal`.
+  - `H04/H05` current table reviews are mostly scope/display problems, not strong user-visible conflicts; the missing dimensions are `page-device instance`, `subtable`, `header_text_id/x-span`, `table_instance`, and `endpoint_column_role`.
+  - `H06` local small numbers `10/13/14` behave like row/port/contact numbers; bare `710/501/507` need full prefix/context and should not enter `ordinary_pair` naked.
+  - `H07` high-frequency unclassified blocks already separate into likely wire-bridge families (`PWF165/231/191/194`) and endpoint-bearing symbol families (`PWF224/234/243`, `FJL-25-2A_Mirror`, `KK2P`).
+- Human review scope was narrowed in `doc/human_arbitration_phase98.md`:
+  - Spot-check `PW0107` (`132 -> 132`) and `PW0108` (`101 -> ?`) for the H02 scoped-endpoint rule.
+  - Decide whether `124/125`, `10/13/14`, and `501/507/710` belong to the same “local/scoped number, not naked ordinary endpoint” policy.
+  - Confirm H03/H04/H05 default layering policy: `internal` unless fully scoped relations still conflict.
+  - If approved, next symbol-library input should be only 7 family-level screenshot labeling tasks, not page-by-page annotation.
+- Closed the four subagents after collecting their final results. No code/tests were run in this review-only step.
+
+## Session Update 2026-07-08 (User ruling received: H01 partial)
+- User confirmed the strategic goal explicitly: we should not build memorized labels or memorized per-sample algorithms; the ordinary-circuit path needs more general structural recognition.
+- H01 partial ruling captured in `doc/human_arbitration_phase98.md`:
+  - first `04 交流回路图1.dwg`: current failures are due to missing left-side terminal recognition and missing upper device/component structural recognition; desired output is structured relations of the form `1ID* -> 1n70x`, not naked `701/703/...`.
+  - first `05 交流回路图2.dwg`: `719/720/721` cluster should be explained by `3-2ZKK` structural recognition; user-provided representative relations are `3-2ZKK-6 -> 721`, `3-2ZKK-4 -> 720`, `3-2ZKK-2 -> 719`.
+  - first `11 非电量开入回路.dwg`: user did not find the current `601/310/309/308/307/210/209/208/207` naked-number cluster in the original drawing; current output should be treated as extraction/binding failure rather than a trusted business issue cluster. Representative intended relations: `5FD25 -> 5n105`, `5FD26 -> 5n132`, `5KLP1-2 -> 5n207`.
+- Engineering implication recorded for T1/T2/T3:
+  - move ordinary-circuit extraction away from “nearby naked number” heuristics toward a generic combination of wire topology, device/symbol structure recognition, scoped-prefix composition, and connected-terminal identification.
+- Remaining H01 subitems still pending user reply:
+  - first `08/09/10` `13/14/124/125`
+  - first `14/15` `224/222/206`
+- No code/tests were run in this doc-only update.
+
+## Session Update 2026-07-08 (Ordinary-circuit generic audit converged for H01)
+- Ran one read-only data explorer and one read-only code explorer in parallel against first `04/05/11`.
+- Data-side convergence:
+  - All three pages expose a stable `scoped prefix + local-number column + external-endpoint column` structure rather than true naked endpoint semantics.
+  - `04` uses `1n` plus outer `1ID*` columns; issue numbers `701/703/705/707/709/711` sit on an internal local-number column near repeated `PWF165/PWF229` symbols.
+  - `05` uses mirrored `1-2n` and `3-2n` zones; issue numbers `701/703/705/707/709/719/720/721` are internal local numbers, while true external endpoints are `1-2ID* / 3-2ID* / 1-2UD* / 3-2UD*`.
+  - `11` uses `5n`; current issue numbers `601/207/208/209/210/307/308/309/310` fall on an internal local-number column, while true structured endpoints are `5FD*` and `5KLP*`.
+- Code-side convergence:
+  - The failure happens before `pairs.py`: candidate extraction only recognizes a very narrow external-endpoint grammar, so many real external endpoints are rejected as `not_numeric`.
+  - Existing structured recovery in `wire_components.py` is fragmented into narrow families: `component_prefixed_signal_circuit`, `input_matrix_wire_mapping`, `first_prefixed_external_endpoint_mapping`, `inline_klp_component_port_mapping`.
+  - `first_prefixed_external_endpoint_mapping` is additionally gated by `first_prefixed_eligible_local_text_ids`, meaning it only runs for locals that already appeared in an erroneous ordinary single-sided pair.
+- Engineering implication:
+  - The next generic slice should start with a reusable endpoint parser and a unified `prefix-column / row-endpoint / local-number` framework, not page-specific endpoint whitelists.
+  - Planned low-risk order: parser/grammar -> full-run structured family detection -> remove ordinary single-sided gate -> only then simplify old narrow families.
+- No code/tests were run in this audit step; results were written to `doc/human_arbitration_phase98.md` and `doc/findings.md`.
+
+## Session Update 2026-07-08 (Phase 98 generic scoped visible prefix recovery slice)
+- Goal of this slice:
+  - Convert the H01/H02 common pattern from “ordinary naked number missing-side” into explicit `wire_component_mapping`, using a generic `visible scoped prefix + local-number column + structured external-endpoint column` layout rather than sample-memorized endpoint rules.
+  - Keep `first_prefixed` fallback conservative (`QD/FD` only) and stop gating it on existing ordinary single-sided failures.
+- Implementation:
+  - In `src/dwg_audit/audit/wire_components.py` added a generic scoped parser:
+    - `scope-prefix`: `1n / 1-2n / 3-2n / 5n / 3-21n`
+    - `structured external endpoint`: `1ID4 / 1QD5 / 3-2ID7 / 3-21WD2 / 5FD25 ...`
+  - Added new submode `scoped_visible_prefix_external_endpoint_mapping`:
+    - requires visible `*n` prefix above the local-number column;
+    - pairs same-row structured endpoint to the composed logical endpoint such as `1ID1 -> 1n701`, `1-2ID4 -> 1-2n702`, `5FD25 -> 5n105`;
+    - explicitly excludes `input_matrix` rows and inline component body families such as `KLP`, so the new family does not steal the existing matrix/KLP paths.
+  - In `src/dwg_audit/audit/page_extractors.py` removed the runtime gate that only allowed `first_prefixed_external_endpoint_mapping` when the local text had already surfaced in an ordinary single-sided pair.
+  - Extended coverage/rationale helpers so ordinary pairs covered by the new submode are discarded with explicit `covered_by_scoped_visible_prefix_external_endpoint_mapping` evidence.
+  - Added targeted unit coverage in:
+    - `tests/unit/test_wire_components.py`
+    - `tests/unit/test_page_extractors.py`
+- Verification:
+  - `python -m pytest -q tests\\unit\\test_wire_components.py` -> `14 passed`
+  - `python -m pytest -q tests\\unit\\test_page_extractors.py -k "input_matrix_covered or schematic_ac_phase or inline_wire_split"` -> `12 passed, 3 deselected`
+  - `python -m pytest -q` -> `308 passed in 6.94s`
+- Fresh real-sample evidence:
+  - first `.tmp/phase98_scoped_prefix_first_audit`:
+    - `pair_count 1581 -> 1705`
+    - `ordinary_pair` unchanged at `728`
+    - `wire_component_mapping 51 -> 175`
+    - `issue_count 117 -> 102`
+    - `R-PAIR-MISSING-SIDE 46 -> 35`
+    - `R-PAIR-LOW-CONFIDENCE 6 -> 2`
+    - only changed issue pages: `04 交流回路图1.dwg (6 -> 0)`, `05 交流回路图2.dwg (8 -> 3)`, `06 直流回路图.dwg (7 -> 3)`
+  - first targeted behavior:
+    - `04` now emits twelve structured pairs such as `1ID1 -> 1n701` ... `1ID12 -> 1n712`; the six previous ordinary missing-side issues disappear.
+    - `05` now emits sixteen structured pairs for the `701/703/705/707/709` and mirrored `702/704/706` rows across both `1-2n` and `3-2n` zones; only `719/720/721` remain, matching the user’s judgment that the unresolved residual is really the `3-2ZKK` body-port structure, not another naked-number column issue.
+    - `06` now converts the scoped DC rows into structured pairs such as `1QD5 -> 1n105`, `1QD6 -> 1n132`, `3-2QD13 -> 3-2n132`; all four `132 -> 132` low-confidence/self-scope artifacts disappear, leaving only the three `101 -> ?` rows unresolved.
+    - `11` gains many new `5FD* -> 5n###` relations, but `601/310/309/308/307/210/209/208/207` and `601 -> 602` remain unresolved; this confirms the residual is not “missing visible scope prefix” anymore, but likely inline component / body-port / topology logic around `KLP`-style rows.
+  - second `.tmp/phase98_scoped_prefix_second_audit`:
+    - `pair_count 1462 -> 1597`
+    - `ordinary_pair` unchanged at `561`
+    - `wire_component_mapping 245 -> 380`
+    - `issue_count 13 -> 12`
+    - only changed issue page: `06 直流回路图.dwg (5 -> 4)`
+    - newly added structured rows include `3-21WD1 -> 3-21n607`, `3-21WD2 -> 3-21n608`, `3-21DK1 -> 3-21n103`, `1-21GD20 -> 1-21n132`; the remaining residual is still the bare `101/105` cluster.
+- Anti-cheating / drift audit:
+  - Both projects keep `ordinary_pair` counts unchanged; the reduction comes from reclassifying existing naked-number ordinary reviews to `discard` once a structured `wire_component_mapping/pass` exists, not from deleting ordinary pairs or hiding issues.
+  - first ordinary diff is limited to `20` pre-existing ordinary pairs:
+    - `PW0005/PW0008/PW0011/PW0015/PW0018/PW0021`
+    - `PW0070/PW0073/PW0080/PW0083/PW0088/PW0091/PW0094/PW0097/PW0100/PW0103`
+    - `PW0107/PW0132/PW0149/PW0160`
+  - second ordinary diff is limited to `PW0118/PW0119`.
+  - No non-target page gained issues.
+- Conclusions:
+  - This slice confirms the user’s H01 diagnosis: the main blocker was not more narrow pair rules, but the absence of a generic scoped-prefix structural family.
+  - The slice is intentionally incomplete. It does not solve:
+    - `05` `719/720/721` (`3-2ZKK` body-port structure)
+    - `11` `601/310/.../207` and `601 -> 602`
+    - topology-only gaps where no visible scoped prefix or structured endpoint column exists
+  - The next high-value slice should target inline component/body-port structure and then wire topology shadowing, not broaden `first_prefixed` fallback to every letter family.
+
+## Session Update 2026-07-08 (Phase 98 T1 shadow wire-network landed with zero drift)
+- Implemented `src/dwg_audit/audit/wire_topology.py` as a strict shadow layer:
+  - endpoint-merge junctions;
+  - orthogonal `t_cross`;
+  - default non-merging `crossing_observation`;
+  - inline-text and block-span bridge junctions;
+  - per-network `member_line_ids / junction_ids / open_endpoint_junctions / bridged_gaps / touched_text_ids / line_group_ids / bbox / total_length`.
+- Integrated analyze-stage artifact writing:
+  - `findings/wire_junctions.parquet`
+  - `findings/wire_networks.parquet`
+- Integrated audit-stage shadow report writing:
+  - `audit/topology_shadow_report.json`
+  - `audit/topology_shadow_report.md`
+- Added topology config defaults in `src/dwg_audit/utils/config.py`:
+  - `junction_snap_tolerance`
+  - `cross_axis_tolerance`
+  - `bridge_gap_tolerance`
+  - `inline_text_bridge_gap`
+  - `block_span_bridge_gap`
+  - `text_touch_tolerance`
+  - `merge_crossings=false`
+- Added test coverage:
+  - `tests/unit/test_wire_topology.py` -> `7 passed`
+  - `tests/unit/test_report_artifacts.py -k "creates_findings_outputs"` -> `1 passed`
+  - `tests/unit/test_rerun_audit.py` -> `2 passed`
+  - `python -m pytest -q` -> `315 passed in 7.03s`
+- Fresh real-sample zero-drift validation:
+  - first `.tmp/phase98_topology_first/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA`:
+    - `pair_count=1705`
+    - `issue_count=102`
+    - `pair_kind_counts` unchanged from scoped-prefix baseline:
+      - `ordinary_pair=728`
+      - `wire_component_mapping=175`
+      - `table_mapping=299`
+      - `semantic_mapping=119`
+      - `continuation=231`
+      - `component_mapping=150`
+      - `bridge_mapping=3`
+    - new shadow artifacts:
+      - `wire_junctions=23148`
+      - `wire_networks=609`
+      - `topology_shadow_report`: `37` candidate ordinary missing/low-confidence issues, `37/37` marked recoverable
+  - second `.tmp/phase98_topology_second/2_2`:
+    - `pair_count=1597`
+    - `issue_count=12`
+    - `pair_kind_counts` unchanged from scoped-prefix baseline:
+      - `ordinary_pair=561`
+      - `wire_component_mapping=380`
+      - `table_mapping=174`
+      - `semantic_mapping=191`
+      - `continuation=204`
+      - `component_mapping=84`
+      - `bridge_mapping=3`
+    - new shadow artifacts:
+      - `wire_junctions=18929`
+      - `wire_networks=358`
+      - `topology_shadow_report`: `6` candidate issues, `4/6` marked recoverable
+- Human-review implications tightened further:
+  - H01/H02 visual subagent audit confirms `04/05/06` are mixed `scoped local number + body-port` pages, not ordinary naked-endpoint pages.
+  - H07 block-family preclassification is already good enough to defer full screenshot labeling for `PWF165/PWF231`; next mandatory human symbol checks can focus on `PWF224/PWF234/PWF243` and pin-map confirmation for `KK2P`.
+
+## Session Update 2026-07-08 (T1 code-audit convergence: shadow is ready, mainline hook is Phase 99)
+- A final read-only code explorer audited `line_groups.py`, `page_extractors.py`, `pairs.py`, `wire_components.py`, `component_diagrams.py`, `wire_topology.py`, `models.py`, and `config.py`.
+- Converged engineering boundary:
+  - T1 is now correctly landed as a report-side shadow topology layer.
+  - It writes `wire_junctions/wire_networks` during `analyze-project` and `topology_shadow_report` during `run-audit`, but does not yet alter candidate search or pair selection.
+  - The minimal future mainline switchover point remains `page_extractors.py` after route-specific structured mappings and before final pair/rule consumption.
+- Key caution flags carried into Phase 99:
+  - shadow `inline_text_bridge` is intentionally broader than current mainline `inline_numeric_bridge`; do not promote it directly without narrowing.
+  - shadow `block_span` currently uses insert-point evidence only and must not replace existing stronger `wire_component_mapping` / `component_mapping` semantics.
+  - `row_band_id` and `Pair.evidence` semantics are already contractual and must remain zero-drift when topology starts feeding the mainline.
+
+## Session Update 2026-07-08 (T1 shadow truthfulness tightened; Phase 99 gray pages reselected)
+- Tightened `src/dwg_audit/audit/wire_topology.py` shadow diagnostics so report-side recoverability is no longer driven by the loose rule `extra_relevant_text + bridge => recoverable`.
+- Added role-based network text classification inside the shadow report path:
+  - `topology_recoverable_external_endpoint_present`
+  - `scoped_local_number_cluster`
+  - `body_port_cluster`
+  - `semantic_local_cluster`
+  - `no_additional_topology_signal`
+- Heuristic inputs now combine:
+  - `text_assignments.assignment_kind`
+  - `candidate_channel / rejection_reason / explain_reason`
+  - token shape such as scoped `*n`, scoped `*n###`, pure local numerics, single-port numerics `1..14`, body families like `KLP/CLP/ZKK/ZK/KK/FA`, and scoped structured endpoints like `1ID4 / 1-4QD28 / 1DK-2`.
+- Added focused unit coverage in `tests/unit/test_wire_topology.py` for:
+  - true topology-recoverable external endpoint case
+  - scoped-local false positive
+  - body-port false positive
+  - bridge + single-port noise false positive
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `10 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `30 passed`
+  - `python -m pytest -q` -> `318 passed in 8.47s`
+- Real-sample rerun on existing T1 findings:
+  - first `run-audit --findings .tmp/phase98_topology_first/.../findings --output .tmp/phase99_shadow_tight_first_audit`
+    - `pair_count=1705`
+    - `issue_count=102`
+    - shadow `37/37 recoverable -> 6/37 recoverable`
+    - reason split: `body_port_cluster=26`, `scoped_local_number_cluster=3`, `semantic_local_cluster=2`, `topology_recoverable_external_endpoint_present=6`
+    - only true topology-recoverable pages left: `14 高操作回路图.dwg` and `15 低操作回路图.dwg` (all 6 residual issues)
+  - second `run-audit --findings .tmp/phase98_topology_second/2_2/findings --output .tmp/phase99_shadow_tight_second_audit`
+    - `pair_count=1597`
+    - `issue_count=12`
+    - shadow `4/6 recoverable -> 0/6 recoverable`
+    - reason split: `body_port_cluster=1`, `scoped_local_number_cluster=2`, `semantic_local_cluster=1`, `no_additional_topology_signal=2`
+- Engineering consequence:
+  - Phase 99 gray switchover must not start from `05/06/11` or second `06/10/14`; those pages are structural extraction problems, not plain topology gaps.
+  - The first legitimate T2 gray candidates are now narrowed to first `14/15`.
+
+## Session Update 2026-07-08 (Phase 99 branch-local shadow proposals: explain first, switchover later)
+- Extended `src/dwg_audit/audit/wire_topology.py` so `topology_shadow_report` now emits per-issue branch-local diagnostics:
+  - `branch_local_status`
+  - `branch_local_reason`
+  - `branch_local_missing_side`
+  - `branch_local_candidate_count`
+  - `branch_local_candidates`
+  - `branch_local_contexts`
+- Scope boundary stayed strict:
+  - no edits to `candidates.py`, `page_extractors.py`, `pairs.py`
+  - no pair graph / issue behavior changes
+  - only report-side shadow explanation was enriched
+- Selection logic is deliberately narrow and structural:
+  - same network
+  - same row / near-row (`branch_local_row_y_tolerance` default `3.5`)
+  - missing-side direction check from `line_group.start_x/end_x`
+  - endpoint-like roles only (`external_endpoint_candidate`, `body_port_endpoint`, `scoped_local_endpoint`)
+  - non-endpoint same-row texts are retained separately as `branch_local_contexts`
+- New synthetic coverage in `tests/unit/test_wire_topology.py`:
+  - unique same-row structured candidate
+  - scoped-local cluster with unique row candidate but non-topology root cause
+  - body-port cluster with context-only result
+  - single-port noise => `no_candidate`
+  - ambiguous same-row structured candidates (`1-4QD24` vs `1-4QD5`)
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `11 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `31 passed`
+  - `python -m pytest -q` -> `319 passed in 11.92s`
+- Real-sample rerun on existing findings roots:
+  - first `.tmp/phase99_branch_local_first_audit`
+    - `candidate_issue_count=37`
+    - `recoverable_issue_count=6`
+    - `branch_local_status_counts={"ambiguous_candidates": 2, "context_only": 33, "not_single_sided": 2}`
+    - `PW0413/PW0463 (? -> 224)` now explicitly surface ambiguity:
+      - first side: `1-4QD24` vs `1-4QD5`
+      - mirror side: `3-4QD24` vs `3-4QD5`
+    - `PW0417/PW0420/PW0467/PW0470` stay `context_only`; no safe same-row same-side structured endpoint was found
+  - second `.tmp/phase99_branch_local_second_audit`
+    - `candidate_issue_count=6`
+    - `recoverable_issue_count=0`
+    - `branch_local_status_counts={"context_only": 4, "no_candidate": 2}`
+- Engineering conclusion:
+  - this slice strengthens the human-audit loop and gives concrete per-issue structure clues
+  - it does **not** justify enabling Phase 99 `endpoint_assignment=on` yet
+  - first `14/15` still need one more branch-local narrowing slice before any mainline switchover
+
+## Session Update 2026-07-08 (Phase 99 anchor narrowing: 224 is now unique, 222/206 are still context-only)
+- Continued the Phase 99 shadow track without touching mainline pairing:
+  - `build_topology_shadow_report()` now also consumes `wire_junctions`
+  - branch-local endpoint candidates are additionally scored against compatible missing-side `open_endpoint_junctions`
+  - only candidates within the configured anchor distance/tolerance are considered "truly take-over-ready"
+- This is a structural refinement, not a sample memory rule:
+  - still same network
+  - still same row / near-row
+  - still same missing-side direction
+  - but now adds the generic electrical constraint "candidate must actually sit on a missing-side open endpoint branch"
+- New test coverage:
+  - ambiguous same-row candidates with shared anchor remain ambiguous
+  - a `224`-style pattern with one far internal candidate and one open-endpoint candidate now collapses to a single anchored candidate
+- Verification:
+  - `python -m pytest -q tests\unit\test_wire_topology.py` -> `12 passed`
+  - `python -m pytest -q tests\unit\test_report_artifacts.py tests\unit\test_rerun_audit.py tests\unit\test_wire_topology.py` -> `32 passed`
+  - `python -m pytest -q` -> `320 passed in 7.34s`
+- Real-sample rerun:
+  - first `.tmp/phase99_anchor_first_audit`
+    - `candidate_issue_count=37`
+    - `recoverable_issue_count=6`
+    - `branch_local_status_counts={"context_only": 33, "not_single_sided": 2, "unique_candidate": 2}`
+    - `PW0413 ? -> 224` => `unique_candidate`, reason `single_same_side_open_endpoint_anchored_candidate`, candidate `1-4QD5`, anchor distance `2.5`
+    - `PW0463 ? -> 224` => mirror `unique_candidate`, candidate `3-4QD5`, anchor distance `2.5`
+    - `PW0417/PW0420/PW0467/PW0470` remain `context_only`
+  - second `.tmp/phase99_anchor_second_audit`
+    - `candidate_issue_count=6`
+    - `recoverable_issue_count=0`
+    - `branch_local_status_counts={"context_only": 4, "no_candidate": 2}`
+- Engineering consequence:
+  - the first viable Phase 99 switchover unit is no longer "page 14/15"
+  - it is now "only those residual branches that already resolve to `unique_candidate` under network + row + side + open-endpoint anchoring"
+  - `222/206` still need deeper branch/path topology or a different structural mode; they are not yet eligible for any honest `on` switchover
+
+## Session Update 2026-07-08 (H01/H02 裁决收口与并发代码审计)
+- Synced the latest user rulings:
+  - `H02`: `GND` rows are ignorable semantic/ground evidence, `101/103/105/132` must be completed with scoped prefix/context, and `132 -> 132` is an extraction error rather than a valid same-name connection.
+  - `H01`: `04/05/11` remain a generic `scoped prefix + structured external endpoint + local-number/body-port` problem, not a request for sample-specific ordinary rules.
+- Re-checked fresh `pairs.parquet`, `text_assignments.parquet`, and `topology_shadow_report.json`:
+  - first `06` already shows the right structural direction in the current dirty tree: `1QD5 -> 1n105`, `1QD6 -> 1n132`, `3-2QD12 -> 3-2n105`, `3-2QD13 -> 3-2n132`; all four `132 -> 132` artifacts are covered, leaving only three `101 -> ?`.
+  - second `06` still sits in `scoped_local_number_cluster`; `3-21n`/`GND`/local-number rows are present, so the residual `101/105` issues are not honest topology candidates.
+  - first `11` residual `601/310/.../207` plus `601 -> 602` now look like `body_port_cluster` fallout around `KLP/FD` rows rather than missing visible prefix.
+- Read the concurrent dirty-tree diffs before editing:
+  - `wire_components.py` already contains a generic `scoped_visible_prefix_external_endpoint_mapping` slice.
+  - `page_extractors.py` already removes the `first_prefixed` recovery gate that depended on existing ordinary single-sided pairs.
+  - `candidates.py` current dirty diff is unrelated to this H01/H02 audit except for semantic phrase scaffolding; I did not overwrite it.
+- Decision from this session:
+  - keep this turn's write set to planning/arbitration docs only;
+  - the next implementation slice should target generic token-role/body-port structure for the remaining `719/720/721`, `101 -> ?`, and `601/310/...` clusters, not another ordinary-window heuristic.
+- Verification: no new code was changed in this session, so I did not rerun pytest here.
+
+## Session Update 2026-07-08 (Generic body-port extractor landed: one-sided KLP + multi-row ZKK)
+- Implemented the next H01/H02 structural slice in `wire_components.py` instead of `candidates.py`:
+  - generalized the old `inline_klp` row matcher into a generic inline body-port extractor for `KLP/ZKK`
+  - emits per-port `wire_component_mapping` when there is a supported same-row side branch; no longer requires both sides of the row to be complete
+  - keeps family semantics explicit instead of sample memory:
+    - `KLP`: odd port = left, even port = right, numeric right locals normalize to `*n###`
+    - `ZKK`: odd/even body ports are emitted directly as `body-port -> local/endpoint`
+- Tightened the structure contract after a real-sample false positive audit:
+  - initial wide `1..99` port token gate produced a bad pair `5KLP10-13 -> 5FD4`
+  - narrowed inline port tokens back to single-digit `1..6`, which matches current `KLP/ZKK` family semantics and removed the false positive without losing intended hits
+- Extended ordinary coverage consumption in `page_extractors.py`:
+  - `inline_klp_component_port_mapping`
+  - `inline_body_port_mapping`
+  - bare local-number ordinary pairs covered by these structured mappings now discard honestly instead of staying user-visible
+- New synthetic coverage:
+  - `tests/unit/test_wire_components.py`
+    - one-sided `KLP`: `5KLP1-2 -> 5n207`
+    - multi-row `ZKK`: `3-2ZKK-2/4/6 -> 719/720/721`
+  - `tests/unit/test_page_extractors.py`
+    - inline body-port covered local number discards old ordinary residuals
+- Verification:
+  - targeted:
+    - `python -m pytest -q tests\unit\test_wire_components.py tests\unit\test_page_extractors.py` -> `32 passed`
+    - `python -m pytest -q tests\integration\test_analyze_project.py -k "inline_klp_component_port_mapping or component_prefixed_signal_circuit_mapping"` -> `2 passed`
+  - full:
+    - `python -m pytest -q` -> `323 passed in 31.57s`
+- Fresh real-sample verification:
+  - first fresh `.tmp/phase100_body_port_first_v2/...` + `.tmp/phase100_body_port_first_v2_audit`
+    - `pair_count: 1705 -> 1717`
+    - `wire_component_mapping: 175 -> 187`
+    - `ordinary_pair: 728 -> 728` unchanged
+    - `issue_count: 102 -> 91`
+    - `R-PAIR-MISSING-SIDE: 35 -> 24`
+    - submodes: `scoped_visible_prefix_external_endpoint_mapping=106`, `inline_body_port_mapping=6`, `inline_klp_component_port_mapping=12`, `first_prefixed_external_endpoint_mapping=37`, `component_prefixed_signal_circuit=26`
+    - first `05 交流回路图2.dwg`: `3` residual missing-side issues -> `0`; new structured hits include `1-2ZKK-2/4/6 -> 719/720/721` and `3-2ZKK-2/4/6 -> 719/720/721`
+    - first `11 非电量开入回路.dwg`: `10` issues -> `2`; new structured hits include `5KLP1-2 -> 5n207`, `5KLP2-2 -> 5n208`, `...`, `5KLP10-2 -> 5n112`
+    - remaining first residuals are honest:
+      - `PW0284 ? -> 601`
+      - `PW0285 601 -> 602`
+      - first `06` still has `PW0120/PW0141/PW0158 = 101 -> ?` only
+  - second fresh `.tmp/phase100_body_port_second/...` + `.tmp/phase100_body_port_second_audit`
+    - `pair_count: 1597 -> 1615`
+    - `wire_component_mapping: 380 -> 398`
+    - `ordinary_pair: 561 -> 561` unchanged
+    - `issue_count: 12 -> 12` unchanged
+    - submodes: `schematic_wire_logic_endpoint=77`, `scoped_visible_prefix_external_endpoint_mapping=135`, `input_matrix_wire_mapping=168`, `inline_body_port_mapping=12`, `inline_klp_component_port_mapping=6`
+    - generic `ZKK` family now also appears on second-set `05 交流回路图2.dwg`, e.g. `3-21ZKK-1 -> 3-21UD1`, `3-21ZKK-2 -> 715`, `...`, `3-21ZKK-6 -> 719`
+- Engineering consequence:
+  - the H01 ordinary backlog is no longer “naked number everywhere”; `05` is now structurally closed, `11` is mostly closed, and `06` is reduced to the user-ruled semantic `101 -> ?` cluster
+  - next structural work should narrow to:
+    - whether first `06` `101 -> ?` should be downgraded/ignored via generic semantic-ground policy
+    - whether first `11` `? -> 601` / `601 -> 602` belong to another structure family or should be removed from default user-visible ordinary audit

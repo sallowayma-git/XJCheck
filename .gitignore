@@ -7,6 +7,7 @@ artifacts_*/
 ascii_tmp/
 tmp_dxf/
 .tmp_*/
+.tmp/
 .cache/
 
 test/
