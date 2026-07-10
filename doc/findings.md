@@ -10485,3 +10485,578 @@ Phase 98 输入队列已导出到 `.tmp/phase97_coverage_queue/`：
   - `PW0284 ? -> 601`
   - `PW0285 601 -> 602`
 - H02 这条线上，first `06` 已经只剩用户已裁定的 `101 -> ?` 语义簇；如果继续推进，下一刀更像“generic semantic-ground policy / display layering”，而不是继续补 body-port 几何
+
+## 160. 2026-07-09 `GND -> 101` 已从“语义存在但 ordinary 还报错”收口为统一消费合同
+
+在上一轮 fresh 审计里，first `06` 与 second `06` 其实都已经给出了足够强的机器证据：
+
+- 裸 ordinary residual：
+  - first：`PW0120/PW0141/PW0158 = 101 -> ?`
+  - second：`PW0108/PW0121 = 101 -> ?`
+- 同时存在的 semantic_mapping：
+  - first：`PW0119/PW0142/PW0159 = GND -> 101`
+  - second：`PW0107/PW0120 = GND -> 101`
+
+也就是说，这批 residual 的根因不再是“识别不出来”，而是：
+
+- semantic graph 已经知道它们是 `GND` 语义覆盖的 numeric text
+- 但 ordinary default list 还没有消费这类 semantic evidence
+
+本轮因此没有再去补几何，而是补合同：
+
+- 新增一个与 AC phase helper 对称的 DC ground helper
+- 只在下面这些条件全部满足时消费 ordinary half-pair：
+  - `pair_kind == ordinary_pair`
+  - 只有一侧有值
+  - 同页存在 `pair_kind == semantic_mapping`
+  - `semantic_mapping_kind == schematic_dc_function_label`
+  - `semantic_kind == schematic_semantic_endpoint`
+  - `semantic_endpoint == GND`
+  - 两者共享同一个 `numeric_endpoint_text_id`
+
+这个约束很重要，因为 second-set 里还有别的 `schematic_dc_function_label`：
+
+- `611 -> DC 0-5V/4-20mA +`
+- `609 -> DC 0-5V/4-20mA +`
+- `607 -> DC 0-5V/4-20mA +`
+
+如果把所有 `schematic_dc_function_label` 都消费掉，就会把别的 DC 语义簇也一起隐藏，这是错误的。当前实现只消费 `GND`。
+
+fresh verify 结果完全符合预期：
+
+- first fresh `.tmp/phase101_ground_first/...`
+  - `pair_count=1717` 不变
+  - pair-kind 分布不变
+  - `issue_count 91 -> 88`
+  - 仅消失：
+    - `PW0120 101 -> ?`
+    - `PW0141 101 -> ?`
+    - `PW0158 101 -> ?`
+- second fresh `.tmp/phase101_ground_second/...`
+  - `pair_count=1615` 不变
+  - pair-kind 分布不变
+  - `issue_count 12 -> 10`
+  - 仅消失：
+    - `PW0108 101 -> ?`
+    - `PW0121 101 -> ?`
+  - 明确保留：
+    - `PW0115 ? -> 105`
+    - `PW0128 ? -> 105`
+
+这证明：
+
+- `101 -> ?` 这批已经不该继续归类为“抽取缺口”
+- 它们是“语义证据已存在，但默认 ordinary 列表还没消费”的展示/合同问题
+- `? -> 105` 仍然是另外一类残差，当前没有被 `GND` 语义覆盖，不能顺手一起消掉
+
+对 next slice 的意义：
+
+- H02 现在进一步收缩为：
+  - `101` 的 GND 语义簇已闭合
+  - 剩余需要继续处理的是 `105` 以及更一般的 scoped-local/body-port 结构
+- H01 当前最值得继续审的残差只剩 first `11` 的：
+  - `PW0284 ? -> 601`
+  - `PW0285 601 -> 602`
+
+我还把这两条的候选证据审了一遍，结论是不该误判为另一种已存在语义：
+
+- `GW0284`
+  - 只有右侧 numeric `601` 被接受
+  - 左侧附近 `5FD2 / 5KLP8 / 1 / 2` 全被拒绝为 `not_numeric / single_char_layer_filtered`
+- `GW0285`
+  - 只有 `601 -> 602` 这组 numeric 被接受
+  - `BCJ / Mechanical relay start-up / 非电量出口启动 / 5FD27` 全被拒绝为 `not_numeric`
+
+因此，`601/602` 不是 “GND 语义消费漏掉了”，它更像：
+
+- 一个新的结构 family
+- 或者默认 user-visible 列表里不该继续保留的 internal/display-layer 候选
+
+## 161. 2026-07-09 wire-grid ordinary 只保留为 shadow 证据，默认列表正式转向结构源
+
+用户最新方向不是“再补一轮 ordinary 近邻规则”，而是：
+
+- `ordinary_pair` 继续保留为内部产物和回查证据
+- 但 `WireDiagramExtractor` 的默认审计主源应切换到 `wire/component/table/semantic/continuation/bridge`
+
+这件事在当前代码上可以安全推进，因为 phase101 的真实 issue 构成已经证明：
+
+- first phase101：`88` 条 issue 里，ordinary 只剩：
+  - `R-PAIR-MISSING-SIDE = 21`
+  - `R-PAIR-LOW-CONFIDENCE = 2`
+- second phase101：`10` 条 issue 里，ordinary 只剩：
+  - `R-PAIR-MISSING-SIDE = 4`
+- 更关键的是，这些 ordinary 并不承担 major consistency：
+  - first/second 的 `R-ONE-TO-MANY / R-MANY-TO-ONE / R-CROSS-PAGE-CONFLICT / R-DUPLICATE-PAIR`
+    都已经由 `component_mapping` 或 `table_mapping` 驱动
+
+所以 phase102 采取的不是“删 ordinary”，而是“让 wire-grid ordinary 退出默认审计资格”：
+
+- 新 helper：`page_extractors.py::_shadow_grid_wire_ordinary_pairs()`
+- 生效条件同时满足：
+  - `sheet_category == 二次原理图`
+  - `route_target == WireDiagramExtractor`
+  - `grid_heavy=True` 或 `page_subtype == grid_heavy_wire_diagram`
+  - `pair.evidence.line_orientation == "grid"`
+- 效果：
+  - `ordinary_pair_eligible=False`
+  - `ordinary_pair_shadow_only=True`
+  - `ordinary_pair_shadow_reason=wire_grid_primary`
+- 明确不做的事：
+  - 不 discard pair
+  - 不改 left/right value
+  - 不删 findings 产物
+
+fresh run 结果说明这刀是“主源迁移”而不是“藏数字”：
+
+- first fresh `.tmp/phase102_wire_shadow_first/...`
+  - `pair_count=1717` 不变
+  - pair-kind 分布不变
+  - `issue_count 88 -> 70`
+  - 被移除的 issue 全是 wire-grid ordinary 症状，来自：
+    - `08 差动保护及信号回路.dwg`
+    - `09 高后备保护及信号回路.dwg`
+    - `10 低后备保护及信号回路.dwg`
+    - `11 非电量开入回路.dwg`
+    - `14 高操作回路图.dwg`
+    - `15 低操作回路图.dwg`
+  - 剩余 ordinary issue 只在端子图：
+    - `25 左侧端子图2.dwg`
+    - `26 右侧端子图1.dwg`
+    - `27 右侧端子图2.dwg`
+- second fresh `.tmp/phase102_wire_shadow_second/...`
+  - `pair_count=1615` 不变
+  - pair-kind 分布不变
+  - `issue_count 10 -> 6`
+  - 默认列表已无任何 wire-grid ordinary
+  - 被移除的正好是：
+    - `PW0115/PW0128 = ? -> 105`
+    - `PW0291 = ? -> 507`
+    - `PW0442 = ? -> 501`
+  - 剩余默认 issue 全部来自 `table_mapping`
+
+这个结果直接支持后续 loop 的新节奏：
+
+1. `fresh analyze-project + run-audit`
+2. 只看结构源 default issues
+3. 对 shadow ordinary 做内部 diff / 视觉回查 / DWG 坐标核实
+4. 把真实 residual 提升成新的 structured family，而不是回头扩 ordinary 窗口
+
+对 H02 的直接含义：
+
+- `132` 类问题已经被 `scoped_visible_prefix_external_endpoint_mapping` 结构化闭合
+- `101` 已被 `GND` semantic consumption 闭合
+- `105` 现在不该作为 default ordinary 用户问题继续出现
+- 但它仍然存在于 shadow ordinary 中，正好作为下一刀“wire/semantic family 该怎么长”的输入证据
+
+## 162. 2026-07-09 second `06/10/14` residuals：这不是 ordinary，也不是 topology，而是匿名 wire port-box family
+
+围绕 second `06` 的 `PW0115/PW0128 = ? -> 105` 做完一轮“报错 → parquet/DWG 坐标回查 → 图面核对 → 归因”后，可以把这类 residual 从模糊的 `scoped_local_number_cluster` 进一步收紧成更具体的结构结论：
+
+- 它不是 topology recoverable。
+  - `phase99` 就已经把 second `06/10/14` 从 topology gray 候选里剔出；本轮细看也继续支持这个结论。
+  - `105/507/501` 缺的不是“线没并上”，而是“组件/端口结构没有进主链”。
+- 它也不是当前 `scoped_visible_prefix_external_endpoint_mapping` 的简单漏判。
+  - 该 family 的合同是：visible `n-prefix` + local number + same-row structured external endpoint。
+  - second `06` 里：
+    - `PWM0046/PWM0048` 已稳定给出 `3-21DK1 -> 3-21n103`、`1-21DK1 -> 1-21n103`
+    - `PWM0047/PWM0049` 已稳定给出 `3-21GD20 -> 3-21n132`、`1-21GD20 -> 1-21n132`
+    - 但 `105` 所在行只命中了右侧 local number 和左侧单字符端口 `2`；当前 family 要求的 same-row external endpoint 并不存在
+  - 因此如果靠放宽 row tolerance 去硬配 `DK2 -> 105`，本质是在把结构规则退化回近邻启发式
+
+second `06` 的局部结构，机器证据已经足够稳定：
+
+- 上下两套重复模块：
+  - visible prefix：`3-21n`、`1-21n`
+  - local stack：`101/132/105/103`
+  - repeated ports：`1/2/3/4`
+  - module label：`FCK-851C-G-1`
+- 关键差别：
+  - `132` 与 `103` 行都能被 current same-row family 命中
+  - `105` 行只到端口号 `2`
+  - 这说明 `105` 需要的是“端口矩阵/匿名小盒/模块体内部角色”这一层，而不是继续调 ordinary 或 same-row 条件
+
+更重要的是，这一模式不是单页孤例。second-set 中另外两个 shadow residual：
+
+- `PW0291 ? -> 507` on `10 测控1控制回路图1.dwg`
+- `PW0442 ? -> 501` on `14 测控2开入回路图3.dwg`
+
+都出现了同族信号：
+
+- repeated `1/2/3/4` ports
+- nearby structure labels such as `1-21CLP1` / `3-21CLP10` / `3-21CLP11` / `1-21ZK` / `1ZK`
+- repeated module label `FCK-851C-G-1`
+
+所以 next slice 的正确方向已经比较明确：
+
+1. 不是回 ordinary。
+2. 不是直接切 topology。
+3. 是新增一个 wire-side anonymous/body-port family。
+
+这个 family 最小应基于：
+
+- visible `n-prefix` 或等价逻辑作用域
+- local-number column
+- repeated port matrix (`1/2/3/4`)
+- module/body labels (`FCK-*`、`CLP/ZK/...` 等可作为辅助，但不应只靠某个具体字符串触发)
+- horizontal support lines / local component neighborhood
+
+而必须保留的 guardrail 是：
+
+- 不放宽 current scoped-prefix same-row family 的核心合同
+- 不因为出现某个具体数字（`105/507/501`）或某个具体 label 就直接配对
+- 不把单字符端口重新放回 ordinary candidate truth source
+
+因此，本轮最重要的工程结论不是“已经修了 `105`”，而是：
+
+- 我们已经把这批 residual 从“ordinary 症状”精确收敛成“匿名 wire port-box 结构族缺口”
+- 下一刀可以围绕这个抽象族写 extractor，而不是继续累积样本记忆规则
+
+## 163. 2026-07-09 second `06` `105` 已进入结构主链，但 `10/14` 与 first `11` 仍是下一轮
+
+围绕 second `06` 的 `PW0115/PW0128 = ? -> 105`，本轮终于完成了从“shadow ordinary 症状”到“结构化 pair”的闭环，而且没有把 `ordinary` 再抬回默认 truth source。
+
+### 163.1 本轮实现的通用约束
+
+新增的不是样本白名单，而是一条新的几何/结构合同：
+
+- body 形态：`*-21[A-Z]{2,4}\d+` 的 wire-logic body
+- 必须同时具备：
+  - 显式 `1/2/3/4` 端口
+  - 同 scope 的可见 `n` 前缀
+  - 局部号端点
+  - 水平 support line
+- 同时保留两个硬 guard：
+  - 如果该局部号同行已经存在可被 `scoped_visible_prefix_external_endpoint_mapping` 命中的 external endpoint，则不再补 body-port pair
+  - 不放宽 same-row tolerance，也不把单字符端口重新拉回 ordinary candidate truth source
+
+真正解决 second `06` 的关键，不是更大的窗口，而是一个更正确的 port-to-body 归组规则：
+
+- 对这个新 family，端口优先归到其下方 body。
+
+这是必要的，因为 second `06` 的 `105` 行里，`port 2` 在 generic nearest-body 视角下落在 `DK1 / DK2` 的歧义带中；如果不加这个合同，就会一直“看见端口和前缀”，但无法稳定落对 body。
+
+### 163.2 fresh verify 结果
+
+最终保留的产物是：
+
+- second final [phase103c_scoped_wire_logic_body_port_second/2_2](/F:/workspace/XJToolkit/.tmp/phase103c_scoped_wire_logic_body_port_second/2_2)
+- second final audit [phase103c_scoped_wire_logic_body_port_second_audit](/F:/workspace/XJToolkit/.tmp/phase103c_scoped_wire_logic_body_port_second_audit)
+- first final [phase103c_scoped_wire_logic_body_port_first](/F:/workspace/XJToolkit/.tmp/phase103c_scoped_wire_logic_body_port_first)
+- first final audit [phase103c_scoped_wire_logic_body_port_first_audit](/F:/workspace/XJToolkit/.tmp/phase103c_scoped_wire_logic_body_port_first_audit)
+
+结果非常干净：
+
+- second：
+  - `pair_count 1615 -> 1617`
+  - `wire_component_mapping 398 -> 400`
+  - `issue_count 6 -> 6`
+  - 精确新增两条：
+    - `PWM0050 3-21DK1-2 -> 3-21n105`
+    - `PWM0051 1-21DK1-2 -> 1-21n105`
+- first：
+  - `pair_count=1717` 不变
+  - `wire_component_mapping=187` 不变
+  - `issue_count=70` 不变
+
+这说明：
+
+- H02 里 second `06` 的 `105` 已经真正进了结构主链；
+- 这次没有靠 display-layer、shadow-only 或 issue filter 拿数字；
+- 这刀也没有顺手误伤 first 或 second 其它页。
+
+### 163.3 为什么 next slice 不再是 second `06`
+
+这刀之后，remaining gap 更清楚了：
+
+1. second `10` `PW0291 ? -> 507`
+2. second `14` `PW0442 ? -> 501`
+3. first `11` `PW0284 ? -> 601` / `PW0285 601 -> 602`
+
+它们与 second `06` 已经不是同一个最小 root cause：
+
+- second `06` 本轮吃掉的是“wire-logic body + 1/2/3/4 端口 + scoped local number”的结构；
+- second `10/14` 更像 `ZK/CLP` mixed contact/body family；
+- first `11` 更像 staggered `KLP` body-port family。
+
+所以，下一刀如果还想保持“一刀只修一个 root cause”，就不该再围绕 `105` 打转，而应该二选一：
+
+- 去收 `ZK/CLP` mixed family（second `10/14`）；
+- 或去收 staggered `KLP` family（first `11` `601/602`）。
+
+### 163.4 本轮的一个重要工程教训
+
+这刀有过两次失败，但都被 current-head 自证抓住了：
+
+1. 首版 fresh second `06` 零收益。
+   - 原因不是前缀、线段或 same-row guard，而是 `port 2` 被 generic nearest-body 判成 `DK1/DK2` 歧义。
+2. 第二版 helper 接线写反。
+   - 错把“body below port”归组接到了旧 `inline_body_port`，反而让 second `08/12` 多出不该归到这刀的 `KLP1` 收益。
+
+这两次失败都再次证明，当前项目最值钱的不是“又多写一条规则”，而是：
+
+- 每次 fresh run 之后，
+- 必须把新增/减少的 pair 精确对到图面结构，
+- 直到能说清楚“这刀到底吃掉的是哪一种 geometry contract”。
+
+## 164. 2026-07-09 `507/501/601/602` 的局部归属已经比“mixed family”更具体
+
+在 second `06` `105` 收口之后，我又对 `PW0291/PW0442/PW0284/PW0285` 做了一轮只读细查，目标不是立刻写下一刀，而是先把“它们到底是哪一类结构残余”再收紧一步，避免把后续 extractor 写成记忆式补丁。
+
+### 164.1 second `10/14`：右半边已经进主链，左半边才是真残余
+
+这两条 residual 现在不该再笼统叫 “`ZK/CLP` mixed family”。更准确的说法是：
+
+- row 的右半边已经被结构化；
+- 真正没进主链的是左半边 contact ownership。
+
+具体到两页：
+
+- `PW0291 = ? -> 507`
+  - 同带宽已存在 `PW0292 = 507 -> 1-21CD11`
+  - 同页可见重复 `1-21ZK` contact 栈：`13/14`、`5/6`、`9/10`
+  - residual 所在正是 `9/10` 这一行，且同 scope 有 `1-21n`
+  - 说明 `507` 并不是“裸 ordinary endpoint”，而更像需要补成 `1-21n507` 的 scoped local
+  - 同时，缺失的是“它左边属于哪个 `ZK` contact row / pin”，不是“它右边还没识别”
+- `PW0442 = ? -> 501`
+  - 同带宽已存在 `PW0443 = 501 -> 3-21CLP10`
+  - 相邻同 motif 还有 `PW0441 = 503 -> 3-21CLP11`
+  - 图面又同时出现 `1ZK`、`3/4`、`501/502`、`3-21CLP10`
+  - 更强的跨页证据是：背板文本里已经出现 `3-21n501,1ZK-4`
+  - 因此 `501` 更像 `ZK` contact-side scoped local，而不是纯 `CLP10` 的 body-port 残余
+
+这件事的工程意义很直接：
+
+- second `10/14` 的 next slice 不应再从 `CLP` 或 `CD` 右侧去补；
+- 应改成一个更通用的 `scoped_contact_row` family：
+  - `scope prefix (*n)`
+  - `ZK`/contact body
+  - 小触点号 `1/2/3/4/5/6/9/10/13/14`
+  - 同 support line 上的 local-number 列
+  - 可选 downstream body（`CLP*`、`CD*`、`KK*`）
+
+### 164.2 first `11`：`601` 归属已从 `5KLP9` 修正为 `5KLP8` 邻域
+
+上一轮文档里把 `PW0284/PW0285` 暂时写成 “`5KLP9 / 5FD27` 邻域待判”。这次交叉对全项目 findings 之后，这个猜测应该修正：
+
+- 项目里已经存在 `PCM0089 = 5KLP8-1 -> 5n601`
+- 同一族还存在 `PWM0109/PCM0090 = 5KLP8-2 -> 5n310`
+
+而 page `11 非电量开入回路.dwg` 的局部文本恰好是：
+
+- `5KLP8`
+- 上一行 `601`
+- 当前已被消费的下一行 `310`
+- 右侧还有 `5FD27`、`BCJ`、`Mechanical relay start-up / 非电量出口启动`
+
+所以更可信的结构解释是：
+
+- `601` 大概率属于 `5KLP8-1 -> 5n601` 这一族；
+- `310` 已经由 `5KLP8-2 -> 5n310` 收口；
+- `PW0284/PW0285` 的本质不是“601/602 都是裸数字 ordinary”，而是 `5KLP8` family 在 wire-grid 页上的 staggered 几何还没被当前 extractor 吃完整。
+
+### 164.3 `602` 仍然不是可以随手硬配的值
+
+相比 `601`，`602` 这次并没有找到同等级的 component-side 结构对照：
+
+- 当前 retained findings 里没有 `* -> 5n602` 的 component/wire-component pair；
+- 但 terminal/continuation 侧已经能看到 `602 -> ?`、`1n602`、`1-2n602` 这类 scoped continuation 症状；
+- page `11` 的局部右侧又贴着 `5FD27 / BCJ / 非电量出口启动`。
+
+因此，`602` 更像下面二选一的业务边界问题，而不是可以直接靠几何拍板：
+
+1. 它属于 `5FD27/BCJ` 这一条功能链，需要另一个语义/continuation 结构 family；
+2. 它目前只应保留为 scoped continuation/internal evidence，不应硬抬成 body-port pair。
+
+### 164.4 这轮之后最小人审输入再次缩小
+
+现在真正值得用户拍板的，已经不是“这些 ordinary 要不要保留”，而只剩：
+
+1. second `10/14`
+   - 左半边 scoped local 是否应归到 exact `ZK` contact pin；
+   - 还是只归到 grouped contact-row endpoint。
+2. first `11`
+   - `601` 是否确认按 `5KLP8-1 -> 5n601` 处理；
+   - `602` 是否属于 `5FD27/BCJ` 功能链，还是先留作 continuation/internal。
+
+如果这两条边界拍板，下一刀就能继续保持“通用结构 family”路线，而不必退回到 ordinary 近邻修补。
+
+## 165. 2026-07-10 架构根因从“补通用 family”升级为“依赖顺序错误”
+
+结合《XJCheck 线网识别引擎升级深度研究与架构改造建议 v0.3》重新审视 Phase 97-103 后，当前最重要的结论已经不是“下一条通用 family 应该写什么”，而是现有主链仍然把 topology 放在 Pair 之后。
+
+当前 shadow 事实是：
+
+```text
+LineGroup -> neighborhood candidate -> Pair -> issue -> topology explanation
+```
+
+这会让 topology 只能解释或替换旧 Pair 的候选，无法成为连接事实本身。Phase 99 已经证明，仅把 open endpoint 锚定接到旧候选链上，仍然会把 body-port、scoped local 和 semantic local 混在一起。
+
+### 165.1 新裁决
+
+主领域模型改为：
+
+```text
+Geometry Graph
+-> Symbol-Port Graph
+-> Electrical Net Graph
+-> Semantic Attachment Graph
+-> Project Graph
+-> RuleEngine
+```
+
+- Geometry 只决定几何接触候选，并使用 `ASSERTED/POSSIBLE/REJECTED/UNKNOWN` 四态。
+- Symbol-Port 决定端口、内部连通和块变换后的连接位置。
+- Electrical Net 只物化 `ASSERTED` 连接，并保留 uncertain edges 与 witness path。
+- Semantic Attachment 把数字、prefix、设备名和说明文字附着到 network/port/symbol；邻域仅作为特征。
+- Project Graph 形成跨页身份和冲突关系，规则只消费这一层。
+
+### 165.2 对当前 residual 的影响
+
+`501/507/601/602` 的局部审计仍有价值，但它们从“下一条 extractor family 的开发输入”改为“新五层主链的验收探针”：
+
+- `501/507` 检验 contact symbol port、local number、downstream body 和 scoped prefix 能否在不同层正确归属。
+- `601` 检验跨页已知 component port 与本页 staggered geometry 能否由约束求解统一。
+- `602` 检验 continuation/functional-chain 是否保持为替代解释，而不是被距离强行绑定到 KLP port。
+
+生产代码不得硬编码这些数字、文件名或坐标。
+
+### 165.3 旧资产如何保留
+
+- T0 coverage 和 T1 topology shadow 保留，并成为新基线的一部分。
+- LineGroup、TerminalCandidate、PairCandidate 和 Pair 保留为 compatibility/shadow 输出。
+- 现有已验证的 structured mapping 不回滚；后续需要给出对应的 NetworkEndpoint/ProjectGraph 等价关系。
+- 未完成的旧 T2 endpoint assignment 停止；T3 symbol bootstrap 按新 Symbol-Port schema 重启；T4 rules shrink 推迟到 Project Graph 接管后。
+
+### 165.4 下一步不再是逐 issue 修复
+
+下一步应先冻结 current-head baseline，定义五层 schema、ID/provenance、四态 topology decision 和置信度分解，再把 topology 构建前移到 extraction shadow 位置。只有 Geometry/Network 与 Symbol-Port 产物稳定后，才继续语义归属、ConstraintResolver 和跨页规则迁移。
+
+## 166. 2026-07-10 Phase 104 首刀证明：第三套样本已经量化暴露 legacy 泛化边界
+
+Phase 104 已不再停留在架构文字层。本轮用四个 `gpt-5.6-terra` 子代理并发完成 baseline、调用链、ADR/schema 和配置合同审计，主线程完成 fresh 实跑、冻结工具与全量验证。
+
+### 166.1 当前 topology 的精确位置已经确认
+
+当前实际顺序是：
+
+```text
+extract_cad_artifacts
+-> page classify / route
+-> line_groups / candidates / pairs
+-> ProjectArtifacts
+-> write_project_artifacts
+-> build_wire_topology_frames
+-> run-audit / topology shadow report
+```
+
+`build_wire_topology_frames()` 的核心输入只需要 pages/lines/texts/blocks；它对 LineGroup 的依赖主要用于补兼容列。因此新 Geometry shadow 可以在 audit scope 准备完成后、route extractor 之前前移，而旧 Pair 产物继续保持零漂移。
+
+但当前 `wire_topology.py` 还不能直接变成新真值：T 型和部分 bridge 证据会直接 union，文本/块 gap 没有完整四态 decision，原始长线也没有先在所有确定交点处分段。它必须作为 legacy shadow 保留，新主链另产 primitive/observation/decision/net/witness 表。
+
+### 166.2 两套正式 baseline 已冻结
+
+first：
+
+- `pairs=1717`
+- `issues=70`
+- `wire_junctions=23148`
+- `wire_networks=609`
+- `unassigned_wire_segments=6868`
+- `unclassified_blocks=1034`
+
+second：
+
+- `pairs=1617`
+- `issues=6`
+- `wire_junctions=18929`
+- `wire_networks=358`
+- `unassigned_wire_segments=5305`
+- `unclassified_blocks=1126`
+
+每套 bundle 已用新的 `freeze-baseline` 命令冻结 artifact SHA、Parquet 行数、配置、人工裁决、Git 工作树身份和红线恒等式。所有红线均通过。
+
+### 166.3 第三套 held-out 结果否定了“现有 family 已足够通用”
+
+选择合同目录中的 `10000 远动通信柜` 作为独立第三项目探针：
+
+- `12 sheets`
+- `527 pairs`
+- `17 issues`
+- `ordinary_pair=491`
+- `component_mapping=28`
+- `table_mapping=6`
+- `continuation=2`
+- `wire_component_mapping=0`
+- `semantic_mapping=0`
+
+17 条 issue 中，16 条集中在四张元件接线图，表现为局部引脚 `1/2/4/5/6/12/14` 被 legacy ordinary 识别成缺侧或低置信关系。这个结果说明 first/second 上积累的 wire-component/semantic family 没有自然迁移到新的设计风格。
+
+正确归因是：SymbolInstance、SymbolPort、内部连通和 text slot 尚未成为主领域对象。错误做法是为第三套块名和数字继续补候选正则。
+
+### 166.4 Phase A 已经形成可执行合同
+
+新增的 ADR、Graph Schema v1 和安全配置声明已经规定：
+
+- `ASSERTED/POSSIBLE/REJECTED/UNKNOWN` 四态必须全部落盘；只有 ASSERTED 可物化 net。
+- 每个 net/port/assignment/cross-page choice 必须有 provenance、confidence 与 witness。
+- 当前仍由 `primary_engine=legacy` 生成用户结果；新图表只 shadow 增量输出。
+- legacy neighborhood 在 topology 接管后只能生成文本候选，不得决定 connectivity 或 final pair。
+
+全量测试从本轮起的新基线为 `333 passed`。
+
+## 167. 2026-07-10 Phase 105 首个通用线路切片：先拆真实边，再谈端点语义
+
+### 167.1 这不是第三套样本规则
+
+新增 `geometry_graph.py` 只读取审计区内 CAD line geometry。它不读取文本、端子值、文件名、设备 family 或项目身份来决定连通，因此 held-out 项目只用于测量，不用于产生规则。
+
+当前 shadow 顺序为：严格端点吸附 -> 断言 T/marker 交点 -> 原始线段按交点拆 edge -> canonical node degree -> edge-based component。无点十字默认不连接；文本和 block gap 不得制造 geometry edge。
+
+### 167.2 legacy 宽容差不能直接升级为拓扑真值
+
+首次实跑若沿用 legacy `junction_snap_tolerance=1.8`，first/second 会产生最高 degree 20/34 的过度吸附节点。新图因此单独使用 `geometry_graph_asserted_snap_tolerance=0.05`，宽容差只留在 legacy shadow。近距离但不精确的连接以后必须进入 POSSIBLE observation，而不是直接并网。
+
+### 167.3 连接点标记必须先从 wire primitive 中分离
+
+最高度节点复审发现，多条长度 0.5 的 `LWPOLYLINE` 线段具有同 parent handle、完全反向重合的几何；它们是连接点标记，不是多条导线。通用 primitive classifier 将其归为 connection marker：marker 自身不进入 edge，只在正交交点处提供 ASSERTED junction evidence。处理后 first/second/held-out 的最高 degree 降为 7/8/8。
+
+### 167.4 ordinary 回退现在有了可量化的几何前置指标
+
+legacy Pair 暂不改变，只把其 LineGroup member lines 投影到纯几何 component：
+
+- first：728 条 ordinary 中 579 条落到唯一 component，149 条跨多个 component，唯一率 79.5330%。
+- second：561 条中 338 条唯一、223 条多 component，唯一率 60.2496%。
+- held-out：491 条中 434 条唯一、57 条多 component，唯一率 88.3910%。
+
+第三套在没有 first/second structural family 的情况下反而具有最高几何唯一率。这说明增加更多测试图本身不会提高算法；下一步应解释 second 的 223 个几何断裂，并建设 Symbol-Port/Text Attachment，而不是继续扩大 ordinary 邻域白名单。
+
+该投影只证明 LineGroup 是否有唯一 geometry context，不证明左右文本值正确，不自动消 issue，也不改变 coverage。完整 Graph Schema v1 仍需 primitive provenance、四态 observation/decision、Electrical Net witness path 和端口绑定。
+
+## 168. 2026-07-10 多 component 不等于应当自动接通：四态 observation 已落盘
+
+### 168.1 second 的 223 条已形成结构统计
+
+只读重建显示，约 94% 是“两条 LineGroup member line -> 两个 geometry component”，约 80% 的最近端点 gap 位于 10-25 图纸单位。它们主要来自 grid-heavy 二次原理图中的 CONNECT LINE，不是 `0.05` asserted snap 的数值误差，也不是继续扩大 snap tolerance 的理由。
+
+### 168.2 四态必须先于自动修复
+
+新增 `geometry-shadow/v1` observation：
+
+- 精确或 marker 支撑的既有 junction 为 ASSERTED。
+- 唯一、同轴、相向且位于配置观察距离内的开放端点为 POSSIBLE。
+- 任一端存在多个 gap 候选时为 UNKNOWN。
+- 没有 marker 的内部十字按当前策略记录 REJECTED，不再静默消失。
+
+只有 ASSERTED 已进入 geometry component。POSSIBLE/UNKNOWN 不并线，REJECTED 保持断开；因此 observation 增量不会通过“扩大容差”伪造 issue 降低。
+
+### 168.3 三套图的差异说明不能套同一修复
+
+- first：149 条多 component ordinary 中 141 条有 gap evidence，96 条包含 POSSIBLE、48 条包含 UNKNOWN。
+- second：223 条中 214 条有 evidence，但只有 42 条包含 POSSIBLE，180 条涉及 UNKNOWN。
+- held-out：57 条中只有 20 条有 evidence，20 条均为 POSSIBLE，没有 UNKNOWN。
+
+同一 Pair 可跨多个 component，因此可能同时包含 POSSIBLE 和 UNKNOWN。second 的高 UNKNOWN 比例意味着下一步应建立 Symbol-Port 约束来消歧，不能把 214 条全部桥接；held-out 的 37 条无 gap 也说明 geometry-only gap 不是 universal answer。
+
+正式 Graph Schema v1 仍需 provenance/run/confidence closure 和 topology_decisions。本轮产物明确使用 shadow schema，避免在证据未闭合前宣称它是电气网络真值。

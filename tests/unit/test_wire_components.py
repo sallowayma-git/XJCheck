@@ -407,6 +407,65 @@ def test_extract_component_prefixed_signal_pairs_builds_inline_zkk_body_port_map
     assert first.evidence["local_number_text_id"] == "E1"
 
 
+def test_extract_component_prefixed_signal_pairs_builds_scoped_wire_logic_body_port_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("SP1", "3-21n", 285.0, 217.0),
+        _make_text("B1", "3-21DK1", 196.423569, 210.461523),
+        _make_text("P1", "1", 186.874302, 198.784916),
+        _make_text("P2", "2", 206.874302, 198.791899),
+        _make_text("E1", "105", 265.622905, 198.162655),
+        _make_text("P3", "3", 186.874302, 208.777933),
+        _make_text("P4", "4", 206.874302, 208.791899),
+        _make_text("E2", "103", 265.622905, 208.162655),
+        _make_text("SP2", "1-21n", 285.0, 284.5),
+        _make_text("B2", "1-21DK1", 196.423569, 277.961523),
+        _make_text("P5", "1", 186.874302, 266.284916),
+        _make_text("P6", "2", 206.874302, 266.291899),
+        _make_text("E3", "105", 265.622905, 265.662655),
+        _make_text("P7", "3", 186.874302, 276.277933),
+        _make_text("P8", "4", 206.874302, 276.291899),
+        _make_text("E4", "103", 265.622905, 275.662655),
+    ]
+
+    lines = [
+        _make_line("L1", 207.5, 197.5, 267.5, 197.5),
+        _make_line("L2", 207.5, 207.5, 267.5, 207.5),
+        _make_line("L3", 207.5, 265.0, 267.5, 265.0),
+        _make_line("L4", 207.5, 275.0, 267.5, 275.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts, lines)
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert {
+        ("3-21DK1-2", "3-21n105"),
+        ("1-21DK1-2", "1-21n105"),
+    } <= pair_values
+    assert ("3-21DK1-4", "3-21n103") not in pair_values
+    assert ("1-21DK1-4", "1-21n103") not in pair_values
+    first = next(pair for pair in pairs if pair.left_value == "3-21DK1-2")
+    assert first.evidence["component_submode"] == "inline_body_port_mapping"
+    assert first.evidence["component_body"] == "3-21DK1"
+    assert first.evidence["component_port"] == "2"
+    assert first.evidence["local_number"] == "105"
+
+
+def test_extract_component_prefixed_signal_pairs_requires_line_evidence_for_scoped_wire_logic_body_port_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("SP1", "3-21n", 285.0, 217.0),
+        _make_text("B1", "3-21DK1", 196.423569, 210.461523),
+        _make_text("P1", "1", 186.874302, 198.784916),
+        _make_text("P2", "2", 206.874302, 198.791899),
+        _make_text("E1", "105", 265.622905, 198.162655),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts)
+
+    assert pairs == []
+
+
 def test_extract_component_prefixed_signal_pairs_requires_inline_klp_line_evidence() -> None:
     sheet = _make_sheet()
     texts = [

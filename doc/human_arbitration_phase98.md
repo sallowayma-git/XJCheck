@@ -521,7 +521,7 @@ Phase 98 初版 shadow report 已经证明“线网层有信号”，但它对 `
 ### 仍需你裁决的最小残余
 
 1. first `06 直流回路图.dwg`
-   - 仅剩三条：
+  - 仅剩三条：
      - `PW0120 101 -> ?`
      - `PW0141 101 -> ?`
      - `PW0158 101 -> ?`
@@ -548,3 +548,243 @@ Phase 98 初版 shadow report 已经证明“线网层有信号”，但它对 `
   - `issue_count 12 -> 12`
 
 因此，本轮下降是结构补全后消费旧裸 ordinary，不是隐藏、删对或降级。
+
+## 自动闭合回填（2026-07-09，GND 语义 half-pair 消费）
+
+上一轮保留给你的 first `06` 三条 `101 -> ?`，本轮已经不用再人工裁决了。
+
+### 已自动闭合，无需继续人审
+
+- first `06 直流回路图.dwg`
+  - 已消费：
+    - `PW0120 101 -> ?`
+    - `PW0141 101 -> ?`
+    - `PW0158 101 -> ?`
+  - 原因不是补了几何识别，而是主链现在会消费已经存在的 `GND -> 101` semantic_mapping 证据
+- second `06 直流回路图.dwg`
+  - 同样自动闭合：
+    - `PW0108 101 -> ?`
+    - `PW0121 101 -> ?`
+
+### 仍需你裁决的最小残余
+
+1. first `11 非电量开入回路.dwg`
+   - `PW0284 ? -> 601`
+   - `PW0285 601 -> 602`
+   - 这两条依然是当前最小、最集中的剩余人工判断点
+2. second `06 直流回路图.dwg`
+   - `PW0115 ? -> 105`
+   - `PW0128 ? -> 105`
+   - 这两条没有被 `GND` 语义覆盖，所以本轮刻意保留，避免“顺手一起吃掉”
+3. second 其他 residual
+   - `PW0291 ? -> 507`
+   - `PW0442 ? -> 501`
+   - 仍待后续 `H01/H06` 局部数字政策或 display-layer 裁决
+
+### 边界说明
+
+- 本轮只消费 `semantic_mapping_kind=schematic_dc_function_label` 且语义值明确为 `GND` 的裸 half-pair
+- 没有把其他 DC semantic rows 一起隐藏；例如 second-set 的 `607/609/611 -> DC 0-5V/4-20mA +` 并未触发这条逻辑
+- 因此，这一刀属于“默认列表合同更诚实”，不是扩大 suppress 范围
+
+## 自动闭合回填（2026-07-09，wire-grid ordinary shadow mode）
+
+这不是新的样本规则，而是默认审计主源的一次合同切换：
+
+- `WireDiagramExtractor` 的 `grid_heavy` ordinary 继续保留在 findings 里
+- 但默认用户问题列表不再把它当成主 truth source
+- 后续这类症状应进入：
+  - 结构化 family 开发输入
+  - 或 internal/shadow 层
+
+### 这轮后已无需你继续人审的项
+
+1. second `06 直流回路图.dwg`
+   - `PW0115 ? -> 105`
+   - `PW0128 ? -> 105`
+   - 原因：
+     - 这两条现在已从 default issue list 退出
+     - 但相关 ordinary pair 仍保留在 findings 里，后续可继续做 wire/semantic family 结构化
+2. second 其他 wire-grid residual
+   - `PW0291 ? -> 507`
+   - `PW0442 ? -> 501`
+   - 同样转入 shadow ordinary，等待下一刀结构化收口
+
+### 这轮后 first 样本仍值得继续人工盯的最小点
+
+1. first `11 非电量开入回路.dwg`
+   - `PW0284 ? -> 601`
+   - `PW0285 601 -> 602`
+   - 当前 default list 里，这两条已不再作为 wire-grid ordinary 暴露
+   - 但从结构开发视角，它们仍是下一刀最值得追的 residual family 候选
+
+### 解释一下为什么这次可以转 shadow
+
+- phase102 fresh run 后：
+  - first `88 -> 70`
+  - second `10 -> 6`
+- 且 second 默认列表已完全没有 wire-grid ordinary，只剩 `table_mapping`
+- 说明 ordinary 退场没有破坏结构主链；相反，它逼着后续开发直接面对真正的 wire/component/table/semantic 能力缺口
+
+## 本轮新增：匿名 wire port-box 结构族已经浮出水面，先不需要你逐条看 ordinary
+
+这轮我没有继续让你盯 `PW0115/PW0128/PW0291/PW0442` 这几个 `? -> 数字` 的 ordinary 症状本身，因为机器侧已经能比较稳定地说明：它们不是 ordinary 业务问题，而是同一类结构抽取缺口。
+
+### 机器已能稳定说明的部分
+
+1. second `06 直流回路图.dwg`
+   - `PW0115 ? -> 105`
+   - `PW0128 ? -> 105`
+   - 已确认共性：
+     - 有 `3-21n / 1-21n` 作用域前缀；
+     - 有 `101/132/105/103` 局部号栈；
+     - 有重复的 `1/2/3/4` 端口矩阵；
+     - 有模块标签 `FCK-851C-G-1`；
+     - `132` 与 `103` 已能被现有结构化 family 命中，只有 `105` 卡在“只识别到端口号、没识别到组件内部角色”。
+2. second `10 测控1控制回路图1.dwg`
+   - `PW0291 ? -> 507`
+   - 周围同样存在端口矩阵、`1-21CLP1`、`1-21ZK`、`FCK-851C-G-1`。
+3. second `14 测控2开入回路图3.dwg`
+   - `PW0442 ? -> 501`
+   - 周围同样存在端口矩阵、`3-21CLP10/11`、`1ZK`、`FCK-851C-G-1`。
+
+### 因此这轮不再需要你裁决的内容
+
+- 不需要再判断这些 `? -> 105/507/501` 是否继续留在 ordinary 默认列表。
+- 这件事已经由 phase102 的 shadow-only 合同处理完毕：它们退出 default issues，但保留为内部结构开发证据。
+
+### 这轮只剩一个最小的人审问题，等我下一刀实现前再请你拍板
+
+如果你愿意先给业务确认，我只需要下面这类“目标关系是否正确”的答复，不再问 ordinary：
+
+1. second `06`
+   - `3-21DK2 -> 3-21n105` 是否就是你认可的目标关系？
+   - `1-21DK2 -> 1-21n105` 是否同理？
+2. second `10/14`
+   - `507`、`501` 这类数字在这些页里，是否也应被解释为某个 `*n###` 或 `CLP/ZK/...` 组件逻辑端，而不是裸外部端点？
+
+如果你暂时不回这两点，也不阻塞下一步，因为本轮机器证据已经足够让我先定义“匿名 wire port-box” extractor 的通用规格。下一轮我会先按这个规格实现，再把真正剩下需要你拍板的关系压到最小。
+
+## 自动闭合回填（2026-07-09，second `06` `105` 已结构化闭合）
+
+这轮之后，second `06 直流回路图.dwg` 的 `PW0115/PW0128 = ? -> 105` 不再需要你继续人审。
+
+### 已自动闭合，无需继续人审
+
+- second `06 直流回路图.dwg`
+  - 新增结构化 pair：
+    - `3-21DK1-2 -> 3-21n105`
+    - `1-21DK1-2 -> 1-21n105`
+  - 这两条来自新的 `wire-logic body + explicit port + scoped n-prefix + local number + support line` family
+  - 不是 ordinary suppress，不是 same-row tolerance 放宽
+
+### 这轮后剩余需要你拍板的最小集合
+
+1. second `10 测控1控制回路图1.dwg`
+   - `PW0291 ? -> 507`
+   - 机器当前判断：
+     - 这不是 ordinary 默认用户问题
+     - 更像 `ZK/CLP` mixed structure 里的局部号
+   - 需要你拍板的不是“要不要保留 ordinary”，而是：
+     - `507` 最终应归到哪种逻辑端 family
+2. second `14 测控2开入回路图3.dwg`
+   - `PW0442 ? -> 501`
+   - 机器当前判断同上：
+     - 更像 `ZK/CLP` mixed structure 的 body-port/contact residual
+   - 需要你拍板：
+     - `501` 该归到哪种逻辑端 family
+3. first `11 非电量开入回路.dwg`
+   - `PW0284 ? -> 601`
+   - `PW0285 601 -> 602`
+   - 机器当前判断：
+     - 这两条更像 staggered `KLP` body-port family 的几何边界缺口
+     - 在 family 落地主链前，继续留在 `internal/shadow` 是对的
+   - 需要你拍板：
+     - 它们最终是否应解析到 `5KLP9 / 5FD27` 这一带的结构关系
+
+### 当前最小人审问题，建议你只回这 2 条
+
+1. second `10/14`
+  - `507 / 501` 在业务上分别应该归到什么 family：
+     - `ZK` contact 端口
+     - `CLP` 逻辑端
+     - 还是别的 scoped local 逻辑端
+2. first `11`
+  - `601 / 602` 是否应被视为 `5KLP9` 邻域的一部分结构关系，而不是裸数字对
+
+## 局部归属复审回填（2026-07-09，最小问题继续缩小）
+
+这轮我没有继续扩大 ordinary 审计，而是把保留下来的四个 shadow residual 再往结构层收紧了一步：
+
+- second `10`：`PW0291 = ? -> 507`
+- second `14`：`PW0442 = ? -> 501`
+- first `11`：`PW0284 = ? -> 601`
+- first `11`：`PW0285 = 601 -> 602`
+
+### second `10/14`：现在更像 `ZK` contact-side scoped local，不再只是笼统 `ZK/CLP mixed`
+
+机器已经能稳定证明：
+
+1. `PW0291 ? -> 507`
+   - 同带宽已存在 `PW0292 = 507 -> 1-21CD11`
+   - 也就是 `507` 的右半边已经进主链，剩余只是左侧 contact owner 没进来
+   - 同 row/邻 row 还能看到：
+     - `1-21ZK`
+     - `9/10`
+     - `507/508`
+     - page scope `1-21n`
+   - 这更像 `ZK` 触点侧 scoped local，而不是裸 ordinary endpoint
+2. `PW0442 ? -> 501`
+   - 同带宽已存在 `PW0443 = 501 -> 3-21CLP10`
+   - 相邻 row 还有 `PW0441 = 503 -> 3-21CLP11`
+   - 同时图面出现：
+     - `1ZK`
+     - `3/4`
+     - `501/502`
+     - `3-21CLP10`
+     - page scope `3-21n`
+   - 跨页还有一个很强的旁证：`3-21n501,1ZK-4`
+   - 所以 `501` 更像 `ZK` contact-side scoped local，`CLP10` 只是 downstream body，不是唯一 owner
+
+因此 second `10/14` 现在只剩一个很小的业务问题需要你拍板：
+
+- 这类 row 最终应该发成：
+  - exact `ZK` contact pin -> scoped local
+  - 还是 grouped `ZK` contact-row endpoint -> scoped local
+
+### first `11`：`601` 的邻域已经从旧的 `5KLP9` 猜测修正为 `5KLP8`
+
+我又对全项目 findings 做了交叉核对，发现：
+
+- 已经存在 `PCM0089 = 5KLP8-1 -> 5n601`
+- 也存在 `PWM0109/PCM0090 = 5KLP8-2 -> 5n310`
+
+所以 `PW0284/PW0285` 的局部解释应改成：
+
+- `601` 更像 `5KLP8-1 -> 5n601` 的 staggered 几何残余；
+- `310` 已经被 `5KLP8-2 -> 5n310` 吃掉；
+- 旧文档里那句“`5KLP9 / 5FD27` 邻域”需要修正，至少 `601` 不该再优先挂到 `5KLP9`。
+
+### `602` 仍需要你定业务边界
+
+和 `601` 不同，`602` 目前还没有找到同等级的 component-side 结构对照：
+
+- 当前没有 `* -> 5n602` 的 component/wire-component pair；
+- 但 terminal/continuation 侧已经能看到 `602 -> ?`、`1n602`、`1-2n602` 这类 scoped continuation 证据；
+- page `11` 本地又贴着 `5FD27 / BCJ / 非电量出口启动`。
+
+因此 `602` 现在更像一个业务边界题，而不是几何题：
+
+- 它是否属于 `5FD27/BCJ` 功能链的一部分？
+- 还是它当前只应保留为 scoped continuation/internal evidence，不急着落成 body-port pair？
+
+## 现在真正建议你只回这 3 个判断
+
+1. second `10/14`
+   - `507 / 501` 是否确认归给 `ZK` 触点侧，而不是 `CLP`/`CD` 侧？
+   - 如果确认，owner 你更希望我们发成“exact pin”还是“contact-row grouped endpoint”？
+2. first `11`
+   - `601` 是否确认按 `5KLP8-1 -> 5n601` 处理？
+3. first `11`
+   - `602` 是否属于 `5FD27/BCJ` 功能链；
+   - 还是先留作 continuation/internal，不在这一刀里强行抽成 body-port pair？

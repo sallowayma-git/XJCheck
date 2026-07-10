@@ -29,6 +29,9 @@ from dwg_audit.domain.models import TextItem
 from dwg_audit.domain.models import record_dict
 from dwg_audit.audit.coverage import build_entity_coverage_summary
 from dwg_audit.audit.coverage import build_text_assignment_frame
+from dwg_audit.audit.geometry_graph import build_geometry_graph_frames
+from dwg_audit.audit.geometry_graph import build_geometry_observation_frame
+from dwg_audit.audit.geometry_graph import build_pair_geometry_shadow_frame
 from dwg_audit.audit.wire_topology import build_wire_topology_frames
 
 _REPORT_FORMATS = ("md", "html", "xlsx")
@@ -126,10 +129,39 @@ def write_project_artifacts(
         artifacts,
         config=config,
     )
+    geometry_nodes, geometry_edges, geometry_components, _ = build_geometry_graph_frames(
+        artifacts,
+        config=config,
+    )
+    geometry_observations, geometry_observation_summary = build_geometry_observation_frame(
+        artifacts,
+        geometry_nodes,
+        geometry_edges,
+        geometry_components,
+        config=config,
+    )
+    pair_geometry_shadow, pair_geometry_shadow_summary = build_pair_geometry_shadow_frame(
+        artifacts,
+        geometry_components,
+        geometry_observations,
+    )
     text_assignments.to_parquet(findings_dir / "text_assignments.parquet", index=False)
     entity_coverage_summary_frame.to_parquet(findings_dir / "entity_coverage_summary.parquet", index=False)
     wire_junctions.to_parquet(findings_dir / "wire_junctions.parquet", index=False)
     wire_networks.to_parquet(findings_dir / "wire_networks.parquet", index=False)
+    geometry_nodes.to_parquet(findings_dir / "geometry_shadow_nodes.parquet", index=False)
+    geometry_edges.to_parquet(findings_dir / "geometry_shadow_edges.parquet", index=False)
+    geometry_components.to_parquet(findings_dir / "geometry_shadow_components.parquet", index=False)
+    geometry_observations.to_parquet(findings_dir / "geometry_shadow_observations.parquet", index=False)
+    (findings_dir / "geometry_shadow_observation_summary.json").write_text(
+        json.dumps(geometry_observation_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    pair_geometry_shadow.to_parquet(findings_dir / "pair_geometry_shadow.parquet", index=False)
+    (findings_dir / "pair_geometry_shadow_summary.json").write_text(
+        json.dumps(pair_geometry_shadow_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     findings_payload = _build_findings_payload(
         artifacts,
@@ -1201,6 +1233,13 @@ def _build_findings_payload(
         "entity_coverage_summary.parquet",
         "wire_junctions.parquet",
         "wire_networks.parquet",
+        "geometry_shadow_nodes.parquet",
+        "geometry_shadow_edges.parquet",
+        "geometry_shadow_components.parquet",
+        "geometry_shadow_observations.parquet",
+        "geometry_shadow_observation_summary.json",
+        "pair_geometry_shadow.parquet",
+        "pair_geometry_shadow_summary.json",
         "extraction_warnings.parquet",
         "source_files.parquet",
         "sidecars.parquet",

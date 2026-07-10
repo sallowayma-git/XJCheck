@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xjcheck.local/schemas/project_profile.schema.json",
+  "title": "XJCheck Project Profile",
+  "type": "object",
+  "required": ["profile_version", "project_id", "page_order", "terminal_strips"],
+  "properties": {
+    "profile_version": {"type": "string"},
+    "project_id": {"type": "string"},
+    "project_name": {"type": "string"},
+    "source_sidecars": {"type": "array", "items": {"type": "string"}},
+    "page_order": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sheet_order", "filename", "category"],
+        "properties": {
+          "sheet_order": {"type": "integer", "minimum": 1},
+          "filename": {"type": "string"},
+          "category": {"type": "string"},
+          "audit_policy": {"enum": ["audit", "metadata_only", "skip", "review"]}
+        }
+      }
+    },
+    "terminal_strips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "side"],
+        "properties": {
+          "name": {"type": "string"},
+          "side": {"enum": ["左侧", "右侧", "未知"]},
+          "length": {"type": ["number", "null"]},
+          "aliases": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "connection_media": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "rule_scheme": {"type": "string"}
+  },
+  "additionalProperties": true
+}

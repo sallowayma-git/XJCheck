@@ -1,6 +1,8 @@
 from dwg_audit.audit.page_extractors import _mark_input_matrix_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation_pairs
 from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
+from dwg_audit.audit.page_extractors import _mark_schematic_ground_covered_ordinary_pairs
+from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
 from dwg_audit.audit.rules import build_issues
 from dwg_audit.domain.models import LineGroup
@@ -38,8 +40,28 @@ def _pair(
     )
 
 
-def _sheet(category: str = "二次原理图") -> SheetRecord:
-    return SheetRecord("S1", "F1", "04 交流回路图1.dwg", 4, "04", "CT AND VT INPUT", category, "primary", "filename", True)
+def _sheet(
+    category: str = "二次原理图",
+    *,
+    route_target: str | None = None,
+    page_subtype: str | None = None,
+    grid_heavy: bool | None = None,
+) -> SheetRecord:
+    return SheetRecord(
+        "S1",
+        "F1",
+        "04 交流回路图1.dwg",
+        4,
+        "04",
+        "CT AND VT INPUT",
+        category,
+        "primary",
+        "filename",
+        True,
+        route_target=route_target,
+        page_subtype=page_subtype,
+        grid_heavy=grid_heavy,
+    )
 
 
 def _line_group(
@@ -456,3 +478,77 @@ def test_mark_schematic_ac_phase_covered_ordinary_pairs_keeps_terminal_semantic_
 
     assert ordinary.status == "review"
     assert "covered_by_schematic_ac_phase_label_semantic_mapping" not in ordinary.evidence
+
+
+def test_mark_schematic_ground_covered_ordinary_pairs_discards_gnd_shared_numeric_half_pair() -> None:
+    ordinary = _pair({"selected_left_text_id": "DC101"}, left_text_id="DC101")
+    ordinary.left_value = "101"
+    ordinary.right_value = None
+    semantic = _pair(
+        {
+            "semantic_kind": "schematic_semantic_endpoint",
+            "semantic_mapping_kind": "schematic_dc_function_label",
+            "semantic_endpoint": "GND",
+            "numeric_endpoint_text_id": "DC101",
+        },
+        pair_kind="semantic_mapping",
+        right_text_id="DC101",
+    )
+
+    _mark_schematic_ground_covered_ordinary_pairs([ordinary, semantic], [_sheet()])
+
+    assert ordinary.status == "discard"
+    assert ordinary.confidence_bucket == "low"
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["covered_by_schematic_ground_semantic_mapping"] is True
+    assert "GND-covered numeric text" in ordinary.rationale
+
+
+def test_mark_schematic_ground_covered_ordinary_pairs_keeps_non_gnd_or_complete_pairs() -> None:
+    ordinary = _pair({"selected_left_text_id": "DC611"}, left_text_id="DC611")
+    ordinary.left_value = "611"
+    ordinary.right_value = None
+    complete = _pair({"selected_left_text_id": "DC101"}, left_text_id="DC101")
+    complete.left_value = "101"
+    complete.right_value = "GND"
+    non_gnd_semantic = _pair(
+        {
+            "semantic_kind": "schematic_semantic_endpoint",
+            "semantic_mapping_kind": "schematic_dc_function_label",
+            "semantic_endpoint": "DC 0-5V/4-20mA +",
+            "numeric_endpoint_text_id": "DC611",
+        },
+        pair_kind="semantic_mapping",
+        right_text_id="DC611",
+    )
+
+    _mark_schematic_ground_covered_ordinary_pairs(
+        [ordinary, complete, non_gnd_semantic],
+        [_sheet()],
+    )
+
+    assert ordinary.status == "review"
+    assert "covered_by_schematic_ground_semantic_mapping" not in ordinary.evidence
+    assert complete.status == "review"
+    assert "covered_by_schematic_ground_semantic_mapping" not in complete.evidence
+
+
+def test_shadow_grid_wire_ordinary_pairs_marks_wire_grid_pairs_ineligible() -> None:
+    ordinary = _pair({"line_orientation": "grid"})
+    ordinary.status = "pass"
+    ordinary.confidence_bucket = "high"
+
+    _shadow_grid_wire_ordinary_pairs(
+        [ordinary],
+        [
+            _sheet(
+                route_target="WireDiagramExtractor",
+                page_subtype="grid_heavy_wire_diagram",
+                grid_heavy=True,
+            )
+        ],
+    )
+
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["ordinary_pair_shadow_only"] is True
+    assert ordinary.evidence["ordinary_pair_shadow_reason"] == "wire_grid_primary"

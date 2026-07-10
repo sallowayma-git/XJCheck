@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 99 (Topology Track T2)
+Phase 104 (Topology-First Architecture Reset / Phase A)
 
 ## Phases
 
@@ -1413,7 +1413,7 @@ Phase 99 (Topology Track T2)
   - 旧补偿路径（inline bridge、complementary half-chain、row-band gap 症状）在灰度页内应因 network 桥接自然失效，不得以 filter/suppress 实现。
 - [ ] 风险门槛：任务书 18.7.7 红线关系逐条保持；coverage 三指标不得回升；若首批页收益未达影子报告预测的大半，停止扩页、回审 T1 构建质量，不得继续切换。
 - [ ] 验证：targeted unit/integration + `python -m pytest -q` 全绿；两套 fresh run；反作弊独立审计（before/after pair_id 全集 diff、changed pair_ids 逐条列出、每条 issue 下降对应到 junction/bridge 证据）；灰度页 issue 与 unexplained 变化写回 findings/progress。
-- **Status:** in_progress —— 2026-07-08 已完成 branch-local shadow + open-endpoint anchoring。当前 next slice 不再是“整页 `14/15` 直接 `on`”，而是只对 `unique_candidate` 的支路级候选评估灰度切换；`222/206` 这类 `context_only` 条目仍需更深的 branch/path 结构化能力。
+- **Status:** superseded —— branch-local shadow + open-endpoint anchoring 作为研究产物保留；旧式“network 候选替换 LineGroup endpoint 后继续生成旧 Pair”的灰度切换由任务书 18.8 明确停止，后续由 Phase 104-108 的五层图主链接管。
 
 ### Phase 100: Topology T3 — Symbol Library Bootstrap（符号库自举）
 - [ ] 开发前审查（可与 Phase 99 并行，写集不重叠）：
@@ -1426,7 +1426,7 @@ Phase 99 (Topology Track T2)
   - 支持项目级 override 文件，企业自定义符号不被通用库覆盖。
 - [ ] 验证：迁移零漂移证明（两套 fresh run 的 component/table mapping 计数与点名 pair 逐一保持）；`python -m pytest -q` 全绿；`unclassified_blocks` 基线 → 收敛数字写回。
 - [ ] 泛化探针检查点：若能取得第三套真实图纸，只读跑 T0 coverage + T1 影子报告并记录新失败模式清单（只记录，不为其写规则）；暂无第三套则显式记 deferred，不得虚构。
-- **Status:** pending
+- **Status:** superseded —— 原目标并入 Phase 106，但必须服从新的 Symbol-Port Graph schema，不能作为旧 T2 的并行补丁轨继续执行。
 
 ### Phase 101: Topology T4 — Rules Shrink & Default List Layering（规则收缩与默认列表分层）
 - [ ] 开发前审查：盘点 `rules.py` / `rule_base.py` 中的补偿性规则与分类清单（Phase66 DIM guardrail、Phase68/82 complementary half-chain、Phase89 row-band aggregation、continuation/bridge 特例等），逐条标注"拓扑层是否已结构性解释 / 可简化为消费 network 证据 / 必须保留"。
@@ -1435,7 +1435,7 @@ Phase 99 (Topology Track T2)
   - Issue 合同新增 `display_layer: user|internal`：`rule_too_strict` 结构现象与聚合 review 证据归 internal；默认导出/UI 仅显示 user 层，internal 层可显式展开与完整导出；任何 evidence 不删除。
 - [ ] 风险门槛：分层不得变成隐藏——internal 层计数在报告 summary 公开；任务书 18.7.7 红线保持；全量证据可导出可回查。
 - [ ] 验证：`python -m pytest -q` 全绿；两套 fresh run；反作弊独立审计；报告两层问题数与每条 user 层保留项的"为何保留、为何不算最终错误"理由（对齐任务书 5.3 / M11 "默认用户可见列表逼近 0"目标）。
-- **Status:** pending
+- **Status:** superseded —— 原目标并入 Phase 108；Project Graph 接管前不得先收缩 legacy rules。
 
 ### 2026-07-08 Addendum: H01/H02 Arbitration Closure
 - [x] 用户最新裁决已锁定：
@@ -1482,6 +1482,212 @@ Phase 99 (Topology Track T2)
   - `H01/H06` 局部数字政策（`124/125`、`10/13/14`、`501/507/710`）与 `H03/H04/H05` internal 分层继续等待用户业务裁决
 - **Status:** note only; Phase 98/99 主状态不变，H01 body-port 结构线已明显收缩。
 
+### 2026-07-09 Addendum: GND semantic-ground consumption completed
+- [x] `page_extractors.py` 已新增与 AC phase helper 对称的 GND semantic consumption：
+  - 只消费 `pair_kind=ordinary_pair` 的裸 half-pair
+  - 只在同页存在 `semantic_mapping_kind=schematic_dc_function_label`
+  - 且 `semantic_kind=schematic_semantic_endpoint`
+  - 且 `semantic_endpoint == GND`
+  - 且共享相同 `numeric_endpoint_text_id`
+- [x] 风险门槛：
+  - 不消费其他 DC semantic rows，例如 `DC 0-5V/4-20mA +`
+  - 不消费完整 ordinary pair
+  - 不消费 `? -> 105`
+- [x] 验证：
+  - targeted：`tests\unit\test_page_extractors.py` -> `18 passed`
+  - unit bundle：`tests\unit\test_wire_components.py tests\unit\test_page_extractors.py` -> `34 passed`
+  - full：`python -m pytest -q` -> `325 passed in 11.42s`
+  - first fresh `.tmp/phase101_ground_first/...`：
+    - `pair_count 1717 -> 1717` 不变
+    - pair-kind 分布不变
+    - `issue_count 91 -> 88`
+    - `R-PAIR-MISSING-SIDE 24 -> 21`
+    - 精确移除 `PW0120/PW0141/PW0158 = 101 -> ?`
+  - second fresh `.tmp/phase101_ground_second/...`：
+    - `pair_count 1615 -> 1615` 不变
+    - pair-kind 分布不变
+    - `issue_count 12 -> 10`
+    - `R-PAIR-MISSING-SIDE 6 -> 4`
+    - 精确移除 `PW0108/PW0121 = 101 -> ?`
+    - 保留 `PW0115/PW0128 = ? -> 105`
+- [ ] 下一刀继续收缩为：
+  - first `11`：`PW0284 ? -> 601`、`PW0285 601 -> 602` 的结构归类或 display-layer/internal 裁决
+  - second `06`：`? -> 105` 是否属于新的 scoped-local/semantic family，而不是 ordinary 裸端点
+  - `H01/H06` 局部数字政策（`124/125`、`10/13/14`、`501/507/710`）继续等待用户业务裁决
+- **Status:** note only; H02 的 `GND -> 101` 簇已从默认 ordinary 列表中闭合。
+
+### 2026-07-09 Addendum: Wire-grid ordinary enters shadow mode
+- [x] 已按最新方向把 `WireDiagramExtractor` 的 `grid_heavy` ordinary 收缩为 shadow/fallback：
+  - 保留 `pairs.parquet` 中的 `ordinary_pair` 产物，便于回看、诊断与下一轮结构化修复
+  - 但默认审计资格下沉：新增 `ordinary_pair_shadow_only=True`、`ordinary_pair_shadow_reason=wire_grid_primary`
+  - 生效范围严格收口到：
+    - `sheet_category == 二次原理图`
+    - `route_target == WireDiagramExtractor`
+    - `grid_heavy=True` 或 `page_subtype == grid_heavy_wire_diagram`
+    - `pair.evidence.line_orientation == grid`
+- [x] 设计含义：
+  - 这不是删 pair，也不是按页硬隐藏 issue
+  - 这是把 wire-grid ordinary 明确降为内部 shadow 证据，强制默认用户列表转向 `wire_component_mapping / component_mapping / table_mapping / semantic_mapping / continuation / bridge`
+- [x] 验证：
+  - targeted：`tests\unit\test_page_extractors.py` -> `19 passed`
+  - targeted：`tests\unit\test_pairs_and_rules.py -k "ordinary_pair_eligible or pair_missing_side or low_confidence"` -> `3 passed`
+  - full：`python -m pytest -q` -> `326 passed in 18.25s`
+  - first fresh `.tmp/phase102_wire_shadow_first/...`：
+    - `pair_count=1717` 不变
+    - pair-kind 分布不变
+    - `issue_count 88 -> 70`
+    - 剩余 ordinary issue 只在端子图：`25/27/26`
+    - 被移除的 wire-grid ordinary 仅来自 `08/09/10/11/14/15`
+  - second fresh `.tmp/phase102_wire_shadow_second/...`：
+    - `pair_count=1615` 不变
+    - pair-kind 分布不变
+    - `issue_count 10 -> 6`
+    - 默认列表中已无任何 wire-grid ordinary；仅剩 `table_mapping` 结构审计
+- [ ] 下一刀主线明确为：
+  - second `06`：把 `? -> 105` 从 ordinary shadow 症状推进到新的结构化 wire/semantic family
+  - first `11`：判定 `601/602` 是新的结构 family 还是 internal-only shadow 候选
+  - 继续把 residual 处理 loop 固化为：fresh run → issue diff → 图面/DWG 证据回查 → 通用结构修正 → fresh rerun → 文档回填
+- **Status:** note only; “弃用 ordinary 临近匹配、转向 wire 线类识别” 已落成第一刀合同。
+
+### 2026-07-09 Addendum: second `06/10/14` residuals converge to anonymous wire port-box family
+- [x] 本轮未继续调 ordinary 几何阈值；先完成一轮真实 residual 归因闭环，避免把 `same-row` family 硬拽成样本特化补丁。
+- [x] second `06 直流回路图.dwg` 本地核查结论：
+  - `PW0115/PW0128 = ? -> 105` 与 `PWM0046/PWM0048 = *DK1 -> *n103`、`PWM0047/PWM0049 = *GD20 -> *n132` 共处同一组重复模块结构。
+  - 图面/文本共同特征不是单纯“同排 scoped prefix + external endpoint”，而是：
+    - 可见 `3-21n / 1-21n` prefix；
+    - 右侧局部号栈 `101/132/105/103`；
+    - 左侧重复 `1/2/3/4` 端口矩阵；
+    - 中间/上方模块标签 `FCK-851C-G-1`；
+    - 其中 `105` 所在行只有右侧局部号和左侧端口号，缺少可被当前 `same-row` 规则直接消费的外部端文本。
+- [x] second `10/14` 抽样核查表明这不是单页孤例：
+  - `PW0291 ? -> 507`、`PW0442 ? -> 501` 周围同样存在 `1/2/3/4` 端口矩阵与模块/结构标签（如 `1-21CLP1`、`3-21CLP10/11`、`1-21ZK/1ZK`、`FCK-851C-G-1`）。
+  - 说明 residual 已经从“ordinary 缺侧”收敛成一类稳定的 wire-side body-port / port-box 结构缺口。
+- [x] 约束结论：
+  - 不能把 `3-21DK2 -> 3-21n105` 这类关系通过放宽 `_SCOPED_EXTERNAL_ROW_Y_TOL` 之类的 same-row 参数硬吃掉。
+  - 这样会把 `scoped_visible_prefix_external_endpoint_mapping` 从“同行结构端”变成样本记忆式近邻匹配，违背当前合同。
+- [ ] 下一刀实现方向已收窄为：
+  - 新增 wire-side anonymous/body-port family：
+    - 输入信号优先级：`n-prefix`、局部号列、`1/2/3/4` 端口矩阵、模块标签、水平 support line；
+    - 首批目标页：second `06/10/14`；
+    - 不回退 ordinary，不直接切 topology。
+  - 若实现前仍需人工最小确认，只问“目标业务关系是否确实应为 `*DK2 -> *n105` / `501|507` 属于哪一类逻辑端”，不再问裸 ordinary 是否保留。
+- **Status:** note only; 当前 next slice 已从“调 ordinary”收敛成“定义匿名 wire port-box 结构族”。
+
+### 2026-07-09 Addendum: scoped wire-logic body-port slice closes second `06` `105`
+- [x] 在 [wire_components.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/wire_components.py) 落了一条新的最小结构切片：
+  - 目标对象：`*-21[A-Z]{2,4}\d+` wire-logic body
+  - 约束信号：显式 `1/2/3/4` 端口、局部号、可见 `n` prefix、水平 support line
+  - 保持的 guardrail：
+    - 同排已有 structured external endpoint 的行继续留给 `scoped_visible_prefix_external_endpoint_mapping`
+    - 不放宽 same-row tolerance
+    - 不重开 ordinary truth source
+- [x] 为这条 family 补了一个专用几何合同：
+  - 端口优先归到其下方 body，解决 second `06` 中 `DK1 / DK2` 叠层四端口盒的归组歧义
+  - 不影响既有 `KLP/ZKK` inline family 的 body-port 归组
+- [x] 测试验证：
+  - `python -m pytest -q tests\unit\test_wire_components.py` -> `18 passed`
+  - `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_body_port or ordinary_pair_shadow_only or dc_function_label"` -> `1 passed`
+  - `python -m pytest -q` -> `328 passed`
+- [x] fresh real-sample verify：
+  - second final `.tmp/phase103c_scoped_wire_logic_body_port_second/...`：
+    - `pair_count 1615 -> 1617`
+    - `wire_component_mapping 398 -> 400`
+    - `issue_count 6 -> 6`
+    - 精确新增：
+      - `3-21DK1-2 -> 3-21n105`
+      - `1-21DK1-2 -> 1-21n105`
+    - `10/14` 暂无变化
+  - first final `.tmp/phase103c_scoped_wire_logic_body_port_first/...`：
+    - `pair_count=1717` 不变
+    - `wire_component_mapping=187` 不变
+    - `issue_count=70` 不变
+    - first `11` 的 `601/602` 暂未被这刀吃掉
+- [ ] 下一刀已明确缩成两个残余 family：
+  - second `10/14`：`507/501` 的 `ZK/CLP` mixed body-port/contact family
+  - first `11`：`601/602` 的 staggered `KLP` body-port family
+- **Status:** note only; H02 的 second `06` `? -> 105` 已从 shadow ordinary 输入证据提升为结构化 `wire_component_mapping`。
+
+### 2026-07-09 Addendum: `507/501/601/602` residual ownership tightened before next code slice
+- [x] 只读复审了当前最小残余：
+  - second `10` `PW0291 = ? -> 507`
+  - second `14` `PW0442 = ? -> 501`
+  - first `11` `PW0284 = ? -> 601`
+  - first `11` `PW0285 = 601 -> 602`
+- [x] second `10/14` 的 root cause 已进一步从“ZK/CLP mixed family”收紧成“左半边 contact ownership 没进主链”：
+  - `PW0291` 同带宽已存在 `PW0292 = 507 -> 1-21CD11`，说明 `507` 的右半边已被结构化，残余缺的是左侧 `1-21ZK` 触点/端口归属；
+  - `PW0442` 同带宽已存在 `PW0443 = 501 -> 3-21CLP10`、相邻 `PW0441 = 503 -> 3-21CLP11`，而跨页又能看到 `3-21n501,1ZK-4`，说明 `501` 更像 `ZK` contact-side scoped local，而不是纯 `CLP` body-port。
+- [x] first `11` 的旧猜测也已修正：
+  - 当前项目内已有 `PCM0089 = 5KLP8-1 -> 5n601` 与 `PWM0109/PCM0090 = 5KLP8-2 -> 5n310`；
+  - 因此 `PW0284/PW0285` 更像 `5KLP8` staggered family 的几何边界缺口，不再优先归到旧的 `5KLP9` 猜测；
+  - `602` 当前仍没有对应的 component-side 结构 pair，后续更像 `5FD27/BCJ` 功能链或 continuation/internal 裁决问题，而不是直接把它硬配成 another bare body-port。
+- [ ] 下一刀前只剩最小业务拍板：
+  - second `10/14`：左半边 scoped local 是否应归给“exact `ZK` contact pin”，还是只归给“grouped contact-row endpoint”；
+  - first `11`：`601` 是否确认按 `5KLP8-1 -> 5n601` 处理；`602` 是否属于 `5FD27/BCJ` 功能链，还是先留作 scoped continuation/internal。
+- [ ] 若用户确认上述归属，下一刀实现优先顺序改为：
+  - 先做 `scoped_contact_row` family，覆盖 second `10/14` 这类“左侧 contact body + 小触点号 + 右侧 local-number/downstream body”的重复行；
+  - 再做 first `11` 的 staggered `KLP8`/continuation 收口，不把 `602` 直接当成裸 numeric ordinary。
+- **Status:** note only; 本轮无代码改动，结论仅用于缩小下一刀 extractor 合同与最小人审输入。
+
+### 2026-07-10 Architecture Pivot: Topology-first five-layer model
+- [x] 已读取并吸收《XJCheck 线网识别引擎升级深度研究与架构改造建议 v0.3》。
+- [x] `doc/任务书.md` 新增 18.8，并明确：18.7 的 T0/T1 保留；未完成 T2-T4 被新阶段取代。
+- [x] 冻结旧 residual family 队列：`501/507/601/602` 只作为新架构验收探针，不再直接驱动 `wire_components.py` 新 family。
+- [x] 新主链确定为 `Geometry Graph -> Symbol-Port Graph -> Electrical Net Graph -> Semantic Attachment Graph -> Project Graph -> RuleEngine`。
+- **Status:** complete; 后续执行 Phase 104-109。
+
+### Phase 104: Architecture Phase A — Baseline Freeze & Graph Contracts
+- [x] 更新任务书架构优先级与 legacy 边界；停止旧 Phase 99 endpoint-assignment gray switch。
+- [x] 在当前确认工作树上 fresh 生成两套项目 baseline bundle，并增加第三套 `10000 远动通信柜` held-out probe；每套均含 findings、audit、coverage、legacy topology、配置、人工裁决、artifact hash/rows 和红线恒等式。
+- [x] 建立 `doc/architecture/topology_first_adr.md` 与 `graph_schema_v1.md`，定义五层职责、稳定 ID/provenance、四态 decision、confidence decomposition、findings 表与 phase gates。
+- [x] 增加 `recognition.primary_engine` / `legacy_neighborhood.mode` 配置合同；Phase A 默认 `primary_engine=legacy`，只声明 shadow-compatible 目标权限，不改变用户结果。
+- [x] 新增内部 `freeze-baseline` 命令与单测，生成可重复验证的 `baseline_manifest.json`。
+- [ ] 设计新旧对象等价比较报告：legacy Pair 与 NetworkEndpoint/ProjectGraph relation 的映射、差异和 witness path。
+- [x] 落地第一层 `pair_geometry_shadow`：只比较 legacy LineGroup 与纯几何 component，输出唯一支撑/多组件断裂/无支撑；不把几何上下文冒充端点语义，也不改 Pair。
+- [ ] 将上述比较扩展到 NetworkEndpoint + witness path 后，才完成 Phase 104 的完整等价报告。
+- **Status:** in_progress
+
+### Phase 105: Architecture Phase B — Geometry Graph & Electrical Net Core
+- [x] 新增 geometry-only shadow：严格 snap、T 交点拆线、默认无点十字不连通、真实 edge degree/component 物化。
+- [x] 将同 parent handle 的短小反向重合 LWPOLYLINE 识别为 connection marker；marker 不作为 wire edge，只在交点处提供 junction evidence。
+- [x] findings 新增 geometry shadow 三表和 Pair-to-component 投影；legacy pairs/issues 保持零漂移。
+- [x] 新增 `geometry-shadow/v1` 四态 observation：exact/marker junction=`ASSERTED`、唯一同轴 gap=`POSSIBLE`、多候选 gap=`UNKNOWN`、无 marker 内部十字=`REJECTED`；非 ASSERTED 不物化连通。
+- [x] baseline manifest 增加独立 `graph_shadow` 指标和四态 identity/enum 红线，legacy topology 指标保持不变。
+- [ ] 将原始 LINE/LWPOLYLINE/POLYLINE 归一化为 primitive segments，并保留 parent/source handle。
+- [x] 建立空间索引、intersection split 和四态 shadow junction observations；非 ASSERTED 关系不进入 component。
+- [ ] 将已落地的 shadow observations 提升为带 provenance/confidence 的正式 `junction_observations` 与 `topology_decisions`；当前不冒充 Graph Schema v1。
+- [ ] 只用 `ASSERTED` 边物化 Electrical Net；输出 members、open endpoints、uncertain edges 和 witness paths。
+- [ ] 将 `LineGroup` 改为 network projection 兼容视图；旧 candidates/pairs 保持 shadow 零漂移。
+- [ ] 以 T 型、无点十字、连接圆点、inline gap、block gap 和多支路页做完整 synthetic + 真实页验证。
+- **Status:** pending
+
+### Phase 106: Architecture Phase C — Symbol-Port Graph & Symbol Library
+- [ ] 按新 schema 统计 INSERT、块定义、ATTRIB、rotation/mirror/scale、内部实体和外部线进入位置。
+- [ ] 迁移 `FJL-25-2A_Mirror`、`KK2P/KK3P`、`JR-01/KK1P`、`WBH-814E-E1SA-101`、高频 PWF 与现有硬编码块。
+- [ ] 输出 symbol instances、ports、internal connections 和 port bindings；迁移刀行为零漂移。
+- [ ] 建立 unknown-block 审核队列和项目级 override。
+- **Status:** pending
+
+### Phase 107: Architecture Phase D — Semantic Attachment & ConstraintResolver
+- [ ] 抽取 semantic tokens 和候选 text-to-port/net/symbol/table attachments，邻域只作为特征。
+- [ ] 实现 scope resolver，prefix 作用域必须绑定空间、符号或 network context。
+- [ ] 实现 ConstraintResolver：端口唯一主 net、文本唯一主身份、symbol internal connectivity、crossing decision 和项目级一致性约束。
+- [ ] 所有近似最优替代解进入 review，并落 `constraint_decisions.parquet`。
+- **Status:** pending
+
+### Phase 108: Architecture Phase E — Project Graph & Rule Migration
+- [ ] 生成 CrossPageEndpoint、TerminalIdentity、NetworkIdentity 和项目级候选匹配。
+- [ ] 跨页规则改为消费 NetworkEndpoint + witness path；legacy Pair 仅作 shadow comparison。
+- [ ] 新对象等价证明覆盖任务书 18.7.7 点名红线后，才允许逐条收缩补偿规则。
+- [ ] 默认 user/internal 分层只能发生在证据完整且 Project Graph 已接管之后。
+- **Status:** pending
+
+### Phase 109: Architecture Phase F — Explainable Ranker / Optional GNN Evaluation
+- [ ] 至少取得第三套项目并按项目拆分训练/验证/测试。
+- [ ] 先训练可解释 candidate ranker/GBDT baseline，并做概率校准和 held-out 泛化评估。
+- [ ] 只有在长距离图依赖上显著优于确定性/约束 baseline 时才评估异构 GNN。
+- [ ] 所有模型先 shadow；不得绕过 ASSERTED/REJECTED topology、symbol internal connectivity 或 ConstraintResolver。
+- **Status:** pending
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -1497,3 +1703,9 @@ Phase 99 (Topology Track T2)
 | `python -m black` unavailable | Phase86 末尾想机械格式化 3 个 Python 文件 | 环境缺少 `black`；改为手动按现有风格折行，不重复该命令 |
 | Phase92 first rules-only audit path missing | 首次用 `.tmp\phase89_grid_row_band_aggregation_first\...\findings` 跑 `run-audit` | 该阶段只保留 audit 目录；改用 `.tmp\phase78_component_vertical_401_first\...\findings` 重跑 current-head rules-only audit 成功 |
 | inline body-port 初版误吸两位数端子 `13` | fresh first `11` 生成假阳性 `5KLP10-13 -> 5FD4` | 将 inline port token 从宽松两位数收紧回 family-appropriate 单字符 `1..6` 后重跑 targeted/full/fresh audit 通过 |
+| 局部快照首选渲染方案失败 | 想用 `matplotlib` 画 residual 局部图审查 `101` 与 `601/602` | 环境缺少 `matplotlib`；改用已安装的 `Pillow` 直接导出 PNG 快照完成局部视觉审查 |
+| phase102 issue summary helper `KeyError: 'pair_kind'` | fresh run 后直接 merge `issues.parquet` 与 `pairs.parquet` 再按 `pair_kind` groupby | `issues.parquet` 已自带 `pair_kind`，merge 后列名变成 `pair_kind_x/pair_kind_y`；改按 `pair_kind_y` 重跑统计成功 |
+| scoped wire-logic body-port 初版 real-run 零收益 | 首次 fresh second `06` 未新增 `DK1-2 -> n105` | 在 real findings 上逐端口打印 guard，确认问题是 `DK1/DK2` 端口归组歧义，而不是 prefix/line/same-row guard |
+| scoped wire-logic body-port helper 接线写反 | 首次修复把“body below port”归组误接到旧 `inline_body_port`，而新 family 仍在用旧 generic 归组 | 恢复 `KLP/ZKK` 旧归组，把新归组只接到 `scoped wire-logic body-port`，重跑 targeted/full/fresh verify 通过 |
+| baseline helper 搜索路径不存在 | 尝试读取仓库根 `scripts/` 目录 | 仓库没有该目录；将可复用能力落到 `src/dwg_audit/report/baseline.py` 并提供 `freeze-baseline` CLI 与单测 |
+| Phase105 冻结 Parquet 重建首次 `TypeError` | 临时统计脚本把 `audit_area_bbox` JSON 字符串直接传入领域对象 | 在只读统计脚本中先 `json.loads` 恢复 bbox；生产流水线使用原始领域对象，不受影响 |

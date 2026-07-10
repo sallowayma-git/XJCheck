@@ -80,6 +80,13 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert (findings_dir / "extraction_warnings.parquet").exists()
     assert (findings_dir / "wire_junctions.parquet").exists()
     assert (findings_dir / "wire_networks.parquet").exists()
+    assert (findings_dir / "geometry_shadow_nodes.parquet").exists()
+    assert (findings_dir / "geometry_shadow_edges.parquet").exists()
+    assert (findings_dir / "geometry_shadow_components.parquet").exists()
+    assert (findings_dir / "geometry_shadow_observations.parquet").exists()
+    assert (findings_dir / "geometry_shadow_observation_summary.json").exists()
+    assert (findings_dir / "pair_geometry_shadow.parquet").exists()
+    assert (findings_dir / "pair_geometry_shadow_summary.json").exists()
     assert not page_findings_dir.exists()
     assert findings_payload["page_findings_count"] == 1
     assert len(findings_payload["page_findings"]) == 1
@@ -94,6 +101,13 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert "page_findings/" not in findings_payload["artifacts"]["findings"]
     assert "wire_junctions.parquet" in findings_payload["artifacts"]["findings"]
     assert "wire_networks.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_nodes.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_edges.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_components.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_observations.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_observation_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "pair_geometry_shadow.parquet" in findings_payload["artifacts"]["findings"]
+    assert "pair_geometry_shadow_summary.json" in findings_payload["artifacts"]["findings"]
 
 
 def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path: Path) -> None:

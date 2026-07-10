@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xjcheck.local/schemas/symbol_library.schema.json",
+  "title": "XJCheck Symbol Library",
+  "type": "object",
+  "required": ["schema_version", "library_version", "families"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "library_version": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "families": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/family"}
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "bbox": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "number"}, {"type": "number"},
+        {"type": "number"}, {"type": "number"}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "port": {
+      "type": "object",
+      "required": ["port_id", "local_position", "direction", "connectable"],
+      "properties": {
+        "port_id": {"type": "string"},
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "local_position": {"$ref": "#/$defs/point"},
+        "direction": {
+          "enum": ["left", "right", "up", "down", "bidirectional", "unknown"]
+        },
+        "connectable": {"type": "boolean"},
+        "electrical_role": {"type": ["string", "null"]},
+        "medium": {
+          "enum": ["electrical_wire", "ethernet", "optical_fiber", "serial_bus", "time_sync", "logical_reference", "unknown"]
+        },
+        "snap_tolerance": {"type": ["number", "null"], "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "internal_connection": {
+      "type": "object",
+      "required": ["from_port", "to_port", "behavior"],
+      "properties": {
+        "from_port": {"type": "string"},
+        "to_port": {"type": "string"},
+        "behavior": {
+          "enum": ["permanent_connected", "isolated", "conditional", "switch_contact", "pass_through", "visual_only", "unknown"]
+        },
+        "condition": {"type": ["string", "null"]}
+      }
+    },
+    "text_slot": {
+      "type": "object",
+      "required": ["role", "local_bbox"],
+      "properties": {
+        "role": {
+          "enum": ["terminal_number", "device_tag", "port_number", "wire_number", "semantic_label", "annotation", "unknown"]
+        },
+        "local_bbox": {"$ref": "#/$defs/bbox"},
+        "pattern": {"type": ["string", "null"]}
+      }
+    },
+    "family": {
+      "type": "object",
+      "required": ["family_id", "recognition", "role", "ports", "internal_connections", "verification"],
+      "properties": {
+        "family_id": {"type": "string", "minLength": 1},
+        "display_name": {"type": ["string", "null"]},
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "recognition": {
+          "type": "object",
+          "properties": {
+            "block_names": {"type": "array", "items": {"type": "string"}},
+            "block_name_regex": {"type": ["string", "null"]},
+            "definition_hashes": {"type": "array", "items": {"type": "string"}},
+            "geometry_fingerprint": {"type": "object", "additionalProperties": true}
+          },
+          "additionalProperties": true
+        },
+        "role": {"enum": ["component", "terminal", "connector", "junction", "jumper", "device_frame", "annotation", "unknown"]},
+        "electrical_behavior": {"type": "string"},
+        "ports": {"type": "array", "items": {"$ref": "#/$defs/port"}},
+        "internal_connections": {"type": "array", "items": {"$ref": "#/$defs/internal_connection"}},
+        "text_slots": {"type": "array", "items": {"$ref": "#/$defs/text_slot"}},
+        "transforms": {
+          "type": "object",
+          "properties": {
+            "allow_rotation": {"type": "boolean"},
+            "allow_mirror": {"type": "boolean"},
+            "allow_nonuniform_scale": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "verification": {
+          "type": "object",
+          "required": ["status", "source"],
+          "properties": {
+            "status": {"enum": ["draft", "machine_proposed", "human_verified", "deprecated"]},
+            "source": {"type": "string"},
+            "verified_instance_count": {"type": "integer", "minimum": 0},
+            "reviewer": {"type": ["string", "null"]},
+            "notes": {"type": ["string", "null"]}
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

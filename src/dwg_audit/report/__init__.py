@@ -6,6 +6,7 @@ from dwg_audit.report.artifacts import export_reports
 from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
 from dwg_audit.report.artifacts import write_project_artifacts
+from dwg_audit.report.baseline import write_baseline_manifest
 from dwg_audit.report.regression import compare_project_regressions
 from dwg_audit.report.regression import compare_regression_metrics
 from dwg_audit.report.regression import summarize_regression_metrics
@@ -24,6 +25,7 @@ __all__ = [
     "summarize_regression_metrics",
     "write_acceptance_report",
     "write_acceptance_suite_report",
+    "write_baseline_manifest",
     "write_regression_report",
     "write_project_artifacts",
 ]

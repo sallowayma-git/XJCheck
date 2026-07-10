@@ -175,6 +175,8 @@ def _extract_pairs_for_route(
     if executed_extractor == "WireDiagramExtractor":
         _mark_schematic_ac_phase_covered_ordinary_pairs(pairs, pages)
     if executed_extractor == "WireDiagramExtractor":
+        _mark_schematic_ground_covered_ordinary_pairs(pairs, pages)
+    if executed_extractor == "WireDiagramExtractor":
         wire_component_pairs = extract_component_prefixed_signal_pairs(
             pages,
             texts,
@@ -243,6 +245,8 @@ def _extract_pairs_for_route(
             table_mappings = _merge_table_mappings(table_mappings, retry_mappings)
         _mark_terminal_prefixed_endpoint_ordinary_pairs(pairs, table_mappings)
         pairs.extend(table_pairs)
+    if executed_extractor == "WireDiagramExtractor":
+        _shadow_grid_wire_ordinary_pairs(pairs, pages)
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -276,6 +280,25 @@ def _mark_consumed_component_ordinary_pairs(pairs: list[Pair], consumed_group_id
         pair.rationale = "Covered by component_mapping from ComponentDiagramExtractor."
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["covered_by_component_mapping"] = True
+
+
+def _shadow_grid_wire_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:
+    sheet_map = {page.sheet_id: page for page in pages}
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if sheet.route_target != "WireDiagramExtractor":
+            continue
+        if not (sheet.grid_heavy or sheet.page_subtype == "grid_heavy_wire_diagram"):
+            continue
+        if pair.evidence.get("line_orientation") != "grid":
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "wire_grid_primary"
 
 
 def _mark_input_matrix_covered_ordinary_pairs(
@@ -499,6 +522,60 @@ def _schematic_ac_phase_numeric_text_reasons(
         value = evidence.get("numeric_endpoint_text_id")
         if isinstance(value, str) and value:
             text_reasons[value] = "schematic_ac_phase_label_semantic_mapping"
+    return text_reasons
+
+
+def _mark_schematic_ground_covered_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:
+    sheet_map = {page.sheet_id: page for page in pages}
+    covered_text_reasons = _schematic_ground_numeric_text_reasons(pairs, sheet_map)
+    if not covered_text_reasons:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.status == "discard":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if bool(pair.left_value) == bool(pair.right_value):
+            continue
+        covered_reasons = _pair_text_coverage_reasons(pair, covered_text_reasons)
+        if not covered_reasons:
+            continue
+        pair.status = "discard"
+        pair.confidence_bucket = "low"
+        pair.rationale = (
+            "Covered by schematic ground semantic_mapping; GND-covered numeric text "
+            "must not be emitted as a bare ordinary half-pair."
+        )
+        pair.evidence["ordinary_pair_eligible"] = False
+        for reason in covered_reasons:
+            pair.evidence[f"covered_by_{reason}"] = True
+
+
+def _schematic_ground_numeric_text_reasons(
+    pairs: list[Pair],
+    sheet_map: dict[str, SheetRecord],
+) -> dict[str, str]:
+    text_reasons: dict[str, str] = {}
+    for pair in pairs:
+        evidence = pair.evidence or {}
+        if pair.pair_kind != "semantic_mapping":
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.sheet_category != "二次原理图":
+            continue
+        if evidence.get("semantic_mapping_kind") != "schematic_dc_function_label":
+            continue
+        if evidence.get("semantic_kind") != "schematic_semantic_endpoint":
+            continue
+        semantic_endpoint = str(evidence.get("semantic_endpoint") or "").strip().upper()
+        if semantic_endpoint != "GND":
+            continue
+        value = evidence.get("numeric_endpoint_text_id")
+        if isinstance(value, str) and value:
+            text_reasons[value] = "schematic_ground_semantic_mapping"
     return text_reasons
 
 

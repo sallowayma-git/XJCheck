@@ -54,6 +54,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "topology": {
         "junction_snap_tolerance": 1.8,
+        "geometry_graph_asserted_snap_tolerance": 0.05,
+        "geometry_graph_marker_max_span": 1.0,
+        "geometry_graph_marker_match_tolerance": 0.75,
+        "geometry_graph_possible_gap_tolerance": 25.0,
+        "geometry_graph_gap_alignment_tolerance": 0.25,
         "cross_axis_tolerance": 2.5,
         "bridge_gap_tolerance": 18.0,
         "inline_text_bridge_gap": 18.0,
@@ -76,6 +81,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "extract": {
         "insert_virtual_entity_categories": ["元件接线图", "背板接线图"],
+    },
+    "recognition": {
+        "primary_engine": "legacy",
+        "legacy_neighborhood": {
+            "mode": "shadow-compatible",
+            "allow_for_text_candidates": True,
+            "allow_for_connectivity": False,
+            "allow_for_final_pair": False,
+        },
     },
     "page_category_overrides": {
         "二次原理图": {

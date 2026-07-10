@@ -1,0 +1,283 @@
+{
+  "package": "/mnt/data/XJCheck_topology_upgrade_review_v1",
+  "passed": true,
+  "check_count": 55,
+  "failed_count": 0,
+  "checks": [
+    {
+      "name": "required:README.md",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/README.md"
+    },
+    {
+      "name": "required:MASTER_TASKBOOK.md",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/MASTER_TASKBOOK.md"
+    },
+    {
+      "name": "required:MIGRATION_CHECKLIST.md",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/MIGRATION_CHECKLIST.md"
+    },
+    {
+      "name": "required:configs/topology_v2.example.yml",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/configs/topology_v2.example.yml"
+    },
+    {
+      "name": "required:configs/symbol_library.example.yml",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/configs/symbol_library.example.yml"
+    },
+    {
+      "name": "required:schemas/symbol_library.schema.json",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/schemas/symbol_library.schema.json"
+    },
+    {
+      "name": "required:schemas/topology_findings.schema.json",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/schemas/topology_findings.schema.json"
+    },
+    {
+      "name": "required:schemas/project_profile.schema.json",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/schemas/project_profile.schema.json"
+    },
+    {
+      "name": "required:schemas/issue_v2.schema.json",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/schemas/issue_v2.schema.json"
+    },
+    {
+      "name": "required:pseudocode/01_pipeline.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/pseudocode/01_pipeline.py"
+    },
+    {
+      "name": "required:pseudocode/02_geometry_graph.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/pseudocode/02_geometry_graph.py"
+    },
+    {
+      "name": "required:pseudocode/03_symbol_port_binding.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/pseudocode/03_symbol_port_binding.py"
+    },
+    {
+      "name": "required:pseudocode/04_constraint_resolver.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/pseudocode/04_constraint_resolver.py"
+    },
+    {
+      "name": "required:pseudocode/05_cross_page_audit.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/pseudocode/05_cross_page_audit.py"
+    },
+    {
+      "name": "required:scripts/run_corpus_baseline.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/scripts/run_corpus_baseline.py"
+    },
+    {
+      "name": "required:scripts/build_failure_queue.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/scripts/build_failure_queue.py"
+    },
+    {
+      "name": "required:scripts/bootstrap_symbol_library.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/scripts/bootstrap_symbol_library.py"
+    },
+    {
+      "name": "required:scripts/compare_engines.py",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/scripts/compare_engines.py"
+    },
+    {
+      "name": "required:sources/source_matrix.md",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/sources/source_matrix.md"
+    },
+    {
+      "name": "required:reports/inventory_summary.json",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/reports/inventory_summary.json"
+    },
+    {
+      "name": "required:reports/project_inventory.csv",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/reports/project_inventory.csv"
+    },
+    {
+      "name": "required:reports/page_inventory.csv",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/reports/page_inventory.csv"
+    },
+    {
+      "name": "required:reports/contact_first.png",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/reports/contact_first.png"
+    },
+    {
+      "name": "required:reports/contact_second.png",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/reports/contact_second.png"
+    },
+    {
+      "name": "required:reports/contact_third_diverse.png",
+      "passed": true,
+      "detail": "/mnt/data/XJCheck_topology_upgrade_review_v1/reports/contact_third_diverse.png"
+    },
+    {
+      "name": "json:issue_v2.schema.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "json:project_profile.schema.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "json:symbol_library.schema.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "json:topology_findings.schema.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "yaml:symbol_library.example.yml",
+      "passed": true,
+      "detail": "valid YAML"
+    },
+    {
+      "name": "yaml:topology_v2.example.yml",
+      "passed": true,
+      "detail": "valid YAML"
+    },
+    {
+      "name": "python:scripts/batch_extract_previews.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/bootstrap_symbol_library.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/build_failure_queue.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/compare_engines.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/corpus_inventory.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/extract_dwg_preview.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/run_corpus_baseline.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/run_review_loop.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:scripts/validate_package.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:pseudocode/01_pipeline.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:pseudocode/02_geometry_graph.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:pseudocode/03_symbol_port_binding.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:pseudocode/04_constraint_resolver.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "python:pseudocode/05_cross_page_audit.py",
+      "passed": true,
+      "detail": "syntax valid"
+    },
+    {
+      "name": "csv:benchmark_split_proposal.csv",
+      "passed": true,
+      "detail": "columns=10"
+    },
+    {
+      "name": "csv:page_inventory.csv",
+      "passed": true,
+      "detail": "columns=18"
+    },
+    {
+      "name": "csv:preview_inventory.csv",
+      "passed": true,
+      "detail": "columns=10"
+    },
+    {
+      "name": "csv:project_inventory.csv",
+      "passed": true,
+      "detail": "columns=20"
+    },
+    {
+      "name": "csv:static_failure_risk.csv",
+      "passed": true,
+      "detail": "columns=20"
+    },
+    {
+      "name": "csv:terminal_strip_inventory.csv",
+      "passed": true,
+      "detail": "columns=6"
+    },
+    {
+      "name": "csv:third_group_unseen_title_patterns.csv",
+      "passed": true,
+      "detail": "columns=2"
+    },
+    {
+      "name": "png:contact_first.png",
+      "passed": true,
+      "detail": "bytes=101623"
+    },
+    {
+      "name": "png:contact_second.png",
+      "passed": true,
+      "detail": "bytes=74130"
+    },
+    {
+      "name": "png:contact_third_diverse.png",
+      "passed": true,
+      "detail": "bytes=225798"
+    }
+  ]
+}

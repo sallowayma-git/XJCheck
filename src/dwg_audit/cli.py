@@ -19,6 +19,7 @@ from dwg_audit.report import export_existing_reports
 from dwg_audit.report import rerun_audit_from_findings
 from dwg_audit.report import write_acceptance_report
 from dwg_audit.report import write_acceptance_suite_report
+from dwg_audit.report import write_baseline_manifest
 from dwg_audit.report import write_regression_report
 from dwg_audit.services import run_analysis_workflow
 from dwg_audit.utils.config import load_config
@@ -83,6 +84,31 @@ def run_audit(
     config = load_config(config_path)
     audit_dir = rerun_audit_from_findings(project_dir, config, output_path)
     typer.echo(f"Audit artifacts available under {audit_dir}")
+
+
+@app.command("freeze-baseline")
+def freeze_baseline(
+    project: Path = typer.Option(..., "--project", exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+    alias: str = typer.Option(..., "--alias"),
+    input_root: Path = typer.Option(..., "--input-root", exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+    config_path: Path = typer.Option(..., "--config", "-c", exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    arbitration: list[Path] = typer.Option([], "--arbitration", exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    output_path: Path | None = typer.Option(None, "--output", "-o", file_okay=False, dir_okay=True, resolve_path=True),
+    repo_root: Path = typer.Option(Path("."), "--repo-root", exists=True, file_okay=False, dir_okay=True, resolve_path=True),
+) -> None:
+    try:
+        manifest_path = write_baseline_manifest(
+            project,
+            alias=alias,
+            input_root=input_root,
+            config_path=config_path,
+            arbitration_paths=arbitration,
+            output_dir=output_path,
+            repo_root=repo_root,
+        )
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Baseline manifest written to {manifest_path}")
 
 
 @app.command("export-report")

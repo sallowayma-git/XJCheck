@@ -1,0 +1,14 @@
+{
+  "date": "2026-07-10",
+  "passed": true,
+  "tests": [
+    {"script": "corpus_inventory.py", "passed": true, "project_count": 27, "dwg_count": 502, "terminal_strip_count": 505, "sidecar_mismatch_count": 0},
+    {"script": "run_corpus_baseline.py", "passed": true, "mode": "degraded_missing_oda", "project_count": 1, "recorded_missing_converter_pages": 28},
+    {"script": "build_failure_queue.py", "passed": true, "reader_failure_count": 28},
+    {"script": "bootstrap_symbol_library.py", "passed": true, "review_queue_count": 0, "reason": "no block entities in degraded run"},
+    {"script": "compare_engines.py", "passed": true, "mode": "self_comparison"},
+    {"script": "batch_extract_previews.py", "passed": true, "sample_count": 2},
+    {"script": "validate_package.py", "passed": true, "failed_check_count": 0}
+  ],
+  "limitation": "No entity-level accuracy claim is made without ODA or another DWG reader backend."
+}

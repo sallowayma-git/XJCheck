@@ -3863,3 +3863,331 @@
   - next structural work should narrow to:
     - whether first `06` `101 -> ?` should be downgraded/ignored via generic semantic-ground policy
     - whether first `11` `? -> 601` / `601 -> 602` belong to another structure family or should be removed from default user-visible ordinary audit
+
+## Session Update 2026-07-09 (GND-covered 101 half-pairs now consume ordinary residuals)
+- Implemented the next minimal H02 slice in `page_extractors.py`:
+  - added a new semantic-consumption path for `schematic_dc_function_label` rows when the semantic endpoint is explicitly `GND`
+  - behavior is intentionally narrow:
+    - only `pair_kind=ordinary_pair`
+    - only one-sided half-pairs
+    - only `semantic_kind=schematic_semantic_endpoint`
+    - only `semantic_endpoint == GND`
+  - it does **not** consume other DC semantic rows such as `DC 0-5V/4-20mA +`, and it does not touch `? -> 105`
+- Reasoning from evidence:
+  - first `06` residual `PW0120/PW0141/PW0158 = 101 -> ?` already had parallel semantic pairs `GND -> 101`
+  - second `06` residual `PW0108/PW0121 = 101 -> ?` had the same pattern
+  - second `06` residual `PW0115/PW0128 = ? -> 105` had no matching `GND` semantic pair, so they must stay visible
+- New targeted tests:
+  - discard a bare `101 -> ?` half-pair when covered by `schematic_dc_function_label + GND`
+  - keep non-GND DC semantic rows and complete ordinary pairs untouched
+- Verification:
+  - targeted: `python -m pytest -q tests\unit\test_page_extractors.py` -> `18 passed`
+  - unit bundle: `python -m pytest -q tests\unit\test_wire_components.py tests\unit\test_page_extractors.py` -> `34 passed`
+  - full: `python -m pytest -q` -> `325 passed in 11.42s`
+- Fresh real-sample verification:
+  - first fresh `.tmp/phase101_ground_first/...` + `.tmp/phase101_ground_first_audit`
+    - `pair_count=1717` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 91 -> 88`
+    - `R-PAIR-MISSING-SIDE 24 -> 21`
+    - removed exactly:
+      - `PW0120 101 -> ?`
+      - `PW0141 101 -> ?`
+      - `PW0158 101 -> ?`
+    - still present, as intended:
+      - `PW0284 ? -> 601`
+      - `PW0285 601 -> 602`
+  - second fresh `.tmp/phase101_ground_second/...` + `.tmp/phase101_ground_second_audit`
+    - `pair_count=1615` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 12 -> 10`
+    - `R-PAIR-MISSING-SIDE 6 -> 4`
+    - removed exactly:
+      - `PW0108 101 -> ?`
+      - `PW0121 101 -> ?`
+    - still present, as intended:
+      - `PW0115 ? -> 105`
+      - `PW0128 ? -> 105`
+      - `PW0291 ? -> 507`
+      - `PW0442 ? -> 501`
+- Additional residual audit for next slice:
+  - first `11` `PW0284/PW0285` still have no structured or semantic takeover candidate
+  - `GW0284` only surfaces numeric `601` on the right; all left-side nearby texts (`5FD2`, `5KLP8`, port `1/2`) are rejected as noise/non-numeric
+  - `GW0285` only surfaces numeric `601 -> 602`; nearby `BCJ`, `Mechanical relay start-up`, `非电量出口启动`, and `5FD27` are all rejected as non-numeric/noise
+  - engineering consequence: `601/602` is not another missed `GND` semantic case; it remains either a new structure family or a display-layer/internal candidate
+
+## Session Update 2026-07-09 (wire-grid ordinary pairs are now shadow-only on WireDiagram pages)
+- Synced the latest user direction into an explicit contract:
+  - `ordinary` 近邻配对不再作为 `WireDiagramExtractor` 的默认审计主源
+  - 但产物仍保留，作为 shadow/fallback 证据供后续回看、对比和结构化修复使用
+- Implemented `page_extractors.py::_shadow_grid_wire_ordinary_pairs()`:
+  - it only touches `pair_kind=ordinary_pair`
+  - scope is intentionally narrow:
+    - `sheet_category == 二次原理图`
+    - `route_target == WireDiagramExtractor`
+    - `grid_heavy=True` or `page_subtype == grid_heavy_wire_diagram`
+    - `pair.evidence.line_orientation == "grid"`
+  - effect:
+    - sets `ordinary_pair_eligible=False`
+    - sets `ordinary_pair_shadow_only=True`
+    - sets `ordinary_pair_shadow_reason=wire_grid_primary`
+  - it does **not** discard the pair, rewrite values, or delete findings rows
+- New unit coverage:
+  - `tests/unit/test_page_extractors.py`
+    - shadow-only contract for wire-grid ordinary pairs
+  - existing rules coverage already proves `ordinary_pair_eligible=False` suppresses `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`
+- Verification:
+  - targeted:
+    - `python -m pytest -q tests\unit\test_page_extractors.py` -> `19 passed`
+    - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "ordinary_pair_eligible or pair_missing_side or low_confidence"` -> `3 passed`
+  - full:
+    - `python -m pytest -q` -> `326 passed in 18.25s`
+- Fresh real-sample verification:
+  - first fresh `.tmp/phase102_wire_shadow_first/...`
+    - `pair_count=1717` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 88 -> 70`
+    - `issue_by_rule_pairkind` now:
+      - `component_mapping`: `R-MANY-TO-ONE=21`, `R-ONE-TO-MANY=16`
+      - `table_mapping`: `R-MANY-TO-ONE=9`, `R-CROSS-PAGE-CONFLICT=7`, `R-ONE-TO-MANY=7`, `R-DUPLICATE-PAIR=5`
+      - `ordinary_pair`: only `R-PAIR-MISSING-SIDE=4`, `R-PAIR-LOW-CONFIDENCE=1`
+    - remaining ordinary issues are no longer wire pages; they are only:
+      - `25 左侧端子图2.dwg`
+      - `26 右侧端子图1.dwg`
+      - `27 右侧端子图2.dwg`
+    - removed vs phase101 are exactly wire-grid ordinary symptoms from:
+      - `08 差动保护及信号回路.dwg`
+      - `09 高后备保护及信号回路.dwg`
+      - `10 低后备保护及信号回路.dwg`
+      - `11 非电量开入回路.dwg`
+      - `14 高操作回路图.dwg`
+      - `15 低操作回路图.dwg`
+  - second fresh `.tmp/phase102_wire_shadow_second/...`
+    - `pair_count=1615` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 10 -> 6`
+    - default issue list now contains only `table_mapping`:
+      - `R-ONE-TO-MANY=5`
+      - `R-MANY-TO-ONE=1`
+    - removed vs phase101 are exactly the four wire-grid ordinary residuals:
+      - `PW0115/PW0128 = ? -> 105` on `06 直流回路图.dwg`
+      - `PW0291 = ? -> 507` on `10 测控1控制回路图1.dwg`
+      - `PW0442 = ? -> 501` on `14 测控2开入回路图3.dwg`
+- Engineering consequence:
+  - the project has now crossed a real contract line:
+    - `WireDiagramExtractor` default output is structurally driven
+    - `ordinary_pair` on wire-grid pages is now internal shadow evidence, not default user-facing audit truth
+  - next work should not be “turn ordinary back on”
+  - next work should be:
+    - promote `? -> 105` into a structured wire/semantic family
+    - decide whether first `11` `601/602` is another structure family or shadow-only internal evidence
+
+## Session Update 2026-07-09 (anonymous wire port-box family audit for second `06/10/14`)
+- This loop intentionally stopped before code edits because the current evidence says the residual is **not** a same-row threshold miss.
+- Local audit completed against:
+  - `.tmp/phase102_wire_shadow_second/2_2/findings/{texts,terminal_candidates,text_assignments,blocks,line_groups,pairs}.parquet`
+  - user-provided local images for H02
+- Core findings:
+  - second `06`:
+    - `PW0115/PW0128 = ? -> 105` sit inside a repeated structure with visible `3-21n / 1-21n`, local stack `101/132/105/103`, repeated `1/2/3/4` ports, and module label `FCK-851C-G-1`
+    - `103` and `132` already close via current same-row structured mappings
+    - `105` does not; its row only reaches port `2`, so the missing capability is wire-side body-port / port-box reasoning, not ordinary proximity
+  - second `10/14`:
+    - `PW0291 ? -> 507` and `PW0442 ? -> 501` show the same larger pattern family: local numbers plus repeated ports plus `ZK/CLP/FCK` structure labels
+    - this makes the residual family cross-page, not a single-page quirk
+- Important non-decision:
+  - did **not** loosen `_SCOPED_EXTERNAL_ROW_Y_TOL` or related same-row gates
+  - doing so would collapse a structured family back into heuristic near-match behavior
+- Subagent note:
+  - spawned 2 explorer agents for code-reuse and visual/data-structure cross-check
+  - they did not return within the practical wait window, so the main thread proceeded with local evidence only
+- Verification:
+  - no new code edits this sub-slice
+  - no new pytest/full rerun was needed
+- Outcome:
+  - next implementation slice is now clearly scoped as a new wire-side anonymous/body-port family
+  - updated `task_plan.md`, `doc/findings.md`, and `doc/human_arbitration_phase98.md` with the structured conclusion and the minimal human questions
+
+## Session Update 2026-07-09 (scoped wire-logic body-port closes second `06` `105`)
+- Implemented a new structural slice in [wire_components.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/wire_components.py) instead of reopening ordinary proximity:
+  - target family: wire-logic bodies like `*-21DK1`
+  - required signals:
+    - explicit `1/2/3/4` ports
+    - same-scope visible `n` prefix
+    - local-number endpoint
+    - horizontal support line
+  - guardrails:
+    - if the same local row already has a same-row structured external endpoint, keep it with `scoped_visible_prefix_external_endpoint_mapping`
+    - do not loosen `_SCOPED_EXTERNAL_ROW_Y_TOL`
+    - do not restore wire-grid ordinary as default truth source
+- A real-sample-only geometry issue surfaced during implementation:
+  - first attempt produced zero gain on second `06` because `105` row ports sat in a `DK1/DK2` ambiguity pocket under the generic nearest-body rule
+  - the fix was structural and narrow:
+    - for this new family only, assign a port to the body below it
+    - keep the existing `KLP/ZKK` inline family on its old generic grouping path
+- New synthetic coverage in [tests/unit/test_wire_components.py](/F:/workspace/XJToolkit/tests/unit/test_wire_components.py):
+  - positive: build `3-21DK1-2 -> 3-21n105` and `1-21DK1-2 -> 1-21n105`
+  - negative: require support-line evidence
+- Verification:
+  - targeted:
+    - `python -m pytest -q tests\unit\test_wire_components.py` -> `18 passed`
+    - `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_body_port or ordinary_pair_shadow_only or dc_function_label"` -> `1 passed`
+  - full:
+    - `python -m pytest -q` -> `328 passed in 22.41s`
+- Fresh real-sample verification:
+  - second final `.tmp/phase103c_scoped_wire_logic_body_port_second/...` + `.tmp/phase103c_scoped_wire_logic_body_port_second_audit`
+    - `pair_count 1615 -> 1617`
+    - `wire_component_mapping 398 -> 400`
+    - `issue_count 6 -> 6`
+    - exact added pairs:
+      - `PWM0050 3-21DK1-2 -> 3-21n105`
+      - `PWM0051 1-21DK1-2 -> 1-21n105`
+    - no changes on second `10` / `14`
+  - first final `.tmp/phase103c_scoped_wire_logic_body_port_first/...` + `.tmp/phase103c_scoped_wire_logic_body_port_first_audit`
+    - `pair_count=1717` unchanged
+    - `wire_component_mapping=187` unchanged
+    - `issue_count=70` unchanged
+    - first `11` `PW0284/PW0285` stayed unchanged, which is consistent with the subagent judgment that they belong to a staggered `KLP` family not covered by this slice
+- Cleanup:
+  - removed intermediate `.tmp/phase103_*` and `.tmp/phase103b_*`
+  - retained only final `.tmp/phase103c_*` artifacts
+- Engineering consequence:
+  - second `06` `? -> 105` is no longer just shadow ordinary evidence; it now has structural `body-port -> scoped logical endpoint` coverage
+  - the next loop is no longer `06`
+  - it is:
+    - second `10/14` `507/501` on the `ZK/CLP` mixed structure
+    - first `11` `601/602` on the staggered `KLP` structure
+
+## Session Update 2026-07-09 (`507/501/601/602` 只读归属复审，收紧到最小人审问题)
+- This sub-slice intentionally did not change code. It only tightened the remaining structural hypotheses before the next extractor cut.
+- Local evidence review against retained `phase103c` artifacts showed that second `10/14` is more specific than the earlier broad `ZK/CLP mixed family` label:
+  - `PW0291 ? -> 507` already sits next to `PW0292 507 -> 1-21CD11`
+  - `PW0442 ? -> 501` already sits next to `PW0443 501 -> 3-21CLP10`
+  - so the missing capability is not “recognize the whole row”; it is “assign the left-side contact owner without reviving ordinary proximity”
+- The same review corrected the old first-`11` intuition:
+  - project findings already contain `PCM0089 5KLP8-1 -> 5n601`
+  - and `PWM0109/PCM0090 5KLP8-2 -> 5n310`
+  - therefore `PW0284/PW0285` are better read as a staggered `5KLP8` residual, not a generic `5KLP9` guess
+  - `602` still has no matching component-side structured pair, so it remains a business/semantic boundary question rather than an honest bare ordinary endpoint
+- Minimal business questions were updated accordingly:
+  - second `10/14`: should the left-side scoped local be emitted as an exact `ZK` contact pin, or only as a grouped contact-row endpoint?
+  - first `11`: confirm `601 -> 5KLP8-1 -> 5n601`; decide whether `602` belongs to a `5FD27/BCJ` functional chain or should stay continuation/internal for now
+- Verification:
+  - no code edits
+  - no pytest rerun in this sub-slice
+  - artifacts inspected locally: retained `phase103c` findings/audit parquet plus two read-only explorers
+
+## Session Update 2026-07-10 (topology-first architecture reset)
+- Read and evaluated `XJCheck 线网识别引擎升级深度研究与架构改造建议 v0.3` against the current taskbook and Phase 97-103 evidence.
+- Architecture decision:
+  - retain completed T0 coverage and T1 topology-shadow assets
+  - stop the unfinished T2 design that only replaces legacy LineGroup endpoint candidates with network open-endpoint candidates
+  - supersede unfinished T3/T4 with a five-layer primary model: Geometry Graph -> Symbol-Port Graph -> Electrical Net Graph -> Semantic Attachment Graph -> Project Graph
+  - keep LineGroup/candidates/pairs as compatibility and shadow outputs, not connectivity truth
+- Updated `doc/任务书.md`:
+  - added an explicit supersession note to 18.7
+  - added 18.8 with graph schemas, four-state topology decisions, symbol-library contract, ConstraintResolver, findings artifacts, phase gates, metrics, Agent loop, GNN thresholds and immediate next steps
+- Updated `task_plan.md`:
+  - current phase is now Phase 104 / Architecture Phase A
+  - old Phase 99-101 are marked superseded with their retained assets and successor phases stated
+  - added Phase 104-109 execution chain
+- Residual policy changed:
+  - `501/507/601/602` remain useful acceptance probes
+  - they no longer authorize new legacy `wire_components.py` families or value/page-specific fixes
+- Worktree hygiene:
+  - removed the unverified `scoped_contact_row` experiment started before the architecture pivot
+  - preserved all previously verified dirty changes
+- Verification:
+  - documentation-only architecture change; no pytest run required
+
+## Session Update 2026-07-10 (Phase 104 implementation kickoff with gpt-5.6-terra fan-out)
+- Spawned four `gpt-5.6-terra` agents with disjoint responsibilities:
+  - fresh baseline command/artifact/redline audit
+  - current topology insertion-point and zero-drift migration map
+  - executable ADR + Graph Schema v1 documents
+  - safe recognition configuration contract + tests
+- Added architecture contracts:
+  - `doc/architecture/topology_first_adr.md`
+  - `doc/architecture/graph_schema_v1.md`
+  - `doc/architecture/phase104_baseline.md`
+- Added Phase A runtime declaration without pipeline takeover:
+  - `recognition.primary_engine=legacy`
+  - `legacy_neighborhood.mode=shadow-compatible`
+  - text candidates allowed; topology connectivity/final-pair permissions reserved for the future topology-primary gate
+- Implemented reusable baseline freezing:
+  - new `dwg_audit.cli freeze-baseline` command
+  - hashes `manifest/findings/audit` artifacts and records Parquet row counts
+  - freezes config and arbitration evidence
+  - records Git HEAD, dirty file list and a diff/untracked-content fingerprint
+  - records pair/issue/coverage/legacy-topology metrics and validates redline identities
+- Fresh established-project baselines:
+  - first bundle: `.tmp/phase104_arch_baseline_first/...`
+    - `pairs=1717`, `issues=70`, `junctions=23148`, `networks=609`
+    - `unassigned_wire_segments=6868`, `unclassified_blocks=1034`
+  - second bundle: `.tmp/phase104_arch_baseline_second/2_2`
+    - `pairs=1617`, `issues=6`, `junctions=18929`, `networks=358`
+    - `unassigned_wire_segments=5305`, `unclassified_blocks=1126`
+  - every baseline-manifest redline identity is true
+- Ran a real held-out third-project probe on `10000 远动通信柜`:
+  - `12 sheets`, `527 pairs`, `17 issues`, `18537 junctions`, `213 networks`
+  - `ordinary_pair=491`, `component_mapping=28`, `table_mapping=6`, `continuation=2`
+  - no `wire_component_mapping` or `semantic_mapping`
+  - 16/17 issues are component-page ordinary missing/low-confidence rows involving local pin values
+  - conclusion: current first/second structural families do not transfer; this is Symbol-Port/Semantic evidence, not a reason to add third-project rules
+- Pipeline map confirmed:
+  - topology currently runs in `write_project_artifacts()` after route extractors and Pair generation
+  - the new geometry shadow insertion point is after page classification/audit-scope preparation and before route extractors
+  - legacy `wire_topology.py` directly unions T/gap evidence and does not split intersections first, so it remains a compatibility shadow rather than Graph Schema v1 truth
+- Verification:
+  - initial current-worktree baseline: `328 passed in 9.82s`
+  - targeted baseline/config tests: `5 passed`
+  - final full suite: `333 passed in 9.63s`
+  - `freeze-baseline --help` and `git diff --check` passed
+- Cleanup:
+  - removed duplicate side-output audit directories and temporary residual PNGs
+  - retained only self-contained first/second/third Phase 104 bundles
+
+## Session Update 2026-07-10 (Phase 105 geometry-only shadow graph)
+- Added `src/dwg_audit/audit/geometry_graph.py` as a zero-drift shadow path. It consumes only in-scope CAD line entities and does not use text, blocks, filenames, terminal values or project-specific rules for connectivity.
+- Implemented strict asserted endpoint snapping, orthogonal T-intersection splitting, optional crossing assertion, canonical nodes, split edges and edge-based connected components.
+- Separated the new strict `geometry_graph_asserted_snap_tolerance=0.05` from the legacy `junction_snap_tolerance=1.8`; the wider legacy tolerance is not allowed to create new geometry truth.
+- Added generic connection-marker classification for two short reversed coincident LWPOLYLINE segments sharing a parent handle. Marker segments are removed from wire edges and become junction evidence at crossings.
+- Added findings artifacts:
+  - `geometry_shadow_nodes.parquet`
+  - `geometry_shadow_edges.parquet`
+  - `geometry_shadow_components.parquet`
+  - `pair_geometry_shadow.parquet`
+  - `pair_geometry_shadow_summary.json`
+- Added a non-authoritative Pair projection. It reports whether a legacy LineGroup maps to one, many, or no pure-geometry components and never mutates Pair status/kind/confidence.
+- Frozen findings metrics:
+  - first ordinary: `579 unique / 149 multiple / 728 total` (`79.5330%` unique)
+  - second ordinary: `338 unique / 223 multiple / 561 total` (`60.2496%` unique)
+  - held-out remote cabinet ordinary: `434 unique / 57 multiple / 491 total` (`88.3910%` unique)
+- Primitive audit found that the previous high-degree nodes were degenerate connection-marker segments. After classification, maximum graph degree is `7/8/8` across first/second/held-out instead of `19/31/8`.
+- Verification before final documentation update:
+  - targeted geometry/report/config tests: `28 passed`
+  - earlier full suite after the initial graph slice: `338 passed`
+  - final full suite after marker classification and Pair projection: `340 passed in 10.40s`
+  - `git diff --check` passed with line-ending warnings only
+
+## Session Update 2026-07-10 (Phase 105 four-state geometry observations)
+- Used three read-only `gpt-5.6-luna` agents to audit second-set multi-component gaps, generic gap semantics, and Graph Schema/baseline boundaries. All code changes remained in the main agent.
+- Root-cause distribution for second ordinary multi-component rows:
+  - roughly 94% are two LineGroup member lines mapped to two geometry components
+  - roughly 80% have nearest gaps in the 10-25 drawing-unit range
+  - this is not asserted-snap noise and must not be auto-unioned
+- Added `geometry_shadow_observations.parquet` and summary output with all four states retained:
+  - ASSERTED canonical junctions
+  - POSSIBLE unique collinear facing endpoint gaps
+  - UNKNOWN ambiguous endpoint gaps
+  - REJECTED unmarked internal crossings
+- Non-ASSERTED observations never alter geometry components or legacy Pair output.
+- Real frozen-findings projection:
+  - first: `141/149` multi-component ordinary rows have gap evidence; `96` contain POSSIBLE and `48` contain UNKNOWN
+  - second: `214/223` have gap evidence; only `42` contain POSSIBLE while `180` contain UNKNOWN
+  - held-out: `20/57` have gap evidence, all 20 POSSIBLE and none UNKNOWN
+- Extended `pair_geometry_shadow` with component counts, member-line counts, nearest gap, observation IDs and states.
+- Extended baseline manifests with separate graph-shadow metrics and state identity/enum redlines; legacy topology metrics remain unchanged.
+- Targeted geometry/report/baseline/config verification: `32 passed`.
+- Final full-suite verification: `342 passed in 12.47s`; `git diff --check` passed with line-ending warnings only.
+- No new persistent `.tmp` products were created by this slice.

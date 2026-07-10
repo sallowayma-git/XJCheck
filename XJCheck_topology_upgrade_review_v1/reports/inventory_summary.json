@@ -1,0 +1,108 @@
+{
+  "project_count": 27,
+  "page_count": 502,
+  "dwg_count": 502,
+  "group_project_counts": {
+    "第一组_保护柜": 1,
+    "第三组_合同子项目": 25,
+    "第二组_测控柜": 1
+  },
+  "group_page_counts": {
+    "第一组_保护柜": 28,
+    "第三组_合同子项目": 450,
+    "第二组_测控柜": 24
+  },
+  "group_title_family_counts": {
+    "第一组_保护柜": {
+      "封面目录": 2,
+      "屏面布置": 1,
+      "标牌压板": 1,
+      "交流电源": 2,
+      "直流电源": 1,
+      "网络通信": 1,
+      "保护信号": 9,
+      "开入": 1,
+      "控制操作": 3,
+      "元件接线": 3,
+      "端子图": 4
+    },
+    "第三组_合同子项目": {
+      "封面目录": 50,
+      "屏面布置": 25,
+      "交流电源": 42,
+      "保护信号": 29,
+      "网络通信": 51,
+      "元件接线": 47,
+      "端子图": 66,
+      "直流电源": 11,
+      "开入": 29,
+      "控制操作": 24,
+      "背板": 17,
+      "其他/未知": 49,
+      "标牌压板": 10
+    },
+    "第二组_测控柜": {
+      "封面目录": 2,
+      "屏面布置": 1,
+      "交流电源": 2,
+      "直流电源": 1,
+      "网络通信": 1,
+      "开入": 5,
+      "控制操作": 4,
+      "背板": 2,
+      "元件接线": 2,
+      "端子图": 4
+    }
+  },
+  "group_route_counts": {
+    "第一组_保护柜": {
+      "SkipExtractor": 4,
+      "WireDiagramExtractor": 13,
+      "LayoutOnlyExtractor": 4,
+      "ComponentDiagramExtractor": 3,
+      "TerminalDiagramExtractor": 4
+    },
+    "第三组_合同子项目": {
+      "SkipExtractor": 80,
+      "WireDiagramExtractor": 203,
+      "ComponentDiagramExtractor": 47,
+      "TerminalDiagramExtractor": 68,
+      "LayoutOnlyExtractor": 52
+    },
+    "第二组_测控柜": {
+      "SkipExtractor": 3,
+      "WireDiagramExtractor": 13,
+      "LayoutOnlyExtractor": 2,
+      "ComponentDiagramExtractor": 2,
+      "TerminalDiagramExtractor": 4
+    }
+  },
+  "group_category_counts": {
+    "第一组_保护柜": {
+      "封面/目录": 2,
+      "屏面布置图": 2,
+      "二次原理图": 13,
+      "背板接线图": 4,
+      "元件接线图": 3,
+      "屏端子图": 4
+    },
+    "第三组_合同子项目": {
+      "封面/目录": 50,
+      "屏面布置图": 30,
+      "二次原理图": 203,
+      "元件接线图": 47,
+      "屏端子图": 68,
+      "背板接线图": 52
+    },
+    "第二组_测控柜": {
+      "封面/目录": 2,
+      "屏面布置图": 1,
+      "二次原理图": 13,
+      "背板接线图": 2,
+      "元件接线图": 2,
+      "屏端子图": 4
+    }
+  },
+  "sidecar_mismatch_project_count": 0,
+  "terminal_strip_total": 505
+}
