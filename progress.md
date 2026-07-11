@@ -4191,3 +4191,180 @@
 - Targeted geometry/report/baseline/config verification: `32 passed`.
 - Final full-suite verification: `342 passed in 12.47s`; `git diff --check` passed with line-ending warnings only.
 - No new persistent `.tmp` products were created by this slice.
+# Session Update 2026-07-10 (review-package migration kickoff)
+- Started a delta review of `XJCheck_topology_upgrade_review_v1/docs` against the already implemented topology-first Phase 104/105 work.
+- Confirmed 16 review documents are present and the worktree reported no short-status entries at kickoff.
+- Created the required root `findings.md` planning memory file; retained the existing `task_plan.md` and `progress.md` history.
+- Tooling error: bundled `rg.exe` failed with Access Denied; switched to native PowerShell discovery/search commands.
+- Read package boundary and local-agent execution contract (`00`, `15`). Established that the package targets an older snapshot and must be applied as a delta, not copied as a fresh plan.
+- Read evidence/root-cause/best-practice/target-architecture/topology specifications (`01`-`05`) and recorded the delta against Phase 104/105.
+- Read symbol/constraint/project-graph/failure-loop/Findings V2 specifications (`06`-`10`) and recorded object, versioning, review, and inference constraints.
+- Completed all 16 review documents by reading the task decomposition, acceptance gates, dependencies, and drawing-type strategy (`11`-`14`).
+- Audited the current converter/config/dependencies and selected Reader discovery as the first zero-recognition-drift migration slice.
+- Read the package README/checklist/master taskbook and confirmed the Reader-first ordering and required extension seams.
+- Inspected ezdxf's installed ODA resolution behavior and fixed the implementation design for explicit Unix/AppImage paths without private API coupling.
+- Implemented the Reader Adapter foundation and cross-platform ODA discovery while preserving the legacy converter surface.
+- Targeted verification: `python -m pytest -q tests\unit\test_readers.py tests\unit\test_config.py` -> `9 passed`.
+- Full verification: `python -m pytest -q` -> `348 passed in 17.83s`.
+- `git diff --check` passed; reviewed the converter diff and confirmed the legacy conversion call/status path remains intact.
+- Probed the current environment through the new registry: ODA 27.1 is available from the configured Windows path.
+- Verified the package corpus runner interface; its recorded inventory points to the original `/mnt/data/xj_dataset` location, so the local Windows corpus root remains the next external input for the 27-project run.
+- Discovered the full local corpus under `F:\workspace\XJToolkit\test`.
+- First one-project smoke attempt was killed by an intentionally too-short shell timeout before the runner could complete; recorded for retry with a realistic bounded timeout.
+- Retried with `--resume` and a realistic bound. One-project corpus smoke completed: analyze/audit exit 0, 28 sheets, 0 conversion failures, `1717` pairs, `70` issues, `23148` junctions, `609` networks.
+- Smoke counts match the Phase 104 frozen first-project baseline exactly; artifacts are under `.tmp/phase110_reader_corpus_smoke`.
+- Final `git diff --check` still passes with line-ending warnings only; worktree contains only this slice's code/tests/planning files.
+
+# Session Update 2026-07-10 (review plan migration into canonical taskbook)
+- Recovered prior session state with `planning-with-files` and re-read current planning memory.
+- Audited `doc/任务书.md` section 18.8 against the latest review package delta.
+- Chose an additive 18.9 migration contract plus dependency-correct Phase 111+ task plan, preserving existing architecture and redline history.
+- Agent dispatch constraint: current spawn API cannot specify `agent_role="default"` or select `gpt-5.6-luna`; no non-compliant subagent was spawned.
+- Migrated the latest review plan into `doc/任务书.md` section 18.9 and updated the taskbook version to v1.0 topology-migration baseline.
+- Expanded `task_plan.md` into dependency-correct Phase 111-120 execution batches with explicit exit gates.
+- Updated the final MVP definition to match Topology V2 rather than the legacy Pair-first chain.
+- Verified new section numbering, planned phases and `git diff --check`; Phase 111 is complete.
+- Recorded the requested 5.6 Luna concurrent execution lanes under Phase 112, with dispatch explicitly gated on a compliant spawn interface.
+- Final consistency check passed: taskbook v1.0 header/final MVP, 18.9 headings, Phase 111-120 headings, and `git diff --check` are valid. Current phase advanced to Phase 112.
+
+# Session Update 2026-07-11 (Phase 112 restart and subagent dispatch)
+- Re-read the planning skill, ran session catchup, inspected current worktree/planning state, and searched for updated `AGENTS.md`.
+- No `AGENTS.md` file is currently present in the workspace tree; user explicitly authorized subagent scheduling.
+- Marked Phase 112 in progress and prepared three independent read-only dispatch lanes. The collaboration API has no model selector, so no unsupported model claim is made.
+- Dispatched three read-only subagents concurrently and waited for all results before continuing main-thread work.
+- Lane A confirmed 27 projects/502 DWG and supplied clean-run/hard-gate/freeze requirements.
+- Lane B supplied an additive `reader_run.json` provenance/cache design that preserves existing manifest/Parquet hashes.
+- Lane C traced the false-clean path and supplied the pipeline-level incomplete state contract, taxonomy, Issue design and 13-case failure-injection matrix.
+- Ran the full 27-project/502-sheet corpus in a brand-new output directory without resume or filtering; runtime 403.1s.
+- Aggregate runner result: analyze 27/27, audit 27/27, conversion-failure projects 0, pairs 29,801, issues 1,290.
+- Retained output at `.tmp/phase112_corpus_baseline_e8be15d`; next actions are independent hard validation, baseline freeze/redline checks, and benchmark split freeze.
+- Independent hard validation passed for all 27 projects/502 sheets and found no TIMEOUT logs.
+- Ran `freeze-baseline` for P001-P027; all 27 commands succeeded and wrote manifests under the corpus output's `baselines/` directory.
+- First aggregate manifest validator failed on an outdated `git` key assumption; inspected the schema and will validate against the actual `worktree` envelope instead of repeating the same check.
+- Second validator reached the correct `worktree` envelope but used `git_head`; actual field is `head`. Recorded the exact schema before the final validation attempt.
+- Corrected final validator passed all 27 manifests and all redlines; aggregate frozen metrics match the corpus runner.
+- Reviewed the complete benchmark split proposal and selected a path-independent repository fixture keyed by P001-P027 plus project name/count.
+- Added and locked `tests/fixtures/benchmark_split_v1.csv` plus its source-hash/usage policy document.
+- Validated the split fixture against the clean corpus summary and ran `git diff --check` successfully.
+- Marked Phase 112 complete and advanced the current phase to Phase 113.
+- Re-read the Reader/converter/pipeline/artifact/baseline code and fixed the first Phase 113 implementation slice to additive provenance with shadow-only cache identity.
+- Initial combined patch was rejected atomically because one baseline function context targeted the wrong file; no partial code change occurred. Switching to smaller file-scoped patches.
+- At user request, dispatched three code-writing subagents with disjoint file ownership and waited for all to complete.
+- Integrated changes now cover converter ReaderRun creation, pipeline transport/root artifact writing, optional baseline inventory, and targeted tests. Main-thread diff review found no overlapping edits.
+- Main-thread targeted verification: 48 passed.
+- Main-thread full verification: 367 passed in 9.16s.
+- Fresh calibration-project provenance run passed with 28 ReaderRun rows and unchanged legacy metrics.
+- Independent frame comparison confirmed six core legacy/topology artifacts exactly equal to the Phase 112 baseline; `git diff --check` passed.
+- Dispatched and completed a second three-agent coding wave for Gate Core, pipeline/artifact transport and Pair-independent data-quality audit.
+- Main-thread review confirmed the contracts align and identified the empty `audit_scope` Parquet hazard plus missing baseline inventory entry for extraction completeness.
+- Fixed the cross-lane Parquet hazard with explicit scope sentinels and added extraction sidecar to optional baseline inventory.
+- Combined targeted verification: 61 passed; full verification: 383 passed in 7.62s.
+- Fresh healthy calibration run passed the extraction gate as COMPLETE and retained exact legacy/topology frame equality; `git diff --check` passed.
+- Extended the pipeline integration test through rerun audit: invalid primary DWG yields 0 Pair and a persisted data-quality review Issue.
+- Final full suite remains 383 passed in 7.37s; Phase 113 core false-clean closure is complete, with ODA health check/DXF adapter left as the next slice.
+- Began the ODA health/DXF adapter audit. A direct `ODAFileConverter --help` probe timed out, confirming that health must use bounded conversion/readback rather than an unbounded GUI CLI metadata call.
+- Completed Reader/DXF entry audit and selected structured ReaderHealth + independent EzdxfReader; ODA executable metadata confirms version 27.1.0.0.
+- Parallel Reader work completed: EzdxfReader/Registry contract, ODA metadata/timeout health, and a read-only extraction integration map.
+- Main-thread review selected extraction-only adapter integration and operational ReaderRun health metadata; converter cache validation remains a separately verified follow-up.
+- Integrated EzdxfReader into CAD extraction, persisted Reader health metadata in ReaderRun, and added the real opt-in ODA conversion/readback smoke.
+- Targeted Reader/ODA/converter/CAD/gate tests: 56 passed.
+- Real ODA metadata and explicit conversion/readback smoke both passed READY with version 27.1.0.0 and stable build digest.
+- Full suite after Reader adapter integration passed: 401 tests in 9.18s.
+- Ran fresh calibration P001 and validation P003 without touching held-out projects; both passed the extraction gate and matched Phase 112 exactly across 16 persisted frames.
+- `git diff --check` passed with line-ending warnings only. Phase 113 now enters its final cache-DXF-validation closure slice.
+- Implemented the final Phase 113 cache validation slice through EzdxfReader with explicit `DXF_VALIDATION_FAILED` provenance.
+- Targeted converter/Reader/CAD tests passed: 48; full suite passed: 403 in 8.95s.
+- Fresh calibration P001 converted 24/24 applicable sheets and completed rerun audit. Cross-baseline comparison found 20/23 common Parquet frames exact; the other three are limited to runtime path/duration and equivalent nested-object representations, with no semantic metric drift.
+- Accepted the Phase 113 exit gate and advanced the persistent loop to Phase 114 Backend-Neutral Primitive Model.
+- Recovered the persistent session and audited Phase 114 ownership boundaries. Selected an additive extraction-result envelope plus a dedicated primitive normalizer so native CAD geometry is captured before it is lost, while legacy six-tuple unpacking and all downstream consumers remain unchanged.
+- Added the versioned primitive normalizer, additive extraction result, ProjectArtifacts transport, `primitive_segments.parquet`, summary artifact and synthetic fixtures.
+- Targeted primitive/extraction/report verification passed (30 tests); full suite passed at 406 tests. Fresh P001 generated 29,666 primitives with original polyline handles and Reader provenance, while legacy semantic frames remained stable.
+- Phase 114 remains active: next slice is analytic/approximated ELLIPSE handling for non-uniform transforms plus explicit layer-role candidate policy and transform completeness evidence.
+- Added analytic ELLIPSE persistence, ancestor Matrix44 transform chains and explicit UNKNOWN layer-role evidence. Targeted 31 tests and full 406 tests pass.
+- Ran healthy validation P003: 17,794 primitives, 14,816 normalized with complete handle/world/bbox/Reader evidence. Formal regression comparison against Phase 112 has zero Pair, Issue, rule, status and extraction deltas.
+- Accepted the Phase 114 exit gate and advanced the persistent loop to Phase 115 Formal Topology Decisions V2.
+- Audited Phase 105 observations and every topology union site. Confirmed geometry observations are a safe append-only seed, while legacy wire topology's text/block bridging must remain excluded from V2 decisions/networks.
+- Implemented append-only junction observations/topology decisions, deterministic reason/provenance fields and a non-ASSERTED union invariant verifier. Targeted 34 and full 409 tests passed before overlap work.
+- Added explicit collinear-overlap observations with a synthetic proof that geometry components remain separate in Phase 115. Full suite now passes 410 tests.
+- P001/P003 real decision runs and formal regression comparisons pass with zero Pair/Issue delta and zero non-ASSERTED union violations. Phase 115 remains active for text/block POSSIBLE evidence and real-page ground truth.
+- Added POSSIBLE-only inline text/block evidence, a 12-row validation ground-truth fixture and an independent evaluator. Full suite passes 413 tests.
+- Latest P001/P003 formal regression remains zero-delta; ground truth is 12/12 with asserted crossing false-connect 0/4, and both projects have zero non-ASSERTED union violations.
+- Accepted Phase 115 and advanced the persistent loop to Phase 116 ASSERTED-Only Electrical Networks & Witness.
+- Implemented ASSERTED-only ElectricalNetwork, members, open endpoints, possible boundaries and application artifacts. Added shortest endpoint witnesses and read-only overmerge/split validator.
+- Targeted 21 tests and full 416 tests pass. P003 has 452 networks, zero non-ASSERTED applications, 100% witness completeness and full handle traceability.
+- Phase 116 remains active: classify 64 internal-boundary overmerge suspicions, add drawing/symbol/cross-page boundary artifacts, and complete legacy Pair -> NetworkEndpoint equivalence before the exit gate.
+- Validator exposed an overlap-tolerance architecture bug. Split overlap alignment from endpoint snap tolerance; P003 overmerge suspicions dropped 64 -> 0 without suppressing the validator.
+- Added network boundary observations, legacy Pair/V2 equivalence and rerun Issue witnesses. P001 and P003 endpoint/Issue witness completeness is 100%, all resolved witnesses trace handles, and no non-ASSERTED decision is applied.
+- Full suite passes 418 tests; formal P001/P003 regression remains zero Pair/Issue delta. Accepted Phase 116 and advanced to Phase 117 Symbol Registry & Top-50 Backlog.
+- Audited Phase 117 inputs and hardcoded families. Primitive local geometry is sufficient for path-independent definition fingerprints; selected project-level inventory/unknown queue as the first slice and KLP/ZKK family configuration as the first later zero-drift migration.
+
+# Session Update 2026-07-11 (Phase 117 symbol inventory first slice)
+- Recovered session state: Phase 113-116 exit gates already accepted; active work is Phase 117 Symbol Registry & Top-50 Backlog.
+- Dispatched concurrent haiku agents with disjoint ownership (registry+tests, baseline inventory, report-artifact tests) under supervisor-only main thread policy.
+- Hardened fingerprint/ID uniqueness and pure corpus backlog ranking in `symbol_registry.py` with 6 unit tests.
+- Confirmed artifact write path already emits symbol tables; added non-empty INSERT inventory write test; baseline optional symbol metrics + inventory coverage tests.
+- Targeted tests: 31 passed (symbol/report/baseline). Full suite: 427 passed.
+- Offline inventory from phase116 primitives: P001 67/1144, P003 33/475, critical eligible 0; provisional backlog 79 families.
+- Next: fresh analyze write-path on P001/P003 (or broader non-held-out corpus), Top-50 export for annotation, then zero-drift family YAML only after fixtures.
+
+# Session Update 2026-07-11 (Phase 117 write-path + corpus Top-50)
+- Fresh analyze write-path on P001/P003 wrote symbol_definitions/instances/unknown_queue + summary; formal regression vs phase116 is pair/issue delta 0.
+- Analyzed 19 non-held-out projects (~269s) and ranked 165 geometry families; Top-50 exported without held-out labels.
+- Aggregate corpus: 847 definition rows, 15,759 instances, critical eligible 0.
+- Freezing symbol-aware baselines for P001/P003 and building Top-N definition/port fixture scaffolds next; family YAML migration still gated on zero-drift fixtures.
+
+# Session Update 2026-07-11 (Phase 117 Top-N fixtures)
+- Added Top-N definition signature fixtures (6 families) and empty port-fixture scaffold (11 entries) with policy docs and unit tests.
+- Full suite 437 passed. P001/P003 symbol baselines frozen with optional symbol metrics.
+- Started zero-drift YAML migration for inline body families KLP/ZKK as the last Phase 117 exit blocker before human port annotation.
+
+# Session Update 2026-07-11 (Phase 117 exit gate accepted)
+- Completed config-backed zero-drift migration for inline body families KLP/ZKK.
+- Full suite 443 passed; P001/P003 formal regression after migration is pair/issue delta 0 with identical inline evidence counts.
+- Accepted Phase 117 exit gate and advanced the persistent loop to Phase 118 Multi-Label Page Capabilities.
+- Next Phase 118 first slice: page capability multi-label matrix (WireTopology/SymbolPorts/TerminalGrid/TableMapping/CrossPageReference/CommunicationMedium/MetadataOnly) without filename/page patches; keep backplate off pure LayoutOnly.
+
+# Session Update 2026-07-11 (Phase 118 capability shadow slice)
+- Added additive multi-label page capabilities, evidence and communication-media fields to PageClassification/SheetRecord; legacy route_target remains the only execution router.
+- Page findings now contain `page_capability_matrix`; `communication_medium_candidates.parquet` carries only two-cue, in-audit-area candidate evidence for fiber/serial/ethernet/time-sync/logical. It is explicitly excluded from topology connectivity.
+- Structured backplate pages now expose SymbolPorts + TerminalGrid + TableMapping candidates. Their route is intentionally still unchanged until the next TableStructure slice proves that grid lines cannot enter geometry/wire networks.
+- Synthetic classifier tests cover grid, backplate, multi-medium positive and title-block/one-cue negative cases. Full suite: 445 passed in 18.73s.
+- Phase 118 remains active: implement generic TableStructure grid/cell/header scope, filter only validated structural line IDs from topology inputs, then prove real P001/P003 and no legacy drift.
+
+# Session Update 2026-07-11 (Phase 118 verified TableStructure isolation)
+- Added geometry-only `table_structure_profiles` with full-grid/cell/header evidence, and an additive parquet/summary artifact.
+- V2 geometry and wire builders now accept optional excluded line IDs. The report path supplies only profile IDs from a second independently-labelled `TableMapping` or `TerminalGrid` page; ordinary WireTopology grids are never excluded solely by geometry.
+- Synthetic grid+lead regression and real P001/P003 proof completed. P001 excludes 134 structural IDs with zero occurrence in V2 geometry edges/wire networks and Pair/Issue delta 0/0; P003 has no grid profile and serial medium is shadow-only with V2 delta 0.
+- Full suite: 452 passed. Phase 118 remains active for the backplate hybrid execution contract and broader real medium/cross-page capability evidence.
+
+# Session Update 2026-07-11 (Phase 118 recovery + TableStructure proof)
+- Recovered after other-agent quota failures: capabilities + TableStructure already partially present; full suite was 452 then 454 after config/tests.
+- Confirmed dual-gate exclusion (TableMapping|TerminalGrid ∩ complete grid). Fresh P001 excludes 134 structural terminal-grid lines from V2 topology with Pair/Issue delta 0; P003 unchanged and has one communication-medium candidate only.
+- Added table_structure config defaults and TerminalGrid exclusion unit test.
+- Phase 118 exit gate accepted on multi-label synthetic/real proofs + no cross-medium topology contamination + table-grid structural-line isolation. Advancing to Phase 119.
+
+# Session Update 2026-07-11 (Phase 119 first slice)
+- Implemented ProjectProfile, text token parser, and geometry-only semantic attachment candidates; wired shadow artifacts into write_project_artifacts.
+- Unit coverage for new modules + report artifacts; full suite 476 passed.
+- Fresh P001/P003 analyze: profile/tokens/attachments present; formal Pair/Issue delta 0 vs Phase 118.
+- Next: ScopeResolver for semantic-row/body-port/scoped-prefix with explicit selected/rejected reasons; keep attachments non-authoritative for topology.
+
+# Session Update 2026-07-11 (Phase 119 Scope+Constraint exit)
+- Implemented ScopeResolver and ConstraintResolver shadow chain; wired into write_project_artifacts.
+- Targeted + full suite green (492 passed). Fresh P001/P003: strong_violation_count=0, inviolable_strong_constraints=true, Pair/Issue delta 0.
+- Accepted Phase 119 exit gate. Deferred optional OR-Tools matching. Advanced to Phase 120 Project Graph / Audit V2 / Promotion Review.
+
+# Session Update 2026-07-11 (Phase 120 exit + migration loop closure)
+- Implemented EndpointIdentity/ProjectGraph/Audit V2/Failure Queue shadow products; wired analyze + rerun-audit paths.
+- Full suite 517 passed. P001/P003 Pair/Issue delta 0 vs Phase 119; witness completeness 1.0; strong constraint violations 0; no POSSIBLE union; held-out untouched.
+- Accepted Phase 120 exit gate with promotion evidence artifact. Topology V2 migration Phases 113-120 complete under legacy-primary rollback-safe posture. Learning/GNN track remains gated.
+
+# Session Update 2026-07-11 (Held-out release gate + promotion evidence v2)
+- Executed release-only held-out evaluate on 8 projects (188s); all analyze/audit success; pair/issue delta 0 vs Phase 112; witness 1.0; false_clean 0; no strong violations; no POSSIBLE union.
+- Recorded `.tmp/phase120_promotion_gate_evidence_v2.json` with honest hard-precision status UNMEASURED_NO_LABELS and proxy_pass=true.
+- MVP DoD for shadow/compare/rollback path satisfied; topology V2 primary flip remains blocked on human-labeled hard precision + product decision. Learning track still gated.
+
+# Session Update 2026-07-11 (Hard-issue precision harness + promotion evidence v3)
+- Froze cal/val hard-issue labels (65 on P001) and implemented evaluate-hard-issues harness.
+- Measured micro hard-issue precision/recall = 1.0/1.0 on P001+P003; suite 520 passed.
+- Held-out release proxy remains pass without tuning. Primary engine remains legacy; review-only V2 assist is evidenced as ready.

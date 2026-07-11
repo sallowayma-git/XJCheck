@@ -7,6 +7,7 @@ from dwg_audit.audit.page_extractors import extract_component_pairs
 from dwg_audit.audit.page_extractors import extract_layout_audit_pairs
 from dwg_audit.audit.page_extractors import extract_terminal_pairs
 from dwg_audit.audit.page_extractors import extract_wire_pairs
+from dwg_audit.audit.extraction_gate import evaluate_extraction_completeness
 from dwg_audit.audit.table_extractor import extract_table_pairs
 from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.ingest import convert_source_files
@@ -43,7 +44,7 @@ def analyze_input_root(
 ) -> list[Path]:
     project_roots = discover_project_roots(input_path)
     written: list[Path] = []
-    summary: list[dict[str, str]] = []
+    summary: list[dict[str, object]] = []
     for project_root in project_roots:
         logger.info("Analyzing project root: %s", project_root)
         if event_sink is not None:
@@ -57,13 +58,21 @@ def analyze_input_root(
                 file_count=scan.manifest.file_count,
                 sheet_count=scan.manifest.sheet_count,
             )
-        convert_source_files(scan.manifest.source_files, output_path, config, logger, event_sink=event_sink)
-        texts, lines, blocks, polylines, pages, extraction_warnings = extract_cad_artifacts(
+        reader_runs = convert_source_files(
+            scan.manifest.source_files,
+            output_path,
+            config,
+            logger,
+            event_sink=event_sink,
+        ) or []
+        extraction_result = extract_cad_artifacts(
             scan,
             scan.manifest.source_files,
             config,
             logger,
         )
+        texts, lines, blocks, polylines, pages, extraction_warnings = extraction_result
+        primitive_segments = getattr(extraction_result, "primitive_segments", [])
         if event_sink is not None:
             event_sink.emit(
                 "progress",
@@ -209,6 +218,26 @@ def analyze_input_root(
                 pair_count=len(pairs),
                 table_pair_count=len(table_pairs),
             )
+        extraction_gate = evaluate_extraction_completeness(
+            pages,
+            scan.manifest.source_files,
+            texts,
+            lines,
+            blocks,
+            polylines,
+            extraction_warnings,
+            extractor_runs,
+            classifications=classifications,
+        )
+        extraction_gate_payload = extraction_gate.to_dict()
+        if event_sink is not None and not extraction_gate_payload["clean_conclusion_allowed"]:
+            event_sink.emit(
+                "incomplete_extraction",
+                project_root=str(project_root),
+                analysis_status=extraction_gate_payload["analysis_status"],
+                incomplete_page_count=extraction_gate_payload["incomplete_page_count"],
+                failure_code_counts=extraction_gate_payload["failure_code_counts"],
+            )
         artifacts = ProjectArtifacts(
             scan=scan,
             texts=texts,
@@ -222,6 +251,8 @@ def analyze_input_root(
             issues=[],
             extraction_warnings=extraction_warnings,
             extractor_runs=extractor_runs,
+            reader_runs=reader_runs,
+            primitive_segments=primitive_segments,
         )
         # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
         artifacts_page_classifications = classifications
@@ -232,6 +263,7 @@ def analyze_input_root(
             config=config,
             page_classifications=artifacts_page_classifications,
             table_mappings=artifacts_table_mappings,
+            extraction_gate=extraction_gate,
         )
         written.append(project_dir)
         if event_sink is not None:
@@ -239,6 +271,10 @@ def analyze_input_root(
                 "project_finished",
                 project_root=str(project_root),
                 project_dir=str(project_dir),
+                analysis_status=extraction_gate_payload["analysis_status"],
+                clean_conclusion_allowed=extraction_gate_payload["clean_conclusion_allowed"],
+                incomplete_page_count=extraction_gate_payload["incomplete_page_count"],
+                failure_code_counts=extraction_gate_payload["failure_code_counts"],
             )
         summary.append(
             {
@@ -246,6 +282,10 @@ def analyze_input_root(
                 "project_id": scan.manifest.project_id,
                 "project_root": scan.project_root,
                 "artifact_dir": str(project_dir.resolve()),
+                "analysis_status": extraction_gate_payload["analysis_status"],
+                "clean_conclusion_allowed": extraction_gate_payload["clean_conclusion_allowed"],
+                "incomplete_page_count": extraction_gate_payload["incomplete_page_count"],
+                "failure_code_counts": extraction_gate_payload["failure_code_counts"],
             }
         )
     (output_path / "run_summary.json").write_text(

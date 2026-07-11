@@ -15,6 +15,7 @@ from dwg_audit.desktop import update_issue_status as update_desktop_issue_status
 from dwg_audit.report import compare_project_regressions
 from dwg_audit.report import evaluate_acceptance_project
 from dwg_audit.report import evaluate_acceptance_suite
+from dwg_audit.report import evaluate_hard_issue_label_pack
 from dwg_audit.report import export_existing_reports
 from dwg_audit.report import rerun_audit_from_findings
 from dwg_audit.report import write_acceptance_report
@@ -329,9 +330,39 @@ def render_preview(
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+
+@app.command("evaluate-hard-issues")
+def evaluate_hard_issues(
+    label_pack: Path = typer.Option(..., "--labels", help="Hard-issue label pack JSON"),
+    project: list[str] = typer.Option(..., "--project", help="Alias=dir pairs like P001=.tmp/foo"),
+    output: Path | None = typer.Option(None, "--output", "-o"),
+) -> None:
+    """Evaluate hard-issue precision/recall against a frozen label pack (no tuning)."""
+    project_dirs: dict[str, Path] = {}
+    for item in project:
+        if "=" not in item:
+            raise typer.BadParameter(f"Expected alias=dir, got: {item}")
+        alias, raw = item.split("=", 1)
+        project_dirs[alias.strip()] = Path(raw.strip())
+    result = evaluate_hard_issue_label_pack(label_pack, project_dirs)
+    out = output or Path("hard_issue_eval")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "hard_issue_eval.json").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    typer.echo("Hard-issue evaluation completed:")
+    typer.echo(f"- projects: {result['project_count']}")
+    typer.echo(f"- micro_precision: {result['micro_precision']}")
+    typer.echo(f"- micro_recall: {result['micro_recall']}")
+    typer.echo(f"- micro_precision_ge_99: {result['micro_precision_ge_99']}")
+    typer.echo(f"- report: {out / 'hard_issue_eval.json'}")
+
+
 def run() -> None:
     app()
 
 
 if __name__ == "__main__":
     run()
+

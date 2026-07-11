@@ -19,11 +19,7 @@ _SCOPED_EXTERNAL_ENDPOINT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _WIRE_LOGIC_BODY_PATTERN = re.compile(r"^\d+-21[A-Z]{2,4}\d{1,3}$", re.IGNORECASE)
-_INLINE_COMPONENT_BODY_FAMILIES = {"KLP", "ZKK"}
-_INLINE_COMPONENT_BODY_PATTERN = re.compile(
-    r"^(?P<prefix>\d+(?:-\d+)?)(?P<family>KLP|ZKK)(?P<body_ordinal>\d*)$",
-    re.IGNORECASE,
-)
+_INLINE_COMPONENT_BODY_FAMILIES = frozenset({"KLP", "ZKK"})
 _INLINE_COMPONENT_PORT_PATTERN = re.compile(r"^[1-6]$")
 _WIRE_LOGIC_BODY_PORT_PATTERN = re.compile(r"^[1-4]$")
 _INLINE_COMPONENT_LOCAL_NUMBER_PATTERN = re.compile(r"^\d{3}$")
@@ -55,6 +51,55 @@ _INLINE_COMPONENT_LINE_Y_TOL = 2.0
 _INLINE_COMPONENT_LINE_PORT_Y_OFFSET = 8.0
 
 
+def _normalize_inline_body_families(families) -> frozenset[str]:
+    if families is None:
+        return frozenset()
+    if isinstance(families, str):
+        candidates = [families]
+    else:
+        try:
+            candidates = list(families)
+        except TypeError:
+            return frozenset()
+    normalized: set[str] = set()
+    for item in candidates:
+        text = str(item or "").strip().upper()
+        if text:
+            normalized.add(text)
+    return frozenset(normalized)
+
+
+def _inline_body_family_pattern(families: frozenset[str]) -> re.Pattern[str]:
+    ordered = sorted(families)
+    if not ordered:
+        # Never matches; keeps callers safe when config is empty/invalid.
+        alternation = r"(?!)"
+    else:
+        alternation = "|".join(re.escape(family) for family in ordered)
+    return re.compile(
+        rf"^(?P<prefix>\d+(?:-\d+)?)(?P<family>{alternation})(?P<body_ordinal>\d*)$",
+        re.IGNORECASE,
+    )
+
+
+def _resolve_inline_body_families(config: dict | None) -> frozenset[str]:
+    if not isinstance(config, dict):
+        return _INLINE_COMPONENT_BODY_FAMILIES
+    section = config.get("wire_components")
+    if not isinstance(section, dict):
+        return _INLINE_COMPONENT_BODY_FAMILIES
+    raw = section.get("inline_body_families")
+    if raw is None:
+        return _INLINE_COMPONENT_BODY_FAMILIES
+    normalized = _normalize_inline_body_families(raw)
+    if not normalized:
+        return _INLINE_COMPONENT_BODY_FAMILIES
+    return normalized
+
+
+_INLINE_COMPONENT_BODY_PATTERN = _inline_body_family_pattern(_INLINE_COMPONENT_BODY_FAMILIES)
+
+
 def extract_component_prefixed_signal_pairs(
     pages: list[SheetRecord],
     texts: list[TextItem],
@@ -62,9 +107,11 @@ def extract_component_prefixed_signal_pairs(
     *,
     pair_id_factory: IdFactory | None = None,
     first_prefixed_eligible_local_text_ids: set[str] | None = None,
+    config: dict | None = None,
 ) -> list[Pair]:
     """Recover narrow wire-component mappings on signal-circuit pages."""
     pair_ids = pair_id_factory or IdFactory("PWCM")
+    inline_body_families = _resolve_inline_body_families(config)
     texts_by_sheet: dict[str, list[TextItem]] = defaultdict(list)
     for text in texts:
         texts_by_sheet[text.sheet_id].append(text)
@@ -99,6 +146,7 @@ def extract_component_prefixed_signal_pairs(
                 page,
                 sheet_texts,
                 pair_ids,
+                inline_body_families=inline_body_families,
             )
         )
         pairs.extend(
@@ -122,6 +170,7 @@ def extract_component_prefixed_signal_pairs(
                 sheet_texts,
                 lines_by_sheet.get(page.sheet_id, []),
                 pair_ids,
+                inline_body_families=inline_body_families,
             )
         )
         pairs.extend(
@@ -130,6 +179,7 @@ def extract_component_prefixed_signal_pairs(
                 sheet_texts,
                 lines_by_sheet.get(page.sheet_id, []),
                 pair_ids,
+                inline_body_families=inline_body_families,
             )
         )
     return pairs
@@ -139,12 +189,19 @@ def _extract_scoped_visible_prefix_external_endpoint_pairs(
     page: SheetRecord,
     sheet_texts: list[TextItem],
     pair_ids: IdFactory,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
 ) -> list[Pair]:
     prefixes = _dedupe_scoped_prefixes(
         [text for text in sheet_texts if _looks_like_scoped_prefix(text.normalized_text)]
     )
     external_endpoints = [
-        text for text in sheet_texts if _looks_like_scoped_external_endpoint(text.normalized_text)
+        text
+        for text in sheet_texts
+        if _looks_like_scoped_external_endpoint(
+            text.normalized_text,
+            inline_body_families=inline_body_families,
+        )
     ]
     local_numbers = [text for text in sheet_texts if _looks_like_local_number(text.normalized_text)]
     if not prefixes or not external_endpoints or not local_numbers:
@@ -258,10 +315,26 @@ def _extract_inline_body_port_pairs(
     sheet_texts: list[TextItem],
     sheet_lines: list[LineEntity],
     pair_ids: IdFactory,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
 ) -> list[Pair]:
-    bodies = [text for text in sheet_texts if _looks_like_inline_component_body(text.normalized_text)]
+    bodies = [
+        text
+        for text in sheet_texts
+        if _looks_like_inline_component_body(
+            text.normalized_text,
+            inline_body_families=inline_body_families,
+        )
+    ]
     ports = [text for text in sheet_texts if _looks_like_inline_component_port(text.normalized_text)]
-    endpoints = [text for text in sheet_texts if _looks_like_inline_component_endpoint(text.normalized_text)]
+    endpoints = [
+        text
+        for text in sheet_texts
+        if _looks_like_inline_component_endpoint(
+            text.normalized_text,
+            inline_body_families=inline_body_families,
+        )
+    ]
     if not bodies or not ports or not endpoints:
         return []
 
@@ -277,10 +350,20 @@ def _extract_inline_body_port_pairs(
             continue
         component_bbox = _component_bbox_from_items([body, *body_ports])
         for port in body_ports:
-            side_label = _inline_component_port_side(body, port)
+            side_label = _inline_component_port_side(
+                body,
+                port,
+                inline_body_families=inline_body_families,
+            )
             if side_label is None:
                 continue
-            endpoint = _nearest_inline_component_endpoint(body, port, endpoints, side=side_label)
+            endpoint = _nearest_inline_component_endpoint(
+                body,
+                port,
+                endpoints,
+                side=side_label,
+                inline_body_families=inline_body_families,
+            )
             if endpoint is None:
                 continue
             support_lines = _supporting_inline_component_lines(
@@ -292,7 +375,11 @@ def _extract_inline_body_port_pairs(
             if not support_lines:
                 continue
             logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
-            endpoint_value = _normalize_inline_component_endpoint_value(body, endpoint)
+            endpoint_value = _normalize_inline_component_endpoint_value(
+                body,
+                endpoint,
+                inline_body_families=inline_body_families,
+            )
             dedupe_key = (body.text_id, port.text_id, endpoint.text_id, endpoint_value)
             if dedupe_key in seen:
                 continue
@@ -306,10 +393,14 @@ def _extract_inline_body_port_pairs(
                     endpoint_value=endpoint_value,
                     logical_endpoint=logical_endpoint,
                     side_label=side_label,
-                    component_family=_inline_component_family(body.normalized_text),
+                    component_family=_inline_component_family(
+                        body.normalized_text,
+                        inline_body_families=inline_body_families,
+                    ),
                     component_bbox=component_bbox,
                     support_lines=support_lines,
                     pair_ids=pair_ids,
+                    inline_body_families=inline_body_families,
                 )
             )
     return pairs
@@ -320,6 +411,8 @@ def _extract_scoped_wire_logic_body_port_pairs(
     sheet_texts: list[TextItem],
     sheet_lines: list[LineEntity],
     pair_ids: IdFactory,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
 ) -> list[Pair]:
     prefixes = _dedupe_scoped_prefixes(
         [text for text in sheet_texts if _looks_like_scoped_prefix(text.normalized_text)]
@@ -328,7 +421,12 @@ def _extract_scoped_wire_logic_body_port_pairs(
     ports = [text for text in sheet_texts if _looks_like_wire_logic_body_port(text.normalized_text)]
     local_numbers = [text for text in sheet_texts if _looks_like_local_number(text.normalized_text)]
     external_endpoints = [
-        text for text in sheet_texts if _looks_like_scoped_external_endpoint(text.normalized_text)
+        text
+        for text in sheet_texts
+        if _looks_like_scoped_external_endpoint(
+            text.normalized_text,
+            inline_body_families=inline_body_families,
+        )
     ]
     if not prefixes or not bodies or not ports or not local_numbers or not external_endpoints:
         return []
@@ -348,10 +446,20 @@ def _extract_scoped_wire_logic_body_port_pairs(
             continue
         component_bbox = _component_bbox_from_items([body, *body_ports])
         for port in body_ports:
-            side_label = _inline_component_port_side(body, port)
+            side_label = _inline_component_port_side(
+                body,
+                port,
+                inline_body_families=inline_body_families,
+            )
             if side_label is None:
                 continue
-            endpoint = _nearest_inline_component_endpoint(body, port, local_numbers, side=side_label)
+            endpoint = _nearest_inline_component_endpoint(
+                body,
+                port,
+                local_numbers,
+                side=side_label,
+                inline_body_families=inline_body_families,
+            )
             if endpoint is None:
                 continue
             prefix = _nearest_matching_scoped_prefix(endpoint, prefixes, scope=scope)
@@ -382,10 +490,14 @@ def _extract_scoped_wire_logic_body_port_pairs(
                     endpoint_value=endpoint_value,
                     logical_endpoint=logical_endpoint,
                     side_label=side_label,
-                    component_family=_inline_component_family(body.normalized_text),
+                    component_family=_inline_component_family(
+                        body.normalized_text,
+                        inline_body_families=inline_body_families,
+                    ),
                     component_bbox=component_bbox,
                     support_lines=support_lines,
                     pair_ids=pair_ids,
+                    inline_body_families=inline_body_families,
                 )
             )
     return pairs
@@ -691,8 +803,12 @@ def _build_inline_component_pair(
     component_bbox: list[float],
     support_lines: list[LineEntity],
     pair_ids: IdFactory,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
 ) -> Pair:
-    component_submode = _inline_component_submode(body.normalized_text)
+    component_submode = _inline_component_submode(
+        body.normalized_text,
+        inline_body_families=inline_body_families,
+    )
     local_number = endpoint if _INLINE_COMPONENT_LOCAL_NUMBER_PATTERN.fullmatch(endpoint.normalized_text.strip()) else None
     evidence = {
         "source": "wire_component_mapping",
@@ -810,12 +926,16 @@ def _looks_like_external_endpoint(value: str | None) -> bool:
     return bool(value) and bool(_EXTERNAL_ENDPOINT_PATTERN.fullmatch(str(value).strip()))
 
 
-def _looks_like_scoped_external_endpoint(value: str | None) -> bool:
+def _looks_like_scoped_external_endpoint(
+    value: str | None,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> bool:
     normalized = str(value or "").strip()
     if not normalized or _looks_like_input_matrix_row_endpoint(normalized):
         return False
     family = _scoped_external_endpoint_family(normalized)
-    return family is not None and family.upper() not in _INLINE_COMPONENT_BODY_FAMILIES
+    return family is not None and family.upper() not in inline_body_families
 
 
 def _looks_like_input_matrix_prefix(value: str | None) -> bool:
@@ -835,21 +955,30 @@ def _looks_like_first_prefixed_external_endpoint(value: str | None) -> bool:
     return bool(_FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN.fullmatch(normalized))
 
 
-def _looks_like_inline_component_body(value: str | None) -> bool:
-    return _parse_inline_component_body(value) is not None
+def _looks_like_inline_component_body(
+    value: str | None,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> bool:
+    return _parse_inline_component_body(value, inline_body_families=inline_body_families) is not None
 
 
 def _looks_like_inline_component_port(value: str | None) -> bool:
     return bool(value) and bool(_INLINE_COMPONENT_PORT_PATTERN.fullmatch(str(value).strip()))
 
 
-def _looks_like_inline_component_endpoint(value: str | None) -> bool:
+def _looks_like_inline_component_endpoint(
+    value: str | None,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> bool:
     if not value:
         return False
     normalized = str(value).strip()
-    return _looks_like_scoped_external_endpoint(normalized) or bool(
-        _INLINE_COMPONENT_LOCAL_NUMBER_PATTERN.fullmatch(normalized)
-    )
+    return _looks_like_scoped_external_endpoint(
+        normalized,
+        inline_body_families=inline_body_families,
+    ) or bool(_INLINE_COMPONENT_LOCAL_NUMBER_PATTERN.fullmatch(normalized))
 
 
 def _looks_like_wire_logic_body(value: str | None) -> bool:
@@ -934,10 +1063,16 @@ def _nearest_inline_component_endpoint(
     endpoints: list[TextItem],
     *,
     side: str,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
 ) -> TextItem | None:
     candidates = []
     for endpoint in endpoints:
-        row_y_delta = _inline_component_endpoint_row_delta(body, port, endpoint)
+        row_y_delta = _inline_component_endpoint_row_delta(
+            body,
+            port,
+            endpoint,
+            inline_body_families=inline_body_families,
+        )
         if row_y_delta > _INLINE_COMPONENT_ENDPOINT_ROW_Y_TOL:
             continue
         dx = endpoint.insert_x - port.insert_x
@@ -950,18 +1085,37 @@ def _nearest_inline_component_endpoint(
         candidates,
         key=lambda item: (
             abs(item.insert_x - port.insert_x)
-            + _inline_component_endpoint_row_delta(body, port, item) * 0.5,
-            _inline_component_endpoint_row_delta(body, port, item),
+            + _inline_component_endpoint_row_delta(
+                body,
+                port,
+                item,
+                inline_body_families=inline_body_families,
+            )
+            * 0.5,
+            _inline_component_endpoint_row_delta(
+                body,
+                port,
+                item,
+                inline_body_families=inline_body_families,
+            ),
             item.text_id,
         ),
     )
 
 
-def _normalize_inline_component_endpoint_value(body: TextItem, endpoint: TextItem) -> str:
+def _normalize_inline_component_endpoint_value(
+    body: TextItem,
+    endpoint: TextItem,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> str:
     endpoint_value = endpoint.normalized_text.strip()
     if not _INLINE_COMPONENT_LOCAL_NUMBER_PATTERN.fullmatch(endpoint_value):
         return endpoint_value
-    component = _parse_inline_component_body(body.normalized_text)
+    component = _parse_inline_component_body(
+        body.normalized_text,
+        inline_body_families=inline_body_families,
+    )
     if component is None:
         return endpoint_value
     prefix, family = component
@@ -970,8 +1124,16 @@ def _normalize_inline_component_endpoint_value(body: TextItem, endpoint: TextIte
     return endpoint_value
 
 
-def _inline_component_port_side(body: TextItem, port: TextItem) -> str | None:
-    component = _parse_inline_component_body(body.normalized_text)
+def _inline_component_port_side(
+    body: TextItem,
+    port: TextItem,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> str | None:
+    component = _parse_inline_component_body(
+        body.normalized_text,
+        inline_body_families=inline_body_families,
+    )
     if component is None:
         return "left" if port.insert_x < _text_mid_x(body) else "right"
     _, family = component
@@ -979,22 +1141,43 @@ def _inline_component_port_side(body: TextItem, port: TextItem) -> str | None:
         port_number = int(port.normalized_text.strip())
     except ValueError:
         return None
-    if family in _INLINE_COMPONENT_BODY_FAMILIES:
+    if family in inline_body_families:
         return "left" if port_number % 2 == 1 else "right"
     return "left" if port.insert_x < _text_mid_x(body) else "right"
 
 
-def _inline_component_family(value: str | None) -> str | None:
-    component = _parse_inline_component_body(value)
+def _inline_component_family(
+    value: str | None,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> str | None:
+    component = _parse_inline_component_body(value, inline_body_families=inline_body_families)
     return None if component is None else component[1]
 
 
-def _inline_component_submode(value: str | None) -> str:
-    return "inline_klp_component_port_mapping" if _inline_component_family(value) == "KLP" else "inline_body_port_mapping"
+def _inline_component_submode(
+    value: str | None,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> str:
+    return (
+        "inline_klp_component_port_mapping"
+        if _inline_component_family(value, inline_body_families=inline_body_families) == "KLP"
+        else "inline_body_port_mapping"
+    )
 
 
-def _inline_component_endpoint_row_delta(body: TextItem, port: TextItem, endpoint: TextItem) -> float:
-    family = _inline_component_family(body.normalized_text)
+def _inline_component_endpoint_row_delta(
+    body: TextItem,
+    port: TextItem,
+    endpoint: TextItem,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> float:
+    family = _inline_component_family(
+        body.normalized_text,
+        inline_body_families=inline_body_families,
+    )
     port_delta = abs(endpoint.insert_y - port.insert_y)
     if family == "KLP":
         return min(port_delta, abs(endpoint.insert_y - body.insert_y))
@@ -1026,10 +1209,19 @@ def _nearest_first_prefixed_external_local_number(
     )
 
 
-def _parse_inline_component_body(value: str | None) -> tuple[str, str] | None:
+def _parse_inline_component_body(
+    value: str | None,
+    *,
+    inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
+) -> tuple[str, str] | None:
     if not value:
         return None
-    match = _INLINE_COMPONENT_BODY_PATTERN.fullmatch(str(value).strip())
+    pattern = (
+        _INLINE_COMPONENT_BODY_PATTERN
+        if inline_body_families == _INLINE_COMPONENT_BODY_FAMILIES
+        else _inline_body_family_pattern(inline_body_families)
+    )
+    match = pattern.fullmatch(str(value).strip())
     if match is None:
         return None
     return match.group("prefix"), match.group("family").upper()

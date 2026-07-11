@@ -7,6 +7,8 @@ from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
 from dwg_audit.report.artifacts import write_project_artifacts
 from dwg_audit.report.baseline import write_baseline_manifest
+from dwg_audit.report.hard_issue_eval import evaluate_hard_issue_label_pack
+from dwg_audit.report.hard_issue_eval import evaluate_hard_issue_precision
 from dwg_audit.report.regression import compare_project_regressions
 from dwg_audit.report.regression import compare_regression_metrics
 from dwg_audit.report.regression import summarize_regression_metrics
@@ -16,6 +18,8 @@ from dwg_audit.report.rerun import rerun_audit_from_findings
 __all__ = [
     "evaluate_acceptance_project",
     "evaluate_acceptance_suite",
+    "evaluate_hard_issue_label_pack",
+    "evaluate_hard_issue_precision",
     "compare_project_regressions",
     "compare_regression_metrics",
     "export_existing_reports",

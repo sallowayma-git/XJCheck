@@ -182,6 +182,7 @@ def _extract_pairs_for_route(
             texts,
             lines,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
+            config=config,
         )
         _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)

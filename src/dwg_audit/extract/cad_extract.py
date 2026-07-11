@@ -3,9 +3,8 @@ from __future__ import annotations
 import json
 import math
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
-
-import ezdxf
 
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import ExtractionWarning
@@ -15,11 +14,36 @@ from dwg_audit.domain.models import ProjectScanResult
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.readers import EzdxfReader
+from dwg_audit.readers import ReaderError
+from dwg_audit.readers import ReaderOptions
 from dwg_audit.utils.ids import IdFactory
+from dwg_audit.extract.primitive_normalizer import PrimitiveSegment
+from dwg_audit.extract.primitive_normalizer import normalize_document_primitives
 
 _FILENAME_PAGE_PATTERN = re.compile(r"^(?P<page>\d+)\s+(?P<title>.+?)(?:\.dwg)?$", re.IGNORECASE)
 _TITLE_BLOCK_PAGE_LABELS = ("页号", "page", "sheet", "图号")
 _TITLE_BLOCK_TITLE_LABELS = ("图名", "图纸名称", "title")
+
+
+@dataclass(slots=True)
+class CadExtractionResult:
+    texts: list[TextItem]
+    lines: list[LineEntity]
+    blocks: list[BlockRecord]
+    polylines: list[PolylineRecord]
+    pages: list[SheetRecord]
+    warnings: list[ExtractionWarning]
+    primitive_segments: list[PrimitiveSegment] = field(default_factory=list)
+
+    def __iter__(self):
+        # Preserve the public six-value unpacking contract for legacy callers.
+        yield self.texts
+        yield self.lines
+        yield self.blocks
+        yield self.polylines
+        yield self.pages
+        yield self.warnings
 
 
 def _normalize_text(text: str) -> str:
@@ -584,14 +608,7 @@ def extract_cad_artifacts(
     source_files: list[SourceFileRecord],
     config: dict,
     logger,
-) -> tuple[
-    list[TextItem],
-    list[LineEntity],
-    list[BlockRecord],
-    list[PolylineRecord],
-    list[SheetRecord],
-    list[ExtractionWarning],
-]:
+) -> CadExtractionResult:
     sheet_map = {sheet.file_id: sheet for sheet in scan.pages}
     text_ids = IdFactory("T")
     line_ids = IdFactory("L")
@@ -604,6 +621,9 @@ def extract_cad_artifacts(
     all_blocks: list[BlockRecord] = []
     all_polylines: list[PolylineRecord] = []
     extraction_warnings: list[ExtractionWarning] = []
+    primitive_segments: list[PrimitiveSegment] = []
+    dxf_reader = EzdxfReader()
+    reader_options = ReaderOptions()
 
     numeric_pattern = re.compile(config.get("text", {}).get("numeric_pattern", r"^[0-9]+$"))
     for source in source_files:
@@ -622,7 +642,30 @@ def extract_cad_artifacts(
             continue
 
         try:
-            doc = ezdxf.readfile(Path(source.dxf_path))
+            cad_document = dxf_reader.read(Path(source.dxf_path), reader_options)
+            doc = cad_document.native_document
+            if doc is None:
+                raise ReaderError(
+                    "native_document_missing",
+                    f"DXF reader returned no native document: {source.dxf_path}",
+                    backend_name=dxf_reader.backend_name,
+                )
+        except ReaderError as exc:
+            warning_code = "missing_dxf" if exc.code == "source_not_found" else "read_dxf_failed"
+            message = f"[{exc.code}] {exc}"
+            extraction_warnings.append(
+                ExtractionWarning(
+                    warning_id=warning_ids.next(),
+                    file_id=source.file_id,
+                    sheet_id=sheet.sheet_id,
+                    stage="extract",
+                    code=warning_code,
+                    message=message,
+                    severity="error",
+                )
+            )
+            sheet.warnings.append(f"Failed to read DXF: {message}")
+            continue
         except Exception as exc:  # pragma: no cover - depends on malformed DXF samples
             extraction_warnings.append(
                 ExtractionWarning(
@@ -641,6 +684,16 @@ def extract_cad_artifacts(
         msp = doc.modelspace()
         sheet.layout_name = "Model"
         sheet.drawing_units = getattr(doc, "units", None) or "unknown"
+        primitive_segments.extend(
+            normalize_document_primitives(
+                doc,
+                sheet_id=sheet.sheet_id,
+                file_id=source.file_id,
+                reader_backend=cad_document.backend_name,
+                reader_version=cad_document.backend_version,
+                layout_name=sheet.layout_name,
+            )
+        )
 
         sheet_texts: list[TextItem] = []
         sheet_lines: list[LineEntity] = []
@@ -703,4 +756,12 @@ def extract_cad_artifacts(
         all_blocks.extend(sheet_blocks)
         all_polylines.extend(sheet_polylines)
 
-    return all_texts, all_lines, all_blocks, all_polylines, list(sheet_map.values()), extraction_warnings
+    return CadExtractionResult(
+        texts=all_texts,
+        lines=all_lines,
+        blocks=all_blocks,
+        polylines=all_polylines,
+        pages=list(sheet_map.values()),
+        warnings=extraction_warnings,
+        primitive_segments=primitive_segments,
+    )

@@ -4,11 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import ezdxf
+import pytest
 
 from dwg_audit.domain.models import ProjectScanResult
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.extract.cad_extract import extract_cad_artifacts
+from dwg_audit.readers import EzdxfReader
+from dwg_audit.readers import ReaderError
 from dwg_audit.utils.config import DEFAULT_CONFIG
 
 
@@ -85,12 +88,13 @@ def test_extract_cad_artifacts_reads_insert_attrib_and_polylines(tmp_path: Path)
     dxf_path = tmp_path / "demo.dxf"
     doc.saveas(dxf_path)
 
-    texts, lines, blocks, polylines, pages, warnings = extract_cad_artifacts(
+    result = extract_cad_artifacts(
         _scan(),
         [_source_file(dxf_path)],
         DEFAULT_CONFIG,
         DummyLogger(),
     )
+    texts, lines, blocks, polylines, pages, warnings = result
 
     assert any(item.entity_type == "ATTRIB" and item.text == "202" and item.is_numeric_candidate for item in texts)
     assert any(item.entity_type == "TEXT" and item.text == "101" for item in texts)
@@ -101,6 +105,76 @@ def test_extract_cad_artifacts_reads_insert_attrib_and_polylines(tmp_path: Path)
     assert pages[0].frame_bbox is not None
     assert warnings == []
     assert any(item.source_entity_type == "POLYLINE" for item in lines)
+    assert result.primitive_segments
+    assert {item.primitive_kind for item in result.primitive_segments} >= {"LINE", "INSERT"}
+    assert all(item.reader_backend == "ezdxf" for item in result.primitive_segments)
+
+
+def test_extract_cad_artifacts_reads_through_ezdxf_adapter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    doc = ezdxf.new("R2018")
+    doc.modelspace().add_line((0, 0), (10, 0))
+    dxf_path = tmp_path / "adapter.dxf"
+    doc.saveas(dxf_path)
+    original_read = EzdxfReader.read
+    calls: list[Path] = []
+
+    def recording_read(self, path, options):
+        calls.append(Path(path))
+        return original_read(self, path, options)
+
+    monkeypatch.setattr(EzdxfReader, "read", recording_read)
+
+    _, lines, _, _, _, warnings = extract_cad_artifacts(
+        _scan(),
+        [_source_file(dxf_path)],
+        DEFAULT_CONFIG,
+        DummyLogger(),
+    )
+
+    assert calls == [dxf_path]
+    assert len(lines) == 1
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
+    ("reader_code", "warning_code"),
+    [
+        ("source_not_found", "missing_dxf"),
+        ("invalid_dxf", "read_dxf_failed"),
+        ("source_read_failed", "read_dxf_failed"),
+        ("native_document_missing", "read_dxf_failed"),
+    ],
+)
+def test_extract_cad_artifacts_maps_reader_errors_to_gate_warning_codes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reader_code: str,
+    warning_code: str,
+) -> None:
+    dxf_path = tmp_path / "broken.dxf"
+    dxf_path.write_text("broken", encoding="utf-8")
+
+    def fail_read(self, path, options):
+        raise ReaderError(reader_code, "reader failure", backend_name="ezdxf")
+
+    monkeypatch.setattr(EzdxfReader, "read", fail_read)
+
+    texts, lines, blocks, polylines, pages, warnings = extract_cad_artifacts(
+        _scan(),
+        [_source_file(dxf_path)],
+        DEFAULT_CONFIG,
+        DummyLogger(),
+    )
+
+    assert texts == [] and lines == [] and blocks == [] and polylines == []
+    assert len(warnings) == 1
+    assert warnings[0].code == warning_code
+    assert warnings[0].severity == "error"
+    assert f"[{reader_code}]" in warnings[0].message
+    assert pages[0].warnings
 
 
 def test_extract_cad_artifacts_respects_manual_layout_boxes(tmp_path: Path) -> None:

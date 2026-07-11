@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from dwg_audit.audit import build_issues
+from dwg_audit.audit.data_quality import build_incomplete_extraction_issues
 from dwg_audit.audit.wire_topology import build_topology_shadow_report
 from dwg_audit.audit.wire_topology import render_topology_shadow_report_markdown
 from dwg_audit.domain.models import LineGroup
@@ -15,8 +16,14 @@ from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.report.artifacts import _issue_frame
+from dwg_audit.report.artifacts import _build_issue_witness_frame
+from dwg_audit.report.artifacts import _dict_rows_frame
 from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
+from dwg_audit.audit.audit_v2 import build_audit_v2_issue_clusters
+from dwg_audit.audit.audit_v2 import summarize_audit_v2
+from dwg_audit.audit.failure_queue import build_failure_queue
+from dwg_audit.audit.failure_queue import summarize_failure_queue
 from dwg_audit.services.issue_diagnostics import write_issue_root_cause_audit
 
 
@@ -37,6 +44,7 @@ def rerun_audit_from_findings(
     ]
 
     issues = build_issues(pairs, line_groups, pages, config, terminal_candidates=terminal_candidates)
+    issues.extend(build_incomplete_extraction_issues(project_dir, issues, pages))
     if event_sink is not None:
         event_sink.emit(
             "progress",
@@ -66,6 +74,134 @@ def rerun_audit_from_findings(
     audit_dir.mkdir(parents=True, exist_ok=True)
 
     issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
+    issue_witnesses, issue_witness_summary = _build_issue_witness_frame(
+        project_dir, issues_frame
+    )
+    issue_witnesses.to_parquet(audit_dir / "issue_witnesses_v2.parquet", index=False)
+    (audit_dir / "issue_witness_summary.json").write_text(
+        json.dumps(issue_witness_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # Phase 120: Audit V2 clusters + Failure Queue (shadow; legacy issues retained).
+    findings_dir = project_dir / "findings"
+
+    def _read_json_safe(path: Path) -> dict[str, Any]:
+        if not path.is_file():
+            return {}
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+    def _parquet_count(path: Path) -> int:
+        if not path.is_file():
+            return 0
+        try:
+            return int(len(pd.read_parquet(path)))
+        except Exception:
+            return 0
+
+    project_graph_summary = _read_json_safe(findings_dir / "project_graph_summary.json")
+    engine_comparison = _read_json_safe(findings_dir / "engine_comparison_v1.json")
+    constraint_summary = _read_json_safe(findings_dir / "constraint_resolution_summary.json")
+    scope_summary = _read_json_safe(findings_dir / "scope_resolution_summary.json")
+    findings_payload = _read_json_safe(findings_dir / "findings.json")
+    extraction_gate = _read_json_safe(project_dir / "extraction_completeness.json")
+    equivalence = None
+    equivalence_path = findings_dir / "legacy_pair_network_equivalence.parquet"
+    if equivalence_path.is_file():
+        try:
+            equivalence = pd.read_parquet(equivalence_path)
+        except Exception:
+            equivalence = None
+    endpoint_identities = None
+    endpoint_path = findings_dir / "endpoint_identities_v1.parquet"
+    if endpoint_path.is_file():
+        try:
+            endpoint_identities = pd.read_parquet(endpoint_path)
+        except Exception:
+            endpoint_identities = None
+
+    audit_v2_clusters = build_audit_v2_issue_clusters(
+        issues,
+        equivalence=equivalence,
+        endpoint_identities=endpoint_identities,
+    )
+    for cluster in audit_v2_clusters:
+        cluster.setdefault("issue_count", len(cluster.get("issue_ids") or []))
+        cluster.setdefault("schema_version", "audit-v2-cluster-v1")
+    audit_v2_summary = {
+        **summarize_audit_v2(audit_v2_clusters, issues),
+        "legacy_issue_stream_retained": True,
+    }
+    cross_page_candidate_count = _parquet_count(
+        findings_dir / "cross_page_endpoint_candidates_v1.parquet"
+    )
+    if not cross_page_candidate_count and project_graph_summary:
+        cross_page_candidate_count = int(
+            ((project_graph_summary.get("edge_counts") or {}).get("cross_page_candidates"))
+            or 0
+        )
+    failure_items = build_failure_queue(
+        extraction_gate=extraction_gate or None,
+        scope_summary=scope_summary or None,
+        constraint_summary=constraint_summary or None,
+        page_capability_matrix=findings_payload.get("page_capability_matrix"),
+        audit_v2_summary=audit_v2_summary,
+        engine_comparison=engine_comparison or None,
+        open_endpoint_count=_parquet_count(findings_dir / "network_open_endpoints_v2.parquet"),
+        cross_page_candidate_count=cross_page_candidate_count,
+        project_graph_summary=project_graph_summary or None,
+        project_id=str(findings_payload.get("project_id") or project_dir.name),
+    )
+    for item in failure_items:
+        item.setdefault("schema_version", "failure-queue-v1")
+    failure_summary = summarize_failure_queue(failure_items)
+    failure_summary = {
+        **failure_summary,
+        "item_count": int(failure_summary.get("failure_count", len(failure_items))),
+    }
+    audit_v2_columns = (
+        "cluster_id",
+        "schema_version",
+        "algorithm_version",
+        "rule_id",
+        "sheet_id",
+        "severity_max",
+        "issue_ids",
+        "pair_ids",
+        "issue_count",
+        "root_kind",
+        "witness_status",
+        "message_summary",
+    )
+    failure_columns = (
+        "failure_id",
+        "schema_version",
+        "algorithm_version",
+        "category",
+        "severity",
+        "state",
+        "page_or_project",
+        "message",
+        "suggested_routing",
+        "evidence_ref",
+    )
+    _dict_rows_frame(audit_v2_clusters, audit_v2_columns).to_parquet(
+        audit_dir / "audit_v2_issue_clusters.parquet", index=False
+    )
+    (audit_dir / "audit_v2_summary.json").write_text(
+        json.dumps(audit_v2_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    _dict_rows_frame(failure_items, failure_columns).to_parquet(
+        audit_dir / "failure_queue.parquet", index=False
+    )
+    (audit_dir / "failure_queue_summary.json").write_text(
+        json.dumps(failure_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     topology_shadow_payload = build_topology_shadow_report(
         issues_frame=issues_frame,
         pairs_frame=frames.get("pairs", pd.DataFrame()),
@@ -104,6 +240,8 @@ def rerun_audit_from_findings(
             "issues.xlsx",
             "topology_shadow_report.json",
             "topology_shadow_report.md",
+            "issue_witnesses_v2.parquet",
+            "issue_witness_summary.json",
         ):
             copy2(audit_dir / name, output_dir / name)
         return output_dir

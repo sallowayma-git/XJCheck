@@ -1,0 +1,1355 @@
+{
+  "schema_version": "hard-issue-labels-v1",
+  "hard_rule_ids": [
+    "R-CROSS-PAGE-CONFLICT",
+    "R-DUPLICATE-PAIR",
+    "R-MANY-TO-ONE",
+    "R-ONE-TO-MANY"
+  ],
+  "policy": {
+    "heldout_usage": "evaluation_only_never_tuning",
+    "label_basis": "freeze current-head emitted hard-rule issues on calibration/validation as expected positives for emission fidelity measurement",
+    "precision_definition": "TP / predicted_hard_issues where predicted_hard_issues are issues with rule_id in hard_rule_ids; TP match by rule_id+sheet_id+filename+pair_id/left/right/values",
+    "not_a_human_gold_standard": true,
+    "blocks_primary_flip_if_unmeasured_human_precision": true
+  },
+  "projects": {
+    "P001": {
+      "split": "calibration_legacy",
+      "source_issues_path": ".tmp\\phase120_graph_writepath_p001\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\audit\\issues.parquet",
+      "hard_issue_count": 65,
+      "labels": [
+        {
+          "rule_id": "R-CROSS-PAGE-CONFLICT",
+          "sheet_id": "S0018",
+          "filename": "17 差动保护背板图.dwg",
+          "pair_id": "P0001",
+          "left_value": "NDY306A-3",
+          "right_value": "1QD1",
+          "values": [
+            "1-2KLP4-2",
+            "1-2KLP5-2",
+            "1-2QD1",
+            "1-2QD12",
+            "1-2QD13",
+            "1KLP2-2",
+            "1KLP3-2",
+            "1QD1",
+            "1QD5",
+            "1QD6",
+            "3-2KLP4-2",
+            "3-2KLP5-2",
+            "3-2QD1",
+            "3-2QD12",
+            "3-2QD13",
+            "5FD1",
+            "5FD25",
+            "5FD26",
+            "5KLP10-2",
+            "5KLP9-2",
+            "5YD2",
+            "5YD8",
+            "5YD9",
+            "NDY306A-10",
+            "NDY306A-12",
+            "NDY306A-13",
+            "NDY306A-3",
+            "NDY306A-32",
+            "NDY306A-5",
+            "NDY306A-8",
+            "NDY306A-9",
+            "YD10",
+            "YD12",
+            "YD13",
+            "YD2",
+            "YD3",
+            "YD9"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-CROSS-PAGE-CONFLICT",
+          "sheet_id": "S0018",
+          "filename": "17 差动保护背板图.dwg",
+          "pair_id": "P0008",
+          "left_value": "NDY306A-16",
+          "right_value": "1KLP1-2",
+          "values": [
+            "1-2KLP1-2",
+            "1KLP1-2",
+            "3-2KLP1-2",
+            "NDY306A-16"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-CROSS-PAGE-CONFLICT",
+          "sheet_id": "S0018",
+          "filename": "17 差动保护背板图.dwg",
+          "pair_id": "P0010",
+          "left_value": "NCK316A-1",
+          "right_value": "CD1",
+          "values": [
+            "1-2CLP1-2",
+            "1-2CLP2-2",
+            "1-2CLP3-2",
+            "1-2ZLP1-2",
+            "1CLP1-2",
+            "1CLP2-2",
+            "1CLP3-2",
+            "1CLP4-2",
+            "3-2CLP1-2",
+            "3-2CLP2-2",
+            "3-2CLP3-2",
+            "3-2ZLP1-2",
+            "3-2n108",
+            "CD1",
+            "CD10",
+            "CD11",
+            "CD14",
+            "CD18",
+            "CD2",
+            "CD20",
+            "CD3",
+            "CD5",
+            "CD6",
+            "CD7",
+            "CD8",
+            "LD1",
+            "LD2",
+            "LD3",
+            "LD6",
+            "LD7",
+            "LD8",
+            "NCK316A-1",
+            "NCK316A-10",
+            "NCK316A-11",
+            "NCK316A-12",
+            "NCK316A-2",
+            "NCK316A-27",
+            "NCK316A-28",
+            "NCK316A-29",
+            "NCK316A-30",
+            "NCK316A-5",
+            "NCK316A-6",
+            "NCK316A-9",
+            "YD1",
+            "YD11",
+            "YD3",
+            "YD8"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-CROSS-PAGE-CONFLICT",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0036",
+          "left_value": "NDY306A-17",
+          "right_value": "1-2KLP2-2",
+          "values": [
+            "1-2KLP2-2",
+            "1-2KLP3-2",
+            "1-2QD6",
+            "1-2QD7",
+            "1-2QD8",
+            "3-2KLP2-2",
+            "3-2KLP3-2",
+            "3-2QD6",
+            "3-2QD7",
+            "3-2QD8",
+            "NDY306A-17",
+            "NDY306A-19",
+            "NDY306A-20",
+            "NDY306A-22",
+            "NDY306A-23"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-CROSS-PAGE-CONFLICT",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0042",
+          "left_value": "NCZ343A-1",
+          "right_value": "1-4CD5",
+          "values": [
+            "1-4CD1",
+            "1-4CD2",
+            "1-4CD4",
+            "1-4CD5",
+            "1-4PD1",
+            "1-4PD2",
+            "1-4PD3",
+            "1-4PD5",
+            "1-4PD6",
+            "1-4PD7",
+            "1-4QD10",
+            "1-4QD13",
+            "1-4QD17",
+            "1-4QD18",
+            "1-4QD19",
+            "1-4QD21",
+            "1-4QD24",
+            "1-4QD25",
+            "1-4QD27",
+            "1-4QD28",
+            "1-4QD7",
+            "1-4YD1",
+            "1-4YD2",
+            "1-4YD4",
+            "1-4YD5",
+            "1-4YD6",
+            "1-4YD7",
+            "1-4YD8",
+            "3-4CD1",
+            "3-4CD2",
+            "3-4CD4",
+            "3-4CD5",
+            "3-4PD1",
+            "3-4PD2",
+            "3-4PD3",
+            "3-4PD5",
+            "3-4PD6",
+            "3-4PD7",
+            "3-4QD10",
+            "3-4QD13",
+            "3-4QD17",
+            "3-4QD18",
+            "3-4QD19",
+            "3-4QD21",
+            "3-4QD24",
+            "3-4QD25",
+            "3-4QD27",
+            "3-4QD28",
+            "3-4QD7",
+            "3-4YD1",
+            "3-4YD2",
+            "3-4YD4",
+            "3-4YD5",
+            "3-4YD6",
+            "3-4YD7",
+            "3-4YD8",
+            "NCZ343A-1",
+            "NCZ343A-10",
+            "NCZ343A-11",
+            "NCZ343A-12",
+            "NCZ343A-13",
+            "NCZ343A-15",
+            "NCZ343A-16",
+            "NCZ343A-17",
+            "NCZ343A-18",
+            "NCZ343A-19",
+            "NCZ343A-2",
+            "NCZ343A-20",
+            "NCZ343A-21",
+            "NCZ343A-22",
+            "NCZ343A-23",
+            "NCZ343A-24",
+            "NCZ343A-25",
+            "NCZ343A-26",
+            "NCZ343A-3",
+            "NCZ343A-30",
+            "NCZ343A-31",
+            "NCZ343A-32",
+            "NCZ343A-4",
+            "NCZ343A-5",
+            "NCZ343A-6",
+            "NCZ343A-7",
+            "NCZ343A-8",
+            "NCZ343A-9"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-CROSS-PAGE-CONFLICT",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0078",
+          "left_value": "NCK316A-13",
+          "right_value": "CD15",
+          "values": [
+            "1-2CLP4-2",
+            "1-2CLP5-2",
+            "1-2ZLP4-2",
+            "3-2CLP4-2",
+            "3-2CLP5-2",
+            "3-2ZLP2-2",
+            "CD12",
+            "CD13",
+            "CD15",
+            "CD16",
+            "CD23",
+            "CD26",
+            "NCK316A-13",
+            "NCK316A-14",
+            "NCK316A-15",
+            "NCK316A-16",
+            "NCK316A-21",
+            "NCK316A-22"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-CROSS-PAGE-CONFLICT",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0094",
+          "left_value": "NJL313A-1",
+          "right_value": "1-2ID1",
+          "values": [
+            "1-2ID1",
+            "1-2ID2",
+            "1-2ID3",
+            "1-2ID7",
+            "1-2ID9",
+            "1-2UD10",
+            "3-2ID1",
+            "3-2ID2",
+            "3-2ID3",
+            "3-2ID7",
+            "3-2ID9",
+            "3-2UD10",
+            "NJL313A-1",
+            "NJL313A-23",
+            "NJL313A-3",
+            "NJL313A-5",
+            "NJL313A-7",
+            "NJL313A-9"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0001",
+          "left_value": "3-2KLP1-1",
+          "right_value": "3-2QD2",
+          "values": [
+            "3-2KLP1-1",
+            "3-2KLP3-1",
+            "3-2QD2"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0014",
+          "left_value": "1-2KLP4-1",
+          "right_value": "1-2KLP3-1",
+          "values": [
+            "1-2KLP3-1",
+            "1-2KLP4-1",
+            "1-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0021",
+          "left_value": "1-2KLP3-1",
+          "right_value": "1-2KLP2-1",
+          "values": [
+            "1-2KLP2-1",
+            "1-2KLP3-1",
+            "1-2KLP4-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0028",
+          "left_value": "1-2KLP2-1",
+          "right_value": "1-2KLP1-1",
+          "values": [
+            "1-2KLP1-1",
+            "1-2KLP2-1",
+            "1-2KLP3-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0037",
+          "left_value": "1-2KLP1-1",
+          "right_value": "1-2QD2",
+          "values": [
+            "1-2KLP1-1",
+            "1-2KLP2-1",
+            "1-2QD2"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0066",
+          "left_value": "5KLP5-1",
+          "right_value": "5KLP3-1",
+          "values": [
+            "5KLP2-1",
+            "5KLP3-1",
+            "5KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0069",
+          "left_value": "5KLP4-1",
+          "right_value": "5KLP7-1",
+          "values": [
+            "5KLP4-1",
+            "5KLP6-1",
+            "5KLP7-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0072",
+          "left_value": "5KLP3-1",
+          "right_value": "5KLP1-1",
+          "values": [
+            "5KLP1-1",
+            "5KLP3-1",
+            "5KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0075",
+          "left_value": "5KLP2-1",
+          "right_value": "5KLP5-1",
+          "values": [
+            "5KLP2-1",
+            "5KLP5-1",
+            "5KLP7-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0082",
+          "left_value": "5KLP9-1",
+          "right_value": "5FD2",
+          "values": [
+            "5FD2",
+            "5KLP10-1",
+            "5KLP9-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0085",
+          "left_value": "3-2KLP5-1",
+          "right_value": "3-2KLP3-1",
+          "values": [
+            "3-2KLP3-1",
+            "3-2KLP4-1",
+            "3-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0088",
+          "left_value": "5KLP8-1",
+          "right_value": "5KLP6-1",
+          "values": [
+            "5KLP6-1",
+            "5KLP8-1",
+            "5n601"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0091",
+          "left_value": "3-2KLP4-1",
+          "right_value": "3-2KLP5-1",
+          "values": [
+            "3-2KLP2-1",
+            "3-2KLP4-1",
+            "3-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0094",
+          "left_value": "5KLP7-1",
+          "right_value": "5KLP2-1",
+          "values": [
+            "5KLP2-1",
+            "5KLP4-1",
+            "5KLP7-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0097",
+          "left_value": "3-2KLP3-1",
+          "right_value": "3-2KLP1-1",
+          "values": [
+            "3-2KLP1-1",
+            "3-2KLP3-1",
+            "3-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0100",
+          "left_value": "5KLP6-1",
+          "right_value": "5KLP4-1",
+          "values": [
+            "5KLP4-1",
+            "5KLP6-1",
+            "5KLP8-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0025",
+          "filename": "24 左侧端子图1.dwg",
+          "pair_id": "PTM0018",
+          "left_value": "3-4QD7",
+          "right_value": "3-2n212",
+          "values": [
+            "3-2n212",
+            "3-4QD7",
+            "KD6"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0025",
+          "filename": "24 左侧端子图1.dwg",
+          "pair_id": "PTM0023",
+          "left_value": "5FD1",
+          "right_value": "5n103",
+          "values": [
+            "5FD1",
+            "5n103",
+            "CD6"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0033",
+          "left_value": "1-2ID3",
+          "right_value": "1-2n705",
+          "values": [
+            "1-2ID3",
+            "1-2ID4",
+            "1-2n702",
+            "1-2n705",
+            "1n105",
+            "1n132"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0039",
+          "left_value": "1-2ID7",
+          "right_value": "1-2n707",
+          "values": [
+            "1-2ID7",
+            "1-2ID8",
+            "1-2n103",
+            "1-2n707",
+            "1-2n708",
+            "IH0"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0045",
+          "left_value": "1-2QD1",
+          "right_value": "1-2n103",
+          "values": [
+            "1-2QD1",
+            "1-2n103",
+            "1-2n201"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0049",
+          "left_value": "1-2QD6",
+          "right_value": "1-2n122",
+          "values": [
+            "1-2QD6",
+            "1-2QD7",
+            "1-2QD8",
+            "1-2n120",
+            "1-2n122",
+            "1-2n123",
+            "1-2n207",
+            "1-2n209",
+            "KD23"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-ONE-TO-MANY",
+          "sheet_id": "S0021",
+          "filename": "20 非电量保护背板图.dwg",
+          "pair_id": "P0175",
+          "left_value": "NKR308A-1",
+          "right_value": "5FD11",
+          "values": [
+            "5FD11",
+            "5FD12",
+            "5FD13",
+            "5FD14",
+            "5FD15",
+            "5FD16",
+            "5FD17",
+            "5FD18",
+            "5FD19",
+            "5FD20",
+            "5FD21",
+            "5FD22",
+            "5FD26",
+            "5FD27",
+            "5KLP1-2",
+            "5KLP2-2",
+            "5KLP3-2",
+            "5KLP4-2",
+            "5KLP5-2",
+            "5KLP6-2",
+            "5KLP7-2",
+            "5KLP8-2",
+            "5YD11",
+            "5YD12",
+            "5YD13",
+            "5YD14",
+            "5YD15",
+            "5YD16",
+            "5YD17",
+            "5YD18",
+            "5YD19",
+            "5YD20",
+            "5YD21",
+            "5YD22",
+            "5YD4",
+            "5YD5",
+            "NKR308A-1",
+            "NKR308A-10",
+            "NKR308A-11",
+            "NKR308A-12",
+            "NKR308A-13",
+            "NKR308A-14",
+            "NKR308A-15",
+            "NKR308A-16",
+            "NKR308A-17",
+            "NKR308A-18",
+            "NKR308A-2",
+            "NKR308A-3",
+            "NKR308A-4",
+            "NKR308A-5",
+            "NKR308A-6",
+            "NKR308A-7",
+            "NKR308A-8",
+            "NKR308A-9"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0002",
+          "left_value": "3-2KLP1-1",
+          "right_value": "3-2KLP3-1",
+          "values": [
+            "3-2KLP1-1",
+            "3-2KLP3-1",
+            "3-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0008",
+          "left_value": "1-2KLP5-1",
+          "right_value": "1-2KLP4-1",
+          "values": [
+            "1-2KLP3-1",
+            "1-2KLP4-1",
+            "1-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0014",
+          "left_value": "1-2KLP4-1",
+          "right_value": "1-2KLP3-1",
+          "values": [
+            "1-2KLP2-1",
+            "1-2KLP3-1",
+            "1-2KLP4-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0021",
+          "left_value": "1-2KLP3-1",
+          "right_value": "1-2KLP2-1",
+          "values": [
+            "1-2KLP1-1",
+            "1-2KLP2-1",
+            "1-2KLP3-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0054",
+          "left_value": "3-2ZLP2-1",
+          "right_value": "KD23",
+          "values": [
+            "1-2QD7",
+            "1-2QD8",
+            "3-2ZLP2-1",
+            "KD23"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0023",
+          "filename": "22 元件接线图2.dwg",
+          "pair_id": "PCM0058",
+          "left_value": "1CLP2-1",
+          "right_value": "KD6",
+          "values": [
+            "1CLP2-1",
+            "3-4QD7",
+            "5FD5",
+            "KD6"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0066",
+          "left_value": "5KLP5-1",
+          "right_value": "5KLP3-1",
+          "values": [
+            "5KLP1-1",
+            "5KLP3-1",
+            "5KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0067",
+          "left_value": "5KLP5-1",
+          "right_value": "5KLP2-1",
+          "values": [
+            "5KLP2-1",
+            "5KLP5-1",
+            "5KLP7-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0069",
+          "left_value": "5KLP4-1",
+          "right_value": "5KLP7-1",
+          "values": [
+            "5KLP2-1",
+            "5KLP4-1",
+            "5KLP7-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0070",
+          "left_value": "5KLP4-1",
+          "right_value": "5KLP6-1",
+          "values": [
+            "5KLP4-1",
+            "5KLP6-1",
+            "5KLP8-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0073",
+          "left_value": "5KLP3-1",
+          "right_value": "5KLP5-1",
+          "values": [
+            "5KLP2-1",
+            "5KLP3-1",
+            "5KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0086",
+          "left_value": "3-2KLP5-1",
+          "right_value": "3-2KLP4-1",
+          "values": [
+            "3-2KLP2-1",
+            "3-2KLP4-1",
+            "3-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0091",
+          "left_value": "3-2KLP4-1",
+          "right_value": "3-2KLP5-1",
+          "values": [
+            "3-2KLP3-1",
+            "3-2KLP4-1",
+            "3-2KLP5-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0095",
+          "left_value": "5KLP7-1",
+          "right_value": "5KLP4-1",
+          "values": [
+            "5KLP4-1",
+            "5KLP6-1",
+            "5KLP7-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0024",
+          "filename": "23 元件接线图3.dwg",
+          "pair_id": "PCM0101",
+          "left_value": "5KLP6-1",
+          "right_value": "5KLP8-1",
+          "values": [
+            "5KLP6-1",
+            "5KLP8-1",
+            "NTZ302A-1"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0022",
+          "filename": "21 元件接线图1.dwg",
+          "pair_id": "PCK0002",
+          "left_value": "1DK-2",
+          "right_value": "1QD5",
+          "values": [
+            "1DK-2",
+            "1DK-4",
+            "1QD1",
+            "1QD5",
+            "NDY306A-3",
+            "NDY306A-5"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0022",
+          "filename": "21 元件接线图1.dwg",
+          "pair_id": "PCK0006",
+          "left_value": "5DK-2",
+          "right_value": "5FD25",
+          "values": [
+            "5DK-2",
+            "5DK-4",
+            "5FD1",
+            "5FD25",
+            "NDY306A-3",
+            "NDY306A-5"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0022",
+          "filename": "21 元件接线图1.dwg",
+          "pair_id": "PCK0010",
+          "left_value": "1-2DK-2",
+          "right_value": "1-2QD12",
+          "values": [
+            "1-2DK-2",
+            "1-2DK-4",
+            "1-2QD1",
+            "1-2QD12",
+            "NDY306A-3",
+            "NDY306A-5"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0022",
+          "filename": "21 元件接线图1.dwg",
+          "pair_id": "PCK0014",
+          "left_value": "3-2DK-2",
+          "right_value": "3-2QD12",
+          "values": [
+            "3-2DK-2",
+            "3-2DK-4",
+            "3-2QD1",
+            "3-2QD12",
+            "NDY306A-3",
+            "NDY306A-5"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0022",
+          "filename": "21 元件接线图1.dwg",
+          "pair_id": "PCK0018",
+          "left_value": "1-4DK-2",
+          "right_value": "1-4QD27",
+          "values": [
+            "1-4DK-2",
+            "1-4QD27",
+            "NCZ343A-13"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0022",
+          "filename": "21 元件接线图1.dwg",
+          "pair_id": "PCK0022",
+          "left_value": "3-4DK-2",
+          "right_value": "3-4QD27",
+          "values": [
+            "3-4DK-2",
+            "3-4QD27",
+            "NCZ343A-13"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0025",
+          "filename": "24 左侧端子图1.dwg",
+          "pair_id": "PTM0017",
+          "left_value": "3-4QD3",
+          "right_value": "CD6",
+          "values": [
+            "3-4QD3",
+            "5FD1",
+            "CD6",
+            "NCK316A-5"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0042",
+          "left_value": "1-2ID8",
+          "right_value": "1-2n103",
+          "values": [
+            "1-2ID8",
+            "1-2QD1",
+            "1-2n103"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0047",
+          "left_value": "1-2QD3",
+          "right_value": "CD23",
+          "values": [
+            "1-2QD3",
+            "CD23",
+            "NCK316A-21"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0048",
+          "left_value": "1-2QD5",
+          "right_value": "1-2n230",
+          "values": [
+            "1-2QD5",
+            "1-2QD9",
+            "1-2n230",
+            "1-2n231",
+            "1-4PD1",
+            "1-4PD5"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0050",
+          "left_value": "1-2QD6",
+          "right_value": "1-2n209",
+          "values": [
+            "1-2QD10",
+            "1-2QD11",
+            "1-2QD6",
+            "1-2n208",
+            "1-2n209",
+            "1-2n210",
+            "1-4PD2",
+            "1-4PD6",
+            "1-4PD7"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0027",
+          "filename": "26 右侧端子图1.dwg",
+          "pair_id": "PTM0053",
+          "left_value": "1-2QD7",
+          "right_value": "1-2n207",
+          "values": [
+            "1-2QD7",
+            "1-2n207",
+            "1-4PD3"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0030",
+          "left_value": "NDY306A-8",
+          "right_value": "YD3",
+          "values": [
+            "NCK316A-29",
+            "NDY306A-8",
+            "YD3"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0021",
+          "filename": "20 非电量保护背板图.dwg",
+          "pair_id": "P0174",
+          "left_value": "NDY306A-32",
+          "right_value": "5FD26",
+          "values": [
+            "5FD26",
+            "NDY306A-32",
+            "NKR308A-11"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-MANY-TO-ONE",
+          "sheet_id": "S0021",
+          "filename": "20 非电量保护背板图.dwg",
+          "pair_id": "P0185",
+          "left_value": "NKR308A-11",
+          "right_value": "5FD27",
+          "values": [
+            "5FD27",
+            "NKR308A-11",
+            "NTZ302A-2"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-DUPLICATE-PAIR",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0031",
+          "left_value": "NDY306A-9",
+          "right_value": "YD12",
+          "values": [
+            "NDY306A-9",
+            "YD12"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-DUPLICATE-PAIR",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0032",
+          "left_value": "NDY306A-10",
+          "right_value": "YD13",
+          "values": [
+            "NDY306A-10",
+            "YD13"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-DUPLICATE-PAIR",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0084",
+          "left_value": "NCK316A-19",
+          "right_value": "YD4",
+          "values": [
+            "NCK316A-19",
+            "YD4"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-DUPLICATE-PAIR",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0085",
+          "left_value": "NCK316A-20",
+          "right_value": "YD14",
+          "values": [
+            "NCK316A-20",
+            "YD14"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        },
+        {
+          "rule_id": "R-DUPLICATE-PAIR",
+          "sheet_id": "S0019",
+          "filename": "18 高后备保护背板图.dwg",
+          "pair_id": "P0093",
+          "left_value": "NCK316A-30",
+          "right_value": "YD11",
+          "values": [
+            "NCK316A-30",
+            "YD11"
+          ],
+          "label": "HARD_TRUE",
+          "label_source": "frozen_current_head_calval_snapshot",
+          "notes": "Frozen as expected hard issue from current-head stable output; used only for measurable precision/recall of hard-issue emission, not for tuning."
+        }
+      ]
+    },
+    "P003": {
+      "split": "validation",
+      "source_issues_path": ".tmp\\phase120_graph_writepath_p003\\11000\\audit\\issues.parquet",
+      "hard_issue_count": 0,
+      "labels": []
+    }
+  }
+}

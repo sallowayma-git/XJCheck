@@ -1,0 +1,771 @@
+{
+  "schema_version": "symbol-definition-fixtures-v1",
+  "fingerprint_version": "local-geometry-fingerprint-v1",
+  "source": {
+    "corpus": "phase117_corpus_non_heldout",
+    "project_id": "P001",
+    "held_out_excluded": true,
+    "primitive_segments_path": ".tmp/phase117_corpus_non_heldout/P001/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings/primitive_segments.parquet",
+    "symbol_definitions_path": ".tmp/phase117_corpus_non_heldout/P001/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings/symbol_definitions_v1.parquet"
+  },
+  "policy": {
+    "held_out_excluded": true,
+    "fingerprint_algorithm_version": "local-geometry-fingerprint-v1",
+    "no_port_or_internal_connectivity_claimed": true,
+    "names_are_features_not_identities": true,
+    "critical_issue_eligible_until_human_registration": false,
+    "max_stored_signatures_per_family": 40
+  },
+  "families": [
+    {
+      "family_id": "top1_pwf165",
+      "corpus_rank": 1,
+      "definition_names": [
+        "SYMB2_M_PWF165"
+      ],
+      "definition_fingerprint": "39b95b5118323d4d8ec235cb43fb72f9b99c8d90ce9f4b2027ee2bdda6255ed5",
+      "fingerprint_version": "local-geometry-fingerprint-v1",
+      "source_project_id": "P001",
+      "source_unique_signature_count": 11,
+      "stored_signature_count": 11,
+      "signatures_truncated": false,
+      "critical_issue_eligible": false,
+      "registry_status": "UNKNOWN",
+      "declared_port_count": 0,
+      "internal_connectivity_state": "UNKNOWN",
+      "symbol_family": null,
+      "child_signatures": [
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "校对",
+          "linetype": "ByBlock",
+          "local_geometry_json": "{\"end\":[2.5,0.0,0.0],\"start\":[0.0,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[-2.5,2.5,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[-2.5,2.5,0.0],\"end_angle\":180.0,\"radius\":0.5,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,1.879999999999995,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,1.879999999999995,0.0],\"end_angle\":180.0,\"radius\":0.5,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[1.25,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[1.25,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[2.5,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[2.5,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        }
+      ],
+      "sample_inserts": [
+        {
+          "definition_name": "SYMB2_M_PWF165",
+          "local_geometry_json": "{\"insert\":[137.5,219.9999999999998,0.0]}",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "source_entity_type": "INSERT",
+          "primitive_kind": "INSERT"
+        }
+      ]
+    },
+    {
+      "family_id": "top2_pwf231_pwf248",
+      "corpus_rank": 2,
+      "definition_names": [
+        "SYMB2_M_PWF231",
+        "SYMB2_M_PWF248"
+      ],
+      "definition_fingerprint": "2ede8a4fcebd958209b99a25e477726c0b55f86b32d00650130a89acad0bf89c",
+      "fingerprint_version": "local-geometry-fingerprint-v1",
+      "source_project_id": "P001",
+      "source_unique_signature_count": 8,
+      "stored_signature_count": 8,
+      "signatures_truncated": false,
+      "critical_issue_eligible": false,
+      "registry_status": "UNKNOWN",
+      "declared_port_count": 0,
+      "internal_connectivity_state": "UNKNOWN",
+      "symbol_family": null,
+      "child_signatures": [
+        {
+          "source_entity_type": "ARC",
+          "primitive_kind": "ARC",
+          "layer": "校对",
+          "linetype": "ByBlock",
+          "local_geometry_json": "{\"center\":[2.5,0.0,0.0],\"end_angle\":0.0,\"radius\":1.25,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "ARC",
+          "primitive_kind": "ARC",
+          "layer": "校对",
+          "linetype": "ByBlock",
+          "local_geometry_json": "{\"center\":[2.5,0.0,0.0],\"end_angle\":180.0,\"radius\":1.25,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[1.25,0.0,0.0],\"start\":[0.0,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[5.0,0.0,0.0],\"start\":[3.75,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[5.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[5.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        }
+      ],
+      "sample_inserts": [
+        {
+          "definition_name": "SYMB2_M_PWF231",
+          "local_geometry_json": "{\"insert\":[77.50000000000017,219.9999997768609,0.0]}",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "source_entity_type": "INSERT",
+          "primitive_kind": "INSERT"
+        },
+        {
+          "definition_name": "SYMB2_M_PWF248",
+          "local_geometry_json": "{\"insert\":[267.4874095690803,102.4999981349444,0.0]}",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "source_entity_type": "INSERT",
+          "primitive_kind": "INSERT"
+        }
+      ]
+    },
+    {
+      "family_id": "top3_pwf191",
+      "corpus_rank": 3,
+      "definition_names": [
+        "SYMB2_M_PWF191"
+      ],
+      "definition_fingerprint": "9a1c6d15833092f32027442d19bd52f5f384395b0bb113e252e5bfbfe66cb85b",
+      "fingerprint_version": "local-geometry-fingerprint-v1",
+      "source_project_id": "P001",
+      "source_unique_signature_count": 22,
+      "stored_signature_count": 22,
+      "signatures_truncated": false,
+      "critical_issue_eligible": false,
+      "registry_status": "UNKNOWN",
+      "declared_port_count": 0,
+      "internal_connectivity_state": "UNKNOWN",
+      "symbol_family": null,
+      "child_signatures": [
+        {
+          "source_entity_type": "HATCH",
+          "primitive_kind": "HATCH",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[2.123867499999733,-3.986050802632917,0.0],\"start\":[1.873867499999733,-2.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[2.123867499999733,-3.986050802632917,0.0],\"start\":[2.123867499999733,-1.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[2.373867499999733,-2.986050802632917,0.0],\"start\":[1.873867499999733,-2.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[2.373867499999733,-2.986050802632917,0.0],\"start\":[2.123867499999733,-3.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[2.873867499999733,-3.986050802632917,0.0],\"start\":[2.623867499999733,-2.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[2.873867499999733,-3.986050802632917,0.0],\"start\":[2.873867499999733,-1.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[3.123867499999733,-2.986050802632917,0.0],\"start\":[2.623867499999733,-2.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[3.123867499999733,-2.986050802632917,0.0],\"start\":[2.873867499999733,-3.986050802632917,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[4.998112499999934,0.0,0.0],\"start\":[-0.0003775000000132,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "校对",
+          "linetype": "ByBlock",
+          "local_geometry_json": "{\"end\":[1.249622499999987,-1.25,0.0],\"start\":[1.249622499999987,1.25,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "校对",
+          "linetype": "ByBlock",
+          "local_geometry_json": "{\"end\":[3.749622499999987,-1.25,0.0],\"start\":[3.749622499999987,1.25,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "粗实",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[1.249622499999987,-1.25,0.0],\"start\":[3.748490580039515,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "粗实",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[3.748490580039515,0.0,0.0],\"start\":[1.249622499999987,1.25,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[5.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[5.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "LINE",
+          "layer": "粗实",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[0.0,-4.857653302632912,0.0],\"start\":[0.0,2.014326697367096,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "LINE",
+          "layer": "粗实",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[0.0,2.014326697367096,0.0],\"start\":[4.997734999999921,2.014326697367096,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "LINE",
+          "layer": "粗实",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[4.997734999999921,-4.857653302632912,0.0],\"start\":[0.0,-4.857653302632912,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "LINE",
+          "layer": "粗实",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[4.997734999999921,2.014326697367096,0.0],\"start\":[4.997734999999921,-4.857653302632912,0.0]}"
+        }
+      ],
+      "sample_inserts": [
+        {
+          "definition_name": "SYMB2_M_PWF191",
+          "local_geometry_json": "{\"insert\":[145.0001491975489,207.4990605765284,0.0]}",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "source_entity_type": "INSERT",
+          "primitive_kind": "INSERT"
+        }
+      ]
+    },
+    {
+      "family_id": "top4_pwf194",
+      "corpus_rank": 4,
+      "definition_names": [
+        "SYMB2_M_PWF194"
+      ],
+      "definition_fingerprint": "a78b06f3c9ab76dc9d36aeecdecb3a32599dbbc55c0e186dbecce76a9ecc780b",
+      "fingerprint_version": "local-geometry-fingerprint-v1",
+      "source_project_id": "P001",
+      "source_unique_signature_count": 7,
+      "stored_signature_count": 7,
+      "signatures_truncated": false,
+      "critical_issue_eligible": false,
+      "registry_status": "UNKNOWN",
+      "declared_port_count": 0,
+      "internal_connectivity_state": "UNKNOWN",
+      "symbol_family": null,
+      "child_signatures": [
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[3.75,0.0,0.0],\"start\":[0.0,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[7.5,0.0,0.0],\"start\":[11.25,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[7.5,0.0,0.0],\"start\":[3.75,-1.875,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[11.25,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[11.25,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        }
+      ],
+      "sample_inserts": [
+        {
+          "definition_name": "SYMB2_M_PWF194",
+          "local_geometry_json": "{\"insert\":[289.9999999999999,234.9999999999999,0.0]}",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "source_entity_type": "INSERT",
+          "primitive_kind": "INSERT"
+        }
+      ]
+    },
+    {
+      "family_id": "top5_pwf243",
+      "corpus_rank": 5,
+      "definition_names": [
+        "SYMB2_M_PWF243"
+      ],
+      "definition_fingerprint": "b3115ea33fe4e1b57d4cfa6394c3125c42f5776b589f8297b4053cf3d7a7a073",
+      "fingerprint_version": "local-geometry-fingerprint-v1",
+      "source_project_id": "P001",
+      "source_unique_signature_count": 11,
+      "stored_signature_count": 11,
+      "signatures_truncated": false,
+      "critical_issue_eligible": false,
+      "registry_status": "UNKNOWN",
+      "declared_port_count": 0,
+      "internal_connectivity_state": "UNKNOWN",
+      "symbol_family": null,
+      "child_signatures": [
+        {
+          "source_entity_type": "ARC",
+          "primitive_kind": "ARC",
+          "layer": "校对",
+          "linetype": "ByBlock",
+          "local_geometry_json": "{\"center\":[2.5,0.0,0.0],\"end_angle\":0.0,\"radius\":1.25,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "ARC",
+          "primitive_kind": "ARC",
+          "layer": "校对",
+          "linetype": "ByBlock",
+          "local_geometry_json": "{\"center\":[2.5,0.0,0.0],\"end_angle\":180.0,\"radius\":1.25,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[1.25,0.0,0.0],\"start\":[0.0,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[2.5,1.25,0.0],\"start\":[2.5,2.5,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[5.0,0.0,0.0],\"start\":[3.75,0.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[0.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[2.5,2.5,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[2.5,2.5,0.0],\"end_angle\":180.0,\"radius\":0.5,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[5.0,0.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[5.0,6.123233995736766e-17,0.0],\"end_angle\":-180.0,\"radius\":0.5,\"start_angle\":-7.016709298534876e-15}"
+        }
+      ],
+      "sample_inserts": [
+        {
+          "definition_name": "SYMB2_M_PWF243",
+          "local_geometry_json": "{\"insert\":[60.00110690297481,209.9990605765284,0.0]}",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "source_entity_type": "INSERT",
+          "primitive_kind": "INSERT"
+        }
+      ]
+    },
+    {
+      "family_id": "name_example_kk2p",
+      "corpus_rank": 20,
+      "definition_names": [
+        "KK2P"
+      ],
+      "definition_fingerprint": "3f7ef8a0ca8b88180e8cf7094e95355e6b2837e7e598cba3a19ce04e6445620a",
+      "fingerprint_version": "local-geometry-fingerprint-v1",
+      "source_project_id": "P001",
+      "source_unique_signature_count": 21,
+      "stored_signature_count": 21,
+      "signatures_truncated": false,
+      "critical_issue_eligible": false,
+      "registry_status": "UNKNOWN",
+      "declared_port_count": 0,
+      "internal_connectivity_state": "UNKNOWN",
+      "symbol_family": null,
+      "child_signatures": [
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[-12.5,-15.0,0.0],\"start\":[-12.5,15.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[-12.5,-15.0,0.0],\"start\":[12.5,-15.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[0.0,-15.0,0.0],\"start\":[0.0,-7.5,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[0.0,15.0,0.0],\"start\":[-12.5,15.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[0.0,7.5,0.0],\"start\":[0.0,15.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[12.5,-15.0,0.0],\"start\":[12.5,15.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[12.5,-7.5,0.0],\"start\":[-12.5,-7.5,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[12.5,15.0,0.0],\"start\":[0.0,15.0,0.0]}"
+        },
+        {
+          "source_entity_type": "LINE",
+          "primitive_kind": "LINE",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"end\":[12.5,7.5,0.0],\"start\":[-12.5,7.5,0.0]}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[-10.0,-15.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[-10.0,-15.0,0.0],\"end_angle\":180.0,\"radius\":0.5,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[-10.0,15.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[-10.0,15.0,0.0],\"end_angle\":180.0,\"radius\":0.5,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[10.0,-15.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[10.0,-15.0,0.0],\"end_angle\":180.0,\"radius\":0.5,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[10.0,15.0,0.0],\"end_angle\":0.0,\"radius\":0.5,\"start_angle\":180.0}"
+        },
+        {
+          "source_entity_type": "LWPOLYLINE",
+          "primitive_kind": "ARC",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"center\":[10.0,15.0,0.0],\"end_angle\":180.0,\"radius\":0.5,\"start_angle\":0.0}"
+        },
+        {
+          "source_entity_type": "TEXT",
+          "primitive_kind": "TEXT",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"insert\":[-8.25083810536221,-12.69972061003516,0.0]}"
+        },
+        {
+          "source_entity_type": "TEXT",
+          "primitive_kind": "TEXT",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"insert\":[-8.250838106035825,9.791899501696689,0.0]}"
+        },
+        {
+          "source_entity_type": "TEXT",
+          "primitive_kind": "TEXT",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"insert\":[6.749161893290561,9.783519613428531,0.0]}"
+        },
+        {
+          "source_entity_type": "TEXT",
+          "primitive_kind": "TEXT",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "local_geometry_json": "{\"insert\":[6.74916189463779,-12.69972061003516,0.0]}"
+        }
+      ],
+      "sample_inserts": [
+        {
+          "definition_name": "KK2P",
+          "local_geometry_json": "{\"insert\":[47.5,252.5,0.0]}",
+          "layer": "0",
+          "linetype": "BYLAYER",
+          "source_entity_type": "INSERT",
+          "primitive_kind": "INSERT"
+        }
+      ],
+      "note": "Multi-port name example only; no ports declared in fixture"
+    }
+  ]
+}

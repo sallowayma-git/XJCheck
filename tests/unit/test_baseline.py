@@ -9,6 +9,14 @@ import pytest
 from dwg_audit.report.baseline import write_baseline_manifest
 
 
+_SYMBOL_ARTIFACT_PATHS = (
+    "findings/symbol_definitions_v1.parquet",
+    "findings/symbol_instances_v1.parquet",
+    "findings/unknown_symbol_queue_v1.parquet",
+    "findings/symbol_inventory_summary.json",
+)
+
+
 def _write_bundle(project_dir: Path) -> None:
     findings = project_dir / "findings"
     audit = project_dir / "audit"
@@ -102,6 +110,55 @@ def _write_bundle(project_dir: Path) -> None:
     )
 
 
+def _write_symbol_inventory(findings_dir: Path) -> dict[str, Path]:
+    definitions = pd.DataFrame(
+        [
+            {
+                "symbol_definition_id": "SD1-demo",
+                "definition_name": "DEMO_BLOCK",
+                "instance_count": 2,
+            }
+        ]
+    )
+    instances = pd.DataFrame(
+        [
+            {"symbol_instance_id": "SI1-a", "definition_name": "DEMO_BLOCK"},
+            {"symbol_instance_id": "SI1-b", "definition_name": "DEMO_BLOCK"},
+        ]
+    )
+    unknown_queue = pd.DataFrame(
+        [
+            {
+                "unknown_symbol_id": "US1-demo",
+                "definition_name": "DEMO_BLOCK",
+                "priority_score": 2,
+            }
+        ]
+    )
+    summary = {
+        "schema_version": "symbol-inventory-summary-v1",
+        "definition_count": 1,
+        "instance_count": 2,
+        "unknown_definition_count": 1,
+        "registered_definition_count": 0,
+        "unknown_critical_issue_eligible_count": 0,
+    }
+    paths = {
+        "findings/symbol_definitions_v1.parquet": findings_dir / "symbol_definitions_v1.parquet",
+        "findings/symbol_instances_v1.parquet": findings_dir / "symbol_instances_v1.parquet",
+        "findings/unknown_symbol_queue_v1.parquet": findings_dir / "unknown_symbol_queue_v1.parquet",
+        "findings/symbol_inventory_summary.json": findings_dir / "symbol_inventory_summary.json",
+    }
+    definitions.to_parquet(paths["findings/symbol_definitions_v1.parquet"], index=False)
+    instances.to_parquet(paths["findings/symbol_instances_v1.parquet"], index=False)
+    unknown_queue.to_parquet(paths["findings/unknown_symbol_queue_v1.parquet"], index=False)
+    paths["findings/symbol_inventory_summary.json"].write_text(
+        json.dumps(summary),
+        encoding="utf-8",
+    )
+    return paths
+
+
 def test_write_baseline_manifest_freezes_metrics_and_inputs(tmp_path: Path) -> None:
     project_dir = tmp_path / "project"
     _write_bundle(project_dir)
@@ -132,6 +189,7 @@ def test_write_baseline_manifest_freezes_metrics_and_inputs(tmp_path: Path) -> N
     assert payload["metrics"]["graph_shadow"]["pair_geometry"][
         "ordinary_unique_geometry_context_ratio"
     ] == 1.0
+    assert payload["metrics"]["symbol_inventory"] == {}
     assert all(payload["redlines"].values())
     assert (output.parent / "config.yml").exists()
     assert (output.parent / "arbitration" / "arbitration.md").exists()
@@ -139,6 +197,138 @@ def test_write_baseline_manifest_freezes_metrics_and_inputs(tmp_path: Path) -> N
         item for item in payload["artifacts"]["files"] if item["path"] == "findings/pairs.parquet"
     )
     assert pair_artifact["rows"] == 1
+    assert not any(
+        item["path"] == "reader_run.json" for item in payload["artifacts"]["files"]
+    )
+    assert not any(
+        item["path"] in _SYMBOL_ARTIFACT_PATHS for item in payload["artifacts"]["files"]
+    )
+
+
+def test_write_baseline_manifest_inventories_optional_reader_run(tmp_path: Path) -> None:
+    project_dir = tmp_path / "project"
+    _write_bundle(project_dir)
+    reader_run = project_dir / "reader_run.json"
+    reader_run.write_text(
+        json.dumps(
+            {
+                "schema_version": "reader-run-manifest/v1",
+                "project_id": "demo",
+                "runs": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = tmp_path / "config.yml"
+    config.write_text("recognition: {}\n", encoding="utf-8")
+
+    output = write_baseline_manifest(
+        project_dir,
+        alias="demo",
+        input_root=tmp_path,
+        config_path=config,
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    artifact = next(
+        item for item in payload["artifacts"]["files"] if item["path"] == "reader_run.json"
+    )
+    assert artifact["size_bytes"] == reader_run.stat().st_size
+    assert len(artifact["sha256"]) == 64
+
+
+def test_write_baseline_manifest_inventories_optional_extraction_gate(tmp_path: Path) -> None:
+    project_dir = tmp_path / "project"
+    _write_bundle(project_dir)
+    gate = project_dir / "extraction_completeness.json"
+    gate.write_text(
+        json.dumps(
+            {
+                "analysis_status": "COMPLETE",
+                "clean_conclusion_allowed": True,
+                "pages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = tmp_path / "config.yml"
+    config.write_text("recognition: {}\n", encoding="utf-8")
+
+    output = write_baseline_manifest(
+        project_dir,
+        alias="demo",
+        input_root=tmp_path,
+        config_path=config,
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    artifact = next(
+        item
+        for item in payload["artifacts"]["files"]
+        if item["path"] == "extraction_completeness.json"
+    )
+    assert artifact["size_bytes"] == gate.stat().st_size
+    assert len(artifact["sha256"]) == 64
+
+
+def test_write_baseline_manifest_inventories_optional_symbol_inventory(tmp_path: Path) -> None:
+    project_dir = tmp_path / "project"
+    _write_bundle(project_dir)
+    symbol_paths = _write_symbol_inventory(project_dir / "findings")
+    config = tmp_path / "config.yml"
+    config.write_text("recognition: {}\n", encoding="utf-8")
+
+    output = write_baseline_manifest(
+        project_dir,
+        alias="demo",
+        input_root=tmp_path,
+        config_path=config,
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    inventory_by_path = {item["path"]: item for item in payload["artifacts"]["files"]}
+    for relative in _SYMBOL_ARTIFACT_PATHS:
+        assert relative in inventory_by_path
+        artifact = inventory_by_path[relative]
+        assert artifact["size_bytes"] == symbol_paths[relative].stat().st_size
+        assert len(artifact["sha256"]) == 64
+        if relative.endswith(".parquet"):
+            assert artifact["rows"] == (2 if "instances" in relative else 1)
+
+    assert payload["metrics"]["symbol_inventory"] == {
+        "schema_version": "symbol-inventory-summary-v1",
+        "definition_count": 1,
+        "instance_count": 2,
+        "unknown_definition_count": 1,
+        "registered_definition_count": 0,
+        "unknown_critical_issue_eligible_count": 0,
+    }
+    # Symbol inventory is non-gating: redlines remain the established set only.
+    assert "symbol" not in " ".join(payload["redlines"])
+    assert all(payload["redlines"].values())
+
+
+def test_write_baseline_manifest_succeeds_without_symbol_inventory(tmp_path: Path) -> None:
+    """Old bundles without Phase 117 symbol artifacts still freeze cleanly."""
+    project_dir = tmp_path / "project"
+    _write_bundle(project_dir)
+    config = tmp_path / "config.yml"
+    config.write_text("recognition: {}\n", encoding="utf-8")
+
+    output = write_baseline_manifest(
+        project_dir,
+        alias="legacy",
+        input_root=tmp_path,
+        config_path=config,
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["project"]["alias"] == "legacy"
+    assert payload["metrics"]["symbol_inventory"] == {}
+    assert not any(
+        item["path"] in _SYMBOL_ARTIFACT_PATHS for item in payload["artifacts"]["files"]
+    )
+    assert all(payload["redlines"].values())
 
 
 def test_write_baseline_manifest_rejects_incomplete_bundle(tmp_path: Path) -> None:

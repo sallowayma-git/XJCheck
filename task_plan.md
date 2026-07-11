@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 104 (Topology-First Architecture Reset / Phase A)
+Phases 113-120 complete; held-out release proxy pass; cal/val hard-issue precision=1.0 on frozen labels; primary_engine=legacy
 
 ## Phases
 
@@ -360,6 +360,8 @@ Phase 104 (Topology-First Architecture Reset / Phase A)
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| `apply_patch` context verification failed while appending review findings | Expected a bullet without its leading `Version/cache contracts` phrase | Re-read the file tail and reapplied against the exact current line |
+| ezdxf inspection raised `AttributeError` for `odafc.get_odafc_path` | Assumed a public helper based on package behavior | Inspect `_get_odafc_path`/options locally and keep project discovery independent of the private API |
 | `rg.exe` 无法在当前环境启动（拒绝访问） | 1 | 改用 PowerShell `Get-ChildItem` / `Get-Content` 继续检索 |
 | `spawn_agent` 在 `fork_context=true` 时不能指定 `agent_type` | 1 | 改为无历史分叉的 explorer 子代理 |
 | 子代理并发名额已满 | 1 | 复用现有子代理 `Parfit` 执行第二个只读审查任务 |
@@ -1688,6 +1690,121 @@ Phase 104 (Topology-First Architecture Reset / Phase A)
 - [ ] 所有模型先 shadow；不得绕过 ASSERTED/REJECTED topology、symbol internal connectivity 或 ConstraintResolver。
 - **Status:** pending
 
+### Phase 110: Review Package Delta — Reader Adapter Foundation
+- [x] 完整阅读 `XJCheck_topology_upgrade_review_v1/docs` 并与 Phase 104/105 做差量审查。
+- [x] 建立 `CadReader` / `ReaderProbe` / capability / options / document / error 基础合同。
+- [x] 将 ODA 探测迁入 Reader Registry，支持 config、环境变量、PATH、Windows 安装目录与 Unix/AppImage 显式路径。
+- [x] 保留 `_detect_odafc_exe` 与 `odafc.convert` 兼容入口，避免现有识别链和测试大面积漂移。
+- [x] 运行 full suite 与 diff 检查，确认第一切片零识别漂移。
+- [x] 用本地 ODA + 第一套 28 页项目跑 corpus runner smoke，确认 analyze/audit 成功且 frozen metrics 零漂移。
+- [ ] 下一切片：Reader provenance / incomplete extraction gate，或在真实 ODA 环境运行 27 项目 baseline。
+- **Status:** complete
+
+### Phase 111: Canonical Review-Plan Migration
+- [x] 将 `XJCheck_topology_upgrade_review_v1/docs/00-15` 的最新计划与现有 18.8 做差量映射。
+- [x] 在 `doc/任务书.md` 新增 18.9，补齐 Reader/Primitive 前置、Findings V2、页面能力、Failure Queue、验收和 promotion gate。
+- [x] 固化主线程/子代理调度约束与每轮交付物。
+- [x] 将后续工作重排为 Phase 112-120，明确依赖、输入、输出和出口门槛。
+- [x] 运行文档结构/链接/diff 检查并完成本阶段收口。
+- **Status:** complete
+
+### Phase 112: 27-Project Corpus Baseline & Split Freeze
+- [x] 使用本地 `test/`、ODA 27.1 和 current-head 运行 27 项目/502 页 analyze + audit。
+- [x] 输出每项目 exit code、耗时、页数、转换状态、实体、Pair、Issue，并为 27 项目生成 baseline manifest 冻结 coverage/topology/geometry shadow。
+- [x] runner 汇总显示 27 analyze 成功、27 audit 成功、0 conversion failure；继续执行独立硬校验，避免只信退出码。
+- [x] 将 review proposal 规范化为路径无关的 `tests/fixtures/benchmark_split_v1.csv`，按项目冻结 2 calibration / 12 training / 5 validation / 8 held-out，并记录来源 SHA 与使用规则。
+- [x] 27 个 baseline manifest 已生成并通过全量校验：所有 redlines=true，Git/config/diff fingerprint 一致，聚合 Pair/Issue 与 runner summary 一致。
+- [x] 并发子代理调度包已同轮派发并全部返回：
+  - Lane A：已完成 corpus runner、resume/timeout、输出完整性和 27 项目预检风险审计；
+  - Lane B：已完成 ReaderRun/provenance/cache schema 与现有 manifest/findings 最小插入点设计；
+  - Lane C：已完成 `INCOMPLETE_EXTRACTION` failure injection、RuleEngine false-clean gate 和验收矩阵设计；
+  - 主线程独占生产修改、真实运行、结果整合与最终验证。
+- **Exit gate:** 27 项目全部入表；失败可解释；baseline 可复现。
+- **Status:** complete
+
+### Phase 113: Reader Provenance & Incomplete-Extraction Gate
+- [x] 以旁路 `reader_run.json` 持久化 backend、version/build、capability、options、discovery source 和 shadow cache identity，不污染旧 SourceFile/Manifest schema。
+- [x] 补 ODA health check、独立 EzdxfReader adapter 和明确的 failure taxonomy；Registry 同时提供 ODA/DXF 后端，默认仍为 ODA。
+- [x] ODA health 支持 VERSIONINFO/build digest 与显式有界 conversion/readback smoke；真实 ODA 27.1.0.0 smoke 已通过。
+- [x] `extract_cad_artifacts` 与 converter cached/fresh DXF validation 均已切换到 EzdxfReader；损坏缓存可重建，无效新输出使用稳定错误码。
+- [x] audit-required 页转换失败/读 DXF 失败/0 primitive/extractor 未执行时标记 `INCOMPLETE_EXTRACTION`。
+- [x] rerun audit 对 incomplete 项目追加 Pair-independent 数据质量 Issue，0 Pair 不再等于 clean；损坏 sidecar fail-closed。
+- [x] targeted + synthetic + full + calibration corpus subset + engine diff 验证通过。
+- [x] Reader provenance targeted/full/calibration-subset 验证通过；六类 legacy frames 与 Phase 112 baseline 完全一致。
+- [x] Extraction Gate 健康 calibration-subset 验证通过：状态 COMPLETE、无数据质量 Issue，六类 legacy frames 与 Phase 112 baseline 完全一致。
+- **Exit gate:** Reader 完整率 100% 或明确 incomplete；false clean=0。
+- **Status:** complete
+
+### Phase 114: Backend-Neutral Primitive Model
+- [x] 新建 entity normalizer，覆盖 LINE/LWPOLYLINE/POLYLINE/ARC/CIRCLE/INSERT/ATTRIB；未知类型显式 retained，不静默删除。
+- [x] 新建 block transform，覆盖 nested path、rotation、mirror、uniform/non-uniform scale、ELLIPSE 提升、local/world 坐标与 Matrix44 chain。
+- [x] `primitive_segments` 保留 entity/parent handle、definition、layout、layer、linetype、reader provenance 和 bbox。
+- [x] layer role 只做 candidate；未分类统一保存 `UNKNOWN/LAYER_ROLE_UNCLASSIFIED`，unknown entity 显式 retained，不在 Primitive 层删除。
+- [x] shadow 接入现有 pipeline，不改变 legacy Pair/Issue；旧六项 extraction unpacking 与旧 bundle 读取保持兼容。
+- **Exit gate:** primitive 可回溯原 handle；合成变换 fixture 与真实页零漂移通过。
+- **Status:** complete
+
+### Phase 115: Formal Topology Decisions V2
+- [x] 将 Phase 105 geometry shadow 映射为版本化 `junction_observations/topology_decisions`，不原地改写旧表。
+- [x] 完成 endpoint-endpoint、endpoint-on-segment、intersection、overlap 和 gap candidate 的 reason codes/provenance。
+- [x] `ASSERTED/POSSIBLE/REJECTED/UNKNOWN` 全量落盘，保存 alternatives 与 score decomposition。
+- [x] inline text/block span 只能生成 POSSIBLE evidence，禁止 union；P003 456 条全部 `union_eligible=false/union_applied=false`。
+- [x] 建立真实页 junction/network ground truth 子集：validation P003 固化 12 条 marker crossing/unmarked crossing/endpoint merge handle+坐标证据。
+- **Exit gate:** asserted crossing false-connect 接近 0；non-ASSERTED union=0。
+- **Status:** complete
+
+### Phase 116: ASSERTED-Only Electrical Networks & Witness
+- [x] 只消费 ASSERTED + union-eligible decisions 构建 ElectricalNetwork 和 network members；所有 application 独立落盘并验证 non-ASSERTED applied=0。
+- [x] 输出 open endpoints、symbol boundary candidate、cross-page interruption UNKNOWN/deferred、possible boundary 和 drawing-boundary artifact；所有非 ASSERTED 边界均不连网。
+- [x] 增加 overmerge/split suspicion，validator 只读且不直接改网。
+- [x] 为每个 open endpoint 建最短 asserted witness path、weakest evidence 与原 handle 回溯；P003 completeness=100%。
+- [x] 扩展 legacy Pair -> V2 ElectricalNetwork/NetworkEndpoint 等价比较，明确 UNIQUE/MULTIPLE/NO_NETWORK 且不改 legacy 结果。
+- **Exit gate:** 错误 overmerge 为零红线；witness 可回溯 handle；legacy 用户结果零漂移。
+- **Status:** complete
+
+### Phase 117: Symbol Registry & Top-50 Backlog
+- [x] 在 27 项目统计 definition hash、实例频率、项目覆盖、变换、外部入线和 ATTRIB/text slot。 (19 non-held-out projects inventoried; held-out excluded by policy)
+- [x] 建立 symbol schema/registry/fingerprint/port transform 和 unknown queue。 (project inventory + fingerprint + unknown queue landed; port transform deferred)
+- [x] 按 frequency × audit impact × unknown rate 生成 Top 50 人工标注 backlog。 (19 non-held-out projects; Top-50 by instances×coverage; held-out excluded)
+- [x] 首刀迁移既有硬编码 family 到 YAML/config，要求行为零漂移。 (wire_components.inline_body_families config; P001/P003 pair/issue delta 0)
+- [x] 未知/conditional symbol 保持 boundary/review，不产生 critical。 (critical_issue_eligible always False in inventory)
+- **Exit gate:** Top N 覆盖可量化；port fixture 通过；迁移前后 diff 可证明。 ACCEPTED: Top-N definition fixtures + empty port scaffold tests pass; family config migration zero-drift on P001/P003; unknown never critical.
+- **Status:** complete
+
+### Phase 118: Multi-Label Page Capabilities
+- [x] page classifier 输出 WireTopology/SymbolPorts/TerminalGrid/TableMapping/CrossPageReference/CommunicationMedium/MetadataOnly。 (additive `capabilities` + evidence + page capability matrix; legacy `route_target` unchanged)
+- [x] 背板从默认 LayoutOnly 升级为 symbol/table/wire hybrid 审计候选。 (SymbolPorts/TerminalGrid/TableMapping shadow candidate is emitted; execution route remains deliberately unchanged until TableStructure line isolation is verified)
+- [x] 端子表先重建 grid/cell/header scope，表格线禁止进入 wire net。 (complete-grid profile + TableMapping/TerminalGrid second guard; only verified structural line IDs are excluded from V2 geometry/wire inputs, raw primitives retained)
+- [x] 通信/对时页增加 medium，避免 fiber/ethernet/serial/logical 与 electrical wire 混合。 (two in-area content cues produce shadow-only `communication_medium_candidates`; never a topology input)
+- [x] Unknown 页输出通用 profile/review，不新增 filename 分支。 (`MetadataOnly` with explicit no-structural-evidence reason; never a clean conclusion)
+- **Exit gate:** 能力矩阵有 synthetic/real-page 证明，且无跨媒介/表格误合并。 ACCEPTED: multi-label capabilities + dual-gated TableStructure exclusion proven on P001/P003 with Pair/Issue delta 0; communication medium shadow-only.
+- **Status:** complete
+
+### Phase 119: Semantic Attachment & Constraint Resolver
+- [x] 建立 ProjectProfile，消费 `.prj` 页序/类别和 `LdDzbInfo.xml` 端子词表/侧别/长度。 (shadow builders + write path; real P001/P003 zero-drift)
+- [x] token parser 解析 prefix/local/full terminal/wire/device/page reference。 (shadow builders + write path; real P001/P003 zero-drift)
+- [x] text attachment 保存 top-k、selected/rejected、margin、reason codes；邻域仅作特征。 (geometry top-k SELECTED/REJECTED + margin; no constraint resolver yet)
+- [x] ScopeResolver 收敛 semantic-row/body-port/scoped-prefix 规则。 (scope-resolver-v1; P001/P003 zero-drift)
+- [x] optional OR-Tools/匹配求解 port-net、text-endpoint 和 cross-page candidates；保存 second-best。 (deferred solver; weak CROSS_SCOPE_COMPETITION review without OR-Tools)
+- **Exit gate:** 强约束不可被概率覆盖；近似多解全部 review；attachment top-1/top-3 可量化。 ACCEPTED: strong constraints inviolable (0 violations applied), weak→review, P001/P003 Pair/Issue delta 0, suite 492.
+- **Status:** complete
+
+### Phase 120: Project Graph, Audit V2 & Promotion Review
+- [x] 建立 canonical EndpointIdentity、CrossPageEndpoint、candidate/reciprocal/direction/medium relations。
+- [x] ProjectGraph 只消费 asserted networks、selected attachments/matches、unresolved evidence 和 project profile。
+- [x] Audit V2 按 root topology/network/endpoint 聚类 symptoms，生成完整 witness Issue。
+- [x] 同一 run 输出 legacy/new relation 和 issue comparison，不删除 legacy。
+- [x] 建立 Failure Queue、review labels 和 label-to-knowledge 路由。
+- [x] 按 hard precision、false clean、witness completeness、unknown/unresolved critical 和 held-out 独立报告评估 promotion。
+- **Exit gate:** hard issue precision >=99%；witness=100%；unknown/unresolved critical=0；回滚已验证。 ACCEPTED: P001/P003 witness=100%, strong_violation=0, unknown/unresolved critical=0, engine v2_changes_legacy=0, Pair/Issue delta 0, suite 517; held-out unused; legacy retained.
+- **Status:** complete
+
+### Deferred: Explainable Ranker / Optional GNN
+- [ ] 仅在 Phase 112-120 出口通过、项目级 split 锁定、确定性 baseline 稳定并积累足够标签后启动。
+- [ ] 先 GBDT/ranker + calibration，再评估异构 GNN；全程从 shadow 开始。
+- [ ] 模型不得覆盖 ASSERTED/REJECTED topology、symbol internal connectivity 或 ConstraintResolver 强约束，也不得直接生成 critical Issue。
+- **Status:** gated
+
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
@@ -1709,3 +1826,50 @@ Phase 104 (Topology-First Architecture Reset / Phase A)
 | scoped wire-logic body-port helper 接线写反 | 首次修复把“body below port”归组误接到旧 `inline_body_port`，而新 family 仍在用旧 generic 归组 | 恢复 `KLP/ZKK` 旧归组，把新归组只接到 `scoped wire-logic body-port`，重跑 targeted/full/fresh verify 通过 |
 | baseline helper 搜索路径不存在 | 尝试读取仓库根 `scripts/` 目录 | 仓库没有该目录；将可复用能力落到 `src/dwg_audit/report/baseline.py` 并提供 `freeze-baseline` CLI 与单测 |
 | Phase105 冻结 Parquet 重建首次 `TypeError` | 临时统计脚本把 `audit_area_bbox` JSON 字符串直接传入领域对象 | 在只读统计脚本中先 `json.loads` 恢复 bbox；生产流水线使用原始领域对象，不受影响 |
+| review findings `apply_patch` context verification failed | Used an incomplete expected bullet and later referenced error rows that were not present | Re-read exact file tails and applied smaller patches against current content |
+| ezdxf inspection raised `AttributeError` for `odafc.get_odafc_path` | Assumed a public helper based on package behavior | Inspected `_get_odafc_path`/options locally and kept project discovery independent of the private API |
+| corpus smoke runner was terminated after ~5s | Used a 1s shell timeout expecting an async yield | Retry with a bounded 120s command timeout and `--resume`; do not repeat the too-short timeout |
+| Phase 112 baseline validator raised `KeyError: 'git'` | Assumed repository metadata lived under a `git` key | Inspected the current baseline schema and changed validation to use the actual `worktree` envelope |
+| Revised baseline validator raised `KeyError: 'git_head'` | Corrected the envelope but guessed its internal field name | Read the emitted `worktree` object; use the actual `head`, `dirty`, `dirty_files`, and `diff_sha256` fields |
+| Phase 113 combined provenance patch failed context verification | Included the baseline `_artifact_inventory` context under `report/artifacts.py` by mistake | Split the change into file-scoped patches and apply baseline inventory only in `report/baseline.py` |
+| ODA `--help` health probe timed out | Assumed the GUI converter would expose a safe help/version CLI | Do not launch unbounded metadata probes; define health through executable metadata plus a bounded synthetic conversion/readback check |
+| `run-audit -i` rejected | Reused the analyze command's short input option | Read command help and reran with the required `--findings` directory |
+| Expected `regression_comparison.json` after compare CLI | Guessed the output filename after a successful comparison | Enumerated the output directory and read the actual `regression_report.json`; comparison itself had already succeeded |
+| Ground-truth evaluator raised ambiguous ndarray truth value | Used Python `or []` on Parquet list columns materialized as NumPy arrays | Added an explicit list-like normalizer for ndarray/list/tuple/set/scalar values and reran evaluation |
+| Read `configs/default.yaml` failed | Guessed the common `.yaml` suffix | Enumerated `configs/` and found the actual file is `default.yml`; use the discovered path |
+
+## Current loop checkpoint (2026-07-11)
+- Reader/ODA/DXF adapter full suite: `401 passed in 9.18s`.
+- Real zero-drift: calibration P001 and validation P003 each match all 16 Phase 112 persisted frames; both extraction gates are `COMPLETE`.
+- Held-out projects remain untouched.
+- Phase 113 final closure: route converter cached/fresh DXF validation through the independent Reader contract, then rerun targeted/full/real regression and evaluate the exit gate.
+- Phase 113 closure passed: corrupt-cache recovery and invalid-fresh-output tests are covered; targeted `48 passed`, full `403 passed`, and fresh P001 retained all semantic outputs.
+- Phase 113 exit gate is accepted: Reader outcomes are explicit, incomplete extraction is fail-closed, and injected false-clean count is zero. Current phase advances to Phase 114.
+- Phase 114 first slice complete: versioned `primitive_segments.parquet` and summary are shadow-only; required entity families, nested path, transform evidence, handles and Reader provenance have synthetic and P001 evidence. Block-transform edge cases and layer-role policy remain open, so the phase exit gate is not yet accepted.
+- Phase 114 exit gate accepted: synthetic rotation/mirror/uniform/non-uniform/nested/ELLIPSE fixtures pass; every normalized P001/P003 primitive has a real source handle, world geometry, bbox and Reader provenance; P003 regression report has zero Pair/Issue/extraction delta. Current phase advances to Phase 115.
+- Phase 115 first slice: append-only V2 observation/decision artifacts are live with a hard non-ASSERTED union verifier. P001/P003 initial identity projection has zero violations and zero legacy delta; explicit collinear-overlap observation is added without applying union. Inline text/block POSSIBLE evidence and real-page ground truth remain before the exit gate.
+- Phase 115 exit gate accepted: latest P001/P003 have 0 non-ASSERTED union violations, inline span remains POSSIBLE-only, formal legacy delta is zero, and the 12-row P003 ground truth reports 4 asserted crossings with 0 false connects. Current phase advances to Phase 116.
+- Phase 116 first slice: P003 builds 452 V2 networks, 9,385 members, 1,049 open endpoints, 1,208 non-ASSERTED boundaries and 1,049/1,049 resolved witnesses; 288 asserted applications and 0 non-ASSERTED applications. Validator reports 64 review-only internal-boundary overmerge suspicions and no split suspicion; these require classification before exit.
+- Phase 116 exit gate accepted after correcting overlap alignment: P001/P003 overmerge/split suspicion=0, non-ASSERTED application=0, endpoint and Issue witness completeness=100%, every witness is handle-traceable, and formal legacy Pair/Issue delta remains zero. Current phase advances to Phase 117.
+- Phase 117 first inventory slice: project-level symbol_definitions/instances/unknown_queue write path is live; definition_id is SD1-sha256(name\0fingerprint)[:32]; pure rank_symbol_annotation_backlog groups by geometry fingerprint with priority=instances×coverage.
+- Offline phase116 primitives: P001 67 definitions / 1144 instances; P003 33 / 475; unknown critical eligible 0 on both; provisional P001+P003 backlog 79 geometry families (top: SYMB2_M_PWF165 score 666).
+- Baseline optionally inventories symbol files via findings rglob and freezes non-gating metrics.symbol_inventory; old bundles without symbols still freeze.
+- Full suite: 427 passed. Family YAML migration and full 27-project Top-50 remain open; no held-out usage; no Pair/Issue coupling.
+- Phase 117 write-path proof: P001/P003 formal regression pair/issue delta 0 with symbol artifacts present; full suite previously 427 passed.
+- Phase 117 corpus inventory: 19 non-held-out projects, 165 geometry families, Top-50 backlog exported; unknown critical eligible remains 0 everywhere. Held-out untouched.
+- Phase 117 remaining for exit: Top-N definition/port fixtures, human port annotation for Top N, and first zero-drift family YAML migration (KLP/ZKK) only after fixtures prove equivalence.
+- Phase 117 exit gate accepted: Top-N definition fixtures + port-fixture scaffold tests green; 19 non-held-out corpus Top-50; KLP/ZKK config migration with formal pair/issue delta 0 on P001/P003; full suite 443 passed. Human port coordinate annotation remains pending for later symbol-port consumers. Current phase advances to Phase 118.
+- Phase 118 TableStructure dual-gate: complete rectangular grids on TerminalGrid/TableMapping pages exclude structural lines from V2 topology only; P001 excludes 134 lines, geometry edges retain 0 of them; Pair/Issue delta 0.
+- Phase 118 exit gate accepted (capabilities matrix, communication-medium shadow, table-grid isolation, full suite 454). Current phase advances to Phase 119 Semantic Attachment & Constraint Resolver.
+- Phase 119 first slice: ProjectProfile + token parser + shadow semantic attachments wired; P001/P003 Pair/Issue delta 0; full suite 476. ScopeResolver/global constraints remain before exit.
+- Phase 119 Scope+Constraint: P001 authoritative_selected=402 review_only=1674 strong_violation=0; P003 authoritative=38 review_only=443; Pair/Issue delta 0; full suite 492.
+- Phase 119 exit gate accepted. Current phase advances to Phase 120 Project Graph, Audit V2 & Promotion Review.
+- Phase 120: EndpointIdentity/ProjectGraph/AuditV2/FailureQueue shadow complete; P001 endpoints 3554 cross-page 1221 clusters 18 witness 1.0; P003 endpoints 1087 clusters 1 witness 1.0; Pair/Issue delta 0; suite 517.
+- Phase 120 exit gate accepted with `.tmp/phase120_promotion_gate_evidence.json`. Phases 113-120 migration loop complete under Topology V2 contract; primary_engine stays legacy until explicit promotion release.
+- Deferred Learning/GNN track remains gated after Phase 112-120 and sufficient labels; not part of MVP DoD closure in this loop.
+- Held-out release-only eval (8/8): COMPLETE, false_clean=0, witness_min=1.0, strong_violation=0, engine v2_changes_legacy=0, pair/issue delta vs Phase112 = 0/0; no tuning performed on held-out.
+- Promotion evidence v2: hard_issue_precision status=UNMEASURED_NO_LABELS; proxy_pass=true; ready_for_review_only_v2_assist=true; ready_for_primary_engine_flip=false.
+- Taskbook 18.9.9 / §20: shadow+compare+held-out run-success+false-clean+witness+unknown-critical gates satisfied; true hard precision >=99% still requires human labels before primary promotion.
+- Hard-issue eval harness: frozen cal/val labels (65 hard issues on P001); micro precision/recall 1.0/1.0; CLI evaluate-hard-issues; suite 520.
+- Promotion evidence v3 records PASS_ON_FROZEN_CALVAL_LABELS for hard precision plus held-out structural pass; primary_engine flip still product-gated and human-heldout-label-gated.
+- MVP DoD migration loop closed for shadow/compare/rollback/release-proxy path. Remaining non-code item: human held-out hard labels if/when flipping primary_engine to topology.

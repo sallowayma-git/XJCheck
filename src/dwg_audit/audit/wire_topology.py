@@ -120,7 +120,9 @@ def build_wire_topology_frames(
     artifacts: ProjectArtifacts,
     *,
     config: dict | None = None,
+    excluded_line_ids: set[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+    excluded_line_ids = excluded_line_ids or set()
     sheet_map = {sheet.sheet_id: sheet for sheet in artifacts.scan.pages}
     line_group_ids_by_line = _line_group_ids_by_line(artifacts)
     junction_id_factory = IdFactory("J")
@@ -130,7 +132,10 @@ def build_wire_topology_frames(
 
     lines_by_sheet: dict[str, list[LineEntity]] = defaultdict(list)
     for line in artifacts.lines:
-        if _line_in_scope(line, sheet_map.get(line.sheet_id)):
+        if (
+            line.line_id not in excluded_line_ids
+            and _line_in_scope(line, sheet_map.get(line.sheet_id))
+        ):
             lines_by_sheet[line.sheet_id].append(line)
 
     texts_by_sheet: dict[str, list[TextItem]] = defaultdict(list)

@@ -40,6 +40,38 @@ _AUDIT_ROUTE_TARGETS = {
     "TerminalDiagramExtractor",
     "TableExtractor",
 }
+_PAGE_CAPABILITIES = (
+    "WireTopology",
+    "SymbolPorts",
+    "TerminalGrid",
+    "TableMapping",
+    "CrossPageReference",
+    "CommunicationMedium",
+    "MetadataOnly",
+)
+_CROSS_PAGE_REFERENCE_PATTERN = re.compile(r"(?:见|参见|转|续)[^\n]{0,12}(?:第\s*)?\d+\s*页|(?:第\s*)?\d+\s*页(?:续|见)")
+_MEDIUM_CUE_PATTERNS = {
+    "fiber_optic": {
+        "fiber_lc": re.compile(r"(?<![A-Z0-9])LC(?![A-Z0-9])", re.IGNORECASE),
+        "fiber_rx_tx": re.compile(r"(?<![A-Z0-9])(?:RX|TX)(?![A-Z0-9])", re.IGNORECASE),
+    },
+    "serial": {
+        "serial_protocol": re.compile(r"RS\s*[-－]?\s*(?:232|485)", re.IGNORECASE),
+        "serial_port": re.compile(r"(?<![A-Z0-9])(?:TX|RX|GND|DATA\s*[+-])(?![A-Z0-9])", re.IGNORECASE),
+    },
+    "ethernet": {
+        "ethernet_eth": re.compile(r"(?<![A-Z0-9])(?:ETH|ETHERNET)(?![A-Z0-9])", re.IGNORECASE),
+        "ethernet_physical": re.compile(r"(?<![A-Z0-9])(?:RJ45|100BASE)(?![A-Z0-9])", re.IGNORECASE),
+    },
+    "time_sync": {
+        "time_sync_protocol": re.compile(r"(?<![A-Z0-9])(?:PTP|NTP|IRIG)(?![A-Z0-9])", re.IGNORECASE),
+        "time_sync_signal": re.compile(r"(?<![A-Z0-9])(?:PPS|IRIG)(?![A-Z0-9])", re.IGNORECASE),
+    },
+    "logical": {
+        "logical_goose": re.compile(r"(?<![A-Z0-9])GOOSE(?![A-Z0-9])", re.IGNORECASE),
+        "logical_service": re.compile(r"(?<![A-Z0-9])(?:MMS|SV)(?![A-Z0-9])", re.IGNORECASE),
+    },
+}
 
 
 def classify_pages(
@@ -78,7 +110,12 @@ def classify_pages(
             sheet_blocks,
             grid_band_tol,
         )
-        classification = _classify(page, features, grid_min_band)
+        classification = _classify(
+            page,
+            features,
+            grid_min_band,
+            [text for text in sheet_texts if _text_in_audit_area(text, page)],
+        )
         classifications[sheet_id] = classification
     return classifications
 
@@ -154,7 +191,12 @@ def _count_grid_bands(y_values: list[float], tol: float) -> int:
     return bands
 
 
-def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -> PageClassification:
+def _classify(
+    page: SheetRecord,
+    features: dict[str, Any],
+    grid_min_band: int,
+    audit_texts: list[TextItem],
+) -> PageClassification:
     category = page.sheet_category or ""
     horizontal_ratio = float(features.get("horizontal_line_ratio", 0.0))
     vertical_ratio = float(features.get("vertical_line_ratio", 0.0))
@@ -236,6 +278,15 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
         route_target = "LayoutOnlyExtractor"
 
     audit_disposition = _infer_audit_disposition(page, route_target)
+    capabilities, capability_evidence, communication_media = _derive_page_capabilities(
+        page,
+        features,
+        route_target=route_target,
+        audit_disposition=audit_disposition,
+        table_like=table_like or backplate_table_routed,
+        grid_heavy=grid_heavy,
+        audit_texts=audit_texts,
+    )
 
     return PageClassification(
         sheet_id=page.sheet_id,
@@ -247,7 +298,92 @@ def _classify(page: SheetRecord, features: dict[str, Any], grid_min_band: int) -
         route_target=route_target,
         features=features,
         audit_disposition=audit_disposition,
+        capabilities=capabilities,
+        capability_evidence=capability_evidence,
+        communication_media=communication_media,
     )
+
+
+def _derive_page_capabilities(
+    page: SheetRecord,
+    features: dict[str, Any],
+    *,
+    route_target: str,
+    audit_disposition: str,
+    table_like: bool,
+    grid_heavy: bool,
+    audit_texts: list[TextItem],
+) -> tuple[tuple[str, ...], dict[str, dict[str, Any]], tuple[str, ...]]:
+    """Return additive page capabilities without changing the legacy execution route."""
+    labels: set[str] = set()
+    evidence: dict[str, dict[str, Any]] = {}
+
+    def add(label: str, *, confidence: float, reason_codes: list[str], evidence_ids: list[str] | None = None, **extra: Any) -> None:
+        labels.add(label)
+        evidence[label] = {
+            "confidence": round(confidence, 2),
+            "reason_codes": sorted(set(reason_codes)),
+            "evidence_ids": sorted(set(evidence_ids or [])),
+            **extra,
+        }
+
+    if route_target in {"WireDiagramExtractor", "ComponentDiagramExtractor", "TerminalDiagramExtractor"}:
+        add("WireTopology", confidence=0.8, reason_codes=["PRIMARY_ROUTE_TOPOLOGY_CANDIDATE"])
+    if route_target == "ComponentDiagramExtractor" or int(features.get("block_count", 0)) > 0 or page.sheet_category == "背板接线图":
+        add("SymbolPorts", confidence=0.72, reason_codes=["BLOCK_OR_BACKPLATE_SYMBOL_CANDIDATE"])
+    if route_target == "TerminalDiagramExtractor" or (page.sheet_category == "背板接线图" and table_like):
+        add("TerminalGrid", confidence=0.76, reason_codes=["TERMINAL_OR_BACKPLATE_GRID_CANDIDATE"])
+    if table_like:
+        add("TableMapping", confidence=0.78, reason_codes=["TABLE_GEOMETRY_OR_BACKPLATE_STRUCTURE"])
+    cross_page_ids = [text.text_id for text in audit_texts if _CROSS_PAGE_REFERENCE_PATTERN.search(text.normalized_text or text.text or "")]
+    if cross_page_ids:
+        add("CrossPageReference", confidence=0.7, reason_codes=["IN_AREA_CROSS_PAGE_REFERENCE"], evidence_ids=cross_page_ids)
+
+    communication_media, medium_evidence = _detect_communication_media(audit_texts)
+    if communication_media:
+        add(
+            "CommunicationMedium",
+            confidence=min(item["confidence"] for item in medium_evidence.values()),
+            reason_codes=[code for item in medium_evidence.values() for code in item["reason_codes"]],
+            evidence_ids=[text_id for item in medium_evidence.values() for text_id in item["evidence_ids"]],
+            media=list(communication_media),
+            media_evidence=medium_evidence,
+            state="candidate",
+        )
+    if not labels:
+        # A metadata-only classification is explicitly not a clean conclusion.
+        add(
+            "MetadataOnly",
+            confidence=0.4 if audit_disposition != "skip_stable" else 0.9,
+            reason_codes=["NO_STRUCTURAL_CAPABILITY_EVIDENCE"],
+        )
+
+    ordered = tuple(label for label in _PAGE_CAPABILITIES if label in labels)
+    return ordered, {label: evidence[label] for label in ordered}, communication_media
+
+
+def _detect_communication_media(audit_texts: list[TextItem]) -> tuple[tuple[str, ...], dict[str, dict[str, Any]]]:
+    """Require two independent in-area content cues before emitting a shadow medium candidate."""
+    media: list[str] = []
+    evidence: dict[str, dict[str, Any]] = {}
+    for medium, cues in _MEDIUM_CUE_PATTERNS.items():
+        matched_ids: dict[str, list[str]] = {}
+        for cue_name, pattern in cues.items():
+            matched_ids[cue_name] = sorted(
+                text.text_id
+                for text in audit_texts
+                if pattern.search(text.normalized_text or text.text or "")
+            )
+        if not all(matched_ids.values()):
+            continue
+        reason_codes = [f"COMM_{medium.upper()}_{cue_name.upper()}" for cue_name in sorted(matched_ids)]
+        media.append(medium)
+        evidence[medium] = {
+            "confidence": 0.82,
+            "reason_codes": reason_codes,
+            "evidence_ids": sorted({item for values in matched_ids.values() for item in values}),
+        }
+    return tuple(media), evidence
 
 
 def _infer_audit_disposition(page: SheetRecord, route_target: str) -> str:

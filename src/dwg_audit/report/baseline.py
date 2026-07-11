@@ -25,6 +25,15 @@ _COVERAGE_KEYS = (
     "suspicious_out_of_scope_expansion",
 )
 
+_SYMBOL_INVENTORY_KEYS = (
+    "schema_version",
+    "definition_count",
+    "instance_count",
+    "unknown_definition_count",
+    "registered_definition_count",
+    "unknown_critical_issue_eligible_count",
+)
+
 
 def write_baseline_manifest(
     project_dir: Path,
@@ -71,6 +80,9 @@ def write_baseline_manifest(
     )
     pair_geometry_summary = _read_optional_json(
         findings_dir / "pair_geometry_shadow_summary.json"
+    )
+    symbol_inventory_summary = _read_optional_json(
+        findings_dir / "symbol_inventory_summary.json"
     )
     project_manifest = _read_json(project_dir / "manifest.json")
 
@@ -127,6 +139,12 @@ def write_baseline_manifest(
                 "geometry_observations": geometry_observation_summary,
                 "pair_geometry": pair_geometry_summary,
             },
+            # Optional shadow metrics: empty when symbol inventory artifacts are absent.
+            "symbol_inventory": {
+                key: symbol_inventory_summary.get(key) for key in _SYMBOL_INVENTORY_KEYS
+            }
+            if symbol_inventory_summary
+            else {},
         },
         "redlines": {
             "pair_kind_identity_ok": sum(pair_kind_counts.values()) == len(pairs),
@@ -168,6 +186,14 @@ def _require_bundle(project_dir: Path, findings_dir: Path, audit_dir: Path) -> N
 
 def _artifact_inventory(project_dir: Path, findings_dir: Path, audit_dir: Path) -> list[dict[str, Any]]:
     paths = [project_dir / "manifest.json"]
+    reader_run_manifest = project_dir / "reader_run.json"
+    if reader_run_manifest.is_file():
+        paths.append(reader_run_manifest)
+    extraction_completeness = project_dir / "extraction_completeness.json"
+    if extraction_completeness.is_file():
+        paths.append(extraction_completeness)
+    # findings/ and audit/ walks pick up all files present, including optional
+    # symbol inventory artifacts (symbol_*_v1.parquet, symbol_inventory_summary.json).
     paths.extend(path for root in (findings_dir, audit_dir) for path in root.rglob("*") if path.is_file())
     inventory = []
     for path in sorted(paths, key=lambda item: item.relative_to(project_dir).as_posix()):

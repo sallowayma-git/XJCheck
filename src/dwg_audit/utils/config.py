@@ -91,6 +91,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "allow_for_final_pair": False,
         },
     },
+    "wire_components": {
+        "inline_body_families": ["KLP", "ZKK"],
+    },
+    "table_structure": {
+        "axis_tolerance": 0.5,
+        "intersection_tolerance": 0.5,
+        "min_axis_count": 3,
+    },
     "page_category_overrides": {
         "二次原理图": {
             "text": {

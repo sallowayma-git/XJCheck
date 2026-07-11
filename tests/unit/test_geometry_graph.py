@@ -10,6 +10,7 @@ from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.domain.models import ProjectScanResult
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
+from dwg_audit.domain.models import TextItem
 
 
 def _line(line_id: str, x1: float, y1: float, x2: float, y2: float) -> LineEntity:
@@ -105,6 +106,64 @@ def test_geometry_graph_keeps_unasserted_crossing_disconnected() -> None:
     assert len(edges) == 2
     assert len(components) == 2
     assert all(histogram == {"1": 2} for histogram in components["degree_histogram"])
+
+
+def test_geometry_observations_assert_collinear_overlap_without_legacy_union() -> None:
+    artifacts = _artifacts(
+        [_line("L1", 0.0, 0.0, 10.0, 0.0), _line("L2", 5.0, 0.0, 15.0, 0.0)]
+    )
+    nodes, edges, components, _ = build_geometry_graph_frames(artifacts, config=_config())
+
+    observations, _ = build_geometry_observation_frame(
+        artifacts, nodes, edges, components, config=_config()
+    )
+
+    overlap = observations.loc[observations["observation_kind"] == "overlap"]
+    assert len(overlap) == 1
+    assert overlap.iloc[0]["state"] == "ASSERTED"
+    assert overlap.iloc[0]["source_line_ids"] == ["L1", "L2"]
+    assert overlap.iloc[0]["reason_code"] == "asserted_collinear_overlap_v1"
+    assert len(components) == 2
+
+
+def test_near_collinear_lines_are_not_asserted_as_direct_overlap() -> None:
+    artifacts = _artifacts(
+        [_line("L1", 0.0, 0.0, 10.0, 0.0), _line("L2", 5.0, 0.01, 15.0, 0.01)]
+    )
+    nodes, edges, components, _ = build_geometry_graph_frames(
+        artifacts, config=_config(snap=0.2)
+    )
+
+    observations, _ = build_geometry_observation_frame(
+        artifacts, nodes, edges, components, config=_config(snap=0.2)
+    )
+
+    assert observations.loc[observations["observation_kind"] == "overlap"].empty
+    assert len(components) == 2
+
+
+def test_inline_text_is_possible_evidence_and_does_not_merge_components() -> None:
+    artifacts = _artifacts(
+        [_line("L1", 0.0, 0.0, 10.0, 0.0), _line("L2", 15.0, 0.0, 25.0, 0.0)]
+    )
+    artifacts.texts = [
+        TextItem(
+            "T1", "S1", "F1", "H1", "TEXT", "X", "X", False, "WIRE",
+            0.0, 2.0, 12.0, 0.0, 10.5, -1.0, 14.0, 1.0,
+        )
+    ]
+    nodes, edges, components, _ = build_geometry_graph_frames(artifacts, config=_config())
+
+    observations, _ = build_geometry_observation_frame(
+        artifacts, nodes, edges, components, config=_config()
+    )
+
+    spans = observations.loc[observations["observation_kind"] == "inline_span_candidate"]
+    assert len(spans) == 1
+    assert spans.iloc[0]["state"] == "POSSIBLE"
+    assert spans.iloc[0]["evidence_ids"] == ["T1"]
+    assert spans.iloc[0]["requires_review"]
+    assert len(components) == 2
 
 
 def test_geometry_graph_can_assert_and_split_configured_crossing() -> None:

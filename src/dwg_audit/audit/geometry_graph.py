@@ -142,13 +142,18 @@ def build_geometry_graph_frames(
     artifacts: ProjectArtifacts,
     *,
     config: dict | None = None,
+    excluded_line_ids: set[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """Build a geometry-only shadow graph without text or block bridges."""
     config = config or {}
+    excluded_line_ids = excluded_line_ids or set()
     sheet_map = {sheet.sheet_id: sheet for sheet in artifacts.scan.pages}
     lines_by_sheet: dict[str, list[LineEntity]] = defaultdict(list)
     for line in artifacts.lines:
-        if _line_in_scope(line, sheet_map.get(line.sheet_id)):
+        if (
+            line.line_id not in excluded_line_ids
+            and _line_in_scope(line, sheet_map.get(line.sheet_id))
+        ):
             lines_by_sheet[line.sheet_id].append(line)
 
     node_rows: list[dict[str, Any]] = []
@@ -301,9 +306,12 @@ def build_geometry_observation_frame(
 
     rows: list[dict[str, Any]] = []
     component_by_node: dict[str, str] = {}
+    component_by_line: dict[str, str] = {}
     for _, component in geometry_components.iterrows():
         for node_id in component.get("node_ids", []) or []:
             component_by_node[str(node_id)] = str(component["geometry_component_id"])
+        for line_id in component.get("source_line_ids", []) or []:
+            component_by_line[str(line_id)] = str(component["geometry_component_id"])
 
     edges_by_node: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for _, edge in geometry_edges.iterrows():
@@ -384,6 +392,22 @@ def build_geometry_observation_frame(
             project_id=project_id,
             geometry_edges=geometry_edges,
             component_by_node=component_by_node,
+        )
+    )
+    rows.extend(
+        _asserted_overlap_observations(
+            project_id=project_id,
+            artifacts=artifacts,
+            component_by_line=component_by_line,
+            config=config,
+        )
+    )
+    rows.extend(
+        _possible_inline_span_observations(
+            project_id=project_id,
+            artifacts=artifacts,
+            geometry_nodes=geometry_nodes,
+            base_observations=rows,
         )
     )
     frame = pd.DataFrame(rows).reindex(columns=_OBSERVATION_COLUMNS)
@@ -864,6 +888,182 @@ def _rejected_crossing_observations(
                     )
                 )
     return observations
+
+
+def _asserted_overlap_observations(
+    *,
+    project_id: str,
+    artifacts: ProjectArtifacts,
+    component_by_line: dict[str, str],
+    config: dict,
+) -> list[dict[str, Any]]:
+    alignment_tol = float(
+        config.get("topology", {}).get(
+            "geometry_graph_overlap_alignment_tolerance", 1e-6
+        )
+    )
+    overlap_tol = float(
+        config.get("topology", {}).get("geometry_graph_overlap_min_length", 1e-6)
+    )
+    bucket_size = max(alignment_tol, 1e-6)
+    sheet_map = {sheet.sheet_id: sheet for sheet in artifacts.scan.pages}
+    grouped: dict[tuple[str, str, int], list[_NormalizedLine]] = defaultdict(list)
+    for sheet_id in sorted(sheet_map):
+        lines = [
+            line
+            for line in artifacts.lines
+            if line.sheet_id == sheet_id and _line_in_scope(line, sheet_map[sheet_id])
+        ]
+        wire_lines, _ = _partition_connection_markers(
+            lines,
+            marker_max_span=float(
+                config.get("topology", {}).get("geometry_graph_marker_max_span", 1.0)
+            ),
+        )
+        for line in _normalize_lines(wire_lines, config):
+            bucket = math.floor(line.cross_axis / bucket_size)
+            grouped[(sheet_id, line.orientation, bucket)].append(line)
+
+    observations: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for (sheet_id, orientation, bucket), lines in sorted(grouped.items()):
+        candidates = [
+            candidate
+            for neighbor in (bucket - 1, bucket, bucket + 1)
+            for candidate in grouped.get((sheet_id, orientation, neighbor), [])
+        ]
+        for left in lines:
+            for right in candidates:
+                key = tuple(sorted((left.line.line_id, right.line.line_id)))
+                if left.line.line_id == right.line.line_id or key in seen:
+                    continue
+                seen.add(key)
+                alignment_error = abs(left.cross_axis - right.cross_axis)
+                if alignment_error > alignment_tol:
+                    continue
+                overlap_start = max(left.axis_start, right.axis_start)
+                overlap_end = min(left.axis_end, right.axis_end)
+                overlap_length = overlap_end - overlap_start
+                if overlap_length <= overlap_tol:
+                    continue
+                observations.append(
+                    _observation_row(
+                        project_id=project_id,
+                        sheet_id=sheet_id,
+                        observation_kind="overlap",
+                        state="ASSERTED",
+                        node_a_id=None,
+                        node_b_id=None,
+                        component_a_id=component_by_line.get(left.line.line_id),
+                        component_b_id=component_by_line.get(right.line.line_id),
+                        distance=0.0,
+                        alignment_error=alignment_error,
+                        source_line_ids=list(key),
+                        evidence_ids=[],
+                        reason_code="asserted_collinear_overlap_v1",
+                        requires_review=False,
+                    )
+                )
+    return observations
+
+
+def _possible_inline_span_observations(
+    *,
+    project_id: str,
+    artifacts: ProjectArtifacts,
+    geometry_nodes: pd.DataFrame,
+    base_observations: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    coords = {
+        str(row["geometry_node_id"]): tuple(map(float, row["coord"]))
+        for _, row in geometry_nodes.iterrows()
+    }
+    texts_by_sheet: dict[str, list[Any]] = defaultdict(list)
+    blocks_by_sheet: dict[str, list[Any]] = defaultdict(list)
+    for text in artifacts.texts:
+        texts_by_sheet[text.sheet_id].append(text)
+    for block in artifacts.blocks:
+        blocks_by_sheet[block.sheet_id].append(block)
+
+    results: list[dict[str, Any]] = []
+    for observation in base_observations:
+        if observation.get("observation_kind") != "endpoint_gap":
+            continue
+        node_a_id = str(observation.get("node_a_id") or "")
+        node_b_id = str(observation.get("node_b_id") or "")
+        if node_a_id not in coords or node_b_id not in coords:
+            continue
+        a = coords[node_a_id]
+        b = coords[node_b_id]
+        sheet_id = str(observation["sheet_id"])
+        text_ids, block_ids = _span_evidence_ids(
+            a,
+            b,
+            texts=texts_by_sheet.get(sheet_id, []),
+            blocks=blocks_by_sheet.get(sheet_id, []),
+        )
+        if not text_ids and not block_ids:
+            continue
+        if text_ids and block_ids:
+            reason = "inline_text_and_block_span_possible_v1"
+        elif text_ids:
+            reason = "inline_text_span_possible_v1"
+        else:
+            reason = "block_span_possible_v1"
+        results.append(
+            _observation_row(
+                project_id=project_id,
+                sheet_id=sheet_id,
+                observation_kind="inline_span_candidate",
+                state="POSSIBLE",
+                node_a_id=node_a_id,
+                node_b_id=node_b_id,
+                component_a_id=observation.get("component_a_id"),
+                component_b_id=observation.get("component_b_id"),
+                distance=float(observation.get("distance") or 0.0),
+                alignment_error=float(observation.get("alignment_error") or 0.0),
+                source_line_ids=list(observation.get("source_line_ids") or []),
+                evidence_ids=[*text_ids, *block_ids],
+                reason_code=reason,
+                requires_review=True,
+            )
+        )
+    return results
+
+
+def _span_evidence_ids(
+    a: tuple[float, float],
+    b: tuple[float, float],
+    *,
+    texts: list[Any],
+    blocks: list[Any],
+) -> tuple[list[str], list[str]]:
+    min_x, max_x = sorted((a[0], b[0]))
+    min_y, max_y = sorted((a[1], b[1]))
+    horizontal = abs(a[1] - b[1]) <= abs(a[0] - b[0])
+    text_ids: list[str] = []
+    block_ids: list[str] = []
+    if horizontal:
+        axis = (a[1] + b[1]) / 2.0
+        for text in texts:
+            if text.bbox_max_x < min_x - 1.0 or text.bbox_min_x > max_x + 1.0:
+                continue
+            if text.bbox_min_y - 4.0 <= axis <= text.bbox_max_y + 4.0:
+                text_ids.append(str(text.text_id))
+        for block in blocks:
+            if min_x - 1.0 <= block.insert_x <= max_x + 1.0 and abs(block.insert_y - axis) <= 4.0:
+                block_ids.append(str(block.block_id))
+    else:
+        axis = (a[0] + b[0]) / 2.0
+        for text in texts:
+            if text.bbox_max_y < min_y - 1.0 or text.bbox_min_y > max_y + 1.0:
+                continue
+            if text.bbox_min_x - 4.0 <= axis <= text.bbox_max_x + 4.0:
+                text_ids.append(str(text.text_id))
+        for block in blocks:
+            if min_y - 1.0 <= block.insert_y <= max_y + 1.0 and abs(block.insert_x - axis) <= 4.0:
+                block_ids.append(str(block.block_id))
+    return sorted(set(text_ids)), sorted(set(block_ids))
 
 
 def _observation_row(
