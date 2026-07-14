@@ -1,0 +1,70 @@
+{
+  "$schema": "symbol_dependency_library.schema.json",
+  "schema_version": "symbol-dependency-library-v1",
+  "review_workflow": {
+    "workflow_version": "symbol-library-review-v1",
+    "document_status": "PENDING_HUMAN_REVIEW",
+    "notes": "Template only. Replace placeholder identity, geometry, and source evidence before review."
+  },
+  "geometry_definitions": [],
+  "symbols": [
+    {
+      "backlog_rank": 1,
+      "review_reason_codes": [
+        "HUMAN_REVIEW_REQUIRED",
+        "PORT_ANNOTATION_REQUIRED",
+        "INTERNAL_CONNECTIVITY_REVIEW_REQUIRED"
+      ],
+      "family": "UNCLASSIFIED_EXAMPLE_SYMBOL",
+      "version": "review-v1",
+      "fingerprint": "replace-with-observed-geometry-fingerprint",
+      "definition_names": [
+        "REPLACE_WITH_OBSERVED_DEFINITION_NAME"
+      ],
+      "geometry_dependencies": [],
+      "symbol_dependencies": [],
+      "ports": [
+        {
+          "port_id": "PENDING_PORT_1",
+          "local_position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "outward_direction": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "port_type": "UNKNOWN",
+          "aliases": [],
+          "source_ids": [
+            "template-placeholder"
+          ],
+          "annotation_status": "PENDING_HUMAN_REVIEW"
+        }
+      ],
+      "internal_connectivity_groups": [],
+      "aliases": [],
+      "sources": [
+        {
+          "source_id": "template-placeholder",
+          "source_kind": "TEMPLATE_PLACEHOLDER",
+          "locator": "replace-with-reviewable-source-locator",
+          "project_id": null,
+          "held_out": false
+        }
+      ],
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "registry_status": "UNKNOWN",
+      "critical_issue_eligible": false,
+      "review": {
+        "status": "PENDING_HUMAN_REVIEW",
+        "reviewer": null,
+        "reviewed_at": null,
+        "evidence_source_ids": [],
+        "notes": "No port, connectivity, registration, or critical claim is approved in this example."
+      }
+    }
+  ]
+}
