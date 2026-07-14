@@ -75,6 +75,9 @@ def analyze_input_root(
         primitive_segments = getattr(extraction_result, "primitive_segments", [])
         extraction_censuses = getattr(extraction_result, "extraction_censuses", [])
         canonical_scenes = getattr(extraction_result, "canonical_scenes", [])
+        symbol_port_definition_proposals = getattr(
+            extraction_result, "symbol_port_definition_proposals", []
+        )
         if event_sink is not None:
             event_sink.emit(
                 "progress",
@@ -258,6 +261,7 @@ def analyze_input_root(
             primitive_segments=primitive_segments,
             extraction_censuses=extraction_censuses,
             canonical_scenes=canonical_scenes,
+            symbol_port_definition_proposals=symbol_port_definition_proposals,
         )
         # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
         artifacts_page_classifications = classifications

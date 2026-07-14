@@ -877,3 +877,29 @@
 4. Unit/scale gold or declared drawing units
 5. Explicit product approval for primary flip
 
+## 2026-07-14 collaboration status audit boundary
+
+- The repository now contains and has published the MACHINE_PROPOSED connection-review module and its unit tests, but Phase 127 remains open.
+- The next decision must be based on production-chain integration, not module existence: verify whether human decisions can be validated, routed to symbol/topology/rule knowledge, replayed in shadow mode, and measured without granting direct authority.
+- Preserve the staged authority model: machine proposal -> human decision ledger -> validated knowledge candidate -> shadow replay -> measured promotion. No direct review-row-to-ASSERTED-union transition.
+
+## 2026-07-14 direct DWG/visual agent adjudication trial
+
+- Two fresh one-shot agents independently reviewed non-held-out P001 `S0007/F0007` (`06 直流回路图.dwg`): one from raw DWG/DXF objects and findings, one from a real high-resolution render plus CAD handle lookup.
+- Raw-object review produced 8 external symbol-port connections and 2 negative same-symbol/cross-row relations at confidence 0.99-0.995, all bound to handles and coordinates. It showed `SYMB2_M_PWF236` has six identical-transform instances on the page but remains UNKNOWN with zero declared ports, causing false geometry-degree-one open endpoints.
+- Visual review independently confirmed symbol-gap bridging, terminal internal pass-through, and mechanical linkage not being electrical connectivity. Render evidence lives only under ignored `.tmp/visual_dwg_trial/`.
+- Important disagreement: visual state reading treated open DK/KZKK contacts as `NOT_CONNECTED`, while raw-object review correctly deferred internal contact conductivity to a component-state model. External port attachment is consensus-safe; internal dynamic contact state is not.
+- The taskbook contains an orientation wording conflict around lines 127/129: prose says upper ports 1/3 while the CAD text and explicit mapping examples show upper 3/4 and lower 1/2. Runtime truth must bind instance-local port text + coordinates + block handles, not hard-code prose orientation.
+- Conclusion: direct agent adjudication is feasible without a production CLI. It should enter the existing engine through a validated, dual-review consensus artifact; conflicts remain review/defer and never directly mutate ASSERTED union.
+- The first reusable engine improvement is now measured in the native service path. PWF236 yields 24/24 explicit-label external-network attachments across six instances; every relation keeps internal conductivity false/deferred and union eligibility false.
+- Single-page F0007 native evidence: 20 definition proposals / 58 ports; 232 instance candidates; 52 measured external attachments; 58 explicit labels; 138 network-bound candidates. Legacy pairs and pair candidates are full-row hash identical before/after.
+
+## 2026-07-14 Current Recognition Blind-Spot Audit
+
+- Current evidence does not support a truthful per-DWG list of every failed image because project-scope human gold is still pending. The defensible output is a capability-boundary list plus measured corpus risks.
+- Layout-only/non-pairing classes remain non-semantic: screen layout pages, non-table backplates, unknown categories, and other unmatched categories route to `LayoutOnlyExtractor`.
+- Communication-medium pages and dense cross-page continuation diagrams are review-only for connectivity. P001 has 1,221 cross-page CANDIDATE edges and 2,816 geometry-only open endpoints; none may be treated as asserted connection truth.
+- Unknown/unreviewed symbol definitions remain non-authoritative. Existing P001/P003 evidence measured 67/33 unknown definitions and zero registered definitions, so novel or unconfirmed device symbols and their ports/internal connectivity cannot be reliably recognized.
+- Viewport-only layouts are not interpreted, and HATCH/SPLINE/POINT remain outside equivalent shadow semantic normalization. The three-project census measured 978 HATCH, 12 SPLINE, 2 POINT shadow-unsupported entities and two viewport-layout warnings.
+- All 42 files in the three-project census had unresolved drawing scale. This blocks trustworthy physical-distance interpretation, especially for non-uniform/nested transforms, even when ordinary topology extraction completes.
+- The primary engine remains `legacy`; V2 is review-assist only and is not ready for a primary flip. Therefore any clean automatic conclusion on the above classes must remain fail-closed/review-required.

@@ -14,6 +14,7 @@ from dwg_audit.domain.models import ProjectScanResult
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.audit.symbol_port_proposal import propose_ports_from_block
 from dwg_audit.readers import EzdxfReader
 from dwg_audit.readers import ReaderError
 from dwg_audit.readers import ReaderOptions
@@ -39,6 +40,9 @@ class CadExtractionResult:
     primitive_segments: list[PrimitiveSegment] = field(default_factory=list)
     extraction_censuses: list[dict[str, object]] = field(default_factory=list)
     canonical_scenes: list[dict[str, object]] = field(default_factory=list)
+    symbol_port_definition_proposals: list[dict[str, object]] = field(
+        default_factory=list
+    )
 
     def __iter__(self):
         # Preserve the public six-value unpacking contract for legacy callers.
@@ -628,6 +632,7 @@ def extract_cad_artifacts(
     primitive_segments: list[PrimitiveSegment] = []
     extraction_censuses: list[dict[str, object]] = []
     canonical_scenes: list[dict[str, object]] = []
+    symbol_port_definition_proposals: list[dict[str, object]] = []
     dxf_reader = EzdxfReader()
     reader_options = ReaderOptions()
 
@@ -797,6 +802,37 @@ def extract_cad_artifacts(
                 expand_virtual_insert=expand_virtual_insert,
             )
 
+        definition_handles: dict[str, list[str]] = {}
+        for item in sheet_blocks:
+            definition_handles.setdefault(item.name, []).append(item.handle)
+        for definition_name, instance_handles in sorted(definition_handles.items()):
+            try:
+                block_definition = doc.blocks.get(definition_name)
+                proposal = propose_ports_from_block(
+                    block_definition,
+                    definition_name=definition_name,
+                    source_dxf=str(source.dxf_path),
+                    max_ports=6,
+                )
+            except Exception:
+                continue
+            if not proposal.ports:
+                continue
+            proposal_payload = proposal.to_dict()
+            proposal_payload["ports"] = [
+                port.to_review_port() for port in proposal.ports
+            ]
+            symbol_port_definition_proposals.append(
+                {
+                    "file_id": source.file_id,
+                    "sheet_id": sheet.sheet_id,
+                    "filename": source.filename,
+                    "definition_name": definition_name,
+                    "instance_handles": sorted(set(instance_handles)),
+                    **proposal_payload,
+                }
+            )
+
         extent = _extent_bbox(sheet_texts, sheet_lines, sheet_blocks)
         if extent is not None:
             title_bbox, audit_bbox = _layout_boxes(extent, config)
@@ -842,4 +878,5 @@ def extract_cad_artifacts(
         primitive_segments=primitive_segments,
         extraction_censuses=extraction_censuses,
         canonical_scenes=canonical_scenes,
+        symbol_port_definition_proposals=symbol_port_definition_proposals,
     )

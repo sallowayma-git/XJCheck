@@ -4598,3 +4598,89 @@
 - Verification: targeted 29 passed; full suite **720 passed, 1 skipped**; `recognition.primary_engine` remains `legacy`.
 - Still blocked for Phase 127 close / primary flip: human Top-N ports, project topology gold labels, held-out human hard gold, unit gold, product approval.
 
+### 2026-07-14 Human-machine collaboration continuation
+
+- Recovered 95 unsynchronised conversation messages and reconciled them against the authoritative worktree.
+- Commit `4c4cd3d electrical semantic review artifacts` is present on both `main` and `origin/main`; the worktree is clean.
+- Full suite before publication passed `720 passed, 1 skipped`.
+- Main-thread status audit started to separate existing review-pack generation from the still-missing safe consumption and engine-feedback loop.
+- Search tooling note: bundled `rg.exe` was denied execution; switched the audit to PowerShell-native search without changing repository content.
+- Completed a direct non-held-out P001 F0007 feasibility trial with two independent subagents: raw CAD semantics and rendered visual review. Both returned handle/coordinate-bound decisions; external port mappings agreed, while dynamic switch-contact state exposed a necessary conflict/defer boundary.
+- User confirmed production does not use CLI. The next implementation slice is an internal native-app/service API for agent adjudication evidence + consensus; no new CLI and no separate recognition engine.
+- Fixed the first engine defect exposed by the dual-agent trial: closed two-point bulge polylines no longer create fake free endpoints, and repeated full-width rows now win over decorative free ends for multi-port proposals.
+- Real PWF236 proposal now lands on `(0,0), (20,0), (0,10), (20,10)` instead of two real plus two decorative endpoints. Targeted symbol suite: `21 passed`; full suite: `722 passed, 1 skipped`.
+- First definition-proposal propagation test failed because internal port serialization omitted `annotation_status`; kept the fail-closed test and switched persisted ports to review-safe serialization.
+- First native-service F0007 run found PWF236 emitted 6 ports under production `max_ports=6`: four correct row endpoints plus two generic decorative fallbacks. Updated the selector so complete repeated rows suppress generic expansion.
+- The first combined instance-port/network binding patch was atomically rejected on a stale function-return anchor; no partial edits occurred. Split the implementation by module.
+- Added normal native-service propagation for definition-level port proposals and instance-level `PORT_TO_EXTERNAL_NETWORK` shadow candidates. No user CLI is required.
+- Fresh F0007 native run: PWF236 6 instances x 4 explicit ports = 24 measured external attachments; all bind line handles and network IDs, internal connectivity remains false/deferred, union/critical counts remain zero.
+- Compatibility: pairs 78/78 and pair candidates 62/62 are full-row hash identical before/after. Final full suite: `724 passed, 1 skipped`.
+
+### 2026-07-14 cleanup and next validation boundary
+
+- User will perform human annotation in another task and will report any adjudications back; this thread must not inspect, edit, or delete that task's annotation outputs without an explicit handoff.
+- Cleanup scope is limited to this thread's ignored trial directories: `.tmp/visual_dwg_trial`, `.tmp/phase127_native_port_input`, and `.tmp/phase127_native_port_output{,_v2,_v3}` (about 24.7 MB total).
+- Source, tests, taskbook, planning files, historical Phase 124-127 evidence, and any separate annotation artifacts remain out of cleanup scope.
+- Cleanup completed: removed five trial directories and 16 Python/pytest cache directories; Git has no untracked files.
+- Next-round read-only locator failed once because `ezdxf.Vec3` does not support slicing; switch to explicit x/y access before dispatching exactly two requested subagents.
+- First P003 PWF324/SignBlock audit attempt produced no evidence: raw agent failed with HTTP 429 and the visual wait was interrupted. Agent registry is now clear; restart with two fresh agents only.
+
+## 2026-07-14 Recognition Blind-Spot Audit
+
+- Performed a read-only audit of page routing, pairing support, persisted corpus census, symbol inventory, and cross-page/open-endpoint evidence.
+- No recognition code or tests were changed. Only planning records were updated.
+- Confirmed current non-reliable classes: layout-only pages, non-table backplates, unknown categories, communication/cross-page connectivity, unknown symbol ports/internal connectivity, viewport-only layouts, unsupported HATCH/SPLINE/POINT semantics, and scale-dependent geometry.
+- Search error: bundled `rg.exe` was denied by Windows; switched to PowerShell `Get-ChildItem`/`Select-String` and did not repeat the failing command.
+
+### 2026-07-14 P001 human symbol adjudication (incremental)
+
+- Review mode: one definition at a time, bound to the original non-held-out DWG, INSERT handle, and insertion coordinates. Do not bulk-promote machine proposals.
+- `SYMB2_M_PWF165`, fingerprint `39b95b5118323d4d8ec235cb43fb72f9b99c8d90ce9f4b2027ee2bdda6255ed5`:
+  - Source: P001 `04 交流回路图1.dwg`, representative INSERT handle `11266` at `(137.5, 220.0)`.
+  - Human adjudication: the referenced block is a number/text block, not an electrical symbol. Remove it from electrical-symbol candidates; it has zero ports and must never bridge or union networks.
+  - Separate visual rule: the nearby wave/omission marker is a line-break/end marker. Its two sides are disconnected, so pairs such as `707 -> 708`, `709 -> 710`, and `711 -> 712` must not be inferred through it.
+- `SYMB2_M_PWF191`, fingerprint `9a1c6d15833092f32027442d19bd52f5f384395b0bb113e252e5bfbfe66cb85b`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative INSERT handle `23353` at `(145.0001, 207.4991)`; repeated handles `233A5`, `233B3`, `23366`, `233C4` share the same reviewed definition.
+  - Human adjudication: this is a real graphical symbol but carries no connection meaning and may be ignored by electrical recognition.
+  - Required engine behavior: preserve the source object for provenance, expose zero electrical ports, create no internal connectivity group, perform no wire bridge/union, and generate no Pair/Network/Issue solely from this symbol.
+- These decisions are authoritative human input for the two exact fingerprints above. They do not generalize by visual resemblance or block-name prefix to other fingerprints.
+- `SYMB2_M_PWF194`, fingerprint `a78b06f3c9ab76dc9d36aeecdecb3a32599dbbc55c0e186dbecce76a9ecc780b`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, INSERT handles `2337F` at `(290.0, 235.0)` and `2338D` at `(290.0, 215.0)`.
+  - Human adjudication: this is an electrical switch symbol, but the depicted state has no conductive meaning; its two sides are disconnected and the symbol may be ignored for connectivity.
+  - Required engine behavior: preserve symbol identity/provenance, reject the machine-proposed `MP1 -> MP2` path, apply no electrical union or bridge, and generate no issue merely because the switch is open.
+- `SYMB2_M_PWF224`, fingerprint `61255c39029679e1151d9d4e8fe3884a538ea97638fa6f605d8a1d17713d8dc2`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, handles `23354` `(85.0001, 207.4991)`, `233A6`, and `233B4`.
+  - Human adjudication: generic KLP electrical symbol. Native nearby `1`/`2` text binds the left/right external ports; for example `1KLP1-1 + 1QD2` binds port 1 to the left-side `1QD2` terminal. The right port binds only to the terminal on its own right-side wire.
+  - Required engine behavior: retain separately measured external port-to-wire/network attachments but never infer body-internal connectivity or a union between ports 1 and 2.
+- `SYMB2_M_PWF229`, fingerprint `4843ab10418b48bf18e403125a6c80ba490c88d0987c42f712b5c24c8503dc61`:
+  - Source: P001 `04 交流回路图1.dwg`, representative handle `1126C` at `(145.0, 220.0)`.
+  - Human adjudication: electrical line-break/omission symbol with no connectivity attribute. Its left/right geometric endpoints must be ignored and must never be bridged.
+- Engine change: fingerprint-bound human policy now removes ports for PWF165/PWF191/PWF194/PWF229 and prevents the generic two-port `POSSIBLE` series group for PWF224; unreviewed same-name/different-fingerprint symbols remain unchanged.
+- `SYMB2_M_PWF231`, fingerprint `2ede8a4fcebd958209b99a25e477726c0b55f86b32d00650130a89acad0bf89c`:
+  - Source: P001 `04 交流回路图1.dwg`, representative handle `112CE` at `(77.5, 220.0)`.
+  - Human adjudication: generic labelled terminal. The native text directly above (for example `1ID1`) is the terminal designator, not an independent component label.
+  - Engine behavior: create shadow terminal-to-external-wire attachments that retain the designator and the two locally touched line/network facts; do not infer an internal left/right union pending explicit terminal-conductor confirmation.
+- `SYMB2_M_PWF233`, fingerprint `e2e32701027b07d3f74b5941716ca9328daf926abad92f0b4b5f2081b3f52fe2`:
+  - Source: P001 `06 直流回路图.dwg`, representative handle `192A2` at `(50.0, 272.5)`.
+  - Human adjudication: same generic labelled-terminal family as PWF231; labels can be letter-first, e.g. `ZD1` / `ZD9`.
+  - Engine behavior: terminal designator matcher accepts both number-first (`1ID1`) and letter-first (`ZD1`) identifiers; each remains a provenance-bound external attachment with no inferred internal union.
+- `SYMB2_M_PWF243`, fingerprint `b3115ea33fe4e1b57d4cfa6394c3125c42f5776b589f8297b4053cf3d7a7a073`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `2334E` at `(60.0011, 209.9991)`, rotated 270 degrees.
+  - Human adjudication: same generic labelled-terminal family; labels such as `1QD2` / `1QD3` are terminal designators.
+  - Engine behavior: exact-fingerprint policy reuses the labelled-terminal binding and preserves no-internal-union safety.
+- `FJL-25-2A_Mirror`, fingerprint `69f5c09b9bfe7e7c3c9db62eaa577a51b98801ec22bb366b8d5d2513ae1b247b`:
+  - Source: P001 `22 元件接线图2.dwg`, representative handle `2F409` at `(55.2366, 238.8056)`.
+  - Human adjudication: a long-strip two-port component. Its top/bottom ports point outward; its body does not connect them. The round label identifies the component, and `+` denotes a component-port/external-terminal relation, e.g. `1-2CLP5-1 + KD15` and `1-2CLP5-2 + 1-2n414`.
+  - Engine behavior: retain the existing generic `strip_two_port_component(KLP/CLP/ZLP)` component_mapping extractor for composite endpoint construction; exact V2 symbol policy suppresses any generic two-port internal connectivity group.
+- `SYMB2_M_PWF196`, fingerprint `634756a0bafe88dd763d740c97fe13dbbd65921586360b6f96a87d2dc2a408f4`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `23397` at `(290.0, 225.0)`.
+  - Human adjudication: open electrical switch, in the same non-conductive class as the previously reviewed PWF194 instances. It has no usable electrical ports and may be ignored for connectivity.
+  - Engine behavior: exact fingerprint is `IGNORE_ELECTRICAL`; preserve provenance but clear ports and prohibit bridge/union/Pair/Network inference.
+- `SYMB2_M_PWF206`, fingerprint `b37828da29525da55540cc801a451c80b23b3b44b19cd00b7680ddfe1771f746`:
+  - Source: P001 `06 直流回路图.dwg`, representative handle `EE8C` at `(182.5, 270.0)`.
+  - Human adjudication: functional conversion/device graphic (DC+/DC- to DC); ignored by current wire-topology recognition, with no ports and no connectivity.
+  - Engine behavior: exact fingerprint is `IGNORE_ELECTRICAL`; preserve provenance only and prohibit bridge/union/Pair/Network inference.
+- `SYMB2_M_PWF208`, fingerprint `cfe71411f229bb03fbcff9605b5b3dc0ace82f26b83a4d53fee308559e04412d`:
+  - Source: P001 `05 交流回路图2.dwg`, handles `2170A` `(55.0, 177.5)` and `21728` `(55.0, 202.5)`, both rotated 270 degrees.
+  - Human adjudication: left-side equipment-area device graphic; ignored for V2 wire topology.
+  - Scope guard: this decision covers the exact PWF208 fingerprint only. Neighboring left-area blocks at other coordinates/fingerprints remain unclassified until separately reviewed.

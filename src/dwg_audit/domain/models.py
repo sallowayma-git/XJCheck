@@ -360,6 +360,9 @@ class ProjectArtifacts:
     primitive_segments: list[Any] = field(default_factory=list)
     extraction_censuses: list[dict[str, Any]] = field(default_factory=list)
     canonical_scenes: list[dict[str, Any]] = field(default_factory=list)
+    symbol_port_definition_proposals: list[dict[str, Any]] = field(
+        default_factory=list
+    )
 
 
 def record_dict(instance: Any) -> dict[str, Any]:

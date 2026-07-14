@@ -44,6 +44,8 @@ from dwg_audit.audit.symbol_registry import build_project_symbol_inventory
 from dwg_audit.audit.symbol_dependency_artifacts import build_symbol_dependency_artifacts
 from dwg_audit.audit.symbol_port_shadow import build_symbol_port_shadow_placements
 from dwg_audit.audit.symbol_port_shadow import summarize_symbol_port_shadow
+from dwg_audit.audit.symbol_port_proposal import build_instance_port_network_candidates
+from dwg_audit.audit.symbol_port_proposal import apply_human_symbol_policy_to_proposal_row
 from dwg_audit.audit.project_profile import build_project_profile
 
 from dwg_audit.audit.token_parser import parse_text_tokens
@@ -592,6 +594,64 @@ def write_project_artifacts(
         json.dumps(symbol_inventory_summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    definition_fingerprints: dict[str, set[str]] = defaultdict(set)
+    if not symbol_definitions_v1.empty:
+        for _, row in symbol_definitions_v1.iterrows():
+            name = str(row.get("definition_name") or "").strip()
+            fingerprint = str(row.get("definition_fingerprint") or "").strip()
+            if name and fingerprint:
+                definition_fingerprints[name.casefold()].add(fingerprint)
+    symbol_port_definition_proposals = []
+    for source_row in artifacts.symbol_port_definition_proposals:
+        row = dict(source_row)
+        name = str(row.get("definition_name") or "").strip()
+        matches = sorted(definition_fingerprints.get(name.casefold(), set()))
+        row["definition_fingerprint"] = matches[0] if len(matches) == 1 else None
+        row["fingerprint_binding_status"] = (
+            "UNIQUE" if len(matches) == 1 else "AMBIGUOUS_OR_MISSING"
+        )
+        row = apply_human_symbol_policy_to_proposal_row(row)
+        row["annotation_status"] = "MACHINE_PROPOSED"
+        row["shadow_only"] = True
+        row["electrical_union_eligible"] = False
+        row["critical_issue_eligible"] = False
+        symbol_port_definition_proposals.append(row)
+    symbol_port_definition_proposal_summary = {
+        "schema_version": "symbol-port-definition-proposal-summary-v1",
+        "proposal_count": len(symbol_port_definition_proposals),
+        "port_count": sum(
+            len(row.get("ports") or []) for row in symbol_port_definition_proposals
+        ),
+        "unique_fingerprint_binding_count": sum(
+            row.get("fingerprint_binding_status") == "UNIQUE"
+            for row in symbol_port_definition_proposals
+        ),
+        "authority": "MACHINE_PROPOSED_ONLY",
+        "shadow_only": True,
+        "electrical_union_eligible_count": 0,
+        "critical_issue_eligible_count": 0,
+        "primary_engine_unchanged": True,
+    }
+    (findings_dir / "symbol_port_definition_proposals.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "symbol-port-definition-proposal-v1",
+                "project_id": artifacts.scan.manifest.project_id,
+                "proposals": symbol_port_definition_proposals,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (findings_dir / "symbol_port_definition_proposal_summary.json").write_text(
+        json.dumps(
+            symbol_port_definition_proposal_summary,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     symbol_dependency_bundle = build_symbol_dependency_artifacts(
         symbol_definitions_v1,
         project_id=artifacts.scan.manifest.project_id,
@@ -906,6 +966,54 @@ def write_project_artifacts(
     )
     network_members_v2.to_parquet(
         findings_dir / "network_members_v2.parquet", index=False
+    )
+    symbol_port_network_candidates = build_instance_port_network_candidates(
+        symbol_port_definition_proposals,
+        symbol_instances_v1,
+        _frame(artifacts.texts, TextItem),
+        _frame(artifacts.lines, LineEntity),
+        network_members_v2,
+    )
+    symbol_port_network_candidate_summary = {
+        "schema_version": "symbol-port-network-candidate-summary-v1",
+        "candidate_count": len(symbol_port_network_candidates),
+        "measured_external_attachment_count": sum(
+            row.get("status") == "MEASURED_EXTERNAL_ATTACHMENT"
+            for row in symbol_port_network_candidates
+        ),
+        "explicit_label_count": sum(
+            bool(row.get("explicit_port_label"))
+            for row in symbol_port_network_candidates
+        ),
+        "network_bound_count": sum(
+            bool(row.get("external_network_ids"))
+            for row in symbol_port_network_candidates
+        ),
+        "internal_connectivity_inferred_count": 0,
+        "authority": "SHADOW_ONLY",
+        "electrical_union_eligible_count": 0,
+        "critical_issue_eligible_count": 0,
+        "primary_engine_unchanged": True,
+    }
+    (findings_dir / "symbol_port_network_candidates.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "symbol-port-network-candidate-v1",
+                "project_id": artifacts.scan.manifest.project_id,
+                "candidates": symbol_port_network_candidates,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (findings_dir / "symbol_port_network_candidate_summary.json").write_text(
+        json.dumps(
+            symbol_port_network_candidate_summary,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
     )
     network_open_endpoints_v2.to_parquet(
         findings_dir / "network_open_endpoints_v2.parquet", index=False
@@ -2576,6 +2684,10 @@ def _build_findings_payload(
         "primitive_segments_summary.json",
         "symbol_definitions_v1.parquet",
         "symbol_instances_v1.parquet",
+        "symbol_port_definition_proposals.json",
+        "symbol_port_definition_proposal_summary.json",
+        "symbol_port_network_candidates.json",
+        "symbol_port_network_candidate_summary.json",
         "unknown_symbol_queue_v1.parquet",
         "symbol_inventory_summary.json",
         "symbol_dependency_library.json",

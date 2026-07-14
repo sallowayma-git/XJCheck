@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
@@ -22,6 +23,91 @@ from typing import Any
 
 PROPOSAL_SCHEMA_VERSION = "symbol-port-proposal-v1"
 SOURCE_KIND = "machine_geometry_proposal"
+
+# Human adjudications are keyed exclusively by observed geometry fingerprint.
+# Block names are deliberately not used as a fallback: the same name may have
+# different geometry and semantics in another project/version.
+HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
+    # Numeric/text block; not an electrical symbol.
+    "39b95b5118323d4d8ec235cb43fb72f9b99c8d90ce9f4b2027ee2bdda6255ed5": {
+        "mode": "IGNORE_ELECTRICAL",
+        "reason": "Human adjudication: numeric/text block, not an electrical symbol.",
+    },
+    # Graphical symbols that must not create electrical ports or bridges.
+    "9a1c6d15833092f32027442d19bd52f5f384395b0bb113e252e5bfbfe66cb85b": {
+        "mode": "IGNORE_ELECTRICAL",
+        "reason": "Human adjudication: graphical symbol with no connectivity meaning.",
+    },
+    "a78b06f3c9ab76dc9d36aeecdecb3a32599dbbc55c0e186dbecce76a9ecc780b": {
+        "mode": "IGNORE_ELECTRICAL",
+        "reason": "Human adjudication: open electrical switch; its sides are disconnected.",
+    },
+    "634756a0bafe88dd763d740c97fe13dbbd65921586360b6f96a87d2dc2a408f4": {
+        "mode": "IGNORE_ELECTRICAL",
+        "reason": "Human adjudication: open electrical switch; its sides are disconnected.",
+    },
+    "b37828da29525da55540cc801a451c80b23b3b44b19cd00b7680ddfe1771f746": {
+        "mode": "IGNORE_ELECTRICAL",
+        "reason": "Human adjudication: functional conversion symbol, not part of wire connectivity.",
+    },
+    "cfe71411f229bb03fbcff9605b5b3dc0ace82f26b83a4d53fee308559e04412d": {
+        "mode": "IGNORE_ELECTRICAL",
+        "reason": "Human adjudication: non-connective device graphic in the left-side equipment area.",
+    },
+    "4843ab10418b48bf18e403125a6c80ba490c88d0987c42f712b5c24c8503dc61": {
+        "mode": "IGNORE_ELECTRICAL",
+        "reason": "Human adjudication: line-break/omission symbol; its sides are disconnected.",
+    },
+    # KLP has independently useful external ports but no conductive path
+    # through the body. Each port is bound to its own adjacent wire only.
+    "61255c39029679e1151d9d4e8fe3884a538ea97638fa6f605d8a1d17713d8dc2": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "reason": "Human adjudication: KLP ports attach to adjacent external wires only.",
+    },
+    "2ede8a4fcebd958209b99a25e477726c0b55f86b32d00650130a89acad0bf89c": {
+        "mode": "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY",
+        "reason": "Human adjudication: generic terminal; the text above is its terminal designator.",
+    },
+    "e2e32701027b07d3f74b5941716ca9328daf926abad92f0b4b5f2081b3f52fe2": {
+        "mode": "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY",
+        "reason": "Human adjudication: generic terminal; the text above is its terminal designator.",
+    },
+    "b3115ea33fe4e1b57d4cfa6394c3125c42f5776b589f8297b4053cf3d7a7a073": {
+        "mode": "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY",
+        "reason": "Human adjudication: generic terminal; the text above is its terminal designator.",
+    },
+    "69f5c09b9bfe7e7c3c9db62eaa577a51b98801ec22bb366b8d5d2513ae1b247b": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "reason": "Human adjudication: strip two-port component; each port maps to its own external endpoint.",
+    },
+}
+
+
+def human_symbol_port_policy(fingerprint: str | None) -> dict[str, str] | None:
+    """Return an exact-fingerprint human policy, never a name-based guess."""
+
+    if not fingerprint:
+        return None
+    return HUMAN_SYMBOL_PORT_POLICIES.get(str(fingerprint).strip().casefold())
+
+
+def apply_human_symbol_policy_to_proposal_row(
+    proposal: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Apply a reviewed non-connectivity policy to a shadow proposal row."""
+
+    row = dict(proposal)
+    policy = human_symbol_port_policy(row.get("definition_fingerprint"))
+    if policy is None:
+        return row
+    row["human_adjudication_mode"] = policy["mode"]
+    row["human_adjudication_reason"] = policy["reason"]
+    row["internal_connectivity_inferred"] = False
+    row["electrical_union_eligible"] = False
+    if policy["mode"] == "IGNORE_ELECTRICAL":
+        row["ports"] = []
+        row["status"] = "HUMAN_ADJUDICATED_NON_CONNECTIVE"
+    return row
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +237,8 @@ def extract_block_segments(block: Any) -> tuple[list[tuple[tuple[float, float], 
                 ]
                 for left, right in zip(points, points[1:]):
                     segments.append((left, right))
+                if len(points) > 1 and bool(getattr(entity, "closed", False)):
+                    segments.append((points[-1], points[0]))
             elif entity_type == "POLYLINE":
                 points = []
                 for vertex in entity.vertices:
@@ -161,6 +249,8 @@ def extract_block_segments(block: Any) -> tuple[list[tuple[tuple[float, float], 
                         continue
                 for left, right in zip(points, points[1:]):
                     segments.append((left, right))
+                if len(points) > 1 and bool(getattr(entity, "is_closed", False)):
+                    segments.append((points[-1], points[0]))
             elif entity_type == "ARC":
                 center = (float(entity.dxf.center.x), float(entity.dxf.center.y))
                 radius = float(entity.dxf.radius)
@@ -235,9 +325,49 @@ def propose_ports_from_segments(
 
     ranked = sorted(clustered, key=extremity_score, reverse=True)
 
-    # Prefer classic 2-port terminals on the principal axis extremes.
+    # Repeated full-width rows are a stronger multi-port signal than raw bbox
+    # aspect. This excludes decorative/mechanical free ends inside the symbol.
     selected: list[tuple[float, float]] = []
+    paired_row_points: set[tuple[float, float]] = set()
+    selected_complete_rows = False
+    row_groups: list[list[tuple[float, float]]] = []
+    for point in sorted(clustered, key=lambda item: (item[1], item[0])):
+        for group in row_groups:
+            mean_y = sum(item[1] for item in group) / len(group)
+            if abs(point[1] - mean_y) <= cluster_eps:
+                group.append(point)
+                break
+        else:
+            row_groups.append([point])
+    full_width_rows: list[tuple[float, tuple[float, float], tuple[float, float]]] = []
     if horizontal and width > 1e-6:
+        edge_tolerance = max(cluster_eps * 2.0, width * 0.05)
+        for group in row_groups:
+            left = min(group, key=lambda item: item[0])
+            right = max(group, key=lambda item: item[0])
+            if (
+                right[0] - left[0] >= width * 0.8
+                and left[0] <= min_x + edge_tolerance
+                and right[0] >= max_x - edge_tolerance
+            ):
+                full_width_rows.append(
+                    (sum(item[1] for item in group) / len(group), left, right)
+                )
+    if max_ports >= 4 and len(full_width_rows) >= 2:
+        for _, left, right in sorted(full_width_rows, key=lambda item: item[0]):
+            for point in (left, right):
+                if len(selected) >= max_ports:
+                    break
+                if all(_distance(point, existing) > cluster_eps for existing in selected):
+                    selected.append(point)
+                    paired_row_points.add(point)
+            if len(selected) >= max_ports:
+                break
+        notes.append(
+            "Selected paired full-width row endpoints for repeated multi-port geometry."
+        )
+        selected_complete_rows = True
+    elif horizontal and width > 1e-6:
         left = min(clustered, key=lambda point: (point[0], abs(point[1] - cy)))
         right = max(clustered, key=lambda point: (point[0], -abs(point[1] - cy)))
         selected = [left, right]
@@ -259,7 +389,9 @@ def propose_ports_from_segments(
         else 999.0
     )
     multi_terminal = max_ports > 2 and aspect <= 1.6
-    if multi_terminal:
+    if selected_complete_rows or len(selected) >= max_ports:
+        pass
+    elif multi_terminal:
         axis_extremes = [
             min(clustered, key=lambda point: (point[0], point[1])),
             max(clustered, key=lambda point: (point[0], -point[1])),
@@ -292,8 +424,12 @@ def propose_ports_from_segments(
         else:
             outward = _normalize((point[0] - cx, point[1] - cy))
             evidence = ("GEOMETRIC_EXTREME", "OUTWARD_FROM_CENTROID")
+        if point in paired_row_points:
+            evidence = (*evidence, "REPEATED_FULL_WIDTH_ROW_PORT")
         confidence = 0.55 if "FREE_ENDPOINT" in evidence else 0.4
         if len(selected) == 2:
+            confidence += 0.15
+        if "REPEATED_FULL_WIDTH_ROW_PORT" in evidence:
             confidence += 0.15
         ports.append(
             ProposedPort(
@@ -369,6 +505,326 @@ def propose_ports_from_block(
         status=status,
         notes=notes,
         geometry_summary=geometry_summary,
+    )
+
+
+def build_instance_port_network_candidates(
+    definition_proposals: Any,
+    instances: Any,
+    texts: Any,
+    lines: Any,
+    network_members: Any,
+    *,
+    label_radius: float = 3.5,
+    endpoint_tolerance: float = 0.05,
+) -> list[dict[str, Any]]:
+    """Bind definition ports to instance labels and external networks.
+
+    The result is shadow-only and never infers conductivity through a symbol.
+    """
+
+    proposal_rows = _mapping_rows(definition_proposals)
+    instance_rows = _mapping_rows(instances)
+    text_rows = _mapping_rows(texts)
+    line_rows = _mapping_rows(lines)
+    member_rows = _mapping_rows(network_members)
+
+    networks_by_handle: dict[str, set[str]] = defaultdict(set)
+    for row in member_rows:
+        if str(row.get("member_type") or "") != "SOURCE_LINE":
+            continue
+        handle = str(row.get("source_handle") or "").strip()
+        network_id = str(row.get("electrical_network_id") or "").strip()
+        if handle and network_id:
+            networks_by_handle[handle].add(network_id)
+
+    proposals_by_key: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in proposal_rows:
+        file_id = str(row.get("file_id") or "").strip()
+        name = str(row.get("definition_name") or "").strip()
+        if file_id and name and row.get("ports"):
+            proposals_by_key[(file_id, name.casefold())].append(row)
+
+    numeric_label = re.compile(r"^[0-9]{1,3}$")
+    terminal_designator = re.compile(
+        r"^(?:[0-9]+[A-Za-z][A-Za-z0-9-]*|[A-Za-z]+[0-9][A-Za-z0-9-]*)$"
+    )
+    candidates: list[dict[str, Any]] = []
+    for instance in instance_rows:
+        file_id = str(instance.get("file_id") or "").strip()
+        sheet_id = str(instance.get("sheet_id") or "").strip()
+        name = str(instance.get("definition_name") or "").strip()
+        instance_id = str(instance.get("symbol_instance_id") or "").strip()
+        instance_handle = str(instance.get("entity_handle") or "").strip()
+        policy = human_symbol_port_policy(instance.get("definition_fingerprint"))
+        labelled_terminal = bool(
+            policy
+            and policy["mode"] == "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY"
+        )
+        matching = proposals_by_key.get((file_id, name.casefold()), [])
+        if len(matching) != 1:
+            continue
+        matrix = _instance_matrix(instance.get("transform_json"))
+        if matrix is None:
+            continue
+        ports = [
+            dict(row)
+            for row in matching[0].get("ports") or []
+            if isinstance(row, Mapping)
+        ]
+        world_ports: list[tuple[float, float, float]] = []
+        for port in ports:
+            local = port.get("local_position") or []
+            if not isinstance(local, Sequence) or len(local) < 2:
+                world_ports.append((math.nan, math.nan, math.nan))
+                continue
+            world_ports.append(
+                _transform_point(
+                    matrix,
+                    (
+                        float(local[0]),
+                        float(local[1]),
+                        float(local[2]) if len(local) > 2 else 0.0,
+                    ),
+                )
+            )
+
+        eligible_texts: list[tuple[str, float, float, dict[str, Any]]] = []
+        terminal_labels: list[tuple[float, str, dict[str, Any]]] = []
+        for text_row in text_rows:
+            if str(text_row.get("sheet_id") or "") != sheet_id:
+                continue
+            if file_id and str(text_row.get("file_id") or "") != file_id:
+                continue
+            value = str(
+                text_row.get("normalized_text") or text_row.get("text") or ""
+            ).strip()
+            try:
+                x = float(text_row.get("insert_x"))
+                y = float(text_row.get("insert_y"))
+            except (TypeError, ValueError):
+                continue
+            if labelled_terminal and terminal_designator.fullmatch(value):
+                terminal_labels.append((0.0, value, text_row))
+            if numeric_label.fullmatch(value):
+                eligible_texts.append((value, x, y, text_row))
+
+        if labelled_terminal:
+            center = _transform_point(matrix, (0.0, 0.0, 0.0))
+            terminal_labels = sorted(
+                [
+                    (
+                        math.hypot(center[0] - float(row.get("insert_x")), center[1] - float(row.get("insert_y"))),
+                        value,
+                        row,
+                    )
+                    for _, value, row in terminal_labels
+                ],
+                key=lambda item: (item[0], item[1]),
+            )
+        bound_terminal = terminal_labels[0] if terminal_labels and terminal_labels[0][0] <= label_radius * 2.0 else None
+
+        label_pairs: list[tuple[float, int, int]] = []
+        for port_index, world in enumerate(world_ports):
+            if not math.isfinite(world[0]) or not math.isfinite(world[1]):
+                continue
+            for text_index, (_, x, y, _) in enumerate(eligible_texts):
+                distance = math.hypot(world[0] - x, world[1] - y)
+                if distance <= label_radius:
+                    label_pairs.append((distance, port_index, text_index))
+        assigned_labels: dict[
+            int, tuple[float, tuple[str, float, float, dict[str, Any]]]
+        ] = {}
+        used_texts: set[int] = set()
+        for distance, port_index, text_index in sorted(label_pairs):
+            if port_index in assigned_labels or text_index in used_texts:
+                continue
+            assigned_labels[port_index] = (distance, eligible_texts[text_index])
+            used_texts.add(text_index)
+
+        sheet_lines = [
+            row
+            for row in line_rows
+            if str(row.get("sheet_id") or "") == sheet_id
+            and (not file_id or str(row.get("file_id") or "") == file_id)
+        ]
+        for port_index, (port, world) in enumerate(zip(ports, world_ports)):
+            if not math.isfinite(world[0]) or not math.isfinite(world[1]):
+                continue
+            attached_lines: list[dict[str, Any]] = []
+            for line in sheet_lines:
+                try:
+                    start = (float(line.get("start_x")), float(line.get("start_y")))
+                    end = (float(line.get("end_x")), float(line.get("end_y")))
+                except (TypeError, ValueError):
+                    continue
+                if min(
+                    math.hypot(world[0] - start[0], world[1] - start[1]),
+                    math.hypot(world[0] - end[0], world[1] - end[1]),
+                ) <= endpoint_tolerance:
+                    attached_lines.append(line)
+
+            label_binding = assigned_labels.get(port_index)
+            explicit_label = label_binding[1][0] if label_binding else None
+            label_row = label_binding[1][3] if label_binding else None
+            label_distance_value = label_binding[0] if label_binding else None
+            terminal_name = bound_terminal[1] if bound_terminal else None
+            terminal_label_row = bound_terminal[2] if bound_terminal else None
+            line_handles = sorted(
+                {
+                    str(row.get("handle") or "").strip()
+                    for row in attached_lines
+                    if str(row.get("handle") or "").strip()
+                }
+            )
+            line_ids = sorted(
+                {
+                    str(row.get("line_id") or "").strip()
+                    for row in attached_lines
+                    if str(row.get("line_id") or "").strip()
+                }
+            )
+            network_ids = sorted(
+                {
+                    network_id
+                    for handle in line_handles
+                    for network_id in networks_by_handle.get(handle, set())
+                }
+            )
+            evidence_codes = ["DEFINITION_PORT_WORLD_TRANSFORM"]
+            if explicit_label:
+                evidence_codes.append("INSTANCE_LOCAL_NUMERIC_PORT_LABEL")
+            if line_handles:
+                evidence_codes.append("EXACT_EXTERNAL_LINE_ENDPOINT")
+            if network_ids:
+                evidence_codes.append("EXTERNAL_NETWORK_MEMBERSHIP")
+            if terminal_name and line_handles:
+                status = "MEASURED_TERMINAL_ATTACHMENT"
+                confidence = 0.9 if network_ids else 0.85
+            elif explicit_label and line_handles:
+                status = "MEASURED_EXTERNAL_ATTACHMENT"
+                confidence = 0.95 if network_ids else 0.9
+            elif explicit_label:
+                status = "LABEL_ONLY_REVIEW"
+                confidence = 0.65
+            elif line_handles:
+                status = "GEOMETRY_ONLY_REVIEW"
+                confidence = 0.6
+            else:
+                status = "UNRESOLVED"
+                confidence = 0.0
+            candidates.append(
+                {
+                    "schema_version": "symbol-port-network-candidate-v1",
+                    "candidate_id": (
+                        f"SPNC:{instance_id or instance_handle}:"
+                        f"{explicit_label or port.get('port_id') or port_index}"
+                    ),
+                    "project_id": instance.get("project_id"),
+                    "sheet_id": sheet_id,
+                    "file_id": file_id,
+                    "symbol_instance_id": instance_id or None,
+                    "symbol_instance_handle": instance_handle or None,
+                    "definition_name": name,
+                    "definition_fingerprint": instance.get("definition_fingerprint"),
+                    "machine_port_id": port.get("port_id"),
+                    "explicit_port_label": explicit_label,
+                    "terminal_designator": terminal_name,
+                    "terminal_label_handle": terminal_label_row.get("handle") if terminal_label_row else None,
+                    "terminal_label_text_id": terminal_label_row.get("text_id") if terminal_label_row else None,
+                    "label_handle": label_row.get("handle") if label_row else None,
+                    "label_text_id": label_row.get("text_id") if label_row else None,
+                    "label_distance": label_distance_value,
+                    "local_position": list(port.get("local_position") or []),
+                    "world_position": [world[0], world[1], world[2]],
+                    "attached_line_ids": line_ids,
+                    "attached_line_handles": line_handles,
+                    "external_network_ids": network_ids,
+                    "relation_kind": "PORT_TO_EXTERNAL_NETWORK",
+                    "status": status,
+                    "confidence": confidence,
+                    "evidence_codes": evidence_codes,
+                    "internal_connectivity_inferred": False,
+                    "dynamic_contact_state": "DEFER",
+                    "annotation_status": "MACHINE_PROPOSED",
+                    "authority": "SHADOW_ONLY",
+                    "shadow_only": True,
+                    "electrical_union_eligible": False,
+                    "critical_issue_eligible": False,
+                }
+            )
+    candidates.sort(
+        key=lambda row: (
+            str(row.get("sheet_id") or ""),
+            str(row.get("symbol_instance_id") or ""),
+            str(row.get("explicit_port_label") or row.get("machine_port_id") or ""),
+        )
+    )
+    return candidates
+
+
+def _mapping_rows(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if hasattr(value, "iterrows"):
+        return [dict(row) for _, row in value.iterrows()]
+    if isinstance(value, Mapping):
+        return [dict(value)]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        rows = []
+        for item in value:
+            if isinstance(item, Mapping):
+                rows.append(dict(item))
+            elif hasattr(item, "__dataclass_fields__"):
+                rows.append(asdict(item))
+        return rows
+    return []
+
+
+def _instance_matrix(raw: Any) -> list[list[float]] | None:
+    payload = raw
+    if isinstance(raw, str):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(payload, Mapping):
+        return None
+    matrix = payload.get("matrix44")
+    chain = payload.get("chain")
+    if matrix is None and isinstance(chain, Sequence) and chain:
+        first = chain[0]
+        if isinstance(first, Mapping):
+            matrix = first.get("matrix44") or first.get("matrix")
+    if not isinstance(matrix, Sequence):
+        return None
+    try:
+        rows = [[float(cell) for cell in row] for row in matrix]
+    except (TypeError, ValueError):
+        return None
+    if len(rows) != 4 or any(len(row) != 4 for row in rows):
+        return None
+    return rows
+
+
+def _transform_point(
+    matrix: list[list[float]], point: tuple[float, float, float]
+) -> tuple[float, float, float]:
+    x, y, z = point
+    if (
+        abs(matrix[3][3] - 1.0) <= 1e-9
+        and abs(matrix[0][3]) <= 1e-9
+        and abs(matrix[1][3]) <= 1e-9
+    ):
+        return (
+            matrix[0][0] * x + matrix[1][0] * y + matrix[2][0] * z + matrix[3][0],
+            matrix[0][1] * x + matrix[1][1] * y + matrix[2][1] * z + matrix[3][1],
+            matrix[0][2] * x + matrix[1][2] * y + matrix[2][2] * z + matrix[3][2],
+        )
+    return (
+        matrix[0][0] * x + matrix[0][1] * y + matrix[0][2] * z + matrix[0][3],
+        matrix[1][0] * x + matrix[1][1] * y + matrix[1][2] * z + matrix[1][3],
+        matrix[2][0] * x + matrix[2][1] * y + matrix[2][2] * z + matrix[2][3],
     )
 
 
@@ -458,7 +914,14 @@ def apply_proposals_to_review_document(
             continue
         fingerprint = str(symbol.get("fingerprint") or "")
         proposal = proposals_by_fingerprint.get(fingerprint)
-        if proposal is None or not proposal.ports:
+        policy = human_symbol_port_policy(fingerprint)
+        if proposal is None:
+            continue
+        if policy is not None and policy["mode"] == "IGNORE_ELECTRICAL":
+            symbol["ports"] = []
+            symbol["internal_connectivity_groups"] = []
+            continue
+        if not proposal.ports:
             continue
         source_id = f"{SOURCE_KIND}:{proposal.definition_name}"
         existing_sources = symbol.get("sources")
@@ -483,8 +946,18 @@ def apply_proposals_to_review_document(
         symbol["annotation_status"] = "MACHINE_PROPOSED"
         symbol["registry_status"] = "UNKNOWN"
         symbol["critical_issue_eligible"] = False
-        # Optional POSSIBLE connectivity for two-port series symbols only.
-        if len(proposal.ports) == 2:
+        # A two-port geometry alone cannot establish conductivity. Human review
+        # can explicitly suppress the old review-only series placeholder.
+        if (
+            len(proposal.ports) == 2
+            and not (
+                policy is not None
+                and policy["mode"] in {
+                    "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+                    "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY",
+                }
+            )
+        ):
             symbol["internal_connectivity_groups"] = [
                 {
                     "group_id": "MP_SERIES",
@@ -721,9 +1194,12 @@ __all__ = [
     "PROPOSAL_SCHEMA_VERSION",
     "ProposedPort",
     "SymbolPortProposal",
+    "apply_human_symbol_policy_to_proposal_row",
     "apply_proposals_to_review_document",
+    "build_instance_port_network_candidates",
     "extract_block_segments",
     "find_block_in_documents",
+    "human_symbol_port_policy",
     "propose_ports_for_queue_row",
     "propose_ports_from_block",
     "propose_ports_from_segments",

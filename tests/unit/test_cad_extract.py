@@ -118,6 +118,35 @@ def test_extract_cad_artifacts_reads_insert_attrib_and_polylines(tmp_path: Path)
     assert result.canonical_scenes[0]["complete"] is True
 
 
+def test_extract_cad_artifacts_emits_shadow_definition_port_proposals(
+    tmp_path: Path,
+) -> None:
+    doc = ezdxf.new("R2018")
+    block = doc.blocks.new(name="FOUR_PORT")
+    block.add_line((0.0, 0.0), (20.0, 0.0))
+    block.add_line((0.0, 10.0), (20.0, 10.0))
+    doc.modelspace().add_blockref("FOUR_PORT", (100.0, 50.0))
+    dxf_path = tmp_path / "four-port.dxf"
+    doc.saveas(dxf_path)
+
+    result = extract_cad_artifacts(
+        _scan(),
+        [_source_file(dxf_path)],
+        DEFAULT_CONFIG,
+        DummyLogger(),
+    )
+
+    assert len(result.symbol_port_definition_proposals) == 1
+    proposal = result.symbol_port_definition_proposals[0]
+    assert proposal["definition_name"] == "FOUR_PORT"
+    assert proposal["sheet_id"] == "S0001"
+    assert len(proposal["ports"]) == 4
+    assert all(
+        port["annotation_status"] == "MACHINE_PROPOSED"
+        for port in proposal["ports"]
+    )
+
+
 def test_extract_cad_artifacts_reads_through_ezdxf_adapter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

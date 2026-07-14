@@ -1944,6 +1944,12 @@ Phase 127 in progress: MACHINE_PROPOSED electrical connection review pack shippe
 | Takeover cross-file recovery append used a `progress.md` tail line as a `findings.md` anchor | 1 | Patch each planning file separately using its exact tail context |
 | First three fresh semantic-audit subagents returned no result (one stream disconnect, two HTTP 503/no-account failures) | 1 | Do not reuse the failed agents; retry once with fresh one-shot agents, then fall back to main-thread audit if the service remains unavailable |
 | Second three-agent semantic-audit retry returned three stream disconnects and no evidence | 2 | Stop subagent retries; perform the bounded read-only audit and integration in the main thread |
+| 2026-07-14 production-chain audit: bundled `rg.exe` was denied execution and aborted the parallel search batch | 1 | Use PowerShell `Select-String` and targeted `Get-Content`; do not retry `rg` in this session |
+| Definition-port propagation test found per-port `annotation_status` missing from internal proposal serialization | 1 | Serialize propagated ports through `to_review_port()` so every persisted port remains explicitly MACHINE_PROPOSED |
+| Native-service F0007 run with `max_ports=6` appended two decorative endpoints after finding four complete row ports | 1 | Treat repeated complete-width rows as a closed port set and skip generic near-square expansion; cover with max_ports=6 regression |
+| Cross-file instance-port binding patch missed the exact `propose_ports_from_block` return context | 1 | Patch the core module, tests, and artifact integration separately against freshly read anchors |
+| Next-round locator attempted to slice `ezdxf.Vec3` and raised `TypeError` | 1 | Read insertion coordinates through explicit `.x/.y` attributes and rerun the read-only locator |
+| First P003 two-agent validation attempt: raw DWG agent exhausted retries on HTTP 429; visual wait was interrupted before a result | 1 | Confirm no old agents remain, then restart both audits with fresh one-shot agents and tighter prompts |
 ### Phase 123: Real-Corpus Extraction, Electrical Semantics, And Symbol Dependency Foundation
 - [x] Recover current worktree and Phase 122 evidence boundary
 - [x] Establish a persistent loop goal and retain `primary_engine=legacy`
@@ -2002,6 +2008,15 @@ Phase 127 in progress: MACHINE_PROPOSED electrical connection review pack shippe
 - [x] Main-thread three-perspective audit (symbol / wire-crosspage / semantic-constraint) after dual subagent outages; no human gold synthesized
 - [x] Generate a traceable MACHINE_PROPOSED electrical connection review pack; never auto-fill human certification or ASSERTED union
 - [ ] Humans annotate/confirm connection review pack decisions (CONNECTED/NOT_CONNECTED/AMBIGUOUS/DEFER)
+- [ ] Audit and close the reviewed-decision consumption path: provenance validation, knowledge routing, shadow replay, and measured delta report
+- [x] Prove direct subagent adjudication on one non-held-out raw DWG using independent CAD-object and visual-review paths
+- [ ] Add an internal (non-CLI) agent-adjudication consensus contract: verify source handles/coordinates, require independent agreement for safe external-port facts, and defer conflicts/dynamic contact state
+- [ ] Route consensus-safe facts into existing symbol/topology shadow knowledge and expose them through the native application service boundary
+- [x] Correct multi-row port geometry after agent evidence: close two-point bulge polylines and reject decorative free endpoints
+- [x] Bind proposed world ports to instance-local CAD numeric labels and external networks; preserve internal switch state as DEFER
+- [ ] Validate instance port/network candidates across additional non-held-out symbol families before feeding them into the existing electrical semantic graph as POSSIBLE/shadow relations
+- [ ] Remove only the current thread's ignored visual/native-service trial outputs and verify repository cleanliness
+- [ ] Run the next non-held-out validation round across distinct symbol geometries; keep external human annotations as a later explicit input
 - **Status:** in_progress
 
 ## Phase 127 continuation note (2026-07-13 ZCode handoff)
@@ -2010,3 +2025,8 @@ Phase 127 in progress: MACHINE_PROPOSED electrical connection review pack shippe
 - Real packs: `.tmp/phase127_electrical_connection_review_pack_p001/` and `_p003/`; validation valid, promotion/certification false.
 - Full suite: 720 passed, 1 skipped; `primary_engine=legacy`.
 
+### 2026-07-14 Current Recognition Blind-Spot Audit
+- [x] Inspect page classification and route-level pairing support
+- [x] Cross-check symbol, cross-page, unsupported-entity, viewport, and scale evidence
+- [x] Separate proven capability boundaries from claims requiring human per-DWG gold
+- **Status:** complete (read-only product capability audit; no engine changes)
