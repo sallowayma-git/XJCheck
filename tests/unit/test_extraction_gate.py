@@ -55,6 +55,7 @@ def _evaluate(
     warnings=None,
     runs=None,
     classifications=None,
+    censuses=None,
 ):
     return evaluate_extraction_completeness(
         pages or [_page()],
@@ -66,6 +67,7 @@ def _evaluate(
         [] if warnings is None else warnings,
         [_run()] if runs is None else runs,
         classifications=classifications,
+        extraction_censuses=[] if censuses is None else censuses,
     )
 
 
@@ -123,6 +125,42 @@ def test_sparse_page_with_zero_pairs_is_complete() -> None:
     assert result.clean_conclusion_allowed is True
     assert result.pages[0]["status"] == "COMPLETE"
     assert result.pages[0]["executed_extractor"] == "WireDiagramExtractor"
+
+
+def test_structurally_incomplete_census_blocks_clean_conclusion() -> None:
+    result = _evaluate(
+        censuses=[
+            {
+                "file_id": "F1",
+                "status": "INCOMPLETE",
+                "errors": [
+                    {"code": "XREF_CONTENT_NOT_LOADED"},
+                    {"code": "LAYOUT_NOT_CONSUMED"},
+                ],
+                "warnings": [{"code": "UNITS_UNSPECIFIED"}],
+                "scale_status": "UNRESOLVED",
+                "paper_space_native_entity_count": 3,
+                "paper_space_viewport_count": 1,
+                "semantic_coverage_complete": False,
+                "shadow_coverage_complete": True,
+            }
+        ]
+    )
+
+    assert result.clean_conclusion_allowed is False
+    assert result.pages[0]["failure_codes"] == [
+        "CENSUS_LAYOUT_NOT_CONSUMED",
+        "CENSUS_XREF_CONTENT_NOT_LOADED",
+    ]
+    assert result.pages[0]["census_status"] == "INCOMPLETE"
+    assert result.pages[0]["census_warning_codes"] == ["UNITS_UNSPECIFIED"]
+    assert result.pages[0]["census_metrics"] == {
+        "scale_status": "UNRESOLVED",
+        "paper_space_native_entity_count": 3,
+        "paper_space_viewport_count": 1,
+        "semantic_coverage_complete": False,
+        "shadow_coverage_complete": True,
+    }
 
 
 def test_stable_skip_page_is_not_applicable_despite_failed_conversion() -> None:

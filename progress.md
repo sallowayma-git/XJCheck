@@ -4368,3 +4368,233 @@
 - Froze cal/val hard-issue labels (65 on P001) and implemented evaluate-hard-issues harness.
 - Measured micro hard-issue precision/recall = 1.0/1.0 on P001+P003; suite 520 passed.
 - Held-out release proxy remains pass without tuning. Primary engine remains legacy; review-only V2 assist is evidenced as ready.
+
+# Session Update 2026-07-12 (Phase 121 promotion-gate reproducibility)
+
+- Recovered clean main worktree; Phases 113-120 already marked complete but `.tmp` promotion evidence was empty.
+- Chose architecture-layer slice: formal, reproducible promotion-gate evaluation (taskbook 18.9.9 deliverables) without primary flip or held-out tuning.
+- Implemented `promotion_gate.py`, CLI, unit tests; fixed findings.md NUL integrity issue.
+- Fresh analyze+audit on calibration P001 and validation P003 succeeded.
+- Promotion gate: structural_pass_all=true; hard precision status PASS_ON_FROZEN_CALVAL_LABELS; review-only ready; primary flip blocked.
+- Verification: targeted promotion tests 4 passed; full suite 523 passed, 1 skipped.
+- Phase 121 exit gate accepted. primary_engine remains legacy.
+
+# Session Update 2026-07-12 (Phase 121 fail-closed hardening)
+- Recovered the other agent's Phase 121 work and ran three independent read-only audits. All agreed the healthy evidence was valid but the evaluator had fail-open paths.
+- Hardened promotion metrics against missing/invalid JSON and Parquet, incomplete audit pages, clean=false, invalid witness ratios, non-ASSERTED union, unknown/unresolved critical failures and missing engine/graph/failure evidence.
+- Hardened hard-issue evaluation against missing predictions and empty-label vacuous precision; primary readiness now requires non-empty precision+recall on cal/val and held-out human gold plus explicit product approval.
+- CLI now reads the authoritative primary engine from config, normalizes held-out splits, validates inputs and exits nonzero on structural failure.
+- Fresh P001/P003 promotion evidence regenerated under `.tmp/phase121_promotion_gate_evidence_fail_closed/`: structural pass true, all artifact statuses valid, review-only true, primary flip false.
+- Verification: targeted 36 passed; full 540 passed, 1 skipped; diff check clean except line-ending warnings.
+
+# Session Update 2026-07-12 (Phase 122 formal topology metrics)
+- Concurrent agents implemented a pure topology evaluator, stable CSV/summary writer and a real P003 evidence audit; main thread reviewed and corrected the interfaces.
+- Added structural/scoped/project measurement states, current source-handle truth support, persisted witness summary use, fail-closed artifact validation and project-scope topology-gold requirement for primary readiness.
+- Integrated topology metrics into `evaluate-promotion-gate` and CLI `--topology-truth`; output now includes per-project CSV and aggregate JSON.
+- Added compatibility only for readable legacy zero-row suspicion Parquet. Missing/corrupt/non-empty schema failures still close the gate.
+- Verification: targeted 43 passed; full 547 passed, 1 skipped; diff check clean except CRLF warnings.
+- Fresh post-fix P001/P003 rerun remains pending: approval backend returned HTTP 503 and explicitly prohibited alternate execution.
+## 2026-07-12 Session Recovery And Recognition-Engine Reorientation
+
+- Recovered the prior session with `planning-with-files`; 12 messages were not yet synchronized into the planning files.
+- Confirmed the worktree contains the Phase 121/122 promotion and topology metrics batch described in the handoff.
+- Phase 122 remains `in_progress`: targeted tests and the full suite passed, but the post-fix real P001/P003 topology-metrics rerun was not completed because the prior execution backend returned HTTP 503.
+- Reoriented the next implementation work toward the user's requested engine core: real `test/` DWG census, extraction completeness, reusable electrical semantics, and symbol dependency/port-library architecture.
+- Invariant retained: `primary_engine=legacy`; no held-out tuning and no claim of real-run success without fresh artifacts.
+
+## 2026-07-12 Phase 123 Parallel Foundation
+
+- Dispatched fresh subagents under disjoint ownership and waited for every return before main-thread work.
+- Added isolated extraction census, electrical semantic graph, and symbol dependency library modules with unit tests; main-thread review and pipeline integration remain pending.
+- Counted 502 original DWG files under `test/`; this corpus will drive representative extraction-completeness evidence rather than page-specific rule additions.
+- Completed the first main-thread review of extraction census and its tests; accepted the fail-closed model-space/XREF/unit/block-expansion direction, with support-tier reconciliation required before pipeline integration.
+- Completed initial review of the electrical semantic and symbol dependency models; safety gates are acceptable, but artifact adapters and real-corpus round trips are required before topology consumption.
+- Verified against current code that production extraction and primitive normalization are still ModelSpace-only; category-gated/silent block expansion remains an extraction-completeness risk.
+- Selected the integration architecture: build census while the native DXF is open, carry it through `CadExtractionResult`/`ProjectArtifacts`, persist artifacts, and fold blocking diagnostics into the existing extraction gate without changing legacy Pair/Issue generation.
+- Reviewed the current extraction gate and identified its blind spot: non-empty but unconsumed CAD content is not represented. Deferred fatal unsupported thresholds until real-corpus measurements are available.
+- Located reusable P001/P003 converted DXFs in the Phase 121 bundles, enabling a real census without a new ODA conversion run.
+- Ran diagnostic census across 34 converted P001/P003 files. Results exposed universal unitless inputs, large ARC/CIRCLE/HATCH populations, viewport-only PaperSpace on two P001 files, and two non-uniform nested block warnings on one P003 component page.
+- Refined extraction census to schema v2 with separate paper-native/viewport counts, semantic versus shadow coverage tiers, and non-fatal scale-review diagnostics; structural loss paths remain fail-closed. Added focused tests; verification pending.
+- Census v2 verification passed (`11 passed`) and P001/P003 re-measurement now yields 34/34 structural COMPLETE while retaining all scale, viewport, semantic, shadow, and non-uniform-transform review evidence.
+- Integrated census v2 into CAD extraction, `ProjectArtifacts`, project artifact writing, and the existing extraction gate. Added tests for extraction propagation, persisted empty artifacts, and structural census failure codes; verification pending.
+- Fixed two first-run integration test issues (fixture scale expectation and explicit artifact inventory). The full targeted census propagation suite now passes: `52 passed`.
+- Reviewed electrical semantic graph inputs against the current artifact writer and approved a shadow-only Parquet/summary integration design; implementation and real validation pending.
+- Integrated the electrical semantic graph into the findings write path with node, relation, evidence, constraint Parquet files and a summary JSON. Added artifact-contract assertions; verification pending.
+- Audited symbol inventory and Top-N fixtures. Confirmed production integration must be config-backed and fail closed; test fixtures remain pending human review and cannot drive registration, critical findings, or electrical union.
+- Chosen adapter boundary: project inventory plus optional `config.symbol_library.path`, with unknown/pending defaults and explicit validation artifacts. Implementation pending.
+- Located P001/P003 source roots and matching converted-DXF caches for a fresh pipeline verification without ODA dependency.
+- Confirmed the local ODA 27.1.0 executable is available and cache validation will use the standard conversion path.
+- Completed fresh cached analyze+audit for P001/P003. New census, semantic, and symbol artifacts are present and valid; Pair/Issue counts and pair identity sets exactly match Phase 121 baselines.
+- Confirmed the old Phase 122 topology evidence is pre-fix/invalid; prepared to evaluate only the fresh Phase 123 bundles with scoped P003 truth.
+- Completed the Phase 122 post-fix promotion/topology rerun on fresh bundles: structural pass=true, review-only assist=true, primary flip=false, P003 scoped junction 1.0/1.0, and no legacy drift.
+- Appended `doc/任务书.md` section 18.9.12 with measured Phase 123 status, evidence paths, invariants, and the Phase 124 loop. The referenced external docs directory is absent from this checkout and was recorded explicitly.
+- Phase 123 exit accepted. Entered Phase 124 for corpus-scale census, layout-aware canonical scene, and production symbol review tooling.
+- Added the config-backed symbol dependency artifact adapter, default `symbol_library.path: null`, and tests for inventory-only unknowns, human-confirmed registered ports/connectivity, invalid critical promotion, and missing configured libraries. Write-path integration and verification pending.
+- Integrated resolved symbol library, validation, issues, and summary artifacts into project findings; default projects remain non-authoritative until a human-reviewed config library is supplied.
+
+## 2026-07-13 Phase 124 Recovery
+
+- Recovered the persistent goal and re-read the current plan state.
+- Found new Phase 124 corpus census, canonical scene, and symbol-review files in the shared worktree. The symbol-review agent returned HTTP 502 after writing files; main-thread audit is required before marking that slice complete.
+- Completed initial main-thread review of the corpus census evaluator; fail-closed aggregation is sound, with status/complete consistency and CLI integration still pending.
+- Completed initial main-thread review of the layout-aware canonical scene; the shadow/provenance design is sound, with real-volume and artifact integration checks pending.
+- Completed initial review of the symbol-review files left by the failed agent; safety structure appears sound, but promotion/rejected-item semantics and independent tests remain pending.
+- Independently verified the symbol review and Phase 124 foundation tests: `35 passed`; rejected-symbol retention remains non-authoritative and safe.
+- Began canonical scene integration: CAD extraction now builds layout-aware shadow scenes and carries them through `CadExtractionResult`/`ProjectArtifacts`; artifact writing and verification remain pending.
+- Added canonical scene artifact writer and integrated per-file JSON plus records/views/diagnostics/unresolved-source Parquet outputs into findings. Added propagation and empty-schema tests; verification pending.
+- Corrected the pipeline attachment point and verified canonical scene propagation/artifact output with `40 passed`.
+- Defined the corpus census CLI contract and fail-closed exit behavior; implementation pending.
+- Added `evaluate-corpus-census`, status/complete consistency validation, and CLI/module tests. Verification pending.
+- Verified the Phase 124 integrated targeted set: `60 passed`.
+- Recovered the active loop goal after the 2026-07-13 handoff; `primary_engine=legacy` remains unchanged and the referenced external docs directory is still absent.
+- Independently verified the previously untested symbol review promotion-gate patch: `24 passed` across symbol dependency artifacts, review workflow, and core library validation.
+- Dispatched two fresh non-overlapping development slices. The symbol backlog artifact slice added deterministic pending review/validation/summary writers; the topology metrics slice hardened deterministic, fail-closed project/corpus output. A third real-project subagent could not start because completed agents still occupied the concurrency limit, so the main thread will run that evidence directly.
+- Subagent-reported verification is not yet accepted as the main-thread exit gate; source review, integration tests, full pytest, and fresh real-corpus evidence remain pending.
+- First symbol backlog integration run produced the three JSON files but failed the report contract because `findings.json` uses an explicit artifact inventory. Added the missing inventory entries; rerun pending.
+- Main-thread integration verification now passes: symbol/review/report suite `51 passed`; topology metrics/promotion/CLI suite `44 passed`; `git diff --check` reports no whitespace errors.
+- Began real-corpus selection. Confirmed the historical third-project remote-cabinet probe is held-out and will not be used for tuning or as the required additional non-held-out run.
+- Selected P004 (`12000 主变及35kV网络通信柜`, frozen split `training_candidate`) as the additional real project. Fresh outputs will use a new Phase 124 directory and preserve all prior evidence bundles.
+- Created `.tmp/phase124_real_engine_evidence`; the first cache preload attempt copied zero files because `-LiteralPath` does not expand wildcards. Switched to explicit enumeration with count verification.
+- Preloaded 24 P001 and 10 P003 DXF cache files, then completed fresh normal analyze runs for P001/P003.
+- Completed fresh P004 analyze through ODA File Converter 27.1.0: 8 auditable DWGs converted/extracted, with cover/catalog/layout pages skipped by the normal routing policy.
+- Completed `run-audit` successfully for P001, P003, and P004 under `.tmp/phase124_real_engine_evidence/`.
+- `evaluate-corpus-census` over P001/P003/P004 completed with status `VALID`; 42/42 extracted files are structurally COMPLETE.
+- Regression comparison vs Phase 121 reports pair/issue count delta 0 and extraction/rule/status delta 0 for P001 and P003. Exact identity-set verification is the remaining compatibility check.
+- The first full-frame identity helper failed inside pandas on nested 0-D array object values; switched to canonical recursive JSON hashing plus explicit business identity tuples.
+- Exact P001/P003 compatibility check passed: Pair/Issue identity sets and normalized full-row hashes are all equal to Phase 121.
+- Added `validate-symbol-review` and `promote-symbol-review` CLI commands. Pending review documents validate without gaining authority; promotion fails closed unless the review is complete, and output replacement requires `--force`.
+- Symbol review CLI/module targeted suite passes `38 passed`; the real example reports `valid=true`, `promotion_ready=false`.
+- Full Python suite passes `629 passed, 1 skipped in 14.32s`.
+- Phase 124 code and three-project gates are accepted. The remaining exit item is the frozen-split 27-project/502-DWG census run plus taskbook closure; held-out results will be reporting-only.
+- Completed the frozen-split corpus run: 27/27 projects analyzed, 0 failed, 502 raw DWGs mapped exactly, 415 auditable pages extracted, elapsed 637.2 seconds.
+- Full corpus and non-held-out census aggregations both report `VALID`; all 415 extracted files are structurally COMPLETE. Held-out usage remains reporting-only.
+- Non-held-out aggregate: 285 scenes / 350,649 canonical records, 847 pending symbols, 19,723 legacy pairs, zero scene/semantic union eligibility, zero semantic constraint violations, and zero V2 changes to legacy results.
+- Closed Phase 124 and entered Phase 125 for scale/transform evidence plus the non-held-out Top-N symbol-port review loop.
+- Final Phase 124 verification: `git diff --check` has no whitespace errors; `configs/default.yml` still sets `recognition.primary_engine: legacy`. The persistent upgrade goal remains active for Phase 125.
+
+### Phase 125: Scale Evidence, Transform Fidelity, And Top-N Symbol Ports
+- **Status:** complete
+- **Date:** 2026-07-13
+- Actions taken:
+  - Recovered previous agent handoff: Phase 124 complete, Phase 125 in progress.
+  - Implemented fail-closed scale evidence + transform fidelity (`extract/scale_evidence.py`).
+  - Implemented shadow-gap electrical-relevance triage (`report/shadow_gap_triage.py`).
+  - Implemented non-held-out Top-N symbol corpus queue + CLI (`report/symbol_corpus_queue.py`, `evaluate-symbol-corpus-queue`).
+  - Wired scale/transform/shadow-gap artifacts into normal findings write path.
+  - Offline evidence from Phase 124 P001/P003/P004 censuses under `.tmp/phase125_scale_shadow_offline/`.
+  - Built 27-project Top-50 queue under `.tmp/phase125_symbol_corpus_queue/` (19 ranking / 8 held-out reporting-only).
+  - Fresh P001 write-path under `.tmp/phase125_writepath_p001/`: pairs 1717 identity-equal, new artifacts present, no geometry mutation.
+- Verification:
+  - targeted: `51 passed`
+  - full: `641 passed, 1 skipped`
+  - primary_engine: legacy
+  - git diff --check: no whitespace errors
+- Next:
+  - Phase 126 human Top-N port annotation consumption and measured OCS/WCS millimetre path.
+
+### Phase 126: Human Port Annotation Consumption And Certified Millimetre Path
+- **Status:** complete
+- **Date:** 2026-07-13
+- Actions taken:
+  - Measured OCS/WCS extrusion identity and nested block units inside `extraction_census`.
+  - Transform fidelity consumes measurements: `MEASURED_IDENTITY` / `MEASURED_NON_IDENTITY` / `MEASURED_ALIGNED` / `MEASURED_UNITLESS` / fail-closed readiness states including `MEASURED_PENDING_PROMOTION`.
+  - Built Top-N symbol review pack generator + consume path (`report/symbol_corpus_review_pack.py`).
+  - CLI: `generate-symbol-corpus-review-pack`, `consume-symbol-review`.
+  - Shadow-only REGISTERED port placements (`audit/symbol_port_shadow.py`) wired into findings write-path.
+  - Generated Top-5/Top-10 human annotation templates from Phase 125 queue; inventory-resolved=10/10 for Top-10.
+  - Real P001 multi-file OCS measurement: identity OCS, unitless nested blocks, scale unresolved → NOT_READY_SCALE; no geometry mutation.
+- Verification:
+  - full suite: `649 passed, 1 skipped`
+  - primary_engine: legacy
+- Next:
+  - Phase 127 human annotation of Top-N ports and millimetre promotion research once unit gold exists.
+
+### Phase 127: Human Top-N Port Gold And Millimetre Promotion Research
+- **Status:** in_progress
+- **Date:** 2026-07-13
+- Actions taken:
+  - Implemented DXF geometry MACHINE_PROPOSED port proposals (`symbol_port_proposal.py`, CLI `propose-symbol-ports`).
+  - Fixed nested runner bundle resolution (`project_bundle.py`) for promotion/topology/hard-issue readers.
+  - Fixed Top-N review pack ambiguous definition_name aliases (highest rank keeps alias).
+  - Generated Top-50 machine draft pack + human checklist under `.tmp/phase127_machine_port_proposals_top50/`.
+  - Re-ran promotion gate on real nested P001/P003/P004 evidence with frozen cal/val labels.
+- Gate result:
+  - structural_pass_all=true
+  - ready_for_review_only_v2_assist=true
+  - calval_hard_pass=true (frozen labels)
+  - ready_for_primary_engine_flip=false (heldout human gold + topology project gold + product approval missing)
+  - primary_engine remains legacy
+- Verification:
+  - full unit suite: `626 passed, 1 skipped`
+- Next:
+  - Human confirm checklist drafts (cannot be automated without violating trust policy)
+  - Expand real-corpus structural evidence beyond 3 projects
+  - Collect held-out human hard labels and project-scope topology gold
+  - Backfilled audit artifacts for all 27 corpus_502 projects via `rerun_audit_from_findings`.
+  - Full-corpus promotion gate: structural_pass_all=true (27/27); ready_for_review_only=true; primary flip still false.
+  - Evidence: `.tmp/phase127_promotion_gate_full_corpus_audit/`.
+  - Held-out hard-gold empty template: `.tmp/phase127_heldout_hard_issue_gold_template/`.
+
+### Phase 127 takeover (2026-07-13)
+
+- Recovered the referenced Codex task in a new thread using `planning-with-files` and inspected the authoritative worktree.
+- Confirmed current status is Phase 127 in progress; Phase 125/126 are complete despite the older chat ending during early Phase 125 planning.
+- Confirmed the worktree contains the uncommitted accumulated migration and `recognition.primary_engine` must remain `legacy`.
+- Next action: audit the Phase 127 human-review boundary and implement the next non-authoritative engine improvement that can be verified without inventing human gold.
+
+### Phase 127 delegated safety audit (2026-07-13)
+
+- Completed three fresh read-only audits: symbol-review provenance, project topology gold, and unit/scale gold.
+- Confirmed three fail-closed defects to fix before accepting human inputs: machine-only symbol evidence promotion, self-declared project topology CSV/all-zero readiness, and partial/contradictory transform-scale readiness.
+- Selected three non-overlapping safety patches for concurrent implementation; legacy recognition outputs and primary engine are out of scope.
+
+### Phase 127 safety patch integration (2026-07-13)
+
+- Concurrent implementations returned for scale readiness, topology promotion readiness, and symbol review provenance.
+- Reported focused verification: scale 15 plus adjacent 26 passed; topology 56 plus artifact 6 passed; symbol module 12 passed.
+- Known integration failure: `test_human_confirmed_review_can_promote_and_feed_port_shadow` uses only `symbol_corpus_queue` evidence and must be updated to include a non-held-out primary source under the new contract.
+- Main-thread source review, integration repair, full suite, and real evidence readback remain pending.
+- Main-thread repaired the old promotion fixture with a non-held-out `HUMAN_REVIEW_INPUT` source and retained the corpus queue only as supporting provenance.
+- Combined scale/symbol/topology safety suite now passes `107 passed`; full repository verification remains pending.
+- Full repository suite passes `698 passed, 1 skipped`; `recognition.primary_engine` remains `legacy`.
+- `git diff --check` found only one added blank line at EOF in `doc/任务书.md` and `task_plan.md`; cleanup and real-evidence readback remain pending.
+- Removed the two terminal blank lines. Located the real Phase 127 Top-50 machine review document and Phase 124/127 P001/P003 evidence bundles for read-only post-fix validation.
+- Real readback passed: Top-50 is valid/pending/non-promotable; P003 truth is scoped-only with real overmerge/split null; P001 is 24/24 NOT_READY_SCALE with zero geometry application.
+- The three safety-hardening subtasks are accepted. Phase 127 remains in progress for certified topology/unit/symbol human inputs and their tooling.
+
+### Phase 127 topology gold pack module return (2026-07-13)
+
+- Added an isolated `topology-gold-pack-v1` module and tests through a fresh one-shot subagent.
+- Reported contract: five-file pending template; project/split/page/SHA binding; fail-closed human certification; pending remains valid but not project scope.
+- Reported verification: `10 passed` plus a real P001 24-page pending template. Main-thread source review and CLI/promotion integration remain pending.
+- Main-thread hardened certification against empty three-table packs, required `REVIEW_COMPLETE`, and restricted source handles to `lines.parquet` rather than text/block handles.
+- Topology gold + metrics + promotion targeted suite passes `68 passed`; CLI integration and full-suite verification remain pending.
+- Added `build-topology-gold-template` and `validate-topology-gold`; CLI + topology targeted suite passes `89 passed`.
+- Real P001 template generated at `.tmp/phase127_topology_gold_template_p001_takeover/`: 24 pages, valid pending, zero labels, `project_scope=false`; normal validation exits 0 and `--require-certified` exits 2 as required.
+- Full suite after topology gold CLI integration passes `712 passed, 1 skipped`; `git diff --check` is clean and primary engine remains legacy.
+- User requested a machine-assisted human-review layer driven by taskbook electrical definitions and real DWGs. Next action is three concurrent read-only semantic audits over non-held-out evidence; their outputs remain MACHINE_PROPOSED, never human gold.
+- New task takeover recovered this exact Phase 127 boundary from the attached prior conversation. `session-catchup.py` reported no unsynchronised context; the shared worktree and persistent planning files remain authoritative.
+- Recovery error: the first parallel read batch was aborted because the bundled `rg.exe` could not start (`Access denied`). Switched to PowerShell-native enumeration; no repository mutation resulted from the failed batch.
+- Recovery logging error: a cross-file append patch assumed the same tail anchor in `findings.md` and `progress.md`; the patch was atomically rejected and then split by file.
+- The first three Phase 127 semantic-audit subagents all failed before returning evidence: one stream disconnect and two HTTP 503/no-account responses. They made no edits and will not be reused; a fresh one-shot retry is required.
+- The fresh three-agent retry also failed before returning any report (three stream disconnects). No agent edited the worktree. Stop retrying the unavailable service and complete the three-perspective audit in the main thread.
+
+### Phase 127 ZCode handoff continuation (2026-07-13)
+
+- Recovered Codex session `rollout-2026-07-13T20-35-19-019f5b79...` at the dual-subagent-failure boundary.
+- Main-thread three-perspective audit on non-held-out evidence:
+  - Symbol: Top-50 MACHINE_PROPOSED ports remain non-promotable; ports=0 on production inventory until human confirmation.
+  - Wire/cross-page: P001 has 1221 CANDIDATE cross-page matches (label fan-out up to 88) and 3152 open endpoints; no POSSIBLE union.
+  - Constraint/semantic: P001 constraint review 1710 (LOW_MARGIN 1431, SCOPE_AMBIGUITY 279); electrical_union_eligible=0.
+- Implemented MACHINE_PROPOSED electrical connection review pack:
+  - Module: `src/dwg_audit/report/electrical_connection_review_pack.py`
+  - CLI: `build-electrical-connection-review-pack`, `validate-electrical-connection-review-pack`
+  - Tests: `tests/unit/test_electrical_connection_review_pack.py` + CLI help/command tests
+  - Soft family quotas prevent cross-page volume from starving other review families
+- Real evidence packs:
+  - P001: 100 proposals = cross-page 50 / attachment 20 / open-endpoint 20 / pair 10; valid; promotion_ready=false
+  - P003: 100 proposals = attachment 73 / open-endpoint 20 / pair 5 / cross-page 2; valid; promotion_ready=false
+  - Paths: `.tmp/phase127_electrical_connection_review_pack_p001/`, `.tmp/phase127_electrical_connection_review_pack_p003/`
+- Verification: targeted 29 passed; full suite **720 passed, 1 skipped**; `recognition.primary_engine` remains `legacy`.
+- Still blocked for Phase 127 close / primary flip: human Top-N ports, project topology gold labels, held-out human hard gold, unit gold, product approval.
+

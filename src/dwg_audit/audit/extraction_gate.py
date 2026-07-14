@@ -91,6 +91,25 @@ def _executors_by_sheet(extractor_runs: Iterable[object]) -> dict[str, list[str]
     return result
 
 
+def _census_map(censuses: Iterable[object]) -> dict[str, object]:
+    return {
+        str(file_id): item
+        for item in censuses
+        if (file_id := _value(item, "file_id")) is not None
+    }
+
+
+def _diagnostic_codes(record: object | None, field: str) -> list[str]:
+    values = _value(record, field, []) or []
+    return sorted(
+        {
+            str(code)
+            for item in values
+            if (code := _value(item, "code")) is not None
+        }
+    )
+
+
 def _source_failure(source: object | None) -> str | None:
     if source is None:
         return "CONVERSION_FAILED"
@@ -114,6 +133,7 @@ def evaluate_extraction_completeness(
     extraction_warnings: Iterable[object],
     extractor_runs: Iterable[object],
     classifications: object | None = None,
+    extraction_censuses: Iterable[object] = (),
 ) -> ExtractionGateResult:
     """Evaluate whether every audit-required page was actually extractable.
 
@@ -134,6 +154,7 @@ def evaluate_extraction_completeness(
     }
     warnings_by_sheet = _warning_map(extraction_warnings)
     executors_by_sheet = _executors_by_sheet(extractor_runs)
+    censuses_by_file = _census_map(extraction_censuses)
 
     page_results: list[dict[str, Any]] = []
     incomplete_sheet_ids: list[str] = []
@@ -165,6 +186,10 @@ def evaluate_extraction_completeness(
         }
         primitive_counts["total"] = sum(primitive_counts.values())
         warning_codes = sorted(set(warnings_by_sheet.get(sheet_id, [])))
+        census = censuses_by_file.get(file_id)
+        census_status = str(_value(census, "status", "") or "") or None
+        census_error_codes = _diagnostic_codes(census, "errors")
+        census_warning_codes = _diagnostic_codes(census, "warnings")
         executors = executors_by_sheet.get(sheet_id, [])
         executed_extractor = executors[0] if executors else None
         failure_codes: list[str] = []
@@ -180,6 +205,17 @@ def evaluate_extraction_completeness(
                     failure_code = _WARNING_FAILURE_CODES.get(warning_code.casefold())
                     if failure_code and failure_code not in failure_codes:
                         failure_codes.append(failure_code)
+                if census_status in {"INCOMPLETE", "FAILED"}:
+                    if census_error_codes:
+                        failure_codes.extend(
+                            f"CENSUS_{code}"
+                            for code in census_error_codes
+                            if f"CENSUS_{code}" not in failure_codes
+                        )
+                    else:
+                        failure_codes.append(
+                            f"EXTRACTION_CENSUS_{census_status}"
+                        )
                 if not failure_codes and primitive_counts["total"] == 0:
                     failure_codes.append("ZERO_PRIMITIVES")
                 if not failure_codes and executed_extractor is None:
@@ -201,6 +237,24 @@ def evaluate_extraction_completeness(
                 "failure_codes": failure_codes,
                 "primitive_counts": primitive_counts,
                 "warning_codes": warning_codes,
+                "census_status": census_status,
+                "census_error_codes": census_error_codes,
+                "census_warning_codes": census_warning_codes,
+                "census_metrics": {
+                    "scale_status": _value(census, "scale_status"),
+                    "paper_space_native_entity_count": _value(
+                        census, "paper_space_native_entity_count", 0
+                    ),
+                    "paper_space_viewport_count": _value(
+                        census, "paper_space_viewport_count", 0
+                    ),
+                    "semantic_coverage_complete": _value(
+                        census, "semantic_coverage_complete"
+                    ),
+                    "shadow_coverage_complete": _value(
+                        census, "shadow_coverage_complete"
+                    ),
+                },
                 "executed_extractor": executed_extractor,
             }
         )

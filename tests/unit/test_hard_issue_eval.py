@@ -129,3 +129,41 @@ def test_evaluate_label_pack_micro(tmp_path: Path) -> None:
     assert summary["micro_fp"] == 1
     assert summary["micro_fn"] == 0
     assert abs(summary["micro_precision"] - 0.5) < 1e-9
+
+
+def test_missing_prediction_artifact_is_not_a_vacuous_precision_pass(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    pack_path = tmp_path / "labels.json"
+    pack_path.write_text(
+        json.dumps(
+            {
+                "hard_rule_ids": ["R-ONE-TO-MANY"],
+                "policy": {"not_a_human_gold_standard": False},
+                "projects": {
+                    "PTEST": {
+                        "labels": [
+                            {
+                                "rule_id": "R-ONE-TO-MANY",
+                                "sheet_id": "S1",
+                                "filename": "a.dwg",
+                                "pair_id": "P1",
+                                "left_value": "L",
+                                "right_value": "R",
+                                "values": [],
+                            }
+                        ]
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = evaluate_hard_issue_label_pack(pack_path, {"PTEST": project})
+
+    assert summary["prediction_artifacts_valid"] is False
+    assert summary["non_vacuous"] is False
+    assert summary["micro_precision"] == 0.0
+    assert summary["micro_precision_ge_99"] is False
+    assert summary["micro_recall_ge_99"] is False

@@ -108,6 +108,14 @@ def test_extract_cad_artifacts_reads_insert_attrib_and_polylines(tmp_path: Path)
     assert result.primitive_segments
     assert {item.primitive_kind for item in result.primitive_segments} >= {"LINE", "INSERT"}
     assert all(item.reader_backend == "ezdxf" for item in result.primitive_segments)
+    assert len(result.extraction_censuses) == 1
+    assert result.extraction_censuses[0]["file_id"] == "F0001"
+    assert result.extraction_censuses[0]["status"] == "COMPLETE"
+    assert result.extraction_censuses[0]["scale_status"] == "DECLARED"
+    assert len(result.canonical_scenes) == 1
+    assert result.canonical_scenes[0]["shadow_only"] is True
+    assert result.canonical_scenes[0]["file_id"] == "F0001"
+    assert result.canonical_scenes[0]["complete"] is True
 
 
 def test_extract_cad_artifacts_reads_through_ezdxf_adapter(

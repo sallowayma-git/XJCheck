@@ -114,6 +114,9 @@ wire_components:
     - "KLP"
     - "ZKK"
 
+symbol_library:
+  path: null
+
 table_structure:
   axis_tolerance: 0.5
   intersection_tolerance: 0.5

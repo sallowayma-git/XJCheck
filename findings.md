@@ -273,7 +273,7 @@
 - Project inventory builder lives in `src/dwg_audit/audit/symbol_registry.py`:
   - `definition_fingerprint_from_children` hashes only child `source_entity_type|primitive_kind|layer|linetype|local_geometry_json` (sorted set).
   - Fingerprint excludes instance handle, nested path, world geometry and instance transform translation.
-  - `symbol_definition_id = SD1-{sha256(name + " " + fingerprint)[:32]}` so empty-geometry name collisions cannot share IDs while geometry families still share fingerprints.
+  - `symbol_definition_id = SD1-{sha256(name + "\0" + fingerprint)[:32]}` so empty-geometry name collisions cannot share IDs while geometry families still share fingerprints.
   - Every definition starts `registry_status=UNKNOWN`, `symbol_family=None`, `internal_connectivity_state=UNKNOWN`, `declared_port_count=0`, `critical_issue_eligible=False`.
   - `rank_symbol_annotation_backlog` ranks geometry families by `total_instance_count * project_coverage` without held-out labels.
 - Write path (derive-at-write, same as topology/electrical): `write_project_artifacts` builds four findings files from the primitive frame; no `ProjectArtifacts` symbol fields and no Pair/Issue consumers.
@@ -422,3 +422,458 @@
 - Measurement on Phase 120 writepaths: micro precision **1.0**, recall **1.0**, tp=65, fp=0, fn=0 (`precision_ge_99=true`).
 - Explicitly **not** a human gold standard; held-out remains without human labels and was only used for structural release gates (already proxy-pass).
 - Promotion evidence updated to v3: measurable hard precision on cal/val frozen labels + held-out structural pass; `primary_engine` still legacy pending product flip decision / human held-out labels.
+## Phase 121 Reproducible Promotion Gate Evidence
+
+- Gap closed: after `.tmp` wipe, taskbook 18.9.9 loop deliverables (`metrics_by_project.csv`, `decision_log.md`, promotion evidence JSON) had no first-class recompute entrypoint.
+- Implementation (architecture-correct, evaluation layer only):
+  - `src/dwg_audit/report/promotion_gate.py`
+  - CLI `evaluate-promotion-gate`
+  - unit tests `tests/unit/test_promotion_gate.py`
+- Evaluator is read-only over project bundles. It never:
+  - unions POSSIBLE/UNKNOWN/REJECTED
+  - treats incomplete extraction as clean
+  - deletes legacy
+  - flips `recognition.primary_engine`
+  - uses held-out for tuning (held-out hard labels are excluded)
+- Fresh cal/val evidence (2026-07-12):
+  - P001: pairs=1717, issues=70, hard=65, COMPLETE, witness=1.0, possible_union=false, v2_changes_legacy=0, failure critical=0, non_asserted_union_violation=0
+  - P003: pairs=413, issues=3, hard=0, COMPLETE, witness=1.0, possible_union=false, v2_changes_legacy=0, failure critical=0
+  - hard-issue micro precision/recall = 1.0/1.0 on frozen cal/val labels
+  - decision: `ready_for_review_only_v2_assist=true`, `ready_for_primary_engine_flip=false`, `primary_engine=legacy`
+- Artifacts:
+  - `.tmp/phase121_promotion_gate_calval/`
+  - `.tmp/phase121_promotion_gate_evidence/{promotion_gate_evidence.json,metrics_by_project.csv,decision_log.md}`
+  - `.tmp/phase121_hard_issue_eval/hard_issue_eval.json`
+- Full suite: 523 passed, 1 skipped.
+- Integrity: removed a stray NUL byte in `findings.md` (inside a sha256 description) that caused some tools to treat the file as binary.
+- Remaining for true primary promotion (non-code / product):
+  - human held-out hard-issue gold labels
+  - explicit product approval to flip `primary_engine`
+  - optional UI surface for review-only V2 assist
+
+## Phase 121 recovery audit (2026-07-12)
+
+- The current worktree contains only the Phase 121 promotion-gate implementation and planning evidence as uncommitted changes; earlier Phase 113-120 code is already present in the checkout.
+- The evaluator is read-only and correctly keeps `primary_engine=legacy` in its decision output. Its current implementation must still be independently checked for fail-closed behavior when required artifacts are missing or malformed; a missing extraction gate, witness, or engine comparison must not accidentally satisfy a structural pass.
+- The session-catchup helper was unavailable because sandbox process creation was denied and the escalation review service returned HTTP 503. Direct worktree/planning recovery was used instead; this is an environment limitation, not evidence of project completion.
+
+## Phase 121 fail-closed hardening
+
+- The initial evaluator could treat missing engine comparison, project graph, topology summary or failure queue as zero risk; it also failed to apply unknown-critical thresholds and allowed NaN/Infinity witness values to pass the `>=1.0` check.
+- Hard-issue evaluation now records prediction artifact validity and requires non-empty labels and predictions plus both precision and recall thresholds. Missing issues no longer becomes a vacuous precision pass.
+- Primary-flip readiness now requires all structural artifacts valid, cal/val hard pass, held-out human-gold hard pass, explicit product approval and configured `primary_engine=legacy`. Frozen cal/val labels alone can only authorize review-only evidence.
+- CLI derives the primary engine from config, rejects a conflicting assertion, normalizes held-out split names, validates label paths and returns nonzero when the structural gate fails.
+- Fresh P001/P003 output under `.tmp/phase121_promotion_gate_evidence_fail_closed/`: every required artifact status is `valid`; structural pass=true; cal/val TP=65/FP=0/FN=0; precision/recall=1.0/1.0; review-only=true; primary flip=false.
+- Targeted promotion/hard-eval/CLI tests: 36 passed. Full suite: 540 passed, 1 skipped.
+
+## Topology metrics entry audit
+
+- P003's existing `topology_ground_truth_v1.csv` is a 12-row scoped junction fixture, not project-wide gold. Any computed junction result must be labelled `MEASURED_SCOPED` with sample/sheet coverage; pairwise-connectivity and open-endpoint precision/recall remain `UNMEASURED_NO_PROJECT_LABELS` until dedicated truth exists.
+- Structural facts are still useful and reproducible without gold: overmerge/split suspicion counts, non-ASSERTED union violations, actual witness completeness and legacy-result divergence. They must not be renamed as precision/recall.
+- The first delegated metrics module needs main-thread integration review before promotion use: the current fixture keys junction truth by `source_handles`, so evaluation must map decision line IDs through `lines.parquet`; witness completeness must consume the persisted witness artifact/summary rather than a new surrogate definition.
+- Real Phase 121 bundles persist an empty `network_validation_suspicions_v2.parquet` with zero columns when there are no suspicions. The evaluator accepts only this readable zero-row legacy shape as count=0; missing, unreadable, non-empty or partially-schema'd suspicion files remain fail-closed.
+
+## Phase 122 topology metrics implementation
+
+- `evaluate_project_topology_metrics` now distinguishes structural evidence from measured truth scope. `STRUCTURAL_ONLY` is sufficient for structural review-only gating; `MEASURED_SCOPED` reports local fixture metrics; only complete `MEASURED_PROJECT` metrics may contribute to primary promotion readiness.
+- Existing P003 truth is 12 scoped junction observations across two sheets. It can measure scoped junction TP/FP/FN, but has no network-partition, pairwise-connectivity or open-endpoint labels; those metrics remain null and explicitly unmeasured.
+- Witness completeness uses the persisted `network_witness_summary.json` counts rather than a surrogate traceability definition. Non-ASSERTED union and legacy-result divergence remain direct persisted invariants.
+- Promotion evidence now writes `topology_metrics_by_project.csv` and `topology_metrics_summary.json`; primary readiness requires project-scope topology gold in addition to hard-issue human held-out gold and product approval.
+- First real run correctly failed closed because older zero-suspicion Parquet files contain no columns. A narrowly-scoped compatibility fix accepts only readable zero-row legacy suspicion files. The post-fix real rerun could not execute because the approval backend returned HTTP 503; no alternate execution was used.
+- Targeted suite: 43 passed. Full suite: 547 passed, 1 skipped. Diff check has no whitespace errors.
+## 2026-07-12 Recovery Boundary Before Recognition-Engine Work
+
+- The Phase 122 implementation is present and unit/full-suite verified, but `.tmp/phase122_topology_metrics_evidence` is pre-fix diagnostic evidence only. It must not be used as proof that the compatibility-fixed real run passed.
+- The next engine work must verify the supplied audit against current code and original DWG files under `test/`; the audit text is background evidence, not an accepted statement of current behavior.
+- Priority is architecture-level extraction and semantic capability. Avoid filename, page-number, project-number, or individual-symbol production patches.
+
+## Phase 123 Real-Corpus And Parallel Foundation Entry
+
+- `test/` contains 502 original DWG files, spanning protection cabinets, communication cabinets, circuit schematics, backplanes, component wiring, and terminal drawings. The corpus is large enough to evaluate generic extraction and semantic behavior instead of tuning only P001/P003.
+- Three isolated modules now exist for main-thread review: `extract/extraction_census.py`, `audit/electrical_semantics.py`, and `audit/symbol_dependency_library.py`, each with dedicated unit tests. They are not yet accepted as pipeline-integrated evidence.
+- The current worktree still includes the uncommitted Phase 121/122 evaluation batch. Integration must preserve those changes and keep the new engine modules shadow-only until real-corpus evidence is generated.
+
+## Phase 123 Extraction Census Main-Thread Review (Initial)
+
+- `build_extraction_census()` correctly records non-consumed layouts, block definitions and nested depth, XREF resolution versus explicit load proof, unitless drawings, proxy/unsupported entities, MINSERT instances, and `virtual_entities()` exceptions/skips.
+- Its default `consumed_layout_names=("Model",)` deliberately proves the current production limitation instead of pretending PaperSpace is covered.
+- Integration must distinguish semantic-consumer support from shadow primitive retention. The module currently treats every entity outside the legacy semantic extractor's supported set as a blocking error; the configured set must be reconciled with `primitive_normalizer` so coverage dimensions remain explicit rather than conflated.
+- Conversion warnings are retained but not automatically blocking. The write-path integration needs a severity contract rather than assuming every ODA warning is either harmless or fatal.
+
+## Phase 123 Semantic And Symbol Model Main-Thread Review (Initial)
+
+- `electrical_semantics.py` is correctly shadow-only and carries explicit evidence state, authority, confidence, source IDs, constraints, and relation-level union eligibility. `UNKNOWN`, `POSSIBLE`, and `REJECTED` cannot satisfy the union gate.
+- `symbol_dependency_library.py` supplies the missing reusable concepts: versioned identities/fingerprints, geometry and nested-symbol dependencies, local ports, internal connectivity, aliases/sources, registry/annotation status, cycle and dangling-reference validation.
+- Critical and ASSERTED connectivity require human-confirmed registered symbols and ports, including nested dependencies. This preserves the Phase 117-120 unknown-symbol safety invariant.
+- Both modules are intentionally broad and currently independent of the persisted artifact schemas. Acceptance requires adapters and real artifact round-trip tests; adding them to the write path without that step would create an unverified parallel ontology.
+
+## Phase 123 Current Extractor Audit Verification
+
+- The supplied audit's ModelSpace limitation remains true in current code: `extract_cad_artifacts()` calls `doc.modelspace()`, sets `sheet.layout_name="Model"`, and only iterates that layout.
+- Legacy semantic block expansion is still category-gated through `extract.insert_virtual_entity_categories`. An INSERT expansion exception is converted to an empty list without an entity-level warning.
+- `primitive_normalizer.py` is a meaningful Phase 113+ improvement: it recursively retains INSERT children and normalizes LINE/ARC/CIRCLE/ELLIPSE/polyline segments into shadow primitives. However, it also starts only from `document.modelspace()` and returns silently when block expansion fails.
+- Therefore the next generic slice should integrate document-level census before changing recognition heuristics. Census can prove what the current semantic and shadow paths did not consume, while preserving legacy Pair/Issue outputs.
+
+## Phase 123 Census Integration Decision
+
+- The correct construction point is inside `extract_cad_artifacts()`, immediately after the native DXF document is read and before ModelSpace-only extraction starts. This avoids reopening every converted file and preserves reader backend context.
+- `CadExtractionResult` and `ProjectArtifacts` can carry one census record per source file without changing the public six-value unpacking contract.
+- `write_project_artifacts()` should persist a stable project summary plus per-file census records. The existing extraction completeness gate should consume census failures instead of creating a separate competing gate.
+- First integration remains behavior-compatible for Pair/Issue generation. The only intended product behavior change is fail-closed clean-conclusion eligibility when source content is demonstrably unconsumed or unsupported.
+
+## Phase 123 Existing Extraction Gate Gap
+
+- `evaluate_extraction_completeness()` currently gates only conversion/read failure, zero legacy primitives, and missing extractor execution. It cannot detect populated PaperSpace, unloaded XREFs, proxy/custom entities, or failed block expansion.
+- Census results should be mapped by `file_id` into audit-required page results with stable diagnostic codes. Stable skip/non-audit pages can remain `NOT_APPLICABLE` under the current project contract.
+- A measured severity policy is required before treating every legacy-unsupported entity as fatal. The real corpus must distinguish: content retained by shadow primitives, electrically meaningful unsupported entities, decorative entities, proxy/custom objects, and missing external/layout content.
+
+## Phase 123 Available Real Census Inputs
+
+- Fresh Phase 121 cal/val bundles still contain `findings/source_files.parquet` for P001 and P003 with converted DXF paths. Census can be measured without invoking ODA again.
+- Existing extraction-gate and artifact tests use optional/default-empty artifact fields, so adding `extraction_censuses` can remain backward compatible for skip pages, malformed inputs, and direct writer tests.
+- The first real measurement should remain diagnostic-only until unsupported severity is calibrated. Populated non-consumed layouts, unloaded XREFs, unreadable documents, proxy/custom objects, and virtual expansion loss can already be treated as structurally blocking.
+
+## Phase 123 P001/P003 Census Measurement
+
+- Measured 24 converted P001 files and 10 converted P003 files from Phase 121 bundles. With the initial strict policy, all 34 report `INCOMPLETE`.
+- Every measured file is unitless (`$INSUNITS=0`). Unitless must therefore be `scale_unresolved/review` until a deterministic scale inference exists; making it immediately fatal would invalidate the entire known corpus without improving extraction.
+- Legacy-unsupported totals are substantial: P001 includes CIRCLE 386, ARC 216, HATCH 100; P003 includes ARC 562, HATCH 529, CIRCLE 466, SPLINE 6, POINT 1. ARC/CIRCLE are already retained by primitive normalization, HATCH/SPLINE are not equivalently normalized for electrical semantics.
+- P001's two populated PaperSpace layouts contain only two VIEWPORT entities each. The census must report `viewport_count` separately from paper-native content; viewport presence is a layout coverage concern, but is not proof that four independent paper annotations were lost.
+- No XREF or proxy entity was observed in this P001/P003 slice. This does not establish absence across the 502-file corpus.
+- P003 `12 元件接线图.dwg` contains two non-uniformly scaled nested block instances. Expansion did not fail, but transform fidelity must remain an explicit review warning.
+
+## Phase 123 Census V2 Re-Measurement
+
+- Focused tests pass: 11 census tests.
+- After tiering severity, all 24 P001 and 10 P003 files are structurally `COMPLETE`; no census error is hidden.
+- Review evidence remains explicit: all 34 have `scale_status=UNRESOLVED`; P001 has 2 viewport-only layouts and 100 HATCH entities outside shadow normalization; P003 has 529 HATCH, 6 SPLINE, and 1 POINT outside shadow normalization plus one file with non-uniform INSERT warnings.
+- ARC/CIRCLE are reported as unsupported by the legacy semantic extractor while correctly excluded from shadow-unsupported counts because primitive normalization retains them.
+- This v2 contract is suitable for main-pipeline persistence and structural gating: fatal status represents demonstrable content loss, while coverage/scale gaps remain measurable review dimensions.
+
+## Phase 123 Census Pipeline Integration
+
+- Census is now built while each native DXF is open, carried through `CadExtractionResult` and `ProjectArtifacts`, and persisted as `findings/extraction_census.json` plus `extraction_census_summary.json`.
+- The existing extraction gate consumes census status by `file_id`. Structural errors become stable `CENSUS_<diagnostic>` page failure codes; review-only scale/coverage warnings do not alter clean status.
+- The legacy six-value extraction-result unpacking contract is unchanged, and Pair/Issue generation is untouched.
+- Targeted propagation suite passes: 52 tests across census, CAD extraction, extraction gate, artifact writing, and incomplete-input pipeline behavior.
+
+## Phase 123 Electrical Semantic Artifact Integration Decision
+
+- The new builder consumes the exact persisted Phase 119 inputs: `text_tokens`, final constrained semantic attachments, scope decisions, constraint decisions, and project profile.
+- Persist separate node, relation, evidence, and constraint Parquet artifacts plus a summary JSON. Structured columns can reuse `_dict_rows_frame()` JSON serialization.
+- This is a shadow artifact only. Integration acceptance requires `shadow_only=true`, graph validity, and `electrical_union_eligible_count=0` on current real projects.
+
+## Phase 123 Symbol Library Integration Boundary
+
+- Current project symbol inventory already provides stable definition names/fingerprints and marks every discovered definition `registry_status=UNKNOWN`, `declared_port_count=0`, `critical_issue_eligible=false`.
+- The existing Top-N port fixtures live under `tests/fixtures` and remain empty with `PENDING_HUMAN_REVIEW`. Production code must not load test fixtures or promote these entries to registered/ASSERTED state.
+- Integration should therefore add a config-backed production library loader/adapter. Project inventory definitions become UNKNOWN/CANDIDATE library entries by default; only explicit production library records with human-confirmed ports/connectivity may become registered or critical eligible.
+
+## Phase 123 Symbol Adapter Design
+
+- Add a runtime adapter separate from `symbol_registry.py`: inventory rows provide stable identity/aliases/source evidence; an optional `config.symbol_library.path` supplies human-reviewed ports, nested dependencies, and internal connectivity.
+- Missing or malformed library files must produce a validation artifact and retain UNKNOWN/PENDING states, not silently promote symbols or abort the whole project.
+- Persist the resolved library, validation issues, and summary alongside the existing symbol inventory. This keeps symbol knowledge inspectable and allows later human annotation without changing legacy Pair/Issue behavior.
+
+## Phase 123 Fresh Real-Run Method
+
+- P001 source root is the `110kV变压器保护柜/...WBH-812E...` directory; P003 source root is `【出原理图】N2604HBJ20732J合同/11000 站控层网络通信柜`.
+- Phase 121 bundles include converted DXF cache files keyed by the same source IDs. A new temporary output can preload those caches and exercise the normal `analyze-project` and `run-audit` paths without invoking ODA again.
+- Local ODA File Converter 27.1.0 is currently discoverable. The converter checks a valid target cache before conversion, so preloaded Phase 121 DXFs will be recorded as `cached` through the normal reader provenance path.
+
+## Phase 123 Fresh P001/P003 Engine-Foundation Evidence
+
+- Fresh normal pipeline outputs: `.tmp/phase123_engine_foundation_real/P001/...` and `.tmp/phase123_engine_foundation_real/P003/11000`, including analyze and audit.
+- Census: P001 24/24 COMPLETE, P003 10/10 COMPLETE; all 34 remain `UNRESOLVED` scale. P001 reports two viewport-layout files, zero paper-native content; both projects report zero XREF/proxy/virtual-expansion-failure files.
+- Electrical semantic graph:
+  - P001: 9,974 nodes, 6,330 relations, 14,766 evidence records, 31,650 constraints.
+  - P003: 2,869 nodes, 1,095 relations, 4,036 evidence records, 5,475 constraints.
+  - Both: `shadow_only=true`, `valid=true`, constraint violations=0, electrical union eligible=0.
+- Symbol dependency library:
+  - P001: 67 inventory symbols; P003: 33.
+  - Both: source not configured, library valid, ports=0, critical eligible=0, critical capable=0, validation/load errors=0.
+- Compatibility: P001 pairs/issues remain 1717/70; P003 remain 413/3. Pair identity sets equal Phase 121 baselines and issue rule distributions are unchanged.
+- Extraction gate remains COMPLETE/clean for both because all new findings are review coverage dimensions rather than demonstrated structural loss.
+
+## Phase 122 Re-run Boundary
+
+- The historical `.tmp/phase122_topology_metrics_evidence` remains invalid because it points at pre-compatibility bundles whose zero-suspicion validation Parquet lacks schema columns. It is diagnostic only.
+- The fresh Phase 123 bundles are the only candidates for the post-fix evaluator run. P003 topology truth remains scoped (12 rows across two sheets); no project-wide topology gold exists.
+
+## Phase 122 Post-Fix Completion Evidence
+
+- `.tmp/phase123_promotion_gate_evidence` is the valid post-fix evidence set.
+- `structural_pass_all=true`; review-only V2 assist=true; primary flip=false; primary engine remains legacy.
+- P001 topology status is `STRUCTURAL_ONLY`; P003 is `MEASURED_SCOPED`. P003 scoped junction precision/recall are 1.0/1.0.
+- Overmerge/split totals are 0 across both projects. Pairwise connectivity and open-endpoint precision/recall remain unmeasured because project-scope labels do not exist.
+
+## Taskbook Source Availability
+
+- The referenced `XJCheck_topology_upgrade_review_v1/docs/` directory is not present in the current checkout. The existing `doc/任务书.md` already contains the migrated 18.9 plan and remains the authoritative source; this session appended the 2026-07-12 status refresh as section 18.9.12 rather than inventing missing source text.
+
+## Phase 124 Recovery Boundary (2026-07-13)
+
+- The corpus census and document walker files are present after delegated development, but have not yet passed main-thread integration review.
+- The symbol-review delegated turn ended with remote HTTP 502. `symbol_library_review.py` and the two config assets are present in the shared worktree, but their implementation and tests are untrusted until independently inspected and executed.
+- No primary engine change is authorized; `recognition.primary_engine=legacy` remains the invariant.
+
+## Phase 124 Corpus Census Main-Thread Review
+
+- `report/corpus_census.py` correctly separates artifact validity from extraction health, validates project/summary/file schemas, cross-checks summaries, and leaves invalid project metrics null.
+- `complete_corpus_metrics` is emitted only when every requested project artifact is valid; held-out projects are reporting-only.
+- Before integration, add consistency validation between each file's `complete` boolean and structural `status`, then expose the evaluator through a reproducible CLI entrypoint and real split evidence.
+
+## Phase 124 Corpus Census CLI Contract
+
+- Reuse `alias:split=project_dir` syntax from the promotion evaluator, with explicit `--held-out` marking and no tuning behavior.
+- Write deterministic project CSV and corpus summary JSON; return exit code 2 unless the requested corpus artifact status is VALID.
+- The command evaluates persisted census evidence only and does not mutate project outputs.
+
+## Phase 124 Integrated Targeted Verification
+
+- Corpus census CLI, canonical scene artifacts, CAD propagation, report artifacts, and CLI contracts pass `60 passed`.
+- The remaining symbol workflow gap is runtime promotion enforcement: a configured review document must be REVIEW_COMPLETE before the adapter can consume it, and each project should emit an editable pending review backlog.
+
+## Phase 124 Canonical Scene Main-Thread Review
+
+- `extract/document_walker.py` provides the intended shadow-only document layer: all Model/Paper layouts, separate VIEWPORT records, recursive INSERT/MINSERT provenance, nested transforms, retained unsupported entities, and explicit XREF/expansion diagnostics.
+- Canonical scene records and layout views are never topology-union eligible. Unresolved XREF or transform/expansion loss makes the scene incomplete.
+- Remaining review items before pipeline integration: diagnostic/source deduplication, real-project output volume, coexistence with `primitive_segments`, and explicit limitations for viewport projection, XREF loading, OCS/WCS, and unit normalization.
+
+## Phase 124 Canonical Scene Integration Verification
+
+- Canonical scenes now flow from CAD extraction into `ProjectArtifacts` and persist as per-file JSON plus records, views, diagnostics, unresolved-source Parquet files and a project summary.
+- An initial wiring mistake was caught before real runs: scenes were passed to the extraction gate instead of the artifact container. The gate remains census-only; the corrected targeted suite passes `40 passed`.
+- Legacy Pair/Issue consumers do not read canonical scene artifacts.
+
+## Phase 124 Symbol Review Initial Main-Thread Review
+
+- Despite the delegated HTTP 502, `symbol_library_review.py`, its tests, JSON Schema, and safe pending example are structurally complete in the worktree.
+- Generated review documents deliberately remove authority from source libraries; pending items cannot be registered, critical eligible, or ASSERTED-connected. Promotion requires a valid REVIEW_COMPLETE document with zero pending items.
+- Before acceptance, independently verify review metadata/evidence rules, decide whether rejected symbols remain in the promoted library or should be filtered, and confirm the placeholder pending port cannot be mistaken for approved production data.
+
+## Phase 124 Symbol Review Verification
+
+- Independent focused suite passed: `35 passed` across corpus census, document walker, symbol review, symbol dependency adapter, and core symbol-library validation.
+- Rejected definitions may remain in a promoted document as audit history; core `can_drive_critical()` and `can_assert_electrical_union()` still reject them unless they are registered, human-confirmed, and structurally valid. No filtering is required for safety.
+- The example asset is explicitly pending/unknown with `critical_issue_eligible=false`; it is a template and is not loaded by the runtime adapter unless explicitly configured.
+
+## Phase 124 Recovery Verification Addendum (2026-07-13)
+
+- The last unverified runtime change is now independently exercised: configured review documents must pass the promotion workflow before becoming a production symbol library. Focused symbol tests pass `24 passed`.
+- A new project-level symbol review artifact writer is present in the shared worktree. Its intended contract is to emit an authority-stripped pending backlog plus validation and summary JSON; it still requires main-thread integration into the normal findings writer.
+- The topology metrics artifact writer was hardened so invalid, partial, null, and `STRUCTURAL_ONLY` rows cannot manufacture corpus precision/recall or totals. Main-thread review must confirm compatibility with the existing promotion evaluator and persisted evidence schema.
+- The additional non-held-out real-project run was not delegated because the active agent-slot limit was reached by completed agents and no `close_agent` tool is available. This is an orchestration limitation, not an engine blocker; the main thread will execute the run.
+- The symbol review artifact is now integrated into the normal findings path. Every project emits `symbol_review_backlog.json`, `symbol_review_validation.json`, and `symbol_review_summary.json`; the explicit `findings.json` artifact inventory is covered by the report contract test.
+- Main-thread accepted targeted evidence: `51 passed` for symbol/review/report integration and `44 passed` for topology metrics/promotion/CLI. The next gate is fresh P001/P003 plus an additional non-held-out real project.
+- The real corpus has three top-level families. Historical documentation identifies the third remote/communication-cabinet probe (`10000`) as held-out, so it cannot be used as the Phase 124 additional tunable project. The extra run must come from another project directory in the established non-held-out families and remain free of sample-specific tuning.
+- Frozen `benchmark_split_v1.csv` selects P004 (`12000 主变及35kV网络通信柜`, 11 DWG) as `training_candidate`. Phase 124 will use P004 as the additional non-held-out evidence project; P002/10000 and all other `heldout_test` projects remain untouched for tuning.
+
+## Phase 124 Fresh Three-Project Evidence
+
+- Fresh normal analyze + audit completed for P001, P003, and training-candidate P004 under `.tmp/phase124_real_engine_evidence/`.
+- Corpus census is `VALID`: 3/3 projects valid, 42/42 extracted files `COMPLETE`, all 42 scale `UNRESOLVED`, 4 PaperSpace VIEWPORTs across two P001 files, zero paper-native entities, XREFs, proxies, or virtual-expansion failures.
+- Corpus unsupported evidence remains explicit: legacy semantic unsupported 3,321 (ARC 1,158; CIRCLE 1,171; HATCH 978; POINT 2; SPLINE 12); shadow unsupported 992 (HATCH 978; POINT 2; SPLINE 12).
+- P004 canonical scene: 8 scenes, 16 layouts, 7,582 records, zero diagnostics/unresolved sources, shadow contract valid, topology union eligible 0.
+- P004 electrical semantic graph: 1,397 nodes, 324 relations, 1,681 evidence records, 1,620 constraints, zero violations, zero eligible union.
+- P004 symbol dependency/review: 28 UNKNOWN/PENDING definitions, ports 0, critical/ASSERTED capability 0; review backlog is `READY_FOR_REVIEW`, promotion-ready false, safe pending contract true.
+- Engine comparison changes legacy result count by 0 for P001 (1,717 pairs), P003 (413), and P004 (223). P001/P003 regression counts, rule distributions, statuses, texts, and lines match the Phase 121 baseline; exact Pair/Issue identity-set verification remains pending.
+- P001/P003 exact compatibility is now proven: Pair identity sets, Issue identity sets, canonical full-row Pair hashes, and canonical full-row Issue hashes all match the Phase 121 baseline.
+- The production review loop now has CLI boundaries: `validate-symbol-review` reports schema/evidence/readiness without promoting; `promote-symbol-review` writes a production library only after `REVIEW_COMPLETE`, zero pending items, valid human evidence, and core library validation. It never edits runtime config automatically.
+- Fresh Phase 124 promotion evidence at `.tmp/phase124_promotion_gate_evidence/` remains structural-pass, frozen cal/val precision/recall 1.0/1.0, review-only assist true, primary flip false, primary engine legacy. The hardened topology summary correctly leaves corpus minimum precision/recall null because only scoped/no-label topology truth exists.
+
+## Phase 124 Full 502-DWG Corpus Evidence
+
+- Frozen `benchmark_split_v1.csv` mapped exactly to 27 projects / 502 raw DWGs. Fresh analysis under `.tmp/phase124_corpus_502/` completed 27/27 projects with zero failures in 637.2 seconds.
+- The normal routing path extracted 415 auditable pages; the remaining raw DWGs were stable skip pages such as cover, catalog, and layout sheets. Corpus census is `VALID`, with 415/415 extracted files structurally `COMPLETE`.
+- All-corpus reporting-only summary: 8 held-out projects are valid; held-out details were not used for code, rules, thresholds, or symbol knowledge.
+- Non-held-out evidence (19 projects / 285 extracted pages): all 285 scale states remain `UNRESOLVED`; 4 VIEWPORT records occur in two P001 files; paper-native content, XREF, proxy, missing XREF, and virtual expansion failures are all zero.
+- Non-held-out semantic unsupported total is 11,529: CIRCLE 5,598; ARC 3,537; HATCH 2,350; ELLIPSE 16; SPLINE 24; POINT 4. Shadow unsupported is 2,378, dominated by HATCH 2,350 plus SPLINE 24 and POINT 4.
+- Non-held-out canonical scene totals: 285 scenes, 350,649 records, 4 VIEWPORT records, zero diagnostics/unresolved sources/invalid scenes, and zero topology-union-eligible records.
+- Non-held-out symbol/semantic safety totals: 847 pending symbols, zero unsafe review projects, zero promotion-ready projects, zero invalid semantic graphs, zero constraint violations, and zero eligible semantic union.
+- Across 19 non-held-out projects, 19,723 legacy pairs were compared and `v2_changes_legacy_result_count=0`.
+- The dominant next evidence gap is not XREF/proxy loss in this corpus; it is universal unresolved scale plus a reviewable symbol-port knowledge backlog. HATCH/SPLINE/POINT require relevance classification before any electrical geometry adapter is authorized.
+
+## Phase 125 Scale Evidence, Transform Fidelity, Shadow Gap, And Top-N Queue
+
+- Added fail-closed `extract/scale_evidence.py`:
+  - States: `DECLARED` / `CANDIDATE` / `CONFLICT` / `UNRESOLVED` / `INVALID`
+  - `applied_to_geometry` is always false in this phase
+  - lexical unit candidates (mm/cm/m/in/ft and Chinese equivalents) never auto-resolve scale
+  - declared-vs-candidate conflicts are explicit
+- Transform fidelity is recorded per file from census virtual-expansion warnings/failures:
+  - non-uniform INSERT scale is counted and blocks millimetre readiness
+  - OCS/WCS and nested block units remain `UNMEASURED`
+  - `canonical_millimetre_ready` is hard-false until scale and transform contracts both pass
+- Shadow-gap triage classifies unsupported entities without authorizing adapters:
+  - HATCH/SOLID -> `LIKELY_DECORATIVE`
+  - SPLINE -> `POSSIBLE_ELECTRICAL_GEOMETRY` (review sample sheets first)
+  - POINT -> `POSSIBLE_MARKER`
+  - ACAD_TABLE -> table pipeline, not wire geometry
+  - OLE2FRAME -> external embedded content, fail closed
+- Normal findings write path now emits:
+  - `scale_evidence.json` / `scale_evidence_summary.json`
+  - `transform_fidelity.json`
+  - `shadow_gap_triage.json` / `shadow_gap_triage_summary.json`
+- Symbol corpus queue CLI `evaluate-symbol-corpus-queue`:
+  - ranks non-held-out inventories only by default
+  - Top-50 from 19 ranking projects / 165 families
+  - all queue rows `PENDING_HUMAN_REVIEW`, ports=0, critical_eligible=0
+  - held-out usage remains reporting-only
+- Real evidence:
+  - Offline P001/P003/P004 scale: 24/10/8 files all `UNRESOLVED`, applied=0, mm_ready=false
+  - P003/P004 non-uniform INSERT counts = 2 each
+  - Fresh P001 write-path: pairs=1717 identity-equal to Phase 124 baseline; scale all UNRESOLVED; gap HATCH=100 and no adapter authorized
+  - Corpus queue top families: `SYMB2_M_PWF165` (4220×18), shared `PWF231/PWF248` (2975×18)
+- Verification: targeted 51 passed; full suite `641 passed, 1 skipped`; `primary_engine=legacy`; `git diff --check` has no whitespace errors (CRLF warnings only).
+
+## Phase 126 Evidence (2026-07-13)
+
+### Top-N review pack + consumption (no auto-critical)
+- Generated editable packs from Phase 125 Top-50 queue:
+  - `.tmp/phase126_symbol_review_pack_top5/`
+  - `.tmp/phase126_symbol_review_pack_top10/`
+- Combined + per-symbol templates are `PENDING_HUMAN_REVIEW`, `registry_status=UNKNOWN`, `critical_issue_eligible=0`, `ports=[]`.
+- `consume-symbol-review` on pending pack: `valid=true`, `promotion_ready=false`, `promoted=false`.
+- Human-confirmed fixture can promote and feed shadow port placements; union/critical remain false on placements.
+- CLI: `generate-symbol-corpus-review-pack`, `consume-symbol-review` (plus existing validate/promote).
+
+### Measured OCS/WCS + nested block units
+- Census now measures extrusion identity and block definition units.
+- Real P001 (8 converted DXFs under phase125 writepath):
+  - `ocs_wcs_status=MEASURED_IDENTITY` (all 8 files)
+  - `nested_block_units_status=MEASURED_UNITLESS` (drawing units unresolved / unitless)
+  - `millimetre_readiness=NOT_READY_SCALE` for all 8
+  - `canonical_millimetre_ready=false`, `applied_to_geometry_count=0`
+- When scale is declared AND OCS identity AND nested aligned AND no transform failures → `MEASURED_PENDING_PROMOTION` (still not applied, still review-required).
+- Evidence: `.tmp/phase126_ocs_wcs_measurement/`
+
+### Shadow port consumer
+- `audit/symbol_port_shadow.py` + findings `symbol_port_shadow_*.json`.
+- Only REGISTERED + HUMAN_CONFIRMED ports emit placements; inventory PENDING libraries write empty placements.
+- `electrical_union_eligible` and `critical_issue_eligible` always false on shadow placements.
+
+### Verification
+- Targeted + full suite: **649 passed, 1 skipped**.
+- `recognition.primary_engine` remains `legacy`.
+
+## Phase 127 Evidence (2026-07-13)
+
+### Nested project bundle path resolution
+- Real runner layout is `alias_root/<project_slug>/{findings,audit,extraction_completeness.json}` with sibling `cache`/`logs`.
+- Added shared `report/project_bundle.py` (`find_findings_dir`, `resolve_project_bundle_dir`).
+- Consumers updated: promotion_gate, topology_metrics, hard_issue_eval, symbol_corpus_queue.
+- Flat fixture layout still resolves as `bundle_layout=direct`.
+
+### Promotion gate on real nested evidence
+- Projects available under `.tmp/phase124_real_engine_evidence/`: P001, P003, P004.
+- After path fix: **structural_pass_all=true**, **ready_for_review_only_v2_assist=true**.
+- Frozen cal/val hard labels (`tests/fixtures/hard_issue_labels_calval_v1.json`): micro precision/recall **1.0**, status `PASS_ON_FROZEN_CALVAL_LABELS`.
+- Topology metrics: structural complete, measurement_scope still none → `topology_metrics_primary_ready=false` (needs project-scope human topology gold).
+- Held-out human hard gold: `UNMEASURED_NO_HELDOUT_HUMAN_GOLD`.
+- product_approval=false.
+- **ready_for_primary_engine_flip=false**; `primary_engine` remains `legacy`.
+- Evidence: `.tmp/phase127_promotion_gate_nested_fix/`.
+
+### MACHINE_PROPOSED port drafts (DXF geometry)
+- CLI/API: `propose-symbol-ports` / `audit/symbol_port_proposal.py`.
+- Top-10 pack: `.tmp/phase127_machine_port_proposals_top10/` (9 with ports, 22 ports).
+- Top-50 pack: `.tmp/phase127_machine_port_proposals_top50/`
+  - proposal_count=50, proposed_with_ports=46, block_not_found=2, total_ports=125
+  - draft validates: valid=true, promotion_ready=false, critical_issue_eligible=0
+  - all ports annotation_status=`MACHINE_PROPOSED` only
+  - checklist: `HUMAN_REVIEW_CHECKLIST.md`
+- Review pack alias de-dupe: same CAD definition_name across fingerprints keeps alias only on highest-ranked family (avoids `LIBRARY_AMBIGUOUS_SYMBOL_ALIAS`).
+- Templates: `.tmp/phase127_symbol_review_pack_top50/`.
+
+### Remaining blockers to archive legacy primary
+1. Human confirm Top-N (and broader) MACHINE_PROPOSED ports → REGISTERED + HUMAN_CONFIRMED
+2. Held-out **human** hard-issue gold pack
+3. Project-scope topology truth labels (junction/connectivity/open-endpoint)
+4. Full-corpus structural coverage beyond the 3 real evidence projects currently on disk
+5. Explicit product_approval
+6. Declared/unit gold for millimetre promotion (still NOT_READY_SCALE / unitless drawings)
+
+### Verification
+- Full unit suite: **626 passed, 1 skipped** (627 collected).
+- `recognition.primary_engine` remains `legacy`.
+
+### Full-corpus structural promotion pass (audit backfill)
+- Re-ran `rerun_audit_from_findings` on all 27 corpus_502 projects missing audit artifacts (non-held-out + held-out reporting).
+- Promotion gate on all 27 aliases: **structural_pass_all=true** (27/27), including held-out structural.
+- Evidence: `.tmp/phase127_promotion_gate_full_corpus_audit/`.
+- Still blocked for primary flip: held-out human hard gold, project-scope topology gold, product_approval.
+- Held-out human gold template (empty, not certified): `.tmp/phase127_heldout_hard_issue_gold_template/`.
+
+### Non-held-out hard-label freeze v2 (emission fidelity only)
+- After full audit backfill, re-froze current-head hard issues for all 19 non-held-out projects (341 labels).
+- Path: `.tmp/phase127_hard_issue_labels_nonheldout_freeze_v2.json`
+- Policy still `not_a_human_gold_standard=true` → cannot authorize primary flip.
+- Gate with this freeze: micro precision/recall 1.0, calval_hard_pass=true, structural 27/27, primary flip false.
+- Historical fixture `tests/fixtures/hard_issue_labels_calval_v1.json` left unchanged for unit tests (P001/P003 only).
+
+### Phase 127 takeover boundary (2026-07-13)
+
+- The referenced task has been taken over in a new Codex thread; the filesystem, not the older chat summary, is authoritative.
+- Phase 125 and Phase 126 are already complete. Phase 127 is the active phase, with Top-50 MACHINE_PROPOSED port drafts and full 27-project structural promotion evidence present.
+- The remaining promotion blockers are human/authority inputs (Top-N port confirmation, project-scope topology gold, held-out human hard-issue gold, product approval, and unit gold). They must remain fail-closed and cannot be synthesized by an agent.
+- The worktree is intentionally dirty with the accumulated topology/semantics/symbol migration. Preserve all existing changes and continue from them without resetting or switching the primary engine from `legacy`.
+
+### Phase 127 delegated safety audit (2026-07-13)
+
+- Topology gold is still structural-only across 27/27 projects. The legacy truth CSV can currently self-declare `measurement_scope=project` without certified page coverage, source hashes, or human provenance; primary topology readiness also does not enforce non-zero/thresholded junction, connectivity, endpoint, or real overmerge/split metrics.
+- Symbol review currently validates evidence references syntactically but permits machine-only sources (`symbol_corpus_queue`, `machine_geometry_proposal`) to be the sole evidence for a manually edited `HUMAN_CONFIRMED` record. This is a production-authority bypass and must fail closed.
+- Unit/scale readiness has two false-ready paths: `MEASURED_IDENTITY_PARTIAL` OCS and `MEASURED_ALIGNED_PARTIAL` nested-unit measurements are accepted as ready. A unitless census can also be upgraded from a contradictory nonzero units field.
+- The next implementation slice is safety hardening only: legacy topology CSV remains scoped; topology promotion requires meaningful metrics and certified packages later; machine-only/held-out symbol evidence cannot promote; partial/contradictory scale evidence cannot become millimetre-ready. No human labels will be synthesized.
+
+### Phase 127 safety patch return (2026-07-13)
+
+- Scale patch rejects partial OCS/nested-unit measurements and contradictory `UNRESOLVED` census plus nonzero INSUNITS; complete measured paths remain pending-promotion and geometry remains unchanged.
+- Topology patch keeps all legacy CSV truth scoped, separates suspicion from real overmerge/split gold, and requires finite positive three-family metrics plus zero real overmerge/split before primary topology readiness.
+- Symbol patch requires a non-held-out primary drawing or human-review source for completed promotion; machine/corpus sources may only support, never authorize. One old cross-module positive fixture now fails because it encoded the former machine-only authority assumption and must be corrected.
+- The affected Phase 127 modules are still untracked in Git, so ordinary `git diff -- <file>` is empty; main-thread review must read their current contents directly. Existing source kinds already include `HUMAN_REVIEW_INPUT`, making the cross-module fixture repair compatible with the new classification without inventing a new runtime type.
+- Main-thread source review confirmed the scale patch changes only evidence/readiness state and leaves geometry untouched. The symbol gate is fail-closed for unknown kinds and can repair the old fixture with an explicit non-held-out `HUMAN_REVIEW_INPUT` source while retaining the queue source as supporting provenance.
+- Topology primary readiness now rejects scoped/zero/non-finite evidence and requires zero real overmerge/split. This is safe for the current state because no legacy CSV can produce `MEASURED_PROJECT`; certified gold-pack thresholds remain a separate future contract and must be frozen before held-out evaluation.
+
+### Phase 127 real safety readback (2026-07-13)
+
+- Real Top-50 machine review remains valid but non-authoritative: 50 pending symbols, `promotion_ready=false`, zero validation errors.
+- Real P003 legacy junction truth remains `MEASURED_SCOPED` over 12 samples / 2 sheets; `metrics_complete=false`, real overmerge/split are null rather than suspicion aliases.
+- Real P001 census remains 24/24 `UNRESOLVED` and `NOT_READY_SCALE`; `applied_to_geometry_count=0` and `canonical_millimetre_ready=false`.
+- These results close the three safety-hardening tasks but do not close Phase 127. The next automatable slice is a pending-only topology gold template/validator; human labels and certification remain external authority.
+
+### Topology gold module main-thread review (2026-07-13)
+
+- The five-file template, exact source/page/hash binding, and pending non-authority contract are sound.
+- Two certification gaps must be closed before promotion integration: `HUMAN_CERTIFIED` can currently pass with all three label tables empty, and the source-handle inventory mixes line, text, block, and primitive handles rather than proving complete classification of topology input lines.
+- The validator must require review-complete annotation status plus non-vacuous/candidate coverage tied to topology artifacts; otherwise page-level booleans merely replace the former self-declared CSV scope.
+- User clarified that `doc/任务书.md` already contains many electrical definitions and wants subagents to inspect real DWGs semantically to reduce manual review effort. The authorized design is machine-assisted pre-annotation with source handles/coordinates/rule citations and explicit confidence/reasoning; human certification remains a separate state transition.
+- The attached takeover record ended immediately after dispatching the intended three semantic audits, but no durable audit result was recorded. Re-run them as fresh one-shot, read-only subagents against non-held-out evidence before selecting an implementation slice.
+
+## Phase 127 main-thread semantic audit + connection review pack (2026-07-13)
+
+### Three-perspective audit (non-held-out only)
+- **Symbol/port:** Production inventories remain UNKNOWN/PENDING with ports=0. Geometry-driven Top-50 drafts are `MACHINE_PROPOSED` only and fail closed for promotion without non-held-out human primary evidence.
+- **Wire/cross-page:** Project graph keeps `possible_union=false`. P001 emits 1221 cross-page CANDIDATE edges with severe label fan-out (e.g. bare `103/105/132`), plus 2816 geometry-only open endpoints. These are high-value human review targets, not ASSERTED connectivity.
+- **Semantic/constraint:** Attachments stay shadow-only. P001 has 402 authoritative selected attachments vs 1674 review-only; electrical semantic union eligible remains 0. Strong constraints are inviolable and only demote authority.
+- Taskbook citations used for proposal rationales: 18.8.2/18.8.3/18.8.7 and 18.9.2/18.9.8 (no POSSIBLE union; text proximity ≠ geometry; human labels route to schema/library/rule).
+
+### MACHINE_PROPOSED electrical connection review pack
+- New pack schema `electrical-connection-review-pack-v1` writes `manifest.json`, `proposals.json`, `summary.json`, `HUMAN_REVIEW_CHECKLIST.md`.
+- Families: `CROSS_PAGE_ENDPOINT_MATCH`, `OPEN_ENDPOINT_LABEL`, `SEMANTIC_ATTACHMENT_REVIEW`, `LEGACY_PAIR_CONNECTION_REVIEW`.
+- Safety: every proposal `annotation_status=MACHINE_PROPOSED`, `human_decision=PENDING`, `shadow_only=true`, `critical_issue_eligible=false`, `electrical_union_eligible=false`, `not_a_human_gold_standard=true`.
+- Soft family quotas (≈40/20/20/10) keep mixed evidence when cross-page candidates dominate.
+- CLI does not mutate config, geometry, Pair/Issue, or primary engine.
+
+### Real pack measurements
+- P001 top-100: 50 cross-page / 20 attachment / 20 open-endpoint / 10 pair review.
+- P003 top-100: 2 cross-page / 73 attachment / 20 open-endpoint / 5 pair review.
+- Both packs validate `valid=true`, `promotion_ready=false`, `certification_ready=false`.
+
+### Remaining Phase 127 blockers (external authority)
+1. Human confirm Top-N symbol ports
+2. Human fill topology gold pack (`MEASURED_PROJECT`)
+3. Held-out human hard-issue gold
+4. Unit/scale gold or declared drawing units
+5. Explicit product approval for primary flip
+

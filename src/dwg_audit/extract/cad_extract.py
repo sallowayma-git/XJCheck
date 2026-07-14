@@ -18,6 +18,8 @@ from dwg_audit.readers import EzdxfReader
 from dwg_audit.readers import ReaderError
 from dwg_audit.readers import ReaderOptions
 from dwg_audit.utils.ids import IdFactory
+from dwg_audit.extract.document_walker import walk_document
+from dwg_audit.extract.extraction_census import build_extraction_census
 from dwg_audit.extract.primitive_normalizer import PrimitiveSegment
 from dwg_audit.extract.primitive_normalizer import normalize_document_primitives
 
@@ -35,6 +37,8 @@ class CadExtractionResult:
     pages: list[SheetRecord]
     warnings: list[ExtractionWarning]
     primitive_segments: list[PrimitiveSegment] = field(default_factory=list)
+    extraction_censuses: list[dict[str, object]] = field(default_factory=list)
+    canonical_scenes: list[dict[str, object]] = field(default_factory=list)
 
     def __iter__(self):
         # Preserve the public six-value unpacking contract for legacy callers.
@@ -622,6 +626,8 @@ def extract_cad_artifacts(
     all_polylines: list[PolylineRecord] = []
     extraction_warnings: list[ExtractionWarning] = []
     primitive_segments: list[PrimitiveSegment] = []
+    extraction_censuses: list[dict[str, object]] = []
+    canonical_scenes: list[dict[str, object]] = []
     dxf_reader = EzdxfReader()
     reader_options = ReaderOptions()
 
@@ -680,6 +686,76 @@ def extract_cad_artifacts(
             )
             sheet.warnings.append(f"Failed to read DXF: {exc}")
             continue
+
+        try:
+            census_payload = build_extraction_census(
+                doc,
+                document_path=source.dxf_path,
+                xref_search_paths=config.get("extract", {}).get(
+                    "xref_search_paths", []
+                ),
+            ).to_dict()
+        except Exception as exc:  # pragma: no cover - defensive artifact boundary
+            census_payload = {
+                "schema_version": "extraction-census-v2",
+                "status": "FAILED",
+                "complete": False,
+                "errors": [
+                    {
+                        "severity": "error",
+                        "code": "CENSUS_BUILD_FAILED",
+                        "message": str(exc),
+                    }
+                ],
+                "warnings": [],
+            }
+        extraction_censuses.append(
+            {
+                "file_id": source.file_id,
+                "sheet_id": sheet.sheet_id,
+                "filename": source.filename,
+                "dxf_path": source.dxf_path,
+                **census_payload,
+            }
+        )
+        try:
+            canonical_scene_payload = walk_document(
+                doc,
+                file_id=source.file_id,
+                document_path=source.dxf_path,
+            ).to_dict()
+        except Exception as exc:  # pragma: no cover - defensive shadow boundary
+            canonical_scene_payload = {
+                "schema_version": "canonical-scene-v1",
+                "algorithm_version": "document-walker-v1",
+                "file_id": source.file_id,
+                "shadow_only": True,
+                "complete": False,
+                "layouts": [],
+                "entities": [],
+                "records": [],
+                "layout_views": [],
+                "views": [],
+                "diagnostics": [
+                    {
+                        "severity": "error",
+                        "code": "CANONICAL_SCENE_BUILD_FAILED",
+                        "message": str(exc),
+                    }
+                ],
+                "unresolved_sources": [],
+                "source_entity_counts": {},
+                "source_space_counts": {},
+            }
+        canonical_scenes.append(
+            {
+                "source_file_id": source.file_id,
+                "sheet_id": sheet.sheet_id,
+                "filename": source.filename,
+                "dxf_path": source.dxf_path,
+                **canonical_scene_payload,
+            }
+        )
 
         msp = doc.modelspace()
         sheet.layout_name = "Model"
@@ -764,4 +840,6 @@ def extract_cad_artifacts(
         pages=list(sheet_map.values()),
         warnings=extraction_warnings,
         primitive_segments=primitive_segments,
+        extraction_censuses=extraction_censuses,
+        canonical_scenes=canonical_scenes,
     )

@@ -358,6 +358,8 @@ class ProjectArtifacts:
     extractor_runs: list[dict[str, Any]] = field(default_factory=list)
     reader_runs: list[Any] = field(default_factory=list)
     primitive_segments: list[Any] = field(default_factory=list)
+    extraction_censuses: list[dict[str, Any]] = field(default_factory=list)
+    canonical_scenes: list[dict[str, Any]] = field(default_factory=list)
 
 
 def record_dict(instance: Any) -> dict[str, Any]:

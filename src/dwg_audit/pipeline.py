@@ -73,6 +73,8 @@ def analyze_input_root(
         )
         texts, lines, blocks, polylines, pages, extraction_warnings = extraction_result
         primitive_segments = getattr(extraction_result, "primitive_segments", [])
+        extraction_censuses = getattr(extraction_result, "extraction_censuses", [])
+        canonical_scenes = getattr(extraction_result, "canonical_scenes", [])
         if event_sink is not None:
             event_sink.emit(
                 "progress",
@@ -228,6 +230,7 @@ def analyze_input_root(
             extraction_warnings,
             extractor_runs,
             classifications=classifications,
+            extraction_censuses=extraction_censuses,
         )
         extraction_gate_payload = extraction_gate.to_dict()
         if event_sink is not None and not extraction_gate_payload["clean_conclusion_allowed"]:
@@ -253,6 +256,8 @@ def analyze_input_root(
             extractor_runs=extractor_runs,
             reader_runs=reader_runs,
             primitive_segments=primitive_segments,
+            extraction_censuses=extraction_censuses,
+            canonical_scenes=canonical_scenes,
         )
         # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
         artifacts_page_classifications = classifications

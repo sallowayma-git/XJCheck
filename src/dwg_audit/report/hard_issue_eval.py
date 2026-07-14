@@ -7,6 +7,8 @@ from typing import Any
 
 import pandas as pd
 
+from dwg_audit.report.project_bundle import resolve_project_bundle_dir
+
 
 DEFAULT_HARD_RULES = (
     "R-CROSS-PAGE-CONFLICT",
@@ -17,7 +19,41 @@ DEFAULT_HARD_RULES = (
 
 
 def load_hard_issue_label_pack(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Hard-issue label pack must be a JSON object")
+    projects = payload.get("projects")
+    if projects is not None and not isinstance(projects, dict):
+        raise ValueError("Hard-issue label pack projects must be an object")
+    policy = payload.get("policy")
+    if policy is not None and not isinstance(policy, dict):
+        raise ValueError("Hard-issue label pack policy must be an object")
+    return payload
+
+
+def _load_issue_rows(project_dir: Path) -> tuple[pd.DataFrame, str]:
+    """Load predictions with an explicit status; missing data is never an empty pass."""
+    bundle_dir = resolve_project_bundle_dir(project_dir)
+    issues_path = bundle_dir / "audit" / "issues.parquet"
+    issues_json = bundle_dir / "audit" / "issues.json"
+    try:
+        if issues_path.is_file():
+            frame = pd.read_parquet(issues_path)
+        elif issues_json.is_file():
+            payload = json.loads(issues_json.read_text(encoding="utf-8"))
+            if not isinstance(payload, list):
+                return pd.DataFrame(), "invalid"
+            frame = pd.DataFrame(payload)
+        else:
+            return pd.DataFrame(), "missing"
+    except Exception:
+        return pd.DataFrame(), "invalid"
+    if not isinstance(frame, pd.DataFrame):
+        return pd.DataFrame(), "invalid"
+    required = {"rule_id"}
+    if not required.issubset(frame.columns):
+        return frame, "invalid"
+    return frame, "valid"
 
 
 def _as_list(value: Any) -> list[str]:
@@ -106,14 +142,7 @@ def evaluate_hard_issue_precision(
     labels = list(project_labels.get("labels") or [])
     hard_rules = list(label_pack.get("hard_rule_ids") or DEFAULT_HARD_RULES)
 
-    issues_path = project_dir / "audit" / "issues.parquet"
-    issues_json = project_dir / "audit" / "issues.json"
-    if issues_path.is_file():
-        issues_df = pd.read_parquet(issues_path)
-    elif issues_json.is_file():
-        issues_df = pd.DataFrame(json.loads(issues_json.read_text(encoding="utf-8")))
-    else:
-        issues_df = pd.DataFrame()
+    issues_df, prediction_artifact_status = _load_issue_rows(project_dir)
 
     predicted = predicted_hard_issues(issues_df, hard_rules)
     pred_keys = {_issue_match_tuple(row) for row in predicted}
@@ -122,12 +151,12 @@ def evaluate_hard_issue_precision(
     tp_keys = pred_keys & label_keys
     fp_keys = pred_keys - label_keys
     fn_keys = label_keys - pred_keys
-    precision = (len(tp_keys) / len(pred_keys)) if pred_keys else 1.0
-    recall = (len(tp_keys) / len(label_keys)) if label_keys else 1.0
+    precision = (len(tp_keys) / len(pred_keys)) if pred_keys else (1.0 if not label_keys else 0.0)
+    recall = (len(tp_keys) / len(label_keys)) if label_keys else (1.0 if not pred_keys else 0.0)
 
     # witness completeness from audit_v2 summary if present
     witness = None
-    summary_path = project_dir / "audit" / "audit_v2_summary.json"
+    summary_path = resolve_project_bundle_dir(project_dir) / "audit" / "audit_v2_summary.json"
     if summary_path.is_file():
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         witness = summary.get("witness_completeness")
@@ -145,6 +174,9 @@ def evaluate_hard_issue_precision(
         "precision": round(precision, 6),
         "recall": round(recall, 6),
         "precision_ge_99": bool(precision >= 0.99),
+        "recall_ge_99": bool(recall >= 0.99),
+        "non_vacuous": bool(label_keys and pred_keys),
+        "prediction_artifact_status": prediction_artifact_status,
         "witness_completeness": witness,
         "label_basis": (label_pack.get("policy") or {}).get("label_basis"),
         "not_a_human_gold_standard": bool((label_pack.get("policy") or {}).get("not_a_human_gold_standard", True)),
@@ -169,8 +201,14 @@ def evaluate_hard_issue_label_pack(
     tp = sum(int(item["tp"]) for item in evaluations)
     fp = sum(int(item["fp"]) for item in evaluations)
     fn = sum(int(item["fn"]) for item in evaluations)
-    precision = (tp / (tp + fp)) if (tp + fp) else 1.0
-    recall = (tp / (tp + fn)) if (tp + fn) else 1.0
+    label_count = sum(int(item["label_count"]) for item in evaluations)
+    predicted_count = sum(int(item["predicted_count"]) for item in evaluations)
+    precision = (tp / (tp + fp)) if (tp + fp) else (1.0 if label_count == 0 else 0.0)
+    recall = (tp / (tp + fn)) if (tp + fn) else (1.0 if predicted_count == 0 else 0.0)
+    prediction_artifacts_valid = all(
+        item.get("prediction_artifact_status") == "valid" for item in evaluations
+    )
+    non_vacuous = bool(label_count and predicted_count and prediction_artifacts_valid)
     return {
         "schema_version": "hard-issue-eval-summary-v1",
         "label_pack_path": str(label_pack_path.resolve()),
@@ -178,9 +216,14 @@ def evaluate_hard_issue_label_pack(
         "micro_tp": tp,
         "micro_fp": fp,
         "micro_fn": fn,
+        "label_count": label_count,
+        "predicted_count": predicted_count,
         "micro_precision": round(precision, 6),
         "micro_recall": round(recall, 6),
-        "micro_precision_ge_99": bool(precision >= 0.99),
+        "micro_precision_ge_99": bool(non_vacuous and precision >= 0.99),
+        "micro_recall_ge_99": bool(non_vacuous and recall >= 0.99),
+        "non_vacuous": non_vacuous,
+        "prediction_artifacts_valid": prediction_artifacts_valid,
         "projects": evaluations,
         "policy": pack.get("policy") or {},
     }

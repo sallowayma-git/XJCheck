@@ -41,10 +41,15 @@ from dwg_audit.audit.electrical_networks import build_network_validation_suspici
 from dwg_audit.audit.electrical_networks import build_network_boundary_frame
 from dwg_audit.audit.electrical_networks import build_legacy_pair_network_equivalence_frame
 from dwg_audit.audit.symbol_registry import build_project_symbol_inventory
+from dwg_audit.audit.symbol_dependency_artifacts import build_symbol_dependency_artifacts
+from dwg_audit.audit.symbol_port_shadow import build_symbol_port_shadow_placements
+from dwg_audit.audit.symbol_port_shadow import summarize_symbol_port_shadow
 from dwg_audit.audit.project_profile import build_project_profile
+
 from dwg_audit.audit.token_parser import parse_text_tokens
 from dwg_audit.audit.semantic_attachment import build_semantic_attachment_candidates
 from dwg_audit.audit.semantic_attachment import summarize_semantic_attachments
+from dwg_audit.audit.electrical_semantics import build_electrical_semantic_graph
 from dwg_audit.audit.constraint_resolver import resolve_semantic_constraints
 from dwg_audit.audit.project_graph import build_cross_page_endpoint_candidates
 from dwg_audit.audit.project_graph import build_endpoint_identities
@@ -54,6 +59,10 @@ from dwg_audit.audit.audit_v2 import build_audit_v2_issue_clusters
 from dwg_audit.audit.audit_v2 import summarize_audit_v2
 from dwg_audit.audit.failure_queue import build_failure_queue
 from dwg_audit.audit.failure_queue import summarize_failure_queue
+from dwg_audit.extract.scale_evidence import build_project_scale_evidence
+from dwg_audit.report.canonical_scene_artifacts import write_canonical_scene_artifacts
+from dwg_audit.report.shadow_gap_triage import build_shadow_gap_triage
+from dwg_audit.report.symbol_review_artifacts import write_symbol_review_artifacts
 
 from dwg_audit.audit.table_structure import build_table_structure_profiles
 from dwg_audit.audit.wire_topology import build_wire_topology_frames
@@ -131,6 +140,63 @@ _SEMANTIC_ATTACHMENT_COLUMNS = (
     "margin",
     "reason_codes",
     "algorithm_version",
+)
+_ELECTRICAL_SEMANTIC_NODE_COLUMNS = (
+    "node_id",
+    "semantic_kind",
+    "role",
+    "canonical_key",
+    "label",
+    "project_id",
+    "sheet_id",
+    "source_ids",
+    "evidence_ids",
+    "confidence",
+    "authority",
+    "attributes",
+)
+_ELECTRICAL_SEMANTIC_RELATION_COLUMNS = (
+    "relation_id",
+    "relation_kind",
+    "source_node_id",
+    "target_node_id",
+    "project_id",
+    "sheet_id",
+    "state",
+    "authority",
+    "confidence",
+    "evidence_ids",
+    "reason_codes",
+    "requests_electrical_union",
+    "electrical_union_eligible",
+    "shadow_only",
+)
+_ELECTRICAL_SEMANTIC_EVIDENCE_COLUMNS = (
+    "evidence_id",
+    "source",
+    "source_id",
+    "sheet_id",
+    "state",
+    "authority",
+    "confidence",
+    "reason_codes",
+)
+_ELECTRICAL_SEMANTIC_CONSTRAINT_COLUMNS = (
+    "constraint_id",
+    "relation_id",
+    "constraint_kind",
+    "state",
+    "reason_codes",
+)
+_SYMBOL_DEPENDENCY_ISSUE_COLUMNS = (
+    "code",
+    "severity",
+    "message",
+    "symbol_id",
+    "dependency_id",
+    "port_id",
+    "cycle",
+    "source",
 )
 _SCOPE_DECISION_COLUMNS = (
     "decision_id",
@@ -346,6 +412,132 @@ def write_project_artifacts(
             encoding="utf-8",
         )
 
+    extraction_census_files = [
+        dict(item) for item in artifacts.extraction_censuses
+    ]
+    extraction_census_payload = {
+        "schema_version": "extraction-census-project-v1",
+        "project_id": artifacts.scan.manifest.project_id,
+        "file_count": len(extraction_census_files),
+        "files": extraction_census_files,
+    }
+    (findings_dir / "extraction_census.json").write_text(
+        json.dumps(extraction_census_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    census_error_counts: Counter[str] = Counter()
+    census_warning_counts: Counter[str] = Counter()
+    semantic_unsupported_counts: Counter[str] = Counter()
+    shadow_unsupported_counts: Counter[str] = Counter()
+    for item in extraction_census_files:
+        census_error_counts.update(
+            str(value.get("code"))
+            for value in item.get("errors", [])
+            if isinstance(value, dict) and value.get("code")
+        )
+        census_warning_counts.update(
+            str(value.get("code"))
+            for value in item.get("warnings", [])
+            if isinstance(value, dict) and value.get("code")
+        )
+        semantic_unsupported_counts.update(
+            item.get("unsupported_entity_counts", {})
+        )
+        shadow_unsupported_counts.update(
+            item.get("shadow_unsupported_entity_counts", {})
+        )
+    extraction_census_summary = {
+        "schema_version": "extraction-census-summary-v1",
+        "project_id": artifacts.scan.manifest.project_id,
+        "file_count": len(extraction_census_files),
+        "status_counts": dict(
+            sorted(Counter(
+                str(item.get("status") or "UNKNOWN")
+                for item in extraction_census_files
+            ).items())
+        ),
+        "scale_status_counts": dict(
+            sorted(Counter(
+                str(item.get("scale_status") or "UNKNOWN")
+                for item in extraction_census_files
+            ).items())
+        ),
+        "paper_native_file_count": sum(
+            int(item.get("paper_space_native_entity_count", 0) or 0) > 0
+            for item in extraction_census_files
+        ),
+        "viewport_layout_file_count": sum(
+            int(item.get("paper_space_viewport_count", 0) or 0) > 0
+            for item in extraction_census_files
+        ),
+        "xref_file_count": sum(
+            int(item.get("xref_count", 0) or 0) > 0
+            for item in extraction_census_files
+        ),
+        "proxy_file_count": sum(
+            int(item.get("proxy_entity_count", 0) or 0) > 0
+            for item in extraction_census_files
+        ),
+        "virtual_expansion_failure_file_count": sum(
+            bool(item.get("virtual_expansion_failures"))
+            for item in extraction_census_files
+        ),
+        "error_code_counts": dict(sorted(census_error_counts.items())),
+        "warning_code_counts": dict(sorted(census_warning_counts.items())),
+        "semantic_unsupported_entity_counts": dict(
+            sorted(semantic_unsupported_counts.items())
+        ),
+        "shadow_unsupported_entity_counts": dict(
+            sorted(shadow_unsupported_counts.items())
+        ),
+    }
+    (findings_dir / "extraction_census_summary.json").write_text(
+        json.dumps(extraction_census_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    scale_bundle = build_project_scale_evidence(
+        extraction_census_files,
+        project_id=artifacts.scan.manifest.project_id,
+    )
+    (findings_dir / "scale_evidence.json").write_text(
+        json.dumps(scale_bundle.to_dict(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (findings_dir / "scale_evidence_summary.json").write_text(
+        json.dumps(scale_bundle.summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (findings_dir / "transform_fidelity.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "transform-fidelity-project-v1",
+                "project_id": artifacts.scan.manifest.project_id,
+                "file_count": len(scale_bundle.transforms),
+                "files": [item.to_dict() for item in scale_bundle.transforms],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    shadow_gap = build_shadow_gap_triage(
+        extraction_census_files,
+        project_id=artifacts.scan.manifest.project_id,
+    )
+    (findings_dir / "shadow_gap_triage.json").write_text(
+        json.dumps(shadow_gap, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (findings_dir / "shadow_gap_triage_summary.json").write_text(
+        json.dumps(shadow_gap["summary"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    write_canonical_scene_artifacts(
+        artifacts.canonical_scenes,
+        findings_dir,
+        project_id=artifacts.scan.manifest.project_id,
+    )
+
     _frame(artifacts.scan.manifest.source_files, SourceFileRecord).to_parquet(findings_dir / "source_files.parquet", index=False)
     _frame(artifacts.scan.manifest.sidecars, SidecarInfo).to_parquet(findings_dir / "sidecars.parquet", index=False)
     _frame(artifacts.scan.pages, SheetRecord).to_parquet(findings_dir / "pages.parquet", index=False)
@@ -398,6 +590,84 @@ def write_project_artifacts(
     )
     (findings_dir / "symbol_inventory_summary.json").write_text(
         json.dumps(symbol_inventory_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    symbol_dependency_bundle = build_symbol_dependency_artifacts(
+        symbol_definitions_v1,
+        project_id=artifacts.scan.manifest.project_id,
+        config=config,
+    )
+    (findings_dir / "symbol_dependency_library.json").write_text(
+        json.dumps(symbol_dependency_bundle.to_dict(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    symbol_dependency_validation = symbol_dependency_bundle.validation.to_dict()
+    symbol_dependency_validation.update(
+        {
+            "source_status": symbol_dependency_bundle.source_status,
+            "source_path": symbol_dependency_bundle.source_path,
+            "load_issues": list(symbol_dependency_bundle.load_issues),
+        }
+    )
+    (findings_dir / "symbol_dependency_validation.json").write_text(
+        json.dumps(symbol_dependency_validation, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    symbol_dependency_issue_rows = [
+        {**item.to_dict(), "source": "library_validation"}
+        for item in symbol_dependency_bundle.validation.issues
+    ]
+    symbol_dependency_issue_rows.extend(
+        {
+            **item,
+            "severity": "ERROR",
+            "symbol_id": None,
+            "dependency_id": None,
+            "port_id": None,
+            "cycle": [],
+            "source": "library_load",
+        }
+        for item in symbol_dependency_bundle.load_issues
+    )
+    _dict_rows_frame(
+        symbol_dependency_issue_rows,
+        _SYMBOL_DEPENDENCY_ISSUE_COLUMNS,
+    ).to_parquet(findings_dir / "symbol_dependency_issues.parquet", index=False)
+    (findings_dir / "symbol_dependency_summary.json").write_text(
+        json.dumps(symbol_dependency_bundle.summary(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    write_symbol_review_artifacts(
+        symbol_dependency_bundle,
+        findings_dir,
+        project_id=artifacts.scan.manifest.project_id,
+    )
+    # Phase 126 shadow-only: REGISTERED + human-confirmed ports only.  Inventory
+    # libraries are typically all PENDING, so this usually writes an empty set.
+    port_shadow_placements = build_symbol_port_shadow_placements(
+        symbol_dependency_bundle.library,
+        symbol_instances_v1,
+        project_id=artifacts.scan.manifest.project_id,
+    )
+    port_shadow_summary = summarize_symbol_port_shadow(
+        port_shadow_placements,
+        project_id=artifacts.scan.manifest.project_id,
+        library=symbol_dependency_bundle.library,
+    )
+    (findings_dir / "symbol_port_shadow_placements.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "symbol-port-shadow-v1",
+                "project_id": artifacts.scan.manifest.project_id,
+                "placements": [item.to_dict() for item in port_shadow_placements],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (findings_dir / "symbol_port_shadow_summary.json").write_text(
+        json.dumps(port_shadow_summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     # Phase 119 shadow-only: project profile, text tokens, semantic attachments.
@@ -476,6 +746,47 @@ def write_project_artifacts(
     )
     (findings_dir / "constraint_resolution_summary.json").write_text(
         json.dumps(constraint_resolution_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    electrical_semantic_graph = build_electrical_semantic_graph(
+        text_tokens,
+        constrained_attachments,
+        scope_decisions,
+        constraint_decisions,
+        project_profile,
+        project_id=artifacts.scan.manifest.project_id,
+    )
+    _dict_rows_frame(
+        [item.to_dict() for item in electrical_semantic_graph.nodes],
+        _ELECTRICAL_SEMANTIC_NODE_COLUMNS,
+    ).to_parquet(findings_dir / "electrical_semantic_nodes.parquet", index=False)
+    _dict_rows_frame(
+        [item.to_dict() for item in electrical_semantic_graph.relations],
+        _ELECTRICAL_SEMANTIC_RELATION_COLUMNS,
+    ).to_parquet(
+        findings_dir / "electrical_semantic_relations.parquet", index=False
+    )
+    _dict_rows_frame(
+        [item.to_dict() for item in electrical_semantic_graph.evidence],
+        _ELECTRICAL_SEMANTIC_EVIDENCE_COLUMNS,
+    ).to_parquet(findings_dir / "electrical_semantic_evidence.parquet", index=False)
+    _dict_rows_frame(
+        [item.to_dict() for item in electrical_semantic_graph.constraints],
+        _ELECTRICAL_SEMANTIC_CONSTRAINT_COLUMNS,
+    ).to_parquet(
+        findings_dir / "electrical_semantic_constraints.parquet", index=False
+    )
+    electrical_semantic_payload = electrical_semantic_graph.to_dict()
+    electrical_semantic_summary = {
+        "schema_version": electrical_semantic_payload["schema_version"],
+        "algorithm_version": electrical_semantic_payload["algorithm_version"],
+        "project_id": electrical_semantic_payload["project_id"],
+        "shadow_only": electrical_semantic_payload["shadow_only"],
+        "valid": electrical_semantic_payload["valid"],
+        **electrical_semantic_payload["summary"],
+    }
+    (findings_dir / "electrical_semantic_summary.json").write_text(
+        json.dumps(electrical_semantic_summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -2248,13 +2559,36 @@ def _build_findings_payload(
         "blocks.parquet",
         "lines.parquet",
         "polylines.parquet",
+        "extraction_census.json",
+        "extraction_census_summary.json",
+        "scale_evidence.json",
+        "scale_evidence_summary.json",
+        "transform_fidelity.json",
+        "shadow_gap_triage.json",
+        "shadow_gap_triage_summary.json",
+        "canonical_scene/",
+        "canonical_scene_records.parquet",
+        "canonical_scene_views.parquet",
+        "canonical_scene_diagnostics.parquet",
+        "canonical_scene_unresolved_sources.parquet",
+        "canonical_scene_summary.json",
         "primitive_segments.parquet",
         "primitive_segments_summary.json",
         "symbol_definitions_v1.parquet",
         "symbol_instances_v1.parquet",
         "unknown_symbol_queue_v1.parquet",
         "symbol_inventory_summary.json",
+        "symbol_dependency_library.json",
+        "symbol_dependency_validation.json",
+        "symbol_dependency_issues.parquet",
+        "symbol_dependency_summary.json",
+        "symbol_review_backlog.json",
+        "symbol_review_validation.json",
+        "symbol_review_summary.json",
+        "symbol_port_shadow_placements.json",
+        "symbol_port_shadow_summary.json",
         "project_profile.json",
+
         "text_tokens.parquet",
         "semantic_attachment_candidates.parquet",
         "semantic_attachment_summary.json",
@@ -2262,6 +2596,11 @@ def _build_findings_payload(
         "scope_resolution_summary.json",
         "constraint_decisions.parquet",
         "constraint_resolution_summary.json",
+        "electrical_semantic_nodes.parquet",
+        "electrical_semantic_relations.parquet",
+        "electrical_semantic_evidence.parquet",
+        "electrical_semantic_constraints.parquet",
+        "electrical_semantic_summary.json",
         "communication_medium_candidates.parquet",
         "table_structure_profiles.parquet",
         "line_groups.parquet",

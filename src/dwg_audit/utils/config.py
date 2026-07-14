@@ -94,6 +94,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "wire_components": {
         "inline_body_families": ["KLP", "ZKK"],
     },
+    "symbol_library": {
+        "path": None,
+    },
     "table_structure": {
         "axis_tolerance": 0.5,
         "intersection_tolerance": 0.5,

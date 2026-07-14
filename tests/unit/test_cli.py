@@ -4,7 +4,13 @@ from pathlib import Path
 import pandas as pd
 from typer.testing import CliRunner
 
+from dwg_audit.audit.symbol_dependency_library import AnnotationStatus
+from dwg_audit.audit.symbol_dependency_library import RegistryStatus
+from dwg_audit.audit.symbol_dependency_library import SymbolDefinition
+from dwg_audit.audit.symbol_dependency_library import SymbolDependencyLibrary
+from dwg_audit.audit.symbol_dependency_library import SymbolIdentity
 from dwg_audit.cli import app
+from dwg_audit.report.topology_gold import TopologyGoldValidation
 
 
 def test_init_config_writes_file(tmp_path: Path) -> None:
@@ -36,6 +42,284 @@ def test_help_lists_taskbook_commands() -> None:
     assert "render-preview" in result.stdout
     assert "purge-session" in result.stdout
     assert "serve" in result.stdout
+    assert "evaluate-promotion-gate" in result.stdout
+    assert "evaluate-corpus-census" in result.stdout
+    assert "validate-symbol-review" in result.stdout
+    assert "promote-symbol-review" in result.stdout
+    assert "build-topology-gold-template" in result.stdout
+    assert "validate-topology-gold" in result.stdout
+    assert "build-electrical-connection-review-pack" in result.stdout
+    assert "validate-electrical-connection-review-pack" in result.stdout
+
+
+def _topology_gold_validation(
+    *,
+    valid: bool = True,
+    certified: bool = False,
+) -> TopologyGoldValidation:
+    return TopologyGoldValidation(
+        valid=valid,
+        certification_ready=certified,
+        project_scope=certified,
+        status="HUMAN_CERTIFIED" if certified else "PENDING",
+        errors=() if valid else ("INVALID_TEST_PACK",),
+        page_count=1,
+        junction_count=0,
+        connectivity_member_count=0,
+        open_endpoint_count=0,
+    )
+
+
+def test_build_topology_gold_template_cli_keeps_pack_pending(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    project = tmp_path / "project"
+    project.mkdir()
+    output = tmp_path / "pack"
+    captured: dict[str, object] = {}
+
+    def fake_build(project_dir, **kwargs):
+        captured["project_dir"] = project_dir
+        captured.update(kwargs)
+
+    monkeypatch.setattr("dwg_audit.cli.build_topology_gold_template", fake_build)
+    monkeypatch.setattr(
+        "dwg_audit.cli.validate_topology_gold_pack",
+        lambda *_args, **_kwargs: _topology_gold_validation(),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "build-topology-gold-template",
+            "--project",
+            str(project),
+            "--project-id",
+            "P001",
+            "--split",
+            "calibration",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["valid"] is True
+    assert payload["certification_ready"] is False
+    assert captured["project_dir"] == project.resolve()
+    assert captured["project_id"] == "P001"
+    assert captured["split"] == "calibration"
+    assert captured["output_dir"] == output
+
+
+def test_build_electrical_connection_review_pack_cli_keeps_machine_authority(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    pack_dir = tmp_path / "pack"
+
+    def fake_write(*_args, **_kwargs):
+        pack_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "pack_dir": str(pack_dir),
+            "summary": {
+                "proposal_count": 2,
+                "by_family": {"CROSS_PAGE_ENDPOINT_MATCH": 2},
+            },
+            "validation": {
+                "valid": True,
+                "promotion_ready": False,
+                "certification_ready": False,
+            },
+            "checklist_path": str(pack_dir / "HUMAN_REVIEW_CHECKLIST.md"),
+        }
+
+    monkeypatch.setattr(
+        "dwg_audit.cli.write_electrical_connection_review_pack",
+        fake_write,
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "build-electrical-connection-review-pack",
+            "--project",
+            str(project),
+            "--project-id",
+            "P001",
+            "--split",
+            "calibration_legacy",
+            "--output",
+            str(pack_dir),
+            "--max-proposals",
+            "10",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["proposal_count"] == 2
+    assert payload["validation"]["promotion_ready"] is False
+
+
+def test_validate_electrical_connection_review_pack_cli_rejects_invalid(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pack_dir = tmp_path / "pack"
+    pack_dir.mkdir()
+
+    class _Validation:
+        valid = False
+        promotion_ready = False
+        certification_ready = False
+
+        def to_dict(self):
+            return {
+                "valid": False,
+                "promotion_ready": False,
+                "certification_ready": False,
+                "errors": ["MACHINE_PACK_MARKED_HUMAN_CONFIRMED"],
+            }
+
+    monkeypatch.setattr(
+        "dwg_audit.cli.validate_electrical_connection_review_pack",
+        lambda *_args, **_kwargs: _Validation(),
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "validate-electrical-connection-review-pack",
+            "--pack",
+            str(pack_dir),
+        ],
+    )
+    assert result.exit_code == 2
+
+
+def test_validate_topology_gold_cli_can_require_certification(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    project = tmp_path / "project"
+    pack = tmp_path / "pack"
+    project.mkdir()
+    pack.mkdir()
+    monkeypatch.setattr(
+        "dwg_audit.cli.validate_topology_gold_pack",
+        lambda *_args, **_kwargs: _topology_gold_validation(),
+    )
+
+    pending = runner.invoke(
+        app,
+        [
+            "validate-topology-gold",
+            "--pack",
+            str(pack),
+            "--project",
+            str(project),
+            "--project-id",
+            "P001",
+            "--split",
+            "calibration",
+        ],
+    )
+    required = runner.invoke(
+        app,
+        [
+            "validate-topology-gold",
+            "--pack",
+            str(pack),
+            "--project",
+            str(project),
+            "--project-id",
+            "P001",
+            "--split",
+            "calibration",
+            "--require-certified",
+        ],
+    )
+
+    assert pending.exit_code == 0, pending.output
+    assert required.exit_code == 2
+
+
+def test_validate_symbol_review_reports_pending_document_as_valid() -> None:
+    runner = CliRunner()
+    source = Path("configs/symbol_dependency_library.example.json")
+
+    result = runner.invoke(
+        app,
+        ["validate-symbol-review", "--input", str(source)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["valid"] is True
+    assert payload["promotion_ready"] is False
+    assert payload["document_status"] == "PENDING_HUMAN_REVIEW"
+
+
+def test_promote_symbol_review_rejects_pending_document(tmp_path: Path) -> None:
+    runner = CliRunner()
+    target = tmp_path / "production_library.json"
+
+    result = runner.invoke(
+        app,
+        [
+            "promote-symbol-review",
+            "--input",
+            "configs/symbol_dependency_library.example.json",
+            "--output",
+            str(target),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert not target.exists()
+    assert "not promotion-ready" in result.output
+
+
+def test_promote_symbol_review_writes_validated_library(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    source = tmp_path / "review.json"
+    target = tmp_path / "production_library.json"
+    source.write_text("{}", encoding="utf-8")
+    library = SymbolDependencyLibrary(
+        symbols=(
+            SymbolDefinition(
+                identity=SymbolIdentity("relay", "1", "fp-relay"),
+                annotation_status=AnnotationStatus.HUMAN_CONFIRMED,
+                registry_status=RegistryStatus.REGISTERED,
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        "dwg_audit.cli.promote_symbol_review_document",
+        lambda _source: library,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "promote-symbol-review",
+            "--input",
+            str(source),
+            "--output",
+            str(target),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload == library.to_dict()
 
 
 def test_export_findings_lists_project_findings(tmp_path: Path) -> None:
@@ -288,3 +572,165 @@ def test_set_issue_status_cli_returns_updated_payload(monkeypatch) -> None:
     payload = json.loads(result.stdout)
     assert payload["issue_id"] == "I1"
     assert payload["status"] == "resolved"
+
+
+def test_promotion_gate_cli_rejects_primary_engine_mismatch(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    project = tmp_path / "project"
+    project.mkdir()
+    config = tmp_path / "config.yml"
+    config.write_text("recognition:\n  primary_engine: legacy\n", encoding="utf-8")
+    called = False
+
+    def unexpected_evaluation(**_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("evaluation must not run after a config mismatch")
+
+    monkeypatch.setattr("dwg_audit.cli.evaluate_promotion_gate", unexpected_evaluation)
+
+    result = runner.invoke(
+        app,
+        [
+            "evaluate-promotion-gate",
+            "--project",
+            f"P001={project}",
+            "--config",
+            str(config),
+            "--primary-engine",
+            "topology",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert called is False
+
+
+def test_promotion_gate_cli_returns_nonzero_for_structural_failure(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    project = tmp_path / "project"
+    project.mkdir()
+    output = tmp_path / "gate"
+    evidence = {
+        "project_count": 1,
+        "structural_pass_all": False,
+        "decision": {
+            "hard_issue_precision_status": "UNMEASURED_NO_LABELS",
+            "ready_for_review_only_v2_assist": False,
+            "ready_for_primary_engine_flip": False,
+        },
+        "projects": [],
+    }
+    monkeypatch.setattr("dwg_audit.cli.evaluate_promotion_gate", lambda **kwargs: evidence)
+    monkeypatch.setattr(
+        "dwg_audit.cli.write_promotion_gate_evidence",
+        lambda *_args, **_kwargs: {
+            "promotion_gate_evidence": output / "promotion_gate_evidence.json",
+            "metrics_by_project": output / "metrics_by_project.csv",
+            "decision_log": output / "decision_log.md",
+            "topology_metrics_by_project": output / "topology_metrics_by_project.csv",
+            "topology_metrics_summary": output / "topology_metrics_summary.json",
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        ["evaluate-promotion-gate", "--project", f"P001={project}", "--output", str(output)],
+    )
+
+    assert result.exit_code == 2
+    assert "structural_pass_all: False" in result.output
+
+
+def test_corpus_census_cli_passes_splits_and_writes_evidence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    project = tmp_path / "project"
+    project.mkdir()
+    output = tmp_path / "corpus"
+    captured: dict[str, object] = {}
+    evaluation = {
+        "projects": [],
+        "summary": {
+            "project_count": 1,
+            "status": "VALID",
+            "all_projects_valid": True,
+        },
+    }
+
+    def fake_evaluate(project_dirs, **kwargs):
+        captured["project_dirs"] = project_dirs
+        captured.update(kwargs)
+        return evaluation
+
+    monkeypatch.setattr("dwg_audit.cli.evaluate_corpus_census", fake_evaluate)
+    monkeypatch.setattr(
+        "dwg_audit.cli.write_corpus_census_artifacts",
+        lambda _evaluation, _output: {
+            "by_project": output / "by_project.csv",
+            "summary": output / "summary.json",
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "evaluate-corpus-census",
+            "--project",
+            f"P001:calibration={project}",
+            "--held-out",
+            "P003",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["splits"] == {"P001": "calibration"}
+    assert captured["held_out_projects"] == {"P003"}
+    assert captured["project_dirs"] == {"P001": project.resolve()}
+    assert "status: VALID" in result.output
+
+
+def test_corpus_census_cli_returns_nonzero_for_invalid_corpus(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    project = tmp_path / "project"
+    project.mkdir()
+    output = tmp_path / "corpus"
+    evaluation = {
+        "projects": [],
+        "summary": {
+            "project_count": 1,
+            "status": "INVALID",
+            "all_projects_valid": False,
+        },
+    }
+    monkeypatch.setattr(
+        "dwg_audit.cli.evaluate_corpus_census", lambda *_args, **_kwargs: evaluation
+    )
+    monkeypatch.setattr(
+        "dwg_audit.cli.write_corpus_census_artifacts",
+        lambda _evaluation, _output: {
+            "by_project": output / "by_project.csv",
+            "summary": output / "summary.json",
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        ["evaluate-corpus-census", "--project", f"P001={project}"],
+    )
+
+    assert result.exit_code == 2
+    assert "status: INVALID" in result.output

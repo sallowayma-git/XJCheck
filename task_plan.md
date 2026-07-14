@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phases 113-120 complete; held-out release proxy pass; cal/val hard-issue precision=1.0 on frozen labels; primary_engine=legacy
+Phase 127 in progress: MACHINE_PROPOSED electrical connection review pack shipped; Top-N port/topology/unit human gold still external; primary_engine remains legacy.
 
 ## Phases
 
@@ -1799,6 +1799,28 @@ Phases 113-120 complete; held-out release proxy pass; cal/val hard-issue precisi
 - **Exit gate:** hard issue precision >=99%；witness=100%；unknown/unresolved critical=0；回滚已验证。 ACCEPTED: P001/P003 witness=100%, strong_violation=0, unknown/unresolved critical=0, engine v2_changes_legacy=0, Pair/Issue delta 0, suite 517; held-out unused; legacy retained.
 - **Status:** complete
 
+### Phase 121: Reproducible Promotion Gate Evidence
+- [x] 发现 `.tmp` promotion 证据被清空后无法复现任务书 18.9.9 / 每轮交付物 `metrics_by_project.csv` + `decision_log.md`。
+- [x] 新增 `report/promotion_gate.py`：只读汇总 extraction gate / witness / false-clean / possible_union / engine compare / failure queue / unknown-critical，并对所有必需 JSON/Parquet 工件执行 fail-closed 状态校验。
+- [x] CLI `evaluate-promotion-gate` 输出 `promotion_gate_evidence.json` + `metrics_by_project.csv` + `decision_log.md`；主引擎取自配置，**永不**自动翻转；结构门失败返回非零，held-out 大小写归一且仅 evaluation-only。
+- [x] promotion authorization 明确要求：非空 cal/val precision+recall、非空 held-out human-gold precision+recall、全部工件结构门通过、显式 product approval；缺任一条件 primary flip=false。
+- [x] 单测覆盖 healthy、missing/corrupt artifacts、false-clean、invalid/NaN witness、unknown critical、mixed-case held-out、空标签防 vacuous pass、配置主引擎不匹配和 CLI fail exit。
+- [x] Fresh cal/val：P001+P003 analyze+audit 成功；gate structural_pass_all=true；hard micro precision/recall=1.0/1.0；ready_for_review_only_v2_assist=true；ready_for_primary_engine_flip=false。
+- [x] full pytest `540 passed, 1 skipped`；fresh P001/P003 fail-closed evidence 所有必需工件均 `valid`，cal/val precision/recall=1.0/1.0，review-only=true，primary flip=false。
+- **Exit gate:** 可复现且 fail-closed 的 promotion 证据入口存在；cal/val 结构门槛可自动重算；primary 仍 legacy 直至 human held-out gold + 显式产品批准。 ACCEPTED.
+- **Status:** complete
+
+### Phase 122: Formal Topology Metrics Evidence
+- [x] 新增 `report/topology_metrics.py`，对 persisted V2 bundle 计算结构指标，并以 `STRUCTURAL_ONLY / MEASURED_SCOPED / MEASURED_PROJECT / INVALID` 区分证据范围。
+- [x] junction truth 兼容当前 `source_handles` fixture；局部 12 行 truth 只能输出 scoped precision/recall，不能冒充项目级 gold。
+- [x] 输出 network overmerge/split suspicion、pairwise connectivity、open endpoint、persisted witness completeness、non-ASSERTED union violation 和 legacy-result delta；无对应 truth 时 precision/recall 保持 null。
+- [x] 新增 `topology_metrics_by_project.csv` + `topology_metrics_summary.json`，接入 promotion evidence；primary readiness 额外要求所有项目 `MEASURED_PROJECT`。
+- [x] missing/corrupt/schema-invalid 工件 fail-closed；仅兼容旧 bundle 的可读零行/零列 suspicion Parquet，非空缺列仍 invalid。
+- [x] targeted 43 passed；full pytest `547 passed, 1 skipped`；`git diff --check` 无 whitespace error。
+- [x] fresh P001/P003 topology metrics + engine comparison 最终重跑：使用 Phase 123 fresh bundles 生成 `.tmp/phase123_promotion_gate_evidence`，`structural_pass_all=true`；P001=`STRUCTURAL_ONLY`、P003=`MEASURED_SCOPED`，legacy Pair/Issue 零漂移。
+- **Exit gate:** synthetic 指标/缺失注入通过；fresh P001 `STRUCTURAL_ONLY`、P003 `MEASURED_SCOPED` 可复现；legacy Pair/Issue 与 engine comparison 零漂移。
+- **Status:** complete
+
 ### Deferred: Explainable Ranker / Optional GNN
 - [ ] 仅在 Phase 112-120 出口通过、项目级 split 锁定、确定性 baseline 稳定并积累足够标签后启动。
 - [ ] 先 GBDT/ranker + calibration，再评估异构 GNN；全程从 shadow 开始。
@@ -1808,6 +1830,8 @@ Phases 113-120 complete; held-out release proxy pass; cal/val hard-issue precisi
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| Approval backend HTTP 503 during post-fix real topology promotion rerun | Ran the authorized P001/P003 `evaluate-promotion-gate` command after correcting legacy empty suspicion Parquet handling | Do not bypass or substitute execution; retain Phase 122 in_progress and rerun only when the command is authorized successfully |
+| `planning-with-files` session-catchup sandbox/approval failure | Tried the prescribed Windows catch-up script while restoring another agent's state | Used direct authoritative worktree/planning inspection and recorded the limitation in Recovery Notes |
 | `rg.exe` 启动被 Windows 拒绝访问 | 在 Codex app bundled `rg.exe` 上执行全文检索 | 改用 PowerShell `Select-String` / `Get-ChildItem`，后续本轮不重复同一 `rg` 调用 |
 | `Get-Content` 旧路径失败 | 读取 `src\dwg_audit\execution_service.py` / `src\dwg_audit\sidecar.py` | 当前文件已迁到 `src\dwg_audit\services\execution.py` 与 `src\dwg_audit\desktop\sidecar.py`，后续按新路径读取 |
 | `Select-Object -Index 740..785` 范围参数失败 | 读取本地 Tauri crate 源码片段 | 改用 `Select-Object -Skip ... -First ...` |
@@ -1873,3 +1897,116 @@ Phases 113-120 complete; held-out release proxy pass; cal/val hard-issue precisi
 - Hard-issue eval harness: frozen cal/val labels (65 hard issues on P001); micro precision/recall 1.0/1.0; CLI evaluate-hard-issues; suite 520.
 - Promotion evidence v3 records PASS_ON_FROZEN_CALVAL_LABELS for hard precision plus held-out structural pass; primary_engine flip still product-gated and human-heldout-label-gated.
 - MVP DoD migration loop closed for shadow/compare/rollback/release-proxy path. Remaining non-code item: human held-out hard labels if/when flipping primary_engine to topology.
+
+## Current loop checkpoint (2026-07-12 Phase 121)
+- Added reproducible promotion-gate evaluator (`promotion_gate.py` + CLI).
+- Cal/val fresh evidence under `.tmp/phase121_promotion_gate_calval` and `.tmp/phase121_promotion_gate_evidence`.
+- Structural pass true; hard precision 1.0 on frozen cal/val labels; primary_engine remains legacy.
+- Held-out not used for tuning; Learning/GNN still gated.
+- Remaining non-code gate for primary flip: human held-out hard labels + product approval.
+- Optional next code slices (not required for Phase 121 exit): formal topology metric CSV beyond structural proxies; review-only V2 assist UI surface; symbol port human annotation consumers.
+
+## Current loop checkpoint (2026-07-12 Phase 121 fail-closed hardening)
+- Independent audit found missing-artifact, vacuous hard-precision, witness NaN/range, held-out normalization and product-approval bypasses in the first promotion evaluator.
+- All bypasses are now closed with explicit artifact statuses, non-vacuous precision+recall, held-out human-gold and product-approval contracts; configured primary remains `legacy`.
+- Fresh evidence: `.tmp/phase121_promotion_gate_evidence_fail_closed/`; P001/P003 structural pass true, all required artifacts valid, review-only true, primary flip false.
+- Verification: promotion/hard-eval/CLI targeted 36 passed; full suite 540 passed, 1 skipped; `git diff --check` clean apart from CRLF warnings.
+
+## Current loop checkpoint (2026-07-12 Phase 122 topology metrics)
+- Added formal topology metrics evaluator and CSV/summary artifacts. Scoped truth and project-wide truth are separate release states; missing labels never become 1.0.
+- P003's existing 12-row junction fixture is explicitly scoped; connectivity and open-endpoint precision/recall remain unmeasured.
+- Targeted 43 passed; full 547 passed, 1 skipped. Real rerun remains pending solely because the approval backend returned HTTP 503 after the compatibility fix.
+
+## Recovery Notes (2026-07-12)
+- `planning-with-files` session-catchup helper could not run: the sandbox spawn was denied, then escalation review returned HTTP 503. Recovery continues through direct read-only inspection of the authoritative worktree and persisted planning files.
+- No repository-root `AGENTS.md` file exists in the current checkout; continue following the agent rules supplied in the active task context.
+## Errors Encountered (2026-07-12 Recognition Engine Session)
+
+| Error | Attempt | Resolution |
+|---|---:|---|
+| Bundled `rg.exe` failed to start with Windows `Access denied`, aborting the first parallel review read | 1 | Use native PowerShell `Get-ChildItem`, `Select-String`, and targeted `Get-Content`; do not repeat the same `rg` invocation |
+| Census integration targeted suite: synthetic DXF reported `DECLARED` rather than expected `UNRESOLVED` scale | 1 | Correct the fixture/expectation; the runtime value is valid and not an implementation failure |
+| Census JSON files were written but absent from the explicit `findings.json` artifact inventory | 1 | Add both census artifact names to the report inventory builder and rerun the same suite |
+| Combined docs/taskbook parallel read exited without output | 1 | Split path existence/listing and taskbook tail into separate native PowerShell reads |
+| Multi-file taskbook status patch failed because one `findings.md` context line did not match exactly | 1 | Apply taskbook, findings, and progress updates as separate patches with append-only anchors |
+| Phase 124 symbol-review subagent returned remote HTTP 502 after files appeared in the shared worktree | 1 | Treat the files as unverified; perform main-thread review and tests before acceptance, and do not reuse that agent |
+| Canonical scene integration patch passed `canonical_scenes` to extraction gate instead of `ProjectArtifacts` | 1 | Remove the unsupported gate argument and attach scenes only to the artifact container |
+| Symbol review JSON files were written but absent from the explicit `findings.json` artifact inventory | 1 | Register all three symbol review artifacts in the persisted findings contract and rerun the report suite |
+| Assumed a project-local `config.yml` existed in the Phase 123 P003 bundle | 1 | Use `Test-Path`/directory discovery; the normal run used default config and did not persist that file at the assumed path |
+| PowerShell `Copy-Item -LiteralPath` did not expand the DXF cache wildcard | 1 | Enumerate source files with `Get-ChildItem` and pipe each literal file to `Copy-Item`; verify destination counts before analysis |
+| `pandas.assert_frame_equal` raised `TypeError` on nested zero-dimensional array values in Parquet object columns | 1 | Compare business identity tuples directly and canonicalize nested values recursively before computing full-row JSON hashes |
+| Phase 127 takeover append patch used a cross-file context that did not match `progress.md` | 2 | Apply append-only updates to findings, progress, and plan as separate patches with exact EOF anchors |
+| First `wait_agent` call used a 1000 ms timeout below the tool minimum | 1 | Use 10000 ms or greater for all subsequent waits; no task state was affected |
+| New symbol provenance gate broke an old positive fixture that cited only `symbol_corpus_queue` | 1 | Add a non-held-out primary drawing/human-review source to that fixture; retain corpus queue as supporting evidence only |
+| `git diff --check` found newly added blank lines at EOF in taskbook and task plan | 1 | Remove only the extra terminal blank lines, preserve the required final newline, then rerun the check |
+| Topology gold positive test helper did not set the new `annotation_status=REVIEW_COMPLETE` certification field | 1 | Update the test helper; keep the runtime validator fail-closed and rerun the combined suite |
+| Takeover recovery batch aborted because bundled `rg.exe` was denied execution | 1 | Switched to PowerShell-native enumeration; do not repeat the same `rg` invocation |
+| Takeover cross-file recovery append used a `progress.md` tail line as a `findings.md` anchor | 1 | Patch each planning file separately using its exact tail context |
+| First three fresh semantic-audit subagents returned no result (one stream disconnect, two HTTP 503/no-account failures) | 1 | Do not reuse the failed agents; retry once with fresh one-shot agents, then fall back to main-thread audit if the service remains unavailable |
+| Second three-agent semantic-audit retry returned three stream disconnects and no evidence | 2 | Stop subagent retries; perform the bounded read-only audit and integration in the main thread |
+### Phase 123: Real-Corpus Extraction, Electrical Semantics, And Symbol Dependency Foundation
+- [x] Recover current worktree and Phase 122 evidence boundary
+- [x] Establish a persistent loop goal and retain `primary_engine=legacy`
+- [x] Concurrently implement isolated extraction-census, electrical-semantics, and symbol-dependency modules
+- [x] Main-thread review new APIs against current pipeline contracts
+- [x] Inspect the 502-file `test/` DWG corpus and select representative non-held-out census projects
+- [x] Integrate extraction census into the findings write path as a shadow/fail-closed artifact
+- [x] Persist semantic and symbol-library validation artifacts without changing legacy Pair/Issue behavior
+- [x] Run targeted/full tests plus fresh real-corpus and legacy/V2 comparison evidence
+- [x] Update taskbook, findings, and progress with measured results and remaining architecture gaps
+- **Status:** complete
+
+### Phase 124: Corpus Census, Canonical Scene, And Production Symbol Review
+- [x] Build a reproducible project-level census runner for the 502-DWG corpus and preserve split/held-out boundaries
+- [x] Add a shadow-only Layout/Viewport-aware canonical scene without changing legacy semantic extraction
+- [x] Add a production symbol-library schema/example and human-review workflow; never load test fixtures at runtime
+- [x] Integrate accepted slices and verify targeted/full tests
+- [x] Run P001/P003 plus at least one additional non-held-out real project and compare legacy/new outputs
+- [x] Update taskbook, findings, progress, and next failure-driven slice
+- **Status:** complete
+
+### Phase 125: Scale Evidence, Transform Fidelity, And Top-N Symbol Ports
+- [x] Add a fail-closed unit/scale evidence contract and non-held-out inference fixtures; never infer units silently
+- [x] Audit OCS/WCS, nested block units, mirror/non-uniform transforms, and canonical millimetre readiness
+- [x] Build a deterministic non-held-out corpus Top-N symbol review queue with instance/project coverage and audit-impact evidence
+- [x] Route approved port coordinates/internal connectivity through the existing review promotion gate; UNKNOWN/PENDING remains non-authoritative
+- [x] Triage HATCH/SPLINE/POINT/ACAD_TABLE shadow gaps by electrical relevance before adding geometry adapters
+- [x] Repeat targeted/full tests, P001/P003/P004 comparisons, and frozen-split corpus evidence without tuning from held-out
+- **Exit gate:** scale evidence never mutates geometry; transform fidelity keeps OCS/WCS unmeasured fail-closed; Top-50 queue is non-held-out only with critical_eligible=0; shadow-gap adapters unauthorized; full suite green; P001 pair identity zero-drift.
+- **Status:** complete
+
+### Phase 126: Human Port Annotation Consumption And Certified Millimetre Path
+- [x] Consume human-reviewed Top-N port documents through `validate-symbol-review` / `promote-symbol-review` without auto-critical
+- [x] Research and implement measured OCS/WCS + nested block unit fidelity sufficient for canonical millimetre readiness
+- [x] Optionally promote only REGISTERED + human-confirmed ports into electrical-semantic shadow consumers
+- [x] Keep primary_engine=legacy until promotion gates and human held-out gold are satisfied
+- **Exit gate:** Top-N review pack templates are PENDING-only; consume path never auto-critical; OCS/WCS measured on real P001 files; millimetre readiness is MEASURED_PENDING_PROMOTION only when scale+transform+OCS+nested all clean, else fail-closed; canonical_millimetre_ready remains false; shadow port placements electrical_union_eligible=0; full suite green.
+- **Status:** complete
+
+### Phase 127: Human Top-N Port Gold And Millimetre Promotion Research
+- [x] Geometry-driven MACHINE_PROPOSED port drafts for Top-10 and Top-50 (never HUMAN_CONFIRMED)
+- [x] Fix nested runner bundle path resolution for promotion/topology/hard-issue metrics
+- [x] Re-evaluate promotion gate on real nested evidence with frozen cal/val labels
+- [x] Full-corpus structural pass 27/27 after audit backfill on corpus_502
+- [x] De-duplicate colliding definition_name aliases in Top-N review packs
+- [ ] Humans annotate/confirm MACHINE_PROPOSED Top-N ports (checklist ready)
+- [ ] Validate/promote annotated documents; wire approved library path into config without flipping primary engine
+- [ ] Project-scope topology gold labels (currently STRUCTURAL_ONLY)
+- [ ] Held-out human hard-issue gold + product approval
+- [ ] Re-evaluate millimetre promotion criteria once declared drawing units appear or human unit gold exists
+- [ ] Keep held-out reporting-only; no filename/page patches
+- [x] Fail closed machine-only or held-out symbol review evidence before any promotion
+- [x] Keep legacy topology truth CSV scoped-only and require meaningful certified project metrics for primary readiness
+- [x] Reject partial/contradictory OCS, nested-unit, and scale evidence from millimetre readiness
+- [x] Add a pending-only project topology gold pack template and fail-closed validator; never generate labels or human certification
+- [x] Main-thread three-perspective audit (symbol / wire-crosspage / semantic-constraint) after dual subagent outages; no human gold synthesized
+- [x] Generate a traceable MACHINE_PROPOSED electrical connection review pack; never auto-fill human certification or ASSERTED union
+- [ ] Humans annotate/confirm connection review pack decisions (CONNECTED/NOT_CONNECTED/AMBIGUOUS/DEFER)
+- **Status:** in_progress
+
+## Phase 127 continuation note (2026-07-13 ZCode handoff)
+- Dual remote subagent batches failed (503 / stream disconnect); main thread completed the three-perspective audit on non-held-out P001/P003 evidence.
+- Implemented `report/electrical_connection_review_pack.py` + CLI + tests; family-quota ranking keeps cross-page, attachment, open-endpoint, and pair reviews mixed.
+- Real packs: `.tmp/phase127_electrical_connection_review_pack_p001/` and `_p003/`; validation valid, promotion/certification false.
+- Full suite: 720 passed, 1 skipped; `primary_engine=legacy`.
+

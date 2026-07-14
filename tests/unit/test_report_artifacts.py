@@ -147,6 +147,48 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert (findings_dir / "findings.json").exists()
     assert (findings_dir / "polylines.parquet").exists()
     assert (findings_dir / "primitive_segments.parquet").exists()
+    extraction_census = json.loads(
+        (findings_dir / "extraction_census.json").read_text(encoding="utf-8")
+    )
+    assert extraction_census == {
+        "schema_version": "extraction-census-project-v1",
+        "project_id": "Demo 项目",
+        "file_count": 0,
+        "files": [],
+    }
+    extraction_census_summary = json.loads(
+        (findings_dir / "extraction_census_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert extraction_census_summary["file_count"] == 0
+    assert extraction_census_summary["status_counts"] == {}
+    assert extraction_census_summary["error_code_counts"] == {}
+    scale_summary = json.loads(
+        (findings_dir / "scale_evidence_summary.json").read_text(encoding="utf-8")
+    )
+    assert scale_summary["file_count"] == 0
+    assert scale_summary["applied_to_geometry_count"] == 0
+    assert scale_summary["geometry_mutation_forbidden"] is True
+    assert scale_summary["canonical_millimetre_ready"] is False
+    shadow_gap_summary = json.loads(
+        (findings_dir / "shadow_gap_triage_summary.json").read_text(encoding="utf-8")
+    )
+    assert shadow_gap_summary["total_shadow_unsupported_entities"] == 0
+    assert shadow_gap_summary["any_adapter_authorized"] is False
+    canonical_scene_summary = json.loads(
+        (findings_dir / "canonical_scene_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert canonical_scene_summary["scene_count"] == 0
+    assert canonical_scene_summary["shadow_contract_valid"] is True
+    assert (findings_dir / "canonical_scene").is_dir()
+    assert pd.read_parquet(findings_dir / "canonical_scene_records.parquet").empty
+    assert pd.read_parquet(findings_dir / "canonical_scene_views.parquet").empty
+    assert pd.read_parquet(
+        findings_dir / "canonical_scene_diagnostics.parquet"
+    ).empty
     assert pd.read_parquet(findings_dir / "primitive_segments.parquet").empty
     assert json.loads(
         (findings_dir / "primitive_segments_summary.json").read_text(encoding="utf-8")
@@ -166,6 +208,38 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert (findings_dir / "symbol_definitions_v1.parquet").exists()
     assert (findings_dir / "symbol_instances_v1.parquet").exists()
     assert (findings_dir / "unknown_symbol_queue_v1.parquet").exists()
+    symbol_dependency_library = json.loads(
+        (findings_dir / "symbol_dependency_library.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert symbol_dependency_library["source_status"] == "not_configured"
+    assert symbol_dependency_library["summary"]["symbol_count"] == 0
+    symbol_dependency_validation = json.loads(
+        (findings_dir / "symbol_dependency_validation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert symbol_dependency_validation["valid"] is True
+    assert symbol_dependency_validation["load_issues"] == []
+    assert (findings_dir / "symbol_dependency_issues.parquet").exists()
+    assert pd.read_parquet(findings_dir / "symbol_dependency_issues.parquet").empty
+    symbol_dependency_summary = json.loads(
+        (findings_dir / "symbol_dependency_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert symbol_dependency_summary["library_valid"] is True
+    port_shadow_summary = json.loads(
+        (findings_dir / "symbol_port_shadow_summary.json").read_text(encoding="utf-8")
+    )
+    assert port_shadow_summary["placement_count"] == 0
+    assert port_shadow_summary["electrical_union_eligible_count"] == 0
+    assert port_shadow_summary["critical_issue_eligible_count"] == 0
+    port_shadow_placements = json.loads(
+        (findings_dir / "symbol_port_shadow_placements.json").read_text(encoding="utf-8")
+    )
+    assert port_shadow_placements["placements"] == []
     assert (findings_dir / "extraction_warnings.parquet").exists()
     assert (findings_dir / "wire_junctions.parquet").exists()
     assert (findings_dir / "wire_networks.parquet").exists()
@@ -232,11 +306,34 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert "wire_junctions.parquet" in findings_payload["artifacts"]["findings"]
     assert "primitive_segments.parquet" in findings_payload["artifacts"]["findings"]
     assert "primitive_segments_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "extraction_census.json" in findings_payload["artifacts"]["findings"]
+    assert "extraction_census_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "scale_evidence.json" in findings_payload["artifacts"]["findings"]
+    assert "scale_evidence_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "transform_fidelity.json" in findings_payload["artifacts"]["findings"]
+    assert "shadow_gap_triage.json" in findings_payload["artifacts"]["findings"]
+    assert "shadow_gap_triage_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene/" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_records.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_views.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_diagnostics.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_unresolved_sources.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_summary.json" in findings_payload["artifacts"]["findings"]
     assert "symbol_definitions_v1.parquet" in findings_payload["artifacts"]["findings"]
     assert "symbol_instances_v1.parquet" in findings_payload["artifacts"]["findings"]
     assert "unknown_symbol_queue_v1.parquet" in findings_payload["artifacts"]["findings"]
     assert "symbol_inventory_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_library.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_validation.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_issues.parquet" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_review_backlog.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_review_validation.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_review_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_port_shadow_placements.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_port_shadow_summary.json" in findings_payload["artifacts"]["findings"]
     assert "wire_networks.parquet" in findings_payload["artifacts"]["findings"]
+
     assert "geometry_shadow_nodes.parquet" in findings_payload["artifacts"]["findings"]
     assert "geometry_shadow_edges.parquet" in findings_payload["artifacts"]["findings"]
     assert "geometry_shadow_components.parquet" in findings_payload["artifacts"]["findings"]
@@ -277,6 +374,18 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert (findings_dir / "scope_resolution_summary.json").exists()
     assert (findings_dir / "constraint_decisions.parquet").exists()
     assert (findings_dir / "constraint_resolution_summary.json").exists()
+    assert (findings_dir / "electrical_semantic_nodes.parquet").exists()
+    assert (findings_dir / "electrical_semantic_relations.parquet").exists()
+    assert (findings_dir / "electrical_semantic_evidence.parquet").exists()
+    assert (findings_dir / "electrical_semantic_constraints.parquet").exists()
+    electrical_semantic_summary = json.loads(
+        (findings_dir / "electrical_semantic_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert electrical_semantic_summary["shadow_only"] is True
+    assert electrical_semantic_summary["valid"] is True
+    assert electrical_semantic_summary["electrical_union_eligible_count"] == 0
     assert findings_payload["project_profile_summary"]["page_count"] == 1
     assert findings_payload["project_profile_summary"]["strip_count"] == 0
     assert findings_payload["semantic_attachment_summary"]["total_count"] == 0
@@ -432,6 +541,11 @@ def test_write_project_artifacts_persists_phase119_shadow_semantic_artifacts(
     assert "scope_resolution_summary.json" in findings_payload["artifacts"]["findings"]
     assert "constraint_decisions.parquet" in findings_payload["artifacts"]["findings"]
     assert "constraint_resolution_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_nodes.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_relations.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_evidence.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_constraints.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_summary.json" in findings_payload["artifacts"]["findings"]
 
     assert project_profile["schema_version"] == "project-profile-v1"
     assert project_profile["project_id"] == "Demo 项目"
