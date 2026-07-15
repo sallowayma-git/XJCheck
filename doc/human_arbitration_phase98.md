@@ -20,6 +20,7 @@
 | `SYMB2_M_PWF191` | `11 非电量开入回路.dwg`, `2CE58`, `(165.0,240.0)`；既有来源另见 `08 差动保护及信号回路.dwg`, `23353` | `9a1c6d15833092f32027442d19bd52f5f384395b0bb113e252e5bfbfe66cb85b` | 矩形封装二极管；不连通、不建立映射，整体忽略 | `electrical.diode_symbol_ignored.v1` |
 | `SYMB2_M_PWF194` | `08 差动保护及信号回路.dwg`, `2337F`, `(290.0,235.0)` | `a78b06f3c9ab76dc9d36aeecdecb3a32599dbbc55c0e186dbecce76a9ecc780b` | 断开电气开关；左右不连通 | `switch.open.v1` |
 | `SYMB2_M_PWF196` | `08 差动保护及信号回路.dwg`, `23397`, `(290.0,225.0)` | `634756a0bafe88dd763d740c97fe13dbbd65921586360b6f96a87d2dc2a408f4` | 断开电气开关；无可用电气端口 | `switch.open.v1` |
+| `SYMB2_M_PWF31` | P001 `06 直流回路图.dwg`, `1D34F`, `(339.9901,99.9881)` | `8f7479379424184442b346891c2040fe047a8756561435f42095f4e088b39cf1` | X 形双接点开关；整体忽略、上下内部不连通、无映射 | `switch.open.v1` |
 | `SYMB2_M_PWF206` | `06 直流回路图.dwg`, `EE8C`, `(182.5,270.0)` | 人工记录 `b37828da...71f746`；当前抽取另见 `5ef6acf6...c9a90e` | DC 功能/变换图形，可忽略，无端口 | `non_electrical.functional_graphic.v1` |
 | `SYMB2_M_PWF208` | `05 交流回路图2.dwg`, `2170A`, `(55.0,177.5)`；`21728`, `(55.0,202.5)` | `cfe71411f229bb03fbcff9605b5b3dc0ace82f26b83a4d53fee308559e04412d` | 左侧装置区器件图形，无端口、无联通 | `non_electrical.equipment_graphic.v1` |
 | `SYMB2_M_PWF210` | `11 非电量开入回路.dwg`, `2CEAE`, `(162.5,80.0)` | `ef9845390ad82463e1efac6f04551d65d189a6d9a311ce8c2b1398021e70c7cc` | 无实际电气含义 | `non_electrical.placeholder.v1` |
@@ -31,12 +32,14 @@
 | `Ld_DzbJD_Left` | P001 `17 差动保护背板图.dwg`, `30F34`, `(55.0,252.5)`；同定义亦见 P003 | `d2978aaddce462eeea764d8295a059d646b00da794aeab718a568e6470bbf56b` | 左侧阶梯/重复线画法的接地符号；无端口、无映射，整体忽略 | `electrical.ground_symbol_ignored.v1` |
 | `Ld_DzbJD_Right` | P001 `27 右侧端子图2.dwg`, `2AF3`, `(115.0000017,157.5)`；P003 同定义 `3CD15`, `(92.5,160.0)` | `08a272799dbac4bf36f36ebcc1091f94b2273cf27fce8741a3cf31b150d5d123` | 右侧 DZB 辅助标记；无联通属性、无任何外部映射，整体忽略 | `electrical.nonconnective_dzb_right_marker_ignored.v1` |
 | `A$C26C55624` | P001 `14 高操作回路图.dwg`, `276B6`, `(249.9986338,134.9945)` | `4f4abeddea8e309da9df83614ee3def2228b9e72a1f9a6e788b270ab13ec8fa1` | 三引线矩形器件图形；内部不连通、无任何映射意义，整体忽略 | `electrical.nonconnective_three_lead_box_ignored.v1` |
+| `A$C08415381` | P001 `05 交流回路图2.dwg`, `216BC`, `(37.5,149.9999997)` | `59cf96d51fc55afa4f77a383e0ecf990270dbafbbcd454943b3473039f1a9e5b` | `HVS CB` 重复线圈/面板图形；整个组件无映射意义，整体忽略 | `electrical.nonconnective_repeated_coil_panel_ignored.v1` |
 
 补充确认：PWF165 附近的波浪/省略符号不能连接两侧数字，不得生成 `707→708`、`709→710`、`711→712` 等跨标记关系。
 
 ### IGNORE 几何族模型
 
 - PWF194/PWF196：无 ARC/CIRCLE、两外向端、`LWPOLYLINE=2`、`LINE=3..4`、旋转无关长宽比约 6.5。
+- PWF31：两个等半径圆接点间距约 `20r`，两条 `4r` 共线引线分别从接点向内，两条开放直线以公共中点形成 X，端点投影约为轴向 `±3.6r`、法向 `±4.8r`，并保留一个开放 bulged 机构路径。按接点—引线—X 中心拓扑做旋转/缩放泛化，X 偏心时保持 review。
 - PWF229：四个等半径 ARC、两个 LWPOLYLINE、两外向端、长宽比大于 8。
 - PWF208：两个等半径 ARC、细长主体、归一化 ARC 半径和引线直方图区别于基础端子。
 - PWF171/PWF191：同属二极管忽略族的两个几何状态。PWF171 是双圆接点、三角/横杆和纵向引线构成的裸二极管；PWF191 是含 HATCH、外框、主二极管及下方重复小图形的矩形封装状态。两者分别建模，不用实体数量或 fingerprint 互相代替。
@@ -45,15 +48,18 @@
 - PWF330：同属以太网/LAN 端口忽略族的宽体状态，块内文字为 `ETHER`/`NET`、含 3 个 LWPOLYLINE；作为独立几何子规则按文字布局、闭合轮廓拓扑及旋转/缩放不变量识别，不再作为 PWF324 的负例，也不能仅靠宽高比或 fingerprint 吸收其他宽体图形。
 - PWF316：单 ARC、单 LINE、双 LWPOLYLINE、两个机器几何端口、无块内文字，归一化 ARC 半径 `0.25..0.35`、长宽比 `1.6..2.1`；`ST单模/1T/1R` 是实例周边文字，不产生映射。
 - PWF318：一个闭合圆形接点、单根引线和三条互相平行且长度逐级递减的接地横线；旋转/缩放后仍按线方向、平行关系、长度层级及圆形接点绑定识别。仅有相同实体数量但不具备该拓扑的普通分支不得被吸收。
-- `Ld_DzbJD_Left`：三条阶梯横线以 LINE 与 open LWPOLYLINE 重复绘制，重复 stem 与侧向引线绑定；作为接地族的独立几何状态按重合段、正交关系、长度层级和端点绑定识别，不依赖块名或 fingerprint。
+- `Ld_DzbJD_Left`：三条阶梯横线以 LINE 与 open LWPOLYLINE 重复绘制，重复 stem 与侧向引线绑定。精确人工成员保留 `electrical.ground_symbol_ignored.v1` 语义；该几何与已确认右侧标记互为镜像，未见 fingerprint 的完整命中进入共享 `electrical.nonconnective_stepped_marker_ignored.v1`，避免凭几何伪造“接地/右标记”语义差异。两者行为均为零端口 IGNORE。
 - `Ld_DzbJD_Right`：三个逐级缩短、中心共线的平行条分别由 LINE 与开放双点 LWPOLYLINE 重合绘制；最长条中心连接一对重合正交杆及半长侧引线。按相对方向、长度比例、重合和端点绑定泛化，任一重绘条偏移或杆件拓扑不完整时保持 review。
 - `A$C26C55624`：大矩形底部嵌套一个同宽小矩形，小矩形含对角线；三条等长平行引线以“两侧二对一”方式绑定大矩形边。按矩形边长比例、中心关系、对角角点和引线端点拓扑泛化，任一引线脱离或内部结构不完整时保持 review。
+- `A$C08415381`：12 个等半径半圆构成 2×6 阵列，26 条线形成 25 条平行支线与一条正交 spine，四个圆接点重合为 spine 上两个接点位置；按阵列间距、半圆 sweep、骨架方向及接点绑定泛化，任一半圆或 spine/contact 拓扑偏移时保持 review。
 - 新 fingerprint 完整命中上述模型时可自动输出 `GEOMETRY_FAMILY_NON_CONNECTIVE`；特征缺失或仅近似时保持 review，不得自动忽略。
 
 ## 3. 已确认基础端子族
 
 | 定义 | 人工确认来源 | fingerprint | 结论 |
 |---|---|---|---|
+| `SYMB2_M_PWF87` | P001 `06 直流回路图.dwg`, `1D355`, `(322.4881,77.4881)` | 见当前人工成员策略 | 斜杠圆形双接点通用端子；实例名 `JD11`，两侧独立向外绑定，内部不连通 |
+| `SYMB2_M_PWF89` | P001 `06 直流回路图.dwg`, `1D360`, `(222.4881,109.9881)`；同定义亦见 P003 | `84868127dc04f2454ab00c79d63b6d4a57792b2f47365725934a88bcf1986d65` | 斜杠圆形四接点通用端子；实例名 `JD1/JD2/JD6`，仅实际外接线方向独立绑定，四侧内部不连通 |
 | `SYMB2_M_PWF231` | `04 交流回路图1.dwg`, `112CE`, `(77.5,220.0)` | `2ede8a4fcebd958209b99a25e477726c0b55f86b32d00650130a89acad0bf89c` | 基础端子；上方 `1ID1` 等为端子编号 |
 | `SYMB2_M_PWF232` | `08 差动保护及信号回路.dwg`, `23348`, `(110.0011,224.9958)` | `5f5573087fee9f48a503ecdede638903fcb979dd5031aaf1e98e69d07f2707f8` | 基础端子；上方 `1QD5` 等为端子编号 |
 | `SYMB2_M_PWF233` | `06 直流回路图.dwg`, `192A2`, `(50.0,272.5)` | `e2e32701027b07d3f74b5941716ca9328daf926abad92f0b4b5f2081b3f52fe2` | 基础端子；支持 `ZD1/ZD9` 等字母开头编号 |
@@ -65,9 +71,11 @@
 统一业务规则：
 
 - family 为 `labelled_terminal.generic.v1`，不能按 PWF 编号分别建立模型。
-- 定义级必须是紧凑双等半径 ARC 主体；实例级必须同时找到唯一结构化编号和 outward-aligned 外部导线接触。
+- 定义级支持多个严格几何子规则：紧凑双等半径 ARC 基础端子，以及中心圆/斜杠/对称圆接点的双接点或四接点 JD 端子；所有子规则都进入 `labelled_terminal.generic.v1`，不得按 PWF 编号拆族。
 - 三项证据完整才输出 shadow `MEASURED_TERMINAL_ATTACHMENT`；标签近似并列为 `TERMINAL_BINDING_AMBIGUOUS`。
 - 不根据端子主体自动合并左右/上下导线。
+- JD 圆形端子每个方向只在存在 outward-aligned 外部导线证据时输出本实例名 attachment；未接线方向不输出，多个方向之间永不 union。
+- PWF89 的实现验证已完成：旋转/缩放后的未见 fingerprint 仍命中共享族；斜线偏心或接点偏斜的同计数近似图保持 review。P001 实跑只保留 14 个真实接线方向，未接线方向不产生候选，缺少唯一 JD 名称的方向不借用邻近实例名。
 
 ## 4. 已确认外部端口组件族
 
@@ -98,12 +106,99 @@
 - 两端口内部不连通，不允许任何 `AK-1 ↔ AK-2` connectivity 或 union。几何族为 `component.external_strip_two_port.v1`。
 - 定义级按四个共线等半径接点、与内侧接点同心的两个等半径圆、四条轴向线及三条叉形/斜向机构线的旋转缩放拓扑识别；实例级必须同时绑定短字母名称、唯一端口号和本侧精确外部线端点。
 
+### `SYMB2_M_PWF105` — A' 上下双行外部端口组件
+
+- 来源：P001 `06 直流回路图.dwg`，handle `1D34C`，坐标 `(297.4885578,109.9881378)`；P003 同定义，fingerprint `55c2e04f990b264e93b235f7ed3c078a6034a853b3201192f447e7b346d8f06d`。
+- 实例名 `A'` 与本地端口号 `1/2` 组合为 `A'-1`、`A'-2`；`A'-1` 只映射上方本侧线路，`A'-2` 只映射下方本侧线路。
+- 两行端口内部不连通，不允许 `A'-1 ↔ A'-2` connectivity 或 union。几何族为 `component.external_strip_two_port.v1`。
+- 定义级按单个 `1:2` 外框、四个等半径圆接点、两个重复嵌套行机构及接点相对间距识别；实例级必须同时绑定 `A'` 名称、本地数字 `1/2` 和对应行的精确外部线端点。外框角点不是端口。
+
+### `SYMB2_S_PWF12a` — 通用单行接点机构
+
+- 来源：P001 `06 直流回路图.dwg`，嵌套 handle `1D2D4/1D2D5` 见于 PWF105；独立 handle `1D382/1D383`；fingerprint `b440ea59c6edcaa2edd135cbfd3ca4d54f80bb2ea554a9ec7af3eeba5a6be3d0`。P003 亦见同定义，共 8 个实例。
+- 人工裁决：该定义是 PWF105 使用的单行机构状态。成对行继承父/邻近实例名和本行数字，例如 `A'-1 → 上方本侧线路`、`A'-2 → 下方本侧线路`；各行内部互不连通，不允许 union。
+- 泛化族为 `component.external_row_contact.v1`。定义级只提议一个与水平机构线绑定的外部接点；中心圆和偏置小接点属于机构图形，不是第二、第三个端口。
+- 嵌套在已确认的 PWF105 两行外框中时，由父组件统一输出 `A'-1/A'-2`，PWF12a 子件不得重复发映射。独立放置时按附近实例名和唯一数字组合，例如真实 P001 的 `K-6`、`K-5`，各自只绑定本侧外线。
+- 精确成员和旋转/缩放后的未见 fingerprint 均按几何命中；偏置接点不再位于圆心正交轴、两段机构线不共线/不相接、圆/接点半径比失真时保持 review。
+
+### `LA38-11-209B-G` — FA 四独立端口组件
+
+- 来源：P001 `21 元件接线图1.dwg`，handle `27F43`，坐标 `(65.0,102.49837)`，fingerprint `5b68b544d3f7834a0b52c64fa69de4c3a0a64ed859e6c95e11957707e1151eeb`；共 6 个实例。
+- 人工裁决：代表实例名为 `5FA`，完整端口身份是 `5FA-11/12/13/14`。四个端口彼此不连接，只分别链接各自向外引线；例如 `5FA-13 → 5FD3`、`5FA-14 → 5n115`。
+- 泛化族为 `component.external_multi_port.v1`，严格子规则 `four-numbered-independent-contact-panel-v1`。四个编号、四个大圆、四个外侧小接点和内部三线机构按完整 2×2 几何识别；内部三线只属于机构图形，不赋予端口间 conductivity。
+- 端口提议必须以四个小外侧接点替换旧的三个自由极值，并携带原生 `11/12/13/14`。实例级名称位于端口阵列上方中心轴；左右外部端子文字不能反向抢作实例名。
+- 真实代表实例输出 `5FA-13 → 5FD3`、`5FA-14 → 5n115`；没有实际外延线的 `5FA-11/12` 只保留端口身份，不伪造 mapping。所有实例均禁止端口间 internal connectivity 和 union。
+
+### `SYMB2_M_PWF176` — FA 双接点机械执行器
+
+- 来源：P001 `08 差动保护及信号回路.dwg`，handle `233C5`，坐标 `(85.07056,167.50439)`，fingerprint `8ffdfeebc545ed07bf9b740146cf2c8c729557b453649d679f18248d228d308e`；P001 共 6 个实例。
+- 人工裁决：实例 `1FA` 的 `1FA-13` 与 `1FA-14` 始终不连通，只分别向自身外侧引线建立映射；已确认 `1FA-13 → 1QD3`。斜向开片和下方机械执行器均不赋予两端 conductivity 或 union。
+- 泛化族为 `component.external_strip_two_port.v1`，严格子规则 `two-contact-mechanical-actuator-v1`。完整定义为 `9 LINE + 2` 个等半径闭合 bulged 接点：两个接点相距约 `22.5r`，各有一条约 `7.5r` 的向内共轴引线；一条约 `8.4r` 的斜向开片连接单侧内端；下方由五条短正交杆和一条横杆形成居中的执行器。
+- 端口提议只取两个外侧圆接点中心，按接点中点反向确定 outward direction；实例级读取本实例 FA 名称及附近 `13/14`，组合完整端口身份。只有同一外部网络线路附近的结构化端子名才可成为外部端点；右侧未获人工确认时不得把附近裸数字擅自拼成端子名。
+- 全 P001 真实验证输出 6 个实例、12 条独立映射：`1FA`、`1-2FA`、`3-2FA`、`5FA`、`1-4FA`、`3-4FA` 均形成各自 `-13/-14` 身份并绑定各自外线。代表实例为 `1FA-13 → 1QD3 / 233CE / EN2-df46...`，`1FA-14 → 233CB / EN2-0809...`；全部 `internal_connectivity_inferred=false`、`electrical_union_eligible=false`。
+- 精确成员和旋转 `37°`、缩放 `1.8×` 的未见 fingerprint 均按几何命中；保持实体数量但偏移执行器中心杆的近似负例不命中。
+
+### `A$C5C9C7C64` — LVS-CB 接地三排组件整体忽略
+
+- 来源：P001 `04 交流回路图1.dwg`，代表 handle `112A6`，坐标 `(40.0,220.0)`，fingerprint `346f8b01c9cf292256cf0fecbd3c680e5e79471cfe21420fb1a2d311ed20007e`；同定义另见 `114FB`，并见于 `05 交流回路图2.dwg` 的 `21681/21799`，合计 4 个实例。
+- 人工裁决：红框内完整 `LVS CB` 组件整体 IGNORE。三排机构、三个接点、左侧共用竖线、底部横线、接地子件及全部可见引线均无映射和联通意义；附近 `1ID7/1ID8/1ID9` 不得被绑定为该组件端点。
+- 泛化族为 `electrical.nonconnective_grounded_three_row_cb_panel_ignored.v1`，严格子规则 `grounded-three-row-repeated-mechanism-panel-v1`。父级必须同时满足 `4 INSERT + 8 LINE + 3` 个闭合 bulged 接点、三接点等距共线、共享主杆、四排等距横线及三组分离引线与底部通长线的完整相对拓扑。
+- 嵌套证据不使用子块名称：三个重复子件的直接几何签名均为 `2 ARC + 3 LINE + 2 LWPOLYLINE`，接地子件为 `4 LINE + 1 LWPOLYLINE`；同时校验三子件位于三组外侧引线端、等间距且同朝向，接地子件位于主杆底端并与重复子件相差 `180°`。
+- 精确成员和旋转 `37°`、缩放 `1.8×` 的改名/未见 fingerprint 均输出零端口 IGNORE；保持实体数量但横移任一重复子件的负例保持 review。四个真实实例全部零候选，external attachment、internal connectivity 和 electrical union 均为 false。
+
+### `A$C6A636705` — B+/B- 闭合电缆套管图形整体忽略
+
+- 来源：P001 `07 网络通讯回路图.dwg`，代表 handle `1C298`，坐标 `(345.0,270.0)`，fingerprint `2c4f73274833c1b08e7320666b993c4bd5d3e1eedc7a3931b4075e334b8ec1f7`；同页另有 `1C2AB/1C2BB/1C2CB`，合计 4 个实例。
+- 人工裁决：红框闭合胶囊整体 IGNORE。它不截断也不桥接下方实际导线：B+、B- 各自连续且互不连接，两者均不与独立的 `Shielding layer` 路径建立映射。代表 B+ 路径仍为 `TD1 → 1n601`。
+- 泛化族为 `non_electrical.cable_sleeve_ignored.v1`，严格子规则 `closed-opposed-semicircle-cable-sleeve-v1`。定义级要求 `2 ARC + 2 LINE`：两圆弧等半径、扫角均为 `180°`、圆心间距约 `4r`，圆弧中点分别朝圆心轴两端向外；两直线等长约 `4r`、互相平行，并在圆心轴法向 `±r` 位置连接两个圆弧的对应端点，构成完整闭合 stadium。
+- 真实 replay 中四实例全部零端口、零候选。B+ 源线 `1C28E / EN2-280c...` 与 B- 源线 `1C28F / EN2-26a8...` 保持两个不同网络；原有 `TD1 → 601` semantic pair 保持，结合可见设备作用域 `1n` 得到完整端点 `TD1 → 1n601`。没有 Shielding-layer relation。
+- 精确成员和旋转 `37°`、缩放 `1.8×` 的改名/未见 fingerprint 均命中；保持实体数量但使下圆弧向内弯曲的近似负例保持 review。
+
+### `SYMB2_M_PWF270` — 双行信号图形忽略组件
+
+- 来源：P003 `05 信号回路图.dwg`，handle `A22C`，坐标 `(647.5,513.125)`；fingerprint `c983989529487b8e3894fc9dfc0d0acab9c04fe6a66161f36b695e5c80571396`，共 4 个实例。
+- 人工裁决：四个机器候选均未接触外部线路，整个组件没有映射意义，整体纳入 IGNORE；不生成端口、external attachment、component mapping、内部连通或 electrical union。
+- 泛化族为 `electrical.nonconnective_dual_row_signal_panel_ignored.v1`。严格识别两条等长主线、两组平移重复机构线、两个等半径圆、四个同尺寸小矩形、八个 HATCH，以及仅位于同一行两端的两个等半径圆接点；使用半径归一化距离、方向、平移重复关系和端点布局，支持旋转及统一缩放。
+- 同实体数量但任一圆心、重复机构、矩形阵列、接点位置或 HATCH 数量不符时不得自动忽略；fingerprint 仅保留人工来源，不是泛化条件。
+
 ### `KK2P` — DK 四端口组件
 
 - 来源：P001 `21 元件接线图1.dwg`，handle `27FDC`，坐标 `(47.5,252.5)`；fingerprint `3f7ef8a0ca8b88180e8cf7094e95355e6b2837e7e598cba3a19ce04e6445620a`。
 - 上方圆圈内实例名经原图确认是 `1DK`；实例名与块内端口号 `1/2/3/4` 组合为完整身份 `1DK-1..4`。
 - 四个端口内部互不连通，各自只向外映射：`1DK-1→ZD9`、`1DK-2→1QD5`、`1DK-3→ZD1`、`1DK-4→1QD1`。
 - family 为 `component.external_multi_port.v1`；同类实例必须读取本实例圆圈名称，不得把 `1DK` 固化为定义常量。
+
+### `DGICOM4000-4GX24GE-HV-HV` — 宽体交换机面板整体忽略
+
+- 来源：P003 `11000 站控层网络通信柜/09 交换机接线图1.dwg`，handle `3B840`，坐标 `(220.5111363,170.9591146)`；fingerprint `9ab7144823696cf159b562ccd4a64c5801bdf99275c605494d4964302cc04bd1`，队列观测 4 个实例。
+- 人工裁决：整个交换机面板整体 IGNORE。`P1..P24`、`GE1..GE24`、`GX25..GX28`、Console、FAULT、PWR1/PWR2、`+/L`、`-/N` 和 GND 均不建立通信或电气映射；不生成端口、external attachment、内部连通或 electrical union。
+- 泛化族为 `communication.equipment_panel_ignored.v1`，严格子规则 `wide-ge-gx-power-switch-panel-v1`。定义级联合验证完整 GE/P/GX/T/R/Console/FAULT/PWR 文字阵列、24 个以上近方形接口单元、8 个等半径共线圆的 `3.36r/4.84r` 交替间距、至少 40 个闭合 bulged 接口轮廓及约 `4.22:1` 的宽体比例；支持旋转和统一缩放，不依赖定义名或 fingerprint。
+- 负例边界：缺少任一完整 `P1..24`/`GE1..24` 标签、任一光口圆偏离共线轴或交替间距、接口单元不足、实体密度或宽体比例不符时不得自动忽略。
+- 真实验证：精确成员输出 `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`；同一真实定义替换为未见 fingerprint 后输出 `MATCHED / IGNORE / ports=[]`。原图重跑中 handle `3B840` 与该 fingerprint 的实例级 network candidates 均为 0。
+
+### `SYMB2_S_PWF24a` — 双圆接点标记整体忽略
+
+- 来源：P003 `11000 站控层网络通信柜/06 交换机回路图1.dwg`，handle `119F7`，坐标 `(287.3410777,85.0)`；fingerprint `a662de3d914d6b22aa1b0d6f9e4a0a090de1e0cd8461224860fc8199cba2bf0f`，队列观测 2 个实例。
+- 人工裁决：整个组件整体 IGNORE。上方带横杆的大圆、下方小圆及两者之间/下侧可见线路都不产生端口、external attachment、component mapping、内部连通或 electrical union。
+- 泛化族为 `electrical.nonconnective_circle_contact_marker_ignored.v1`，严格子规则 `diameter-circle-offset-contact-marker-v1`。完整定义要求 `1 CIRCLE + 2 LINE + 1` 个闭合 bulged 圆接点 `+ 1 HATCH`：横杆必须是大圆直径；径向线从大圆边界连接小圆圆心；大圆/小圆半径比约 `2:1`，圆心距约 `2.5R`，径向线长约 `1.5R`，且与直径正交。所有关系按半径、向量和端点归一化，支持旋转和统一缩放，不依赖 PWF 名称或 fingerprint。
+- 负例边界：小圆偏离径向轴、横杆不穿过大圆圆心、径向线未绑定大圆边界或小圆圆心、半径/距离比例或实体数量不符时不得自动忽略。
+- 真实验证：精确成员输出 `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`；同一真实定义替换未见 fingerprint 后输出 `MATCHED / IGNORE / ports=[]`。原图重跑中 handle `119F7` 和该 fingerprint 均无实例级 network candidate。
+
+### `A$C38910F98` — 面板内部水平线精确忽略
+
+- 来源：P001 `11 非电量开入回路.dwg`，handle `2CF8F`，坐标 `(160.0,250.0)`；fingerprint `cd0346ad16ba285a9950c48c0611017efcd9490cc6d6d78c81442860902a75cf`，测试集仅观测 1 个实例。
+- 人工裁决：红框内 50 单位水平线整体 IGNORE，左右两端明确不连通；不生成端口、external attachment、component mapping、内部连通或 electrical union。
+- 安全边界：本项只使用精确 fingerprint 人工策略 `non_electrical.panel_internal_line.v1`，不建立“单条 LINE 即忽略”的几何泛化。当前 P001/P003 测试集共有 2 个仅含单条 LINE 的块定义：本项水平线和同页 `A$C72EB63F1` 垂直 180 单位线；后者未获裁决并保持 review。P003 无此类定义。
+- 线网隔离：该嵌套 LINE 仅存在于 `primitive_segments`，未进入普通 `lines.parquet` 或 wire network；精确策略再清空它的符号端口和实例候选，因此不会连接左右网络。替换为未见 fingerprint 的同几何定义必须保持 `REVIEW_ONLY`，不得自动忽略。
+- 未来如需泛化，只能基于完整设备大矩形的实例级包含关系、框架身份和内部线布局另建上下文规则，不能仅凭单线长度、方向、名称或坐标判定。
+
+### `A$C72EB63F1` — 面板内部公共母线按审计范围精确忽略
+
+- 来源：P001 `11 非电量开入回路.dwg`，handle `2CF90`，坐标 `(210.0,70.0)`；fingerprint `ae788d00fab7abcd6190c917d8f4c42e8613320b78143443b3849d7e9aea6e72`，测试集仅观测 1 个实例。定义内部是一条本地 `(0,0)→(0,180)` 的垂直 LINE。
+- 原理事实：该垂直线在真实电气原理上是公共母线，本应连接相交的多条水平回路。
+- 当前审计裁决：现阶段不校验该母线连接的各支路，因此将完整母线按审计范围整体 IGNORE；V2 不连接上下端，也不连接任何相交水平线路，不生成端口、mapping、network 或 union。该裁决是范围排除，不能解释为真实图纸中母线物理不导通。
+- 安全实现：仅对精确 fingerprint 应用 `non_electrical.panel_internal_bus_excluded.v1`，不建立垂直单线几何忽略族。未见 fingerprint 的同几何垂直线必须保持 `REVIEW_ONLY`，普通导线和母线仍可进入拓扑分析。
+- 真实验证：精确成员输出 `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`，handle `2CF90` 和目标 fingerprint 的 symbol-port network candidates 均为 0；同页水平精确忽略保持有效。
 
 ### `FJL-25-2A_Mirror` — 长条上下双端口组件
 

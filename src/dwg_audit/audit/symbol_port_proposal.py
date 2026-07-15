@@ -41,10 +41,16 @@ GEOMETRY_IGNORE_FAMILIES = frozenset(
         "communication.equipment_panel_ignored.v1",
         "electrical.ground_symbol_ignored.v1",
         "electrical.nonconnective_four_coil_ignored.v1",
+        "electrical.nonconnective_repeated_coil_panel_ignored.v1",
         "electrical.nonconnective_stepped_marker_ignored.v1",
         "electrical.diode_symbol_ignored.v1",
         "electrical.nonconnective_dzb_right_marker_ignored.v1",
         "electrical.nonconnective_three_lead_box_ignored.v1",
+        "electrical.nonconnective_dual_row_signal_panel_ignored.v1",
+        "electrical.nonconnective_inline_indicator_ignored.v1",
+        "electrical.nonconnective_grounded_three_row_cb_panel_ignored.v1",
+        "non_electrical.cable_sleeve_ignored.v1",
+        "electrical.nonconnective_circle_contact_marker_ignored.v1",
     }
 )
 TABLE_CONTAINER_FAMILIES = frozenset({"structural.backplate_table_container.v1"})
@@ -54,6 +60,103 @@ WIRE_PRIMITIVE_FAMILIES = frozenset({"wire.crossover_jump.v1"})
 # Block names are deliberately not used as a fallback: the same name may have
 # different geometry and semantics in another project/version.
 HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
+    # Closed cable/sheath capsule crossing B+/B-: visual grouping only.  It
+    # neither bridges nor interrupts the underlying conductors and has no
+    # relationship to the separately drawn shielding-layer route.
+    "2c4f73274833c1b08e7320666b993c4bd5d3e1eedc7a3931b4075e334b8ec1f7": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "non_electrical.cable_sleeve_ignored.v1",
+        "reason": "Human adjudication: ignore the closed cable sleeve; B+ and B- remain separate continuous routes, with no shielding-layer mapping.",
+    },
+    # Grounded three-row LVS-CB assembly: the complete parent, including all
+    # nested row mechanisms, common rail, leads, contacts, and ground glyph,
+    # is non-mapping artwork for this audit model.
+    "346f8b01c9cf292256cf0fecbd3c680e5e79471cfe21420fb1a2d311ed20007e": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_grounded_three_row_cb_panel_ignored.v1",
+        "reason": "Human adjudication: ignore the complete LVS-CB assembly; emit no mappings, external attachments, internal connectivity, or union.",
+    },
+    # KK1P vertical two-port box: native pins 1/2 map only to their respective
+    # same-side external endpoints; the body never joins the two rows.
+    "9321616869d2ccca1d1d6fc065a9a995ddf9d31ac8e207430b8eec6439e8ad6b": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Human adjudication: compose the instance name with pins 1/2 and map each only to its same-side external endpoint with no internal union.",
+    },
+    # PWF176 two-contact mechanism: 13 and 14 are independent component
+    # terminals.  The drawn switch/actuator body never conducts between them;
+    # each side maps only to its own outward lead.
+    "8ffdfeebc545ed07bf9b740146cf2c8c729557b453649d679f18248d228d308e": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Human adjudication: 1FA-13 and 1FA-14 are permanently isolated and each maps only to its own outward lead; confirmed 1FA-13 -> 1QD3.",
+    },
+    # Inline indicator graphic on the P003 switch page: the complete body is
+    # annotation-only for this audit model and contributes no electrical map.
+    "ea02de2d3b540c5240d289e863160289db7a720c8b7c9db2efbc52c321e45df6": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_inline_indicator_ignored.v1",
+        "reason": "Human adjudication: ignore the complete inline indicator; emit no ports, mappings, connectivity, or union.",
+    },
+    # PWF24a circle/contact marker: the complete vertical graphic is visual
+    # equipment annotation and contributes no port or mapping semantics.
+    "a662de3d914d6b22aa1b0d6f9e4a0a090de1e0cd8461224860fc8199cba2bf0f": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_circle_contact_marker_ignored.v1",
+        "reason": "Human adjudication: ignore the complete circle/contact marker; emit no ports, mappings, connectivity, or union.",
+    },
+    # A$C38910F98 is one non-connective panel-internal span.  This exception is
+    # deliberately exact: a one-LINE geometry rule would suppress valid wires
+    # and the distinct vertical framework member observed in the same corpus.
+    "cd0346ad16ba285a9950c48c0611017efcd9490cc6d6d78c81442860902a75cf": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "non_electrical.panel_internal_line.v1",
+        "reason": "Human adjudication: exact panel-internal line artifact; ignore the complete span and do not connect its left and right endpoints.",
+    },
+    # A$C72EB63F1 is physically a panel common bus, but that bus and its branch
+    # connectivity are explicitly outside the current audit contract.  Keep
+    # this exact so ordinary vertical conductors remain eligible for topology.
+    "ae788d00fab7abcd6190c917d8f4c42e8613320b78143443b3849d7e9aea6e72": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "non_electrical.panel_internal_bus_excluded.v1",
+        "reason": "Human adjudication: exact panel common bus is excluded from this audit; emit no endpoints, branch mappings, connectivity, or union despite its physical bus semantics.",
+    },
+    # LA38 four-contact unit: 11/12/13/14 are four independent external
+    # component ports; the drawn mechanism never grants port-to-port union.
+    "5b68b544d3f7834a0b52c64fa69de4c3a0a64ed859e6c95e11957707e1151eeb": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_multi_port.v1",
+        "reason": "Human adjudication: 5FA-11/12/13/14 are four mutually isolated ports and each maps only to its own outward lead.",
+    },
+    # Dual-row hatched signal graphic: all machine extrema are visual-only;
+    # the complete component has no external mapping or conductive meaning.
+    "c983989529487b8e3894fc9dfc0d0acab9c04fe6a66161f36b695e5c80571396": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_dual_row_signal_panel_ignored.v1",
+        "reason": "Human adjudication: all four candidates are unattached visual extrema; ignore the complete dual-row component.",
+    },
+    # A single repeated row mechanism contributes one named component port.
+    # When nested inside the reviewed A' two-row box, the parent owns the
+    # resulting A'-1/A'-2 mappings and the child must not emit duplicates.
+    "b440ea59c6edcaa2edd135cbfd3ca4d54f80bb2ea554a9ec7af3eeba5a6be3d0": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_row_contact.v1",
+        "reason": "Human adjudication: repeated row mechanism inherits the nearby/parent component name and row pin; each row maps only to its own same-side line with no internal union.",
+    },
+    # A' two-row box: each numbered row maps only to its own external line;
+    # no relationship between rows 1 and 2 is inferred.
+    "55c2e04f990b264e93b235f7ed3c078a6034a853b3201192f447e7b346d8f06d": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Human adjudication: A'-1 and A'-2 map to their respective upper/lower lines with no internal union.",
+    },
+    # Repeated HVS-CB coil/panel graphic: visual equipment representation only;
+    # no port, mapping, or body connectivity is electrically meaningful.
+    "59cf96d51fc55afa4f77a383e0ecf990270dbafbbcd454943b3473039f1a9e5b": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_repeated_coil_panel_ignored.v1",
+        "reason": "Human adjudication: complete repeated HVS-CB coil panel has no mapping meaning and is electrically ignored.",
+    },
     # A jump is wire geometry, not a component and not an IGNORE.  Symbol
     # ports are suppressed here; continuity/no-junction is owned by topology.
     "f9d454c009fff6e62f248535070beb3ce1787db373d260f7159948192c492bb8": {
@@ -101,6 +204,34 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "mode": "IGNORE_ELECTRICAL",
         "family_id": "communication.equipment_panel_ignored.v1",
         "reason": "Human adjudication: whole communication-equipment panel is non-connective and creates no external mappings.",
+    },
+    # DGICOM4000 wide switch panel: every GE/GX/Console/power/ground motif is
+    # equipment-face artwork for this audit and creates no mapping of any kind.
+    "9ab7144823696cf159b562ccd4a64c5801bdf99275c605494d4964302cc04bd1": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.equipment_panel_ignored.v1",
+        "reason": "Human adjudication: ignore the complete wide switch panel; emit no communication or electrical ports, mappings, connectivity, or union.",
+    },
+    # Compact DGICOM3000 equipment face: terminal strip, Console, GE1..GE8,
+    # GX9/GX10 and optical motifs are all non-mapping panel artwork.
+    "cb1abae65b4bcbd19aa91077fe008419f016357d08608f3712496374f8b8d325": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.equipment_panel_ignored.v1",
+        "reason": "Human adjudication: ignore the complete compact DGICOM equipment panel and every visible connector/power motif.",
+    },
+    # HYKL dual-row interface face: IN/OUT PE/GND/TX/RX motifs are panel
+    # artwork only and create no electrical or communication mapping.
+    "1726acf417090ce3ecbf6454bdb8321afb7c0025023b98e82d59a6b1476dd6dd": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.equipment_panel_ignored.v1",
+        "reason": "Human adjudication: ignore the complete HYKL interface panel and every IN/OUT PE/GND/TX/RX motif.",
+    },
+    # NGFW4000 firewall face: ETH/USB/Console/optical and power graphics are
+    # all non-mapping panel artwork for this audit model.
+    "07d8f9b0bc6c61dd003c0d32861f58c0a1babc0be3cee88783f7dcbb4ab63e25": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.equipment_panel_ignored.v1",
+        "reason": "Human adjudication: ignore the complete firewall equipment panel and every visible network, optical, USB, Console, and power motif.",
     },
     # WBH-814E backplate: the outer INSERT is a table-routing container.  It
     # has no direct symbol ports; nested populated plugin tables remain active
@@ -167,6 +298,11 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "mode": "IGNORE_ELECTRICAL",
         "family_id": "switch.open.v1",
         "reason": "Human adjudication: open electrical switch; its sides are disconnected.",
+    },
+    "8f7479379424184442b346891c2040fe047a8756561435f42095f4e088b39cf1": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "switch.open.v1",
+        "reason": "Human adjudication: X-marked two-contact switch is ignored; its contacts are internally disconnected and create no mappings.",
     },
     "b37828da29525da55540cc801a451c80b23b3b44b19cd00b7680ddfe1771f746": {
         "mode": "IGNORE_ELECTRICAL",
@@ -242,6 +378,21 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "family_id": "labelled_terminal.generic.v1",
         "reason": "Human adjudication: generic terminal; the text above is its terminal designator.",
     },
+    "8f7c185510e495dc79d94bdba73c1335ef0c64043045c388d16d039c52a0fc73": {
+        "mode": "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "labelled_terminal.generic.v1",
+        "reason": "Human adjudication: slash-circle generic terminal; preserve both external attachments but never connect them internally.",
+    },
+    "9816226eb2abd1a692ea1af2ef528f5543dbfc10c8ca7d893de0692739019c6b": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_multi_port.v1",
+        "reason": "Human adjudication: three independent E/L/N socket ports; compose outer instance name with each pin and map only to its own external network.",
+    },
+    "deade9985bacdcfe78b87b08ce5dbb3b05a31ce41bc57086075826fe52baa56f": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_multi_port.v1",
+        "reason": "Human adjudication: four isolated KZKK ports; map each port only to its same-side external endpoint and never infer switch connectivity.",
+    },
     "b3115ea33fe4e1b57d4cfa6394c3125c42f5776b589f8297b4053cf3d7a7a073": {
         "mode": "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY",
         "family_id": "labelled_terminal.generic.v1",
@@ -261,6 +412,11 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
         "family_id": "component.external_multi_port.v1",
         "reason": "Human adjudication: multi-port component; each port maps to its own external endpoint.",
+    },
+    "84868127dc04f2454ab00c79d63b6d4a57792b2f47365725934a88bcf1986d65": {
+        "mode": "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "labelled_terminal.generic.v1",
+        "reason": "Human adjudication: PWF89 four-contact generic terminal; bind only genuinely outward-contacting sides to the instance designator, never union the four internal sides.",
     },
 }
 
@@ -340,6 +496,599 @@ def is_high_confidence_terminal_geometry(proposal: Mapping[str, Any]) -> bool:
         and primitive_count <= 12
         and text_count == 0
     )
+
+
+def _is_slash_circle_two_contact_terminal_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a slash-circle generic terminal by relative topology."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count == 2
+            and int(histogram.get("LINE", 0)) == 4
+            and int(histogram.get("LWPOLYLINE", 0)) == 2
+            and int(histogram.get("CIRCLE", 0)) == 1
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == 2
+            and len(circles) == 1
+            and len(segments) == 4
+        ):
+            return False
+        contact_centers = [
+            (float(item["center"][0]), float(item["center"][1]))
+            for item in contacts
+        ]
+        contact_radii = [float(item["radius"]) for item in contacts]
+        circle_center = (
+            float(circles[0]["center"][0]),
+            float(circles[0]["center"][1]),
+        )
+        circle_radius = float(circles[0]["radius"])
+        parsed_segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+
+    def distance(left, right) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    spacing = distance(contact_centers[0], contact_centers[1])
+    if spacing <= 1e-9 or min(contact_radii) <= 1e-9:
+        return False
+    if max(contact_radii) / min(contact_radii) > 1.05:
+        return False
+    mean_contact_radius = sum(contact_radii) / 2.0
+    if not (2.2 <= circle_radius / mean_contact_radius <= 2.6):
+        return False
+    axis_x = (contact_centers[1][0] - contact_centers[0][0]) / spacing
+    axis_y = (contact_centers[1][1] - contact_centers[0][1]) / spacing
+    center_dx = circle_center[0] - contact_centers[0][0]
+    center_dy = circle_center[1] - contact_centers[0][1]
+    projection = (center_dx * axis_x + center_dy * axis_y) / spacing
+    perpendicular = abs(center_dx * axis_y - center_dy * axis_x)
+    if not (0.47 <= projection <= 0.53 and perpendicular <= spacing * 0.02):
+        return False
+
+    axial: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    slash: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    for segment in parsed_segments:
+        dx = segment[1][0] - segment[0][0]
+        dy = segment[1][1] - segment[0][1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        alignment = abs((dx / length) * axis_x + (dy / length) * axis_y)
+        (axial if alignment >= 0.95 else slash).append(segment)
+    if len(axial) != 2 or len(slash) != 2:
+        return False
+
+    used_contacts: set[int] = set()
+    for lead in axial:
+        nearest = min(
+            (
+                (distance(endpoint, contact), endpoint_index, contact_index)
+                for endpoint_index, endpoint in enumerate(lead)
+                for contact_index, contact in enumerate(contact_centers)
+            ),
+            key=lambda item: item[0],
+        )
+        if nearest[0] > spacing * 0.02 or nearest[2] in used_contacts:
+            return False
+        used_contacts.add(nearest[2])
+        inner = lead[1 - nearest[1]]
+        if abs(distance(inner, circle_center) - circle_radius) > circle_radius * 0.08:
+            return False
+    if used_contacts != {0, 1}:
+        return False
+
+    shared = min(
+        (
+            (distance(left, right), left_index, right_index)
+            for left_index, left in enumerate(slash[0])
+            for right_index, right in enumerate(slash[1])
+        ),
+        key=lambda item: item[0],
+    )
+    if shared[0] > spacing * 0.02:
+        return False
+    shared_point = slash[0][shared[1]]
+    if distance(shared_point, circle_center) > spacing * 0.02:
+        return False
+    outer = (slash[0][1 - shared[1]], slash[1][1 - shared[2]])
+    outer_vectors = [(point[0] - circle_center[0], point[1] - circle_center[1]) for point in outer]
+    outer_distances = [math.hypot(vector[0], vector[1]) for vector in outer_vectors]
+    return bool(
+        all(1.5 <= value / circle_radius <= 1.8 for value in outer_distances)
+        and (outer_vectors[0][0] * outer_vectors[1][0] + outer_vectors[0][1] * outer_vectors[1][1])
+        / (outer_distances[0] * outer_distances[1]) <= -0.98
+    )
+
+
+def _is_four_contact_terminal_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize the four-way slash-circle state of a generic terminal."""
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if (
+            port_count != 4
+            or int(histogram.get("LINE", 0)) != 5
+            or int(histogram.get("LWPOLYLINE", 0)) != 4
+            or int(histogram.get("CIRCLE", 0)) != 1
+            or int(histogram.get("TEXT", 0)) != 0
+            or int(histogram.get("MTEXT", 0)) != 0
+            or len(contacts) != 4
+            or len(circles) != 1
+            or len(segments) != 5
+        ):
+            return False
+        points = [
+            (float(contact["center"][0]), float(contact["center"][1]))
+            for contact in contacts
+        ]
+        radii = [float(contact["radius"]) for contact in contacts]
+        center = (float(circles[0]["center"][0]), float(circles[0]["center"][1]))
+        circle_r = float(circles[0]["radius"])
+        lines = [
+            (
+                (float(segment["start"][0]), float(segment["start"][1])),
+                (float(segment["end"][0]), float(segment["end"][1])),
+            )
+            for segment in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    if (
+        min(radii) <= 1e-9
+        or circle_r <= 1e-9
+        or max(radii) / min(radii) > 1.08
+        or not 2.15 <= circle_r / (sum(radii) / len(radii)) <= 2.65
+    ):
+        return False
+    distances = [math.hypot(x - center[0], y - center[1]) for x, y in points]
+    if (
+        min(distances) <= 1e-9
+        or max(distances) / min(distances) > 1.08
+        or not 1.9 <= min(distances) / circle_r <= 2.25
+    ):
+        return False
+    vectors = [(x - center[0], y - center[1]) for x, y in points]
+    # Every contact has one opposite mate and two perpendicular neighbours.
+    for index, vector in enumerate(vectors):
+        cosines = sorted(
+            (
+                (
+                    vector[0] * other[0] + vector[1] * other[1]
+                )
+                / (distances[index] * distances[other_index])
+            )
+            for other_index, other in enumerate(vectors)
+            if other_index != index
+        )
+        if cosines[0] > -0.96 or any(abs(value) > 0.12 for value in cosines[1:]):
+            return False
+
+    radial_tolerance = min(distances) * 0.04
+    radial_line_indices: set[int] = set()
+    used_contacts: set[int] = set()
+    for contact_index, (contact, radial_vector, radial_distance) in enumerate(
+        zip(points, vectors, distances)
+    ):
+        unit = (radial_vector[0] / radial_distance, radial_vector[1] / radial_distance)
+        matches: list[int] = []
+        for line_index, (start, end) in enumerate(lines):
+            start_contact_distance = math.hypot(
+                start[0] - contact[0], start[1] - contact[1]
+            )
+            end_contact_distance = math.hypot(
+                end[0] - contact[0], end[1] - contact[1]
+            )
+            if min(start_contact_distance, end_contact_distance) > radial_tolerance:
+                continue
+            inner = end if start_contact_distance <= end_contact_distance else start
+            inner_vector = (inner[0] - center[0], inner[1] - center[1])
+            inner_distance = math.hypot(inner_vector[0], inner_vector[1])
+            if inner_distance <= 1e-9:
+                continue
+            alignment = (
+                inner_vector[0] * unit[0] + inner_vector[1] * unit[1]
+            ) / inner_distance
+            if (
+                alignment >= 0.98
+                and abs(inner_distance - circle_r) <= circle_r * 0.08
+            ):
+                matches.append(line_index)
+        if len(matches) != 1 or matches[0] in radial_line_indices:
+            return False
+        radial_line_indices.add(matches[0])
+        used_contacts.add(contact_index)
+    if len(radial_line_indices) != 4 or len(used_contacts) != 4:
+        return False
+
+    # The remaining line must be the centred slash, not an arbitrary fifth line.
+    slash_indices = set(range(len(lines))) - radial_line_indices
+    if len(slash_indices) != 1:
+        return False
+    slash = lines[slash_indices.pop()]
+    slash_vectors = [
+        (point[0] - center[0], point[1] - center[1]) for point in slash
+    ]
+    slash_distances = [math.hypot(vector[0], vector[1]) for vector in slash_vectors]
+    if min(slash_distances) <= 1e-9 or max(slash_distances) / min(slash_distances) > 1.08:
+        return False
+    slash_opposition = (
+        slash_vectors[0][0] * slash_vectors[1][0]
+        + slash_vectors[0][1] * slash_vectors[1][1]
+    ) / (slash_distances[0] * slash_distances[1])
+    if slash_opposition > -0.98 or not all(
+        1.55 <= value / circle_r <= 1.8 for value in slash_distances
+    ):
+        return False
+    slash_unit = (
+        slash_vectors[0][0] / slash_distances[0],
+        slash_vectors[0][1] / slash_distances[0],
+    )
+    axis_alignment = max(
+        abs(
+            slash_unit[0] * vector[0] / radial_distance
+            + slash_unit[1] * vector[1] / radial_distance
+        )
+        for vector, radial_distance in zip(vectors, distances)
+    )
+    return 0.55 <= axis_alignment <= 0.85
+def _is_three_contact_socket_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a three-way socket with independent outer contacts."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count in {2, 3}
+            and int(histogram.get("LINE", 0)) == 4
+            and int(histogram.get("LWPOLYLINE", 0)) == 6
+            and int(histogram.get("CIRCLE", 0)) == 4
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == 6
+            and len(circles) == 4
+            and len(segments) == 3
+        ):
+            return False
+        parsed_contacts = [
+            ((float(item["center"][0]), float(item["center"][1])), float(item["radius"]))
+            for item in contacts
+        ]
+        parsed_circles = [
+            ((float(item["center"][0]), float(item["center"][1])), float(item["radius"]))
+            for item in circles
+        ]
+        parsed_segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+
+    def distance(left, right) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    contact_radii = [radius for _, radius in parsed_contacts]
+    if min(contact_radii) <= 1e-9 or max(contact_radii) / min(contact_radii) > 1.05:
+        return False
+    outer_center, outer_radius = max(parsed_circles, key=lambda item: item[1])
+    inner_circles = [item for item in parsed_circles if item[1] < outer_radius]
+    if len(inner_circles) != 3 or min(radius for _, radius in inner_circles) <= 1e-9:
+        return False
+    if max(radius for _, radius in inner_circles) / min(radius for _, radius in inner_circles) > 1.05:
+        return False
+    if not (2.4 <= outer_radius / (sum(radius for _, radius in inner_circles) / 3.0) <= 2.6):
+        return False
+
+    outer_contacts = [
+        center
+        for center, _ in parsed_contacts
+        if 1.45 <= distance(center, outer_center) / outer_radius <= 1.55
+    ]
+    inner_contacts = [
+        center
+        for center, _ in parsed_contacts
+        if any(distance(center, circle_center) <= outer_radius * 0.02 for circle_center, _ in inner_circles)
+    ]
+    if len(outer_contacts) != 3 or len(inner_contacts) != 3:
+        return False
+    farthest_pair = max(
+        ((left, right) for left in range(3) for right in range(left + 1, 3)),
+        key=lambda pair: distance(outer_contacts[pair[0]], outer_contacts[pair[1]]),
+    )
+    first, second = (outer_contacts[index] for index in farthest_pair)
+    if not (
+        2.9 <= distance(first, second) / outer_radius <= 3.1
+        and distance(((first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0), outer_center)
+        <= outer_radius * 0.03
+    ):
+        return False
+    third = next(
+        outer_contacts[index]
+        for index in range(3)
+        if index not in farthest_pair
+    )
+    pair_axis = (second[0] - first[0], second[1] - first[1])
+    third_axis = (third[0] - outer_center[0], third[1] - outer_center[1])
+    if abs(pair_axis[0] * third_axis[0] + pair_axis[1] * third_axis[1]) > outer_radius**2 * 0.08:
+        return False
+
+    used_contacts: set[int] = set()
+    for segment in parsed_segments:
+        nearest = min(
+            (
+                (distance(endpoint, contact), endpoint_index, contact_index)
+                for endpoint_index, endpoint in enumerate(segment)
+                for contact_index, contact in enumerate(outer_contacts)
+            ),
+            key=lambda item: item[0],
+        )
+        if nearest[0] > outer_radius * 0.03 or nearest[2] in used_contacts:
+            return False
+        used_contacts.add(nearest[2])
+        inner = segment[1 - nearest[1]]
+        outer = outer_contacts[nearest[2]]
+        outward = (outer[0] - outer_center[0], outer[1] - outer_center[1])
+        inward = (inner[0] - outer[0], inner[1] - outer[1])
+        if outward[0] * inward[0] + outward[1] * inward[1] >= 0.0:
+            return False
+        if not (0.45 <= distance(inner, outer) / outer_radius <= 0.55):
+            return False
+    return used_contacts == {0, 1, 2}
+
+
+def _is_four_numbered_contact_panel_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a 2x2 numbered panel with four isolated outward contacts."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count == 4
+            and int(histogram.get("LINE", 0)) == 3
+            and int(histogram.get("LWPOLYLINE", 0)) == 4
+            and int(histogram.get("CIRCLE", 0)) == 4
+            and int(histogram.get("TEXT", 0)) == 4
+            and int(histogram.get("ARC", 0)) == 0
+            and len(contacts) == 4
+            and len(circles) == 4
+            and len(segments) == 3
+        ):
+            return False
+        values = sorted(
+            int(str(value).strip()) for value in shape.get("text_values") or []
+        )
+        parsed_contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius") or item["radius"]),
+            )
+            for item in contacts
+        ]
+        parsed_circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in circles
+        ]
+        parsed_segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    if values != list(range(values[0], values[0] + 4)):
+        return False
+    contact_radii = [radius for _, radius in parsed_contacts]
+    circle_radii = [radius for _, radius in parsed_circles]
+    if (
+        min(contact_radii) <= 1e-9
+        or max(contact_radii) / min(contact_radii) > 1.05
+        or min(circle_radii) <= 1e-9
+        or max(circle_radii) / min(circle_radii) > 1.05
+    ):
+        return False
+    mean_contact_radius = sum(contact_radii) / 4.0
+    mean_circle_radius = sum(circle_radii) / 4.0
+    if not 4.65 <= mean_circle_radius / mean_contact_radius <= 5.0:
+        return False
+    if not (
+        _is_rotation_invariant_contact_grid(contacts, columns=2, rows=2)
+        and _is_rotation_invariant_contact_grid(circles, columns=2, rows=2)
+    ):
+        return False
+
+    def distance(left: tuple[float, float], right: tuple[float, float]) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    grid_center = (
+        sum(center[0] for center, _ in parsed_circles) / 4.0,
+        sum(center[1] for center, _ in parsed_circles) / 4.0,
+    )
+    used_circles: set[int] = set()
+    for contact_center, _ in parsed_contacts:
+        nearest = min(
+            (
+                (distance(contact_center, circle_center), index, circle_center)
+                for index, (circle_center, _) in enumerate(parsed_circles)
+            ),
+            key=lambda item: item[0],
+        )
+        if nearest[1] in used_circles:
+            return False
+        if not 0.96 <= nearest[0] / mean_circle_radius <= 1.04:
+            return False
+        circle_center = nearest[2]
+        outward = (
+            circle_center[0] - grid_center[0],
+            circle_center[1] - grid_center[1],
+        )
+        contact_vector = (
+            contact_center[0] - circle_center[0],
+            contact_center[1] - circle_center[1],
+        )
+        if outward[0] * contact_vector[0] + outward[1] * contact_vector[1] <= 0.0:
+            return False
+        used_circles.add(nearest[1])
+    if len(used_circles) != 4:
+        return False
+
+    line_rows = []
+    for start, end in parsed_segments:
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        line_rows.append(
+            {
+                "start": start,
+                "end": end,
+                "unit": (dx / length, dy / length),
+                "length": length,
+                "midpoint": ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0),
+            }
+        )
+    parallel_pair = max(
+        (
+            (
+                abs(
+                    line_rows[left]["unit"][0] * line_rows[right]["unit"][0]
+                    + line_rows[left]["unit"][1] * line_rows[right]["unit"][1]
+                ),
+                left,
+                right,
+            )
+            for left in range(3)
+            for right in range(left + 1, 3)
+        ),
+        key=lambda item: item[0],
+    )
+    if parallel_pair[0] < 0.98:
+        return False
+    parallel_indices = {parallel_pair[1], parallel_pair[2]}
+    stem_index = next(index for index in range(3) if index not in parallel_indices)
+    stem = line_rows[stem_index]
+    parallel = sorted(
+        (line_rows[index] for index in parallel_indices),
+        key=lambda item: item["length"],
+    )
+    if not (
+        abs(stem["unit"][0] * parallel[0]["unit"][0] + stem["unit"][1] * parallel[0]["unit"][1]) <= 0.05
+        and 0.48 <= parallel[0]["length"] / parallel[1]["length"] <= 0.52
+        and 0.85 <= stem["length"] / parallel[1]["length"] <= 0.9
+    ):
+        return False
+    return all(
+        min(distance(endpoint, row["midpoint"]) for endpoint in (stem["start"], stem["end"]))
+        <= mean_contact_radius * 0.08
+        for row in parallel
+    )
+
+
+def _is_four_contact_isolated_frame_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a 2x2 four-port mechanism while inferring no switch state."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    try:
+        if not (
+            port_count == 4
+            and int(histogram.get("LINE", 0)) == 15
+            and int(histogram.get("LWPOLYLINE", 0)) == 8
+            and int(histogram.get("CIRCLE", 0)) == 4
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == 8
+            and len(circles) == 4
+            and len(shape.get("normalized_line_segments") or []) == 15
+        ):
+            return False
+        parsed_contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius") or item["radius"]),
+            )
+            for item in contacts
+        ]
+        parsed_circles = [
+            ((float(item["center"][0]), float(item["center"][1])), float(item["radius"]))
+            for item in circles
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+
+    def distance(left, right) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    contact_radii = [radius for _, radius in parsed_contacts]
+    circle_radii = [radius for _, radius in parsed_circles]
+    if min(contact_radii) <= 1e-9 or max(contact_radii) / min(contact_radii) > 1.05:
+        return False
+    if min(circle_radii) <= 1e-9 or max(circle_radii) / min(circle_radii) > 1.05:
+        return False
+    if not (2.9 <= (sum(circle_radii) / 4.0) / (sum(contact_radii) / 8.0) <= 3.1):
+        return False
+    inner = [
+        center
+        for center, _ in parsed_contacts
+        if any(distance(center, circle_center) <= max(circle_radii) * 0.03 for circle_center, _ in parsed_circles)
+    ]
+    outer = [
+        center
+        for center, _ in parsed_contacts
+        if center not in inner
+    ]
+    if len(inner) != 4 or len(outer) != 4:
+        return False
+    inner_rows = [{"center": list(center)} for center in inner]
+    outer_rows = [{"center": list(center)} for center in outer]
+    if not (
+        _is_rotation_invariant_contact_grid(inner_rows, columns=2, rows=2)
+        and _is_rotation_invariant_contact_grid(outer_rows, columns=2, rows=2)
+    ):
+        return False
+    inner_center = (
+        sum(point[0] for point in inner) / 4.0,
+        sum(point[1] for point in inner) / 4.0,
+    )
+    outer_center = (
+        sum(point[0] for point in outer) / 4.0,
+        sum(point[1] for point in outer) / 4.0,
+    )
+    return distance(inner_center, outer_center) <= max(circle_radii) * 0.05
 
 
 def _is_backplate_table_container_geometry(
@@ -445,7 +1194,42 @@ def classify_definition_family(
     )
     classifier_status = "MATCHED" if table_container_match or panel_match or ignore_match else "UNKNOWN"
     confidence = 0.99 if table_container_match else 0.98 if panel_match else ignore_match[2] if ignore_match else 0.0
-    if machine_family is None and is_high_confidence_terminal_geometry(proposal):
+    if machine_family is None and _is_four_numbered_contact_panel_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_multi_port.v1"
+        matched_rule_id = "four-numbered-independent-contact-panel-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
+    elif machine_family is None and _is_four_contact_isolated_frame_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_multi_port.v1"
+        matched_rule_id = "four-contact-isolated-switch-frame-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
+    elif machine_family is None and _is_three_contact_socket_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_multi_port.v1"
+        matched_rule_id = "three-contact-labelled-socket-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
+    elif machine_family is None and _is_four_contact_terminal_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "labelled_terminal.generic.v1"
+        matched_rule_id = "four-orthogonal-contact-terminal-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
+    elif machine_family is None and _is_slash_circle_two_contact_terminal_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "labelled_terminal.generic.v1"
+        matched_rule_id = "slash-circle-two-contact-terminal-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
+    elif machine_family is None and is_high_confidence_terminal_geometry(proposal):
         machine_family = "labelled_terminal.generic.v1"
         matched_rule_id = "compact-equal-arc-terminal-v1"
         classifier_status = "MATCHED"
@@ -464,11 +1248,39 @@ def classify_definition_family(
         matched_rule_id = "repeated-round-body-external-ports-v1"
         classifier_status = "MATCHED"
         confidence = 0.9
+    elif machine_family is None and _has_single_row_contact_mechanism_topology(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_row_contact.v1"
+        matched_rule_id = "single-row-circle-contact-mechanism-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
+    elif machine_family is None and _has_two_contact_mechanical_actuator_topology(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_strip_two_port.v1"
+        matched_rule_id = "two-contact-mechanical-actuator-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
     elif machine_family is None and _has_named_four_contact_two_port_strip_topology(
         shape, port_count=len(ports)
     ):
         machine_family = "component.external_strip_two_port.v1"
         matched_rule_id = "four-contact-two-circle-named-strip-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.98
+    elif machine_family is None and _has_vertical_two_port_box_topology(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_strip_two_port.v1"
+        matched_rule_id = "vertical-numbered-two-port-box-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _has_named_two_row_box_topology(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_strip_two_port.v1"
+        matched_rule_id = "named-two-row-box-four-contact-v1"
         classifier_status = "MATCHED"
         confidence = 0.98
     elif machine_family is None and len(ports) >= 4 and primitive_count >= 16 and max(width, height) > 0.0:
@@ -522,6 +1334,346 @@ def classify_definition_family(
         "exact_human_member": bool(reviewed_policy),
         "authority": "SHADOW_ONLY",
     }
+
+
+def _has_grounded_three_row_cb_panel_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize a complete grounded three-row CB assembly by geometry.
+
+    The parent skeleton, three repeated mechanism children, and one ground
+    child are all required.  Names and fingerprints are intentionally absent.
+    Distances are normalized by the three equal parent-contact radii, making
+    the test invariant to parent rotation and uniform scale.
+    """
+
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    segments = shape.get("normalized_line_segments") or []
+    inserts = shape.get("normalized_inserts") or []
+    try:
+        if len(contacts) != 3 or len(segments) != 8 or len(inserts) != 4:
+            return False
+        parsed_contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius") or item["radius"]),
+            )
+            for item in contacts
+        ]
+        parsed_segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in segments
+        ]
+        parsed_inserts = [
+            {
+                "center": (
+                    float(item["center"][0]),
+                    float(item["center"][1]),
+                ),
+                "rotation": float(item.get("rotation_deg", 0.0)) % 360.0,
+                "xscale": float(item.get("xscale", 1.0)),
+                "yscale": float(item.get("yscale", 1.0)),
+                "histogram": {
+                    str(key): int(value)
+                    for key, value in (item.get("child_entity_histogram") or {}).items()
+                },
+            }
+            for item in inserts
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+
+    radii = [radius for _, radius in parsed_contacts]
+    radius = sum(radii) / 3.0
+    if radius <= 1e-9 or max(radii) / min(radii) > 1.03:
+        return False
+    first, last = max(
+        (
+            (left, right)
+            for index, left in enumerate(parsed_contacts)
+            for right in parsed_contacts[index + 1 :]
+        ),
+        key=lambda pair: math.hypot(
+            pair[1][0][0] - pair[0][0][0], pair[1][0][1] - pair[0][0][1]
+        ),
+    )
+    column_vector = (last[0][0] - first[0][0], last[0][1] - first[0][1])
+    column_span = math.hypot(column_vector[0], column_vector[1])
+    if not 79.5 <= column_span / radius <= 80.5:
+        return False
+    column = (column_vector[0] / column_span, column_vector[1] / column_span)
+    row_axis = (-column[1], column[0])
+    center = ((first[0][0] + last[0][0]) / 2.0, (first[0][1] + last[0][1]) / 2.0)
+
+    def project(point: tuple[float, float]) -> tuple[float, float]:
+        dx, dy = point[0] - center[0], point[1] - center[1]
+        return (
+            (dx * row_axis[0] + dy * row_axis[1]) / radius,
+            (dx * column[0] + dy * column[1]) / radius,
+        )
+
+    contact_positions = sorted(
+        (project(point) for point, _ in parsed_contacts), key=lambda item: item[1]
+    )
+    if any(abs(row) > 0.08 for row, _ in contact_positions):
+        return False
+    contact_levels = sorted(level for _, level in contact_positions)
+    if any(
+        abs(value - expected) > 0.15
+        for value, expected in zip(contact_levels, (-40.0, 0.0, 40.0))
+    ):
+        return False
+
+    projected_segments = []
+    for start, end in parsed_segments:
+        local_start, local_end = project(start), project(end)
+        dx = local_end[0] - local_start[0]
+        dy = local_end[1] - local_start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        projected_segments.append(
+            {
+                "start": local_start,
+                "end": local_end,
+                "length": length,
+                "row_alignment": abs(dx) / length,
+                "column_alignment": abs(dy) / length,
+            }
+        )
+    spine_rows = [row for row in projected_segments if row["column_alignment"] >= 0.995]
+    row_segments = [row for row in projected_segments if row["row_alignment"] >= 0.995]
+    if len(spine_rows) != 1 or len(row_segments) != 7:
+        return False
+    spine = spine_rows[0]
+    if (
+        abs(spine["start"][0]) > 0.08
+        or abs(spine["end"][0]) > 0.08
+        or not 129.5 <= spine["length"] <= 130.5
+    ):
+        return False
+    spine_levels = sorted((spine["start"][1], spine["end"][1]))
+    overhangs = sorted(
+        (
+            contact_levels[0] - spine_levels[0],
+            spine_levels[1] - contact_levels[-1],
+        )
+    )
+    if not (9.5 <= overhangs[0] <= 10.5 and 39.5 <= overhangs[1] <= 40.5):
+        return False
+
+    groups: list[list[dict[str, Any]]] = []
+    group_levels: list[float] = []
+    for row in sorted(
+        row_segments,
+        key=lambda item: (item["start"][1] + item["end"][1]) / 2.0,
+    ):
+        level = (row["start"][1] + row["end"][1]) / 2.0
+        if not group_levels or abs(level - group_levels[-1]) > 0.2:
+            group_levels.append(level)
+            groups.append([row])
+        else:
+            groups[-1].append(row)
+    if len(groups) != 4 or sorted(len(group) for group in groups) != [1, 2, 2, 2]:
+        return False
+    ordered_levels = sorted(group_levels)
+    if any(abs((ordered_levels[index + 1] - ordered_levels[index]) - 40.0) > 0.2 for index in range(3)):
+        return False
+    if not (
+        all(any(abs(level - contact) <= 0.2 for level in ordered_levels) for contact in contact_levels)
+        and min(
+            abs(ordered_levels[0] - contact_levels[0]),
+            abs(ordered_levels[-1] - contact_levels[-1]),
+        ) <= 0.2
+    ):
+        return False
+
+    single_index = next(index for index, group in enumerate(groups) if len(group) == 1)
+    single_level = group_levels[single_index]
+    if min(abs(single_level - contact) for contact in contact_levels) > 0.2:
+        return False
+    single = groups[single_index][0]
+    if not 89.5 <= single["length"] <= 90.5:
+        return False
+    single_interval = sorted((single["start"][0], single["end"][0]))
+    if min(abs(value) for value in single_interval) > 0.08:
+        return False
+    outward_sign = 1.0 if max(single_interval) > abs(min(single_interval)) else -1.0
+
+    pair_levels = []
+    for level, group in zip(group_levels, groups):
+        if len(group) != 2:
+            continue
+        pair_levels.append(level)
+        intervals = sorted(
+            (
+                sorted(
+                    (
+                        outward_sign * row["start"][0],
+                        outward_sign * row["end"][0],
+                    )
+                )
+                for row in group
+            ),
+            key=lambda interval: interval[0],
+        )
+        expected = ((0.0, 40.0), (70.0, 90.0))
+        if any(
+            abs(actual - target) > 0.25
+            for interval, expected_interval in zip(intervals, expected)
+            for actual, target in zip(interval, expected_interval)
+        ):
+            return False
+
+    mechanism_histogram = {"ARC": 2, "LINE": 3, "LWPOLYLINE": 2}
+    ground_histogram = {"LINE": 4, "LWPOLYLINE": 1}
+    mechanisms = [item for item in parsed_inserts if item["histogram"] == mechanism_histogram]
+    grounds = [item for item in parsed_inserts if item["histogram"] == ground_histogram]
+    if len(mechanisms) != 3 or len(grounds) != 1:
+        return False
+    scales = []
+    for item in parsed_inserts:
+        if min(abs(item["xscale"]), abs(item["yscale"])) <= 1e-9:
+            return False
+        if max(abs(item["xscale"]), abs(item["yscale"])) / min(abs(item["xscale"]), abs(item["yscale"])) > 1.03:
+            return False
+        scales.append((abs(item["xscale"]) + abs(item["yscale"])) / 2.0)
+    if max(scales) / min(scales) > 1.03:
+        return False
+
+    mechanism_rotation = mechanisms[0]["rotation"]
+    if any(
+        abs(((item["rotation"] - mechanism_rotation + 180.0) % 360.0) - 180.0) > 1.0
+        for item in mechanisms[1:]
+    ):
+        return False
+    ground_rotation_delta = (grounds[0]["rotation"] - mechanism_rotation) % 360.0
+    if abs(ground_rotation_delta - 180.0) > 1.0:
+        return False
+
+    mechanism_positions = sorted(project(item["center"]) for item in mechanisms)
+    if any(abs(outward_sign * row - 70.0) > 0.25 for row, _ in mechanism_positions):
+        return False
+    mechanism_levels = sorted(level for _, level in mechanism_positions)
+    if any(abs(actual - expected) > 0.25 for actual, expected in zip(mechanism_levels, sorted(pair_levels))):
+        return False
+    ground_row, ground_level = project(grounds[0]["center"])
+    return bool(
+        abs(ground_row) <= 0.1
+        and 9.5 <= abs(ground_level - single_level) <= 10.5
+        and (
+            ground_level < min(contact_levels) - 9.0
+            or ground_level > max(contact_levels) + 9.0
+        )
+    )
+
+
+def _has_closed_cable_sleeve_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize a two-semicircle closed cable sleeve by full topology."""
+
+    arcs = shape.get("normalized_arcs") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if len(arcs) != 2 or len(segments) != 2:
+            return False
+        parsed_arcs = [
+            {
+                "center": (
+                    float(item["center"][0]),
+                    float(item["center"][1]),
+                ),
+                "radius": float(item["radius"]),
+                "sweep": float(item.get("sweep_deg", 0.0)),
+                "midpoint": (
+                    float(item["midpoint"][0]),
+                    float(item["midpoint"][1]),
+                ),
+            }
+            for item in arcs
+        ]
+        parsed_segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+
+    radii = [item["radius"] for item in parsed_arcs]
+    radius = sum(radii) / 2.0
+    if (
+        radius <= 1e-9
+        or max(radii) / min(radii) > 1.03
+        or any(abs(item["sweep"] - 180.0) > 1.0 for item in parsed_arcs)
+    ):
+        return False
+    first_center, second_center = (
+        parsed_arcs[0]["center"], parsed_arcs[1]["center"]
+    )
+    axis_vector = (
+        second_center[0] - first_center[0],
+        second_center[1] - first_center[1],
+    )
+    spacing = math.hypot(axis_vector[0], axis_vector[1])
+    if not 3.95 <= spacing / radius <= 4.05:
+        return False
+    axis = (axis_vector[0] / spacing, axis_vector[1] / spacing)
+    normal = (-axis[1], axis[0])
+    center = (
+        (first_center[0] + second_center[0]) / 2.0,
+        (first_center[1] + second_center[1]) / 2.0,
+    )
+
+    def project(point: tuple[float, float]) -> tuple[float, float]:
+        dx, dy = point[0] - center[0], point[1] - center[1]
+        return (
+            (dx * normal[0] + dy * normal[1]) / radius,
+            (dx * axis[0] + dy * axis[1]) / radius,
+        )
+
+    projected_arcs = sorted(
+        (
+            (project(item["center"]), project(item["midpoint"]))
+            for item in parsed_arcs
+        ),
+        key=lambda item: item[0][1],
+    )
+    expected_arc_positions = ((-2.0, -3.0), (2.0, 3.0))
+    for (arc_center, arc_midpoint), (center_level, midpoint_level) in zip(
+        projected_arcs, expected_arc_positions
+    ):
+        if (
+            abs(arc_center[0]) > 0.05
+            or abs(arc_center[1] - center_level) > 0.05
+            or abs(arc_midpoint[0]) > 0.05
+            or abs(arc_midpoint[1] - midpoint_level) > 0.05
+        ):
+            return False
+
+    row_offsets = []
+    for start, end in parsed_segments:
+        local_start, local_end = project(start), project(end)
+        dx = local_end[0] - local_start[0]
+        dy = local_end[1] - local_start[1]
+        length = math.hypot(dx, dy)
+        if (
+            not 3.95 <= length <= 4.05
+            or abs(dy) / length < 0.995
+            or abs(local_start[0] - local_end[0]) > 0.05
+        ):
+            return False
+        levels = sorted((local_start[1], local_end[1]))
+        if abs(levels[0] + 2.0) > 0.05 or abs(levels[1] - 2.0) > 0.05:
+            return False
+        row_offsets.append((local_start[0] + local_end[0]) / 2.0)
+    row_offsets.sort()
+    return bool(
+        abs(row_offsets[0] + 1.0) <= 0.05
+        and abs(row_offsets[1] - 1.0) <= 0.05
+    )
 
 
 def _match_confirmed_ignore_geometry_family(
@@ -588,6 +1740,81 @@ def _match_confirmed_ignore_geometry_family(
         and abs(circle_radii[3] - circle_radii[2]) <= circle_radii[2] * 0.03
         and 1.15 <= circle_radii[2] / circle_radii[0] <= 1.5
     )
+
+    if (
+        port_count in {2, 3, 4}
+        and count("INSERT") == 4
+        and count("LINE") == 8
+        and count("LWPOLYLINE") == 3
+        and count("ARC") == 0
+        and count("CIRCLE") == 0
+        and count("HATCH") == 0
+        and count("POLYLINE") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 3
+        and _has_grounded_three_row_cb_panel_topology(shape)
+    ):
+        return (
+            "electrical.nonconnective_grounded_three_row_cb_panel_ignored.v1",
+            "grounded-three-row-repeated-mechanism-panel-v1",
+            0.99,
+        )
+
+    if (
+        port_count in {2, 3, 4}
+        and count("ARC") == 2
+        and count("LINE") == 2
+        and count("LWPOLYLINE") == 0
+        and count("POLYLINE") == 0
+        and count("CIRCLE") == 0
+        and count("HATCH") == 0
+        and count("INSERT") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and _has_closed_cable_sleeve_topology(shape)
+    ):
+        return (
+            "non_electrical.cable_sleeve_ignored.v1",
+            "closed-opposed-semicircle-cable-sleeve-v1",
+            0.99,
+        )
+
+    # Wide NGFW firewall face with ETH/P sockets, USB indicators, paired
+    # optical circles and dual power-terminal drawings.
+    if _has_firewall_eth_panel_topology(shape, port_count=port_count):
+        return (
+            "communication.equipment_panel_ignored.v1",
+            "firewall-eth-usb-optical-power-panel-v1",
+            0.99,
+        )
+
+    # Enclosed HYKL 4x2 IN/OUT interface face.  Circles and outward contacts
+    # are recognition evidence only; the whole panel is electrically ignored.
+    if _has_hykl_dual_row_panel_topology(shape, port_count=port_count):
+        return (
+            "communication.equipment_panel_ignored.v1",
+            "dual-row-pe-tx-rx-interface-panel-v1",
+            0.99,
+        )
+
+    # Compact 8-GE / 2-GX switch face.  Complete connector arrays, optical
+    # circle grid and native panel labels are required together.
+    if _has_compact_ge_gx_switch_panel_topology(shape, port_count=port_count):
+        return (
+            "communication.equipment_panel_ignored.v1",
+            "compact-ge-gx-power-switch-panel-v1",
+            0.99,
+        )
+
+    # Wide 24-GE / 4-GX switch face.  Text arrays establish the equipment
+    # semantics while the repeated square cells and alternating optical-circle
+    # pitch establish the geometry.  The conjunction is intentionally strict:
+    # neither a dense terminal strip nor a text-only panel may inherit IGNORE.
+    if _has_wide_ge_gx_switch_panel_topology(shape, port_count=port_count):
+        return (
+            "communication.equipment_panel_ignored.v1",
+            "wide-ge-gx-power-switch-panel-v1",
+            0.99,
+        )
 
     # Tall communication-equipment panel with six native COM sections, power
     # annotations, and a paired optical ST motif.  The semantic anchors prevent
@@ -696,6 +1923,59 @@ def _match_confirmed_ignore_geometry_family(
             "electrical.nonconnective_four_coil_ignored.v1",
             "four-equal-semicircle-coil-grid-v1",
             0.98,
+        )
+
+    if (
+        port_count in {1, 2, 3, 4}
+        and len(arc_radii) == 12
+        and count("LINE") == 26
+        and count("LWPOLYLINE") == 4
+        and count("POLYLINE") == 0
+        and count("CIRCLE") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 4
+        and _has_repeated_three_row_coil_panel_topology(shape)
+    ):
+        return (
+            "electrical.nonconnective_repeated_coil_panel_ignored.v1",
+            "repeated-three-row-semicircle-panel-v1",
+            0.99,
+        )
+
+    if (
+        port_count in {2, 3, 4}
+        and count("LINE") == 10
+        and count("LWPOLYLINE") == 6
+        and count("CIRCLE") == 2
+        and count("HATCH") == 8
+        and count("ARC") == 0
+        and count("POLYLINE") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 2
+        and _has_dual_row_hatched_signal_panel_topology(shape)
+    ):
+        return (
+            "electrical.nonconnective_dual_row_signal_panel_ignored.v1",
+            "dual-row-hatched-circle-panel-v1",
+            0.99,
+        )
+    if (
+        port_count in {2, 3, 4}
+        and count("LINE") == 2
+        and count("CIRCLE") == 1
+        and count("HATCH") == 1
+        and count("LWPOLYLINE") == 1
+        and count("POLYLINE") == 0
+        and count("ARC") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 1
+        and 1.6 <= max(aspect_ratio, oriented_aspect_ratio) <= 1.9
+        and _has_circle_contact_marker_ignore_topology(shape)
+    ):
+        return (
+            "electrical.nonconnective_circle_contact_marker_ignored.v1",
+            "diameter-circle-offset-contact-marker-v1",
+            0.99,
         )
 
     # Shared stepped non-connective geometry.  Human-exact policies refine
@@ -827,6 +2107,39 @@ def _match_confirmed_ignore_geometry_family(
             0.95,
         )
     if (
+        port_count in {2, 3, 4}
+        and count("LINE") == 6
+        and count("CIRCLE") == 1
+        and count("HATCH") == 2
+        and count("LWPOLYLINE") == 0
+        and count("POLYLINE") == 0
+        and count("ARC") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and _has_inline_indicator_ignore_topology(shape)
+    ):
+        return (
+            "electrical.nonconnective_inline_indicator_ignored.v1",
+            "hatched-circle-inline-indicator-v1",
+            0.99,
+        )
+    if (
+        port_count in {2, 3, 4}
+        and not arc_radii
+        and circle_count == 0
+        and count("LINE") == 2
+        and count("LWPOLYLINE") == 5
+        and count("POLYLINE") == 0
+        and count("HATCH") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 2
+        and _has_crossed_two_contact_open_switch_topology(shape)
+    ):
+        return (
+            "switch.open.v1",
+            "crossed-two-contact-open-switch-v1",
+            0.99,
+        )
+    if (
         port_count >= 3
         and count("HATCH") >= 1
         and 10 <= count("LINE") <= 16
@@ -898,6 +2211,672 @@ def _match_confirmed_ignore_geometry_family(
             0.98,
         )
     return None
+
+
+def _has_wide_ge_gx_switch_panel_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a complete wide GE/GX equipment face, invariant to scale/rotation."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not isinstance(histogram, Mapping):
+        return False
+
+    def count(name: str) -> int:
+        try:
+            return int(histogram.get(name, 0))
+        except (TypeError, ValueError):
+            return 0
+
+    try:
+        aspect = float(shape.get("oriented_aspect_ratio") or 0.0)
+        bulged_count = int(shape.get("closed_bulged_lwpolyline_count", 0))
+    except (TypeError, ValueError):
+        return False
+    if not (
+        port_count == 2
+        and 20 <= count("ARC") <= 28
+        and count("CIRCLE") == 8
+        and 45 <= count("HATCH") <= 65
+        and 1 <= count("INSERT") <= 5
+        and 75 <= count("LINE") <= 105
+        and 120 <= count("LWPOLYLINE") <= 155
+        and 70 <= count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") <= 90
+        and 3.8 <= aspect <= 4.6
+        and bulged_count >= 40
+    ):
+        return False
+
+    values = {
+        str(value or "").strip().upper()
+        for value in shape.get("text_values") or []
+        if str(value or "").strip()
+    }
+    required_labels = (
+        {f"P{index}" for index in range(1, 25)}
+        | {f"GE{index}" for index in range(1, 25)}
+        | {f"GX{index}" for index in range(25, 29)}
+        | {f"{index}{suffix}" for index in range(1, 5) for suffix in ("T", "R")}
+        | {"CONSOLE", "FAULT", "PWR", "PWR1", "PWR2", "+/L", "-/N"}
+    )
+    if not required_labels <= values:
+        return False
+
+    panel = shape.get("communication_panel_features")
+    if not isinstance(panel, Mapping):
+        return False
+    try:
+        square_count = int(panel.get("square_cell_count", 0))
+        cell_aspect = float(panel.get("dominant_cell_aspect", 0.0))
+    except (TypeError, ValueError):
+        return False
+    if square_count < 24 or not 0.9 <= cell_aspect <= 1.12:
+        return False
+
+    parsed: list[tuple[float, float, float]] = []
+    for item in shape.get("normalized_circles") or []:
+        if not isinstance(item, Mapping):
+            return False
+        center = item.get("center")
+        try:
+            if not isinstance(center, Sequence) or len(center) < 2:
+                return False
+            parsed.append((float(center[0]), float(center[1]), float(item["radius"])))
+        except (KeyError, TypeError, ValueError):
+            return False
+    if len(parsed) != 8:
+        return False
+    radii = [item[2] for item in parsed]
+    mean_radius = sum(radii) / len(radii)
+    if mean_radius <= 1e-9 or max(radii) / min(radii) > 1.03:
+        return False
+
+    # Derive the circle-row axis from the farthest pair, so a rotated block
+    # retains the same ordered spacing signature.
+    start, end = max(
+        ((left, right) for i, left in enumerate(parsed) for right in parsed[i + 1 :]),
+        key=lambda pair: math.hypot(pair[1][0] - pair[0][0], pair[1][1] - pair[0][1]),
+    )
+    axis_x, axis_y = end[0] - start[0], end[1] - start[1]
+    axis_length = math.hypot(axis_x, axis_y)
+    if axis_length <= 1e-9:
+        return False
+    unit_x, unit_y = axis_x / axis_length, axis_y / axis_length
+    normal_x, normal_y = -unit_y, unit_x
+    projected = sorted(
+        (
+            (x - start[0]) * unit_x + (y - start[1]) * unit_y,
+            abs((x - start[0]) * normal_x + (y - start[1]) * normal_y),
+        )
+        for x, y, _ in parsed
+    )
+    if max(offset for _, offset in projected) > mean_radius * 0.08:
+        return False
+    gaps = [
+        (projected[index + 1][0] - projected[index][0]) / mean_radius
+        for index in range(7)
+    ]
+    return all(
+        3.15 <= gap <= 3.60 if index % 2 == 0 else 4.55 <= gap <= 5.10
+        for index, gap in enumerate(gaps)
+    )
+
+
+def _has_two_contact_mechanical_actuator_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize the PWF176-style two-contact mechanism without its name.
+
+    The two round contacts are the only external ports.  The open blade and
+    lower mechanical actuator are body geometry and never grant conductivity.
+    All comparisons are contact-radius normalized and therefore invariant to
+    definition rotation and uniform scale.
+    """
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count == 2
+            and int(histogram.get("LINE", 0)) == 9
+            and int(histogram.get("LWPOLYLINE", 0)) == 2
+            and sum(int(value) for value in histogram.values()) == 11
+            and len(contacts) == 2
+            and len(segments) == 9
+        ):
+            return False
+        parsed_contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius") or item["radius"]),
+            )
+            for item in contacts
+        ]
+        parsed_segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+
+    radii = [radius for _, radius in parsed_contacts]
+    radius = sum(radii) / 2.0
+    if radius <= 1e-9 or max(radii) / min(radii) > 1.03:
+        return False
+    first, second = (item[0] for item in parsed_contacts)
+    axis = (second[0] - first[0], second[1] - first[1])
+    contact_spacing = math.hypot(axis[0], axis[1])
+    if not 22.2 <= contact_spacing / radius <= 22.8:
+        return False
+    unit = (axis[0] / contact_spacing, axis[1] / contact_spacing)
+    normal = (-unit[1], unit[0])
+    midpoint = ((first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0)
+
+    def coordinates(point: tuple[float, float]) -> tuple[float, float]:
+        dx, dy = point[0] - midpoint[0], point[1] - midpoint[1]
+        return (
+            (dx * unit[0] + dy * unit[1]) / radius,
+            (dx * normal[0] + dy * normal[1]) / radius,
+        )
+
+    rows = []
+    for start, end in parsed_segments:
+        local_start, local_end = coordinates(start), coordinates(end)
+        dx, dy = local_end[0] - local_start[0], local_end[1] - local_start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        rows.append(
+            {
+                "start": local_start,
+                "end": local_end,
+                "length": length,
+                "axis_alignment": abs(dx) / length,
+                "normal_alignment": abs(dy) / length,
+            }
+        )
+
+    contact_axis = contact_spacing / radius / 2.0
+    leads = []
+    for row in rows:
+        endpoints = (row["start"], row["end"])
+        if (
+            row["axis_alignment"] >= 0.995
+            and max(abs(point[1]) for point in endpoints) <= 0.08
+            and 7.3 <= row["length"] <= 7.7
+            and any(abs(abs(point[0]) - contact_axis) <= 0.08 for point in endpoints)
+        ):
+            leads.append(row)
+    if len(leads) != 2:
+        return False
+    lead_sides = {
+        1 if max(row["start"][0], row["end"][0]) > contact_axis - 0.08 else -1
+        for row in leads
+    }
+    if lead_sides != {-1, 1}:
+        return False
+
+    remaining = [row for row in rows if row not in leads]
+    oblique = [
+        row
+        for row in remaining
+        if 8.2 <= row["length"] <= 8.6
+        and 0.86 <= row["axis_alignment"] <= 0.93
+        and any(abs(point[1]) <= 0.08 and 3.6 <= abs(point[0]) <= 3.9 for point in (row["start"], row["end"]))
+    ]
+    if len(oblique) != 1:
+        return False
+    actuator = [row for row in remaining if row is not oblique[0]]
+    axis_bars = [row for row in actuator if row["axis_alignment"] >= 0.995]
+    normal_bars = [row for row in actuator if row["normal_alignment"] >= 0.995]
+    if len(axis_bars) != 1 or len(normal_bars) != 5:
+        return False
+    bottom = axis_bars[0]
+    if not (
+        3.65 <= bottom["length"] <= 3.85
+        and abs((bottom["start"][0] + bottom["end"][0]) / 2.0) <= 0.08
+        and 8.9 <= abs((bottom["start"][1] + bottom["end"][1]) / 2.0) <= 9.2
+    ):
+        return False
+    if any(not 1.4 <= row["length"] <= 1.75 for row in normal_bars):
+        return False
+    axial_offsets = sorted(
+        abs((row["start"][0] + row["end"][0]) / 2.0) for row in normal_bars
+    )
+    if not (
+        all(value <= 0.08 for value in axial_offsets[:3])
+        and all(1.75 <= value <= 2.0 for value in axial_offsets[3:])
+    ):
+        return False
+    normal_offsets = sorted(
+        abs((row["start"][1] + row["end"][1]) / 2.0) for row in normal_bars
+    )
+    return bool(
+        2.55 <= normal_offsets[0] <= 2.85
+        and 5.3 <= normal_offsets[1] <= 5.65
+        and all(8.05 <= value <= 8.5 for value in normal_offsets[2:])
+    )
+
+
+def _has_compact_ge_gx_switch_panel_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a compact 8-GE/2-GX equipment face without using its name."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not isinstance(histogram, Mapping):
+        return False
+
+    def count(name: str) -> int:
+        try:
+            return int(histogram.get(name, 0))
+        except (TypeError, ValueError):
+            return 0
+
+    try:
+        aspect = float(shape.get("oriented_aspect_ratio") or 0.0)
+        bulged_count = int(shape.get("closed_bulged_lwpolyline_count", 0))
+    except (TypeError, ValueError):
+        return False
+    if not (
+        port_count == 2
+        and 10 <= count("ARC") <= 14
+        and count("CIRCLE") == 4
+        and 16 <= count("HATCH") <= 22
+        and 1 <= count("INSERT") <= 3
+        and 50 <= count("LINE") <= 70
+        and 45 <= count("LWPOLYLINE") <= 60
+        and 28
+        <= count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF")
+        <= 38
+        and 1.7 <= aspect <= 2.1
+        and 15 <= bulged_count <= 22
+        and int(shape.get("parallel_line_group_max", 0)) >= 24
+    ):
+        return False
+
+    values = {
+        str(value or "").strip().upper()
+        for value in shape.get("text_values") or []
+        if str(value or "").strip()
+    }
+    required_labels = (
+        {f"GE{index}" for index in range(1, 9)}
+        | {"GX9", "GX10", "1GT", "1GR", "2GT", "2GR"}
+        | {"CONSOLE", "+/L", "-/N"}
+    )
+    if not required_labels <= values:
+        return False
+
+    panel = shape.get("communication_panel_features")
+    if not isinstance(panel, Mapping):
+        return False
+    try:
+        square_count = int(panel.get("square_cell_count", 0))
+        cell_aspect = float(panel.get("dominant_cell_aspect", 0.0))
+    except (TypeError, ValueError):
+        return False
+    if not (8 <= square_count <= 10 and 0.90 <= cell_aspect <= 1.05):
+        return False
+
+    circles = shape.get("normalized_circles") or []
+    try:
+        radii = [float(item["radius"]) for item in circles]
+    except (KeyError, TypeError, ValueError):
+        return False
+    if not (
+        len(circles) == 4
+        and min(radii, default=0.0) > 1e-9
+        and max(radii) / min(radii) <= 1.03
+    ):
+        return False
+    mean_radius = sum(radii) / 4.0
+    try:
+        centers = [
+            (float(item["center"][0]), float(item["center"][1]))
+            for item in circles
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    pair_distances = sorted(
+        math.hypot(right[0] - left[0], right[1] - left[1]) / mean_radius
+        for index, left in enumerate(centers)
+        for right in centers[index + 1 :]
+    )
+    return bool(
+        len(pair_distances) == 6
+        and all(3.2 <= value <= 3.5 for value in pair_distances[:2])
+        and all(9.2 <= value <= 9.6 for value in pair_distances[2:4])
+        and all(9.75 <= value <= 10.2 for value in pair_distances[4:])
+    )
+
+
+def _has_hykl_dual_row_panel_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize an enclosed 4x2 PE/GND/TX/RX interface face."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not isinstance(histogram, Mapping):
+        return False
+
+    def count(name: str) -> int:
+        try:
+            return int(histogram.get(name, 0))
+        except (TypeError, ValueError):
+            return 0
+
+    if not (
+        port_count == 2
+        and count("CIRCLE") == 8
+        and count("LWPOLYLINE") == 9
+        and count("TEXT") == 16
+        and count("MTEXT") == 1
+        and count("LINE") + count("ARC") + count("HATCH") + count("INSERT") == 0
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 9
+    ):
+        return False
+    values = {
+        str(value or "").strip().upper()
+        for value in shape.get("text_values") or []
+        if str(value or "").strip()
+    }
+    if not {"PE1", "PE2", "GND", "TX", "RX", "IN", "OUT"} <= values:
+        return False
+
+    try:
+        circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in shape.get("normalized_circles") or []
+        ]
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius") or item["radius"]),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(circles) != 8 or len(contacts) != 9:
+        return False
+    circle_radii = [radius for _, radius in circles]
+    if min(circle_radii) <= 1e-9 or max(circle_radii) / min(circle_radii) > 1.03:
+        return False
+    circle_radius = sum(circle_radii) / 8.0
+    contacts = sorted(contacts, key=lambda item: item[1])
+    small_contacts, panel_body = contacts[:8], contacts[8]
+    small_radii = [radius for _, radius in small_contacts]
+    if (
+        min(small_radii) <= 1e-9
+        or max(small_radii) / min(small_radii) > 1.03
+        or panel_body[1] / (sum(small_radii) / 8.0) < 60.0
+    ):
+        return False
+
+    closest = min(
+        (
+            (math.hypot(right[0][0] - left[0][0], right[0][1] - left[0][1]), left[0], right[0])
+            for index, left in enumerate(circles)
+            for right in circles[index + 1 :]
+        ),
+        key=lambda item: item[0],
+    )
+    if closest[0] <= 1e-9:
+        return False
+    axis_x = (closest[2][0] - closest[1][0]) / closest[0]
+    axis_y = (closest[2][1] - closest[1][1]) / closest[0]
+    normal_x, normal_y = -axis_y, axis_x
+    center = (
+        sum(point[0] for point, _ in circles) / 8.0,
+        sum(point[1] for point, _ in circles) / 8.0,
+    )
+
+    def clusters(values: list[float], tolerance: float) -> list[list[float]]:
+        grouped: list[list[float]] = []
+        for value in sorted(values):
+            if not grouped or abs(value - sum(grouped[-1]) / len(grouped[-1])) > tolerance:
+                grouped.append([value])
+            else:
+                grouped[-1].append(value)
+        return grouped
+
+    axis_values = [
+        (point[0] - center[0]) * axis_x + (point[1] - center[1]) * axis_y
+        for point, _ in circles
+    ]
+    normal_values = [
+        (point[0] - center[0]) * normal_x + (point[1] - center[1]) * normal_y
+        for point, _ in circles
+    ]
+    axis_groups = clusters(axis_values, circle_radius * 0.15)
+    normal_groups = clusters(normal_values, circle_radius * 0.15)
+    if not (
+        len(axis_groups) == 4
+        and all(len(group) == 2 for group in axis_groups)
+        and len(normal_groups) == 2
+        and all(len(group) == 4 for group in normal_groups)
+    ):
+        return False
+    axis_centers = [sum(group) / len(group) for group in axis_groups]
+    normal_centers = [sum(group) / len(group) for group in normal_groups]
+    axis_gaps = [
+        (axis_centers[index + 1] - axis_centers[index]) / circle_radius
+        for index in range(3)
+    ]
+    normal_gap = (normal_centers[1] - normal_centers[0]) / circle_radius
+    if not (
+        all(3.95 <= gap <= 4.2 for gap in axis_gaps)
+        and 8.0 <= normal_gap <= 8.3
+    ):
+        return False
+
+    used_circles: set[int] = set()
+    for contact_center, _ in small_contacts:
+        nearest_distance, circle_index = min(
+            (
+                math.hypot(
+                    contact_center[0] - circle_center[0],
+                    contact_center[1] - circle_center[1],
+                ),
+                index,
+            )
+            for index, (circle_center, _) in enumerate(circles)
+        )
+        if (
+            not 0.95 <= nearest_distance / circle_radius <= 1.08
+            or circle_index in used_circles
+        ):
+            return False
+        used_circles.add(circle_index)
+    return len(used_circles) == 8
+
+
+def _has_firewall_eth_panel_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a dense ETH firewall face with USB and optical circle arrays."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not isinstance(histogram, Mapping):
+        return False
+
+    def count(name: str) -> int:
+        try:
+            return int(histogram.get(name, 0))
+        except (TypeError, ValueError):
+            return 0
+
+    try:
+        aspect = float(shape.get("oriented_aspect_ratio") or 0.0)
+        bulged_count = int(shape.get("closed_bulged_lwpolyline_count", 0))
+        parallel_max = int(shape.get("parallel_line_group_max", 0))
+    except (TypeError, ValueError):
+        return False
+    if not (
+        port_count == 2
+        and 20 <= count("ARC") <= 28
+        and count("CIRCLE") == 12
+        and 24 <= count("HATCH") <= 34
+        and 80 <= count("LINE") <= 100
+        and 108 <= count("LWPOLYLINE") <= 132
+        and 42
+        <= count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF")
+        <= 52
+        and 3.6 <= aspect <= 4.2
+        and 24 <= bulged_count <= 34
+        and parallel_max >= 45
+    ):
+        return False
+    values = {
+        str(value or "").strip().upper()
+        for value in shape.get("text_values") or []
+        if str(value or "").strip()
+    }
+    required_labels = (
+        {f"ETH{index}" for index in range(0, 11)}
+        | {"ETH12", "ETH13"}
+        | {f"P{index}" for index in range(1, 13)}
+        | {f"{index}{suffix}" for index in range(1, 5) for suffix in ("T", "R")}
+        | {"USB", "CONSOLE", "L1", "N1", "PE1", "J1", "L2", "N2", "PE2", "J2"}
+    )
+    if not required_labels <= values:
+        return False
+    panel = shape.get("communication_panel_features")
+    if not isinstance(panel, Mapping):
+        return False
+    try:
+        square_count = int(panel.get("square_cell_count", 0))
+        cell_aspect = float(panel.get("dominant_cell_aspect", 0.0))
+    except (TypeError, ValueError):
+        return False
+    if not (12 <= square_count <= 14 and 0.95 <= cell_aspect <= 1.08):
+        return False
+
+    try:
+        circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in shape.get("normalized_circles") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(circles) != 12:
+        return False
+    circles = sorted(circles, key=lambda item: item[1])
+    small, large = circles[:4], circles[4:]
+    small_radius = sum(radius for _, radius in small) / 4.0
+    large_radius = sum(radius for _, radius in large) / 8.0
+    if not (
+        small_radius > 1e-9
+        and max(radius for _, radius in small) / min(radius for _, radius in small) <= 1.03
+        and max(radius for _, radius in large) / min(radius for _, radius in large) <= 1.03
+        and 1.62 <= large_radius / small_radius <= 1.75
+    ):
+        return False
+
+    small_start, small_end = max(
+        (
+            (left[0], right[0])
+            for index, left in enumerate(small)
+            for right in small[index + 1 :]
+        ),
+        key=lambda pair: math.hypot(
+            pair[1][0] - pair[0][0], pair[1][1] - pair[0][1]
+        ),
+    )
+    dx, dy = small_end[0] - small_start[0], small_end[1] - small_start[1]
+    length = math.hypot(dx, dy)
+    if length <= 1e-9:
+        return False
+    axis_x, axis_y = dx / length, dy / length
+    normal_x, normal_y = -axis_y, axis_x
+    projected_small = sorted(
+        (
+            (point[0] - small_start[0]) * axis_x + (point[1] - small_start[1]) * axis_y,
+            abs((point[0] - small_start[0]) * normal_x + (point[1] - small_start[1]) * normal_y),
+        )
+        for point, _ in small
+    )
+    if max(offset for _, offset in projected_small) > small_radius * 0.08:
+        return False
+    small_gaps = [
+        (projected_small[index + 1][0] - projected_small[index][0]) / small_radius
+        for index in range(3)
+    ]
+    if not all(3.1 <= gap <= 3.3 for gap in small_gaps):
+        return False
+
+    closest = min(
+        (
+            (math.hypot(right[0][0] - left[0][0], right[0][1] - left[0][1]), left[0], right[0])
+            for index, left in enumerate(large)
+            for right in large[index + 1 :]
+        ),
+        key=lambda item: item[0],
+    )
+    if closest[0] <= 1e-9:
+        return False
+    axis_x = (closest[2][0] - closest[1][0]) / closest[0]
+    axis_y = (closest[2][1] - closest[1][1]) / closest[0]
+    normal_x, normal_y = -axis_y, axis_x
+    center = (
+        sum(point[0] for point, _ in large) / 8.0,
+        sum(point[1] for point, _ in large) / 8.0,
+    )
+
+    def clusters(values: list[float], tolerance: float) -> list[list[float]]:
+        grouped: list[list[float]] = []
+        for value in sorted(values):
+            if not grouped or abs(value - sum(grouped[-1]) / len(grouped[-1])) > tolerance:
+                grouped.append([value])
+            else:
+                grouped[-1].append(value)
+        return grouped
+
+    axis_groups = clusters(
+        [
+            (point[0] - center[0]) * axis_x + (point[1] - center[1]) * axis_y
+            for point, _ in large
+        ],
+        large_radius * 0.15,
+    )
+    normal_groups = clusters(
+        [
+            (point[0] - center[0]) * normal_x + (point[1] - center[1]) * normal_y
+            for point, _ in large
+        ],
+        large_radius * 0.15,
+    )
+    if not (
+        len(axis_groups) == 4
+        and all(len(group) == 2 for group in axis_groups)
+        and len(normal_groups) == 2
+        and all(len(group) == 4 for group in normal_groups)
+    ):
+        return False
+    axis_centers = [sum(group) / len(group) for group in axis_groups]
+    normal_centers = [sum(group) / len(group) for group in normal_groups]
+    axis_gaps = [
+        (axis_centers[index + 1] - axis_centers[index]) / large_radius
+        for index in range(3)
+    ]
+    normal_gap = (normal_centers[1] - normal_centers[0]) / large_radius
+    return bool(
+        3.2 <= axis_gaps[0] <= 3.5
+        and 5.7 <= axis_gaps[1] <= 6.1
+        and 3.2 <= axis_gaps[2] <= 3.5
+        and 14.8 <= normal_gap <= 15.4
+    )
 
 
 def _is_communication_multiport_panel_geometry(
@@ -1278,6 +3257,541 @@ def _has_named_four_contact_two_port_strip_topology(
     )
 
 
+def _has_vertical_two_port_box_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a 1:2 box whose opposite midpoint contacts are isolated ports."""
+
+    if port_count != 2:
+        return False
+    values = {
+        str(value or "").strip()
+        for value in shape.get("text_values") or []
+        if str(value or "").strip()
+    }
+    if values != {"1", "2"}:
+        return False
+    try:
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius") or item["radius"]),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+        segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(contacts) != 2 or len(segments) != 6:
+        return False
+    radii = [radius for _, radius in contacts]
+    contact_radius = sum(radii) / 2.0
+    if contact_radius <= 1e-9 or max(radii) / min(radii) > 1.03:
+        return False
+    axis_dx = contacts[1][0][0] - contacts[0][0][0]
+    axis_dy = contacts[1][0][1] - contacts[0][0][1]
+    spacing = math.hypot(axis_dx, axis_dy)
+    if not 59.8 <= spacing / contact_radius <= 60.2:
+        return False
+    axis_x, axis_y = axis_dx / spacing, axis_dy / spacing
+    normal_x, normal_y = -axis_y, axis_x
+    center = (
+        (contacts[0][0][0] + contacts[1][0][0]) / 2.0,
+        (contacts[0][0][1] + contacts[1][0][1]) / 2.0,
+    )
+    axial: list[tuple[float, float, float]] = []
+    cross: list[tuple[float, float, float]] = []
+    for start, end in segments:
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
+        mx, my = midpoint[0] - center[0], midpoint[1] - center[1]
+        axis_position = (mx * axis_x + my * axis_y) / contact_radius
+        normal_position = (mx * normal_x + my * normal_y) / contact_radius
+        alignment = abs((dx * axis_x + dy * axis_y) / length)
+        row = (length / contact_radius, axis_position, normal_position)
+        if alignment >= 0.98:
+            axial.append(row)
+        elif alignment <= 0.02:
+            cross.append(row)
+        else:
+            return False
+    if not (len(axial) == 2 and len(cross) == 4):
+        return False
+    if any(
+        abs(length - 60.0) > 0.2
+        or abs(axis_position) > 0.1
+        or abs(abs(normal_position) - 15.0) > 0.1
+        for length, axis_position, normal_position in axial
+    ):
+        return False
+    if any(
+        abs(length - 30.0) > 0.2 or abs(normal_position) > 0.1
+        for length, _, normal_position in cross
+    ):
+        return False
+    positions = sorted(axis_position for _, axis_position, _ in cross)
+    return all(
+        abs(actual - expected) <= 0.1
+        for actual, expected in zip(positions, (-30.0, -15.0, 15.0, 30.0))
+    )
+
+
+def _has_named_two_row_box_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a repeated two-row mechanism enclosed by one 1:2 box."""
+
+    if port_count != 2:
+        return False
+    histogram = shape.get("entity_histogram") or {}
+    try:
+        if not (
+            int(histogram.get("INSERT", 0)) == 2
+            and int(histogram.get("LWPOLYLINE", 0)) == 5
+            and int(histogram.get("LINE", 0)) == 0
+            and int(histogram.get("ARC", 0)) == 0
+            and int(histogram.get("CIRCLE", 0)) == 0
+            and int(histogram.get("TEXT", 0)) == 0
+        ):
+            return False
+        bodies = shape.get("normalized_closed_straight_lwpolylines") or []
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius", item["radius"])),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+        if len(bodies) != 1 or len(contacts) != 4:
+            return False
+        body = bodies[0]
+        vertices = [
+            (float(point[0]), float(point[1])) for point in body.get("vertices") or []
+        ]
+        edge_lengths = [float(value) for value in body.get("edge_lengths") or []]
+        body_center = (float(body["center"][0]), float(body["center"][1]))
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(vertices) != 4 or len(edge_lengths) != 4:
+        return False
+    ordered_edges = sorted(edge_lengths)
+    if not (
+        ordered_edges[0] > 1e-9
+        and abs(ordered_edges[1] - ordered_edges[0]) <= ordered_edges[0] * 0.04
+        and abs(ordered_edges[3] - ordered_edges[2]) <= ordered_edges[2] * 0.04
+        and 1.95 <= ordered_edges[2] / ordered_edges[0] <= 2.05
+    ):
+        return False
+    contact_radius = sum(radius for _, radius in contacts) / len(contacts)
+    if contact_radius <= 1e-9 or any(
+        abs(radius - contact_radius) > contact_radius * 0.05
+        for _, radius in contacts
+    ):
+        return False
+    if not (
+        19.5 <= ordered_edges[0] / contact_radius <= 20.5
+        and 39.5 <= ordered_edges[2] / contact_radius <= 40.5
+    ):
+        return False
+
+    edge_vectors = []
+    for start, end in zip(vertices, vertices[1:] + vertices[:1]):
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        edge_vectors.append((dx / length, dy / length, length))
+    short_axis = min(edge_vectors, key=lambda item: item[2])
+    axis_x, axis_y = short_axis[0], short_axis[1]
+    normal_x, normal_y = -axis_y, axis_x
+
+    projections = []
+    for center, _ in contacts:
+        dx, dy = center[0] - body_center[0], center[1] - body_center[1]
+        projections.append(
+            (dx * axis_x + dy * axis_y, dx * normal_x + dy * normal_y)
+        )
+
+    def clusters(values: list[float]) -> list[list[float]]:
+        result: list[list[float]] = []
+        for value in sorted(values):
+            if result and abs(value - sum(result[-1]) / len(result[-1])) <= contact_radius * 0.08:
+                result[-1].append(value)
+            else:
+                result.append([value])
+        return result
+
+    short_clusters = clusters([item[0] for item in projections])
+    long_clusters = clusters([item[1] for item in projections])
+    if not (
+        len(short_clusters) == 2
+        and all(len(group) == 2 for group in short_clusters)
+        and len(long_clusters) == 4
+        and all(len(group) == 1 for group in long_clusters)
+    ):
+        return False
+    short_values = [sum(group) / len(group) for group in short_clusters]
+    long_values = [group[0] for group in long_clusters]
+    long_gaps = [
+        (long_values[index + 1] - long_values[index]) / contact_radius
+        for index in range(3)
+    ]
+    return (
+        4.9 <= abs(short_values[1] - short_values[0]) / contact_radius <= 5.1
+        and all(
+            abs(value - expected) <= 0.12
+            for value, expected in zip(long_gaps, (5.0, 15.0, 5.0))
+        )
+    )
+
+
+def _has_single_row_contact_mechanism_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize one repeated component row without using its block name."""
+
+    if port_count != 1:
+        return False
+    histogram = shape.get("entity_histogram") or {}
+    try:
+        if not (
+            int(histogram.get("CIRCLE", 0)) == 1
+            and int(histogram.get("HATCH", 0)) == 1
+            and int(histogram.get("LINE", 0)) == 2
+            and int(histogram.get("LWPOLYLINE", 0)) == 2
+            and int(histogram.get("ARC", 0)) == 0
+            and int(histogram.get("TEXT", 0)) == 0
+            and int(histogram.get("MTEXT", 0)) == 0
+        ):
+            return False
+        circles = shape.get("normalized_circles") or []
+        contacts = shape.get("normalized_closed_bulged_contacts") or []
+        segments = shape.get("normalized_line_segments") or []
+        if len(circles) != 1 or len(contacts) != 2 or len(segments) != 2:
+            return False
+        circle_center = (
+            float(circles[0]["center"][0]),
+            float(circles[0]["center"][1]),
+        )
+        circle_radius = float(circles[0]["radius"])
+        contact_rows = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius", item["radius"])),
+            )
+            for item in contacts
+        ]
+        line_rows = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in segments
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if circle_radius <= 1e-9:
+        return False
+    contact_radius = sum(radius for _, radius in contact_rows) / 2.0
+    if (
+        contact_radius <= 1e-9
+        or any(abs(radius - contact_radius) > contact_radius * 0.06 for _, radius in contact_rows)
+        or not 1.9 <= circle_radius / contact_radius <= 2.1
+    ):
+        return False
+
+    def point_distance(left: tuple[float, float], right: tuple[float, float]) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    shared = min(
+        (
+            (point_distance(left, right), left_index, right_index)
+            for left_index, left in enumerate(line_rows[0])
+            for right_index, right in enumerate(line_rows[1])
+        ),
+        key=lambda item: item[0],
+    )
+    if shared[0] > contact_radius * 0.08:
+        return False
+    shared_point = line_rows[0][shared[1]]
+    outer_points = (
+        line_rows[0][1 - shared[1]],
+        line_rows[1][1 - shared[2]],
+    )
+    first_vector = (
+        outer_points[0][0] - shared_point[0],
+        outer_points[0][1] - shared_point[1],
+    )
+    second_vector = (
+        outer_points[1][0] - shared_point[0],
+        outer_points[1][1] - shared_point[1],
+    )
+    first_length = math.hypot(first_vector[0], first_vector[1])
+    second_length = math.hypot(second_vector[0], second_vector[1])
+    if min(first_length, second_length) <= 1e-9:
+        return False
+    collinearity = abs(
+        first_vector[0] * second_vector[1] - first_vector[1] * second_vector[0]
+    ) / (first_length * second_length)
+    opposition = (
+        first_vector[0] * second_vector[0] + first_vector[1] * second_vector[1]
+    ) / (first_length * second_length)
+    if collinearity > 0.04 or opposition > -0.98:
+        return False
+
+    axis_unit = (
+        (outer_points[1][0] - outer_points[0][0])
+        / point_distance(outer_points[0], outer_points[1]),
+        (outer_points[1][1] - outer_points[0][1])
+        / point_distance(outer_points[0], outer_points[1]),
+    )
+    axis_normal = (-axis_unit[1], axis_unit[0])
+
+    def axis_coordinates(point: tuple[float, float]) -> tuple[float, float]:
+        dx, dy = point[0] - circle_center[0], point[1] - circle_center[1]
+        return (
+            dx * axis_unit[0] + dy * axis_unit[1],
+            dx * axis_normal[0] + dy * axis_normal[1],
+        )
+
+    contact_coordinates = [axis_coordinates(center) for center, _ in contact_rows]
+    inline = [item for item in contact_coordinates if abs(item[1]) <= contact_radius * 0.08]
+    offset = [item for item in contact_coordinates if abs(item[1]) > contact_radius * 0.08]
+    if len(inline) != 1 or len(offset) != 1:
+        return False
+    axis_extent = [axis_coordinates(point)[0] for point in outer_points]
+    if not min(axis_extent) <= 0.0 <= max(axis_extent):
+        return False
+    return bool(
+        2.4 <= abs(inline[0][0]) / circle_radius <= 2.6
+        and abs(offset[0][0]) <= contact_radius * 0.16
+        and 2.1 <= abs(offset[0][1]) / circle_radius <= 2.25
+    )
+
+
+def _has_inline_indicator_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize the complete line/circle/hatched inline indicator glyph."""
+
+    try:
+        segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+        circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in shape.get("normalized_circles") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(segments) != 6 or len(circles) != 1:
+        return False
+    circle_center, circle_radius = circles[0]
+    if circle_radius <= 1e-9:
+        return False
+
+    def distance(left: tuple[float, float], right: tuple[float, float]) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    measured = sorted(
+        (
+            distance(start, end),
+            start,
+            end,
+        )
+        for start, end in segments
+    )
+    dominant_length, dominant_start, dominant_end = measured[-1]
+    if not 31.8 <= dominant_length / circle_radius <= 32.2:
+        return False
+    axis_x = (dominant_end[0] - dominant_start[0]) / dominant_length
+    axis_y = (dominant_end[1] - dominant_start[1]) / dominant_length
+    normal_x, normal_y = -axis_y, axis_x
+    circle_dx = circle_center[0] - dominant_start[0]
+    circle_dy = circle_center[1] - dominant_start[1]
+    circle_axis = circle_dx * axis_x + circle_dy * axis_y
+    circle_normal = circle_dx * normal_x + circle_dy * normal_y
+    if abs(circle_normal) > circle_radius * 0.03:
+        return False
+    if not 0.42 <= min(circle_axis, dominant_length - circle_axis) / dominant_length <= 0.44:
+        return False
+
+    marker_length, marker_start, marker_end = measured[-2]
+    if not 4.43 <= marker_length / circle_radius <= 4.51:
+        return False
+    marker_midpoint = (
+        (marker_start[0] + marker_end[0]) / 2.0,
+        (marker_start[1] + marker_end[1]) / 2.0,
+    )
+    marker_dx = marker_midpoint[0] - circle_center[0]
+    marker_dy = marker_midpoint[1] - circle_center[1]
+    marker_axis = marker_dx * axis_x + marker_dy * axis_y
+    marker_normal = marker_dx * normal_x + marker_dy * normal_y
+    marker_vector = (
+        marker_end[0] - marker_start[0],
+        marker_end[1] - marker_start[1],
+    )
+    marker_alignment = abs(
+        (marker_vector[0] * axis_x + marker_vector[1] * axis_y) / marker_length
+    )
+    if not (
+        6.9 <= abs(marker_axis) / circle_radius <= 7.15
+        and abs(marker_normal) <= circle_radius * 0.05
+        and 0.43 <= marker_alignment <= 0.47
+    ):
+        return False
+
+    mechanism = measured[:4]
+    ratios = [length / circle_radius for length, _, _ in mechanism]
+    expected = (0.824621, 0.824621, 1.8, 1.8)
+    if any(abs(actual - target) > 0.04 for actual, target in zip(ratios, expected)):
+        return False
+    if any(
+        distance(point, circle_center) > circle_radius * 1.26
+        for _, start, end in mechanism
+        for point in (start, end)
+    ):
+        return False
+
+    short_segments = mechanism[:2]
+    long_segments = mechanism[2:]
+    used_long: set[int] = set()
+    for _, short_start, short_end in short_segments:
+        matches = sorted(
+            (
+                distance(short_point, long_point),
+                long_index,
+            )
+            for short_point in (short_start, short_end)
+            for long_index, (_, long_start, long_end) in enumerate(long_segments)
+            for long_point in (long_start, long_end)
+        )
+        if not matches or matches[0][0] > circle_radius * 0.03:
+            return False
+        used_long.add(matches[0][1])
+    return used_long == {0, 1}
+
+
+def _has_crossed_two_contact_open_switch_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize an X-marked two-contact switch without inferring conductivity."""
+
+    try:
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius", item["radius"])),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+        leads = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+        diagonals = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_open_lwpolyline_segments") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(contacts) != 2 or len(leads) != 2 or len(diagonals) != 2:
+        return False
+    contact_radius = sum(radius for _, radius in contacts) / 2.0
+    if contact_radius <= 1e-9 or any(
+        abs(radius - contact_radius) > contact_radius * 0.04
+        for _, radius in contacts
+    ):
+        return False
+    axis_dx = contacts[1][0][0] - contacts[0][0][0]
+    axis_dy = contacts[1][0][1] - contacts[0][0][1]
+    contact_spacing = math.hypot(axis_dx, axis_dy)
+    if not 19.8 <= contact_spacing / contact_radius <= 20.2:
+        return False
+    axis_x, axis_y = axis_dx / contact_spacing, axis_dy / contact_spacing
+    normal_x, normal_y = -axis_y, axis_x
+    center = (
+        (contacts[0][0][0] + contacts[1][0][0]) / 2.0,
+        (contacts[0][0][1] + contacts[1][0][1]) / 2.0,
+    )
+
+    def distance(left: tuple[float, float], right: tuple[float, float]) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    used_contacts: set[int] = set()
+    for start, end in leads:
+        matches = sorted(
+            (
+                distance(endpoint, contact),
+                endpoint_index,
+                contact_index,
+            )
+            for endpoint_index, endpoint in enumerate((start, end))
+            for contact_index, (contact, _) in enumerate(contacts)
+        )
+        nearest_distance, endpoint_index, contact_index = matches[0]
+        if nearest_distance > contact_radius * 0.04 or contact_index in used_contacts:
+            return False
+        outer = (start, end)[endpoint_index]
+        inner = (start, end)[1 - endpoint_index]
+        dx, dy = inner[0] - outer[0], inner[1] - outer[1]
+        length = math.hypot(dx, dy)
+        toward_center = (
+            (center[0] - outer[0]) * dx + (center[1] - outer[1]) * dy
+        )
+        if not 3.9 <= length / contact_radius <= 4.1 or toward_center <= 0.0:
+            return False
+        if abs(dx * normal_x + dy * normal_y) > contact_radius * 0.04:
+            return False
+        used_contacts.add(contact_index)
+    if used_contacts != {0, 1}:
+        return False
+
+    diagonal_slopes = []
+    for start, end in diagonals:
+        midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
+        if distance(midpoint, center) > contact_radius * 0.05:
+            return False
+        projections = []
+        for point in (start, end):
+            dx, dy = point[0] - center[0], point[1] - center[1]
+            projections.append(
+                (
+                    (dx * axis_x + dy * axis_y) / contact_radius,
+                    (dx * normal_x + dy * normal_y) / contact_radius,
+                )
+            )
+        if any(
+            abs(abs(axis_value) - 3.6) > 0.12
+            or abs(abs(normal_value) - 4.8) > 0.12
+            for axis_value, normal_value in projections
+        ):
+            return False
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        diagonal_slopes.append(
+            (dx * axis_x + dy * axis_y) * (dx * normal_x + dy * normal_y)
+        )
+    return diagonal_slopes[0] * diagonal_slopes[1] < 0.0
+
+
 def _has_bare_diode_topology(shape: Mapping[str, Any]) -> bool:
     """Recognize the triangle/bar/lead relationship without an orientation."""
     if shape.get("diode_bare_topology") is True or shape.get("diode_symbol_topology") == "bare":
@@ -1427,6 +3941,101 @@ def _has_wire_crossover_jump_topology(shape: Mapping[str, Any]) -> bool:
         if lead[0] * radial[0] + lead[1] * radial[1] <= 0:
             return False
     return True
+
+
+def _has_circle_contact_marker_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize one barred circle radially linked to one smaller round marker."""
+
+    try:
+        segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+        circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in shape.get("normalized_circles") or []
+        ]
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius", item["radius"])),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(segments) != 2 or len(circles) != 1 or len(contacts) != 1:
+        return False
+    circle_center, circle_radius = circles[0]
+    contact_center, contact_radius = contacts[0]
+    if min(circle_radius, contact_radius) <= 1e-9:
+        return False
+
+    def distance(left: tuple[float, float], right: tuple[float, float]) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    if not (
+        1.95 <= circle_radius / contact_radius <= 2.05
+        and 2.45 <= distance(circle_center, contact_center) / circle_radius <= 2.55
+    ):
+        return False
+
+    diameter_candidates = []
+    connector_candidates = []
+    for start, end in segments:
+        length = distance(start, end)
+        midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
+        if (
+            1.95 <= length / circle_radius <= 2.05
+            and distance(midpoint, circle_center) <= circle_radius * 0.03
+            and all(
+                0.97 <= distance(point, circle_center) / circle_radius <= 1.03
+                for point in (start, end)
+            )
+        ):
+            diameter_candidates.append((start, end, length))
+        contact_end = min((start, end), key=lambda point: distance(point, contact_center))
+        circle_end = end if contact_end is start else start
+        if (
+            1.45 <= length / circle_radius <= 1.55
+            and distance(contact_end, contact_center) <= circle_radius * 0.03
+            and 0.97 <= distance(circle_end, circle_center) / circle_radius <= 1.03
+        ):
+            connector_candidates.append((circle_end, contact_end, length))
+    if len(diameter_candidates) != 1 or len(connector_candidates) != 1:
+        return False
+
+    diameter_start, diameter_end, diameter_length = diameter_candidates[0]
+    circle_end, contact_end, connector_length = connector_candidates[0]
+    diameter_axis = (
+        (diameter_end[0] - diameter_start[0]) / diameter_length,
+        (diameter_end[1] - diameter_start[1]) / diameter_length,
+    )
+    connector_axis = (
+        (contact_end[0] - circle_end[0]) / connector_length,
+        (contact_end[1] - circle_end[1]) / connector_length,
+    )
+    radial = (
+        (contact_center[0] - circle_center[0]) / distance(circle_center, contact_center),
+        (contact_center[1] - circle_center[1]) / distance(circle_center, contact_center),
+    )
+    return bool(
+        abs(diameter_axis[0] * connector_axis[0] + diameter_axis[1] * connector_axis[1]) <= 0.03
+        and connector_axis[0] * radial[0] + connector_axis[1] * radial[1] >= 0.99
+        and distance(
+            circle_end,
+            (
+                circle_center[0] + radial[0] * circle_radius,
+                circle_center[1] + radial[1] * circle_radius,
+            ),
+        ) <= circle_radius * 0.03
+    )
 
 
 def _has_dzb_right_marker_topology(shape: Mapping[str, Any]) -> bool:
@@ -1930,6 +4539,330 @@ def _is_rotation_invariant_contact_grid(
     )
 
 
+def _has_repeated_three_row_coil_panel_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize the 2x6 semicircle grid, spine, and duplicated contacts."""
+
+    try:
+        arcs = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+                float(item["sweep_deg"]),
+            )
+            for item in shape.get("normalized_arcs") or []
+        ]
+        segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius", item["radius"])),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(arcs) != 12 or len(segments) != 26 or len(contacts) != 4:
+        return False
+    arc_radius = sum(item[1] for item in arcs) / len(arcs)
+    if arc_radius <= 1e-9 or any(
+        abs(radius - arc_radius) > arc_radius * 0.04
+        or abs(sweep - 180.0) > 1.0
+        for _, radius, sweep in arcs
+    ):
+        return False
+
+    vectors = []
+    for start, end in segments:
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        vectors.append((dx / length, dy / length, length, start, end))
+    best_group: list[int] = []
+    for index, item in enumerate(vectors):
+        group = [
+            other
+            for other, candidate in enumerate(vectors)
+            if abs(item[0] * candidate[1] - item[1] * candidate[0]) <= 0.04
+        ]
+        if len(group) > len(best_group):
+            best_group = group
+    if len(best_group) != 25:
+        return False
+    axis_x, axis_y = vectors[best_group[0]][0], vectors[best_group[0]][1]
+    normal_x, normal_y = -axis_y, axis_x
+    perpendicular = [index for index in range(26) if index not in best_group]
+    if len(perpendicular) != 1:
+        return False
+    spine = vectors[perpendicular[0]]
+    if abs(spine[0] * axis_x + spine[1] * axis_y) > 0.04:
+        return False
+
+    origin = arcs[0][0]
+
+    def project(point: tuple[float, float]) -> tuple[float, float]:
+        dx, dy = point[0] - origin[0], point[1] - origin[1]
+        return dx * axis_x + dy * axis_y, dx * normal_x + dy * normal_y
+
+    def clusters(values: list[float], tolerance: float) -> list[list[float]]:
+        result: list[list[float]] = []
+        for value in sorted(values):
+            if result and abs(value - sum(result[-1]) / len(result[-1])) <= tolerance:
+                result[-1].append(value)
+            else:
+                result.append([value])
+        return result
+
+    arc_axis = clusters([project(center)[0] for center, _, _ in arcs], arc_radius * 0.08)
+    arc_normal = clusters([project(center)[1] for center, _, _ in arcs], arc_radius * 0.08)
+    if not (
+        len(arc_axis) == 2
+        and all(len(group) == 6 for group in arc_axis)
+        and len(arc_normal) == 6
+        and all(len(group) == 2 for group in arc_normal)
+    ):
+        return False
+    axis_centers = [sum(group) / len(group) for group in arc_axis]
+    normal_centers = [sum(group) / len(group) for group in arc_normal]
+    if not (2.60 <= (axis_centers[1] - axis_centers[0]) / arc_radius <= 2.74):
+        return False
+    normal_gaps = [
+        (normal_centers[index + 1] - normal_centers[index]) / arc_radius
+        for index in range(5)
+    ]
+    if any(
+        abs(value - expected) > 0.08
+        for value, expected in zip(normal_gaps, (2.0, 10.0 / 3.0, 2.0, 10.0 / 3.0, 2.0))
+    ):
+        return False
+
+    contact_radius = sum(radius for _, radius in contacts) / len(contacts)
+    if not (0.12 <= contact_radius / arc_radius <= 0.15):
+        return False
+    contact_axis = clusters(
+        [project(center)[0] for center, _ in contacts], arc_radius * 0.08
+    )
+    contact_normal = clusters(
+        [project(center)[1] for center, _ in contacts], arc_radius * 0.08
+    )
+    if not (
+        len(contact_axis) == 1
+        and len(contact_axis[0]) == 4
+        and len(contact_normal) == 2
+        and all(len(group) == 2 for group in contact_normal)
+    ):
+        return False
+    contact_axis_value = sum(contact_axis[0]) / len(contact_axis[0])
+    contact_normal_values = [sum(group) / len(group) for group in contact_normal]
+    if not (
+        3.9
+        <= min(abs(contact_axis_value - value) for value in axis_centers) / arc_radius
+        <= 4.1
+        and 5.25
+        <= (contact_normal_values[1] - contact_normal_values[0]) / arc_radius
+        <= 5.42
+    ):
+        return False
+    spine_axis = sum(project(point)[0] for point in (spine[3], spine[4])) / 2.0
+    spine_normals = sorted(project(point)[1] for point in (spine[3], spine[4]))
+    return (
+        abs(spine_axis - contact_axis_value) <= arc_radius * 0.08
+        and spine_normals[0] <= contact_normal_values[0] + arc_radius * 0.08
+        and spine_normals[1] >= contact_normal_values[1] - arc_radius * 0.08
+        and 11.8 <= spine[2] / arc_radius <= 12.2
+    )
+
+
+def _has_dual_row_hatched_signal_panel_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize two repeated hatched rows whose visible extrema are not ports."""
+
+    try:
+        circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in shape.get("normalized_circles") or []
+        ]
+        segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+        rectangles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                sorted(float(value) for value in item["edge_lengths"]),
+            )
+            for item in shape.get("normalized_closed_straight_lwpolylines") or []
+        ]
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius", item["radius"])),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if not (
+        len(circles) == 2
+        and len(segments) == 10
+        and len(rectangles) == 4
+        and len(contacts) == 2
+    ):
+        return False
+    circle_radius = sum(radius for _, radius in circles) / 2.0
+    if circle_radius <= 1e-9 or any(
+        abs(radius - circle_radius) > circle_radius * 0.03
+        for _, radius in circles
+    ):
+        return False
+    row_dx = circles[1][0][0] - circles[0][0][0]
+    row_dy = circles[1][0][1] - circles[0][0][1]
+    row_spacing = math.hypot(row_dx, row_dy)
+    if not 5.9 <= row_spacing / circle_radius <= 6.1:
+        return False
+    row_x, row_y = row_dx / row_spacing, row_dy / row_spacing
+    axis_x, axis_y = -row_y, row_x
+
+    def project(
+        point: tuple[float, float], origin: tuple[float, float]
+    ) -> tuple[float, float]:
+        dx, dy = point[0] - origin[0], point[1] - origin[1]
+        return (
+            (dx * axis_x + dy * axis_y) / circle_radius,
+            (dx * row_x + dy * row_y) / circle_radius,
+        )
+
+    parsed_segments = []
+    for start, end in segments:
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return False
+        parsed_segments.append(
+            (
+                length,
+                (dx / length, dy / length),
+                start,
+                end,
+                ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0),
+            )
+        )
+    ordered_segments = sorted(parsed_segments, key=lambda item: item[0])
+    short_segments, long_segments = ordered_segments[:8], ordered_segments[8:]
+    if any(
+        not 30.8 <= item[0] / circle_radius <= 31.2
+        or abs(item[1][0] * axis_y - item[1][1] * axis_x) > 0.02
+        for item in long_segments
+    ):
+        return False
+    unmatched_circles = {0, 1}
+    for segment in long_segments:
+        nearest = min(
+            unmatched_circles,
+            key=lambda index: math.hypot(
+                segment[4][0] - circles[index][0][0],
+                segment[4][1] - circles[index][0][1],
+            ),
+        )
+        if math.hypot(
+            segment[4][0] - circles[nearest][0][0],
+            segment[4][1] - circles[nearest][0][1],
+        ) > circle_radius * 0.04:
+            return False
+        unmatched_circles.remove(nearest)
+
+    row_segments: list[list[tuple[Any, ...]]] = [[], []]
+    for segment in short_segments:
+        distances = [abs(project(segment[4], center)[1]) for center, _ in circles]
+        row_index = 0 if distances[0] <= distances[1] else 1
+        if distances[row_index] > 0.6 or abs(project(segment[4], circles[row_index][0])[0]) > 0.75:
+            return False
+        row_segments[row_index].append(segment)
+    if any(len(group) != 4 for group in row_segments):
+        return False
+
+    def row_descriptors(
+        group: list[tuple[Any, ...]], origin: tuple[float, float]
+    ) -> list[tuple[float, float, float, float]]:
+        result = []
+        for _, _, start, end, _ in group:
+            left, right = sorted((project(start, origin), project(end, origin)))
+            result.append((left[0], left[1], right[0], right[1]))
+        return sorted(result)
+
+    left_descriptors = row_descriptors(row_segments[0], circles[0][0])
+    right_descriptors = row_descriptors(row_segments[1], circles[1][0])
+    if any(
+        abs(left - right) > 0.04
+        for left_row, right_row in zip(left_descriptors, right_descriptors)
+        for left, right in zip(left_row, right_row)
+    ):
+        return False
+    expected_short_lengths = (0.825, 0.825, 1.8, 1.8)
+    for group in row_segments:
+        ratios = sorted(item[0] / circle_radius for item in group)
+        if any(
+            abs(value - expected) > 0.04
+            for value, expected in zip(ratios, expected_short_lengths)
+        ):
+            return False
+
+    rectangle_rows: list[list[float]] = [[], []]
+    for center, edge_lengths in rectangles:
+        if len(edge_lengths) != 4 or any(
+            abs(value / circle_radius - expected) > 0.04
+            for value, expected in zip(edge_lengths, (0.8, 0.8, 2.0, 2.0))
+        ):
+            return False
+        distances = [abs(project(center, circle)[1]) for circle, _ in circles]
+        row_index = 0 if distances[0] <= distances[1] else 1
+        if distances[row_index] > 0.06:
+            return False
+        rectangle_rows[row_index].append(project(center, circles[row_index][0])[0])
+    if any(len(group) != 2 for group in rectangle_rows):
+        return False
+    for group in rectangle_rows:
+        offsets = sorted(group)
+        if not (
+            -14.7 <= offsets[0] <= -14.3
+            and 14.3 <= offsets[1] <= 14.7
+        ):
+            return False
+
+    contact_radius = sum(radius for _, radius in contacts) / 2.0
+    if not 0.38 <= contact_radius / circle_radius <= 0.42 or any(
+        abs(radius - contact_radius) > contact_radius * 0.04
+        for _, radius in contacts
+    ):
+        return False
+    host_candidates = [
+        index
+        for index, (circle, _) in enumerate(circles)
+        if all(abs(project(center, circle)[1]) <= 0.06 for center, _ in contacts)
+    ]
+    if len(host_candidates) != 1:
+        return False
+    host = circles[host_candidates[0]][0]
+    offsets = sorted(project(center, host)[0] for center, _ in contacts)
+    return (
+        -25.0 <= offsets[0] <= -23.0
+        and 23.0 <= offsets[1] <= 25.0
+        and 47.8 <= offsets[1] - offsets[0] <= 48.2
+        and abs((offsets[0] + offsets[1]) / 2.0) <= 0.6
+    )
+
+
 def _has_four_coil_topology(shape: Mapping[str, Any]) -> bool:
     arcs = shape.get("normalized_arcs") or []
     if len(arcs) != 4 or not _is_rotation_invariant_contact_grid(
@@ -2172,6 +5105,29 @@ def _distance(a: tuple[float, float], b: tuple[float, float]) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
 
+def _point_segment_distance(
+    point: tuple[float, float],
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> float:
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    length_squared = dx * dx + dy * dy
+    if length_squared <= 1e-18:
+        return _distance(point, start)
+    projection = max(
+        0.0,
+        min(
+            1.0,
+            ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy)
+            / length_squared,
+        ),
+    )
+    return _distance(
+        point,
+        (start[0] + projection * dx, start[1] + projection * dy),
+    )
+
+
 def _normalize(vector: tuple[float, float]) -> tuple[float, float, float]:
     x, y = vector
     norm = math.hypot(x, y)
@@ -2290,7 +5246,7 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
 
     points: list[tuple[float, float]] = []
     arc_radii: list[float] = []
-    arc_descriptors: list[tuple[float, float, float, float]] = []
+    arc_descriptors: list[tuple[float, float, float, float, float, float]] = []
     circle_radii: list[float] = []
     circle_descriptors: list[tuple[float, float, float]] = []
     primitive_count = 0
@@ -2305,9 +5261,19 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
     open_lwpolyline_segments: list[tuple[float, float, float, float]] = []
     closed_bulged_contacts: list[tuple[float, float, float, float]] = []
     closed_straight_lwpolylines: list[
-        tuple[float, float, float, float, tuple[float, ...]]
+        tuple[
+            float,
+            float,
+            float,
+            float,
+            tuple[float, ...],
+            tuple[tuple[float, float], ...],
+        ]
     ] = []
     closed_bulged_lwpolyline_count = 0
+    insert_descriptors: list[
+        tuple[float, float, float, float, float, dict[str, int]]
+    ] = []
     primitive_types = {"LINE", "LWPOLYLINE", "POLYLINE", "ARC", "CIRCLE"}
     text_types = {"TEXT", "MTEXT", "ATTRIB", "ATTDEF"}
 
@@ -2337,6 +5303,26 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
                 value = str(entity.dxf.text).strip()
                 if value:
                     text_values.append(value)
+            except Exception:
+                pass
+        if entity_type == "INSERT":
+            try:
+                insert = entity.dxf.insert
+                child = entity.doc.blocks.get(str(entity.dxf.name))
+                child_histogram = Counter(
+                    str(child_entity.dxftype() or "").upper()
+                    for child_entity in child
+                )
+                insert_descriptors.append(
+                    (
+                        float(insert.x),
+                        float(insert.y),
+                        float(getattr(entity.dxf, "rotation", 0.0) or 0.0) % 360.0,
+                        float(getattr(entity.dxf, "xscale", 1.0) or 1.0),
+                        float(getattr(entity.dxf, "yscale", 1.0) or 1.0),
+                        dict(sorted(child_histogram.items())),
+                    )
+                )
             except Exception:
                 pass
         if entity_type not in primitive_types:
@@ -2412,6 +5398,10 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
                                 max(xs) - min(xs),
                                 max(ys) - min(ys),
                                 edge_lengths,
+                                tuple(
+                                    (float(point[0]), float(point[1]))
+                                    for point in polyline_points
+                                ),
                             )
                         )
                 elif len(polyline_points) >= 2:
@@ -2440,8 +5430,17 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
                 end = float(entity.dxf.end_angle) % 360.0
                 if radius > 0.0 and math.isfinite(radius):
                     arc_radii.append(radius)
+                    sweep = (end - start) % 360.0
+                    midpoint_angle = math.radians((start + sweep / 2.0) % 360.0)
                     arc_descriptors.append(
-                        (cx, cy, radius, (end - start) % 360.0)
+                        (
+                            cx,
+                            cy,
+                            radius,
+                            sweep,
+                            cx + radius * math.cos(midpoint_angle),
+                            cy + radius * math.sin(midpoint_angle),
+                        )
                     )
                     for angle in (start, end, 0.0, 90.0, 180.0, 270.0):
                         if angle in (start, end) or angle_on_arc(angle, start, end):
@@ -2502,6 +5501,7 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
     normalized_arcs = []
     normalized_circles = []
     normalized_straight_polylines = []
+    normalized_inserts = []
     if coordinate_scale > 1e-9 and points:
         origin_x = min(point[0] for point in points)
         origin_y = min(point[1] for point in points)
@@ -2550,8 +5550,12 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
                 ],
                 "radius": round(radius / coordinate_scale, 6),
                 "sweep_deg": round(sweep, 6),
+                "midpoint": [
+                    round((midpoint_x - origin_x) / coordinate_scale, 6),
+                    round((midpoint_y - origin_y) / coordinate_scale, 6),
+                ],
             }
-            for cx, cy, radius, sweep in arc_descriptors
+            for cx, cy, radius, sweep, midpoint_x, midpoint_y in arc_descriptors
         ]
         normalized_circles = [
             {
@@ -2575,8 +5579,35 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
                     round(length / coordinate_scale, 6)
                     for length in edge_lengths
                 ],
+                "vertices": [
+                    [
+                        round((x - origin_x) / coordinate_scale, 6),
+                        round((y - origin_y) / coordinate_scale, 6),
+                    ]
+                    for x, y in vertices
+                ],
             }
-            for cx, cy, polyline_width, polyline_height, edge_lengths in closed_straight_lwpolylines
+            for (
+                cx,
+                cy,
+                polyline_width,
+                polyline_height,
+                edge_lengths,
+                vertices,
+            ) in closed_straight_lwpolylines
+        ]
+        normalized_inserts = [
+            {
+                "center": [
+                    round((x - origin_x) / coordinate_scale, 6),
+                    round((y - origin_y) / coordinate_scale, 6),
+                ],
+                "rotation_deg": round(rotation, 6),
+                "xscale": round(xscale, 6),
+                "yscale": round(yscale, 6),
+                "child_entity_histogram": child_histogram,
+            }
+            for x, y, rotation, xscale, yscale, child_histogram in insert_descriptors
         ]
     outer_box_topology = any(
         float(item.get("width", 0.0)) >= 0.65
@@ -2675,6 +5706,7 @@ def extract_block_shape_features(block: Any) -> dict[str, Any]:
         "normalized_arcs": normalized_arcs,
         "normalized_circles": normalized_circles,
         "normalized_closed_straight_lwpolylines": normalized_straight_polylines,
+        "normalized_inserts": normalized_inserts,
         "outer_box_topology": outer_box_topology,
         "repeated_diode_count": 2 if boxed_diode_repeated_topology else 0,
         "boxed_diode_repeated_topology": boxed_diode_repeated_topology,
@@ -2892,6 +5924,93 @@ def _is_communication_panel_external_endpoint(value: Any) -> bool:
         and _COMMUNICATION_PANEL_GROUP_PATTERN.fullmatch(cleaned) is None
         and _COMMUNICATION_PANEL_EXTERNAL_ENDPOINT_PATTERN.fullmatch(cleaned)
     )
+
+
+def _propose_three_contact_socket_ports(
+    block: Any, *, source_id: str
+) -> list[ProposedPort]:
+    """Emit the three radial outer contacts of a socket-like component."""
+
+    circles: list[tuple[tuple[float, float], float, str]] = []
+    contacts: list[tuple[tuple[float, float], float, str]] = []
+    try:
+        entities = list(block)
+    except Exception:
+        return []
+    for entity in entities:
+        try:
+            entity_type = str(entity.dxftype() or "").upper()
+            handle = str(entity.dxf.handle or "")
+            if entity_type == "CIRCLE":
+                center = entity.dxf.center
+                circles.append(
+                    ((float(center.x), float(center.y)), float(entity.dxf.radius), handle)
+                )
+            elif entity_type == "LWPOLYLINE" and bool(getattr(entity, "closed", False)):
+                points = list(entity.get_points("xyb"))
+                if not points or not any(abs(float(point[2])) > 1e-9 for point in points):
+                    continue
+                xs = [float(point[0]) for point in points]
+                ys = [float(point[1]) for point in points]
+                contacts.append(
+                    (
+                        ((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0),
+                        max(max(xs) - min(xs), max(ys) - min(ys)) / 2.0,
+                        handle,
+                    )
+                )
+        except Exception:
+            continue
+    if len(circles) != 4 or len(contacts) != 6:
+        return []
+    outer_center, outer_radius, outer_handle = max(circles, key=lambda item: item[1])
+    if outer_radius <= 1e-9:
+        return []
+    outer_contacts = [
+        item
+        for item in contacts
+        if 1.45
+        <= math.hypot(
+            item[0][0] - outer_center[0], item[0][1] - outer_center[1]
+        )
+        / outer_radius
+        <= 1.55
+    ]
+    if len(outer_contacts) != 3:
+        return []
+    ports: list[ProposedPort] = []
+    for index, (center, _, handle) in enumerate(
+        sorted(
+            outer_contacts,
+            key=lambda item: math.atan2(
+                item[0][1] - outer_center[1], item[0][0] - outer_center[0]
+            ),
+        ),
+        start=1,
+    ):
+        dx = center[0] - outer_center[0]
+        dy = center[1] - outer_center[1]
+        norm = math.hypot(dx, dy)
+        if norm <= 1e-9:
+            return []
+        ports.append(
+            ProposedPort(
+                port_id=f"SOCKET:P{index}",
+                local_position=(center[0], center[1], 0.0),
+                outward_direction=(dx / norm, dy / norm, 0.0),
+                port_type="ELECTRICAL",
+                confidence=0.98,
+                evidence_codes=(
+                    "THREE_RADIAL_OUTER_CONTACTS",
+                    "OUTER_SOCKET_CIRCLE",
+                    "NO_INTERNAL_CONNECTIVITY",
+                ),
+                source_ids=(source_id, f"outer:{outer_handle}", f"contact:{handle}"),
+                notes="Three-contact socket draft; bind E/L/N from instance text and never union ports.",
+                attachment_side="radial",
+            )
+        )
+    return ports
 
 
 def _propose_communication_panel_ports(
@@ -3152,6 +6271,70 @@ def _propose_communication_panel_ports(
     return ports, features
 
 
+def _propose_two_contact_mechanical_actuator_ports(
+    block: Any, *, source_id: str
+) -> tuple[ProposedPort, ...]:
+    """Select only the two outer contacts of a PWF176-style mechanism."""
+
+    contacts: list[tuple[tuple[float, float], float, str]] = []
+    try:
+        entities = list(block)
+    except Exception:
+        return ()
+    for entity in entities:
+        if str(entity.dxftype()).upper() != "LWPOLYLINE" or not bool(
+            getattr(entity, "closed", False)
+        ):
+            continue
+        try:
+            points = list(entity.get_points("xyb"))
+            if len(points) != 2 or not any(abs(float(point[2])) > 1e-9 for point in points):
+                continue
+            first = (float(points[0][0]), float(points[0][1]))
+            second = (float(points[1][0]), float(points[1][1]))
+            contacts.append(
+                (
+                    ((first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0),
+                    math.hypot(second[0] - first[0], second[1] - first[1]) / 2.0,
+                    str(getattr(entity.dxf, "handle", "") or ""),
+                )
+            )
+        except (AttributeError, IndexError, TypeError, ValueError):
+            return ()
+    if len(contacts) != 2:
+        return ()
+    midpoint = (
+        (contacts[0][0][0] + contacts[1][0][0]) / 2.0,
+        (contacts[0][0][1] + contacts[1][0][1]) / 2.0,
+    )
+    ports = []
+    for index, (center, _radius, handle) in enumerate(
+        sorted(contacts, key=lambda item: (item[0][0], item[0][1])), start=1
+    ):
+        dx, dy = center[0] - midpoint[0], center[1] - midpoint[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return ()
+        ports.append(
+            ProposedPort(
+                port_id=f"ACT{index}",
+                local_position=(center[0], center[1], 0.0),
+                outward_direction=(dx / length, dy / length, 0.0),
+                port_type="ELECTRICAL",
+                confidence=0.98,
+                evidence_codes=(
+                    "TWO_CONTACT_MECHANICAL_ACTUATOR",
+                    "OUTER_ROUND_CONTACT",
+                    "NO_INTERNAL_CONNECTIVITY",
+                ),
+                source_ids=tuple(value for value in (source_id, handle) if value),
+                notes="Independent external contact; mechanical body never unions the two sides.",
+                attachment_side="opposed_outer_side",
+            )
+        )
+    return tuple(ports)
+
+
 def propose_ports_from_block(
     block: Any,
     *,
@@ -3175,6 +6358,50 @@ def propose_ports_from_block(
         )
     segments, entity_counts = extract_block_segments(block)
     shape_features = extract_block_shape_features(block)
+    actuator_ports = _propose_two_contact_mechanical_actuator_ports(
+        block, source_id=source_id
+    )
+    if actuator_ports and _has_two_contact_mechanical_actuator_topology(
+        shape_features, port_count=len(actuator_ports)
+    ):
+        return SymbolPortProposal(
+            definition_name=definition_name,
+            definition_fingerprint=definition_fingerprint,
+            source_dxf=str(source_dxf) if source_dxf is not None else None,
+            ports=actuator_ports,
+            method="two_contact_mechanical_actuator_ports_v1",
+            status="PROPOSED",
+            notes=(
+                "Selected the two opposed round contacts; open blade and lower actuator are non-conductive body geometry.",
+            ),
+            geometry_summary={
+                "entity_counts": entity_counts,
+                "shape_features": shape_features,
+                "selected_port_count": len(actuator_ports),
+                "principal_axis": "opposed_outer_contacts",
+            },
+        )
+    socket_ports = _propose_three_contact_socket_ports(block, source_id=source_id)
+    if socket_ports and _is_three_contact_socket_geometry(
+        shape_features, port_count=len(socket_ports)
+    ):
+        return SymbolPortProposal(
+            definition_name=definition_name,
+            definition_fingerprint=definition_fingerprint,
+            source_dxf=str(source_dxf) if source_dxf is not None else None,
+            ports=tuple(socket_ports),
+            method="three_contact_socket_ports_v1",
+            status="PROPOSED",
+            notes=(
+                "Selected three independent radial socket contacts; bind E/L/N and the outer instance name at placement time.",
+            ),
+            geometry_summary={
+                "entity_counts": entity_counts,
+                "shape_features": shape_features,
+                "selected_port_count": len(socket_ports),
+                "principal_axis": "three_radial_contacts",
+            },
+        )
     panel_ports, panel_features = _propose_communication_panel_ports(
         block, source_id=source_id
     )
@@ -3200,11 +6427,67 @@ def propose_ports_from_block(
                 "principal_axis": "cell_outward_sides",
             },
         )
+    row_ports = _propose_single_row_contact_mechanism_port(
+        block, source_id=source_id
+    )
+    if row_ports and _has_single_row_contact_mechanism_topology(
+        shape_features, port_count=len(row_ports)
+    ):
+        return SymbolPortProposal(
+            definition_name=definition_name,
+            definition_fingerprint=definition_fingerprint,
+            source_dxf=str(source_dxf) if source_dxf is not None else None,
+            ports=tuple(row_ports),
+            method="single_row_contact_mechanism_v1",
+            status="PROPOSED",
+            notes=(
+                "Selected the single outward row contact; the circle and offset contact are mechanism geometry, not independent external ports.",
+            ),
+            geometry_summary={
+                "entity_counts": entity_counts,
+                "shape_features": shape_features,
+                "selected_port_count": len(row_ports),
+                "principal_axis": "single_row_external_side",
+            },
+        )
     ports, geometry_summary, notes = propose_ports_from_segments(
         segments,
         source_id=source_id,
         max_ports=max_ports,
     )
+    vertical_box_ports = _propose_vertical_two_port_box_ports(
+        block, source_id=source_id
+    )
+    vertical_box_applied = bool(
+        vertical_box_ports
+        and _has_vertical_two_port_box_topology(
+            shape_features, port_count=len(vertical_box_ports)
+        )
+    )
+    if vertical_box_applied:
+        ports = list(vertical_box_ports)
+        notes = (
+            *notes,
+            "Replaced outer-box corners with two independent numbered midpoint contacts.",
+        )
+        geometry_summary["selected_port_count"] = len(ports)
+        geometry_summary["vertical_two_port_box_port_count"] = len(ports)
+    two_row_box_ports = _propose_named_two_row_box_ports(
+        block, source_id=source_id
+    )
+    two_row_box_applied = bool(
+        two_row_box_ports and _has_named_two_row_box_topology(
+            shape_features, port_count=len(two_row_box_ports)
+        )
+    )
+    if two_row_box_applied:
+        ports = list(two_row_box_ports)
+        notes = (
+            *notes,
+            "Replaced outer-box extremes with two independent row attachment ports.",
+        )
+        geometry_summary["selected_port_count"] = len(ports)
+        geometry_summary["named_two_row_box_port_count"] = len(ports)
     numbered_contact_ports = _propose_numbered_contact_grid_ports(
         block, source_id=source_id
     )
@@ -3230,12 +6513,309 @@ def propose_ports_from_block(
         method=(
             "numbered_contact_grid_v1"
             if numbered_contact_ports
+            else "vertical_two_port_box_ports_v1"
+            if vertical_box_applied
+            else "named_two_row_box_ports_v1"
+            if two_row_box_applied
             else "free_endpoint_extremes_v1"
         ),
         status=status,
         notes=notes,
         geometry_summary=geometry_summary,
     )
+
+
+def _propose_single_row_contact_mechanism_port(
+    block: Any, *, source_id: str
+) -> tuple[ProposedPort, ...]:
+    """Select the outer edge of the one line-bound contact in a row mechanism."""
+
+    circles: list[tuple[tuple[float, float], float]] = []
+    lines: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    contacts: list[tuple[tuple[float, float], tuple[tuple[float, float], ...], str]] = []
+    for entity in block:
+        entity_type = str(entity.dxftype()).upper()
+        try:
+            if entity_type == "CIRCLE":
+                center = entity.dxf.center
+                circles.append(
+                    ((float(center.x), float(center.y)), float(entity.dxf.radius))
+                )
+            elif entity_type == "LINE":
+                start, end = entity.dxf.start, entity.dxf.end
+                lines.append(
+                    (
+                        (float(start.x), float(start.y)),
+                        (float(end.x), float(end.y)),
+                    )
+                )
+            elif entity_type == "LWPOLYLINE" and bool(
+                getattr(entity, "closed", False)
+            ):
+                points = list(entity.get_points("xyb"))
+                if len(points) != 2 or not any(
+                    abs(float(point[2])) > 1e-9 for point in points
+                ):
+                    continue
+                vertices = tuple(
+                    (float(point[0]), float(point[1])) for point in points
+                )
+                contacts.append(
+                    (
+                        (
+                            (vertices[0][0] + vertices[1][0]) / 2.0,
+                            (vertices[0][1] + vertices[1][1]) / 2.0,
+                        ),
+                        vertices,
+                        str(getattr(entity.dxf, "handle", "") or ""),
+                    )
+                )
+        except (AttributeError, IndexError, TypeError, ValueError):
+            return ()
+    if len(circles) != 1 or len(lines) != 2 or len(contacts) != 2:
+        return ()
+    circle_center, circle_radius = circles[0]
+    if circle_radius <= 1e-9:
+        return ()
+    endpoint_tolerance = circle_radius * 0.04
+    line_endpoints = [point for line in lines for point in line]
+    bound_contacts = [
+        contact
+        for contact in contacts
+        if min(
+            math.hypot(contact[0][0] - point[0], contact[0][1] - point[1])
+            for point in line_endpoints
+        )
+        <= endpoint_tolerance
+    ]
+    if len(bound_contacts) != 1:
+        return ()
+    center, _vertices, handle = bound_contacts[0]
+    outward_x = center[0] - circle_center[0]
+    outward_y = center[1] - circle_center[1]
+    outward_length = math.hypot(outward_x, outward_y)
+    if outward_length <= 1e-9:
+        return ()
+    outward = (outward_x / outward_length, outward_y / outward_length)
+    return (
+        ProposedPort(
+            port_id="RP1",
+            local_position=(center[0], center[1], 0.0),
+            outward_direction=(outward[0], outward[1], 0.0),
+            port_type="ELECTRICAL",
+            confidence=0.98,
+            evidence_codes=(
+                "SINGLE_ROW_CONTACT_MECHANISM",
+                "LINE_BOUND_OUTER_CONTACT",
+            ),
+            source_ids=tuple(value for value in (source_id, handle) if value),
+            notes="One named row port maps only to its same-side external line.",
+            attachment_side="row_external",
+        ),
+    )
+
+
+def _propose_vertical_two_port_box_ports(
+    block: Any, *, source_id: str
+) -> tuple[ProposedPort, ...]:
+    """Select the two midpoint contacts of a numbered vertical box."""
+
+    contacts: list[tuple[tuple[float, float], str]] = []
+    labels: list[tuple[str, tuple[float, float], str]] = []
+    for entity in block:
+        entity_type = str(entity.dxftype()).upper()
+        handle = str(getattr(entity.dxf, "handle", "") or "")
+        try:
+            if entity_type == "LWPOLYLINE" and bool(
+                getattr(entity, "closed", False)
+            ):
+                points = list(entity.get_points("xyb"))
+                if len(points) != 2 or not any(
+                    abs(float(point[2])) > 1e-9 for point in points
+                ):
+                    continue
+                contacts.append(
+                    (
+                        (
+                            (float(points[0][0]) + float(points[1][0])) / 2.0,
+                            (float(points[0][1]) + float(points[1][1])) / 2.0,
+                        ),
+                        handle,
+                    )
+                )
+            elif entity_type in {"TEXT", "MTEXT", "ATTRIB", "ATTDEF"}:
+                value = (
+                    str(entity.plain_text())
+                    if hasattr(entity, "plain_text")
+                    else str(getattr(entity.dxf, "text", ""))
+                ).strip()
+                if value not in {"1", "2"}:
+                    continue
+                insert = entity.dxf.insert
+                labels.append(
+                    (value, (float(insert.x), float(insert.y)), handle)
+                )
+        except (AttributeError, IndexError, TypeError, ValueError):
+            continue
+    if len(contacts) != 2 or {value for value, _, _ in labels} != {"1", "2"}:
+        return ()
+    center = (
+        sum(point[0] for point, _ in contacts) / 2.0,
+        sum(point[1] for point, _ in contacts) / 2.0,
+    )
+    assigned: dict[str, tuple[tuple[float, float], str, str]] = {}
+    used_contacts: set[int] = set()
+    for value, label_point, text_handle in sorted(labels):
+        distance, index = min(
+            (
+                math.hypot(
+                    contact[0][0] - label_point[0],
+                    contact[0][1] - label_point[1],
+                ),
+                contact_index,
+            )
+            for contact_index, contact in enumerate(contacts)
+            if contact_index not in used_contacts
+        )
+        del distance
+        used_contacts.add(index)
+        assigned[value] = (contacts[index][0], contacts[index][1], text_handle)
+    if set(assigned) != {"1", "2"}:
+        return ()
+    ports: list[ProposedPort] = []
+    for value in ("1", "2"):
+        point, contact_handle, text_handle = assigned[value]
+        dx, dy = point[0] - center[0], point[1] - center[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return ()
+        ports.append(
+            ProposedPort(
+                port_id=f"VP{value}",
+                local_position=(point[0], point[1], 0.0),
+                outward_direction=(dx / length, dy / length, 0.0),
+                port_type="ELECTRICAL",
+                confidence=0.98,
+                evidence_codes=(
+                    "NUMBERED_VERTICAL_BOX_CONTACT",
+                    "OUTWARD_FROM_BOX_CENTER",
+                ),
+                source_ids=(source_id, contact_handle, text_handle),
+                notes="Independent numbered box port; map outward only and never union through the body.",
+                component_pin=value,
+                attachment_side="upper" if value == "1" else "lower",
+            )
+        )
+    return tuple(ports)
+
+
+def _propose_named_two_row_box_ports(
+    block: Any, *, source_id: str
+) -> tuple[ProposedPort, ...]:
+    """Select the two repeated row contacts, excluding the outer box corners."""
+
+    bodies: list[list[tuple[float, float]]] = []
+    contacts: list[tuple[tuple[float, float], str]] = []
+    for entity in block:
+        if str(entity.dxftype()).upper() != "LWPOLYLINE" or not bool(
+            getattr(entity, "closed", False)
+        ):
+            continue
+        try:
+            points = list(entity.get_points("xyb"))
+            bulged = any(abs(float(point[2])) > 1e-9 for point in points)
+        except Exception:
+            continue
+        if bulged and len(points) == 2:
+            contacts.append(
+                (
+                    (
+                        (float(points[0][0]) + float(points[1][0])) / 2.0,
+                        (float(points[0][1]) + float(points[1][1])) / 2.0,
+                    ),
+                    str(getattr(entity.dxf, "handle", "") or ""),
+                )
+            )
+        elif not bulged and len(points) == 4:
+            bodies.append([(float(point[0]), float(point[1])) for point in points])
+    if len(bodies) != 1 or len(contacts) != 4:
+        return ()
+    body = bodies[0]
+    center = (
+        (min(point[0] for point in body) + max(point[0] for point in body)) / 2.0,
+        (min(point[1] for point in body) + max(point[1] for point in body)) / 2.0,
+    )
+    edges = []
+    for start, end in zip(body, body[1:] + body[:1]):
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            return ()
+        edges.append((dx / length, dy / length, length))
+    short = min(edges, key=lambda item: item[2])
+    axis_x, axis_y = short[0], short[1]
+    normal_x, normal_y = -axis_y, axis_x
+    projected = []
+    for point, handle in contacts:
+        dx, dy = point[0] - center[0], point[1] - center[1]
+        projected.append(
+            (
+                dx * axis_x + dy * axis_y,
+                dx * normal_x + dy * normal_y,
+                point,
+                handle,
+            )
+        )
+    groups: list[list[tuple[float, float, tuple[float, float], str]]] = []
+    tolerance = min(item[2] for item in edges) * 0.03
+    for item in sorted(projected, key=lambda value: value[0]):
+        if groups and abs(
+            item[0] - sum(value[0] for value in groups[-1]) / len(groups[-1])
+        ) <= tolerance:
+            groups[-1].append(item)
+        else:
+            groups.append([item])
+    if len(groups) != 2 or any(len(group) != 2 for group in groups):
+        return ()
+    port_group = min(
+        groups, key=lambda group: abs(sum(item[1] for item in group) / len(group))
+    )
+    group_midpoint = (
+        sum(item[2][0] for item in port_group) / 2.0,
+        sum(item[2][1] for item in port_group) / 2.0,
+    )
+    outward_x = group_midpoint[0] - center[0]
+    outward_y = group_midpoint[1] - center[1]
+    outward_length = math.hypot(outward_x, outward_y)
+    if outward_length <= 1e-9:
+        return ()
+    ports = []
+    for slot, item in enumerate(
+        sorted(port_group, key=lambda value: value[1], reverse=True), start=1
+    ):
+        ports.append(
+            ProposedPort(
+                port_id=f"BP{slot}",
+                local_position=(item[2][0], item[2][1], 0.0),
+                outward_direction=(
+                    outward_x / outward_length,
+                    outward_y / outward_length,
+                    0.0,
+                ),
+                port_type="ELECTRICAL",
+                confidence=0.98,
+                evidence_codes=(
+                    "NAMED_TWO_ROW_BOX",
+                    "REPEATED_ROW_CONTACT",
+                    f"PORT_SLOT_{slot}",
+                ),
+                source_ids=tuple(value for value in (source_id, item[3]) if value),
+                notes="Independent row attachment; no row-to-row connectivity inferred.",
+                component_pin=str(slot),
+                attachment_side="upper" if slot == 1 else "lower",
+            )
+        )
+    return tuple(ports)
 
 
 def _propose_numbered_contact_grid_ports(
@@ -3277,7 +6857,8 @@ def _propose_numbered_contact_grid_ports(
     if len(labels) not in {4, 6} or len(contacts) != len(labels):
         return ()
     labels.sort(key=lambda item: item[0])
-    if [value for value, _ in labels] != list(range(1, len(labels) + 1)):
+    label_values = [value for value, _ in labels]
+    if label_values != list(range(label_values[0], label_values[0] + len(labels))):
         return ()
 
     best_contacts: tuple[tuple[float, float], ...] | None = None
@@ -3319,6 +6900,7 @@ def _propose_numbered_contact_grid_ports(
                 ),
                 source_ids=(source_id,),
                 notes="Numbered external contact; no internal connectivity inferred.",
+                component_pin=str(slot),
             )
         )
     return tuple(ports)
@@ -3379,12 +6961,29 @@ def build_instance_port_network_candidates(
             if fingerprint:
                 proposals_by_fingerprint[(file_id, fingerprint)].append(row)
 
+    instances_by_nested_path: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for row in instance_rows:
+        nested_path = str(row.get("nested_path") or "").strip()
+        if not nested_path:
+            continue
+        key = (
+            str(row.get("file_id") or "").strip(),
+            str(row.get("sheet_id") or "").strip(),
+            nested_path,
+        )
+        instances_by_nested_path[key] = row
+
     numeric_label = re.compile(r"^[0-9]{1,3}$")
     terminal_designator = re.compile(
         r"^(?:[0-9]+[A-Za-z][A-Za-z0-9-]*|[A-Za-z]+[0-9][A-Za-z0-9-]*)$"
     )
     component_designator = re.compile(r"^\d+(?:-\d+)?[A-Za-z]{1,5}\d*$")
     short_alpha_component_designator = re.compile(r"^[A-Za-z]{2,5}$")
+    hyphen_component_designator = re.compile(
+        r"^[A-Za-z]{1,6}(?:-[A-Za-z]{1,6}){1,6}$"
+    )
+    apostrophe_component_designator = re.compile(r"^[A-Za-z]{1,4}'$")
+    row_component_designator = re.compile(r"^(?:[A-Za-z]{1,5}|[A-Za-z]{1,4}')$")
     candidates: list[dict[str, Any]] = []
     for instance in instance_rows:
         file_id = str(instance.get("file_id") or "").strip()
@@ -3402,6 +7001,15 @@ def build_instance_port_network_candidates(
             if instance_fingerprint
             else []
         )
+        if matching and name_matching:
+            named_exact_matches = [
+                row
+                for row in matching
+                if str(row.get("definition_name") or "").strip().casefold()
+                == name.casefold()
+            ]
+            if named_exact_matches:
+                matching = named_exact_matches
         binding_status = "FINGERPRINT_EXACT"
         if not matching:
             unversioned = [
@@ -3463,7 +7071,14 @@ def build_instance_port_network_candidates(
         family_id = str(family.get("family_id") or "")
         if behavior.get("suppressed_by_policy"):
             continue
-        terminal_geometry = is_high_confidence_terminal_geometry(matching[0])
+        four_contact_terminal_geometry = _is_four_contact_terminal_geometry(
+            matching[0].get("geometry_summary", {}).get("shape_features", {}),
+            port_count=len(matching[0].get("ports") or []),
+        )
+        terminal_geometry = (
+            is_high_confidence_terminal_geometry(matching[0])
+            or four_contact_terminal_geometry
+        )
         labelled_terminal = family_id.startswith("labelled_terminal.")
         component_port_model = family_id.startswith("component.external_")
         communication_panel_model = (
@@ -3472,8 +7087,72 @@ def build_instance_port_network_candidates(
         named_two_port_strip_model = (
             family_id == "component.external_strip_two_port.v1"
             and family.get("matched_family_rule_id")
-            == "four-contact-two-circle-named-strip-v1"
+            in {
+                "four-contact-two-circle-named-strip-v1",
+                "two-contact-mechanical-actuator-v1",
+                "vertical-numbered-two-port-box-v1",
+            }
         )
+        two_contact_actuator_model = (
+            family_id == "component.external_strip_two_port.v1"
+            and family.get("matched_family_rule_id")
+            == "two-contact-mechanical-actuator-v1"
+        )
+        named_two_row_box_model = (
+            family_id == "component.external_strip_two_port.v1"
+            and family.get("matched_family_rule_id")
+            == "named-two-row-box-four-contact-v1"
+        )
+        vertical_two_port_box_model = (
+            family_id == "component.external_strip_two_port.v1"
+            and family.get("matched_family_rule_id")
+            == "vertical-numbered-two-port-box-v1"
+        )
+        single_row_contact_model = (
+            family_id == "component.external_row_contact.v1"
+            and family.get("matched_family_rule_id")
+            == "single-row-circle-contact-mechanism-v1"
+        )
+        three_contact_socket_model = (
+            family_id == "component.external_multi_port.v1"
+            and family.get("matched_family_rule_id")
+            == "three-contact-labelled-socket-v1"
+        )
+        four_contact_isolated_frame_model = (
+            family_id == "component.external_multi_port.v1"
+            and family.get("matched_family_rule_id")
+            in {
+                "four-contact-isolated-switch-frame-v1",
+                "four-numbered-independent-contact-panel-v1",
+            }
+        )
+        four_numbered_contact_panel_model = (
+            family_id == "component.external_multi_port.v1"
+            and family.get("matched_family_rule_id")
+            == "four-numbered-independent-contact-panel-v1"
+        )
+        if single_row_contact_model:
+            nested_path = str(instance.get("nested_path") or "").strip()
+            if "/" in nested_path:
+                parent_path = nested_path.rsplit("/", 1)[0]
+                parent_instance = instances_by_nested_path.get(
+                    (file_id, sheet_id, parent_path)
+                )
+                parent_fingerprint = str(
+                    (parent_instance or {}).get("definition_fingerprint") or ""
+                ).strip().casefold()
+                parent_matching = proposals_by_fingerprint.get(
+                    (file_id, parent_fingerprint), []
+                )
+                if len(parent_matching) == 1:
+                    parent_family = classify_definition_family(
+                        parent_matching[0], fingerprint=parent_fingerprint or None
+                    )
+                    if (
+                        parent_family.get("matched_family_rule_id")
+                        == "named-two-row-box-four-contact-v1"
+                    ):
+                        continue
         matrix = _instance_matrix(instance.get("transform_json"))
         if matrix is None:
             continue
@@ -3541,6 +7220,11 @@ def build_instance_port_network_candidates(
         ] = []
         terminal_labels: list[tuple[float, str, dict[str, Any]]] = []
         component_labels: list[tuple[float, str, dict[str, Any]]] = []
+        socket_pin_texts: list[tuple[str, float, float, dict[str, Any]]] = []
+        socket_endpoint_texts: list[tuple[str, float, float, dict[str, Any]]] = []
+        external_component_texts: list[
+            tuple[str, float, float, dict[str, Any]]
+        ] = []
         for text_row in text_rows:
             if str(text_row.get("sheet_id") or "") != sheet_id:
                 continue
@@ -3559,11 +7243,36 @@ def build_instance_port_network_candidates(
             if component_port_model and (
                 component_designator.fullmatch(value)
                 or (
-                    named_two_port_strip_model
+                    (
+                        named_two_port_strip_model
+                        or three_contact_socket_model
+                        or four_contact_isolated_frame_model
+                    )
                     and short_alpha_component_designator.fullmatch(value)
+                )
+                or (
+                    (named_two_row_box_model or vertical_two_port_box_model)
+                    and apostrophe_component_designator.fullmatch(value)
+                )
+                or (
+                    single_row_contact_model
+                    and row_component_designator.fullmatch(value)
                 )
             ):
                 component_labels.append((0.0, value, text_row))
+            if three_contact_socket_model and value.upper() in {"E", "L", "N"}:
+                socket_pin_texts.append((value.upper(), x, y, text_row))
+            if (
+                three_contact_socket_model
+                or four_contact_isolated_frame_model
+                or two_contact_actuator_model
+            ) and terminal_designator.fullmatch(value):
+                socket_endpoint_texts.append((value, x, y, text_row))
+            if (
+                four_contact_isolated_frame_model
+                and hyphen_component_designator.fullmatch(value)
+            ):
+                external_component_texts.append((value, x, y, text_row))
             if numeric_label.fullmatch(value):
                 eligible_texts.append((value, x, y, text_row))
             if communication_panel_model and _is_communication_panel_external_endpoint(
@@ -3617,23 +7326,72 @@ def build_instance_port_network_candidates(
                     sum(point[1] for point in world_ports) / len(world_ports),
                     0.0,
                 )
-                if named_two_port_strip_model and world_ports
+                if (
+                    named_two_port_strip_model
+                    or named_two_row_box_model
+                    or single_row_contact_model
+                    or three_contact_socket_model
+                    or four_contact_isolated_frame_model
+                )
+                and world_ports
                 else _transform_point(matrix, (0.0, 0.0, 0.0))
             )
-            component_labels = sorted(
-                [
-                    (
-                        math.hypot(center[0] - float(row.get("insert_x")), center[1] - float(row.get("insert_y"))),
-                        value,
-                        row,
+            measured_component_labels = [
+                (
+                    math.hypot(
+                        center[0] - float(row.get("insert_x")),
+                        center[1] - float(row.get("insert_y")),
+                    ),
+                    value,
+                    row,
+                )
+                for _, value, row in component_labels
+            ]
+            if four_numbered_contact_panel_model:
+                pin_world = {
+                    int(str(port.get("component_pin") or "")): world
+                    for port, world in zip(ports, world_ports)
+                    if str(port.get("component_pin") or "").isdigit()
+                    and math.isfinite(world[0])
+                    and math.isfinite(world[1])
+                }
+                ordered_pins = sorted(pin_world)
+                if len(ordered_pins) == 4:
+                    upper = (
+                        sum(pin_world[pin][0] for pin in ordered_pins[:2]) / 2.0,
+                        sum(pin_world[pin][1] for pin in ordered_pins[:2]) / 2.0,
                     )
-                    for _, value, row in component_labels
-                ],
+                    lower = (
+                        sum(pin_world[pin][0] for pin in ordered_pins[2:]) / 2.0,
+                        sum(pin_world[pin][1] for pin in ordered_pins[2:]) / 2.0,
+                    )
+                    axis = (upper[0] - lower[0], upper[1] - lower[1])
+                    axis_length = math.hypot(axis[0], axis[1])
+                    if axis_length > 1e-9:
+                        axis = (axis[0] / axis_length, axis[1] / axis_length)
+                        filtered_labels = []
+                        for distance_value, value, row in measured_component_labels:
+                            dx = float(row.get("insert_x")) - center[0]
+                            dy = float(row.get("insert_y")) - center[1]
+                            forward = dx * axis[0] + dy * axis[1]
+                            lateral = abs(dx * axis[1] - dy * axis[0])
+                            if (
+                                0.0 < forward <= component_label_radius
+                                and lateral <= component_label_radius * 0.6
+                            ):
+                                filtered_labels.append(
+                                    (distance_value, value, row)
+                                )
+                        measured_component_labels = filtered_labels
+            component_labels = sorted(
+                measured_component_labels,
                 key=lambda item: (item[0], item[1]),
             )
         component_label = (
             component_labels[0]
-            if component_labels and component_labels[0][0] <= component_label_radius
+            if component_labels
+            and component_labels[0][0]
+            <= component_label_radius * (1.2 if vertical_two_port_box_model else 1.0)
             else None
         )
 
@@ -3654,6 +7412,31 @@ def build_instance_port_network_candidates(
                 continue
             assigned_labels[port_index] = (distance, eligible_texts[text_index])
             used_texts.add(text_index)
+
+        assigned_socket_pins: dict[
+            int, tuple[float, tuple[str, float, float, dict[str, Any]]]
+        ] = {}
+        if three_contact_socket_model:
+            socket_pairs = sorted(
+                (
+                    math.hypot(world[0] - x, world[1] - y),
+                    port_index,
+                    text_index,
+                )
+                for port_index, world in enumerate(world_ports)
+                if math.isfinite(world[0]) and math.isfinite(world[1])
+                for text_index, (_, x, y, _) in enumerate(socket_pin_texts)
+                if math.hypot(world[0] - x, world[1] - y) <= max(label_radius, 12.0)
+            )
+            used_socket_texts: set[int] = set()
+            for distance, port_index, text_index in socket_pairs:
+                if port_index in assigned_socket_pins or text_index in used_socket_texts:
+                    continue
+                assigned_socket_pins[port_index] = (
+                    distance,
+                    socket_pin_texts[text_index],
+                )
+                used_socket_texts.add(text_index)
 
         assigned_panel_endpoints: dict[
             int, tuple[float, tuple[str, float, float, dict[str, Any]]]
@@ -3717,7 +7500,9 @@ def build_instance_port_network_candidates(
                 end_distance = math.hypot(world[0] - end[0], world[1] - end[1])
                 if min(start_distance, end_distance) > effective_endpoint_tolerance:
                     continue
-                if terminal_geometry and outward is not None:
+                if (
+                    terminal_geometry or four_contact_isolated_frame_model
+                ) and outward is not None:
                     away = (
                         (end[0] - start[0], end[1] - start[1])
                         if start_distance <= end_distance
@@ -3733,11 +7518,23 @@ def build_instance_port_network_candidates(
                         continue
                 attached_lines.append(line)
 
+            # A four-way terminal exposes independent directional contacts.
+            # An unwired direction is not a relation and must not become a
+            # label-only placeholder that downstream code could misread as a
+            # latent attachment.
+            if four_contact_terminal_geometry and not attached_lines:
+                continue
+
             panel_binding = assigned_panel_endpoints.get(port_index)
             label_binding = assigned_labels.get(port_index)
+            socket_pin_binding = assigned_socket_pins.get(port_index)
             explicit_label = (
                 str(port.get("component_pin") or "").strip() or None
                 if communication_panel_model
+                else str(port.get("component_pin") or "").strip() or None
+                if (four_numbered_contact_panel_model or vertical_two_port_box_model)
+                else socket_pin_binding[1][0]
+                if socket_pin_binding
                 else label_binding[1][0]
                 if label_binding
                 else None
@@ -3745,6 +7542,8 @@ def build_instance_port_network_candidates(
             label_row = (
                 panel_binding[1][3]
                 if panel_binding
+                else socket_pin_binding[1][3]
+                if socket_pin_binding
                 else label_binding[1][3]
                 if label_binding
                 else None
@@ -3752,6 +7551,8 @@ def build_instance_port_network_candidates(
             label_distance_value = (
                 panel_binding[0]
                 if panel_binding
+                else socket_pin_binding[0]
+                if socket_pin_binding
                 else label_binding[0]
                 if label_binding
                 else None
@@ -3779,6 +7580,102 @@ def build_instance_port_network_candidates(
                     for network_id in networks_by_handle.get(handle, set())
                 }
             )
+            socket_external_binding: tuple[
+                float, tuple[str, float, float, dict[str, Any]]
+            ] | None = None
+            if (
+                three_contact_socket_model
+                or four_contact_isolated_frame_model
+                or two_contact_actuator_model
+            ) and (network_ids or attached_lines):
+                network_id_set = set(network_ids)
+                network_lines = (
+                    [
+                        row
+                        for row in sheet_lines
+                        if network_id_set
+                        & networks_by_handle.get(
+                            str(row.get("handle") or "").strip(), set()
+                        )
+                    ]
+                    if network_id_set
+                    else attached_lines
+                )
+                endpoint_matches: list[
+                    tuple[float, float, tuple[str, float, float, dict[str, Any]]]
+                ] = []
+                for endpoint in socket_endpoint_texts:
+                    value, x, y, endpoint_row = endpoint
+                    if (
+                        component_label
+                        and endpoint_row.get("text_id")
+                        == component_label[2].get("text_id")
+                    ):
+                        continue
+                    distances: list[float] = []
+                    for line in network_lines:
+                        try:
+                            start = (float(line.get("start_x")), float(line.get("start_y")))
+                            end = (float(line.get("end_x")), float(line.get("end_y")))
+                        except (TypeError, ValueError):
+                            continue
+                        distances.append(_point_segment_distance((x, y), start, end))
+                    # Text insertion points may sit just beyond a line end;
+                    # the strict socket family plus shared network membership
+                    # keeps this wider label reach scoped and fail-closed.
+                    endpoint_reach = 4.0 if two_contact_actuator_model else 8.0
+                    if distances and min(distances) <= endpoint_reach:
+                        endpoint_matches.append(
+                            (min(distances), math.hypot(world[0] - x, world[1] - y), endpoint)
+                        )
+                if endpoint_matches:
+                    best = min(endpoint_matches, key=lambda item: (item[0], item[1], item[2][0]))
+                    socket_external_binding = (best[0], best[2])
+                elif four_contact_isolated_frame_model and outward is not None:
+                    numeric_matches: list[
+                        tuple[float, float, tuple[str, float, float, dict[str, Any]]]
+                    ] = []
+                    for numeric in eligible_texts:
+                        value, x, y, row = numeric
+                        if label_row and row.get("text_id") == label_row.get("text_id"):
+                            continue
+                        forward = outward[0] * (x - world[0]) + outward[1] * (y - world[1])
+                        if forward <= 2.0:
+                            continue
+                        distances = []
+                        for line in network_lines:
+                            try:
+                                start = (float(line.get("start_x")), float(line.get("start_y")))
+                                end = (float(line.get("end_x")), float(line.get("end_y")))
+                            except (TypeError, ValueError):
+                                continue
+                            distances.append(_point_segment_distance((x, y), start, end))
+                        if distances and min(distances) <= 4.0:
+                            numeric_matches.append((min(distances), forward, numeric))
+                    if numeric_matches:
+                        _, _, numeric = min(
+                            numeric_matches, key=lambda item: (item[0], item[1], item[2][0])
+                        )
+                        component_matches = sorted(
+                            (
+                                math.hypot(numeric[1] - x, numeric[2] - y),
+                                value,
+                                row,
+                            )
+                            for value, x, y, row in external_component_texts
+                            if math.hypot(numeric[1] - x, numeric[2] - y) <= 20.0
+                        )
+                        if component_matches:
+                            component_distance, component_name, component_row = component_matches[0]
+                            socket_external_binding = (
+                                component_distance,
+                                (
+                                    f"{component_name}-{numeric[0]}",
+                                    numeric[1],
+                                    numeric[2],
+                                    component_row,
+                                ),
+                            )
             evidence_codes = ["DEFINITION_PORT_WORLD_TRANSFORM"]
             if communication_panel_model:
                 evidence_codes.extend(
@@ -3791,11 +7688,27 @@ def build_instance_port_network_candidates(
                     evidence_codes.append("OUTWARD_EXTERNAL_ENDPOINT_LABEL")
             if explicit_label:
                 evidence_codes.append("INSTANCE_LOCAL_NUMERIC_PORT_LABEL")
-            if named_two_port_strip_model and component_label:
+            if (
+                named_two_port_strip_model
+                or named_two_row_box_model
+                or single_row_contact_model
+                or four_contact_isolated_frame_model
+            ) and component_label:
                 evidence_codes.append("INSTANCE_COMPONENT_DESIGNATOR")
+            if three_contact_socket_model and component_label and socket_pin_binding:
+                evidence_codes.extend(
+                    [
+                        "INSTANCE_COMPONENT_DESIGNATOR",
+                        "INSTANCE_SOCKET_PIN_LABEL",
+                    ]
+                )
+            if socket_external_binding:
+                evidence_codes.append("NETWORK_SCOPED_EXTERNAL_ENDPOINT_LABEL")
             if line_handles:
                 evidence_codes.append("EXACT_EXTERNAL_LINE_ENDPOINT")
-                if terminal_geometry and outward is not None:
+                if (
+                    terminal_geometry or four_contact_isolated_frame_model
+                ) and outward is not None:
                     evidence_codes.append("OUTWARD_LINE_ALIGNMENT")
             if network_ids:
                 evidence_codes.append("EXTERNAL_NETWORK_MEMBERSHIP")
@@ -3828,11 +7741,23 @@ def build_instance_port_network_candidates(
                 if component_label and explicit_label
                 else None
             )
-            if named_two_port_strip_model and component_port_identity:
+            if (
+                named_two_port_strip_model
+                or named_two_row_box_model
+                or single_row_contact_model
+                or four_contact_isolated_frame_model
+            ) and component_port_identity:
                 evidence_codes.extend(
                     [
                         "COMPONENT_PORT_IDENTITY",
                         "SIDE_SPECIFIC_EXTERNAL_ATTACHMENT",
+                    ]
+                )
+            if three_contact_socket_model and component_port_identity:
+                evidence_codes.extend(
+                    [
+                        "COMPONENT_PORT_IDENTITY",
+                        "INDEPENDENT_SOCKET_PORT",
                     ]
                 )
             component_mappings = (
@@ -3843,6 +7768,13 @@ def build_instance_port_network_candidates(
             component_endpoints = (
                 [panel_binding[1][0]]
                 if communication_panel_model and panel_binding
+                else [socket_external_binding[1][0]]
+                if (
+                    three_contact_socket_model
+                    or four_contact_isolated_frame_model
+                    or two_contact_actuator_model
+                )
+                and socket_external_binding
                 else sorted(
                     {
                         str(row.get("right_value") or "").strip()
@@ -3890,12 +7822,27 @@ def build_instance_port_network_candidates(
                 status = "PANEL_CELL_UNWIRED"
                 confidence = 0.5
             elif (
-                named_two_port_strip_model
+                (
+                    named_two_port_strip_model
+                    or named_two_row_box_model
+                    or single_row_contact_model
+                )
                 and component_port_identity
                 and line_handles
             ):
                 status = "MEASURED_COMPONENT_PORT_MAPPING"
                 confidence = 0.95 if network_ids else 0.92
+            elif (
+                (
+                    three_contact_socket_model
+                    or four_contact_isolated_frame_model
+                )
+                and component_port_identity
+                and component_endpoints
+                and line_handles
+            ):
+                status = "MEASURED_COMPONENT_PORT_MAPPING"
+                confidence = 0.96 if network_ids else 0.92
             elif explicit_label and line_handles:
                 status = "MEASURED_EXTERNAL_ATTACHMENT"
                 confidence = 0.95 if network_ids else 0.9
@@ -3962,7 +7909,13 @@ def build_instance_port_network_candidates(
                     "component_pin": (
                         port.get("component_pin")
                         or explicit_label
-                        if named_two_port_strip_model
+                        if (
+                            named_two_port_strip_model
+                            or named_two_row_box_model
+                            or single_row_contact_model
+                            or three_contact_socket_model
+                            or four_contact_isolated_frame_model
+                        )
                         else port.get("component_pin")
                     ),
                     "attachment_side": (
@@ -3976,12 +7929,29 @@ def build_instance_port_network_candidates(
                     ),
                     "component_mapping_external_endpoints": component_endpoints,
                     "component_mapping_external_network_ids": (
-                        network_ids if named_two_port_strip_model else []
+                        network_ids
+                        if (
+                            named_two_port_strip_model
+                            or named_two_row_box_model
+                            or single_row_contact_model
+                            or three_contact_socket_model
+                            or four_contact_isolated_frame_model
+                        )
+                        else []
                     ),
                     "component_mapping_pair_ids": component_pair_ids,
                     "cross_page_match_eligible": bool(
                         component_endpoints
-                        or (named_two_port_strip_model and network_ids)
+                        or (
+                            (
+                                named_two_port_strip_model
+                                or named_two_row_box_model
+                                or single_row_contact_model
+                                or three_contact_socket_model
+                                or four_contact_isolated_frame_model
+                            )
+                            and network_ids
+                        )
                     ),
                     "label_handle": label_row.get("handle") if label_row else None,
                     "label_text_id": label_row.get("text_id") if label_row else None,
@@ -3994,7 +7964,13 @@ def build_instance_port_network_candidates(
                     "external_network_ids": network_ids,
                     "relation_kind": (
                         "COMPONENT_PORT_TO_EXTERNAL_NETWORK"
-                        if named_two_port_strip_model
+                        if (
+                            named_two_port_strip_model
+                            or named_two_row_box_model
+                            or single_row_contact_model
+                            or three_contact_socket_model
+                            or four_contact_isolated_frame_model
+                        )
                         else "PORT_TO_EXTERNAL_NETWORK"
                     ),
                     "status": status,
@@ -4009,6 +7985,31 @@ def build_instance_port_network_candidates(
                     "critical_issue_eligible": False,
                 }
             )
+    # A nested row mechanism can be inventoried at the same world transform as
+    # its enclosing two-row component.  Keep the first measured parent mapping
+    # and suppress only an exactly coincident duplicate; distinct instances,
+    # rows, line handles, or networks remain separate.
+    deduplicated_candidates: list[dict[str, Any]] = []
+    seen_two_row_mappings: set[tuple[Any, ...]] = set()
+    for row in candidates:
+        if (
+            row.get("matched_family_rule_id")
+            == "named-two-row-box-four-contact-v1"
+            and row.get("relation_kind") == "COMPONENT_PORT_TO_EXTERNAL_NETWORK"
+        ):
+            duplicate_key = (
+                row.get("file_id"),
+                row.get("sheet_id"),
+                row.get("component_port_identity"),
+                tuple(row.get("world_position") or ()),
+                tuple(row.get("attached_line_handles") or ()),
+                tuple(row.get("external_network_ids") or ()),
+            )
+            if duplicate_key in seen_two_row_mappings:
+                continue
+            seen_two_row_mappings.add(duplicate_key)
+        deduplicated_candidates.append(row)
+    candidates = deduplicated_candidates
     candidates.sort(
         key=lambda row: (
             str(row.get("sheet_id") or ""),
@@ -4119,9 +8120,12 @@ def _instance_matrix(raw: Any) -> list[list[float]] | None:
     matrix = payload.get("matrix44")
     chain = payload.get("chain")
     if matrix is None and isinstance(chain, Sequence) and chain:
-        first = chain[0]
-        if isinstance(first, Mapping):
-            matrix = first.get("matrix44") or first.get("matrix")
+        # Walker chains are ordered outermost -> current instance and each
+        # item stores the cumulative world transform at that depth.  The last
+        # item therefore owns the nested symbol's actual placement.
+        current = chain[-1]
+        if isinstance(current, Mapping):
+            matrix = current.get("matrix44") or current.get("matrix")
     if not isinstance(matrix, Sequence):
         return None
     try:

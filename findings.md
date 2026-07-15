@@ -984,6 +984,11 @@
 - Crossover topology is now production-connected and auditable, but fresh-census recurrence still needs one final gate: A$C2E3F2C02 must be classified as a wire primitive in symbol inventory/proposal output so it does not reappear as an UNKNOWN symbol even though wire topology is correct.
 - `WIRE_PRIMITIVE` must be semantically separate from IGNORE: both clear symbol-port proposals, but only wire topology creates the certified same-path bridge. Proposal status should say exact/geometry wire primitive, never `NON_CONNECTIVE`, and all component mapping flags remain false.
 - The symbol inventory recurrence path is now closed in code: exact and unseen complete LINE-ARC-LINE geometry enter `wire.crossover_jump.v1 / WIRE_PRIMITIVE` and suppress component-style ports without suppressing the topology bridge.
+- Fresh report evidence falsified the recurrence claim at artifact order: proposals are resolved, but `unknown_symbol_queue_v1` remains open because inventory is written before policy output. Queue filtering must happen after proposal generation. The jump recognizer also needs whole-group cardinality, otherwise a terminal containing a semicircle and two suitable leads is falsely promoted.
+- Unknown-queue filtering must be conservative and behavior-based: only authoritative geometry/exact rows whose mode itself resolves symbol review are removed. A mere family candidate, terminal geometry, or external component family is insufficient because those may still require human binding semantics.
+- Schema distinction: `unknown_symbol_queue_v1` means “not in formal registry,” not “still needs current human adjudication.” It legitimately retains human-policy definitions until registry promotion. The compact current-human queue is the filtered operational queue; proposal `behavior_mode/status` is the electrical authority. Preserving this distinction avoids silently redefining baseline metrics.
+- Strict recognizer validation on real `primitive_segments.parquet` returns 5/5 A$ jump INSERTs and zero other definitions. This closes the most important overgeneralization risk from the first 41-match replay.
+- Final full-suite result is `796 passed, 1 skipped`. Resolved temporary products are gone; the operational human queue is 28 and begins with PWF89.
 - PWF89 context shows a circle with diagonal slash and four outward contact directions, used repeatedly as `JD1/JD2/JD6` around `AC230V L/N` conductors. Its internal connectivity and whether all four sides are functional cannot be inferred from the glyph; it is the next human-adjudication question.
 
 ## Reverse review: WTX-871 communication panel
@@ -1034,6 +1039,87 @@
 - Its geometry differs from the earlier four-line/one-contact ground and six-line duplicated stepped marker: PWF4 has four LINEs, four LWPOLYLINEs (three open duplicated bars plus one closed bulged contact), bar proportions about `1.0/0.6/0.2`, and a contact lead attached at the longest bar midpoint.
 - The accepted topology is orientation-free and scale-free. It binds each open polyline to exactly one coincident line bar, checks stepped centre spacing, and requires both lead-to-longest-bar and lead-to-contact attachment. Moving the contact away while preserving all primitive counts is a tested negative.
 
+## Reverse review: SYMB2_M_PWF87 generic terminal
+
+- Human authority: the slash-circle body with two round side contacts is a generic terminal. The instance label `JD11` is its terminal designator; left and right external line contacts are retained independently, with no internal connection or electrical union between them.
+- Real definition evidence is `LINE=4`, `LWPOLYLINE=2`, `CIRCLE=1`: two equal closed bulged contacts lie symmetrically on an axis through the central circle, two short collinear leads point from those contacts toward the circle, and two collinear diagonal segments form the slash through the circle centre.
+- Instance binding proves the generic-terminal interpretation without inventing conductivity: both world ports independently bind the same nearby designator `JD11`, but each has its own exact line handle and external network. The outer network IDs remain distinct, so no hidden left-to-right bridge is introduced.
+
+## Reverse review: SYMB2_M_PWF104 CZ socket
+
+- Human authority: E/L/N are three independent ports under outer instance `CZ`; complete identities are `CZ-E`, `CZ-L`, and `CZ-N`, with no internal connection among them.
+- Source-network evidence resolves the mappings without guessing from screen direction: the left E network contains endpoint label `JD11`, the upper L network contains `JD2`, and the lower N network contains `JD7`. Thus the measured mappings are `CZ-E→JD11`, `CZ-L→JD2`, and `CZ-N→JD7`.
+- Generalization uses the outer-circle/three-inner-circle topology, six contact positions, T-shaped radial outer-contact layout, and inward lead attachment. E/L/N roles are assigned from instance text rather than hardcoded top/bottom orientation, preserving mirrored/rotated applicability.
+
+## Main review: SYMB2_M_PWF89 four-direction generic terminal
+
+- Human authority: central slash-circle plus four round contacts is a generic terminal. `JD1/JD2/JD6` is the per-instance terminal identity; each externally wired direction binds independently, and no direction connects internally to another.
+- Real definition evidence is `LINE=5`, `LWPOLYLINE=4`, `CIRCLE=1`: four equal contacts form a centred orthogonal cross around one larger circle, four radial leads bind contacts to the body, and one diagonal mechanism/slash line crosses the centre.
+- This must be a second strict geometry rule under `labelled_terminal.generic.v1`, reusing PWF87's instance designator/evidence binding while allowing four independent ports. No external line means no emitted attachment on that side.
+- Final matcher validates equal contact radii, contact/body radius ratio, two perpendicular axes, four one-to-one contact-to-body radial leads, and a centred diagonal whose endpoints are opposite and off both contact axes. It is rotation/scale invariant; shifted slash and skewed-contact same-count drawings are tested negatives.
+- Fresh P001 replay emits 14 rows for 14 genuinely wired directions across six instances and emits no row for ten unwired directions. Eleven rows have unique JD names and are `MEASURED_TERMINAL_ATTACHMENT`; the three wired directions on the unnamed instance remain `TERMINAL_WIRE_ONLY_REVIEW` rather than borrowing another JD name.
+- Observed instance names include `JD1/JD6/JD2/JD3/JD8`. Every emitted direction retains its own line/network evidence, while all rows keep `internal_connectivity_inferred=false` and `electrical_union_eligible=false`.
+
+## Main review: SYMB2_S_PWF12a pending human semantics
+
+- Live queue successor after PWF89 removal is cross-project `SYMB2_S_PWF12a`, fingerprint `b440ea59c6edcaa2edd135cbfd3ca4d54f80bb2ea554a9ec7af3eeba5a6be3d0`, eight instances in P001/P003.
+- P001 provenance is nested handle `1D2D4` inside parent `SYMB2_M_PWF105[1D34C]` on `06 直流回路图.dwg`. The queue stores the parent insertion `(297.4886,109.9881)`; the selected lower nested state resolves to world insertion approximately `(297.4886,99.9881)`.
+- The crop shows the lower numbered `2` row inside the `A'` enclosure, with a small left round contact, a larger right circle, and a short mechanism above. No port, mapping, IGNORE, or internal-connectivity meaning has been assigned before human adjudication.
+- Human adjudication now confirms PWF12a is the row-level mechanism used by PWF105: the pair must inherit the enclosing/nearby `A'` identity and form `A'-1 -> upper same-side line` plus `A'-2 -> lower same-side line`. The two rows remain internally isolated and never union.
+- Current-head replay proves the newly landed PWF105 parent model already emits the two correct parent mappings, but PWF12a still emits 12 duplicate/partial `MEASURED_EXTERNAL_ATTACHMENT`, `GEOMETRY_ONLY_REVIEW`, and `LABEL_ONLY_REVIEW` rows with no component identity. Integration must preserve the two parent mappings while making nested PWF12a row mechanisms evidence rather than independent duplicate ports.
+- Implemented geometry family `component.external_row_contact.v1`: one line-bound axial contact is the only port; the main circle, HATCH and orthogonally offset contact are mechanism graphics. The strict rule validates entity composition, equal contact radii, 2:1 circle/contact radius, a joined collinear two-line axis, one inline contact and one orthogonally offset contact.
+- Parent ownership is resolved from instance `nested_path` plus the parent instance fingerprint/family, not from PWF names. A child under `named-two-row-box-four-contact-v1` emits no duplicate row; standalone row instances still bind their nearby component name, numeric pin, exact line and network.
+- The nested transform reader now uses the last cumulative matrix in an outer-to-inner chain. The previous first-item behavior placed every child at its parent origin and was the cause of cross-row child attachments.
+- Fresh P001 result is exactly two parent `A'-1/A'-2` mappings, two unnamed parent attachment reviews for the other box, plus standalone `K-6` and `K-5` component mappings. Fresh P003 result is exactly two parent `A'-1/A'-2` mappings. No nested PWF12a duplicate survives and no row is union-eligible.
+
+## Main review: LA38-11-209B-G pending human semantics
+
+- After current-engine revalidation automatically removed stale PWF317, the first genuinely unknown live row is P001 `LA38-11-209B-G`, fingerprint `5b68b544d3f7834a0b52c64fa69de4c3a0a64ed859e6c95e11957707e1151eeb`, six instances.
+- Representative source is `21 元件接线图1.dwg`, handle `27F43`, insertion `(65.0,102.49837)`. The block contains four equal circles labelled `11/12/13/14`, four small outer round contacts, three mechanism lines, and four text entities; current V2 is `UNKNOWN / REVIEW_ONLY` with three arbitrary free-extreme ports.
+- Context shows device name `5FA` above. The lower external labels visible on the selected instance are `5FD3` at contact 13 and `5n115` at contact 14; contact 11/12 external semantics and the internal switch/contact relationships cannot be inferred safely from geometry alone.
+- Rendered `.tmp/current_symbol_review/P001_LA38_27F43.png` for human adjudication. No family, IGNORE behavior, mapping, or contact-pair conductivity has been assigned.
+- Human adjudication confirms the instance name is `5FA`; `11/12/13/14` are four mutually isolated ports and only map outward. Confirmed examples are `5FA-13 -> 5FD3` and `5FA-14 -> 5n115`; no contact pair may be unioned through the internal mechanism lines.
+- Implemented `four-numbered-independent-contact-panel-v1` under `component.external_multi_port.v1`. The numbered-grid proposer now accepts any consecutive four/six labels and carries native `component_pin`; LA38's four outer contact centers replace the old three free extrema.
+- Strict geometry validates aligned 2x2 circle/contact grids, equal radii and circle/contact ratio, one-to-one outward circle/contact pairing, consecutive labels, and the internal T-shaped three-line proportions/midpoint binding. The T is recognition evidence only and never topology authority.
+- Instance-name selection for this family uses the ordered first-two/last-two port rows to derive the upward centre axis, preventing nearby external endpoints such as `5FD3/5n115` from being mistaken for the component name.
+- Fresh P001 replay emits 24 rows across six instances. Representative `27F43` is exactly `5FA-13 -> 5FD3` and `5FA-14 -> 5n115`; `5FA-11/12` have no actual external line and remain label-only. No row is internally connected or union-eligible.
+
+## Main review: SYMB2_M_PWF176 pending human semantics
+
+- Live main successor is P001 `SYMB2_M_PWF176`, fingerprint `8ffdfeebc545ed07bf9b740146cf2c8c729557b453649d679f18248d228d308e`, six instances. Representative source is `08 差动保护及信号回路.dwg`, handle `233C5`, insertion `(85.07056,167.50439)`.
+- Definition geometry is `9 LINE + 2` closed bulged contacts with two machine endpoints. Both world endpoints are real external attachments: port near `13` binds line `233CE / EN2-bbf...`; port near `14` binds `233CB / EN2-fac...`.
+- Context identifies the instance as `1FA` and shows an open slanted contact plus a mechanically linked lower actuator. Geometry alone cannot authorize 13↔14 conductivity, conditional switch semantics, permanent isolation, or IGNORE, so V2 remains `UNKNOWN / REVIEW_ONLY` pending human adjudication.
+- Rendered `.tmp/current_symbol_review/P001_PWF176_233C5.png`; no engine family or internal connectivity has been assigned.
+
+## Main review: SYMB2_M_PWF176 human ruling and geometry model
+
+- Human ruling: `1FA-13` and `1FA-14` are permanently isolated. Each remains an outward component mapping port; the open blade and lower mechanical actuator never create body conductivity or electrical union. Confirmed relation: `1FA-13 -> 1QD3`.
+- Definition geometry is exactly `9 LINE + 2` equal closed bulged contacts. The two opposed contacts are separated by `22.5` contact radii; two inward axial leads, one open oblique blade, and a six-line centered actuator form the complete rotation/scale-invariant topology.
+- Implemented `component.external_strip_two_port.v1 / two-contact-mechanical-actuator-v1` with dedicated contact-center ports. An unseen `37°/1.8x` definition matches; shifting one actuator stroke leaves the exact counts unchanged but is rejected from the family.
+- Full P001 replay finds all six real placements and emits 12 independent `MEASURED_COMPONENT_PORT_MAPPING` rows. Instance names are `1FA`, `1-2FA`, `3-2FA`, `5FA`, `1-4FA`, and `3-4FA`; each contributes only `-13/-14` outward rows. Representative `1FA-13` binds `1QD3 / 233CE / EN2-df468...`; `1FA-14` binds `233CB / EN2-0809...` without inventing an endpoint label.
+
+## Main review: A$C5C9C7C64 pending human semantics
+
+- Refreshed live head is P001 `A$C5C9C7C64`, fingerprint `346f8b01c9cf292256cf0fecbd3c680e5e79471cfe21420fb1a2d311ed20007e`, four instances. Representative is `04 交流回路图1.dwg`, handle `112A6`, insertion `(40.0,220.0)`.
+- Current V2 remains genuinely `UNKNOWN / REVIEW_ONLY` with three arbitrary free-extreme ports. Definition geometry is `4 INSERT + 8 LINE + 3` closed bulged contacts: three nested PWF208 row mechanisms, three left-side contacts, a shared left vertical rail, three right leads, a bottom common line, and a nested PWF318 ground symbol.
+- Source context labels the assembly `LVS CB`; its three rows continue toward `1ID7 / 1ID8 / 1ID9`. No whole-component IGNORE, row mapping, common-rail conductivity, or internal connectivity has been assigned before human review.
+- Human ruling: ignore the complete red-box LVS-CB assembly. The three nested row mechanisms, three contacts, shared left rail, bottom line, nested ground graphic, and every visible lead produce zero component mapping, zero external attachment semantics, zero internal connectivity, and zero electrical union.
+- Generalization must recognize the complete parent geometry and nested child geometry signatures. Exact fingerprint suppression alone is insufficient; a renamed/rotated/scaled equivalent must remain zero-port IGNORE while a displaced child or broken row/spine topology stays in review.
+- Implemented `electrical.nonconnective_grounded_three_row_cb_panel_ignored.v1 / grounded-three-row-repeated-mechanism-panel-v1`. The parent matcher verifies `4 INSERT + 8 LINE + 3` round contacts, a `130r` shared spine, four `40r`-pitch rows, repeated `40r + 20r` split leads, one `90r` bottom line, three child signatures `{2 ARC,3 LINE,2 LWPOLYLINE}`, and one `{4 LINE,1 LWPOLYLINE}` ground child at the required offset/relative rotation.
+- Nested INSERT evidence is now exported as normalized placement, rotation, scale, and child entity histogram. It contains no child block name and remains stable under parent rename, arbitrary rotation, and uniform scale.
+- Fresh two-page replay covers all four real instances (`112A6`, `114FB`, `21681`, `21799`). Both per-file definitions persist as `HUMAN_ADJUDICATED_NON_CONNECTIVE / HUMAN_CONFIRMED_MEMBER / IGNORE`, ports are empty, all emission/attachment/connectivity/union flags are false, and instance candidate count is zero.
+
+## Main review: A$C6A636705 pending human semantics
+
+- Refreshed live head is P001 `A$C6A636705`, fingerprint `2c4f73274833c1b08e7320666b993c4bd5d3e1eedc7a3931b4075e334b8ec1f7`, four instances. Representative is `07 网络通讯回路图.dwg`, handle `1C298`, insertion `(345.0,270.0)`.
+- Current code still reports `UNKNOWN / REVIEW_ONLY` with two draft extrema. Definition geometry is exactly `2 ARC + 2 LINE`: equal upper/lower semicircles joined by two parallel vertical sides, forming a narrow closed capsule around the B+/B- routes.
+- Source context places the capsule between left terminals `TD1/TD4`, right WBH-812E device terminals `601/602`, and a separate `Shielding layer` route. No B+↔B- connectivity, shield mapping, whole-symbol IGNORE, or other behavior has been assigned before human review.
+- Human ruling: the closed capsule is whole-symbol IGNORE. It must neither bridge nor interrupt the two modelspace conductors: B+ and B- continue independently, never connect to one another, and never map to `Shielding layer`. Confirmed B+ route remains `TD1 -> 1n601`.
+- The geometry family must match the complete closed stadium: two equal 180-degree arcs bowing outward in opposite directions, joined by two equal parallel sides at both arc endpoints. A same-count open/misaligned arc-line arrangement must remain review.
+- Implemented `non_electrical.cable_sleeve_ignored.v1 / closed-opposed-semicircle-cable-sleeve-v1`. Arc features now include a normalized arc midpoint, allowing the matcher to prove that the two semicircles bow outward in opposite directions rather than accepting a same-count S/open arrangement.
+- Fresh page-07 replay finds all four instances (`1C298`, `1C2AB`, `1C2BB`, `1C2CB`), persists one zero-port `HUMAN_ADJUDICATED_NON_CONNECTIVE / IGNORE` definition, and emits zero capsule candidates.
+- Underlying source lines remain ordinary modelspace conductors: B+ handle `1C28E` belongs only to `EN2-280c...`; B- handle `1C28F` belongs only to distinct `EN2-26a8...`. The existing semantic pair remains `TD1 -> 601` at confidence `0.9233`; the nearby `1n` device scope yields the human-confirmed full endpoint `1n601`. No shielding-layer relation is generated.
+
 ## 2026-07-15 midpoint adjudication: Ld_DzbJD_Right
 
 - Human adjudication for fingerprint `08a272799dbac4bf36f36ebcc1091f94b2273cf27fce8741a3cf31b150d5d123`: the symbol has no connectivity and no external mapping; it must suppress every proposed port under a geometry-generalized IGNORE model.
@@ -1063,3 +1149,80 @@
 - Instance binding now accepts 2–5-letter names only for this strict family, centres the name search on the two world ports, forms `AK-1/AK-2`, and emits `MEASURED_COMPONENT_PORT_MAPPING / COMPONENT_PORT_TO_EXTERNAL_NETWORK` with side and network evidence.
 - Final P001 replay: `AK-1` maps left through line handle `1D37A` to network `EN2-7865...`; `AK-2` maps right through `1D353` to `EN2-d1d...`. Both retain `internal_connectivity_inferred=false` and `electrical_union_eligible=false`. Unseen real fingerprint remains `MATCHED / EXTERNAL_PORTS_ONLY` with two ports.
 - Regression gates pass: symbol proposal `68 passed`; analyze-project integration `21 passed`.
+
+## 2026-07-15 midpoint adjudication: A$C08415381
+
+- Human adjudication: the complete `HVS CB` repeated-coil panel has no mapping meaning and must be ignored as one non-connective graphic.
+- Representative provenance: P001 `05 交流回路图2.dwg`, handle `216BC`, insertion `(37.5,149.9999997)`, fingerprint `59cf96d51fc55afa4f77a383e0ecf990270dbafbbcd454943b3473039f1a9e5b`; two instances occur in P001.
+- Baseline V2 is `UNKNOWN / REVIEW_ONLY` and retains only three arbitrary free-end extremes despite real geometry containing 12 equal semicircular arcs, 26 lines, and four duplicate contact polylines.
+- Implemented `electrical.nonconnective_repeated_coil_panel_ignored.v1` using a rotation/scale-invariant 2×6 equal-semicircle grid, `25 parallel + 1 perpendicular spine` line topology, and two duplicated contact loci attached to the spine. A same-count offset-arc negative stays outside the family.
+- Direct real-block validation succeeds for exact and unseen fingerprints with zero ports. Fresh P001 page replay persists `HUMAN_ADJUDICATED_NON_CONNECTIVE / IGNORE`, zero external attachment/connectivity/union, and zero symbol network candidates.
+- Regression gates pass: symbol proposal `73 passed`; analyze-project integration `21 passed`.
+
+## 2026-07-15 midpoint adjudication: SYMB2_M_PWF105
+
+- Human adjudication: form two independent mappings, `A'-1 -> upper same-side line` and `A'-2 -> lower same-side line`. Internal connectivity was not confirmed, so the safe behavior remains no internal connectivity and no union.
+- Final clarification confirms that the mapping direction is defined by row position: port `1` follows the upper same-side conductor and port `2` follows the lower same-side conductor. It does not grant any row-to-row conductivity.
+- Representative provenance: P001 `06 直流回路图.dwg`, handle `1D34C`, insertion `(297.4885578,109.9881378)`, fingerprint `55c2e04f990b264e93b235f7ed3c078a6034a853b3201192f447e7b346d8f06d`; P003 has the same definition.
+
+## 2026-07-15 midpoint review: SYMB2_M_PWF270 pending human semantics
+
+- Current queue midpoint is P003 `SYMB2_M_PWF270`, fingerprint `c983989529487b8e3894fc9dfc0d0acab9c04fe6a66161f36b695e5c80571396`, representative `05 信号回路图.dwg` handle `A22C` at `(647.5,513.125)`.
+- Current V2 assigns only generic `component.external_multi_port.v1 / repeated-external-port-geometry-v1 / REVIEW_REQUIRED`. Its four free-endpoint ports are all `UNRESOLVED` and do not touch external lines, so no semantics are accepted.
+- The highlighted INSERT is a long two-row repeated graphic beside `GXTX18`, with two parallel vertical strokes after the 270-degree instance transform. The definition contains `10 LINE + 6 LWPOLYLINE + 2 CIRCLE + 8 HATCH`; machine-selected local points `(10.005/48.755, 0/-7.5)` are visual extrema rather than proven terminals. Await human port/mapping/IGNORE/internal-connectivity adjudication.
+- Human adjudication: all four machine candidates fail to touch an external line and the complete component has no mapping meaning. Classify the whole geometry as IGNORE with zero ports, zero external attachments, zero internal connectivity, and zero electrical union.
+
+## 2026-07-15 midpoint review: SYMB2_M_PWF31 pending human semantics
+
+- Current live midpoint after PWF11a auto-resolution is P001 `SYMB2_M_PWF31`, fingerprint `8f7479379424184442b346891c2040fe047a8756561435f42095f4e088b39cf1`, representative `06 直流回路图.dwg` handle `1D34F` at insertion `(339.9900961,99.9881378)`.
+- Current V2 remains `UNKNOWN / REVIEW_ONLY` and proposes two geometric endpoints. Both are real line contacts: the lower world point binds line `1D352 / EN2-383b...`, and the upper point binds `1D351 / EN2-3883...`; both remain `GEOMETRY_ONLY_REVIEW`, with no component identity and no internal connectivity/union inferred.
+- The highlighted source crop shows a vertical two-contact body crossing the `AC230V L/N` parallel conductors, with an X-shaped internal mark and nearby `A` text. Definition geometry is `2 LINE + 5 LWPOLYLINE`: two end contacts and leads, two open diagonals, and one open bulged central path. Human adjudication is required to decide whether the two external contacts are independent, internally conductive, or the whole switch/marker is IGNORE.
+- Human adjudication: the complete X-marked component is IGNORE and its two visible contacts are internally disconnected. Suppress both external attachments as component semantics and never union the AC230V L/N conductors through this graphic.
+
+## 2026-07-15 midpoint review: DGICOM4000-4GX24GE-HV-HV pending human semantics
+
+- Current refreshed midpoint is P003 `DGICOM4000-4GX24GE-HV-HV`, fingerprint `9ab7144823696cf159b562ccd4a64c5801bdf99275c605494d4964302cc04bd1`, representative `09 交换机接线图1.dwg` handle `3B840` at `(220.5111363,170.9591146)`; four instances are queued.
+- Current V2 incorrectly reduces the full equipment panel to generic `component.external_strip_two_port.v1 / elongated-round-end-two-port-v1 / REVIEW_REQUIRED`. Its two extrema are both `UNRESOLVED` with no external line/network contact.
+- The red-box source crop is a complete DGICOM4000 switch panel containing 24 GE/P sockets, four GX optical pairs, Console, FAULT, dual PWR and GND graphics. Definition census is `24 ARC + 8 CIRCLE + 54 HATCH + 3 INSERT + 88 LINE + 138 LWPOLYLINE + 78 TEXT`; machine extrema at local `(-175.0431,-58.6592)` and `(175,-50)` are not proven ports. Human adjudication is required on whether the entire equipment graphic is IGNORE or any native connector mapping should survive.
+- Human adjudication: the complete DGICOM4000 switch panel is IGNORE. None of the GE/P, GX, Console, FAULT, PWR or GND graphics creates a communication or electrical mapping, external attachment, internal connectivity, or union.
+- Implemented `wide-ge-gx-power-switch-panel-v1` under `communication.equipment_panel_ignored.v1`. The strict geometry path combines complete P1..24/GE1..24/GX25..28/T-R/Console/FAULT/PWR labels, 25 square cells, eight equal collinear circles with alternating `3.36r/4.84r` pitch, at least 40 closed bulged outlines, narrow entity census, and `3.8..4.6` oriented aspect. A real-block unseen fingerprint still matches; missing GE24 or one circle shifted off-axis does not.
+
+## 2026-07-15 midpoint review: SYMB2_S_PWF24a pending human semantics
+
+- Refreshed midpoint after stale-row cleanup is P003 `SYMB2_S_PWF24a`, fingerprint `a662de3d914d6b22aa1b0d6f9e4a0a090de1e0cd8461224860fc8199cba2bf0f`, representative `06 交换机回路图1.dwg` handle `119F7` at `(287.3410777,85.0)`; two instances are queued.
+- Fresh V2 remains `UNKNOWN / REVIEW_ONLY` with three free-extreme candidates at local `(0,0)`, `(1,2.5)`, and `(-1,2.5)`. The red-box source crop shows a vertical lead from an ETHER/NET panel through a small lower circle to a larger upper circle with a horizontal bar, near label `4-40nP24`; human semantics are required before engine changes.
+- Human adjudication: ignore the complete PWF24a graphic. Implemented `electrical.nonconnective_circle_contact_marker_ignored.v1 / diameter-circle-offset-contact-marker-v1` over the exact barred-circle/radial-line/small-contact geometry. The real block and an unseen fingerprint are zero-port IGNORE; a rotated/scaled complete member matches while a laterally shifted small contact does not.
+
+## 2026-07-15 midpoint review: A$C38910F98 pending human semantics
+
+- Refreshed midpoint is P001 `A$C38910F98`, fingerprint `cd0346ad16ba285a9950c48c0611017efcd9490cc6d6d78c81442860902a75cf`, representative `11 非电量开入回路.dwg` handle `2CF8F` at `(160.0,250.0)`; one instance is queued.
+- Fresh V2 is `UNKNOWN / REVIEW_ONLY`, proposing the two endpoints of a single local 50-unit straight line. Source context shows the line spanning horizontally from the left `132` route to the right `216`/vertical route inside the WBH-814E panel. Human evidence is required on whether it is a conductive wire primitive, a non-connective graphical span, or an ignorable container artifact.
+- Human adjudication: ignore the whole horizontal span and keep its sides disconnected. Corpus audit found exactly one target instance and only two single-LINE block definitions across current P001/P003 artifacts; the other is vertical `A$C72EB63F1`. Because local geometry cannot distinguish these safely from valid wire, implementation is intentionally exact-fingerprint only under `non_electrical.panel_internal_line.v1`.
+- Real replay proves target zero ports/candidates while the vertical single-line neighbor remains `UNKNOWN / REVIEW_ONLY`. The target nested LINE exists only in `primitive_segments`, not normal `lines.parquet` or wire networks, so exact port suppression cannot bridge the left/right networks.
+
+## 2026-07-15 midpoint review: A$C72EB63F1 pending human semantics
+
+- After exact horizontal-line cleanup, the live midpoint is the only other single-LINE block: P001 `A$C72EB63F1`, fingerprint `ae788d00fab7abcd6190c917d8f4c42e8613320b78143443b3849d7e9aea6e72`, `11 非电量开入回路.dwg` handle `2CF90` at `(210.0,70.0)`; one instance.
+- Current V2 correctly remains `UNKNOWN / REVIEW_ONLY` with local endpoints `(0,0)` and `(0,180)`. Source context shows the vertical span along the right side of many horizontal device routes inside the WBH panel and adjacent to other vertical framework/bus lines. Human evidence is required on whether this span is an ignored panel framework line or a conductive common bus.
+- Human adjudication distinguishes physical truth from audit scope: the line is physically a common bus, but current validation does not inspect its branch connections, so V2 must whole-region IGNORE it and connect neither its ends nor intersecting horizontal routes. Implemented exact-only `non_electrical.panel_internal_bus_excluded.v1`; an unseen same-geometry vertical line remains review.
+- Fresh replay persists target zero ports/candidates and leaves the previously exact horizontal exclusion intact. This avoids introducing any broad single-line or vertical-bus suppression rule.
+- Baseline V2 proposes the outer rectangle's top/bottom corners rather than the two real row contacts, so neither port attaches to a line or local number. The definition contains an outer rectangle, four round contact polylines, and two repeated nested mechanism inserts at row offsets 0/-10. A family-specific row-port proposer is required before instance-name binding.
+- Reverse review `SYMB2_M_PWF102` (`KZKK`): human authority confirms four mutually isolated ports. Each port maps only to the external route attached on its own side; never infer conductivity through the drawn internal switch mechanism.
+- Confirmed endpoint identities are `KZKK-1 -> JD8`, `KZKK-3 -> JD3`, while source-DWG topology shows the right upper/lower routes terminate at adjacent component pins `CD-WSK-H-J-G-6` and `CD-WSK-H-J-G-5`, yielding `KZKK-4 -> CD-WSK-H-J-G-6` and `KZKK-2 -> CD-WSK-H-J-G-5`.
+- The generalized family is anchored on the complete four-port geometry: four outer round contacts and four concentric inner contacts forming aligned 2x2 grids, equal contact radii, four equal circles at the inner grid, a 3:1 circle/contact radius ratio, and the exact mechanism primitive census. Fingerprint remains provenance only.
+- Reverse P003 review `A$C1D4D7376`: human authority is whole-component electrical IGNORE. The vertical source-page placement must emit no ports, external mappings, internal connectivity, or union.
+- Representative provenance is P003 `07 交换机回路图.dwg`, handle `11F63`, insertion `(361.3088299, 242.5)`, fingerprint `ea02de2d3b540c5240d289e863160289db7a720c8b7c9db2efbc52c321e45df6`; one instance occurs in the current P003 project.
+- Definition geometry is exactly `6 LINE + 1 CIRCLE + 2 HATCH`: one dominant line passes through the circle centre, four short joined mechanism strokes remain inside the circle-scale body, and one detached oblique marker is centred on the dominant axis at a fixed radius-normalized offset. This complete relative topology, not the anonymous block name or fingerprint, is the generalization boundary.
+- Reverse P003 `DGICOM3000-2GX8GE-HV`: human authority is whole-device-region IGNORE. Power terminals, Console, GE1..GE8, GX9/GX10 and paired 1G/2G optical graphics are panel artwork for this audit and produce no communication/electrical mappings.
+- Representative is P003 `11 元件接线图4.dwg`, handle `2C64D`, insertion `(152.5,250.0)`, fingerprint `cb1abae65b4bcbd19aa91077fe008419f016357d08608f3712496374f8b8d325`; a second instance is handle `2C70B`.
+- This compact DGICOM panel differs from the independently adjudicated wide DGICOM4000 subtype but belongs to the same `communication.equipment_panel_ignored.v1` behavior family. Its complete geometry is `12 ARC + 4 CIRCLE + 18 HATCH + 1 INSERT + 60 LINE + 52 LWPOLYLINE + 32 TEXT`, with an 8-socket GE matrix, paired optical-circle grid and native power/Console/GE/GX labels.
+- Reverse P003 `HYKL-X12-02`: human authority is whole-panel IGNORE. Both IN/OUT rows and every PE/GND/TX/RX label/contact are non-mapping equipment-face artwork.
+- Representative is P003 `08 元件接线图1.dwg`, handle `295B7`, insertion `(234.6209764,74.35743)`, fingerprint `1726acf417090ce3ecbf6454bdb8321afb7c0025023b98e82d59a6b1476dd6dd`; the second instance is handle `295E4`.
+- Complete geometry is `8 CIRCLE + 9` closed bulged `LWPOLYLINE + 16 TEXT + 1 MTEXT`: eight equal circles form a rotation-invariant 4x2 grid, eight equal small round contacts sit one circle radius outward from those circles, and one enclosing rounded body plus required PE1/PE2/GND/TX/RX/IN/OUT labels establishes the panel boundary.
+- Reverse P003 `KK1P`: human authority confirms a generic two-port component with no internal connectivity. The enclosing instance name combines with native pins `1/2`; representative mappings are `AK-1 -> JD1` and `AK-2 -> A'-1`.
+- Representative P003 `08 元件接线图1.dwg` handle `26AAC` is inserted at `(298.2909303,248.6735649)`, fingerprint `9321616869d2ccca1d1d6fc065a9a995ddf9d31ac8e207430b8eec6439e8ad6b`; second instance `26AC1` uses component name `A'`.
+- Definition geometry is `6 LINE + 2` closed round `LWPOLYLINE + 2 TEXT`: a 1:2 rectangle, two full-width internal dividers, two equal round contacts at opposite outer-edge midpoints, and native pin labels `1/2`. Current free-extreme proposal is wrong because it emits four rectangle corners; the family-specific proposer must emit only the top/bottom contact centres.
+- Existing component-diagram evidence already proves the representative pair contract: `AK-1 -> JD1` and `AK-2 -> A'-1`; the second instance includes reciprocal/cascaded mappings such as `A'-1 -> AK-2`. Symbol-port V2 should consume those measured component pairs while preserving no-union.
+- Reverse P003 `NGFW4000-UFTG-3100-GW`: human authority is whole-device-panel IGNORE. ETH0..ETH13, USB, Console, optical 1T/1R..4T/4R, right-side L/N/PE/J terminals, and all visible leads create no mapping or connectivity.
+- Representative is P003 `10 元件接线图3.dwg`, handle `2C18F`, insertion `(222.5,272.5)`, fingerprint `07d8f9b0bc6c61dd003c0d32861f58c0a1babc0be3cee88783f7dcbb4ab63e25`; second instance handle is `2C1B7`.
+- Complete firewall-panel evidence is `24 ARC + 12 CIRCLE + 28 HATCH + 89 LINE + 120 LWPOLYLINE + 39 TEXT + 8 MTEXT`, 13 repeated square socket cells, four equal collinear USB circles, eight equal optical circles in a 4x2 grid, and native ETH/P/USB/Console/power labels. The current generic line-break two-port result is a false panel-extrema reduction.

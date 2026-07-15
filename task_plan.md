@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 135 in progress alongside the main queue: inspect midpoint definition `A$C08415381`, run V2 on its real P001 source, and present a localized crop for human adjudication before implementing any semantics. Side work appends to root progress/findings and does not use subagents.
+Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase 143 side midpoint `DGICOM4000-4GX24GE-HV-HV` is starting alongside the main queue. Side work appends to root progress/findings and does not use subagents.
 
 ## Phases
 
@@ -2064,8 +2064,8 @@ Phase 135 in progress alongside the main queue: inspect midpoint definition `A$C
 - [x] Fresh-run P001/P003 analysis and rebuild the unconfirmed-symbol list against family classifications and human decisions
 - [x] Present the next unresolved real symbol with original DWG path, handle, coordinates, and screenshot when practical
 - [x] Integrate and verify the human-confirmed PWF330 geometry-generalized Ethernet/LAN IGNORE state, remove it from the compact queue, and present the next main-queue crop
-- [ ] Integrate the human-confirmed `A$C2E3F2C02` wire-jump primitive: preserve same-line continuity, reject cross-line junction, remove it from symbol review, and present the next main-queue crop
-- [ ] Integrate the human-confirmed `Ld_DzbJD_Left` geometry-generalized ground IGNORE state, remove it from the compact queue, and present the next main-queue crop
+- [x] Integrate the human-confirmed `A$C2E3F2C02` wire-jump primitive: preserve same-line continuity, reject cross-line junction, remove it from symbol review, and present the next main-queue crop
+- [x] Integrate the human-confirmed `Ld_DzbJD_Left` geometry-generalized ground IGNORE state, remove it from the compact queue, and present the next main-queue crop
 - **Status:** in_progress
 
 ### Phase 131: Reverse-Queue WTX-871 Communication Panel
@@ -2135,5 +2135,218 @@ Phase 135 in progress alongside the main queue: inspect midpoint definition `A$C
 - [x] Select the new midpoint after concurrent-safe queue cleanup
 - [x] Run current V2 on the representative P001 source and inspect real geometry/context
 - [x] Render a localized source-page crop with the target highlighted
-- [ ] Obtain human connectivity/mapping semantics, then implement and verify
+- [x] Obtain human connectivity/mapping semantics, then implement and verify
+- **Status:** complete
+
+### Phase 136: Midpoint SYMB2_M_PWF105 Adjudication
+- [x] Select the new midpoint after concurrent-safe queue cleanup
+- [x] Run current V2 on the representative P001 source and inspect geometry/context
+- [x] Render a localized source-page crop with the target highlighted
+- [x] Obtain human connectivity/mapping semantics, then implement and verify
+- **Status:** complete
+
+### Phase 136: Reverse SYMB2_M_PWF87 Generic Terminal
+- [x] Record human semantics: generic terminal, two external attachments, no internal connectivity
+- [x] Add a rotation/scale-invariant slash-circle/two-contact terminal family with close-shape negatives
+- [x] Replay the source DWG and bind `JD11` plus both external line contacts without union
+- [x] Remove the resolved queue row and crop, then continue the reverse queue
+- **Status:** complete
+
+### Phase 137: Reverse SYMB2_M_PWF104 Three-Contact Socket
+- [x] Record E/L/N as three independent ports under the outer CZ instance
+- [x] Build a geometry-generalized three-radial-contact proposal with detached-contact negative
+- [x] Bind instance pin labels and network-scoped external endpoint labels
+- [x] Replay the source page and prove `CZ-E→JD11`, `CZ-L→JD2`, `CZ-N→JD7` with no union
+- [x] Remove the resolved queue row and crop, then continue the reverse queue
+- **Status:** complete
+
+### Phase 137: Main SYMB2_M_PWF89 Four-Direction Generic Terminal
+- [x] Record human semantics: JD instance name, four independent external attachment directions, no internal connectivity
+- [x] Extend the generic slash-circle terminal geometry family to the strict four-contact state
+- [x] Replay the real P001 source behavior and prove only line-evidenced sides bind, with no union
+- [x] Remove the resolved queue row/crop and present the next main-queue item
+- **Status:** complete
+
+### Phase 138: Main SYMB2_S_PWF12a Nested Two-Contact State
+- [x] Select the next live main-queue item after concurrent-safe PWF89 removal
+- [x] Rebuild its P001 source page and localize nested handle `1D2D4` inside parent `SYMB2_M_PWF105`
+- [x] Render a highlighted context crop for the lower numbered state
+- [x] Obtain human semantics: inherit the `A'` identity and form independent upper `A'-1` / lower `A'-2` same-side mappings
+- [x] Integrate PWF12a as row-mechanism evidence without duplicating the parent PWF105 mappings
+- [x] Replay nested and top-level PWF12a placements, remove the queue row, and present the next genuinely unresolved main item
+- **Status:** complete
+
+### Phase 139: Main Queue Current-Engine Revalidation
+- [x] Re-read the concurrently updated queue after PWF12a removal
+- [x] Replay `SYMB2_S_PWF317` and detect that the existing optical-ST geometry family already resolves it
+- [x] Remove current-engine-resolved stale rows until the first genuinely unknown definition is reached
+- [x] Render and present exactly one new human-adjudication crop
+- **Status:** complete
+
+### Phase 142: Main LA38-11-209B-G Adjudication
+- [x] Replay P001 `21 元件接线图1.dwg` and confirm current V2 is genuinely unknown
+- [x] Inspect definition geometry and render handle `27F43` with surrounding labels
+- [x] Obtain human semantics: `5FA-11/12/13/14` are four mutually isolated ports mapped only to their outward leads
+- [x] Replace three free extrema with a strict generalized 2x2 four-port model and verify all six real instances
+- [x] Remove the resolved queue row/crop, revalidate stale heads, and present the next genuinely unknown item
+- **Status:** complete
+
+### Phase 143: Main SYMB2_M_PWF176 Adjudication
+- [x] Replay P001 `08 差动保护及信号回路.dwg` and confirm current V2 remains genuinely unknown
+- [x] Inspect the two real external attachments and render handle `233C5`
+- [x] Obtain human semantics: `1FA-13/14` are permanently isolated external ports; confirmed `1FA-13 -> 1QD3`
+- [x] Add a strict rotation/scale-invariant two-contact mechanical-actuator family and close-shape negative coverage
+- [x] Replay all real instances, run scoped/full regression gates, update canonical docs, and remove only the resolved live row
+- **Status:** complete
+
+### Phase 146: Main A$C5C9C7C64 Adjudication
+- [x] Revalidate the refreshed live head against the current P001 full replay
+- [x] Confirm it remains `UNKNOWN / REVIEW_ONLY` with three draft extrema
+- [x] Inspect nested geometry and render handle `112A6` with source-page context
+- [x] Obtain human semantics: the complete LVS-CB assembly is IGNORE with zero mapping and zero connectivity
+- [x] Implement a strict nested-geometry IGNORE family with rotation/scale positives and close-shape negatives
+- [x] Replay all real instances, run regression gates, update canonical docs, remove the resolved row, and present the next item
+- **Status:** complete
+
+### Phase 148: Main A$C6A636705 Adjudication
+- [x] Revalidate the refreshed live head against current engine code and source DXF
+- [x] Confirm it remains `UNKNOWN / REVIEW_ONLY` with two draft ports
+- [x] Inspect its two-arc/two-line capsule geometry and render handle `1C298` with B+/B- context
+- [x] Obtain human semantics: capsule IGNORE; B+/B- remain separate continuous routes; no shielding mapping; confirmed `TD1 -> 1n601`
+- [x] Implement strict closed-capsule geometry IGNORE with rotated/scaled positive and close-shape negative coverage
+- [x] Replay all four real instances and prove the underlying B+/B- networks remain independent and uninterrupted
+- [x] Run scoped/full gates and update canonical docs
+- [ ] Remove the resolved row/crop and present the next item
+- **Status:** in_progress
+
+### Phase 139: Midpoint SYMB2_M_PWF270 Adjudication
+- [x] Select the current live midpoint without taking the main queue head
+- [x] Replay P003 `05 信号回路图.dwg` and inspect the current V2 proposal/candidates
+- [x] Render and visually verify the source-page crop around handle `A22C`
+- [x] Obtain human port/mapping/internal-connectivity or IGNORE semantics
+- [x] Implement a geometry-generalized engine rule and replay the real source
+- [x] Remove the resolved queue row/crop/replay and present the next midpoint item
+- **Status:** complete
+
+### Phase 140: Midpoint SYMB2_S_PWF11a Adjudication
+- [x] Select the updated live midpoint without taking the main queue head
+- [x] Replay its representative source and inspect current V2 behavior
+- [x] Confirm the generalized row-contact model already emits both correct independent mappings
+- [x] Remove the stale queue row/replay and advance without redundant human adjudication
+- **Status:** complete
+
+### Phase 141: Midpoint SYMB2_M_PWF31 Adjudication
+- [x] Select the updated live midpoint without taking the main queue head
+- [x] Replay its representative source and inspect current V2 behavior
+- [x] Render a highlighted context crop
+- [x] Obtain human independent-port/internal-connectivity or IGNORE semantics
+- [x] Implement and verify a strict geometry-generalized switch IGNORE rule
+- [x] Remove the resolved queue row/crop/replay and advance
+- **Status:** complete
+
+### Phase 142: Midpoint WBH-813E-E1SH-101 Adjudication
+- [x] Select the refreshed live midpoint without taking the main queue head
+- [x] Replay its representative source and inspect current V2 behavior
+- [x] Auto-resolve through the authoritative dense backplate table-container model
+- [x] Remove the stale queue row/replay and advance
+- **Status:** complete
+
+### Phase 143: Midpoint DGICOM4000-4GX24GE-HV-HV Adjudication
+- [x] Select the refreshed live midpoint without taking the main queue head
+- [x] Replay its representative source and inspect current V2 behavior
+- [x] Render and visually verify the complete equipment-panel crop
+- [x] Obtain human whole-panel IGNORE versus connector-mapping semantics
+- [x] Implement strict geometry-generalized whole-panel IGNORE
+- [x] Verify exact/unseen/rotated/scaled/negative cases and replay the real source
+- [x] Clean the resolved queue row/crop/replay and advance
+- **Status:** complete
+
+### Phase 145: Midpoint SYMB2_S_PWF24a Adjudication
+- [x] Select the refreshed live midpoint after removing resolved stale rows
+- [x] Replay P003 `06 交换机回路图1.dwg` and inspect current V2 behavior
+- [x] Render and visually verify handle `119F7` in source context
+- [x] Obtain human port/mapping/IGNORE semantics
+- [x] Implement strict rotation/scale-invariant whole-component IGNORE
+- [x] Verify exact/unseen/negative cases and replay the real source
+- [x] Clean the resolved queue row/crop/replay and advance
+- **Status:** complete
+
+### Phase 146: Midpoint A$C38910F98 Adjudication
+- [x] Select the refreshed live midpoint
+- [x] Replay P001 `11 非电量开入回路.dwg` and inspect current V2 behavior
+- [x] Render and visually verify handle `2CF8F` in source context
+- [x] Obtain human wire/port/IGNORE semantics
+- [x] Audit corpus prevalence and choose an exact-only safety exception
+- [x] Verify target zero candidates and same-geometry/neighbor non-suppression
+- [x] Clean the resolved queue row/crop/replay and advance
+- **Status:** complete
+
+### Phase 147: Midpoint A$C72EB63F1 Adjudication
+- [x] Select the refreshed live midpoint after exact-line cleanup
+- [x] Reuse the current source-page replay and confirm V2 remains unaffected
+- [x] Render the complete 180-unit vertical line in panel context
+- [x] Obtain human framework/bus/IGNORE semantics
+- [x] Record physical-bus truth separately from current audit exclusion
+- [x] Implement and verify an exact-only non-generalizing policy
+- [x] Clean the resolved queue row/crop/replay and advance
+- **Status:** complete
+
+#### Phase 136 errors
+- First direct real-block validation lost its converted DXF because the main thread concurrently cleaned `.tmp/phase130_pwf89_next` after the review crop was generated. Rebuild the single source page in a side-owned temporary directory and continue; the source code change itself compiled successfully.
+- First full-suite gate after PWF105 implementation exposed a concurrently added PWF12a parent/child contract: two same-fingerprint proposals under distinct names made fingerprint-only binding ambiguous and returned zero rows. Resolve by intersecting fingerprint matches with the exact definition name and suppressing only exactly coincident two-row mapping duplicates; do not weaken fingerprint mismatch safety.
+
+#### Phase 139 errors
+- First PWF270 geometry positive remained on the old generic review rule because one short mechanism segment centre is `0.706r` from the row-circle axis, just outside the initial `0.70r` bound. Measured real/synthetic evidence supports a narrow `0.75r` bound; keep all repeated-row, length, rectangle, contact, circle and HATCH constraints unchanged.
+- The first threshold retry exposed the orthogonal dimension: two short zig-zag segment centres intentionally sit up to `0.557r` above/below their row circle, so a `0.08r` row-distance bound described only the long-line centre. Raise this short-mechanism-only bound to `0.60r`; exact translated row descriptors and all other topology checks remain mandatory.
+
+#### Phase 140 errors
+- The first post-PWF270 midpoint list showed PWF31 at index 10, but the main thread removed another queue row before detail lookup, shifting index 10 to PWF11a. Re-read the live `20/20` queue and lock Phase 140 to PWF11a; do not use stale numeric indices.
+
+#### Phase 141 errors
+- First PWF31 strict positive stayed exact-only because the X half-span was mistakenly encoded as the full diagonal's axis delta (`7.2r`). Measured normalized endpoints are `±3.6r` on the contact axis and `±4.8r` normal to it. Correct only the axis half-span; keep midpoint, opposite-slope, lead/contact and census constraints unchanged.
+- First combined full-symbol gate overlapped the main thread's in-progress KZKK binding edit and temporarily failed one unrelated KZKK test. A focused retry on the stabilized shared file passes KZKK plus both PWF31 cases (`3 passed`); no KZKK code was changed by this side thread.
+- First CZ full-page replay hit another transient concurrent classifier edit: `_has_named_two_row_box_topology` was referenced before its helper landed. Conversion/extraction completed; wait for the current source definition, run targeted unit checks, and replay into a fresh output directory rather than treating this as a CZ-model failure.
+### Phase 140: Reverse SYMB2_M_PWF102 Four-Isolated-Port KZKK
+- [x] Record human semantics: four mutually isolated ports, each mapped only to its same-side external route
+- [x] Add a rotation/scale-invariant aligned dual-2x2-contact geometry family
+- [x] Bind `KZKK-1/3` to `JD8/JD3` and `KZKK-2/4` to adjacent component pins `5/6`
+- [x] Replay the real P001 source and prove four measured no-union mappings
+- [x] Clean the resolved crop/replay and present the next non-overlapping reverse item
+- **Status:** complete
+### Phase 143: Reverse P003 A$C1D4D7376 Whole-Component Ignore
+- [x] Skip PWF31 because another agent owns and has completed its adjudication
+- [x] Rerun current V2 across P003 and select the lowest-frequency unowned electrical review item
+- [x] Record human semantics: whole component IGNORE with zero electrical meaning
+- [x] Add exact provenance plus rotation/scale-invariant complete-geometry IGNORE family and close negative
+- [x] Replay P003 source and prove zero ports/candidates
+- [x] Clean resolved artifacts and present the next unowned low-frequency item
+- **Status:** complete
+### Phase 144: Reverse P003 DGICOM3000 Compact Equipment Panel Ignore
+- [x] Record human semantics: ignore the complete device region and every visible connector/power motif
+- [x] Confirm the existing wide DGICOM4000 subtype does not overclaim this distinct compact geometry
+- [x] Add exact provenance plus a rotation/scale-invariant compact GE/GX panel subtype under the shared equipment-panel family
+- [x] Add real-unseen positive and close geometry negative coverage
+- [x] Replay the source page and prove zero ports/candidates
+- [x] Clean artifacts and present the next item
+- **Status:** complete
+### Phase 145: Reverse P003 HYKL Dual-Row Interface Panel Ignore
+- [x] Record human semantics: whole HYKL panel IGNORE, including all IN/OUT PE/GND/TX/RX motifs
+- [x] Add exact provenance and a complete 4x2 circle/contact-panel geometry subtype under equipment-panel IGNORE
+- [x] Add rotated/scaled unseen positive and close grid/contact negative coverage
+- [x] Replay both source instances and prove zero ports/candidates
+- [x] Clean artifacts and present the next item
+- **Status:** complete
+### Phase 146: Reverse P003 KK1P Vertical Two-Port Box
+- [x] Record human semantics: pins 1/2 are internally isolated and map only to their same-side external endpoints
+- [x] Confirm representative mappings `AK-1 -> JD1` and `AK-2 -> A'-1` from source pair evidence
+- [x] Replace four outer-box extrema with two contact-centre ports under a strict rotation/scale-invariant geometry family
+- [x] Integrate instance name, pin, measured component-pair endpoint, network, and no-union output
+- [x] Verify exact/unseen/negative cases and both source instances
+- [x] Clean artifacts and present the next item
+- **Status:** complete
+### Phase 147: Reverse P003 NGFW4000 Firewall Equipment Panel Ignore
+- [x] Record human semantics: ignore the entire firewall panel and every network/power/optical motif
+- [ ] Add exact provenance and a complete ETH/socket/USB/optical-grid geometry subtype under equipment-panel IGNORE
+- [ ] Add rotated/scaled unseen positive and missing-label/displaced-circle negatives
+- [ ] Replay both source instances, prove zero ports/candidates, clean artifacts, and present the next item
 - **Status:** in_progress

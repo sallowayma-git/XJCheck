@@ -68,8 +68,6 @@ def recognize_crossover_jumps(segments: Iterable[Any], *, tolerance: float = 1e-
     """Recognize LINE-ARC-LINE block-local jumps; fingerprint is never required."""
     groups: dict[tuple[Any, ...], list[Any]] = {}
     for item in segments:
-        if _kind(item) not in {"LINE", "ARC"}:
-            continue
         nested_path = _field(item, "nested_path")
         key = (
             _field(item, "sheet_id"),
@@ -82,6 +80,15 @@ def recognize_crossover_jumps(segments: Iterable[Any], *, tolerance: float = 1e-
     for members in groups.values():
         arcs = [x for x in members if _kind(x) == "ARC"]
         lines = [x for x in members if _kind(x) == "LINE"]
+        # A certified jump definition is the complete two-lead/one-arc
+        # primitive, not a matching subset inside a larger terminal/device.
+        if (
+            len(arcs) != 1
+            or len(lines) != 2
+            or len(members) != 3
+            or any(_kind(item) not in {"LINE", "ARC"} for item in members)
+        ):
+            continue
         for arc in arcs:
             ag = _geom(arc)
             if not {"center", "radius", "start_angle", "end_angle"} <= ag.keys():

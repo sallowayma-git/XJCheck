@@ -36,6 +36,84 @@ def test_horizontal_series_symbol_gets_two_end_ports() -> None:
     assert ports[0].to_review_port()["annotation_status"] == "MACHINE_PROPOSED"
 
 
+def test_exact_panel_internal_line_is_ignored_without_generalizing_to_wires() -> None:
+    proposal = {
+        "definition_name": "RENAMED_SINGLE_LINE",
+        "definition_fingerprint": "cd0346ad16ba285a9950c48c0611017efcd9490cc6d6d78c81442860902a75cf",
+        "ports": [
+            {"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]},
+            {"port_id": "MP2", "local_position": [50.0, 0.0, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "width": 50.0,
+                "height": 0.0,
+                "primitive_count": 1,
+                "primitive_histogram": {"LINE": 1},
+                "entity_histogram": {"LINE": 1},
+                "arc_radii": [],
+                "circle_radii": [],
+                "text_values": [],
+            }
+        },
+    }
+    exact = apply_human_symbol_policy_to_proposal_row(proposal)
+    unseen = apply_human_symbol_policy_to_proposal_row(
+        {**proposal, "definition_fingerprint": "unseen-single-line-definition"}
+    )
+
+    assert exact["family_id"] == "non_electrical.panel_internal_line.v1"
+    assert exact["classifier_status"] == "HUMAN_CONFIRMED_MEMBER"
+    assert exact["behavior_mode"] == "IGNORE"
+    assert exact["ports"] == []
+    assert exact["allow_external_attachment"] is False
+    assert exact["allow_internal_connectivity"] is False
+    assert exact["allow_electrical_union"] is False
+    assert unseen["family_id"] is None
+    assert unseen["behavior_mode"] == "REVIEW_ONLY"
+    assert unseen["suppressed_by_policy"] is False
+    assert len(unseen["ports"]) == 2
+
+
+def test_exact_panel_common_bus_is_scope_ignored_without_generalizing_vertical_lines() -> None:
+    proposal = {
+        "definition_name": "RENAMED_VERTICAL_SINGLE_LINE",
+        "definition_fingerprint": "ae788d00fab7abcd6190c917d8f4c42e8613320b78143443b3849d7e9aea6e72",
+        "ports": [
+            {"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]},
+            {"port_id": "MP2", "local_position": [0.0, 180.0, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "width": 0.0,
+                "height": 180.0,
+                "primitive_count": 1,
+                "primitive_histogram": {"LINE": 1},
+                "entity_histogram": {"LINE": 1},
+                "arc_radii": [],
+                "circle_radii": [],
+                "text_values": [],
+            }
+        },
+    }
+    exact = apply_human_symbol_policy_to_proposal_row(proposal)
+    unseen = apply_human_symbol_policy_to_proposal_row(
+        {**proposal, "definition_fingerprint": "unseen-vertical-single-line"}
+    )
+
+    assert exact["family_id"] == "non_electrical.panel_internal_bus_excluded.v1"
+    assert exact["classifier_status"] == "HUMAN_CONFIRMED_MEMBER"
+    assert exact["behavior_mode"] == "IGNORE"
+    assert exact["ports"] == []
+    assert exact["allow_external_attachment"] is False
+    assert exact["allow_internal_connectivity"] is False
+    assert exact["allow_electrical_union"] is False
+    assert unseen["family_id"] is None
+    assert unseen["behavior_mode"] == "REVIEW_ONLY"
+    assert unseen["suppressed_by_policy"] is False
+    assert len(unseen["ports"]) == 2
+
+
 def test_diode_ignore_family_exact_and_geometry_members_are_zero_port() -> None:
     contacts = [
         {"center": [0.25, 1.0], "radius": 0.066667},
@@ -578,6 +656,251 @@ def test_open_switch_geometry_generalizes_ignore_across_fingerprints_and_scale()
     assert applied["suppressed_by_policy"] is True
     assert applied["decision_reason_codes"] == ["GEOMETRY_IGNORE_FAMILY_MATCH"]
     assert applied["electrical_union_eligible"] is False
+
+
+def _inline_indicator_proposal(
+    *,
+    rotation_deg: float,
+    scale: float,
+    fingerprint: str,
+    exact_name: bool = False,
+    offset_marker: bool = False,
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_INLINE_INDICATOR")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    marker_shift = 0.8 if offset_marker else 0.0
+    segments = (
+        ((-40.0, 0.0), (0.0, 0.0)),
+        ((-16.68230167157606, 1.122675219712988), (-17.26099568549245, 0.2696727353923905)),
+        ((-18.3593608986277, -0.3773155632455598), (-16.68230167157606, 1.122675219712988)),
+        ((-16.01563910137213, 0.3773155632456167), (-16.59433311528869, -0.4756869210750381)),
+        ((-17.69269832842394, -1.122675219712988), (-16.01563910137213, 0.3773155632456167)),
+        ((-27.21814771951881, -2.5 + marker_shift), (-24.71814771951881, 2.5 + marker_shift)),
+    )
+    for start, end in segments:
+        block.add_line(transform(start), transform(end))
+    block.add_circle(transform((-17.1875, 0.0)), radius=1.25 * scale)
+    for points in (
+        ((-18.35, -0.38), (-16.68, 1.12), (-17.26, 0.27)),
+        ((-17.69, -1.12), (-16.02, 0.38), (-16.59, -0.48)),
+    ):
+        hatch = block.add_hatch(color=1)
+        hatch.paths.add_polyline_path([transform(point) for point in points], is_closed=True)
+    return propose_ports_from_block(
+        block,
+        definition_name="A$C1D4D7376" if exact_name else "RENAMED_INLINE_INDICATOR",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_inline_indicator_ignore_generalizes_rotation_and_scale() -> None:
+    exact = _inline_indicator_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="ea02de2d3b540c5240d289e863160289db7a720c8b7c9db2efbc52c321e45df6",
+        exact_name=True,
+    )
+    unseen = _inline_indicator_proposal(
+        rotation_deg=43.0,
+        scale=2.1,
+        fingerprint="unseen-rotated-inline-indicator",
+    )
+
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "electrical.nonconnective_inline_indicator_ignored.v1"
+        assert applied["matched_family_rule_id"] == "hatched-circle-inline-indicator-v1"
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["ports"] == []
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_inline_indicator_offset_marker_stays_review() -> None:
+    proposal = _inline_indicator_proposal(
+        rotation_deg=19.0,
+        scale=1.4,
+        fingerprint="unseen-offset-inline-indicator",
+        offset_marker=True,
+    )
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied.get("matched_family_rule_id") != "hatched-circle-inline-indicator-v1"
+    assert applied["suppressed_by_policy"] is False
+
+
+def _circle_contact_marker_proposal(
+    *, rotation_deg: float, scale: float, fingerprint: str, offset_contact: bool = False
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_CIRCLE_CONTACT_MARKER")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    contact_center = (0.45 if offset_contact else 0.0, -5.0)
+    block.add_circle(transform((0.0, 0.0)), radius=2.0 * scale)
+    block.add_line(transform((-2.0, 0.0)), transform((2.0, 0.0)))
+    block.add_line(transform((0.0, -2.0)), transform((0.0, -5.0)))
+    block.add_lwpolyline(
+        [
+            (*transform((contact_center[0] - 1.0, contact_center[1])), 1.0),
+            (*transform((contact_center[0] + 1.0, contact_center[1])), 1.0),
+        ],
+        format="xyb",
+        close=True,
+    )
+    hatch = block.add_hatch(color=1)
+    hatch.paths.add_polyline_path(
+        [transform(point) for point in ((-0.2, -0.2), (0.2, -0.2), (0.0, 0.2))],
+        is_closed=True,
+    )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_CIRCLE_CONTACT_MARKER",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_circle_contact_marker_ignore_generalizes_rotation_and_scale() -> None:
+    exact = _circle_contact_marker_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="a662de3d914d6b22aa1b0d6f9e4a0a090de1e0cd8461224860fc8199cba2bf0f",
+    )
+    unseen = _circle_contact_marker_proposal(
+        rotation_deg=37.0,
+        scale=1.8,
+        fingerprint="unseen-rotated-circle-contact-marker",
+    )
+
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "electrical.nonconnective_circle_contact_marker_ignored.v1"
+        assert applied["matched_family_rule_id"] == "diameter-circle-offset-contact-marker-v1"
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_circle_contact_marker_offset_contact_stays_review() -> None:
+    applied = apply_human_symbol_policy_to_proposal_row(
+        _circle_contact_marker_proposal(
+            rotation_deg=19.0,
+            scale=1.4,
+            fingerprint="unseen-offset-circle-contact-marker",
+            offset_contact=True,
+        )
+    )
+
+    assert applied.get("matched_family_rule_id") != "diameter-circle-offset-contact-marker-v1"
+    assert applied["suppressed_by_policy"] is False
+
+
+def _crossed_two_contact_switch_proposal(
+    *, rotation_deg: float, scale: float, fingerprint: str, offset_diagonal: bool = False
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_CROSSED_TWO_CONTACT_SWITCH")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    for start, end in (((0.0, 0.0), (2.0, 0.0)), ((10.0, 0.0), (8.0, 0.0))):
+        block.add_line(transform(start), transform(end))
+    for center_x in (0.0, 10.0):
+        block.add_lwpolyline(
+            [
+                (*transform((center_x - 0.5, 0.0)), 1.0),
+                (*transform((center_x + 0.5, 0.0)), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    diagonal_offset = 0.4 if offset_diagonal else 0.0
+    block.add_lwpolyline(
+        [
+            transform((6.8, 2.4 + diagonal_offset)),
+            transform((3.2, -2.4 + diagonal_offset)),
+        ]
+    )
+    block.add_lwpolyline(
+        [transform((3.2, 2.4)), transform((6.8, -2.4))]
+    )
+    block.add_lwpolyline(
+        [
+            (*transform((2.0, 0.0)), 1.0),
+            (*transform((8.0, 0.0)), 1.0),
+            (*transform((2.0, 0.0)), -0.1851562949912785),
+        ],
+        format="xyb",
+    )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_CROSSED_TWO_CONTACT_SWITCH",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_crossed_two_contact_switch_ignore_generalizes_rotation_and_scale() -> None:
+    exact = _crossed_two_contact_switch_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="8f7479379424184442b346891c2040fe047a8756561435f42095f4e088b39cf1",
+    )
+    unseen = _crossed_two_contact_switch_proposal(
+        rotation_deg=37.0,
+        scale=1.8,
+        fingerprint="unseen-rotated-crossed-two-contact-switch",
+    )
+
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "switch.open.v1"
+        assert applied["matched_family_rule_id"] == "crossed-two-contact-open-switch-v1"
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["ports"] == []
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_crossed_two_contact_switch_offset_diagonal_stays_review() -> None:
+    proposal = _crossed_two_contact_switch_proposal(
+        rotation_deg=19.0,
+        scale=1.4,
+        fingerprint="unseen-offset-crossed-two-contact-switch",
+        offset_diagonal=True,
+    )
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied.get("matched_family_rule_id") != "crossed-two-contact-open-switch-v1"
+    assert applied["suppressed_by_policy"] is False
 
 
 def test_confirmed_line_break_geometry_generalizes_without_fingerprint() -> None:
@@ -1734,6 +2057,211 @@ def test_four_arc_same_counts_without_semicircle_grid_are_not_ignored() -> None:
     assert applied["suppressed_by_policy"] is False
 
 
+def _repeated_coil_panel_proposal(
+    *, rotation_deg: float, scale: float, fingerprint: str, offset_arc: bool = False
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_REPEATED_COIL_PANEL")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    for row_offset in (0.0, -10.0, -20.0):
+        for center, start, end in (
+            ((5.0, row_offset - 1.875), 270.0, 90.0),
+            ((5.0, row_offset - 5.625), 270.0, 90.0),
+            ((10.0, row_offset - 1.875), 90.0, 270.0),
+            ((10.0, row_offset - 5.625), 90.0, 270.0),
+        ):
+            shifted = (
+                (center[0] + 0.6, center[1])
+                if offset_arc and row_offset == -10.0 and center == (10.0, row_offset - 5.625)
+                else center
+            )
+            block.add_arc(
+                transform(shifted),
+                radius=1.875 * scale,
+                start_angle=start + rotation_deg,
+                end_angle=end + rotation_deg,
+            )
+        for start, end in (
+            ((5.0, row_offset), (2.5, row_offset)),
+            ((5.0, row_offset - 7.5), (2.5, row_offset - 7.5)),
+            ((10.0, row_offset), (12.5, row_offset)),
+            ((10.0, row_offset - 7.5), (12.5, row_offset - 7.5)),
+        ):
+            block.add_line(transform(start), transform(end))
+    for start, end in (
+        ((12.5, -7.5), (17.5, -7.5)),
+        ((17.5, -7.5), (17.5, -30.0)),
+        ((12.5, -17.5), (17.5, -17.5)),
+        ((12.5, -27.5), (17.5, -27.5)),
+        ((12.5, 0.0), (22.5, 0.0)),
+        ((0.0, 0.0), (2.5, 0.0)),
+        ((0.0, -7.5), (2.5, -7.5)),
+        ((0.0, -10.0), (2.5, -10.0)),
+        ((0.0, -17.5), (2.5, -17.5)),
+        ((0.0, -20.0), (2.5, -20.0)),
+        ((0.0, -27.5), (2.5, -27.5)),
+        ((12.5, -10.0), (22.5, -10.0)),
+        ((12.5, -20.0), (22.5, -20.0)),
+        ((17.5, -30.0), (22.5, -30.0)),
+    ):
+        block.add_line(transform(start), transform(end))
+    for center in ((17.5, -17.5), (17.5, -17.5), (17.5, -27.5), (17.5, -27.5)):
+        block.add_lwpolyline(
+            [
+                (*transform((center[0] - 0.25, center[1])), 1.0),
+                (*transform((center[0] + 0.25, center[1])), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_REPEATED_COIL_PANEL",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_repeated_coil_panel_ignore_generalizes_across_rotation_and_scale() -> None:
+    exact = _repeated_coil_panel_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="59cf96d51fc55afa4f77a383e0ecf990270dbafbbcd454943b3473039f1a9e5b",
+    )
+    unseen = _repeated_coil_panel_proposal(
+        rotation_deg=31.0,
+        scale=1.8,
+        fingerprint="unseen-rotated-repeated-coil-panel",
+    )
+
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "electrical.nonconnective_repeated_coil_panel_ignored.v1"
+        assert applied["matched_family_rule_id"] == "repeated-three-row-semicircle-panel-v1"
+        assert applied["ports"] == []
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+    assert apply_human_symbol_policy_to_proposal_row(unseen)["classifier_status"] == "MATCHED"
+
+
+def test_repeated_coil_panel_same_counts_with_offset_arc_is_not_ignored() -> None:
+    proposal = _repeated_coil_panel_proposal(
+        rotation_deg=13.0,
+        scale=1.3,
+        fingerprint="unseen-offset-repeated-coil-panel",
+        offset_arc=True,
+    )
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied["family_id"] != "electrical.nonconnective_repeated_coil_panel_ignored.v1"
+    assert applied["suppressed_by_policy"] is False
+
+
+def _dual_row_signal_panel_proposal(
+    *, rotation_deg: float, scale: float, fingerprint: str, offset_circle: bool = False
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_DUAL_ROW_SIGNAL_PANEL")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    row_lines = (
+        ((28.8748016716, -1.1226752197), (30.5518608986, 0.3773155632)),
+        ((30.5518608986, 0.3773155632), (29.9731668847, -0.4756869211)),
+        ((28.2081391014, -0.3773155632), (29.8851983284, 1.1226752197)),
+        ((29.8851983284, 1.1226752197), (29.3065043145, 0.2696727354)),
+        ((10.005, 0.0), (48.755, 0.0)),
+    )
+    for row_y in (0.0, -7.5):
+        for start, end in row_lines:
+            shifted_start = (start[0], start[1] + row_y)
+            shifted_end = (end[0], end[1] + row_y)
+            block.add_line(transform(shifted_start), transform(shifted_end))
+        for min_x in (10.005, 46.255):
+            block.add_lwpolyline(
+                [
+                    transform((min_x, row_y + 0.5)),
+                    transform((min_x + 2.5, row_y + 0.5)),
+                    transform((min_x + 2.5, row_y - 0.5)),
+                    transform((min_x, row_y - 0.5)),
+                ],
+                close=True,
+            )
+        circle_center = (
+            30.18 if offset_circle and row_y == -7.5 else 29.38,
+            row_y,
+        )
+        block.add_circle(transform(circle_center), radius=1.25 * scale)
+        for _ in range(4):
+            block.add_hatch()
+    for center_x in (0.0, 60.0):
+        block.add_lwpolyline(
+            [
+                (*transform((center_x - 0.5, 0.0)), 1.0),
+                (*transform((center_x + 0.5, 0.0)), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_DUAL_ROW_SIGNAL_PANEL",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_dual_row_signal_panel_ignore_generalizes_across_rotation_and_scale() -> None:
+    exact = _dual_row_signal_panel_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="c983989529487b8e3894fc9dfc0d0acab9c04fe6a66161f36b695e5c80571396",
+    )
+    unseen = _dual_row_signal_panel_proposal(
+        rotation_deg=37.0,
+        scale=1.9,
+        fingerprint="unseen-rotated-dual-row-signal-panel",
+    )
+
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "electrical.nonconnective_dual_row_signal_panel_ignored.v1"
+        assert applied["matched_family_rule_id"] == "dual-row-hatched-circle-panel-v1"
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["ports"] == []
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_dual_row_signal_panel_same_counts_with_offset_circle_is_not_ignored() -> None:
+    proposal = _dual_row_signal_panel_proposal(
+        rotation_deg=19.0,
+        scale=1.4,
+        fingerprint="unseen-offset-dual-row-signal-panel",
+        offset_circle=True,
+    )
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied["family_id"] != "electrical.nonconnective_dual_row_signal_panel_ignored.v1"
+    assert applied["suppressed_by_policy"] is False
+
+
 def _dzb_right_marker_proposal(
     *, rotation_deg: float, scale: float, fingerprint: str, offset_short_duplicate: bool = False
 ) -> dict:
@@ -2021,6 +2549,313 @@ def test_named_four_contact_strip_binds_ak_port_identities_to_own_networks() -> 
     assert all(row["electrical_union_eligible"] is False for row in rows)
 
 
+def _named_two_row_box_proposal(
+    *,
+    rotation_deg: float,
+    scale: float,
+    fingerprint: str,
+    offset_contact: bool = False,
+) -> dict:
+    document = ezdxf.new()
+    child = document.blocks.new("RENAMED_TWO_ROW_STATE")
+    child.add_point((0.0, 0.0))
+    block = document.blocks.new("RENAMED_TWO_ROW_BOX")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    for insert in ((0.0, 0.0), (0.0, -10.0)):
+        block.add_blockref(
+            child.name,
+            transform(insert),
+            dxfattribs={
+                "rotation": rotation_deg,
+                "xscale": scale,
+                "yscale": scale,
+            },
+        )
+    block.add_lwpolyline(
+        [
+            transform((-2.5, 5.0)),
+            transform((7.5, 5.0)),
+            transform((7.5, -15.0)),
+            transform((-2.5, -15.0)),
+        ],
+        close=True,
+    )
+    contact_centers = [(0.0, 0.0), (2.5, 2.5), (0.0, -10.0), (2.5, -7.5)]
+    if offset_contact:
+        contact_centers[-1] = (3.0, -7.5)
+    for center_x, center_y in contact_centers:
+        block.add_lwpolyline(
+            [
+                (*transform((center_x - 0.5, center_y)), 1.0),
+                (*transform((center_x + 0.5, center_y)), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_TWO_ROW_BOX",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_named_two_row_box_exact_and_rotated_unseen_select_real_row_ports() -> None:
+    exact = _named_two_row_box_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="55c2e04f990b264e93b235f7ed3c078a6034a853b3201192f447e7b346d8f06d",
+    )
+    unseen = _named_two_row_box_proposal(
+        rotation_deg=31.0,
+        scale=1.8,
+        fingerprint="unseen-rotated-named-two-row-box",
+    )
+
+    assert exact["method"] == "named_two_row_box_ports_v1"
+    assert [port["local_position"] for port in exact["ports"]] == [
+        [0.0, 0.0, 0.0],
+        [0.0, -10.0, 0.0],
+    ]
+    assert [port["component_pin"] for port in exact["ports"]] == ["1", "2"]
+    assert [port["attachment_side"] for port in exact["ports"]] == [
+        "upper",
+        "lower",
+    ]
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "component.external_strip_two_port.v1"
+        assert applied["matched_family_rule_id"] == "named-two-row-box-four-contact-v1"
+        assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
+        assert len(applied["ports"]) == 2
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+    assert apply_human_symbol_policy_to_proposal_row(exact)["classifier_status"] == "HUMAN_CONFIRMED_MEMBER"
+    assert apply_human_symbol_policy_to_proposal_row(unseen)["classifier_status"] == "MATCHED"
+
+
+def test_named_two_row_box_offset_contact_is_not_promoted() -> None:
+    proposal = _named_two_row_box_proposal(
+        rotation_deg=19.0,
+        scale=1.4,
+        fingerprint="unseen-offset-named-two-row-box",
+        offset_contact=True,
+    )
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied["matched_family_rule_id"] != "named-two-row-box-four-contact-v1"
+    assert applied["exact_human_member"] is False
+
+
+def test_named_two_row_box_binds_apostrophe_identity_to_upper_and_lower_networks() -> None:
+    proposal = _named_two_row_box_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="unseen-bound-named-two-row-box",
+    )
+    proposal["file_id"] = "F-A-PRIME"
+    instance = {
+        "symbol_instance_id": "SI-A-PRIME",
+        "project_id": "P",
+        "sheet_id": "S-A-PRIME",
+        "file_id": "F-A-PRIME",
+        "entity_handle": "1D34C",
+        "definition_name": proposal["definition_name"],
+        "definition_fingerprint": proposal["definition_fingerprint"],
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [100, 200, 0, 1],
+            ]
+        },
+    }
+    texts = [
+        {"text_id": "T-A-PRIME", "handle": "HT-A-PRIME", "sheet_id": "S-A-PRIME", "file_id": "F-A-PRIME", "normalized_text": "A'", "insert_x": 102.5, "insert_y": 205.0},
+        {"text_id": "T-1", "handle": "HT-1", "sheet_id": "S-A-PRIME", "file_id": "F-A-PRIME", "normalized_text": "1", "insert_x": 99.0, "insert_y": 201.0},
+        {"text_id": "T-2", "handle": "HT-2", "sheet_id": "S-A-PRIME", "file_id": "F-A-PRIME", "normalized_text": "2", "insert_x": 99.0, "insert_y": 191.0},
+    ]
+    lines = [
+        {"line_id": "L-UPPER", "handle": "HL-UPPER", "sheet_id": "S-A-PRIME", "file_id": "F-A-PRIME", "start_x": 100.0, "start_y": 200.0, "end_x": 90.0, "end_y": 200.0},
+        {"line_id": "L-LOWER", "handle": "HL-LOWER", "sheet_id": "S-A-PRIME", "file_id": "F-A-PRIME", "start_x": 100.0, "start_y": 190.0, "end_x": 90.0, "end_y": 190.0},
+    ]
+    members = [
+        {"member_type": "SOURCE_LINE", "source_handle": "HL-UPPER", "electrical_network_id": "NET-UPPER"},
+        {"member_type": "SOURCE_LINE", "source_handle": "HL-LOWER", "electrical_network_id": "NET-LOWER"},
+    ]
+
+    rows = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, members
+    )
+    by_identity = {row["component_port_identity"]: row for row in rows}
+
+    assert set(by_identity) == {"A'-1", "A'-2"}
+    assert by_identity["A'-1"]["status"] == "MEASURED_COMPONENT_PORT_MAPPING"
+    assert by_identity["A'-1"]["attachment_side"] == "upper"
+    assert by_identity["A'-1"]["attached_line_handles"] == ["HL-UPPER"]
+    assert by_identity["A'-1"]["component_mapping_external_network_ids"] == [
+        "NET-UPPER"
+    ]
+    assert by_identity["A'-2"]["status"] == "MEASURED_COMPONENT_PORT_MAPPING"
+    assert by_identity["A'-2"]["attachment_side"] == "lower"
+    assert by_identity["A'-2"]["attached_line_handles"] == ["HL-LOWER"]
+    assert by_identity["A'-2"]["component_mapping_external_network_ids"] == [
+        "NET-LOWER"
+    ]
+    assert all(row["relation_kind"] == "COMPONENT_PORT_TO_EXTERNAL_NETWORK" for row in rows)
+    assert all(row["internal_connectivity_inferred"] is False for row in rows)
+    assert all(row["electrical_union_eligible"] is False for row in rows)
+
+
+def _vertical_two_port_box_proposal(
+    *,
+    rotation_deg: float,
+    scale: float,
+    fingerprint: str,
+    exact_name: bool = False,
+    divider_offset: float = 0.0,
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_VERTICAL_TWO_PORT_BOX")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    for center_y in (-15.0, 15.0):
+        block.add_lwpolyline(
+            [
+                (*transform((-0.5, center_y)), 1.0),
+                (*transform((0.5, center_y)), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    for start, end in (
+        ((-7.5, 15.0), (7.5, 15.0)),
+        ((-7.5, 15.0), (-7.5, -15.0)),
+        ((7.5, -15.0), (-7.5, -15.0)),
+        ((-7.5, 7.5 + divider_offset), (7.5, 7.5 + divider_offset)),
+        ((-7.5, -7.5), (7.5, -7.5)),
+        ((7.5, 15.0), (7.5, -15.0)),
+    ):
+        block.add_line(transform(start), transform(end))
+    block.add_text("1", dxfattribs={"insert": transform((-0.75, 9.8))})
+    block.add_text("2", dxfattribs={"insert": transform((-0.75, -12.7))})
+    return propose_ports_from_block(
+        block,
+        definition_name="KK1P" if exact_name else "RENAMED_VERTICAL_TWO_PORT_BOX",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_vertical_two_port_box_exact_and_rotated_unseen_select_midpoint_ports() -> None:
+    exact = _vertical_two_port_box_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="9321616869d2ccca1d1d6fc065a9a995ddf9d31ac8e207430b8eec6439e8ad6b",
+        exact_name=True,
+    )
+    unseen = _vertical_two_port_box_proposal(
+        rotation_deg=47.0,
+        scale=2.2,
+        fingerprint="unseen-rotated-vertical-two-port-box",
+    )
+
+    assert exact["method"] == "vertical_two_port_box_ports_v1"
+    assert [port["local_position"] for port in exact["ports"]] == [
+        [0.0, 15.0, 0.0],
+        [0.0, -15.0, 0.0],
+    ]
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert [port["component_pin"] for port in applied["ports"]] == ["1", "2"]
+        assert applied["family_id"] == "component.external_strip_two_port.v1"
+        assert applied["matched_family_rule_id"] == "vertical-numbered-two-port-box-v1"
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_vertical_two_port_box_offset_divider_stays_review() -> None:
+    proposal = _vertical_two_port_box_proposal(
+        rotation_deg=17.0,
+        scale=1.5,
+        fingerprint="unseen-offset-vertical-two-port-box",
+        divider_offset=0.7,
+    )
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied.get("matched_family_rule_id") != "vertical-numbered-two-port-box-v1"
+
+
+def test_vertical_two_port_box_binds_ak_to_measured_same_side_pairs() -> None:
+    proposal = _vertical_two_port_box_proposal(
+        rotation_deg=0.0,
+        scale=1.0,
+        fingerprint="unseen-bound-vertical-two-port-box",
+    )
+    proposal["file_id"] = "F"
+    instance = {
+        "symbol_instance_id": "SI-KK1P",
+        "project_id": "P",
+        "sheet_id": "S",
+        "file_id": "F",
+        "entity_handle": "H-KK1P",
+        "definition_name": proposal["definition_name"],
+        "definition_fingerprint": proposal["definition_fingerprint"],
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [100, 200, 0, 1],
+            ]
+        },
+    }
+    texts = [
+        {"text_id": "TAK", "sheet_id": "S", "file_id": "F", "normalized_text": "AK", "insert_x": 100.0, "insert_y": 227.0},
+        {"text_id": "TJD1", "sheet_id": "S", "file_id": "F", "normalized_text": "JD1", "insert_x": 100.0, "insert_y": 217.0},
+        {"text_id": "TAP", "sheet_id": "S", "file_id": "F", "normalized_text": "A'-1", "insert_x": 100.0, "insert_y": 181.0},
+    ]
+    lines = [
+        {"line_id": "L1", "handle": "HL1", "sheet_id": "S", "file_id": "F", "start_x": 100.0, "start_y": 215.0, "end_x": 100.0, "end_y": 216.0},
+        {"line_id": "L2", "handle": "HL2", "sheet_id": "S", "file_id": "F", "start_x": 100.0, "start_y": 185.0, "end_x": 100.0, "end_y": 184.0},
+    ]
+    members = [
+        {"member_type": "SOURCE_LINE", "source_handle": "HL1", "electrical_network_id": "NET-TOP"},
+        {"member_type": "SOURCE_LINE", "source_handle": "HL2", "electrical_network_id": "NET-BOTTOM"},
+    ]
+    pairs = [
+        {"pair_id": "P1", "sheet_id": "S", "pair_kind": "component_mapping", "left_value": "AK-1", "right_value": "JD1"},
+        {"pair_id": "P2", "sheet_id": "S", "pair_kind": "component_mapping", "left_value": "AK-2", "right_value": "A'-1"},
+    ]
+
+    rows = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, members, component_pairs=pairs
+    )
+    mappings = {
+        row["component_port_identity"]: row["component_mapping_external_endpoints"]
+        for row in rows
+    }
+    assert mappings == {"AK-1": ["JD1"], "AK-2": ["A'-1"]}
+    assert all(row["status"] == "MEASURED_COMPONENT_PORT_MAPPING" for row in rows)
+    assert all(row["internal_connectivity_inferred"] is False for row in rows)
+    assert all(row["electrical_union_eligible"] is False for row in rows)
+
+
 def _communication_panel_block(*, include_groups: bool = True):
     document = ezdxf.new()
     block = document.blocks.new("RENAMED_COMMUNICATION_PANEL")
@@ -2213,6 +3048,520 @@ def test_dense_tall_panel_without_complete_com_and_optical_labels_is_not_ignored
         assert applied["suppressed_by_policy"] is False
 
 
+def _wide_ge_gx_switch_panel_proposal(
+    *,
+    fingerprint: str,
+    angle_degrees: float = 0.0,
+    scale: float = 1.0,
+    omit_label: str | None = None,
+    offset_circle_index: int | None = None,
+) -> dict:
+    labels = (
+        [f"P{index}" for index in range(1, 25)]
+        + [f"GE{index}" for index in range(1, 25)]
+        + [f"GX{index}" for index in range(25, 29)]
+        + [f"{index}{suffix}" for index in range(1, 5) for suffix in ("T", "R")]
+        + ["Console", "FAULT", "PWR", "PWR1", "PWR2", "+/L", "-/N"]
+    )
+    if omit_label is not None:
+        labels = [value for value in labels if value.upper() != omit_label.upper()]
+
+    radius = 0.005
+    gap_ratios = [3.36, 4.84, 3.36, 4.84, 3.36, 4.84, 3.36]
+    positions = [0.0]
+    for gap in gap_ratios:
+        positions.append(positions[-1] + gap * radius)
+    angle = math.radians(angle_degrees)
+    axis = (math.cos(angle), math.sin(angle))
+    normal = (-axis[1], axis[0])
+    circles = []
+    for index, position in enumerate(positions):
+        normal_offset = radius * 0.25 if index == offset_circle_index else 0.0
+        circles.append(
+            {
+                "center": [
+                    0.2 + position * axis[0] + normal_offset * normal[0],
+                    0.2 + position * axis[1] + normal_offset * normal[1],
+                ],
+                "radius": radius,
+            }
+        )
+
+    return {
+        "definition_name": "RENAMED_WIDE_SWITCH_PANEL",
+        "definition_fingerprint": fingerprint,
+        "ports": [
+            {"port_id": "MP1", "local_position": [-175.0 * scale, -58.0 * scale, 0.0]},
+            {"port_id": "MP2", "local_position": [175.0 * scale, -50.0 * scale, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "width": (380.0 if angle_degrees % 180 == 0 else 90.0) * scale,
+                "height": (90.0 if angle_degrees % 180 == 0 else 380.0) * scale,
+                "oriented_aspect_ratio": 4.222222,
+                "primitive_count": 258,
+                "primitive_histogram": {
+                    "ARC": 24,
+                    "CIRCLE": 8,
+                    "LINE": 88,
+                    "LWPOLYLINE": 138,
+                },
+                "entity_histogram": {
+                    "ARC": 24,
+                    "CIRCLE": 8,
+                    "HATCH": 54,
+                    "INSERT": 3,
+                    "LINE": 88,
+                    "LWPOLYLINE": 138,
+                    "TEXT": 78,
+                },
+                "text_values": labels,
+                "arc_radii": [0.1 * scale] * 24,
+                "circle_radii": [2.132277 * scale] * 8,
+                "closed_bulged_lwpolyline_count": 41,
+                "normalized_circles": circles,
+                "communication_panel_features": {
+                    "square_cell_count": 25,
+                    "dominant_cell_aspect": 1.03572,
+                },
+            }
+        },
+    }
+
+
+def test_wide_ge_gx_switch_panel_exact_and_rotated_scaled_geometry_are_ignored() -> None:
+    exact = apply_human_symbol_policy_to_proposal_row(
+        _wide_ge_gx_switch_panel_proposal(
+            fingerprint="9ab7144823696cf159b562ccd4a64c5801bdf99275c605494d4964302cc04bd1"
+        )
+    )
+    unseen = apply_human_symbol_policy_to_proposal_row(
+        _wide_ge_gx_switch_panel_proposal(
+            fingerprint="unseen-wide-ge-gx-switch-panel",
+            angle_degrees=90.0,
+            scale=2.5,
+        )
+    )
+
+    assert exact["classifier_status"] == "HUMAN_CONFIRMED_MEMBER"
+    assert unseen["classifier_status"] == "MATCHED"
+    assert unseen["matched_family_rule_id"] == "wide-ge-gx-power-switch-panel-v1"
+    for applied in (exact, unseen):
+        assert applied["family_id"] == "communication.equipment_panel_ignored.v1"
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_wide_switch_panel_requires_complete_arrays_and_collinear_circle_pitch() -> None:
+    incomplete = apply_human_symbol_policy_to_proposal_row(
+        _wide_ge_gx_switch_panel_proposal(
+            fingerprint="unseen-wide-panel-missing-ge24",
+            omit_label="GE24",
+        )
+    )
+    displaced = apply_human_symbol_policy_to_proposal_row(
+        _wide_ge_gx_switch_panel_proposal(
+            fingerprint="unseen-wide-panel-displaced-circle",
+            offset_circle_index=3,
+        )
+    )
+
+    for applied in (incomplete, displaced):
+        assert applied["family_id"] != "communication.equipment_panel_ignored.v1"
+        assert applied["suppressed_by_policy"] is False
+
+
+def _compact_ge_gx_switch_panel_proposal(
+    *,
+    fingerprint: str,
+    angle_degrees: float = 0.0,
+    scale: float = 1.0,
+    omit_label: str | None = None,
+    offset_circle_index: int | None = None,
+) -> dict:
+    labels = (
+        [f"GE{index}" for index in range(1, 9)]
+        + ["GX9", "GX10", "1GT", "1GR", "2GT", "2GR"]
+        + ["Console", "+/L", "-/N"]
+        + ["1", "2", "3", "4", "5", "6"]
+    )
+    if omit_label is not None:
+        labels = [value for value in labels if value.upper() != omit_label.upper()]
+
+    radius = 0.01
+    angle = math.radians(angle_degrees)
+    axis = (math.cos(angle), math.sin(angle))
+    normal = (-axis[1], axis[0])
+    circles = []
+    for index, (axis_position, normal_position) in enumerate(
+        ((0.0, 0.0), (0.0, 3.36), (9.38, 0.0), (9.38, 3.36))
+    ):
+        if index == offset_circle_index:
+            normal_position += 0.8
+        circles.append(
+            {
+                "center": [
+                    0.2
+                    + radius
+                    * (axis_position * axis[0] + normal_position * normal[0]),
+                    0.2
+                    + radius
+                    * (axis_position * axis[1] + normal_position * normal[1]),
+                ],
+                "radius": radius,
+            }
+        )
+
+    return {
+        "definition_name": "DGICOM3000-2GX8GE-HV",
+        "definition_fingerprint": fingerprint,
+        "ports": [
+            {"port_id": "MP1", "local_position": [5.67 * scale, -152.57 * scale, 0.0]},
+            {"port_id": "MP2", "local_position": [0.0, -15.0 * scale, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "width": 85.4 * scale,
+                "height": 160.4 * scale,
+                "oriented_aspect_ratio": 1.882353,
+                "primitive_count": 128,
+                "primitive_histogram": {
+                    "ARC": 12,
+                    "CIRCLE": 4,
+                    "LINE": 60,
+                    "LWPOLYLINE": 52,
+                },
+                "entity_histogram": {
+                    "ARC": 12,
+                    "CIRCLE": 4,
+                    "HATCH": 18,
+                    "INSERT": 1,
+                    "LINE": 60,
+                    "LWPOLYLINE": 52,
+                    "TEXT": 32,
+                },
+                "text_values": labels,
+                "arc_radii": [0.1 * scale] * 12,
+                "circle_radii": [2.132277 * scale] * 4,
+                "closed_bulged_lwpolyline_count": 18,
+                "parallel_line_group_max": 29,
+                "normalized_circles": circles,
+                "communication_panel_features": {
+                    "square_cell_count": 9,
+                    "dominant_cell_aspect": 0.965512,
+                },
+            }
+        },
+    }
+
+
+def test_compact_ge_gx_switch_panel_exact_and_rotated_scaled_geometry_are_ignored() -> None:
+    exact = apply_human_symbol_policy_to_proposal_row(
+        _compact_ge_gx_switch_panel_proposal(
+            fingerprint="cb1abae65b4bcbd19aa91077fe008419f016357d08608f3712496374f8b8d325"
+        )
+    )
+    unseen = apply_human_symbol_policy_to_proposal_row(
+        _compact_ge_gx_switch_panel_proposal(
+            fingerprint="unseen-compact-ge-gx-switch-panel",
+            angle_degrees=57.0,
+            scale=2.3,
+        )
+    )
+
+    assert exact["classifier_status"] == "HUMAN_CONFIRMED_MEMBER"
+    assert unseen["classifier_status"] == "MATCHED"
+    assert unseen["matched_family_rule_id"] == "compact-ge-gx-power-switch-panel-v1"
+    for applied in (exact, unseen):
+        assert applied["family_id"] == "communication.equipment_panel_ignored.v1"
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_compact_switch_panel_requires_complete_labels_and_circle_grid() -> None:
+    incomplete = apply_human_symbol_policy_to_proposal_row(
+        _compact_ge_gx_switch_panel_proposal(
+            fingerprint="unseen-compact-panel-missing-ge8",
+            omit_label="GE8",
+        )
+    )
+    displaced = apply_human_symbol_policy_to_proposal_row(
+        _compact_ge_gx_switch_panel_proposal(
+            fingerprint="unseen-compact-panel-displaced-circle",
+            offset_circle_index=3,
+        )
+    )
+
+    for applied in (incomplete, displaced):
+        assert applied["family_id"] != "communication.equipment_panel_ignored.v1"
+        assert applied["suppressed_by_policy"] is False
+
+
+def _hykl_dual_row_panel_proposal(
+    *,
+    fingerprint: str,
+    angle_degrees: float = 0.0,
+    scale: float = 1.0,
+    offset_contact_index: int | None = None,
+) -> dict:
+    angle = math.radians(angle_degrees)
+    axis = (math.cos(angle), math.sin(angle))
+    normal = (-axis[1], axis[0])
+    circle_radius = 0.02 * scale
+    small_radius = 0.00407 * scale
+    circles = []
+    contacts = []
+    index = 0
+    for row in (-1, 1):
+        for column in range(4):
+            axis_position = (column - 1.5) * 4.07 * circle_radius
+            normal_position = row * 4.07 * circle_radius
+            center = (
+                0.3 + axis_position * axis[0] + normal_position * normal[0],
+                0.4 + axis_position * axis[1] + normal_position * normal[1],
+            )
+            circles.append({"center": list(center), "radius": circle_radius})
+            contact_offset = 1.02 * circle_radius
+            if index == offset_contact_index:
+                contact_offset = 1.5 * circle_radius
+            contacts.append(
+                {
+                    "center": [
+                        center[0] + row * contact_offset * normal[0],
+                        center[1] + row * contact_offset * normal[1],
+                    ],
+                    "radius": small_radius,
+                    "chord_radius": small_radius,
+                }
+            )
+            index += 1
+    contacts.append(
+        {
+            "center": [0.3, 0.4],
+            "radius": 0.25 * scale,
+            "chord_radius": 0.285 * scale,
+        }
+    )
+    labels = [
+        "PE2", "2", "2", "1", "OUT", "PE1", "1", "IN",
+        "TX", "GND", "TX", "GND", "3", "3", "RX", "RX",
+        "PE内部已短接",
+    ]
+    return {
+        "definition_name": "HYKL-X12-02",
+        "definition_fingerprint": fingerprint,
+        "ports": [
+            {"port_id": "MP1", "local_position": [-17.5 * scale, -35.0 * scale, 0.0]},
+            {"port_id": "MP2", "local_position": [17.5 * scale, 35.0 * scale, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "width": 40.4 * scale,
+                "height": 70.4 * scale,
+                "oriented_aspect_ratio": 1.75,
+                "primitive_count": 17,
+                "primitive_histogram": {"CIRCLE": 8, "LWPOLYLINE": 9},
+                "entity_histogram": {
+                    "CIRCLE": 8,
+                    "LWPOLYLINE": 9,
+                    "TEXT": 16,
+                    "MTEXT": 1,
+                },
+                "text_values": labels,
+                "circle_radii": [2.458191 * scale] * 8,
+                "closed_bulged_lwpolyline_count": 9,
+                "normalized_circles": circles,
+                "normalized_closed_bulged_contacts": contacts,
+            }
+        },
+    }
+
+
+def test_hykl_panel_exact_and_rotated_scaled_geometry_are_ignored() -> None:
+    exact = apply_human_symbol_policy_to_proposal_row(
+        _hykl_dual_row_panel_proposal(
+            fingerprint="1726acf417090ce3ecbf6454bdb8321afb7c0025023b98e82d59a6b1476dd6dd"
+        )
+    )
+    unseen = apply_human_symbol_policy_to_proposal_row(
+        _hykl_dual_row_panel_proposal(
+            fingerprint="unseen-rotated-hykl-panel",
+            angle_degrees=61.0,
+            scale=2.4,
+        )
+    )
+
+    assert exact["classifier_status"] == "HUMAN_CONFIRMED_MEMBER"
+    assert unseen["classifier_status"] == "MATCHED"
+    assert unseen["matched_family_rule_id"] == "dual-row-pe-tx-rx-interface-panel-v1"
+    for applied in (exact, unseen):
+        assert applied["family_id"] == "communication.equipment_panel_ignored.v1"
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_hykl_panel_rejects_displaced_circle_contact_pair() -> None:
+    applied = apply_human_symbol_policy_to_proposal_row(
+        _hykl_dual_row_panel_proposal(
+            fingerprint="unseen-hykl-displaced-contact",
+            angle_degrees=23.0,
+            scale=1.6,
+            offset_contact_index=5,
+        )
+    )
+
+    assert applied["family_id"] != "communication.equipment_panel_ignored.v1"
+    assert applied["suppressed_by_policy"] is False
+
+
+def _firewall_eth_panel_proposal(
+    *,
+    fingerprint: str,
+    angle_degrees: float = 0.0,
+    scale: float = 1.0,
+    omit_label: str | None = None,
+    offset_large_circle: bool = False,
+) -> dict:
+    labels = (
+        [f"ETH{index}" for index in range(0, 11)]
+        + ["ETH12", "ETH13"]
+        + [f"P{index}" for index in range(1, 13)]
+        + [f"{index}{suffix}" for index in range(1, 5) for suffix in ("T", "R")]
+        + ["USB", "Console", "L1", "N1", "PE1", "J1", "L2", "N2", "PE2", "J2"]
+        + ["front", "rear", "device", "note"]
+    )
+    if omit_label is not None:
+        labels = [value for value in labels if value.upper() != omit_label.upper()]
+    angle = math.radians(angle_degrees)
+    axis = (math.cos(angle), math.sin(angle))
+    normal = (-axis[1], axis[0])
+
+    def point(axis_position: float, normal_position: float) -> list[float]:
+        return [
+            0.3 + scale * (axis_position * axis[0] + normal_position * normal[0]),
+            0.4 + scale * (axis_position * axis[1] + normal_position * normal[1]),
+        ]
+
+    small_radius = 0.004 * scale
+    large_radius = 0.00672 * scale
+    circles = [
+        {"center": point(index * 3.2 * small_radius / scale, 0.0), "radius": small_radius}
+        for index in range(4)
+    ]
+    axis_positions = (0.0, 3.36, 9.26, 12.62)
+    for row in (-1, 1):
+        for index, axis_position in enumerate(axis_positions):
+            normal_position = row * 7.57
+            if offset_large_circle and row == 1 and index == 2:
+                normal_position += 0.8
+            circles.append(
+                {
+                    "center": point(
+                        axis_position * large_radius / scale,
+                        normal_position * large_radius / scale,
+                    ),
+                    "radius": large_radius,
+                }
+            )
+    return {
+        "definition_name": "NGFW4000-UFTG-3100-GW",
+        "definition_fingerprint": fingerprint,
+        "ports": [
+            {"port_id": "MP1", "local_position": [-94.0 * scale, -55.0 * scale, 0.0]},
+            {"port_id": "MP2", "local_position": [152.0 * scale, -53.0 * scale, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "width": 380.4 * scale,
+                "height": 97.9 * scale,
+                "oriented_aspect_ratio": 3.897289,
+                "primitive_count": 245,
+                "primitive_histogram": {
+                    "ARC": 24,
+                    "CIRCLE": 12,
+                    "LINE": 89,
+                    "LWPOLYLINE": 120,
+                },
+                "entity_histogram": {
+                    "ARC": 24,
+                    "CIRCLE": 12,
+                    "HATCH": 28,
+                    "LINE": 89,
+                    "LWPOLYLINE": 120,
+                    "TEXT": 39,
+                    "MTEXT": 8,
+                },
+                "text_values": labels,
+                "closed_bulged_lwpolyline_count": 29,
+                "parallel_line_group_max": 51,
+                "normalized_circles": circles,
+                "communication_panel_features": {
+                    "square_cell_count": 13,
+                    "dominant_cell_aspect": 1.03572,
+                },
+            }
+        },
+    }
+
+
+def test_firewall_panel_exact_and_rotated_scaled_geometry_are_ignored() -> None:
+    exact = apply_human_symbol_policy_to_proposal_row(
+        _firewall_eth_panel_proposal(
+            fingerprint="07d8f9b0bc6c61dd003c0d32861f58c0a1babc0be3cee88783f7dcbb4ab63e25"
+        )
+    )
+    unseen = apply_human_symbol_policy_to_proposal_row(
+        _firewall_eth_panel_proposal(
+            fingerprint="unseen-rotated-firewall-panel",
+            angle_degrees=38.0,
+            scale=2.6,
+        )
+    )
+
+    assert exact["classifier_status"] == "HUMAN_CONFIRMED_MEMBER"
+    assert unseen["classifier_status"] == "MATCHED"
+    assert unseen["matched_family_rule_id"] == "firewall-eth-usb-optical-power-panel-v1"
+    for applied in (exact, unseen):
+        assert applied["family_id"] == "communication.equipment_panel_ignored.v1"
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_firewall_panel_requires_complete_eth_labels_and_optical_grid() -> None:
+    incomplete = apply_human_symbol_policy_to_proposal_row(
+        _firewall_eth_panel_proposal(
+            fingerprint="unseen-firewall-missing-eth13",
+            omit_label="ETH13",
+        )
+    )
+    displaced = apply_human_symbol_policy_to_proposal_row(
+        _firewall_eth_panel_proposal(
+            fingerprint="unseen-firewall-displaced-optical-circle",
+            offset_large_circle=True,
+        )
+    )
+
+    for applied in (incomplete, displaced):
+        assert applied["family_id"] != "communication.equipment_panel_ignored.v1"
+        assert applied["suppressed_by_policy"] is False
+
+
 def _backplate_table_container_proposal(
     *, fingerprint: str, header_count: int = 4, max_row: int = 32
 ) -> dict:
@@ -2369,3 +3718,583 @@ def test_pwf4_same_counts_with_detached_contact_is_not_ground() -> None:
     )
     assert applied["family_id"] != "electrical.ground_symbol_ignored.v1"
     assert applied["suppressed_by_policy"] is False
+
+
+def _slash_circle_terminal_proposal(
+    *, fingerprint: str, rotation_deg: float = 0.0, circle_offset: float = 0.0
+) -> dict:
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> list[float]:
+        x, y = point[0] * 2.0, point[1] * 2.0
+        return [x * cosine - y * sine, x * sine + y * cosine]
+
+    contact_centers = ((0.083333, 0.233308), (0.916667, 0.233308))
+    circle_center = (0.5 + circle_offset, 0.233308)
+    segments = (
+        ((0.7, 0.233308), contact_centers[1]),
+        (circle_center, (0.266692, 0.0)),
+        (contact_centers[0], (0.3, 0.233308)),
+        ((0.733308, 0.466616), circle_center),
+    )
+    return {
+        "definition_name": "RENAMED_SLASH_TERMINAL",
+        "definition_fingerprint": fingerprint,
+        "ports": [{"port_id": "MP1"}, {"port_id": "MP2"}],
+        "geometry_summary": {
+            "shape_features": {
+                "width": 6.0,
+                "height": 2.799695,
+                "oriented_aspect_ratio": 2.143091,
+                "primitive_count": 7,
+                "primitive_histogram": {"CIRCLE": 1, "LINE": 4, "LWPOLYLINE": 2},
+                "entity_histogram": {"CIRCLE": 1, "LINE": 4, "LWPOLYLINE": 2},
+                "text_count": 0,
+                "text_values": [],
+                "normalized_line_segments": [
+                    {"start": transform(start), "end": transform(end)}
+                    for start, end in segments
+                ],
+                "normalized_closed_bulged_contacts": [
+                    {"center": transform(center), "radius": 0.083333 * 2.0}
+                    for center in contact_centers
+                ],
+                "normalized_circles": [
+                    {"center": transform(circle_center), "radius": 0.2 * 2.0}
+                ],
+            }
+        },
+    }
+
+
+def test_slash_circle_terminal_exact_and_rotated_unseen_are_external_only() -> None:
+    variants = (
+        _slash_circle_terminal_proposal(
+            fingerprint="8f7c185510e495dc79d94bdba73c1335ef0c64043045c388d16d039c52a0fc73"
+        ),
+        _slash_circle_terminal_proposal(
+            fingerprint="unseen-rotated-slash-terminal", rotation_deg=37.0
+        ),
+    )
+    for proposal in variants:
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "labelled_terminal.generic.v1"
+        assert applied["behavior_mode"] == "TERMINAL_NO_INTERNAL"
+        assert len(applied["ports"]) == 2
+        assert applied["allow_external_attachment"] is True
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_slash_circle_same_counts_with_offset_body_is_not_terminal() -> None:
+    applied = apply_human_symbol_policy_to_proposal_row(
+        _slash_circle_terminal_proposal(
+            fingerprint="unseen-offset-slash-terminal", circle_offset=0.12
+        )
+    )
+    assert applied["family_id"] != "labelled_terminal.generic.v1"
+    assert applied["behavior_mode"] == "REVIEW_ONLY"
+
+
+def _three_contact_socket_block(*, detach_contact: bool = False):
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_THREE_CONTACT_SOCKET")
+    for start, end in (
+        ((7.5, -5.0), (7.5, -7.5)),
+        ((2.5, 0.0), (0.0, 0.0)),
+        ((7.5, 5.0), (7.5, 7.5)),
+        ((7.5, 0.0), (7.5, 0.0)),
+    ):
+        block.add_line(start, end)
+    for center, radius in (
+        ((8.75, -2.1650635), 2.0),
+        ((8.75, 2.1650635), 2.0),
+        ((5.0, 0.0), 2.0),
+        ((7.5, 0.0), 5.0),
+    ):
+        block.add_circle(center, radius)
+    contacts = [
+        (7.5, 7.5),
+        (8.75, 2.17),
+        (7.5, -7.5),
+        (8.75, -2.17),
+        ((0.6 if detach_contact else 0.0), 0.0),
+        (5.0, 0.0),
+    ]
+    for center in contacts:
+        block.add_lwpolyline(
+            [(center[0] - 0.5, center[1], 1.0), (center[0] + 0.5, center[1], 1.0)],
+            format="xyb",
+            close=True,
+        )
+    return block
+
+
+def test_three_contact_socket_exact_and_unseen_emit_three_independent_ports() -> None:
+    for fingerprint in (
+        "9816226eb2abd1a692ea1af2ef528f5543dbfc10c8ca7d893de0692739019c6b",
+        "unseen-three-contact-socket",
+    ):
+        proposal = propose_ports_from_block(
+            _three_contact_socket_block(),
+            definition_name="RENAMED_THREE_CONTACT_SOCKET",
+            definition_fingerprint=fingerprint,
+            max_ports=2,
+        ).to_dict()
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert proposal["method"] == "three_contact_socket_ports_v1"
+        assert len(proposal["ports"]) == 3
+        assert applied["family_id"] == "component.external_multi_port.v1"
+        assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_three_contact_socket_same_counts_with_detached_contact_does_not_generalize() -> None:
+    proposal = propose_ports_from_block(
+        _three_contact_socket_block(detach_contact=True),
+        definition_name="DETACHED_THREE_CONTACT_SOCKET",
+        definition_fingerprint="unseen-detached-three-contact-socket",
+    ).to_dict()
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+    assert applied["family_id"] != "component.external_multi_port.v1"
+
+
+def test_three_contact_socket_binds_cz_pins_to_network_scoped_endpoints() -> None:
+    proposal = propose_ports_from_block(
+        _three_contact_socket_block(),
+        definition_name="RENAMED_THREE_CONTACT_SOCKET",
+        definition_fingerprint="unseen-three-contact-binding",
+    ).to_dict()
+    proposal["file_id"] = "F"
+    instance = {
+        "symbol_instance_id": "SI-CZ", "project_id": "P", "sheet_id": "S", "file_id": "F",
+        "entity_handle": "H-CZ", "definition_name": "RENAMED_THREE_CONTACT_SOCKET",
+        "definition_fingerprint": "unseen-three-contact-binding",
+        "transform_json": {"matrix44": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [332.488, 77.488, 0, 1]]},
+    }
+    texts = [
+        {"text_id": "TCZ", "handle": "HCZ", "sheet_id": "S", "file_id": "F", "normalized_text": "CZ", "insert_x": 335.988, "insert_y": 82.488},
+        {"text_id": "TE", "handle": "HE", "sheet_id": "S", "file_id": "F", "normalized_text": "E", "insert_x": 336.862, "insert_y": 76.294},
+        {"text_id": "TL", "handle": "HL", "sheet_id": "S", "file_id": "F", "normalized_text": "L", "insert_x": 340.612, "insert_y": 78.464},
+        {"text_id": "TN", "handle": "HN", "sheet_id": "S", "file_id": "F", "normalized_text": "N", "insert_x": 340.612, "insert_y": 74.124},
+        {"text_id": "TJD11", "handle": "HJD11", "sheet_id": "S", "file_id": "F", "normalized_text": "JD11", "insert_x": 324.988, "insert_y": 79.888},
+        {"text_id": "TJD2", "handle": "HJD2", "sheet_id": "S", "file_id": "F", "normalized_text": "JD2", "insert_x": 220.988, "insert_y": 89.988},
+        {"text_id": "TJD7", "handle": "HJD7", "sheet_id": "S", "file_id": "F", "normalized_text": "JD7", "insert_x": 241.213, "insert_y": 67.488},
+    ]
+    lines = [
+        {"line_id": "LE", "handle": "HEXT", "sheet_id": "S", "file_id": "F", "start_x": 332.488, "start_y": 77.488, "end_x": 327.488, "end_y": 77.488},
+        {"line_id": "LL1", "handle": "HL1", "sheet_id": "S", "file_id": "F", "start_x": 339.988, "start_y": 84.988, "end_x": 339.988, "end_y": 89.988},
+        {"line_id": "LL2", "handle": "HL2", "sheet_id": "S", "file_id": "F", "start_x": 339.988, "start_y": 89.988, "end_x": 227.488, "end_y": 89.988},
+        {"line_id": "LN1", "handle": "HN1", "sheet_id": "S", "file_id": "F", "start_x": 339.988, "start_y": 69.988, "end_x": 339.988, "end_y": 64.988},
+        {"line_id": "LN2", "handle": "HN2", "sheet_id": "S", "file_id": "F", "start_x": 339.988, "start_y": 64.988, "end_x": 237.488, "end_y": 64.988},
+    ]
+    members = [
+        {"member_type": "SOURCE_LINE", "source_handle": handle, "electrical_network_id": network}
+        for handle, network in (("HEXT", "ENE"), ("HL1", "ENL"), ("HL2", "ENL"), ("HN1", "ENN"), ("HN2", "ENN"))
+    ]
+    rows = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, members
+    )
+    mappings = {
+        row["component_port_identity"]: row["component_mapping_external_endpoints"]
+        for row in rows
+    }
+    assert mappings == {"CZ-E": ["JD11"], "CZ-L": ["JD2"], "CZ-N": ["JD7"]}
+    assert all(row["status"] == "MEASURED_COMPONENT_PORT_MAPPING" for row in rows)
+    assert all(row["internal_connectivity_inferred"] is False for row in rows)
+    assert all(row["electrical_union_eligible"] is False for row in rows)
+
+
+def _four_contact_isolated_frame_block(
+    *, rotation_deg: float = 0.0, scale: float = 1.0, offset_outer_contact: bool = False
+):
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_KZKK_DEVICE")
+    angle = math.radians(rotation_deg)
+
+    def point(x: float, y: float) -> tuple[float, float]:
+        return (
+            scale * (x * math.cos(angle) - y * math.sin(angle)),
+            scale * (x * math.sin(angle) + y * math.cos(angle)),
+        )
+
+    for start, end in (
+        ((10.0, 8.75), (10.0, -1.25)),
+        ((19.0, 0.0), (20.0, 0.0)),
+        ((7.5, -2.5), (12.5, 0.0)),
+        ((12.5, 0.0), (16.0, 0.0)),
+        ((8.383883, 0.883883), (6.616117, -0.883883)),
+        ((6.616117, 0.883883), (8.383883, -0.883883)),
+        ((4.0, 0.0), (7.5, 0.0)),
+        ((0.0, 0.0), (1.0, 0.0)),
+        ((19.0, 10.0), (20.0, 10.0)),
+        ((7.5, 7.5), (12.5, 10.0)),
+        ((12.5, 10.0), (16.0, 10.0)),
+        ((8.383883, 10.883883), (6.616117, 9.116117)),
+        ((6.616117, 10.883883), (8.383883, 9.116117)),
+        ((0.0, 10.0), (1.0, 10.0)),
+        ((7.5, 10.0), (4.0, 10.0)),
+    ):
+        block.add_line(point(*start), point(*end))
+    contacts = [
+        (0.0, 0.0),
+        (2.5, 0.0),
+        (20.0, 0.0),
+        (17.5, 0.0),
+        (0.0, 10.0),
+        (2.5, 10.0),
+        (20.0, 10.0),
+        (17.5, 10.0),
+    ]
+    if offset_outer_contact:
+        contacts[0] = (0.4, 0.0)
+    contact_radius = 0.5 * scale
+    for center in contacts:
+        transformed = point(*center)
+        block.add_lwpolyline(
+            [
+                (transformed[0] - contact_radius * math.cos(angle), transformed[1] - contact_radius * math.sin(angle), 1.0),
+                (transformed[0] + contact_radius * math.cos(angle), transformed[1] + contact_radius * math.sin(angle), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    for center in ((2.5, 0.0), (17.5, 0.0), (2.5, 10.0), (17.5, 10.0)):
+        block.add_circle(point(*center), radius=1.5 * scale)
+    return block
+
+
+def test_four_contact_isolated_frame_exact_and_unseen_emit_four_independent_ports() -> None:
+    cases = (
+        (
+            "deade9985bacdcfe78b87b08ce5dbb3b05a31ce41bc57086075826fe52baa56f",
+            0.0,
+            1.0,
+            "HUMAN_CONFIRMED_MEMBER",
+        ),
+        ("unseen-four-contact-frame", 31.0, 1.7, "MATCHED"),
+    )
+    for fingerprint, rotation_deg, scale, expected_status in cases:
+        definition_name = (
+            "SYMB2_M_PWF102"
+            if expected_status == "HUMAN_CONFIRMED_MEMBER"
+            else "RENAMED_KZKK_DEVICE"
+        )
+        proposal = propose_ports_from_block(
+            _four_contact_isolated_frame_block(
+                rotation_deg=rotation_deg, scale=scale
+            ),
+            definition_name=definition_name,
+            definition_fingerprint=fingerprint,
+        ).to_dict()
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert len(applied["ports"]) == 4
+        assert applied["classifier_status"] == expected_status
+        assert applied["family_id"] == "component.external_multi_port.v1"
+        assert applied["matched_family_rule_id"] == "four-contact-isolated-switch-frame-v1"
+        assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_four_contact_isolated_frame_rejects_offset_dual_grid() -> None:
+    proposal = propose_ports_from_block(
+        _four_contact_isolated_frame_block(offset_outer_contact=True),
+        definition_name="OFFSET_KZKK_DEVICE",
+        definition_fingerprint="unseen-offset-four-contact-frame",
+    ).to_dict()
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+    assert applied.get("matched_family_rule_id") != "four-contact-isolated-switch-frame-v1"
+
+
+def test_four_contact_isolated_frame_binds_kzkk_same_side_endpoints() -> None:
+    proposal = propose_ports_from_block(
+        _four_contact_isolated_frame_block(),
+        definition_name="RENAMED_KZKK_DEVICE",
+        definition_fingerprint="unseen-four-contact-binding",
+    ).to_dict()
+    proposal["file_id"] = "F"
+    instance = {
+        "symbol_instance_id": "SI-KZKK",
+        "project_id": "P",
+        "sheet_id": "S",
+        "file_id": "F",
+        "entity_handle": "H-KZKK",
+        "definition_name": "RENAMED_KZKK_DEVICE",
+        "definition_fingerprint": "unseen-four-contact-binding",
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [100, 200, 0, 1],
+            ]
+        },
+    }
+    texts = [
+        {"text_id": "TK", "sheet_id": "S", "file_id": "F", "normalized_text": "KZKK", "insert_x": 110.0, "insert_y": 213.0},
+        {"text_id": "T1", "sheet_id": "S", "file_id": "F", "normalized_text": "1", "insert_x": 102.0, "insert_y": 199.0},
+        {"text_id": "T2", "sheet_id": "S", "file_id": "F", "normalized_text": "2", "insert_x": 117.0, "insert_y": 199.0},
+        {"text_id": "T3", "sheet_id": "S", "file_id": "F", "normalized_text": "3", "insert_x": 102.0, "insert_y": 209.0},
+        {"text_id": "T4", "sheet_id": "S", "file_id": "F", "normalized_text": "4", "insert_x": 117.0, "insert_y": 209.0},
+        {"text_id": "TJD8", "sheet_id": "S", "file_id": "F", "normalized_text": "JD8", "insert_x": 86.0, "insert_y": 200.0},
+        {"text_id": "TJD3", "sheet_id": "S", "file_id": "F", "normalized_text": "JD3", "insert_x": 86.0, "insert_y": 210.0},
+        {"text_id": "T5", "sheet_id": "S", "file_id": "F", "normalized_text": "5", "insert_x": 132.0, "insert_y": 201.0},
+        {"text_id": "T6", "sheet_id": "S", "file_id": "F", "normalized_text": "6", "insert_x": 132.0, "insert_y": 211.0},
+        {"text_id": "TCD", "sheet_id": "S", "file_id": "F", "normalized_text": "CD-WSK-H-J-G", "insert_x": 125.0, "insert_y": 216.0},
+    ]
+    lines = [
+        {"line_id": "L1", "handle": "HL1", "sheet_id": "S", "file_id": "F", "start_x": 100.0, "start_y": 200.0, "end_x": 90.0, "end_y": 200.0},
+        {"line_id": "L2", "handle": "HL2", "sheet_id": "S", "file_id": "F", "start_x": 120.0, "start_y": 200.0, "end_x": 130.0, "end_y": 200.0},
+        {"line_id": "L3", "handle": "HL3", "sheet_id": "S", "file_id": "F", "start_x": 100.0, "start_y": 210.0, "end_x": 90.0, "end_y": 210.0},
+        {"line_id": "L4", "handle": "HL4", "sheet_id": "S", "file_id": "F", "start_x": 120.0, "start_y": 210.0, "end_x": 130.0, "end_y": 210.0},
+    ]
+
+    rows = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, []
+    )
+    mappings = {
+        row["component_port_identity"]: row["component_mapping_external_endpoints"]
+        for row in rows
+    }
+    assert mappings == {
+        "KZKK-1": ["JD8"],
+        "KZKK-2": ["CD-WSK-H-J-G-5"],
+        "KZKK-3": ["JD3"],
+        "KZKK-4": ["CD-WSK-H-J-G-6"],
+    }
+    assert all(row["status"] == "MEASURED_COMPONENT_PORT_MAPPING" for row in rows)
+    assert all(row["internal_connectivity_inferred"] is False for row in rows)
+    assert all(row["electrical_union_eligible"] is False for row in rows)
+
+
+def _four_way_slash_circle_terminal_proposal(
+    *,
+    fingerprint: str,
+    rotation_deg: float = 0.0,
+    scale: float = 1.0,
+    diagonal_offset: float = 0.0,
+    contact_offset: float = 0.0,
+) -> dict:
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> list[float]:
+        x, y = point[0] * scale, point[1] * scale
+        return [x * cosine - y * sine, x * sine + y * cosine]
+
+    center = (0.5, 0.416667)
+    contact_centers = [
+        (0.083333, 0.416667),
+        (0.916667, 0.416667),
+        (0.5 + contact_offset, 0.833333),
+        (0.5, 0.0),
+    ]
+    radial_segments = [
+        ((0.3, 0.416667), contact_centers[0]),
+        ((0.7, 0.416667), contact_centers[1]),
+        ((0.5, 0.616667), contact_centers[2]),
+        ((0.5, 0.216667), contact_centers[3]),
+    ]
+    diagonal = (
+        (0.261832, 0.178499 + diagonal_offset),
+        (0.742122, 0.658789 + diagonal_offset),
+    )
+    ports = [
+        {
+            "port_id": "MP1",
+            "local_position": [0.0, 0.0, 0.0],
+            "outward_direction": [-1.0, 0.0, 0.0],
+        },
+        {
+            "port_id": "MP2",
+            "local_position": [5.0, 0.0, 0.0],
+            "outward_direction": [1.0, 0.0, 0.0],
+        },
+        {
+            "port_id": "MP3",
+            "local_position": [2.5, -2.5, 0.0],
+            "outward_direction": [0.0, -1.0, 0.0],
+        },
+        {
+            "port_id": "MP4",
+            "local_position": [2.5, 2.5, 0.0],
+            "outward_direction": [0.0, 1.0, 0.0],
+        },
+    ]
+    return {
+        "file_id": "F-PWF89",
+        "definition_name": "RENAMED_FOUR_WAY_TERMINAL",
+        "definition_fingerprint": fingerprint,
+        "ports": ports,
+        "geometry_summary": {
+            "shape_features": {
+                "width": 6.0 * scale,
+                "height": 5.0 * scale,
+                "oriented_aspect_ratio": 1.2,
+                "primitive_count": 10,
+                "primitive_histogram": {
+                    "CIRCLE": 1,
+                    "LINE": 5,
+                    "LWPOLYLINE": 4,
+                },
+                "entity_histogram": {
+                    "CIRCLE": 1,
+                    "LINE": 5,
+                    "LWPOLYLINE": 4,
+                },
+                "text_count": 0,
+                "text_values": [],
+                "normalized_line_segments": [
+                    {"start": transform(start), "end": transform(end)}
+                    for start, end in [*radial_segments, diagonal]
+                ],
+                "normalized_closed_bulged_contacts": [
+                    {
+                        "center": transform(contact_center),
+                        "radius": 0.083333 * scale,
+                    }
+                    for contact_center in contact_centers
+                ],
+                "normalized_circles": [
+                    {"center": transform(center), "radius": 0.2 * scale}
+                ],
+            }
+        },
+    }
+
+
+def test_four_way_terminal_exact_and_rotated_scaled_unseen_reuse_generic_family() -> None:
+    exact = _four_way_slash_circle_terminal_proposal(
+        fingerprint="84868127dc04f2454ab00c79d63b6d4a57792b2f47365725934a88bcf1986d65"
+    )
+    unseen = _four_way_slash_circle_terminal_proposal(
+        fingerprint="unseen-rotated-scaled-four-way-terminal",
+        rotation_deg=37.0,
+        scale=1.7,
+    )
+
+    for proposal in (exact, unseen):
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "labelled_terminal.generic.v1"
+        assert applied["matched_family_rule_id"] == "four-orthogonal-contact-terminal-v1"
+        assert applied["behavior_mode"] == "TERMINAL_NO_INTERNAL"
+        assert len(applied["ports"]) == 4
+        assert applied["allow_external_attachment"] is True
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+    assert exact["definition_name"] == unseen["definition_name"]
+    assert apply_human_symbol_policy_to_proposal_row(unseen)["classifier_status"] == "MATCHED"
+
+
+def test_four_way_terminal_same_counts_with_bad_topology_stays_review() -> None:
+    negatives = (
+        _four_way_slash_circle_terminal_proposal(
+            fingerprint="unseen-off-centre-four-way-slash",
+            diagonal_offset=0.12,
+        ),
+        _four_way_slash_circle_terminal_proposal(
+            fingerprint="unseen-skewed-four-way-contact",
+            contact_offset=0.12,
+        ),
+    )
+    for proposal in negatives:
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["matched_family_rule_id"] != "four-orthogonal-contact-terminal-v1"
+        assert applied["family_id"] != "labelled_terminal.generic.v1"
+        assert applied["behavior_mode"] == "REVIEW_ONLY"
+
+
+def test_four_way_terminal_emits_only_wired_independent_jd1_attachments() -> None:
+    proposal = _four_way_slash_circle_terminal_proposal(
+        fingerprint="unseen-wired-four-way-terminal"
+    )
+    instance = {
+        "symbol_instance_id": "SI-PWF89",
+        "project_id": "P",
+        "sheet_id": "S",
+        "file_id": "F-PWF89",
+        "entity_handle": "1D360",
+        "definition_name": proposal["definition_name"],
+        "definition_fingerprint": proposal["definition_fingerprint"],
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [10, 20, 0, 1],
+            ]
+        },
+    }
+    texts = [
+        {
+            "text_id": "T-JD1",
+            "handle": "HT-JD1",
+            "sheet_id": "S",
+            "file_id": "F-PWF89",
+            "normalized_text": "JD1",
+            "insert_x": 12.5,
+            "insert_y": 22.0,
+        }
+    ]
+    lines = [
+        {
+            "line_id": "L-right",
+            "handle": "H-right",
+            "sheet_id": "S",
+            "file_id": "F-PWF89",
+            "start_x": 15.0,
+            "start_y": 20.0,
+            "end_x": 22.0,
+            "end_y": 20.0,
+        },
+        {
+            "line_id": "L-bottom",
+            "handle": "H-bottom",
+            "sheet_id": "S",
+            "file_id": "F-PWF89",
+            "start_x": 12.5,
+            "start_y": 17.5,
+            "end_x": 12.5,
+            "end_y": 10.0,
+        },
+        {
+            "line_id": "L-left-inward",
+            "handle": "H-left-inward",
+            "sheet_id": "S",
+            "file_id": "F-PWF89",
+            "start_x": 10.0,
+            "start_y": 20.0,
+            "end_x": 15.0,
+            "end_y": 20.0,
+        },
+    ]
+    members = [
+        {
+            "electrical_network_id": "EN-right",
+            "member_type": "SOURCE_LINE",
+            "source_handle": "H-right",
+        },
+        {
+            "electrical_network_id": "EN-bottom",
+            "member_type": "SOURCE_LINE",
+            "source_handle": "H-bottom",
+        },
+    ]
+
+    rows = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, members
+    )
+
+    assert len(rows) == 2
+    assert {row["machine_port_id"] for row in rows} == {"MP2", "MP3"}
+    assert {row["terminal_designator"] for row in rows} == {"JD1"}
+    assert {tuple(row["external_network_ids"]) for row in rows} == {
+        ("EN-right",),
+        ("EN-bottom",),
+    }
+    assert all(row["status"] == "MEASURED_TERMINAL_ATTACHMENT" for row in rows)
+    assert all(row["internal_connectivity_inferred"] is False for row in rows)
+    assert all(row["electrical_union_eligible"] is False for row in rows)
