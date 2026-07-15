@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 127 in progress: MACHINE_PROPOSED electrical connection review pack shipped; Top-N port/topology/unit human gold still external; primary_engine remains legacy.
+Phase 129 complete: previously adjudicated components now flow through versioned definition-family classification, fingerprint-consistent instance binding, and centralized behavior policy; confirmed IGNORE geometry families generalize across fingerprints while all new behavior remains no-union.
 
 ## Phases
 
@@ -1950,6 +1950,9 @@ Phase 127 in progress: MACHINE_PROPOSED electrical connection review pack shippe
 | Cross-file instance-port binding patch missed the exact `propose_ports_from_block` return context | 1 | Patch the core module, tests, and artifact integration separately against freshly read anchors |
 | Next-round locator attempted to slice `ezdxf.Vec3` and raised `TypeError` | 1 | Read insertion coordinates through explicit `.x/.y` attributes and rerun the read-only locator |
 | First P003 two-agent validation attempt: raw DWG agent exhausted retries on HTTP 429; visual wait was interrupted before a result | 1 | Confirm no old agents remain, then restart both audits with fresh one-shot agents and tighter prompts |
+| Phase 128 planning patch used a stale Phase 127 continuation heading as a second anchor | 1 | Re-read the file tail and patch the current-phase line plus the exact final section separately |
+| PWF240 CAD crop rendering failed because the default Python runtime has no `matplotlib` | 1 | Use the bundled workspace document runtime if it exposes matplotlib; otherwise provide the exact original DWG path, handle, and coordinates as permitted by the review protocol |
+| First Phase 129 forked-agent batch returned two refresh-token failures and one long-running non-return | 1 | Close all three agents and restart the same three read-only audits with fresh no-history agents; the restarted batch completed successfully |
 ### Phase 123: Real-Corpus Extraction, Electrical Semantics, And Symbol Dependency Foundation
 - [x] Recover current worktree and Phase 122 evidence boundary
 - [x] Establish a persistent loop goal and retain `primary_engine=legacy`
@@ -2030,3 +2033,22 @@ Phase 127 in progress: MACHINE_PROPOSED electrical connection review pack shippe
 - [x] Cross-check symbol, cross-page, unsupported-entity, viewport, and scale evidence
 - [x] Separate proven capability boundaries from claims requiring human per-DWG gold
 - **Status:** complete (read-only product capability audit; no engine changes)
+
+### Phase 128: Basic-Terminal Generalization And Evidence Binding
+- [x] Complete concurrent geometry, semantic-evidence, and code-safety audits; close all one-shot agents
+- [x] Extract rotation/scale-normalized block-shape features and replace primitive-count memorization
+- [x] Require independent terminal geometry, unique structured label, and explicit wire-contact evidence
+- [x] Represent geometry-only, label-only, wire-only, and ambiguous bindings as review-only statuses
+- [x] Add additive report counters for recognized geometry, complete evidence, and ambiguous bindings
+- [x] Add regression tests, run targeted suites, and append the confirmed PWF239/generalization result to progress and taskbook
+- **Status:** complete
+
+### Phase 129: Adjudicated Component Family Generalization
+- [x] Restart and complete concurrent geometry-family, semantic-policy, and code-dependency audits after the interrupted agent batch; close every one-shot agent
+- [x] Add versioned definition-family classifications for terminals, external-only components, open/line-break candidates, and non-electrical reviewed members
+- [x] Make instance proposal binding fingerprint-consistent; name-only matching may discover candidates but cannot silently bind mismatched definitions
+- [x] Centralize behavior decisions so high-confidence confirmed IGNORE geometry families can suppress electrical behavior across fingerprints, while low-confidence/ambiguous matches remain review-only and all behavior stays no-union
+- [x] Add family/binding/policy fields and additive summary counters without breaking existing consumers
+- [x] Add drift, same-name/different-fingerprint, geometry-family, and legacy-compatibility regressions; run full suite
+- [x] Append architecture and measured outcomes to progress/taskbook
+- **Status:** complete

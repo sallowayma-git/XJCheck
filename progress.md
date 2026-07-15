@@ -4684,3 +4684,50 @@
   - Source: P001 `05 交流回路图2.dwg`, handles `2170A` `(55.0, 177.5)` and `21728` `(55.0, 202.5)`, both rotated 270 degrees.
   - Human adjudication: left-side equipment-area device graphic; ignored for V2 wire topology.
   - Scope guard: this decision covers the exact PWF208 fingerprint only. Neighboring left-area blocks at other coordinates/fingerprints remain unclassified until separately reviewed.
+- `SYMB2_M_PWF210`, fingerprint `ef9845390ad82463e1efac6f04551d65d189a6d9a311ce8c2b1398021e70c7cc`:
+  - Source: P001 `11 非电量开入回路.dwg`, representative handle `2CEAE` at `(162.5, 80.0)`.
+  - Human adjudication: no actual electrical meaning. Ignore for V2 recognition; no ports and no connectivity.
+- `SYMB2_M_PWF232`, fingerprint `5f5573087fee9f48a503ecdede638903fcb979dd5031aaf1e98e69d07f2707f8`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `23348` at `(110.0011, 224.9958)`.
+  - Human adjudication: generic labelled terminal; upper text such as `1QD5` is its terminal designator.
+- Generalization added: a definition may enter the high-confidence terminal model only when it has compact circle-terminal geometry, a structured terminal designator, and an externally touched line. It emits `MEASURED_TERMINAL_ATTACHMENT` shadow facts with no inferred internal union. The policy is geometry+evidence based; block names, page names, and coordinates are not classification inputs.
+- Cross-project P001/P003 terminal-family audit completed after the PWF232 adjudication. PWF234 was initially below the overly narrow primitive-count threshold and is now human-confirmed after visual review; PWF216, PWF236-PWF242, PWF318, and PWF324 remain needs-human. Free endpoints or a matching name alone are insufficient. One delegated report incorrectly cited PWF232 handle `2334E`; authoritative main-thread evidence remains handle `23348`.
+- `SYMB2_M_PWF234`, fingerprint `03db302eda788e4107a4dc2e882e6da52af3d56ea388d8a8f5789e6892a52211`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `23358` at `(57.5011, 237.4958)`.
+  - Human adjudication: generic labelled terminal, including its four-way geometry drawing; upper `1QD1` / `1QD2` text is the terminal designator.
+  - Generalization repair: compact terminal geometry permits 2-4 LINE and 2-4 LWPOLYLINE primitives when the 5-unit compact bbox, two arcs, designator, and external line evidence are all present. This admits PWF234 but still rejects the tall PWF208 device geometry.
+- `SYMB2_M_PWF236`, fingerprint `e84d37eab1d5e64b04de0e6aae32137b3ae80676267d6e24e71266aa4b9e7ee9`:
+  - Human adjudication: multi-port component. Its ports connect outward only; upper instance label + numeric port form full identity (for example `1DK-3`) and existing `component_mapping` relates that identity to its external endpoint (for example `ZD1`).
+  - Engine integration: V2 instance-port shadow candidates now project existing `component_mapping` facts into `component_port_identity`, external endpoint list, pair IDs, and cross-page-match eligibility. `internal_connectivity_inferred` remains false and union eligibility remains false.
+- `SYMB2_M_PWF237`, fingerprint `835a7dcc7eae596a7b1a600a48f0e579bf800a22b1add1ffbcc44d2ddb95e054`:
+  - Human adjudication: three-row/six-port version of the multi-port component, e.g. `1-2ZKK-1..6`. Each port maps independently to the external terminal on its own side; no internal connectivity.
+  - Engine behavior: exact fingerprint reuses the existing `kk_multi_port_component` mapping plus V2 component-port shadow projection; composite identities such as `1-2ZKK-3` are cross-page-match eligible only through their mapped external endpoints.
+- `SYMB2_M_PWF238`, fingerprint `cce15b281bc0c0ef0df95453bffcd991d28e73e7683a513b4c3e5f979c243438`:
+  - Source: P001 `04 交流回路图1.dwg`, representative handle `1129E` at `(207.5, 220.0)`.
+  - Human adjudication: generic labelled terminal; `1ID4 / 1ID5 / 1ID6` are terminal designators.
+  - Engine behavior: exact terminal policy binds designator and external wire evidence; no inferred internal union.
+## 2026-07-15 Phase 128 basic-terminal generalization started
+
+- User confirmed PWF239 is still a basic labelled terminal and requested multiple-agent diagnosis of weak generalization.
+- Three concurrent read-only agents completed geometry, semantic-evidence, and implementation audits and were closed. Shared conclusion: replace primitive-count memorization with normalized ARC-body geometry and model geometry/label/wire as independent evidence.
+- Integration is in progress; exact human fingerprint policies remain authoritative, while generic classification will remain shadow-only and fail-closed.
+- Source review located an incomplete refactor: the classifier requires `shape_features` that proposal generation never emits. This is the first implementation item; no classification authority was changed by the incomplete state.
+- Implemented block-local shape extraction for ARC radii, geometry/text counts, and exact LINE/polyline/ARC/CIRCLE extents; `propose_ports_from_block()` now persists these features. Added positive unseen-terminal and negative same-count/no-ARC regressions. Targeted symbol suite: `22 passed`.
+- Added fail-closed terminal evidence binding: a generic terminal reaches `MEASURED_TERMINAL_ATTACHMENT` only with normalized geometry, one unambiguous structured designator, and an outward-aligned external line endpoint. Missing evidence now yields terminal-specific review statuses; near-tied labels yield `TERMINAL_BINDING_AMBIGUOUS`.
+- Endpoint tolerance is now radius/transform-scale normalized for geometry-classified terminals and external lines must align with the transformed outward port direction. Exact human fingerprint policies remain available as authoritative definition overrides.
+- Added additive summary counters for terminal geometry, complete independent evidence, ambiguous bindings, review-only rows, and per-status counts. Combined symbol/report targeted suite: `46 passed`.
+- Human decision registered for PWF239: P001 `06 直流回路图.dwg`, DXF `F0007_51ec3d17.dxf`, INSERT `EEB7` at `(150.0, 252.5)`, fingerprint `c578f4c57480a4eabf4f0affb3ac93a9ca7e3eef23ca67e810605b48f06ac99b`; classified as the same basic labelled-terminal family.
+- Phase 128 targeted regression (`test_symbol_port_proposal.py`, `test_component_diagrams.py`, `test_report_artifacts.py`) passes `67 passed`; `git diff --check` is clean apart from expected Git line-ending notices. Primary engine remains legacy and all new terminal facts remain shadow-only/non-union.
+- Real-source verification on `.tmp/phase124_corpus_502/P001/.../F0007_51ec3d17.dxf`: PWF239 is recognized by the generic geometry path (`ARC=[1.25,1.25]`, size `4.25 x 3.75`, 3 ports), while PWF236 is rejected as a terminal (`21.0 x 15.125`, 32 primitives). This proves the result is not dependent only on the PWF239 fingerprint override.
+- Final full repository suite: `745 passed, 1 skipped` in 33.41s; final diff check has no whitespace errors. Primary engine remains legacy pending the broader human-gold replacement gate.
+
+## 2026-07-15 Phase 129 family-generalization audit
+
+- User redirected the work from next-symbol review to a full audit of previously adjudicated components, explicitly requiring models to generalize rather than orbit fingerprints.
+- First concurrent batch was closed after two refresh-token failures and one long-running non-return. A fresh no-history batch of three read-only agents completed geometry-family, semantic-policy, and code-dependency audits; all agents were explicitly closed.
+- Agreed implementation order: versioned family classification, strict proposal/instance identity binding, centralized fail-closed behavior policy, additive family evidence fields, then drift/ambiguity regression coverage.
+- User clarified that confirmed IGNORE classes must also generalize by geometry. Extracted all confirmed P001 IGNORE positives from real DXFs and recorded rotation/scale-invariant aspect, entity histogram, arc groups, text/HATCH evidence, and proposed-port topology for separate subfamily models.
+- Added `symbol-family-classification-v1` and `symbol-behavior-policy-v1`. Existing fingerprints are now versioned human family members/compatibility fallbacks; geometry rules classify terminals, external two-/multi-port components, and seven confirmed IGNORE subfamilies.
+- IGNORE generalization is active: complete geometry-family matches clear electrical ports as `GEOMETRY_FAMILY_NON_CONNECTIVE` even under unseen fingerprints, while incomplete lookalikes remain review-only. Original CAD provenance is retained and all union/critical flags remain false.
+- Added exact proposal/instance fingerprint binding with explicit mismatch rejection, legacy unverified fallback status, family/policy/binding fields, and additive report counters.
+- Real P001 synthetic-fingerprint audit: IGNORE positives PWF165/191/194/196/206/208/210/229 all matched and suppressed; controls PWF224/231/233/234/236/237/239 were not suppressed; FJL generalized to external strip two-port. Targeted suite `72 passed`; full suite `750 passed, 1 skipped`; diff check clean apart from line-ending notices.

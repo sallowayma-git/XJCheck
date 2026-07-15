@@ -46,6 +46,7 @@ from dwg_audit.audit.symbol_port_shadow import build_symbol_port_shadow_placemen
 from dwg_audit.audit.symbol_port_shadow import summarize_symbol_port_shadow
 from dwg_audit.audit.symbol_port_proposal import build_instance_port_network_candidates
 from dwg_audit.audit.symbol_port_proposal import apply_human_symbol_policy_to_proposal_row
+from dwg_audit.audit.symbol_port_proposal import summarize_instance_port_network_candidates
 from dwg_audit.audit.project_profile import build_project_profile
 
 from dwg_audit.audit.token_parser import parse_text_tokens
@@ -616,6 +617,14 @@ def write_project_artifacts(
         row["electrical_union_eligible"] = False
         row["critical_issue_eligible"] = False
         symbol_port_definition_proposals.append(row)
+    definition_family_counts = Counter(
+        str(row.get("family_id") or "UNKNOWN")
+        for row in symbol_port_definition_proposals
+    )
+    definition_behavior_counts = Counter(
+        str(row.get("behavior_mode") or "UNSPECIFIED")
+        for row in symbol_port_definition_proposals
+    )
     symbol_port_definition_proposal_summary = {
         "schema_version": "symbol-port-definition-proposal-summary-v1",
         "proposal_count": len(symbol_port_definition_proposals),
@@ -624,6 +633,22 @@ def write_project_artifacts(
         ),
         "unique_fingerprint_binding_count": sum(
             row.get("fingerprint_binding_status") == "UNIQUE"
+            for row in symbol_port_definition_proposals
+        ),
+        "family_counts": dict(sorted(definition_family_counts.items())),
+        "behavior_mode_counts": dict(sorted(definition_behavior_counts.items())),
+        "geometry_family_match_count": sum(
+            str(row.get("family_evidence_source") or "").startswith(
+                "MACHINE_GEOMETRY_RULE"
+            )
+            for row in symbol_port_definition_proposals
+        ),
+        "geometry_family_non_connective_count": sum(
+            row.get("status") == "GEOMETRY_FAMILY_NON_CONNECTIVE"
+            for row in symbol_port_definition_proposals
+        ),
+        "exact_human_member_count": sum(
+            bool(row.get("exact_human_member"))
             for row in symbol_port_definition_proposals
         ),
         "authority": "MACHINE_PROPOSED_ONLY",
@@ -973,28 +998,11 @@ def write_project_artifacts(
         _frame(artifacts.texts, TextItem),
         _frame(artifacts.lines, LineEntity),
         network_members_v2,
+        component_pairs=artifacts.pairs,
     )
-    symbol_port_network_candidate_summary = {
-        "schema_version": "symbol-port-network-candidate-summary-v1",
-        "candidate_count": len(symbol_port_network_candidates),
-        "measured_external_attachment_count": sum(
-            row.get("status") == "MEASURED_EXTERNAL_ATTACHMENT"
-            for row in symbol_port_network_candidates
-        ),
-        "explicit_label_count": sum(
-            bool(row.get("explicit_port_label"))
-            for row in symbol_port_network_candidates
-        ),
-        "network_bound_count": sum(
-            bool(row.get("external_network_ids"))
-            for row in symbol_port_network_candidates
-        ),
-        "internal_connectivity_inferred_count": 0,
-        "authority": "SHADOW_ONLY",
-        "electrical_union_eligible_count": 0,
-        "critical_issue_eligible_count": 0,
-        "primary_engine_unchanged": True,
-    }
+    symbol_port_network_candidate_summary = summarize_instance_port_network_candidates(
+        symbol_port_network_candidates
+    )
     (findings_dir / "symbol_port_network_candidates.json").write_text(
         json.dumps(
             {

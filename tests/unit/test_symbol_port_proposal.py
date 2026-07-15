@@ -6,9 +6,13 @@ from dwg_audit.audit.symbol_library_review import load_symbol_review_document
 from dwg_audit.audit.symbol_port_proposal import apply_proposals_to_review_document
 from dwg_audit.audit.symbol_port_proposal import apply_human_symbol_policy_to_proposal_row
 from dwg_audit.audit.symbol_port_proposal import build_instance_port_network_candidates
+from dwg_audit.audit.symbol_port_proposal import classify_definition_family
+from dwg_audit.audit.symbol_port_proposal import extract_block_shape_features
 from dwg_audit.audit.symbol_port_proposal import propose_ports_from_block
 from dwg_audit.audit.symbol_port_proposal import propose_ports_from_segments
 from dwg_audit.audit.symbol_port_proposal import human_symbol_port_policy
+from dwg_audit.audit.symbol_port_proposal import is_high_confidence_terminal_geometry
+from dwg_audit.audit.symbol_port_proposal import summarize_instance_port_network_candidates
 from dwg_audit.audit.symbol_port_proposal import write_machine_proposed_review_pack
 
 
@@ -173,6 +177,42 @@ def test_instance_ports_bind_explicit_labels_and_external_networks_only() -> Non
     assert all(row["internal_connectivity_inferred"] is False for row in candidates)
     assert all(row["dynamic_contact_state"] == "DEFER" for row in candidates)
     assert all(row["electrical_union_eligible"] is False for row in candidates)
+
+
+def test_instance_rejects_same_name_proposal_with_different_fingerprint() -> None:
+    proposal = {
+        "file_id": "F0007",
+        "definition_name": "SAME_NAME",
+        "definition_fingerprint": "proposal-fingerprint",
+        "ports": [{"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]}],
+    }
+    instance = {
+        "symbol_instance_id": "SI-mismatch",
+        "project_id": "P001",
+        "sheet_id": "S0007",
+        "file_id": "F0007",
+        "entity_handle": "B-mismatch",
+        "definition_name": "SAME_NAME",
+        "definition_fingerprint": "instance-fingerprint",
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ]
+        },
+    }
+
+    candidates = build_instance_port_network_candidates(
+        [proposal], [instance], [], [], []
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0]["status"] == "REJECTED_FINGERPRINT_MISMATCH"
+    assert candidates[0]["binding_status"] == "REJECTED_FINGERPRINT_MISMATCH"
+    assert candidates[0]["proposal_fingerprints"] == ["proposal-fingerprint"]
+    assert candidates[0]["electrical_union_eligible"] is False
 
 
 def test_apply_proposals_keeps_document_non_authoritative() -> None:
@@ -418,3 +458,480 @@ def test_pwf208_left_equipment_graphic_is_ignored_by_exact_fingerprint() -> None
 
     assert policy is not None
     assert policy["mode"] == "IGNORE_ELECTRICAL"
+
+
+def test_pwf210_non_semantic_placeholder_is_ignored() -> None:
+    policy = human_symbol_port_policy(
+        "ef9845390ad82463e1efac6f04551d65d189a6d9a311ce8c2b1398021e70c7cc"
+    )
+
+    assert policy is not None
+    assert policy["mode"] == "IGNORE_ELECTRICAL"
+
+
+def test_open_switch_geometry_generalizes_ignore_across_fingerprints_and_scale() -> None:
+    proposal = {
+        "definition_name": "UNSEEN_OPEN_SWITCH",
+        "definition_fingerprint": "new-fingerprint-not-in-human-table",
+        "ports": [
+            {"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]},
+            {"port_id": "MP2", "local_position": [22.5, 0.0, 0.0]},
+        ],
+        "status": "PROPOSED",
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [],
+                "circle_radii": [],
+                "primitive_count": 6,
+                "primitive_histogram": {"LINE": 4, "LWPOLYLINE": 2},
+                "entity_histogram": {"LINE": 4, "LWPOLYLINE": 2},
+                "text_count": 0,
+                "width": 24.5,
+                "height": 3.75,
+            }
+        },
+    }
+
+    classified = classify_definition_family(proposal)
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert classified["family_id"] == "switch.open.v1"
+    assert classified["family_evidence_source"] == "MACHINE_GEOMETRY_RULE"
+    assert classified["exact_human_member"] is False
+    assert applied["status"] == "GEOMETRY_FAMILY_NON_CONNECTIVE"
+    assert applied["ports"] == []
+    assert applied["suppressed_by_policy"] is True
+    assert applied["decision_reason_codes"] == ["GEOMETRY_IGNORE_FAMILY_MATCH"]
+    assert applied["electrical_union_eligible"] is False
+
+
+def test_confirmed_line_break_geometry_generalizes_without_fingerprint() -> None:
+    proposal = {
+        "definition_name": "REDRAWN_LINE_BREAK",
+        "definition_fingerprint": "another-new-fingerprint",
+        "ports": [
+            {"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]},
+            {"port_id": "MP2", "local_position": [10.0, 0.0, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [1.25, 1.25, 1.25, 1.25],
+                "circle_radii": [],
+                "primitive_count": 6,
+                "primitive_histogram": {"ARC": 4, "LWPOLYLINE": 2},
+                "entity_histogram": {"ARC": 4, "LWPOLYLINE": 2},
+                "text_count": 0,
+                "width": 12.0,
+                "height": 1.25,
+            }
+        },
+    }
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied["family_id"] == "line_break.non_connective.v1"
+    assert applied["status"] == "GEOMETRY_FAMILY_NON_CONNECTIVE"
+    assert applied["allow_port_emission"] is False
+
+
+def test_near_open_switch_geometry_stays_review_only_when_model_is_incomplete() -> None:
+    proposal = {
+        "definition_name": "ELONGATED_UNKNOWN",
+        "definition_fingerprint": "unknown-fingerprint",
+        "ports": [
+            {"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]},
+            {"port_id": "MP2", "local_position": [12.0, 0.0, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [],
+                "circle_radii": [],
+                "primitive_count": 4,
+                "primitive_histogram": {"LINE": 2, "LWPOLYLINE": 2},
+                "entity_histogram": {"LINE": 2, "LWPOLYLINE": 2},
+                "text_count": 0,
+                "width": 12.0,
+                "height": 1.875,
+            }
+        },
+    }
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied["family_id"] == "switch.open.candidate.v1"
+    assert applied["classifier_status"] == "REVIEW_REQUIRED"
+    assert applied["suppressed_by_policy"] is False
+    assert len(applied["ports"]) == 2
+
+
+def test_external_round_end_component_is_not_absorbed_by_ignore_models() -> None:
+    proposal = {
+        "definition_name": "UNSEEN_EXTERNAL_TWO_PORT",
+        "definition_fingerprint": "unseen-external",
+        "ports": [
+            {"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]},
+            {"port_id": "MP2", "local_position": [10.0, 0.0, 0.0]},
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [],
+                "circle_radii": [0.625, 0.625],
+                "primitive_count": 8,
+                "primitive_histogram": {"CIRCLE": 2, "LINE": 4, "LWPOLYLINE": 2},
+                "entity_histogram": {"CIRCLE": 2, "LINE": 4, "LWPOLYLINE": 2},
+                "text_count": 0,
+                "width": 11.0,
+                "height": 1.25,
+            }
+        },
+    }
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied["family_id"] == "component.external_strip_two_port.v1"
+    assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
+    assert applied["suppressed_by_policy"] is False
+    assert len(applied["ports"]) == 2
+
+
+def test_compact_terminal_geometry_is_high_confidence_but_tall_device_is_not() -> None:
+    compact = {
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [1.25, 1.25],
+                "primitive_count": 10,
+                "text_count": 0,
+                "width": 5.0,
+                "height": 5.0,
+            },
+        }
+    }
+    tall = {
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [1.875, 1.875],
+                "primitive_count": 7,
+                "text_count": 0,
+                "width": 1.75,
+                "height": 12.5,
+            },
+        }
+    }
+
+    assert is_high_confidence_terminal_geometry(compact)
+    assert not is_high_confidence_terminal_geometry(tall)
+
+
+def test_terminal_shape_features_are_extracted_from_real_block_geometry() -> None:
+    document = ezdxf.new()
+    block = document.blocks.new(name="UNSEEN_TERMINAL_VARIANT")
+    block.add_arc((0.0, 0.0), 1.25, 90.0, 270.0)
+    block.add_arc((0.0, 0.0), 1.25, 270.0, 90.0)
+    block.add_line((-3.0, 0.0), (-1.25, 0.0))
+    block.add_line((1.25, 0.0), (3.0, 0.0))
+
+    proposal = propose_ports_from_block(
+        block,
+        definition_name="UNSEEN_TERMINAL_VARIANT",
+        source_dxf="fixture.dxf",
+    )
+
+    assert extract_block_shape_features(block) == proposal.geometry_summary["shape_features"]
+    assert proposal.geometry_summary["shape_features"]["arc_radii"] == [1.25, 1.25]
+    assert is_high_confidence_terminal_geometry(proposal.to_dict())
+
+
+def test_similar_primitive_count_without_arc_body_is_not_a_terminal() -> None:
+    proposal = {
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [],
+                "primitive_count": 6,
+                "text_count": 0,
+                "width": 5.0,
+                "height": 5.0,
+            }
+        }
+    }
+
+    assert not is_high_confidence_terminal_geometry(proposal)
+
+
+def test_generic_terminal_requires_unique_label_and_wire_evidence() -> None:
+    proposal = {
+        "file_id": "F-new",
+        "definition_name": "UNSEEN_TERMINAL",
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [1.25, 1.25],
+                "primitive_count": 4,
+                "text_count": 0,
+                "width": 6.0,
+                "height": 2.5,
+            }
+        },
+        "ports": [{"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]}],
+    }
+    instance = {
+        "symbol_instance_id": "SI-new",
+        "project_id": "P-new",
+        "sheet_id": "S-new",
+        "file_id": "F-new",
+        "entity_handle": "B-new",
+        "definition_name": "UNSEEN_TERMINAL",
+        "definition_fingerprint": "unreviewed-fingerprint",
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [10, 20, 0, 1],
+            ]
+        },
+    }
+    label = {
+        "text_id": "T-new",
+        "handle": "HT-new",
+        "sheet_id": "S-new",
+        "file_id": "F-new",
+        "normalized_text": "1QD9",
+        "insert_x": 10.0,
+        "insert_y": 22.0,
+    }
+    line = {
+        "line_id": "L-new",
+        "handle": "HL-new",
+        "sheet_id": "S-new",
+        "file_id": "F-new",
+        "start_x": 10.0,
+        "start_y": 20.0,
+        "end_x": 20.0,
+        "end_y": 20.0,
+    }
+
+    complete = build_instance_port_network_candidates(
+        [proposal], [instance], [label], [line], []
+    )[0]
+    label_only = build_instance_port_network_candidates(
+        [proposal], [instance], [label], [], []
+    )[0]
+    wire_only = build_instance_port_network_candidates(
+        [proposal], [instance], [], [line], []
+    )[0]
+    geometry_only = build_instance_port_network_candidates(
+        [proposal], [instance], [], [], []
+    )[0]
+
+    assert complete["status"] == "MEASURED_TERMINAL_ATTACHMENT"
+    assert complete["terminal_independent_evidence_complete"] is True
+    assert label_only["status"] == "TERMINAL_LABEL_ONLY_REVIEW"
+    assert wire_only["status"] == "TERMINAL_WIRE_ONLY_REVIEW"
+    assert geometry_only["status"] == "TERMINAL_GEOMETRY_ONLY_REVIEW"
+    assert all(
+        row["electrical_union_eligible"] is False
+        for row in (complete, label_only, wire_only, geometry_only)
+    )
+
+
+def test_near_tied_terminal_designators_are_not_broadcast_to_ports() -> None:
+    proposal = {
+        "file_id": "F-ambiguous",
+        "definition_name": "UNSEEN_TERMINAL",
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [1.25, 1.25],
+                "primitive_count": 4,
+                "text_count": 0,
+                "width": 6.0,
+                "height": 2.5,
+            }
+        },
+        "ports": [{"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]}],
+    }
+    instance = {
+        "symbol_instance_id": "SI-ambiguous",
+        "project_id": "P-new",
+        "sheet_id": "S-new",
+        "file_id": "F-ambiguous",
+        "entity_handle": "B-ambiguous",
+        "definition_name": "UNSEEN_TERMINAL",
+        "definition_fingerprint": "unreviewed-fingerprint",
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [10, 20, 0, 1],
+            ]
+        },
+    }
+    texts = [
+        {"text_id": "T1", "handle": "H1", "sheet_id": "S-new", "file_id": "F-ambiguous", "normalized_text": "1QD1", "insert_x": 10.0, "insert_y": 22.0},
+        {"text_id": "T2", "handle": "H2", "sheet_id": "S-new", "file_id": "F-ambiguous", "normalized_text": "1QD2", "insert_x": 10.0, "insert_y": 22.25},
+    ]
+    lines = [
+        {"line_id": "L1", "handle": "HL1", "sheet_id": "S-new", "file_id": "F-ambiguous", "start_x": 10.0, "start_y": 20.0, "end_x": 20.0, "end_y": 20.0}
+    ]
+
+    candidate = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, []
+    )[0]
+
+    assert candidate["status"] == "TERMINAL_BINDING_AMBIGUOUS"
+    assert candidate["terminal_designator"] is None
+    assert candidate["terminal_label_ambiguous"] is True
+    assert [item["value"] for item in candidate["terminal_label_candidates"]] == [
+        "1QD1",
+        "1QD2",
+    ]
+
+
+def test_scaled_rotated_terminal_uses_relative_tolerance_and_outward_alignment() -> None:
+    proposal = {
+        "file_id": "F-rotated",
+        "definition_name": "ROTATED_TERMINAL",
+        "geometry_summary": {
+            "shape_features": {
+                "arc_radii": [1.25, 1.25],
+                "primitive_count": 4,
+                "text_count": 0,
+                "width": 6.0,
+                "height": 2.5,
+            }
+        },
+        "ports": [
+            {
+                "port_id": "MP1",
+                "local_position": [0.0, 0.0, 0.0],
+                "outward_direction": [1.0, 0.0, 0.0],
+            }
+        ],
+    }
+    instance = {
+        "symbol_instance_id": "SI-rotated",
+        "project_id": "P-new",
+        "sheet_id": "S-rotated",
+        "file_id": "F-rotated",
+        "entity_handle": "B-rotated",
+        "definition_name": "ROTATED_TERMINAL",
+        "definition_fingerprint": "unreviewed-fingerprint",
+        "transform_json": {
+            "matrix44": [
+                [0, 2, 0, 0],
+                [-2, 0, 0, 0],
+                [0, 0, 1, 0],
+                [10, 20, 0, 1],
+            ]
+        },
+    }
+    texts = [
+        {"text_id": "T-rotated", "handle": "HT-rotated", "sheet_id": "S-rotated", "file_id": "F-rotated", "normalized_text": "1QD9", "insert_x": 10.0, "insert_y": 22.0}
+    ]
+    outward_line = [
+        {"line_id": "L-out", "handle": "HL-out", "sheet_id": "S-rotated", "file_id": "F-rotated", "start_x": 10.0, "start_y": 20.15, "end_x": 10.0, "end_y": 30.0}
+    ]
+    inward_line = [
+        {"line_id": "L-in", "handle": "HL-in", "sheet_id": "S-rotated", "file_id": "F-rotated", "start_x": 10.0, "start_y": 20.0, "end_x": 10.0, "end_y": 10.0}
+    ]
+
+    accepted = build_instance_port_network_candidates(
+        [proposal], [instance], texts, outward_line, []
+    )[0]
+    rejected = build_instance_port_network_candidates(
+        [proposal], [instance], texts, inward_line, []
+    )[0]
+
+    assert accepted["status"] == "MEASURED_TERMINAL_ATTACHMENT"
+    assert accepted["effective_endpoint_tolerance"] == 0.2
+    assert "OUTWARD_LINE_ALIGNMENT" in accepted["evidence_codes"]
+    assert rejected["status"] == "TERMINAL_LABEL_ONLY_REVIEW"
+    assert rejected["attached_line_handles"] == []
+
+
+def test_terminal_evidence_summary_separates_complete_and_review_only_rows() -> None:
+    summary = summarize_instance_port_network_candidates(
+        [
+            {
+                "status": "MEASURED_TERMINAL_ATTACHMENT",
+                "terminal_geometry_recognized": True,
+                "terminal_independent_evidence_complete": True,
+                "terminal_label_ambiguous": False,
+                "external_network_ids": ["EN1"],
+                "electrical_union_eligible": False,
+                "critical_issue_eligible": False,
+            },
+            {
+                "status": "TERMINAL_BINDING_AMBIGUOUS",
+                "terminal_geometry_recognized": True,
+                "terminal_independent_evidence_complete": False,
+                "terminal_label_ambiguous": True,
+                "external_network_ids": [],
+                "electrical_union_eligible": False,
+                "critical_issue_eligible": False,
+            },
+        ]
+    )
+
+    assert summary["terminal_geometry_recognized_count"] == 2
+    assert summary["independent_evidence_complete_count"] == 1
+    assert summary["ambiguous_binding_count"] == 1
+    assert summary["terminal_review_only_count"] == 1
+    assert summary["status_counts"] == {
+        "MEASURED_TERMINAL_ATTACHMENT": 1,
+        "TERMINAL_BINDING_AMBIGUOUS": 1,
+    }
+    assert summary["family_counts"] == {"UNKNOWN": 2}
+    assert summary["binding_status_counts"] == {"UNVERIFIED": 2}
+    assert summary["electrical_union_eligible_count"] == 0
+
+
+def test_pwf234_four_way_terminal_is_human_confirmed_terminal_model() -> None:
+    policy = human_symbol_port_policy(
+        "03db302eda788e4107a4dc2e882e6da52af3d56ea388d8a8f5789e6892a52211"
+    )
+
+    assert policy is not None
+    assert policy["mode"] == "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY"
+
+
+def test_component_port_uses_existing_mapping_for_cross_page_key() -> None:
+    proposal = {
+        "file_id": "F0007", "definition_name": "SYMB2_M_PWF236",
+        "ports": [{"port_id": "MP1", "local_position": [0.0, 0.0, 0.0]}],
+    }
+    instance = {
+        "symbol_instance_id": "SI-dk", "project_id": "P001", "sheet_id": "S0007", "file_id": "F0007",
+        "entity_handle": "EE97", "definition_name": "SYMB2_M_PWF236",
+        "definition_fingerprint": "e84d37eab1d5e64b04de0e6aae32137b3ae80676267d6e24e71266aa4b9e7ee9",
+        "transform_json": {"matrix44": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [95, 260, 0, 1]]},
+    }
+    texts = [
+        {"text_id": "TDK", "handle": "HTDK", "sheet_id": "S0007", "file_id": "F0007", "text": "1DK", "normalized_text": "1DK", "insert_x": 95, "insert_y": 270},
+        {"text_id": "T3", "handle": "HT3", "sheet_id": "S0007", "file_id": "F0007", "text": "3", "normalized_text": "3", "insert_x": 95, "insert_y": 260},
+    ]
+    pairs = [{"pair_id": "PC-DK3", "sheet_id": "S0007", "pair_kind": "component_mapping", "left_value": "1DK-3", "right_value": "ZD1"}]
+
+    candidates = build_instance_port_network_candidates([proposal], [instance], texts, [], [], component_pairs=pairs)
+
+    assert candidates[0]["component_port_identity"] == "1DK-3"
+    assert candidates[0]["component_mapping_external_endpoints"] == ["ZD1"]
+    assert candidates[0]["cross_page_match_eligible"] is True
+    assert candidates[0]["internal_connectivity_inferred"] is False
+
+
+def test_pwf237_multi_port_component_uses_external_port_policy() -> None:
+    policy = human_symbol_port_policy(
+        "835a7dcc7eae596a7b1a600a48f0e579bf800a22b1add1ffbcc44d2ddb95e054"
+    )
+
+    assert policy is not None
+    assert policy["mode"] == "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY"
+
+
+def test_pwf238_is_a_labelled_terminal() -> None:
+    policy = human_symbol_port_policy(
+        "cce15b281bc0c0ef0df95453bffcd991d28e73e7683a513b4c3e5f979c243438"
+    )
+
+    assert policy is not None
+    assert policy["mode"] == "LABELLED_TERMINAL_NO_INTERNAL_CONNECTIVITY"
