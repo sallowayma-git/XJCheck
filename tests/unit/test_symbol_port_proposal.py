@@ -816,6 +816,374 @@ def test_circle_contact_marker_offset_contact_stays_review() -> None:
     assert applied["suppressed_by_policy"] is False
 
 
+def _crossed_circle_marker_proposal(
+    *,
+    fingerprint: str,
+    rotation_deg: float = 0.0,
+    scale: float = 1.0,
+    offset_contact: bool = False,
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_CROSSED_CIRCLE_MARKER")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    radius = 3.75
+    contact_radius = 1.0
+    diagonal = radius / math.sqrt(2.0)
+    block.add_circle(transform((0.0, 0.0)), radius=radius * scale)
+    block.add_line(
+        transform((-diagonal, -diagonal)), transform((diagonal, diagonal))
+    )
+    block.add_line(
+        transform((-diagonal, diagonal)), transform((diagonal, -diagonal))
+    )
+    contact_centers = [
+        (-radius, 0.0),
+        (radius, radius * 0.25 if offset_contact else 0.0),
+    ]
+    for center_x, center_y in contact_centers:
+        block.add_lwpolyline(
+            [
+                (*transform((center_x - contact_radius, center_y)), 1.0),
+                (*transform((center_x + contact_radius, center_y)), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_CROSSED_CIRCLE_MARKER",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_crossed_circle_marker_exact_unseen_rotated_scaled_are_ignored() -> None:
+    variants = (
+        _crossed_circle_marker_proposal(
+            fingerprint="de637c582be8e821b1cead5224227ebf5bbfc30d10f68ca7a36f9d20a3295526"
+        ),
+        _crossed_circle_marker_proposal(fingerprint="unseen-crossed-circle-marker"),
+        _crossed_circle_marker_proposal(
+            fingerprint="unseen-rotated-scaled-crossed-circle-marker",
+            rotation_deg=37.0,
+            scale=1.8,
+        ),
+    )
+
+    for proposal in variants:
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert applied["family_id"] == "electrical.nonconnective_crossed_circle_marker_ignored.v1"
+        assert applied["matched_family_rule_id"] == "crossed-circle-opposed-contact-regions-v1"
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_crossed_circle_marker_offset_contact_stays_review() -> None:
+    applied = apply_human_symbol_policy_to_proposal_row(
+        _crossed_circle_marker_proposal(
+            fingerprint="unseen-offset-crossed-circle-marker",
+            rotation_deg=19.0,
+            scale=1.4,
+            offset_contact=True,
+        )
+    )
+
+    assert applied.get("matched_family_rule_id") != "crossed-circle-opposed-contact-regions-v1"
+    assert applied["suppressed_by_policy"] is False
+
+
+def test_crossed_circle_marker_emits_no_instance_network_candidates() -> None:
+    proposal = _crossed_circle_marker_proposal(
+        fingerprint="de637c582be8e821b1cead5224227ebf5bbfc30d10f68ca7a36f9d20a3295526"
+    )
+    instances = [
+        {
+            "symbol_instance_id": f"SI-pwf182-{handle}",
+            "project_id": "P001",
+            "sheet_id": "S0014",
+            "file_id": "F0014",
+            "entity_handle": handle,
+            "definition_name": "SYMB2_M_PWF182",
+            "definition_fingerprint": proposal["definition_fingerprint"],
+            "transform_json": {
+                "matrix44": [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 0, 1, 0],
+                    [82.4986, y, 0, 1],
+                ]
+            },
+        }
+        for handle, y in (("27718", 57.4945), ("27719", 47.4945))
+    ]
+
+    assert build_instance_port_network_candidates(
+        [proposal], instances, [], [], []
+    ) == []
+
+
+def _actuated_open_switch_proposal(
+    *,
+    fingerprint: str,
+    rotation_deg: float = 0.0,
+    scale: float = 1.0,
+    offset_blade: bool = False,
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_ACTUATED_OPEN_SWITCH")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    blade_end_y = -5.0 / 24.0 + (0.04 if offset_blade else 0.0)
+    segments = [
+        ((-0.5, 0.0), (-1.0 / 6.0, 0.0)),
+        ((0.5, 0.0), (1.0 / 6.0, 0.0)),
+        ((1.0 / 6.0, 0.0), (-4.0 / 15.0, blade_end_y)),
+        ((-1.0 / 8.0, 1.0 / 3.0), (0.0, 0.5)),
+        ((-1.0 / 8.0, 1.0 / 3.0), (0.0, 0.5)),
+        ((0.0, 1.0 / 3.0), (-1.0 / 8.0, 1.0 / 3.0)),
+        ((0.0, 0.5), (0.0, -0.0801)),
+    ]
+    for start, end in segments:
+        block.add_line(transform(start), transform(end))
+    for center_x in (-0.5, 0.5):
+        radius = 2.0 / 45.0
+        block.add_lwpolyline(
+            [
+                (*transform((center_x - radius, 0.0)), 1.0),
+                (*transform((center_x + radius, 0.0)), 1.0),
+            ],
+            format="xyb",
+            close=True,
+        )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_ACTUATED_OPEN_SWITCH",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_actuated_open_switch_exact_unseen_rotated_scaled_are_ignored() -> None:
+    variants = (
+        _actuated_open_switch_proposal(
+            fingerprint="994da514414fa6239674d36dfc616a87430a5dafbab56f009f77b04469580830"
+        ),
+        _actuated_open_switch_proposal(fingerprint="unseen-actuated-open-switch"),
+        _actuated_open_switch_proposal(
+            fingerprint="unseen-rotated-scaled-actuated-open-switch",
+            rotation_deg=37.0,
+            scale=1.8,
+        ),
+    )
+
+    for proposal in variants:
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert (
+            applied["family_id"]
+            == "electrical.nonconnective_actuated_open_switch_ignored.v1"
+        )
+        assert (
+            applied["matched_family_rule_id"]
+            == "two-contact-actuated-open-switch-v1"
+        )
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_actuated_open_switch_offset_blade_stays_review() -> None:
+    applied = apply_human_symbol_policy_to_proposal_row(
+        _actuated_open_switch_proposal(
+            fingerprint="unseen-offset-actuated-open-switch",
+            rotation_deg=19.0,
+            scale=1.4,
+            offset_blade=True,
+        )
+    )
+
+    assert applied.get("matched_family_rule_id") != "two-contact-actuated-open-switch-v1"
+    assert applied["suppressed_by_policy"] is False
+
+
+def test_actuated_open_switch_emits_no_instance_network_candidates() -> None:
+    proposal = _actuated_open_switch_proposal(
+        fingerprint="994da514414fa6239674d36dfc616a87430a5dafbab56f009f77b04469580830"
+    )
+    instances = [
+        {
+            "symbol_instance_id": f"SI-pwf192-{handle}",
+            "project_id": "P001",
+            "sheet_id": "S0016",
+            "file_id": "F0016",
+            "entity_handle": handle,
+            "definition_name": "SYMB2_M_PWF192",
+            "definition_fingerprint": proposal["definition_fingerprint"],
+            "transform_json": {
+                "matrix44": [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 0, 1, 0],
+                    [x, y, 0, 1],
+                ]
+            },
+        }
+        for handle, x, y in (
+            ("202A3", 109.9964, 232.5055),
+            ("202D4", 274.9950, 232.5055),
+            ("20325", 109.9964, 222.5055),
+            ("20356", 274.9950, 222.5055),
+        )
+    ]
+
+    assert build_instance_port_network_candidates(
+        [proposal], instances, [], [], []
+    ) == []
+
+
+def _wide_contact_cap_marker_proposal(
+    *,
+    fingerprint: str,
+    rotation_deg: float = 0.0,
+    scale: float = 1.0,
+    offset_wide_vertex: bool = False,
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_WIDE_CONTACT_CAP_MARKER")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x, y = point[0] * scale, point[1] * scale
+        return (x * cosine - y * sine, x * sine + y * cosine)
+
+    wide_vertex_y = 0.05 if offset_wide_vertex else 0.0
+    visible = block.add_lwpolyline(
+        [
+            (*transform((0.0, 0.0)), 0.0, 0.0, 0.0),
+            (*transform((-6.5, 0.0)), scale, scale, 0.0),
+            (*transform((-2.5, wide_vertex_y)), scale, scale, 0.0),
+        ],
+        format="xyseb",
+    )
+    visible.dxf.invisible = 0
+    contact = block.add_lwpolyline(
+        [
+            (*transform((-0.5, 0.0)), 1.0),
+            (*transform((0.5, 0.0)), 1.0),
+        ],
+        format="xyb",
+        close=True,
+    )
+    contact.dxf.invisible = 1
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_WIDE_CONTACT_CAP_MARKER",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_wide_contact_cap_marker_exact_unseen_rotated_scaled_are_ignored() -> None:
+    variants = (
+        _wide_contact_cap_marker_proposal(
+            fingerprint="25548c2e6081ebe78ea8777dd91b07d6d3f4114392d2c3dcebf79cb16b454f53"
+        ),
+        _wide_contact_cap_marker_proposal(
+            fingerprint="unseen-wide-contact-cap-marker"
+        ),
+        _wide_contact_cap_marker_proposal(
+            fingerprint="unseen-rotated-scaled-wide-contact-cap-marker",
+            rotation_deg=37.0,
+            scale=1.8,
+        ),
+    )
+
+    for proposal in variants:
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert (
+            applied["family_id"]
+            == "electrical.nonconnective_wide_contact_cap_marker_ignored.v1"
+        )
+        assert (
+            applied["matched_family_rule_id"]
+            == "straight-wide-two-contact-cap-marker-v1"
+        )
+        assert applied["classifier_status"] in {"HUMAN_CONFIRMED_MEMBER", "MATCHED"}
+        assert applied["behavior_mode"] == "IGNORE"
+        assert applied["ports"] == []
+        assert applied["allow_port_emission"] is False
+        assert applied["allow_external_attachment"] is False
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_wide_contact_cap_marker_offset_vertex_stays_review() -> None:
+    applied = apply_human_symbol_policy_to_proposal_row(
+        _wide_contact_cap_marker_proposal(
+            fingerprint="unseen-offset-wide-contact-cap-marker",
+            rotation_deg=19.0,
+            scale=1.4,
+            offset_wide_vertex=True,
+        )
+    )
+
+    assert (
+        applied.get("matched_family_rule_id")
+        != "straight-wide-two-contact-cap-marker-v1"
+    )
+    assert applied["suppressed_by_policy"] is False
+
+
+def test_wide_contact_cap_marker_emits_no_instance_network_candidates() -> None:
+    proposal = _wide_contact_cap_marker_proposal(
+        fingerprint="25548c2e6081ebe78ea8777dd91b07d6d3f4114392d2c3dcebf79cb16b454f53"
+    )
+    instances = [
+        {
+            "symbol_instance_id": f"SI-pwf10-{handle}",
+            "project_id": "P001",
+            "sheet_id": "S0014",
+            "file_id": "F0014",
+            "entity_handle": handle,
+            "definition_name": "SYMB2_S_PWF10",
+            "definition_fingerprint": proposal["definition_fingerprint"],
+            "transform_json": {
+                "matrix44": [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 0, 1, 0],
+                    [355.9986, y, 0, 1],
+                ]
+            },
+        }
+        for handle, y in (("275F5", 192.4945), ("275F7", 182.4945))
+    ]
+
+    assert build_instance_port_network_candidates(
+        [proposal], instances, [], [], []
+    ) == []
+
+
 def _crossed_two_contact_switch_proposal(
     *, rotation_deg: float, scale: float, fingerprint: str, offset_diagonal: bool = False
 ) -> dict:
@@ -3831,6 +4199,67 @@ def _three_contact_socket_block(*, detach_contact: bool = False):
     return block
 
 
+def _rounded_panel_three_contact_socket_block(
+    *, rotation_deg: float = 0.0, scale: float = 1.0
+):
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_ROUNDED_PANEL_SOCKET")
+    angle = math.radians(rotation_deg)
+
+    def point(x: float, y: float) -> tuple[float, float]:
+        return (
+            scale * (x * math.cos(angle) - y * math.sin(angle)),
+            scale * (x * math.sin(angle) + y * math.cos(angle)),
+        )
+
+    outline = [
+        (10.0, -25.5, 0.0),
+        (10.0, -2.0, 0.414213562373095),
+        (8.0, 0.0, 0.0),
+        (-8.0, 0.0, 0.414213562373095),
+        (-10.0, -2.0, 0.0),
+        (-10.0, -25.5, 0.414213562373095),
+        (-8.0, -27.5, 0.0),
+        (8.0, -27.5, 0.414213562373095),
+    ]
+    block.add_lwpolyline(
+        [(*point(x, y), bulge) for x, y, bulge in outline],
+        format="xyb",
+        close=True,
+    )
+    pin_circles = {
+        "E": (0.0, -3.3),
+        "N": (-5.0, -23.3),
+        "L": (5.0, -23.3),
+    }
+    for pin, center in pin_circles.items():
+        block.add_circle(point(*center), radius=2.7 * scale)
+        block.add_text(pin, dxfattribs={"height": 3.0 * scale}).set_placement(
+            point(center[0] - 0.75, center[1] - 1.5)
+        )
+    block.add_text("J1", dxfattribs={"height": 3.0 * scale}).set_placement(
+        point(-1.3, -16.5)
+    )
+    for center in ((-10.0, -2.5), (-10.0, -15.0), (-10.0, -25.0), (10.0, -25.0)):
+        left = point(center[0] - 0.5, center[1])
+        right = point(center[0] + 0.5, center[1])
+        block.add_lwpolyline(
+            [(*left, 1.0), (*right, 1.0)], format="xyb", close=True
+        )
+    for start, end in (
+        ((-0.5, -8.3), (0.5, -8.3)),
+        ((0.5, -8.3), (0.5, -12.5)),
+        ((0.5, -12.5), (-0.5, -12.5)),
+        ((-0.5, -12.5), (-0.5, -8.3)),
+        ((-4.5, -15.4), (-2.4, -19.0)),
+        ((-3.6, -14.9), (-1.5, -18.5)),
+        ((4.5, -15.4), (2.4, -19.0)),
+        ((3.6, -14.9), (1.5, -18.5)),
+    ):
+        block.add_line(point(*start), point(*end))
+    return block
+
+
 def test_three_contact_socket_exact_and_unseen_emit_three_independent_ports() -> None:
     for fingerprint in (
         "9816226eb2abd1a692ea1af2ef528f5543dbfc10c8ca7d893de0692739019c6b",
@@ -3849,6 +4278,90 @@ def test_three_contact_socket_exact_and_unseen_emit_three_independent_ports() ->
         assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
         assert applied["allow_internal_connectivity"] is False
         assert applied["allow_electrical_union"] is False
+
+
+def test_rounded_panel_socket_uses_only_enl_boundary_contacts() -> None:
+    for rotation_deg, scale in ((0.0, 1.0), (27.0, 1.6)):
+        proposal = propose_ports_from_block(
+            _rounded_panel_three_contact_socket_block(
+                rotation_deg=rotation_deg, scale=scale
+            ),
+            definition_name="RENAMED_ROUNDED_PANEL_SOCKET",
+            definition_fingerprint=f"unseen-rounded-socket-{rotation_deg}-{scale}",
+            max_ports=4,
+        ).to_dict()
+        applied = apply_human_symbol_policy_to_proposal_row(proposal)
+        assert proposal["method"] == "three_contact_socket_ports_v1"
+        assert {port["port_id"] for port in proposal["ports"]} == {
+            "SOCKET:E",
+            "SOCKET:L",
+            "SOCKET:N",
+        }
+        assert applied["family_id"] == "component.external_multi_port.v1"
+        assert applied["classifier_status"] == "MATCHED"
+        assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+
+
+def test_rounded_panel_socket_binds_external_name_and_prefers_local_stub_labels() -> None:
+    proposal = propose_ports_from_block(
+        _rounded_panel_three_contact_socket_block(),
+        definition_name="RENAMED_ROUNDED_PANEL_SOCKET",
+        definition_fingerprint="unseen-rounded-panel-binding",
+        max_ports=4,
+    ).to_dict()
+    proposal.update(file_id="F", sheet_id="S")
+    instance = {
+        "symbol_instance_id": "SI-CZ-PANEL",
+        "project_id": "P",
+        "sheet_id": "S",
+        "file_id": "F",
+        "entity_handle": "H-CZ-PANEL",
+        "definition_name": "RENAMED_ROUNDED_PANEL_SOCKET",
+        "definition_fingerprint": "unseen-rounded-panel-binding",
+        "transform_json": {
+            "matrix44": [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [277.5, 57.5, 0, 1],
+            ]
+        },
+    }
+    texts = [
+        {"text_id": "TCZ", "handle": "HCZ", "sheet_id": "S", "file_id": "F", "normalized_text": "CZ", "insert_x": 276.0, "insert_y": 69.0},
+        {"text_id": "TE", "handle": "HE", "sheet_id": "S", "file_id": "F", "normalized_text": "E", "insert_x": 276.75, "insert_y": 52.7},
+        {"text_id": "TL", "handle": "HL", "sheet_id": "S", "file_id": "F", "normalized_text": "L", "insert_x": 281.75, "insert_y": 32.66},
+        {"text_id": "TN", "handle": "HN", "sheet_id": "S", "file_id": "F", "normalized_text": "N", "insert_x": 271.75, "insert_y": 32.66},
+        {"text_id": "TJD11", "handle": "HJD11", "sheet_id": "S", "file_id": "F", "normalized_text": "JD11", "insert_x": 260.5, "insert_y": 53.5},
+        {"text_id": "TJD2", "handle": "HJD2", "sheet_id": "S", "file_id": "F", "normalized_text": "JD2", "insert_x": 288.5, "insert_y": 31.0},
+        {"text_id": "TJD7", "handle": "HJD7", "sheet_id": "S", "file_id": "F", "normalized_text": "JD7", "insert_x": 262.0, "insert_y": 31.0},
+    ]
+    lines = [
+        {"line_id": "LE", "handle": "HEXT-E", "sheet_id": "S", "file_id": "F", "start_x": 267.5, "start_y": 55.0, "end_x": 266.5, "end_y": 55.0},
+        {"line_id": "LL", "handle": "HEXT-L", "sheet_id": "S", "file_id": "F", "start_x": 287.5, "start_y": 32.5, "end_x": 288.5, "end_y": 32.5},
+        {"line_id": "LN", "handle": "HEXT-N", "sheet_id": "S", "file_id": "F", "start_x": 267.5, "start_y": 32.5, "end_x": 266.5, "end_y": 32.5},
+    ]
+    members = [
+        {"member_type": "SOURCE_LINE", "source_handle": handle, "electrical_network_id": "EN-STALE", "sheet_id": "S"}
+        for handle in ("HEXT-E", "HEXT-L")
+    ]
+    rows = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, members
+    )
+    mappings = {
+        row["component_port_identity"]: row["component_mapping_external_endpoints"]
+        for row in rows
+    }
+    assert mappings == {
+        "CZ-E": ["JD11"],
+        "CZ-L": ["JD2"],
+        "CZ-N": ["JD7"],
+    }
+    assert all(row["status"] == "MEASURED_COMPONENT_PORT_MAPPING" for row in rows)
+    assert all(row["internal_connectivity_inferred"] is False for row in rows)
+    assert all(row["electrical_union_eligible"] is False for row in rows)
 
 
 def test_three_contact_socket_same_counts_with_detached_contact_does_not_generalize() -> None:

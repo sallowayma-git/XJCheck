@@ -2216,8 +2216,46 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 - [x] Implement strict closed-capsule geometry IGNORE with rotated/scaled positive and close-shape negative coverage
 - [x] Replay all four real instances and prove the underlying B+/B- networks remain independent and uninterrupted
 - [x] Run scoped/full gates and update canonical docs
-- [ ] Remove the resolved row/crop and present the next item
-- **Status:** in_progress
+- [x] Remove the resolved row/crop and present the next item
+- **Status:** complete
+
+### Phase 149: Main SYMB2_M_PWF182 Adjudication
+- [x] Revalidate and remove the stale `KK1P` queue head after P001/P003 replay proves eight measured ports and no union
+- [x] Replay P001 `14 高操作回路图.dwg` and inspect `SYMB2_M_PWF182` behavior in source context
+- [x] Render handle `27718` in source context
+- [x] Obtain human semantics: whole-symbol IGNORE; left/right are internally disconnected and form no mapping
+- [x] Implement a strict geometry-generalized rule with rotated/scaled positives and close negatives
+- [x] Replay all real instances, run regression gates, update canonical docs, clean artifacts, and advance
+- **Status:** complete
+
+### Phase 150: Main SYMB2_M_PWF192 Adjudication
+- [x] Select the next unresolved item without waiting for the delegated PWF182 implementation
+- [x] Fresh-replay P001 `16 高低压侧操作箱信号回路.dwg` and confirm four real instances remain unknown
+- [x] Verify each instance has two measured external line contacts but no accepted internal semantics
+- [x] Render handle `202A3` in the `Prot. trip` source context
+- [x] Obtain human semantics: whole-switch IGNORE; left/right are internally disconnected and form no mapping
+- [x] Implement, verify, document, clean artifacts, and advance
+- **Status:** complete
+
+### Phase 151: Main SYMB2_S_PWF10 Adjudication
+- [x] Select the next unresolved item from the existing fresh P001 page replay
+- [x] Confirm both real instances remain `UNKNOWN / REVIEW_ONLY`
+- [x] Inspect the complete two-polyline definition and its one measured/one unresolved draft endpoint behavior
+- [x] Render handle `275F5` in the QF/KO source context
+- [x] Obtain human semantics: whole-symbol IGNORE with no port or connectivity meaning
+- [x] Implement a complete-geometry generalized matcher; fingerprint remains provenance only
+- [x] Add rotated/scaled unseen positives and close-shape negatives
+- [x] Run a dedicated original-page replay and prove both instances are zero-port/no-mapping/no-union
+- [x] Remove only the resolved live row and clean the PWF10 crop/input/replay before advancing
+- **Status:** complete
+
+### Phase 152: FEIDIAO Stale-Queue Auto-resolution
+- [x] Fresh-replay P001 `21 元件接线图1.dwg` under current code
+- [x] Confirm geometry rule `three-contact-labelled-socket-v1` emits independent E/L/N ports with no union
+- [x] Reconfirm existing unseen/rotated socket coverage and measured CZ bindings
+- [x] Remove the stale FEIDIAO row and clean its dedicated replay/input
+- [x] Refresh the compact queue to `0/0` before rebuilding the next review round
+- **Status:** complete
 
 ### Phase 139: Midpoint SYMB2_M_PWF270 Adjudication
 - [x] Select the current live midpoint without taking the main queue head
@@ -2350,3 +2388,21 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 - [ ] Add rotated/scaled unseen positive and missing-label/displaced-circle negatives
 - [ ] Replay both source instances, prove zero ports/candidates, clean artifacts, and present the next item
 - **Status:** in_progress
+
+### Phase 149S: Side Midpoint CD-WSK Eight-Port Adjudication
+- [x] Select the strict midpoint while the main thread owns the queue head
+- [x] Obtain human semantics: eight outward-only ports, no internal connectivity
+- [x] Add exact provenance and a rotation/scale-invariant 2x4 side-contact geometry family
+- [x] Bind the upper circular-tag instance name to native pins 1..8
+- [x] Replay handle `2739F` and verify four measured mappings plus four unwired identities
+- [x] Run expanded gates, remove only the resolved queue row, and present the next midpoint item
+- **Status:** complete
+
+### Phase 151S: Side Midpoint JR-01 Two-Port Adjudication
+- [x] Skip FEIDIAO/PWF192/PWF10 because other execution lanes own them
+- [x] Obtain human semantics: `JR-1→K-3`, `JR-2→K-4`, no internal connectivity
+- [x] Replace four false box-corner drafts with two circle-bound contact ports
+- [x] Add exact provenance plus rotation/scale-invariant geometry matching and close negative coverage
+- [x] Replay original handle `273A5` and verify exactly two measured no-union mappings
+- [x] Run expanded gates, remove only JR-01 from the live queue, clean side artifacts, and advance
+- **Status:** complete

@@ -33,6 +33,9 @@
 | `Ld_DzbJD_Right` | P001 `27 右侧端子图2.dwg`, `2AF3`, `(115.0000017,157.5)`；P003 同定义 `3CD15`, `(92.5,160.0)` | `08a272799dbac4bf36f36ebcc1091f94b2273cf27fce8741a3cf31b150d5d123` | 右侧 DZB 辅助标记；无联通属性、无任何外部映射，整体忽略 | `electrical.nonconnective_dzb_right_marker_ignored.v1` |
 | `A$C26C55624` | P001 `14 高操作回路图.dwg`, `276B6`, `(249.9986338,134.9945)` | `4f4abeddea8e309da9df83614ee3def2228b9e72a1f9a6e788b270ab13ec8fa1` | 三引线矩形器件图形；内部不连通、无任何映射意义，整体忽略 | `electrical.nonconnective_three_lead_box_ignored.v1` |
 | `A$C08415381` | P001 `05 交流回路图2.dwg`, `216BC`, `(37.5,149.9999997)` | `59cf96d51fc55afa4f77a383e0ecf990270dbafbbcd454943b3473039f1a9e5b` | `HVS CB` 重复线圈/面板图形；整个组件无映射意义，整体忽略 | `electrical.nonconnective_repeated_coil_panel_ignored.v1` |
+| `SYMB2_M_PWF182` | P001 `14 高操作回路图.dwg`, `27718`, `(82.4986,57.4945)`；同定义另有 `27719` | `de637c582be8e821b1cead5224227ebf5bbfc30d10f68ca7a36f9d20a3295526` | 圆内 X 与左右闭合接触区整体忽略；左右内部不连通、零端口、零映射、禁止 union | `electrical.nonconnective_crossed_circle_marker_ignored.v1` |
+| `SYMB2_M_PWF192` | P001 `16 高低压侧操作箱信号回路.dwg`, `202A3`, `(109.9964,232.5055)`；同定义另有 `202D4/20325/20356` | `994da514414fa6239674d36dfc616a87430a5dafbab56f009f77b04469580830` | 带上方执行机构的开路开关图形整体忽略；两侧内部不连通、零端口、零映射、禁止 union | `electrical.nonconnective_actuated_open_switch_ignored.v1` |
+| `SYMB2_S_PWF10` | P001 `14 高操作回路图.dwg`, `275F5`, `(355.9986,192.4945)`；同定义另有 `275F7` | `25548c2e6081ebe78ea8777dd91b07d6d3f4114392d2c3dcebf79cb16b454f53` | 直线/宽线接点/圆帽与不可见接触区构成的完整图形整体忽略；零端口、零映射、无联通意义 | `electrical.nonconnective_wide_contact_cap_marker_ignored.v1` |
 
 补充确认：PWF165 附近的波浪/省略符号不能连接两侧数字，不得生成 `707→708`、`709→710`、`711→712` 等跨标记关系。
 
@@ -52,6 +55,9 @@
 - `Ld_DzbJD_Right`：三个逐级缩短、中心共线的平行条分别由 LINE 与开放双点 LWPOLYLINE 重合绘制；最长条中心连接一对重合正交杆及半长侧引线。按相对方向、长度比例、重合和端点绑定泛化，任一重绘条偏移或杆件拓扑不完整时保持 review。
 - `A$C26C55624`：大矩形底部嵌套一个同宽小矩形，小矩形含对角线；三条等长平行引线以“两侧二对一”方式绑定大矩形边。按矩形边长比例、中心关系、对角角点和引线端点拓扑泛化，任一引线脱离或内部结构不完整时保持 review。
 - `A$C08415381`：12 个等半径半圆构成 2×6 阵列，26 条线形成 25 条平行支线与一条正交 spine，四个圆接点重合为 spine 上两个接点位置；按阵列间距、半圆 sweep、骨架方向及接点绑定泛化，任一半圆或 spine/contact 拓扑偏移时保持 review。
+- `SYMB2_M_PWF182`：完整定义为 `2 LINE + 1 CIRCLE + 2` 个闭合 bulged `LWPOLYLINE` 接触区。两 LINE 是共享圆心、端点落在圆周且彼此正交的完整直径；两个等半径接触区中心位于大圆相对两端，半径约 `0.267R`、中心距约 `2R`，接触区轴以约 `45°` 平分两条 X 直径。规则 `crossed-circle-opposed-contact-regions-v1` 仅使用相对几何，支持旋转/统一缩放；偏移任一接触区的同数量近似图形保持 review。精确成员、未见 fingerprint 和旋转缩放正例均为零端口 IGNORE；fresh replay 中 `27718/27719` 均零 network candidate、无 connectivity/union 产物。
+- `SYMB2_M_PWF192`：完整定义为 `7 LINE + 2` 个闭合 bulged `LWPOLYLINE` 接触区。两个等半径接触区建立局部坐标轴和统一尺度；完整七线段无序模板同时验证两侧向内引线、斜置开路刀片，以及由一对重合斜杆、横杆、竖杆组成的上方执行机构。规则 `two-contact-actuated-open-switch-v1` 只使用相对坐标和拓扑，支持旋转、反射和统一缩放；偏移刀片或任一机构杆件的同数量近似图形保持 review。精确成员、未见 fingerprint 和旋转缩放正例均为零端口 IGNORE；独立 fresh replay `.tmp/phase151_pwf192_replay/phase151_pwf192_input` 中 `202A3/202D4/20325/20356` 均 `ports=[]`、零 network candidate，且无关联 topology application、semantic relation 或 network member。
+- `SYMB2_S_PWF10`：完整定义恰为 `2 LWPOLYLINE`。可见开放 polyline 有三个共线顶点，第一顶点与不可见闭合圆形接触区同心，后两个顶点的起止宽度均为接触区直径；以接触半径 `R` 归一化后，三个顶点轴向位置固定为 `0/-13R/-5R`，两段长度为 `13R/8R`，全部 bulge 为 0。规则 `straight-wide-two-contact-cap-marker-v1` 同时检查完整顶点、宽度、可见性和接触区相对几何，支持旋转/统一缩放；偏移宽线顶点的近似图形保持 review。独立 fresh replay `.tmp/phase152_pwf10_replay/phase152_pwf10_input` 中 `275F5/275F7` 均 `ports=[]`、零 network candidate，且无关联 connectivity/union 产物。
 - 新 fingerprint 完整命中上述模型时可自动输出 `GEOMETRY_FAMILY_NON_CONNECTIVE`；特征缺失或仅近似时保持 review，不得自动忽略。
 
 ## 3. 已确认基础端子族
@@ -229,6 +235,24 @@
 - 跳弧所属导线两端属于同一路径；被跨越导线保持自身连续，但两条路径在几何交点不连接，不得生成交叉点 union。
 - 泛化模型必须使用“半圆 ARC 端点分别绑定两段共线外向 LINE、弦线与引线共线”的旋转/缩放不变拓扑；定义名、坐标和 fingerprint 仅作 provenance，不是正常识别条件。
 - 该族不得走 IGNORE：应从符号复核中移除并转成 wire primitive，同时保留跳弧路径的左右连通。
+
+### `CD-WSK-H-J-G` — 上方圆圈命名的八独立端口组件
+
+- 来源：P001 `21 元件接线图1.dwg`，handle `2739F`，坐标 `(133.75,52.5)`，fingerprint `d1202915a0dee8f65d4024cd3a144cf7de7147bacc5916dc7cd4b0ebad124bda`；当前队列观测 1 个实例。
+- 人工裁决：左右共 8 个端口只分别向外连接，内部全部不连通。上方圆形标签内部文字是本实例名，完整端口身份必须组合为“实例名-端口号”；不得把定义名 `CD-WSK-H-J-G` 固化为实例名，也不得通过设备内部功能图形建立任何端口间 connectivity 或 electrical union。
+- 泛化族为 `component.external_multi_port.v1`，严格子规则 `eight-numbered-side-contact-panel-v1`。完整定义要求 `13 LINE + 17 LWPOLYLINE + 31 TEXT + 1 INSERT`：八个等半径闭合 bulged 接点形成旋转不变的 2×4 阵列，八个等尺寸方形端口格形成对应 2×4 阵列，数字 `1..8` 分别绑定唯一接点；另有完整外框和直接子图元 census `12 LINE + 1 LWPOLYLINE` 的内部功能插入件。
+- 端口提议直接取八个圆接点中心，并沿两列阵列的外法向确定左右 outward direction。实例名只允许从端口阵列上方、中心轴附近的圆形标签位置读取；设备内部 `L/N` 等单字母功能文字不能抢占实例名。每个端口只接受本侧精确外延线路及其网络附近的结构化端点文字。
+- 真实 replay 中圆形标签实例名为 `K`，输出 `K-1..K-8`。实际有外延证据的映射为 `K-3→JR-1`、`K-4→JR-2`、`K-5→KZKK-2`、`K-6→KZKK-4`；`K-1/K-2/K-7/K-8` 在该实例无外线，保持 label-only，不虚构映射。全部八行 `internal_connectivity_inferred=false`、`electrical_union_eligible=false`。
+- 精确成员与旋转 `37°`、缩放 `1.8×` 的未见 fingerprint 均命中；保持全部实体数量但偏移任一外侧接点的近似负例不得进入该族。
+
+### `JR-01` — 上方圆圈命名的双圆双独立端口组件
+
+- 来源：P001 `21 元件接线图1.dwg`，handle `273A5`，坐标 `(207.5,39.5)`，fingerprint `4045826f53f309b218e477ae0163c871aa498b1e0f5c11bf377ee81d26820279`；当前队列观测 1 个实例。
+- 人工裁决：上方圆形标签内 `JR` 是实例名。端口 `1/2` 内部互不连通，只分别向外形成 `JR-1→K-3`、`JR-2→K-4`；不得由外框、两个大圆或编号邻接推断内部 conductivity 或 electrical union。
+- 泛化族为 `component.external_strip_two_port.v1`，严格子规则 `horizontal-numbered-two-circle-box-v1`。完整定义要求 `2 CIRCLE + 3 LWPOLYLINE + 2 TEXT`：两个等半径大圆横向成对，两个等半径闭合 bulged 小接点分别位于对应大圆的同一外法向，数字 `1/2` 唯一绑定各自大圆/接点，另有长短边比约 `2.5:1` 的完整外框。
+- 专用提议器只取两个小接点中心，outward direction 从对应大圆圆心指向小接点；旧 free-end 算法产生的四个外框角端口必须被完全替换。实例级读取端口阵列上方最近的短字母圆圈名，组合 `JR-1/JR-2`，再使用已有 component mapping 证据绑定 `K-3/K-4`。
+- 真实单页 replay 输出 `HUMAN_CONFIRMED_MEMBER / horizontal_numbered_two_circle_box_ports_v1 / EXTERNAL_PORTS_ONLY`，并持久化 `JR-1→K-3 / PCS0001`、`JR-2→K-4 / PCS0002`；两行 `internal_connectivity_inferred=false`、`electrical_union_eligible=false`。
+- 精确成员与旋转 `37°`、缩放 `1.8×` 的未见 fingerprint 均命中；保持实体数量但横移任一小接点的负例不得进入该族。
 
 ## 7. 待人工裁决区
 
