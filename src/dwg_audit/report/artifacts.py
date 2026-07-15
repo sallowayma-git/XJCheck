@@ -8,6 +8,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
+import ezdxf
 import pandas as pd
 
 from dwg_audit.domain.models import BlockRecord
@@ -47,6 +48,7 @@ from dwg_audit.audit.symbol_port_shadow import summarize_symbol_port_shadow
 from dwg_audit.audit.symbol_port_proposal import build_instance_port_network_candidates
 from dwg_audit.audit.symbol_port_proposal import apply_human_symbol_policy_to_proposal_row
 from dwg_audit.audit.symbol_port_proposal import summarize_instance_port_network_candidates
+from dwg_audit.audit.symbol_port_proposal import propose_ports_from_block
 from dwg_audit.audit.project_profile import build_project_profile
 
 from dwg_audit.audit.token_parser import parse_text_tokens
@@ -69,6 +71,7 @@ from dwg_audit.report.symbol_review_artifacts import write_symbol_review_artifac
 
 from dwg_audit.audit.table_structure import build_table_structure_profiles
 from dwg_audit.audit.wire_topology import build_wire_topology_frames
+from dwg_audit.audit.crossover_jump import recognize_crossover_jumps
 
 try:
     from dwg_audit.audit.scope_resolver import resolve_attachment_scopes
@@ -573,6 +576,21 @@ def write_project_artifacts(
     (findings_dir / "primitive_segments_summary.json").write_text(
         json.dumps(primitive_summary, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    crossover_jump_rows = [
+        jump.to_dict() for jump in recognize_crossover_jumps(artifacts.primitive_segments)
+    ]
+    (findings_dir / "wire_crossover_jumps.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "wire-crossover-jumps-v1",
+                "count": len(crossover_jump_rows),
+                "items": crossover_jump_rows,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     (
         symbol_definitions_v1,
         symbol_instances_v1,
@@ -603,7 +621,77 @@ def write_project_artifacts(
             if name and fingerprint:
                 definition_fingerprints[name.casefold()].add(fingerprint)
     symbol_port_definition_proposals = []
+    existing_proposal_keys: set[tuple[str, str]] = set()
     for source_row in artifacts.symbol_port_definition_proposals:
+        row = dict(source_row)
+        existing_proposal_keys.add(
+            (str(row.get("file_id") or "").strip(), str(row.get("definition_name") or "").strip().casefold())
+        )
+        symbol_port_definition_proposals.append(row)
+
+    # Extraction intentionally proposes only definitions which have direct
+    # INSERTs.  The inventory also contains nested definitions; recover those
+    # here from the owning source DXF, while keeping this stage fail-closed.
+    source_by_file_id = {
+        str(source.file_id): source for source in artifacts.scan.manifest.source_files
+    }
+    source_documents: dict[str, Any | None] = {}
+    if not symbol_definitions_v1.empty and not symbol_instances_v1.empty:
+        for _, definition in symbol_definitions_v1.iterrows():
+            name = str(definition.get("definition_name") or "").strip()
+            if not name:
+                continue
+            instances = symbol_instances_v1[
+                symbol_instances_v1["definition_name"].astype(str).str.casefold() == name.casefold()
+            ]
+            for file_id in sorted({str(value).strip() for value in instances["file_id"] if str(value).strip()}):
+                key = (file_id, name.casefold())
+                if key in existing_proposal_keys:
+                    continue
+                source = source_by_file_id.get(file_id)
+                source_dxf = getattr(source, "dxf_path", None) if source else None
+                if not source_dxf or not Path(source_dxf).is_file():
+                    continue
+                try:
+                    if source_dxf not in source_documents:
+                        source_documents[source_dxf] = ezdxf.readfile(source_dxf)
+                    doc = source_documents[source_dxf]
+                    if doc is None:
+                        continue
+                    block = doc.blocks.get(name)
+                    proposal = propose_ports_from_block(
+                        block,
+                        definition_name=name,
+                        definition_fingerprint=str(definition.get("definition_fingerprint") or "") or None,
+                        source_dxf=source_dxf,
+                        max_ports=6,
+                    )
+                    file_instances = instances[
+                        instances["file_id"].astype(str) == file_id
+                    ]
+                    row = {
+                        "file_id": file_id,
+                        "sheet_id": str(file_instances.iloc[0].get("sheet_id") or ""),
+                        "filename": getattr(source, "filename", ""),
+                        "definition_name": name,
+                        "instance_handles": sorted(
+                            str(value)
+                            for value in file_instances["entity_handle"]
+                            if str(value)
+                        ),
+                        **proposal.to_dict(),
+                        "ports": [port.to_review_port() for port in proposal.ports],
+                    }
+                    symbol_port_definition_proposals.append(row)
+                    existing_proposal_keys.add(key)
+                except Exception:
+                    # A missing/unreadable source must not affect the main report.
+                    if source_dxf not in source_documents:
+                        source_documents[source_dxf] = None
+                    continue
+
+    finalized_proposals = []
+    for source_row in symbol_port_definition_proposals:
         row = dict(source_row)
         name = str(row.get("definition_name") or "").strip()
         matches = sorted(definition_fingerprints.get(name.casefold(), set()))
@@ -616,7 +704,8 @@ def write_project_artifacts(
         row["shadow_only"] = True
         row["electrical_union_eligible"] = False
         row["critical_issue_eligible"] = False
-        symbol_port_definition_proposals.append(row)
+        finalized_proposals.append(row)
+    symbol_port_definition_proposals = finalized_proposals
     definition_family_counts = Counter(
         str(row.get("family_id") or "UNKNOWN")
         for row in symbol_port_definition_proposals
@@ -2690,6 +2779,7 @@ def _build_findings_payload(
         "canonical_scene_summary.json",
         "primitive_segments.parquet",
         "primitive_segments_summary.json",
+        "wire_crossover_jumps.json",
         "symbol_definitions_v1.parquet",
         "symbol_instances_v1.parquet",
         "symbol_port_definition_proposals.json",

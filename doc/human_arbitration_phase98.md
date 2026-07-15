@@ -1,790 +1,140 @@
-# Phase 98 人工裁决清单
+# 人工电气符号裁决主记录
 
-生成时间：2026-07-08
+> 状态：当前唯一人工裁决历史文档（2026-07-15 整理）
+> 活动实现要求仍以 `doc/任务书.md` 为准。本文件只记录用户已经明确确认的业务语义、原图证据及可泛化族规则。
 
-数据来源：
+## 1. 裁决原则
 
-- first findings：`.tmp/phase97_coverage_first_v2/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA/findings`
-- first audit：`.tmp/phase97_coverage_first_v2_audit`
-- second findings：`.tmp/phase97_coverage_second_v2/2_2/findings`
-- second audit：`.tmp/phase97_coverage_second_v2_audit`
+- 原始 DWG、INSERT handle、坐标和当时观测 fingerprint 用于 provenance，不作为族模型的唯一身份。
+- fingerprint 发生漂移、重绘或实体表达变化时，应优先用已经确认的几何族及实例证据重新判定。
+- “忽略”仅抑制电气语义：保留 CAD 对象和来源，不生成端口、桥接、Pair、Network、union 或独立 Issue。
+- `+` 表示组件端与外部端子的映射关系，不表示组件内部短接。
+- 未明确确认内部导通的器件一律 `internal_connectivity_inferred=false`、`electrical_union_eligible=false`。
 
-本文件目的：只列需要人工裁决的结构边界。已明确可由现有规则解释的关系不要求逐条标注。
+## 2. 已确认 IGNORE / 不连通族
 
-## 如何回复
+| 定义 | 人工确认来源 | 观测 fingerprint | 人工结论 | 泛化族 |
+|---|---|---|---|---|
+| `SYMB2_M_PWF165` | `04 交流回路图1.dwg`, `11266`, `(137.5,220.0)` | `39b95b5118323d4d8ec235cb43fb72f9b99c8d90ce9f4b2027ee2bdda6255ed5` | 数字/文字块，不是电气符号；无端口 | `non_electrical.numeric_text.v1` |
+| `SYMB2_M_PWF171` | `11 非电量开入回路.dwg`, `2CE94`, `(161.25,235.0)` | `765aa9ba366baffab5550e90512b94fb6bc312a9866af101fe7e9ae6571d1c02` | 小型竖向二极管；不连通、不建立映射，整体忽略 | `electrical.diode_symbol_ignored.v1` |
+| `SYMB2_M_PWF191` | `11 非电量开入回路.dwg`, `2CE58`, `(165.0,240.0)`；既有来源另见 `08 差动保护及信号回路.dwg`, `23353` | `9a1c6d15833092f32027442d19bd52f5f384395b0bb113e252e5bfbfe66cb85b` | 矩形封装二极管；不连通、不建立映射，整体忽略 | `electrical.diode_symbol_ignored.v1` |
+| `SYMB2_M_PWF194` | `08 差动保护及信号回路.dwg`, `2337F`, `(290.0,235.0)` | `a78b06f3c9ab76dc9d36aeecdecb3a32599dbbc55c0e186dbecce76a9ecc780b` | 断开电气开关；左右不连通 | `switch.open.v1` |
+| `SYMB2_M_PWF196` | `08 差动保护及信号回路.dwg`, `23397`, `(290.0,225.0)` | `634756a0bafe88dd763d740c97fe13dbbd65921586360b6f96a87d2dc2a408f4` | 断开电气开关；无可用电气端口 | `switch.open.v1` |
+| `SYMB2_M_PWF206` | `06 直流回路图.dwg`, `EE8C`, `(182.5,270.0)` | 人工记录 `b37828da...71f746`；当前抽取另见 `5ef6acf6...c9a90e` | DC 功能/变换图形，可忽略，无端口 | `non_electrical.functional_graphic.v1` |
+| `SYMB2_M_PWF208` | `05 交流回路图2.dwg`, `2170A`, `(55.0,177.5)`；`21728`, `(55.0,202.5)` | `cfe71411f229bb03fbcff9605b5b3dc0ace82f26b83a4d53fee308559e04412d` | 左侧装置区器件图形，无端口、无联通 | `non_electrical.equipment_graphic.v1` |
+| `SYMB2_M_PWF210` | `11 非电量开入回路.dwg`, `2CEAE`, `(162.5,80.0)` | `ef9845390ad82463e1efac6f04551d65d189a6d9a311ce8c2b1398021e70c7cc` | 无实际电气含义 | `non_electrical.placeholder.v1` |
+| `SYMB2_M_PWF229` | `04 交流回路图1.dwg`, `1126C`, `(145.0,220.0)` | `4843ab10418b48bf18e403125a6c80ba490c88d0987c42f712b5c24c8503dc61` | 波浪/省略/端粒标记；左右两侧明确断开 | `line_break.non_connective.v1` |
+| `SYMB2_S_PWF324` | `06 交换机回路图1.dwg`, `F86D`, `(57.5,195.0)` | `b5cc87f72424ca9b4ba46d97f97872e74f1c6f174334905b3ed05bd2d1cc73f0` | 以太网通信端口组件；不建立 P1/P2 等任何向外通信映射，整体忽略 | `communication.ethernet_port_ignored.v1` |
+| `SYMB2_S_PWF330` | P001 `07 网络通讯回路图.dwg`, `1C27C`, `(135.0,257.5)` | `b65e304c63f2661098d380605c4000e75855fbfcc57985109fad3a21c1c88ed5` | ETHER/NET、LAN 通信端口组件；不建立任何通信或电气映射，整体忽略 | `communication.ethernet_port_ignored.v1` |
+| `SYMB2_S_PWF316` | `05 信号回路图.dwg`, `A214`, `(627.5,464.375)` | `32f327c96740e2b52598d08b894a9071d6fbeff2f5404d1e81addf7e5ce741db` | ST 单模光纤通信端口；不建立 `1T/1R` 发送/接收映射，整体忽略 | `communication.optical_st_port_ignored.v1` |
+| `SYMB2_S_PWF318` | `04 交流回路图1.dwg`, `11176`, 外层 `(40.0,220.0)`；嵌套展开 `(40.0,232.495)` | `a6c74f98075e063d0bd026cee40d021e30ded7fb6eabca346385d81d1f8f81e7` | 接地符号；不建立任何映射、端口、桥接或并网关系，整体忽略 | `electrical.ground_symbol_ignored.v1` |
+| `Ld_DzbJD_Left` | P001 `17 差动保护背板图.dwg`, `30F34`, `(55.0,252.5)`；同定义亦见 P003 | `d2978aaddce462eeea764d8295a059d646b00da794aeab718a568e6470bbf56b` | 左侧阶梯/重复线画法的接地符号；无端口、无映射，整体忽略 | `electrical.ground_symbol_ignored.v1` |
+| `Ld_DzbJD_Right` | P001 `27 右侧端子图2.dwg`, `2AF3`, `(115.0000017,157.5)`；P003 同定义 `3CD15`, `(92.5,160.0)` | `08a272799dbac4bf36f36ebcc1091f94b2273cf27fce8741a3cf31b150d5d123` | 右侧 DZB 辅助标记；无联通属性、无任何外部映射，整体忽略 | `electrical.nonconnective_dzb_right_marker_ignored.v1` |
+| `A$C26C55624` | P001 `14 高操作回路图.dwg`, `276B6`, `(249.9986338,134.9945)` | `4f4abeddea8e309da9df83614ee3def2228b9e72a1f9a6e788b270ab13ec8fa1` | 三引线矩形器件图形；内部不连通、无任何映射意义，整体忽略 | `electrical.nonconnective_three_lead_box_ignored.v1` |
 
-请按 `Hxx` 编号回复。每个编号只需要给出业务裁决，不需要写代码方案。
+补充确认：PWF165 附近的波浪/省略符号不能连接两侧数字，不得生成 `707→708`、`709→710`、`711→712` 等跨标记关系。
 
-推荐回复格式：
+### IGNORE 几何族模型
 
-```text
-H01: 这些行应按同一物理导线网络补全，裸数字不是独立端子；优先通过线网连通找对端。
-H03: 逗号拆分后的多个 component_mapping 是正常分支，默认不应作为用户问题，只保留 internal review。
-```
+- PWF194/PWF196：无 ARC/CIRCLE、两外向端、`LWPOLYLINE=2`、`LINE=3..4`、旋转无关长宽比约 6.5。
+- PWF229：四个等半径 ARC、两个 LWPOLYLINE、两外向端、长宽比大于 8。
+- PWF208：两个等半径 ARC、细长主体、归一化 ARC 半径和引线直方图区别于基础端子。
+- PWF171/PWF191：同属二极管忽略族的两个几何状态。PWF171 是双圆接点、三角/横杆和纵向引线构成的裸二极管；PWF191 是含 HATCH、外框、主二极管及下方重复小图形的矩形封装状态。两者分别建模，不用实体数量或 fingerprint 互相代替。
+- PWF206：含两段 TEXT 的四外端功能图形；PWF165/PWF210 分别有独立的无 ARC 实体直方图和长宽比。
+- PWF324：两段 `ETHERNET`/端口文字、2..3 个 LWPOLYLINE、4..5 个机器几何端口、无 LINE/ARC/CIRCLE，旋转无关长宽比 `1.0..1.4`；不同页面的两种画法归入同一忽略族。
+- PWF330：同属以太网/LAN 端口忽略族的宽体状态，块内文字为 `ETHER`/`NET`、含 3 个 LWPOLYLINE；作为独立几何子规则按文字布局、闭合轮廓拓扑及旋转/缩放不变量识别，不再作为 PWF324 的负例，也不能仅靠宽高比或 fingerprint 吸收其他宽体图形。
+- PWF316：单 ARC、单 LINE、双 LWPOLYLINE、两个机器几何端口、无块内文字，归一化 ARC 半径 `0.25..0.35`、长宽比 `1.6..2.1`；`ST单模/1T/1R` 是实例周边文字，不产生映射。
+- PWF318：一个闭合圆形接点、单根引线和三条互相平行且长度逐级递减的接地横线；旋转/缩放后仍按线方向、平行关系、长度层级及圆形接点绑定识别。仅有相同实体数量但不具备该拓扑的普通分支不得被吸收。
+- `Ld_DzbJD_Left`：三条阶梯横线以 LINE 与 open LWPOLYLINE 重复绘制，重复 stem 与侧向引线绑定；作为接地族的独立几何状态按重合段、正交关系、长度层级和端点绑定识别，不依赖块名或 fingerprint。
+- `Ld_DzbJD_Right`：三个逐级缩短、中心共线的平行条分别由 LINE 与开放双点 LWPOLYLINE 重合绘制；最长条中心连接一对重合正交杆及半长侧引线。按相对方向、长度比例、重合和端点绑定泛化，任一重绘条偏移或杆件拓扑不完整时保持 review。
+- `A$C26C55624`：大矩形底部嵌套一个同宽小矩形，小矩形含对角线；三条等长平行引线以“两侧二对一”方式绑定大矩形边。按矩形边长比例、中心关系、对角角点和引线端点拓扑泛化，任一引线脱离或内部结构不完整时保持 review。
+- 新 fingerprint 完整命中上述模型时可自动输出 `GEOMETRY_FAMILY_NON_CONNECTIVE`；特征缺失或仅近似时保持 review，不得自动忽略。
 
-如果某一类你暂时不能裁决，可以回复“需要截图/局部预览”，我再为对应页生成坐标定位或截图任务。
+## 3. 已确认基础端子族
 
-## 总体结论
-
-T0 coverage 已证明文本侧没有未解释队列：
-
-- first：`unexplained_numeric_texts=0`，但 `unassigned_wire_segments=6868`、`unclassified_blocks=1034`。
-- second：`unexplained_numeric_texts=0`，但 `unassigned_wire_segments=5305`、`unclassified_blocks=1126`。
-
-因此下一步人工裁决重点不是“哪个数字没被 OCR/文本抽到”，而是：
-
-- 断开的线段是否属于同一电气网络。
-- 局部裸数字是否需要结合页面/区域/元件前缀生成完整端。
-- 一对多/多对一是实际分支，还是抽取误配。
-- 常见 `INSERT` 块族应该归为符号、端口、表格、图框或纯注释。
-
-## 全页扫描状态
-
-### first 项目
-
-| 页 | 文件 | 当前关系/问题状态 | 是否需要人工 |
+| 定义 | 人工确认来源 | fingerprint | 结论 |
 |---|---|---|---|
-| S0005 | 04 交流回路图1.dwg | 6 条 ordinary missing-side，裸数字 `701/703/705/707/709/711` | 是，见 H01 |
-| S0006 | 05 交流回路图2.dwg | 8 条 ordinary missing-side，裸数字 `701/703/705/707/709/719/720/721` | 是，见 H01 |
-| S0007 | 06 直流回路图.dwg | 3 条 `101 -> ?`，4 条 `132 -> 132` low-confidence | 是，见 H02 |
-| S0009 | 08 差动保护及信号回路.dwg | `14 -> ?`、`? -> 13` | 是，见 H01/H06 |
-| S0010 | 09 高后备保护及信号回路.dwg | `125/124/14/13` 缺侧 | 是，见 H01/H06 |
-| S0011 | 10 低后备保护及信号回路.dwg | `125/124/14/13` 缺侧 | 是，见 H01/H06 |
-| S0012 | 11 非电量开入回路.dwg | `601/310/309/308/307/210/209/208/207` 缺侧，`601 -> 602` low-confidence | 是，见 H01 |
-| S0015 | 14 高操作回路图.dwg | `224/222/206` 缺侧 | 是，见 H01 |
-| S0016 | 15 低操作回路图.dwg | `224/222/206` 缺侧 | 是，见 H01 |
-| S0018 | 17 差动保护背板图.dwg | backplate table 跨页冲突 review | 是，见 H04 |
-| S0019 | 18 高后备保护背板图.dwg | backplate table 冲突/重复/共享端点 review | 是，见 H04 |
-| S0021 | 20 非电量保护背板图.dwg | backplate table 一对多/多对一 review | 是，见 H04 |
-| S0022 | 21 元件接线图1.dwg | `DK` 端口多对一 review | 是，见 H03 |
-| S0023 | 22 元件接线图2.dwg | `KLP/ZLP` component_mapping 一对多/多对一 review | 是，见 H03 |
-| S0024 | 23 元件接线图3.dwg | `KLP` 逗号拆分端点、component/table 共享端点 review | 是，见 H03 |
-| S0025 | 24 左侧端子图1.dwg | terminal header table 多端点/共享端点 review | 是，见 H05 |
-| S0026 | 25 左侧端子图2.dwg | 2 条 local `10 -> ?` | 是，见 H06 |
-| S0027 | 26 右侧端子图1.dwg | terminal header table 多端点/共享端点 review，`710 -> 10` low-confidence | 是，见 H05/H06 |
-| S0028 | 27 右侧端子图2.dwg | 2 条 `? -> 10` | 是，见 H06 |
+| `SYMB2_M_PWF231` | `04 交流回路图1.dwg`, `112CE`, `(77.5,220.0)` | `2ede8a4fcebd958209b99a25e477726c0b55f86b32d00650130a89acad0bf89c` | 基础端子；上方 `1ID1` 等为端子编号 |
+| `SYMB2_M_PWF232` | `08 差动保护及信号回路.dwg`, `23348`, `(110.0011,224.9958)` | `5f5573087fee9f48a503ecdede638903fcb979dd5031aaf1e98e69d07f2707f8` | 基础端子；上方 `1QD5` 等为端子编号 |
+| `SYMB2_M_PWF233` | `06 直流回路图.dwg`, `192A2`, `(50.0,272.5)` | `e2e32701027b07d3f74b5941716ca9328daf926abad92f0b4b5f2081b3f52fe2` | 基础端子；支持 `ZD1/ZD9` 等字母开头编号 |
+| `SYMB2_M_PWF234` | `08 差动保护及信号回路.dwg`, `23358`, `(57.5011,237.4958)` | `03db302eda788e4107a4dc2e882e6da52af3d56ea388d8a8f5789e6892a52211` | 四向画法的基础端子 |
+| `SYMB2_M_PWF238` | `04 交流回路图1.dwg`, `1129E`, `(207.5,220.0)` | `cce15b281bc0c0ef0df95453bffcd991d28e73e7683a513b4c3e5f979c243438` | 基础端子；`1ID4/1ID5/1ID6` 为编号 |
+| `SYMB2_M_PWF239` | `06 直流回路图.dwg`, `EEB7`, `(150.0,252.5)` | `c578f4c57480a4eabf4f0affb3ac93a9ca7e3eef23ca67e810605b48f06ac99b` | 三引线画法的基础端子 |
+| `SYMB2_M_PWF243` | `08 差动保护及信号回路.dwg`, `2334E`, `(60.0011,209.9991)`, 旋转 270° | `b3115ea33fe4e1b57d4cfa6394c3125c42f5776b589f8297b4053cf3d7a7a073` | 旋转画法的基础端子；`1QD2/1QD3` 为编号 |
 
-first 其他页当前没有需要你立即裁决的 issue 簇，但仍会在后续 T1 shadow topology 中检查线段/块覆盖。
+统一业务规则：
 
-### second 项目
+- family 为 `labelled_terminal.generic.v1`，不能按 PWF 编号分别建立模型。
+- 定义级必须是紧凑双等半径 ARC 主体；实例级必须同时找到唯一结构化编号和 outward-aligned 外部导线接触。
+- 三项证据完整才输出 shadow `MEASURED_TERMINAL_ATTACHMENT`；标签近似并列为 `TERMINAL_BINDING_AMBIGUOUS`。
+- 不根据端子主体自动合并左右/上下导线。
 
-| 页 | 文件 | 当前关系/问题状态 | 是否需要人工 |
-|---|---|---|---|
-| S0006 | 06 直流回路图.dwg | `101/103/105` ordinary missing-side | 是，见 H02 |
-| S0010 | 10 测控1控制回路图1.dwg | `? -> 507` missing-side | 是，见 H06 |
-| S0014 | 14 测控2开入回路图3.dwg | `? -> 501` missing-side | 是，见 H06 |
-| S0022 | 22 左侧端子图2.dwg | `3-21WD2` terminal header row 一对多 review | 是，见 H05 |
-| S0023 | 23 右侧端子图1.dwg | `1-21GD* / 1-21QD1` terminal header row 一对多/共享端点 review | 是，见 H05 |
-| S0024 | 24 右侧端子图2.dwg | `1-21CD10` terminal header row 一对多 review | 是，见 H05 |
+## 4. 已确认外部端口组件族
 
-second 其他页当前不需要人工优先裁决。
+### `SYMB2_M_PWF224` — KLP 双外部端口
 
-## 裁决项
+- 来源：`08 差动保护及信号回路.dwg`, handle `23354`, `(85.0001,207.4991)`。
+- fingerprint：`61255c39029679e1151d9d4e8fe3884a538ea97638fa6f605d8a1d17713d8dc2`。
+- 端口 `1/2` 分别只连接本侧外部导线；组件内部不连通。
+- 示例：`1KLP1-1 + 1QD2`；右侧端口只匹配右侧同一条线上的端子。
 
-### H01 普通回路图：断线/分段导致的裸数字 missing-side
+### `SYMB2_M_PWF236` — DK 四端口组件
 
-涉及页：
+- 来源：`06 直流回路图.dwg`, handle `EE97`, `(95.0,260.0)`。
+- 人工记录 fingerprint `e84d37eab1d5...b9e7ee9`；当前抽取观测 `e84d37ea2bda...dee7ee9`，说明 fingerprint 可漂移。
+- 实例名 + 端口号构成完整身份，如 `1DK-3`；每个端口只映射同侧外部端子，如 `1DK-3 + ZD1`。
+- 四个端口内部互不连通。
 
-- first `04 交流回路图1.dwg`：`? -> 711/709/707/705/703/701`
-- first `05 交流回路图2.dwg`：`721/720/719 -> ?`，`? -> 709/707/705/703/701`
-- first `08/09/10` 信号回路：`14 -> ?`、`? -> 13`、`125/124 -> ?`
-- first `11 非电量开入回路.dwg`：`? -> 601/310/309/308/307/210/209/208/207`
-- first `14/15 操作回路图`：`? -> 224/222/206`
+### `SYMB2_M_PWF237` — ZKK 六端口组件
 
-当前系统表现：这些行作为 `ordinary_pair` 进入审计，但只有单侧数字，触发 `R-PAIR-MISSING-SIDE`。
+- 来源：`05 交流回路图2.dwg`, handle `216AD`, `(102.5,150.0)`。
+- fingerprint：`835a7dcc7eae596a7b1a600a48f0e579bf800a22b1add1ffbcc44d2ddb95e054`。
+- PWF236 的三排/六端口版本；例如 `1-2ZKK-1..6`，每个端口独立映射同侧外部端子，内部不连通。
 
-需要你裁决：
+### `SYMB2_M_PWF103` — AK 双外部端口组件
 
-- 这些裸数字行是否应通过同一物理导线网络找到另一端端子，而不是当成真实缺侧？
-- 如果是，是否允许跨越符号块、文本 bbox 或小断口进行 wire network bridge？
-- 是否存在某些值应被解释为语义/功能编号，而不是端子端点？
+- 来源：P001 `06 直流回路图.dwg`，handle `1D348`，坐标 `(252.5563,109.9881)`；P003 同定义 handle `420DA`，fingerprint `eec06b5aa9987f50b15e7871e0545c46d26b47ec64abdf9ff796d67c2e328bee`。
+- 实例名 `AK` 与本地端口号 `1/2` 组合为 `AK-1`、`AK-2`；`AK-1` 只映射左侧外部线路，`AK-2` 只映射右侧外部线路。
+- 两端口内部不连通，不允许任何 `AK-1 ↔ AK-2` connectivity 或 union。几何族为 `component.external_strip_two_port.v1`。
+- 定义级按四个共线等半径接点、与内侧接点同心的两个等半径圆、四条轴向线及三条叉形/斜向机构线的旋转缩放拓扑识别；实例级必须同时绑定短字母名称、唯一端口号和本侧精确外部线端点。
 
-建议裁决选项：
+### `KK2P` — DK 四端口组件
 
-- `H01-A`：全部按线网连通补全，当前 missing-side 属于抽取缺口。
-- `H01-B`：其中某些页/数字是语义或说明，不应补全为 ordinary pair。
-- `H01-C`：需要局部截图后逐页判断。
+- 来源：P001 `21 元件接线图1.dwg`，handle `27FDC`，坐标 `(47.5,252.5)`；fingerprint `3f7ef8a0ca8b88180e8cf7094e95355e6b2837e7e598cba3a19ce04e6445620a`。
+- 上方圆圈内实例名经原图确认是 `1DK`；实例名与块内端口号 `1/2/3/4` 组合为完整身份 `1DK-1..4`。
+- 四个端口内部互不连通，各自只向外映射：`1DK-1→ZD9`、`1DK-2→1QD5`、`1DK-3→ZD1`、`1DK-4→1QD1`。
+- family 为 `component.external_multi_port.v1`；同类实例必须读取本实例圆圈名称，不得把 `1DK` 固化为定义常量。
 
-已收到的用户裁决（2026-07-08，部分）：
+### `FJL-25-2A_Mirror` — 长条上下双端口组件
 
-- 总原则：目标不是生成记忆性标注或样本记忆算法，而是把普通回路识别引擎改成更智能、更通用的结构化识别。
-- first `04 交流回路图1.dwg`：
-  - 当前问题不是单纯缺线，而是普通回路引擎没有识别左侧连接端子，也没有识别上方元器件/装置框带来的结构前缀。
-  - 业务目标应是输出 `1ID* -> 1n70x` 这一类结构化关系，而不是把 `701/703/705/...` 当裸 ordinary endpoint 审计。
-- first `05 交流回路图2.dwg`：
-  - 用户确认 `719/720/721` 这一簇不是裸数字缺侧，而是 `3-2ZKK` 结构没有被识别。
-  - 代表性对应关系按用户裁决记录为：`3-2ZKK-6 -> 721`、`3-2ZKK-4 -> 720`、`3-2ZKK-2 -> 719`。
-- first `11 非电量开入回路.dwg`：
-  - 用户在原图中未发现当前 issue 簇里的 `601/310/309/308/307/210/209/208/207` 这些裸数字，说明这批 issue 不能再当成可信的业务端点。
-  - 用户给出的代表性真实关系是：`5FD25 -> 5n105`、`5FD26 -> 5n132`、`5KLP1-2 -> 5n207`。
-  - 因此这页当前更像普通回路识别引擎的抽取失败/错绑，而不是“真实存在一批 missing-side 裸数字”。
-- 本条裁决的算法含义：
-  - ordinary circuit 不能再按“端点附近找裸数字”处理，而要同时具备：
-    - 线网连通能力；
-    - inline component / device-frame 结构识别；
-    - scoped prefix 组合能力（如 `1n701`、`5n207`）；
-    - 左右连接端子识别能力。
-- 仍待后续继续确认的 H01 子项：
-  - first `08/09/10` 的 `13/14/124/125`
-  - first `14/15` 的 `224/222/206`
+- 来源：`22 元件接线图2.dwg`, handle `2F409`, `(55.2366,238.8056)`。
+- fingerprint：`69f5c09b9bfe7e7c3c9db62eaa577a51b98801ec22bb366b8d5d2513ae1b247b`。
+- 上下端口向外连接，内部不连通；圆形文字为实例名。
+- 示例：`1-2CLP5-1 + KD15`、`1-2CLP5-2 + 1-2n414`。
 
-预审与代码审计收敛结果（2026-07-08）：
+统一泛化规则：
 
-- H01 三页的共性已经比较明确，不再只是“个别页误配”：
-  - page top / zone top 存在 scoped prefix：`1n`、`1-2n / 3-2n`、`5n`；
-  - 当前报错的裸三位数落在设备框或组件结构内部的固定 local-number 列，不是外部端点列；
-  - 真正的外部端点列是更外侧的结构化 token：如 `1ID*`、`1-2ID* / 3-2ID* / 1-2UD* / 3-2UD*`、`5FD* / 5KLP*`。
-- 因此 H01 的通用裁决不是“继续补 ordinary pair 规则”，而是：
-  - 先把 token 解析成 `prefix / family_code / ordinal / local_number` 结构；
-  - 再按页面布局识别 `prefix-column / local-number column / external-endpoint column`；
-  - 最后由结构化 mapping 产出关系，ordinary 裸数字链只做兜底，不再做主链。
-- 现有代码之所以掉回 naked-number issue，主要有三条系统性限制：
-  - 候选阶段只把极窄 family 认成 `wire_logic_endpoint`，大部分 external endpoint 直接被当成 `not_numeric` 拒掉；
-  - `wire_components.py` 里已有的 `component_prefixed / input_matrix / first_prefixed / inline_klp` family 过窄，只覆盖少数命名族；
-  - `first_prefixed_external_endpoint_mapping` 还要求“local text 已先在 ordinary 单侧 pair 里出现”，导致结构化补救无法全量运行。
-- 这意味着 H01 的第一刀更适合做：
-  - 通用 `endpoint parser`
-  - 通用 `prefix-column / row-endpoint / local-number` 框架
-  - 去掉 `first_prefixed_eligible_local_text_ids` 这类把结构化识别绑死在 ordinary 错误链上的 gate
+- DK/ZKK 使用 `component.external_multi_port.v1`；FJL/PWF224 新画法可进入 `component.external_strip_two_port.v1` 或相应 inline subtype。
+- 几何族只提出端口拓扑；完整组件端身份必须由实例名、端口槽位、同侧导线和 `component_mapping` 共同构成。
+- 所有组件端只允许外部 attachment 和跨页匹配，不允许任何端口间 union。
 
-### H02 直流回路图：`101/103/105/132` 的端点语义
+## 5. 当前实现验证
 
-涉及页：
+- 将 8 个已确认 IGNORE 正例全部替换为未登记 synthetic fingerprint 后，几何族模型仍全部正确忽略。
+- PWF224、PWF231/233/234/239、PWF236/237 均未被 IGNORE 模型误吸收。
+- FJL 在新 fingerprint 下仍进入外部双端口组件族。
+- proposal/instance fingerprint 冲突必须输出 `REJECTED_FINGERPRINT_MISMATCH`，不能通过同名块静默绑定。
 
-- first `06 直流回路图.dwg`：`101 -> ?` 三条；`132 -> 132` 四条 low-confidence。
-- second `06 直流回路图.dwg`：`101 -> ?`、`103 -> ?`、`? -> 105`。
+## 6. 已确认导线几何原语
 
-当前系统表现：裸数字被当普通端点，但缺少稳定对端或被选成同值自配对。
+### `A$C2E3F2C02` — 跨线跳弧
 
-需要你裁决：
+- 来源：P001 `14 高操作回路图.dwg`，handle `276BF`，坐标 `(209.9986338,142.4945)`，fingerprint `f9d454c009fff6e62f248535070beb3ce1787db373d260f7159948192c492bb8`；共观测 10 个实例。
+- 该对象不是符号，而是导线画法：两段共线引线通过中间半圆弧连续，圆弧表示越过另一条导线后继续连接。
+- 跳弧所属导线两端属于同一路径；被跨越导线保持自身连续，但两条路径在几何交点不连接，不得生成交叉点 union。
+- 泛化模型必须使用“半圆 ARC 端点分别绑定两段共线外向 LINE、弦线与引线共线”的旋转/缩放不变拓扑；定义名、坐标和 fingerprint 仅作 provenance，不是正常识别条件。
+- 该族不得走 IGNORE：应从符号复核中移除并转成 wire primitive，同时保留跳弧路径的左右连通。
 
-- `101/103/105/132` 在直流回路图中是独立跨页端子号，还是应结合 DK/ZD/3-21n 等上下文生成完整逻辑端？
-- `132 -> 132` 这类同值配对是否是合法的同名连接，还是明显误配？
-- 这类页是否应优先依赖 wire network 连通，而不是端点邻近窗口？
+## 7. 待人工裁决区
 
-建议裁决选项：
-
-- `H02-A`：裸数字必须结合上下文补成完整端，裸数字不应直接跨页审计。
-- `H02-B`：裸数字本身就是端子号，但必须通过线网找真实对端。
-- `H02-C`：同值 `132 -> 132` 是合法连接。
-- `H02-D`：同值 `132 -> 132` 是误配，应进入抽取缺口。
-
-### H03 元件接线图：component_mapping 一对多/多对一是否正常
-
-涉及页：
-
-- first `21 元件接线图1.dwg`：`1DK-2 -> 1QD5`、`5DK-2 -> 5FD25`、`1-2DK-2 -> 1-2QD12` 等多对一 review。
-- first `22 元件接线图2.dwg`：`3-2KLP1-1 -> 3-2QD2`、`1-2KLP4-1 -> 1-2KLP3-1` 等链式/共享端点 review。
-- first `23 元件接线图3.dwg`：`5KLP5-1 -> 5KLP3-1`、`5KLP5-1 -> 5KLP2-1` 等逗号拆分文本形成多条 component_mapping。
-
-当前系统表现：component_mapping 已经抽出，但跨页规则把共享端点、一对多、多对一仍列为 review。
-
-需要你裁决：
-
-- 元件接线图中逗号分隔的多个外部端是否表示正常并联/分支，应该默认 pass 或 internal review？
-- 链式 `KLPx-1 -> KLPy-1` 是否是正常串接关系？
-- `DK-2` 这类端口多次指向外部端，是否代表正常公共端/汇接，还是应报用户问题？
-
-建议裁决选项：
-
-- `H03-A`：component_mapping 抽取关系本身正确；一对多/多对一是正常结构，默认不进入用户问题。
-- `H03-B`：component_mapping 抽取关系正确，但仍应作为用户 review 保留。
-- `H03-C`：部分 component_mapping 方向或端口绑定可能错，需要逐页截图标注。
-
-### H04 背板表格型图：backplate table 跨页冲突/重复/共享端点
-
-涉及页：
-
-- first `17 差动保护背板图.dwg`
-- first `18 高后备保护背板图.dwg`
-- first `20 非电量保护背板图.dwg`
-
-典型当前关系：
-
-- `NDY306A-3 -> 1QD1`
-- `NDY306A-16 -> 1KLP1-2`
-- `NCZ343A-1 -> 1-4CD5`
-- `NKR308A-1 -> 5FD11`
-
-当前系统表现：背板虚拟表/插件端子表抽取出 `table_mapping`，但项目级规则发现同一插件端口跨页映射到多个 scoped terminals，触发 conflict/duplicate/many-to-one review。
-
-需要你裁决：
-
-- 同一背板插件端口在不同页映射到多个端子，是正常“插件端口在不同上下文被复用/引用”，还是应算真实冲突？
-- 背板表格型图是否只应做“结构关系证据”，默认不参与硬一致性冲突？
-- 这类共享端点是否应按 `plugin_id + page/scope` 分组，而不是按裸端口名跨全项目分组？
-
-建议裁决选项：
-
-- `H04-A`：背板表共享/复用是正常结构，默认进入 internal review，不作为用户问题。
-- `H04-B`：同一插件端口多映射是潜在真实冲突，用户必须看到。
-- `H04-C`：需要按插件实例/页面/列角色增加 scope 后再判断。
-
-### H05 端子图：terminal header table 一行多端点/共享端点
-
-涉及页：
-
-- first `24 左侧端子图1.dwg`
-- first `26 右侧端子图1.dwg`
-- second `22 左侧端子图2.dwg`
-- second `23 右侧端子图1.dwg`
-- second `24 右侧端子图2.dwg`
-
-典型当前关系：
-
-- first：`3-4QD7 -> 3-2n212`、`5FD1 -> 5n103`、`1-2ID3 -> 1-2n705`、`1-2QD6 -> 1-2n122 / 1-2n209`
-- second：`3-21WD2 -> 3-21n608`、`1-21GD3 -> 3-21n108`、`1-21QD1 -> 1-21n116`、`1-21CD10 -> 1-21n403`
-
-当前系统表现：terminal header table 抽取为 `table_mapping`，但行内存在多个端点或多个逻辑行共享同一端点，触发 one-to-many / many-to-one review。
-
-需要你裁决：
-
-- 端子表同一行出现多个端点时，是否代表正常桥接/并接/同排多连接？
-- terminal header table 的一对多/多对一是否应默认视为正常结构，只保留证据？
-- 哪些列角色应参与跨页一致性，哪些只是语义/说明/表头？
-
-建议裁决选项：
-
-- `H05-A`：这些 table_mapping 基本正确，一对多/多对一是端子表正常结构，默认 internal。
-- `H05-B`：一对多/多对一仍应用户复核，但不应算 hard error。
-- `H05-C`：需要标注列角色后才能决定。
-
-### H06 局部小数字 `10/13/14/501/507/710` 是否端点
-
-涉及页：
-
-- first `25 左侧端子图2.dwg`：`10 -> ?`
-- first `26 右侧端子图1.dwg`：`710 -> 10`
-- first `27 右侧端子图2.dwg`：`? -> 10`
-- second `10 测控1控制回路图1.dwg`：`? -> 507`
-- second `14 测控2开入回路图3.dwg`：`? -> 501`
-- first `08/09/10`：`13/14` 相关缺侧
-
-当前系统表现：这些小数字/三位数被作为 ordinary endpoint，但 evidence 不足或缺侧。
-
-需要你裁决：
-
-- `10/13/14` 是局部端口序号、端子排行号、表格行号，还是跨页端子号？
-- `501/507/710` 是本页真实端子，还是功能/通道/说明编号？
-- 这些值是否应通过前缀或所属区域组合成完整逻辑端？
-
-建议裁决选项：
-
-- `H06-A`：局部小数字不是跨页端点，必须结合元件/表格/端子排上下文。
-- `H06-B`：这些值可以是端点，但必须通过线网或行列上下文找对端。
-- `H06-C`：需要逐页截图标注。
-
-### H07 高频未分类块族的符号库归类
-
-T0 coverage 显示 `unclassified_blocks` 很高。当前模型尚未有符号库，很多 `INSERT` 只是以块名保留。
-
-两套高频块族：
-
-| 块名 | first 计数 | second 计数 | 需要裁决 |
-|---|---:|---:|---|
-| SYMB2_M_PWF165 | 237 | 334 | 是 |
-| SYMB2_M_PWF231 | 136 | 282 | 是 |
-| SYMB2_M_PWF191 | 45 | 188 | 是 |
-| SYMB2_M_PWF194 | 85 | 44 | 是 |
-| SYMB2_M_PWF234 | 85 | 16 | 是 |
-| FJL-25-2A_Mirror | 54 | 27 | 已部分识别，但需确认 family |
-| SYMB2_M_PWF224 | 46 | 24 | 是 |
-| SYMB2_M_PWF243 | 18 | 64 | 是 |
-| KK2P | 7 | 5 | 已部分识别，但需确认 family |
-
-需要你裁决：
-
-- 这些高频块分别是导线连接符号、端口/端子符号、元件符号、表格/图框符号，还是纯注释？
-- 哪些块内部文字/端口应该参与 endpoint 推断？
-- 哪些块只应作为 wire network bridge，不生成 endpoint？
-
-建议裁决选项：
-
-- `H07-A`：先对 Top 10 高频块做截图/图例标注。
-- `H07-B`：先不处理块族，T1 只做线网 shadow。
-- `H07-C`：你提供企业符号表或块名含义，我按表落 `symbol_library.yml`。
-
-## 我建议你优先裁决的 5 个问题
-
-1. `H01`：普通回路 missing-side 是否都优先按 wire network 连通补全。
-2. `H02`：直流页 `101/103/105/132` 裸数字是否需要上下文前缀。
-3. `H03`：元件接线图 component_mapping 的一对多/多对一是否默认 internal。
-4. `H05`：端子表 table_mapping 的一行多端点是否默认 internal。
-5. `H07`：是否让我先生成 Top 10 块族截图给你标 family。
-
-## 子代理预审后的收口结论
-
-四个只读子代理已经按 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 和代表性预览图做过一轮预审。它们的结论比较收敛：
-
-- `H01`：应拆成两类。first `04`、`05` 的 `701/703/705/707/709/711`、`14/15` 的 `224/222/206` 更像同一物理导线网络没接上，属于 T1 shadow wire network 应承接的连通性缺口。`05` 的 `719/720/721`、first `08/09/10` 的 `13/14`、first `11` 的 `601/310/309/...` 更像局部端口号或 scoped local number 被错当 ordinary endpoint，不应继续裸跑 ordinary 审计。
-- `H02`：基本不是“缺线”，而是 scoped suffix 被错当裸端点。`101/103/105/132` 应优先按 `H02-A` 处理，即结合 `*n`、`DK/GD/QD` 等区域前缀补成完整逻辑端；`132 -> 132` 更接近假自配，倾向 `H02-D`，不是合法同名连接。
-- `H03`：当前 `component_mapping` 大体是抽对了，review 主要来自规则层把正常分支/逗号拆分/共享端点也当成用户问题。默认建议按 `H03-A` 落：转 internal，不继续逐条向用户暴露。
-- `H04`：背板表的 shared endpoint / duplicate 目前更像缺少 `page-device instance`、`subtable`、`header_text_id/x-span` 之类 scope 后的误判，默认不建议 user-visible。
-- `H05`：terminal header table 的一对多/多对一大多也是 scope 问题。真正像同一 header-row 左右双列的正常接线，默认 internal；只有相邻子表串味、缺少 `table_instance/endpoint_column_role` 的，再留作 scope-enhancement 队列。
-- `H06`：`10/13/14` 更像行号、局部端口号、触点号；`710/501/507` 更像必须依赖完整前缀或局部结构才成立的端点，不应裸进 ordinary pair。
-- `H07`：高频未分类块族已经可以先按两大类理解：`PWF165/PWF231/PWF191/PWF194` 更像 wire bridge family，`PWF224/PWF234/PWF243/FJL-25-2A_Mirror/KK2P` 更像 endpoint-bearing symbol family。
-
-## 缩窄后的人工确认集
-
-如果我们按“最小必要人工输入”推进，你不需要逐条审所有 issue。当前更建议你只确认下面几类业务裁决：
-
-1. `H02` 抽查 2 个代表点：
-   - first `PW0107`：`132 -> 132` 是否应视为 scope 丢失后的假自配。
-   - second `PW0108`：`101 -> ?` 是否应补成带前缀的完整端，而不是 ordinary missing-side。
-2. `H01/H06` 的局部数字边界：
-   - `124/125` 是否和 `101/103/105/132` 一样，属于 scoped local number。
-   - `601 -> 602` 是否是局部结构里的过配，而不是稳定 ordinary pair。
-   - `10/13/14` 是否一律视为局部行号/触点号，不进 ordinary pair。
-3. `H03/H04/H05` 的显示分层：
-   - 是否接受“默认 internal，除非补足 scope 后仍有互斥多映射才 user-visible”。
-4. `H07` 的最小符号定类任务：
-   - `PWF165 + PWF231`：是否同一 bridge family，是否纯 pass-through、不生成 endpoint。
-   - `PWF191 + PWF194`：是否语义行带 bridge family，只 bridge 导线。
-   - `PWF224`：是否 inline component family，端口 `1/2` 顺序。
-   - `PWF243`：是否 contact/relay carrier family，`13/14` 是否局部触点号。
-   - `PWF234`：是 endpoint-bearing 还是 bridge。
-   - `FJL-25-2A_Mirror`：是否 strip two-port family，确认 `1/2` 拓扑。
-   - `KK2P`：是否 multi-port component family，确认 pin map。
-
-## 当前推荐的人审顺序
-
-按性价比，建议你先回下面 4 组裁决；这已经足够让我继续推进 T1/T2/T3，而不必等所有细节都标完：
-
-1. `H02`：`101/103/105/132` 这类裸数字一律要不要补前缀；`132 -> 132` 是否一律视为误配。
-2. `H01/H06`：`10/13/14/124/125/501/507/710` 这类局部数字是否默认不进 ordinary pair。
-3. `H03/H04/H05`：是否接受“默认 internal，补 scope 后再决定是否 user-visible”。
-4. `H07`：是否让我下一步直接生成这 7 个符号族的截图任务给你逐个标 family。
-
-## 影子线网落地后的进一步收口（2026-07-08）
-
-Phase 98 T1 已完成 fresh real-sample shadow 验证，且主链 pair/issue 零漂移：
-
-- first `.tmp/phase98_topology_first/...`
-  - `pair_count=1705`
-  - `issue_count=102`
-  - `topology_shadow_report`: `37` 条 ordinary missing/low-confidence 候选，`37/37 recoverable`
-- second `.tmp/phase98_topology_second/2_2`
-  - `pair_count=1597`
-  - `issue_count=12`
-  - `topology_shadow_report`: `6` 条候选，`4/6 recoverable`
-
-这进一步说明：
-
-- H01/H02 的主问题已经不是“要不要继续加 ordinary 窄规则”，而是：
-  - 哪些局部数字一律先视为 scoped local number / body-port / contact number，不准裸进 ordinary；
-  - 哪些剩余缺侧在 topology 灰度切换时应直接由 network open endpoint + connected text assignment 接管。
-- 对 first 集来说，ordinary 剩余簇几乎全部已经能被 T1 解释；Phase 99 只需要你拍板“哪些数字默认不裸审 ordinary”，不需要你逐条标网络。
-
-## 进一步缩窄后的最小人审输入
-
-如果按当前证据继续推进，真正还需要你拍板的只剩这 4 条：
-
-1. `H02`：
-   - `101/103/105/132` 是否统一按“必须补前缀/作用域”的 scoped local number 处理；
-   - `132 -> 132` 是否统一按误配。
-2. `H01/H06`：
-   - `124/125`
-   - `10/13/14`
-   - `501/507/710`
-   这三簇是否统一按“局部号，不裸进 ordinary pair”。
-3. `H03/H04/H05`：
-   - 是否接受“默认 internal，只有补足 scope 后仍互斥，才 user-visible”。
-4. `H07`：
-   - 是否让我下一步直接出 `PWF224/PWF234/PWF243/KK2P` 的截图标 family/pin-map。
-
-## 附属明细
-
-机器可读明细已导出：
-
-- `.tmp/phase98_human_review/first_issue_detail.csv`
-- `.tmp/phase98_human_review/second_issue_detail.csv`
-- `.tmp/phase98_human_review/first_block_name_counts.csv`
-- `.tmp/phase98_human_review/second_block_name_counts.csv`
-
-这些文件包含每条 issue 的 pair_id、line_group_id、坐标、rule_id、root_cause 和块名频次，可用于后续生成局部截图或 DXF 定位。
-
-## T1 影子报告真值化复审（2026-07-08）
-
-Phase 98 初版 shadow report 已经证明“线网层有信号”，但它对 `recoverable` 的判定过宽，不能直接拿来选 Phase 99 灰度页。
-
-原因：
-
-- 旧版逻辑只要看到 network 上存在 `extra_relevant_texts + bridged_gaps`，就会把 issue 判成 `topology recoverable`。
-- 这会把很多其实属于：
-  - `scoped local number`
-  - `body-port / inline component`
-  - `semantic local`
-  的结构问题误写成 topology 缺口。
-
-本轮已将 shadow 分类收紧为：
-
-- `topology_recoverable_external_endpoint_present`
-- `scoped_local_number_cluster`
-- `body_port_cluster`
-- `semantic_local_cluster`
-- `no_additional_topology_signal`
-
-真实样本 rerun 结果：
-
-- first `.tmp/phase99_shadow_tight_first_audit`
-  - `37/37 recoverable -> 6/37 recoverable`
-  - 仅 `14 高操作回路图.dwg` 与 `15 低操作回路图.dwg` 仍属于真正的 topology recoverable
-- second `.tmp/phase99_shadow_tight_second_audit`
-  - `4/6 recoverable -> 0/6 recoverable`
-  - `06/10/14` 都不再视为 topology gray 候选
-
-因此，人工裁决的使用方式也要同步收紧：
-
-- first `05/06/08/09/10/11/25/26/27`：
-  - 当前不再需要你把它们当“是否靠 topology 补全”的问题来审
-  - 它们应回到结构识别裁决：`scoped prefix / local-number / body-port / contact number`
-- second `06/10/14`：
-  - 同样不再进入 topology 灰度候选
-  - 应继续按 H02 / H06 的结构边界裁决推进
-- first `14/15`：
-  - 这是当前唯一保留下来的 topology T2 首批灰度页
-  - 如果后续要做主链 switchover，优先从这 6 条 residual issue 开始
-
-## 更新后的最小人审输入
-
-按 tightened shadow 之后的结论，下一轮真正还需要你拍板的最小集合是：
-
-1. `H02`
-   - `101/103/105/132` 是否统一按“必须补前缀/作用域”的 scoped local number 处理
-   - `132 -> 132` 是否统一视为误配
-2. `H01/H06`
-   - `124/125`
-   - `10/13/14`
-   - `501/507/710`
-   这三簇是否统一按“局部号，不裸进 ordinary pair”
-3. `H03/H04/H05`
-   - 是否接受“默认 internal，只有补足 scope 后仍互斥，才 user-visible”
-4. `H07`
-   - 是否让我继续只为 `PWF224 / PWF234 / PWF243 / KK2P` 出符号截图与 pin-map 裁决任务
-
-## 用户补充裁决回填（2026-07-08，H01/H02）
-
-- `H02` 用户已明确：
-  - `GND` 在直流页里按语义/地处理，可忽略，不进入 ordinary endpoint 审计。
-  - first `06 直流回路图.dwg` 的 `132` 应结合作用域和结构端点解释为 `1QD6 -> 1n132`、`1-2QD13 -> 1-2n132`；同簇 `101/103/105/132` 都不应裸审。
-  - `132 -> 132` 统一视为误配/假自配，进入抽取缺口，不是合法同名连接。
-- 与 fresh `text_assignments/pairs` 对照后，H01/H02 当前最稳的通用结论是：
-  - `04/05/06/11` 这类页的主问题不是缺线，而是 `scoped prefix + structured external endpoint + local-number/body-port` 结构未完全进主链。
-  - 能直接被 `visible scoped prefix` 解释的局部号，应优先产出 `wire_component_mapping`；裸 ordinary 只保留兜底。
-  - 剩余 `05` 的 `719/720/721`、first `11` 的 `601/310/.../207`、first/second `06` 的 residual `101 -> ? / ? -> 105` 已更像 body-port/token-role 缺口，不应回退成“继续补 ordinary 邻近规则”。
-- 按最新裁决，最小剩余人审输入再缩窄为：
-  1. `H01/H06`：`124/125`、`10/13/14`、`501/507/710` 是否统一按局部号，不裸进 ordinary。
-  2. `H03/H04/H05`：是否接受默认 `internal`，仅在补足 scope 后仍互斥时才 user-visible。
-  3. `H07`：是否继续只为 `PWF224/PWF234/PWF243/KK2P` 出截图与 pin-map 裁决任务。
-- 工程约束：
-  - 后续实现必须继续沿“token role -> slot composition -> relation inference”推进。
-  - 不允许以样本白名单、值白名单或 suppress/filter 方式消掉这批 H01/H02 残留。
-
-## 自动闭合回填（2026-07-08，body-port 通用切片 fresh rerun）
-
-本轮已把上一轮人审里最典型的 H01 body-port 残留回灌到主线，并做了两套真实样本 fresh verify。下面只保留“你还需要看”的内容；已经自动闭合的条目不再需要你逐条裁决。
-
-### 已自动闭合，无需继续人审
-
-- first `05 交流回路图2.dwg`
-  - 原 `3` 条 `R-PAIR-MISSING-SIDE` 已全部消失
-  - 新结构化关系：
-    - `1-2ZKK-2 -> 719`
-    - `1-2ZKK-4 -> 720`
-    - `1-2ZKK-6 -> 721`
-    - `3-2ZKK-2 -> 719`
-    - `3-2ZKK-4 -> 720`
-    - `3-2ZKK-6 -> 721`
-- first `11 非电量开入回路.dwg`
-  - 原 `10` 条 residual 下降到 `2`
-  - 新结构化关系已稳定覆盖：
-    - `5KLP1-2 -> 5n207`
-    - `5KLP2-2 -> 5n208`
-    - `5KLP3-2 -> 5n209`
-    - `5KLP4-2 -> 5n210`
-    - `5KLP5-2 -> 5n307`
-    - `5KLP6-2 -> 5n308`
-    - `5KLP7-2 -> 5n309`
-    - `5KLP8-2 -> 5n310`
-    - `5KLP10-2 -> 5n112`
-  - 同页 `5FD25 -> 5n105`、`5FD26 -> 5n132` 等 first-prefixed 关系仍保持
-- second `05 交流回路图2.dwg`
-  - 通用 `ZKK` family 在 second-set 也自然触发，说明这刀不是 first-set 记忆规则
-  - 新关系示例：
-    - `3-21ZKK-1 -> 3-21UD1`
-    - `3-21ZKK-2 -> 715`
-    - `3-21ZKK-3 -> 3-21UD2`
-    - `3-21ZKK-4 -> 717`
-    - `3-21ZKK-5 -> 3-21UD3`
-    - `3-21ZKK-6 -> 719`
-
-### 仍需你裁决的最小残余
-
-1. first `06 直流回路图.dwg`
-  - 仅剩三条：
-     - `PW0120 101 -> ?`
-     - `PW0141 101 -> ?`
-     - `PW0158 101 -> ?`
-   - 这三条与您已给出的 H02 裁决一致，看起来就是 `GND` 语义簇；下一刀更像“generic semantic-ground ignore/internal layering”，不是几何 body-port 问题。
-2. first `11 非电量开入回路.dwg`
-   - 仅剩两条：
-     - `PW0284 ? -> 601`
-     - `PW0285 601 -> 602`
-   - 这两条没有被本轮 `KLP/ZKK` 通用结构吃掉，建议你下一轮只需要判断：
-     - 它们是否属于另一个结构 family；
-     - 或者应退出默认 ordinary 用户问题列表。
-
-### 反作弊说明
-
-- first fresh：
-  - `pair_count 1705 -> 1717`
-  - `wire_component_mapping 175 -> 187`
-  - `ordinary_pair 728 -> 728` 不变
-  - `issue_count 102 -> 91`
-- second fresh：
-  - `pair_count 1597 -> 1615`
-  - `wire_component_mapping 380 -> 398`
-  - `ordinary_pair 561 -> 561` 不变
-  - `issue_count 12 -> 12`
-
-因此，本轮下降是结构补全后消费旧裸 ordinary，不是隐藏、删对或降级。
-
-## 自动闭合回填（2026-07-09，GND 语义 half-pair 消费）
-
-上一轮保留给你的 first `06` 三条 `101 -> ?`，本轮已经不用再人工裁决了。
-
-### 已自动闭合，无需继续人审
-
-- first `06 直流回路图.dwg`
-  - 已消费：
-    - `PW0120 101 -> ?`
-    - `PW0141 101 -> ?`
-    - `PW0158 101 -> ?`
-  - 原因不是补了几何识别，而是主链现在会消费已经存在的 `GND -> 101` semantic_mapping 证据
-- second `06 直流回路图.dwg`
-  - 同样自动闭合：
-    - `PW0108 101 -> ?`
-    - `PW0121 101 -> ?`
-
-### 仍需你裁决的最小残余
-
-1. first `11 非电量开入回路.dwg`
-   - `PW0284 ? -> 601`
-   - `PW0285 601 -> 602`
-   - 这两条依然是当前最小、最集中的剩余人工判断点
-2. second `06 直流回路图.dwg`
-   - `PW0115 ? -> 105`
-   - `PW0128 ? -> 105`
-   - 这两条没有被 `GND` 语义覆盖，所以本轮刻意保留，避免“顺手一起吃掉”
-3. second 其他 residual
-   - `PW0291 ? -> 507`
-   - `PW0442 ? -> 501`
-   - 仍待后续 `H01/H06` 局部数字政策或 display-layer 裁决
-
-### 边界说明
-
-- 本轮只消费 `semantic_mapping_kind=schematic_dc_function_label` 且语义值明确为 `GND` 的裸 half-pair
-- 没有把其他 DC semantic rows 一起隐藏；例如 second-set 的 `607/609/611 -> DC 0-5V/4-20mA +` 并未触发这条逻辑
-- 因此，这一刀属于“默认列表合同更诚实”，不是扩大 suppress 范围
-
-## 自动闭合回填（2026-07-09，wire-grid ordinary shadow mode）
-
-这不是新的样本规则，而是默认审计主源的一次合同切换：
-
-- `WireDiagramExtractor` 的 `grid_heavy` ordinary 继续保留在 findings 里
-- 但默认用户问题列表不再把它当成主 truth source
-- 后续这类症状应进入：
-  - 结构化 family 开发输入
-  - 或 internal/shadow 层
-
-### 这轮后已无需你继续人审的项
-
-1. second `06 直流回路图.dwg`
-   - `PW0115 ? -> 105`
-   - `PW0128 ? -> 105`
-   - 原因：
-     - 这两条现在已从 default issue list 退出
-     - 但相关 ordinary pair 仍保留在 findings 里，后续可继续做 wire/semantic family 结构化
-2. second 其他 wire-grid residual
-   - `PW0291 ? -> 507`
-   - `PW0442 ? -> 501`
-   - 同样转入 shadow ordinary，等待下一刀结构化收口
-
-### 这轮后 first 样本仍值得继续人工盯的最小点
-
-1. first `11 非电量开入回路.dwg`
-   - `PW0284 ? -> 601`
-   - `PW0285 601 -> 602`
-   - 当前 default list 里，这两条已不再作为 wire-grid ordinary 暴露
-   - 但从结构开发视角，它们仍是下一刀最值得追的 residual family 候选
-
-### 解释一下为什么这次可以转 shadow
-
-- phase102 fresh run 后：
-  - first `88 -> 70`
-  - second `10 -> 6`
-- 且 second 默认列表已完全没有 wire-grid ordinary，只剩 `table_mapping`
-- 说明 ordinary 退场没有破坏结构主链；相反，它逼着后续开发直接面对真正的 wire/component/table/semantic 能力缺口
-
-## 本轮新增：匿名 wire port-box 结构族已经浮出水面，先不需要你逐条看 ordinary
-
-这轮我没有继续让你盯 `PW0115/PW0128/PW0291/PW0442` 这几个 `? -> 数字` 的 ordinary 症状本身，因为机器侧已经能比较稳定地说明：它们不是 ordinary 业务问题，而是同一类结构抽取缺口。
-
-### 机器已能稳定说明的部分
-
-1. second `06 直流回路图.dwg`
-   - `PW0115 ? -> 105`
-   - `PW0128 ? -> 105`
-   - 已确认共性：
-     - 有 `3-21n / 1-21n` 作用域前缀；
-     - 有 `101/132/105/103` 局部号栈；
-     - 有重复的 `1/2/3/4` 端口矩阵；
-     - 有模块标签 `FCK-851C-G-1`；
-     - `132` 与 `103` 已能被现有结构化 family 命中，只有 `105` 卡在“只识别到端口号、没识别到组件内部角色”。
-2. second `10 测控1控制回路图1.dwg`
-   - `PW0291 ? -> 507`
-   - 周围同样存在端口矩阵、`1-21CLP1`、`1-21ZK`、`FCK-851C-G-1`。
-3. second `14 测控2开入回路图3.dwg`
-   - `PW0442 ? -> 501`
-   - 周围同样存在端口矩阵、`3-21CLP10/11`、`1ZK`、`FCK-851C-G-1`。
-
-### 因此这轮不再需要你裁决的内容
-
-- 不需要再判断这些 `? -> 105/507/501` 是否继续留在 ordinary 默认列表。
-- 这件事已经由 phase102 的 shadow-only 合同处理完毕：它们退出 default issues，但保留为内部结构开发证据。
-
-### 这轮只剩一个最小的人审问题，等我下一刀实现前再请你拍板
-
-如果你愿意先给业务确认，我只需要下面这类“目标关系是否正确”的答复，不再问 ordinary：
-
-1. second `06`
-   - `3-21DK2 -> 3-21n105` 是否就是你认可的目标关系？
-   - `1-21DK2 -> 1-21n105` 是否同理？
-2. second `10/14`
-   - `507`、`501` 这类数字在这些页里，是否也应被解释为某个 `*n###` 或 `CLP/ZK/...` 组件逻辑端，而不是裸外部端点？
-
-如果你暂时不回这两点，也不阻塞下一步，因为本轮机器证据已经足够让我先定义“匿名 wire port-box” extractor 的通用规格。下一轮我会先按这个规格实现，再把真正剩下需要你拍板的关系压到最小。
-
-## 自动闭合回填（2026-07-09，second `06` `105` 已结构化闭合）
-
-这轮之后，second `06 直流回路图.dwg` 的 `PW0115/PW0128 = ? -> 105` 不再需要你继续人审。
-
-### 已自动闭合，无需继续人审
-
-- second `06 直流回路图.dwg`
-  - 新增结构化 pair：
-    - `3-21DK1-2 -> 3-21n105`
-    - `1-21DK1-2 -> 1-21n105`
-  - 这两条来自新的 `wire-logic body + explicit port + scoped n-prefix + local number + support line` family
-  - 不是 ordinary suppress，不是 same-row tolerance 放宽
-
-### 这轮后剩余需要你拍板的最小集合
-
-1. second `10 测控1控制回路图1.dwg`
-   - `PW0291 ? -> 507`
-   - 机器当前判断：
-     - 这不是 ordinary 默认用户问题
-     - 更像 `ZK/CLP` mixed structure 里的局部号
-   - 需要你拍板的不是“要不要保留 ordinary”，而是：
-     - `507` 最终应归到哪种逻辑端 family
-2. second `14 测控2开入回路图3.dwg`
-   - `PW0442 ? -> 501`
-   - 机器当前判断同上：
-     - 更像 `ZK/CLP` mixed structure 的 body-port/contact residual
-   - 需要你拍板：
-     - `501` 该归到哪种逻辑端 family
-3. first `11 非电量开入回路.dwg`
-   - `PW0284 ? -> 601`
-   - `PW0285 601 -> 602`
-   - 机器当前判断：
-     - 这两条更像 staggered `KLP` body-port family 的几何边界缺口
-     - 在 family 落地主链前，继续留在 `internal/shadow` 是对的
-   - 需要你拍板：
-     - 它们最终是否应解析到 `5KLP9 / 5FD27` 这一带的结构关系
-
-### 当前最小人审问题，建议你只回这 2 条
-
-1. second `10/14`
-  - `507 / 501` 在业务上分别应该归到什么 family：
-     - `ZK` contact 端口
-     - `CLP` 逻辑端
-     - 还是别的 scoped local 逻辑端
-2. first `11`
-  - `601 / 602` 是否应被视为 `5KLP9` 邻域的一部分结构关系，而不是裸数字对
-
-## 局部归属复审回填（2026-07-09，最小问题继续缩小）
-
-这轮我没有继续扩大 ordinary 审计，而是把保留下来的四个 shadow residual 再往结构层收紧了一步：
-
-- second `10`：`PW0291 = ? -> 507`
-- second `14`：`PW0442 = ? -> 501`
-- first `11`：`PW0284 = ? -> 601`
-- first `11`：`PW0285 = 601 -> 602`
-
-### second `10/14`：现在更像 `ZK` contact-side scoped local，不再只是笼统 `ZK/CLP mixed`
-
-机器已经能稳定证明：
-
-1. `PW0291 ? -> 507`
-   - 同带宽已存在 `PW0292 = 507 -> 1-21CD11`
-   - 也就是 `507` 的右半边已经进主链，剩余只是左侧 contact owner 没进来
-   - 同 row/邻 row 还能看到：
-     - `1-21ZK`
-     - `9/10`
-     - `507/508`
-     - page scope `1-21n`
-   - 这更像 `ZK` 触点侧 scoped local，而不是裸 ordinary endpoint
-2. `PW0442 ? -> 501`
-   - 同带宽已存在 `PW0443 = 501 -> 3-21CLP10`
-   - 相邻 row 还有 `PW0441 = 503 -> 3-21CLP11`
-   - 同时图面出现：
-     - `1ZK`
-     - `3/4`
-     - `501/502`
-     - `3-21CLP10`
-     - page scope `3-21n`
-   - 跨页还有一个很强的旁证：`3-21n501,1ZK-4`
-   - 所以 `501` 更像 `ZK` contact-side scoped local，`CLP10` 只是 downstream body，不是唯一 owner
-
-因此 second `10/14` 现在只剩一个很小的业务问题需要你拍板：
-
-- 这类 row 最终应该发成：
-  - exact `ZK` contact pin -> scoped local
-  - 还是 grouped `ZK` contact-row endpoint -> scoped local
-
-### first `11`：`601` 的邻域已经从旧的 `5KLP9` 猜测修正为 `5KLP8`
-
-我又对全项目 findings 做了交叉核对，发现：
-
-- 已经存在 `PCM0089 = 5KLP8-1 -> 5n601`
-- 也存在 `PWM0109/PCM0090 = 5KLP8-2 -> 5n310`
-
-所以 `PW0284/PW0285` 的局部解释应改成：
-
-- `601` 更像 `5KLP8-1 -> 5n601` 的 staggered 几何残余；
-- `310` 已经被 `5KLP8-2 -> 5n310` 吃掉；
-- 旧文档里那句“`5KLP9 / 5FD27` 邻域”需要修正，至少 `601` 不该再优先挂到 `5KLP9`。
-
-### `602` 仍需要你定业务边界
-
-和 `601` 不同，`602` 目前还没有找到同等级的 component-side 结构对照：
-
-- 当前没有 `* -> 5n602` 的 component/wire-component pair；
-- 但 terminal/continuation 侧已经能看到 `602 -> ?`、`1n602`、`1-2n602` 这类 scoped continuation 证据；
-- page `11` 本地又贴着 `5FD27 / BCJ / 非电量出口启动`。
-
-因此 `602` 现在更像一个业务边界题，而不是几何题：
-
-- 它是否属于 `5FD27/BCJ` 功能链的一部分？
-- 还是它当前只应保留为 scoped continuation/internal evidence，不急着落成 body-port pair？
-
-## 现在真正建议你只回这 3 个判断
-
-1. second `10/14`
-   - `507 / 501` 是否确认归给 `ZK` 触点侧，而不是 `CLP`/`CD` 侧？
-   - 如果确认，owner 你更希望我们发成“exact pin”还是“contact-row grouped endpoint”？
-2. first `11`
-   - `601` 是否确认按 `5KLP8-1 -> 5n601` 处理？
-3. first `11`
-   - `602` 是否属于 `5FD27/BCJ` 功能链；
-   - 还是先留作 continuation/internal，不在这一刀里强行抽成 body-port pair？
+本文件不保留历史机器猜测。清理后由最新 P001/P003 全量分析重新生成待裁决清单；只有用户明确回答后的条目才会移入以上“已确认”章节。

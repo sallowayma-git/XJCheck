@@ -4,7 +4,7 @@
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
-Phase 129 complete: previously adjudicated components now flow through versioned definition-family classification, fingerprint-consistent instance binding, and centralized behavior policy; confirmed IGNORE geometry families generalize across fingerprints while all new behavior remains no-union.
+Phase 135 in progress alongside the main queue: inspect midpoint definition `A$C08415381`, run V2 on its real P001 source, and present a localized crop for human adjudication before implementing any semantics. Side work appends to root progress/findings and does not use subagents.
 
 ## Phases
 
@@ -1953,6 +1953,8 @@ Phase 129 complete: previously adjudicated components now flow through versioned
 | Phase 128 planning patch used a stale Phase 127 continuation heading as a second anchor | 1 | Re-read the file tail and patch the current-phase line plus the exact final section separately |
 | PWF240 CAD crop rendering failed because the default Python runtime has no `matplotlib` | 1 | Use the bundled workspace document runtime if it exposes matplotlib; otherwise provide the exact original DWG path, handle, and coordinates as permitted by the review protocol |
 | First Phase 129 forked-agent batch returned two refresh-token failures and one long-running non-return | 1 | Close all three agents and restart the same three read-only audits with fresh no-history agents; the restarted batch completed successfully |
+| PowerShell rejected a Bash-style `python - <<'PY'` heredoc while inspecting SVG APIs | 1 | Use a PowerShell here-string piped to Python for inline scripts |
+| Default/bundled Python lacked matplotlib/CairoSVG/PyMuPDF, and bundled Sharp/Playwright packages had missing transitive modules | 1 | Use ezdxf SVG backend with a crop render box, then installed Microsoft Edge headless screenshot; no package installation required |
 ### Phase 123: Real-Corpus Extraction, Electrical Semantics, And Symbol Dependency Foundation
 - [x] Recover current worktree and Phase 122 evidence boundary
 - [x] Establish a persistent loop goal and retain `primary_engine=legacy`
@@ -2052,3 +2054,86 @@ Phase 129 complete: previously adjudicated components now flow through versioned
 - [x] Add drift, same-name/different-fingerprint, geometry-family, and legacy-compatibility regressions; run full suite
 - [x] Append architecture and measured outcomes to progress/taskbook
 - **Status:** complete
+
+### Phase 130: Artifact Cleanup And Fresh Unknown-Symbol Census
+- [x] Commit Phase 128/129 family-generalization work locally as `4dc5d27`
+- [x] Inventory `.tmp`, ignored test caches, tracked legacy process documents, and repository references
+- [x] Consolidate current adjudications into `doc/human_arbitration_phase98.md`; preserve `doc/任务书.md` as the active specification
+- [x] Remove all regenerable `.tmp` runs, Python/pytest caches, and tracked legacy process/research/page-review documents
+- [x] Rerun full tests from the cleaned workspace
+- [x] Fresh-run P001/P003 analysis and rebuild the unconfirmed-symbol list against family classifications and human decisions
+- [x] Present the next unresolved real symbol with original DWG path, handle, coordinates, and screenshot when practical
+- [x] Integrate and verify the human-confirmed PWF330 geometry-generalized Ethernet/LAN IGNORE state, remove it from the compact queue, and present the next main-queue crop
+- [ ] Integrate the human-confirmed `A$C2E3F2C02` wire-jump primitive: preserve same-line continuity, reject cross-line junction, remove it from symbol review, and present the next main-queue crop
+- [ ] Integrate the human-confirmed `Ld_DzbJD_Left` geometry-generalized ground IGNORE state, remove it from the compact queue, and present the next main-queue crop
+- **Status:** in_progress
+
+### Phase 131: Reverse-Queue WTX-871 Communication Panel
+- [x] Recover WTX-871 real block geometry and human mapping semantics
+- [x] Implement geometry-driven COM/CAN pin-cell identities and no-union instance binding
+- [x] Add LAN1..LAN4 socket-level unresolved proposals without fabricating endpoint names
+- [x] Add positive/negative and upper/lower binding regressions
+- [x] Run targeted tests and a fresh source-DWG `analyze-project` verification
+- [x] Remove WTX-871 from the compact queue and delete its resolved screenshot/replay products
+- [x] Present KNS2500-6RS1FSST-P1 as the only current side-review question
+- [x] Implement the human-confirmed whole-region KNS IGNORE family with close-shape negatives
+- [x] Replay the source DWG and prove zero KNS ports/mappings, then remove its queue row and crop
+- **Status:** in_progress
+
+### Phase 133: WBH-814E Backplate Table Routing
+- [x] Localize the full expanded backplate block and obtain human routing authority
+- [x] Measure current page classification, table profiles, and terminal-mapping output on the source DWG
+- [x] Route the backplate through a geometry/content-generalized table model without block-name/fingerprint dependence
+- [x] Extract plugin-slot terminal mappings with fail-closed evidence and close-shape negatives
+- [x] Rerun targeted tests and the source DWG; require nonzero verified mappings before queue removal
+- [ ] Delete resolved crop/replay products and present the next reverse-queue item
+- **Status:** in_progress
+
+### Phase 134: PWF4 GND And Local Commit Boundary
+- [x] Record PWF4 as a zero-port/zero-mapping GND symbol
+- [x] Add a rotation/reflection/scale-invariant contact-led stepped-ground topology with detached-contact negative
+- [x] Replay the source DWG and prove zero symbol ports/network candidates
+- [x] Remove PWF4 from the compact queue and delete its resolved review artifacts
+- [x] Run the full repository test suite and inspect the complete pending diff
+- [x] Commit all current coordinated project changes locally, then start the next review round
+- **Status:** complete
+
+#### Phase 133 errors
+- First combined symbol/table/classifier run produced `90 passed, 1 failed`: an existing concurrent `Ld_DzbJD_Left` stepped-ground test lost its expected family. This is outside the new backplate path but overlaps the actively edited family classifier; diagnose current-head ordering/policy state before rerunning rather than masking the regression.
+- First PWF4 source replay was interrupted by a concurrent classifier edit: `_has_named_four_contact_two_port_strip_topology` was referenced before its helper existed. Conversion/extraction completed and the DXF is available; inspect the current source state and resume from the converted file instead of repeating conversion immediately.
+
+#### Phase 131 errors
+- `analyze-project --input <dwg-file>` was rejected because the CLI requires a directory. The retry will copy only that DWG into a dedicated temporary input directory and analyze the directory.
+- Direct SVG-to-PNG conversion through bundled `sharp` failed because its runtime package is missing `detect-libc`. The SVG itself is valid; the next attempt uses the bundled Playwright Chromium renderer instead of repeating the broken conversion path.
+- Bundled Playwright was also incomplete (`playwright-core` missing). The final rendering path will rasterize the already-expanded DXF primitives directly with Pillow, avoiding both unavailable dependency chains.
+
+### Phase 132: Ld_DzbJD_Right Geometry-Generalized Ignore
+- [x] Record the human decision: no internal connectivity, no external mapping, and no proposed ports
+- [x] Derive a rotation/scale-normalized geometry family from the real P001/P003 definitions, with close-shape negatives
+- [x] Add exact-member policy plus generalized geometry suppression and regression tests
+- [x] Rerun the real source block/page and prove zero surviving ports or mappings
+- [x] Remove the resolved queue row; delete its screenshot/replay products before presenting the next midpoint item
+- **Status:** complete
+
+### Phase 133: Midpoint A$C26C55624 Adjudication
+- [x] Select the new midpoint after concurrent-safe queue cleanup
+- [x] Inspect the real DXF block and run the current V2 classifier
+- [x] Render a localized source-page crop with the target block highlighted
+- [x] Obtain human connectivity, external-mapping, and ignore/component semantics
+- [x] Implement the geometry family, add negatives, rerun the source page, and clean resolved artifacts
+- **Status:** complete
+
+### Phase 134: Midpoint SYMB2_M_PWF103 Adjudication
+- [x] Select the new midpoint after concurrent-safe queue cleanup
+- [x] Run the current V2 engine against the real P001 definition and inspect surrounding labels/lines
+- [x] Render a localized source-page crop with the target highlighted
+- [x] Obtain human connectivity and mapping semantics
+- [x] Implement, rerun, and clean the resolved item before advancing
+- **Status:** complete
+
+### Phase 135: Midpoint A$C08415381 Adjudication
+- [x] Select the new midpoint after concurrent-safe queue cleanup
+- [x] Run current V2 on the representative P001 source and inspect real geometry/context
+- [x] Render a localized source-page crop with the target highlighted
+- [ ] Obtain human connectivity/mapping semantics, then implement and verify
+- **Status:** in_progress

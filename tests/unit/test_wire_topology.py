@@ -100,6 +100,7 @@ def _artifacts(
     texts: list[TextItem] | None = None,
     blocks: list[BlockRecord] | None = None,
     line_groups: list[LineGroup] | None = None,
+    primitive_segments: list[object] | None = None,
 ) -> ProjectArtifacts:
     scan = ProjectScanResult(
         manifest=Manifest(
@@ -140,6 +141,7 @@ def _artifacts(
         texts=texts or [],
         blocks=blocks or [],
         line_groups=line_groups or [],
+        primitive_segments=primitive_segments or [],
     )
 
 
@@ -173,6 +175,47 @@ def test_build_wire_topology_frames_merges_touching_endpoints() -> None:
     assert set(networks.iloc[0]["member_line_ids"]) == {"L1", "L2"}
     assert "endpoint_merge" in set(junctions["kind"])
     assert len(networks.iloc[0]["open_endpoint_junctions"]) == 2
+
+
+def test_build_wire_topology_frames_refines_jump_bridge_and_keeps_crossing_local_no_junction() -> None:
+    primitives = [
+        {"primitive_id": "PS-L1", "primitive_kind": "LINE", "sheet_id": "S1",
+         "definition_name": "renamed", "parent_handle": "B1", "nested_path": "renamed[B1]",
+         "entity_handle": "H1", "local_geometry_json": '{"start":[0,0,0],"end":[3.75,0,0]}'},
+        {"primitive_id": "PS-L2", "primitive_kind": "LINE", "sheet_id": "S1",
+         "definition_name": "renamed", "parent_handle": "B1", "nested_path": "renamed[B1]",
+         "entity_handle": "H2", "local_geometry_json": '{"start":[6.25,0,0],"end":[10,0,0]}'},
+        {"primitive_id": "PS-A", "primitive_kind": "ARC", "sheet_id": "S1",
+         "definition_name": "renamed", "parent_handle": "B1", "nested_path": "renamed[B1]",
+         "entity_handle": "HA", "local_geometry_json": '{"center":[5,0,0],"radius":1.25,"start_angle":0,"end_angle":180}'},
+    ]
+    artifacts = _artifacts(
+        lines=[
+            _line("L-left", 0.0, 0.0, 10.0, 0.0),
+            _line("L-right", 20.0, 0.0, 30.0, 0.0),
+            _line("L-cross", 15.0, -10.0, 15.0, 10.0),
+        ],
+        blocks=[_block("B1", 10.0, 0.0)],
+        primitive_segments=primitives,
+    )
+
+    junctions, networks, summary = build_wire_topology_frames(artifacts, config=_config())
+
+    jump_network = next(
+        row for _, row in networks.iterrows()
+        if {"L-left", "L-right"}.issubset(set(row["member_line_ids"]))
+    )
+    assert "L-cross" not in set(jump_network["member_line_ids"])
+    gap = next(item for item in jump_network["bridged_gaps"] if item["reason"] == "crossover_jump")
+    assert gap["no_junction"] is True
+    assert gap["crossover_family"] == "wire.crossover_jump.v1"
+    assert summary["crossover_jump_count"] == 1
+    assert summary["crossover_jump_bridge_count"] == 1
+    assert not any(
+        set(row["member_line_ids"]) == {"L-cross", "L-left"}
+        or set(row["member_line_ids"]) == {"L-cross", "L-right"}
+        for _, row in junctions.iterrows()
+    )
 
 
 def test_build_wire_topology_frames_merges_t_cross() -> None:

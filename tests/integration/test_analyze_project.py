@@ -11,6 +11,51 @@ from typer.testing import CliRunner
 from dwg_audit.cli import app
 
 
+def test_analyze_project_recovers_nested_symbol_definition_proposal(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    original_inventory = __import__("dwg_audit.report.artifacts", fromlist=["build_project_symbol_inventory"]).build_project_symbol_inventory
+    def inventory_with_known_ground(*args, **kwargs):
+        definitions, instances, queue, summary = original_inventory(*args, **kwargs)
+        definitions.loc[definitions["definition_name"] == "SYMB2_S_PWF318", "definition_fingerprint"] = "a6c74f98075e063d0bd026cee40d021e30ded7fb6eabca346385d81d1f8f81e7"
+        return definitions, instances, queue, summary
+    monkeypatch.setattr("dwg_audit.report.artifacts.build_project_symbol_inventory", inventory_with_known_ground)
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "04 交流回路图1.dwg").write_bytes(b"AC1018demo")
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        child = doc.blocks.new("SYMB2_S_PWF318")
+        child.add_line((0.5, 0.2), (0.5, 0.65))
+        child.add_line((0.2, 0.65), (0.8, 0.65))
+        child.add_line((0.275, 0.75), (0.725, 0.75))
+        child.add_line((0.35, 0.85), (0.65, 0.85))
+        child.add_lwpolyline(
+            [(0.45, 0.2, 1.0), (0.5, 0.25, 1.0), (0.55, 0.2, 1.0), (0.5, 0.15, 1.0)],
+            format="xyb", close=True,
+        )
+        parent = doc.blocks.new("PARENT_SYMBOL")
+        parent.add_blockref("SYMB2_S_PWF318", (0, 0))
+        doc.modelspace().add_blockref("PARENT_SYMBOL", (100, 100))
+        doc.saveas(target)
+
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
+    monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
+    output_dir = tmp_path / "artifacts"
+    result = CliRunner().invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    assert result.exit_code == 0, result.output
+    run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
+    findings = Path(run_summary[0]["artifact_dir"]) / "findings"
+    proposals = json.loads((findings / "symbol_port_definition_proposals.json").read_text(encoding="utf-8"))["proposals"]
+    child_rows = [row for row in proposals if row["definition_name"] == "SYMB2_S_PWF318"]
+    assert len(child_rows) == 1
+    assert child_rows[0]["ports"] == []
+    assert child_rows[0]["family_id"] == "electrical.ground_symbol_ignored.v1"
+
+
 def test_analyze_project_records_failures_and_reuses_cached_dxf(
     monkeypatch,
     tmp_path: Path,
