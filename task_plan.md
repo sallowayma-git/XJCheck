@@ -2600,6 +2600,18 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 - [x] Implement XJDZ9-04 as a separate 11-pin `1..8/C+/G-/R-` geometry subtype; replay all 3 source DWGs / 7 instances and prove `1-21KK-1 → 1-21ZK-2` with no internal connectivity/union.
 - [ ] Remove only the five replay-proven XJDZ queue rows, continue self-iteration over the residual groups, then rebuild P001 + complete P003 and run final gates.
 
+### Phase 167: Full Test-Corpus Table Recognition Generalization Loop
+- [ ] Run the current engine over every DWG under `test/` and build a per-page baseline of page type, extractor, issue count, and table-specific failure evidence.
+- [ ] Cluster the highest-impact failures, prioritizing pages producing hundreds of issues and table pages classified as non-table/unknown.
+- [ ] For each independent cluster, inspect source DWG/converted DXF/visual context, derive a geometry/semantic rule from the existing recognition specification, and add focused positive/negative tests.
+- [ ] Replay every affected source page after each engine change; accept only measured issue reduction without regressions in previously supported table/page families.
+- [ ] Rebuild the complete `test/` corpus, run the full repository test suite and compile/diff gates, and report remaining items that genuinely require human arbitration.
+- [ ] Remove verified replay/census/screenshots and other regenerable process artifacts while preserving final evidence and human arbitration records.
+- **Status:** in_progress
+
+#### Phase 167 errors
+- Initial three-way read-only delegation (corpus runner, table engine, corpus inventory) failed before repository access: local CC Switch proxy returned HTTP 403 because it routed `gpt-5.6-luna` as a non-Codex provider. No files or processes were changed. Main thread took over discovery; do not repeat the identical delegation until the proxy/model route changes.
+
 
 ## Decision log — 2026-07-16 15:55
 | Decision | Rationale |

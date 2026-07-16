@@ -503,6 +503,221 @@ def test_build_pairs_tags_single_sided_terminal_continuation_from_short_bridge_b
     assert candidates[0].channel == "continuation_channel"
 
 
+def test_build_pairs_tags_main_strip_single_sided_plain_row_as_continuation() -> None:
+    """Column-filtered strip rows keep only one plain row number (x < 300)."""
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=80.0,
+            start_y=220.0,
+            end_x=155.0,
+            end_y=220.0,
+            length=75.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "21 左侧端子图1.dwg", 21, "21", "左侧端子图1", "屏端子图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G0001",
+            "S0001",
+            "F0001",
+            "right",
+            "T1",
+            "10",
+            "10",
+            0.83,
+            "accepted",
+            None,
+            110.0,
+            221.0,
+            5.0,
+            1.0,
+            110.0,
+            221.0,
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value is None
+    assert pair.right_value == "10"
+    assert pair.pair_kind == "continuation"
+    assert pair.status == "review"
+    assert pair.rationale == "missing left candidate; continuation relation"
+    assert pair.evidence["semantic_kind"] == "continuation_single_sided"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["continuation_kind"] == "terminal_missing_left_continuation"
+    assert pair.evidence["selected_right_channel"] == "continuation_channel"
+    assert candidates[0].channel == "continuation_channel"
+
+
+def test_build_pairs_tags_short_schematic_device_stub_as_semantic_mapping() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=97.5,
+            start_y=100.0,
+            end_x=125.0,
+            end_y=100.0,
+            length=27.5,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S0001",
+            "F0001",
+            "20 高压侧操作箱原理图2.dwg",
+            20,
+            "20",
+            "高压侧操作箱原理图2",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T1",
+            "405",
+            "405",
+            1.0,
+            "accepted",
+            None,
+            97.5,
+            100.0,
+            1.28,
+            0.63,
+            96.22,
+            99.38,
+            channel="terminal_numeric_channel",
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value == "405"
+    assert pair.right_value is None
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.status == "review"
+    assert "semantic mapping" in pair.rationale
+    assert pair.evidence["semantic_kind"] == "schematic_device_stub"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
+def test_build_pairs_tags_same_side_wire_logic_annotation_as_mapping() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=120.0,
+            start_y=240.0,
+            end_x=180.0,
+            end_y=240.0,
+            length=60.0,
+            wire_candidate_score=0.88,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S0001",
+            "F0001",
+            "05 操作箱原理图.dwg",
+            5,
+            "05",
+            "操作箱原理图",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T1",
+            "802",
+            "802",
+            0.91,
+            "accepted",
+            None,
+            120.0,
+            240.0,
+            2.0,
+            0.5,
+            118.0,
+            240.5,
+            channel="terminal_numeric_channel",
+        ),
+        TerminalCandidate(
+            "C0002",
+            "G0001",
+            "S0001",
+            "F0001",
+            "left",
+            "T2",
+            "1-4Q1D31",
+            "1-4Q1D31",
+            0.84,
+            "accepted",
+            None,
+            120.0,
+            240.0,
+            4.0,
+            1.2,
+            124.0,
+            241.2,
+            channel="wire_logic_endpoint_channel",
+            channel_detail="schematic_wire_logic_endpoint",
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.left_value == "802"
+    assert pair.right_value is None
+    assert pair.pair_kind == "wire_component_mapping"
+    assert pair.status == "review"
+    assert "wire component mapping" in pair.rationale
+    assert pair.evidence["pair_kind"] == "wire_component_mapping"
+    assert pair.evidence["semantic_kind"] == "schematic_wire_logic_annotation"
+    assert pair.evidence["component_submode"] == "schematic_wire_logic_annotation"
+    assert pair.evidence["logical_endpoint"] == "1-4Q1D31"
+    assert pair.evidence["numeric_endpoint"] == "802"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
 def test_build_pairs_tags_terminal_short_bridge_cross_column_as_bridge_mapping() -> None:
     groups = [
         LineGroup(

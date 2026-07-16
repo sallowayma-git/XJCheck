@@ -21,7 +21,15 @@ _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT = "schematic_semantic_endpoint_channel"
 _CHANNEL_CONTINUATION = "continuation_channel"
 _CHANNEL_SEMANTIC = "semantic_channel"
 _CHANNEL_NOISE = "noise_channel"
-_WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(r"^[13]-21[A-Z]{2,4}\d{1,3}$", re.IGNORECASE)
+_WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
+    r"^(?:"
+    r"[13]-21[A-Z]{2,4}\d{1,3}"
+    r"|\d+-\d+(?:[A-Z]\d+[A-Z]\d+|[A-Z]{2,4}\d+)(?:~\d+(?:[A-Z]\d+)?)?"
+    r")$",
+    re.IGNORECASE,
+)
+_SCHEMATIC_WIRE_LOGIC_SEARCH_RADIUS_X = 28.0
+_SCHEMATIC_DEVICE_ENDPOINT_SEARCH_RADIUS_X = 35.0
 _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^DC\s+0-5V/4-20mA\s*[+-]$", re.IGNORECASE),
     re.compile(r"^GND$", re.IGNORECASE),
@@ -31,6 +39,10 @@ _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^B\s*code\s*[+-]$", re.IGNORECASE),
     re.compile(r"^B[+-]$", re.IGNORECASE),
     re.compile(r"^Device alarm$", re.IGNORECASE),
+    re.compile(r"^RXD$", re.IGNORECASE),
+    re.compile(r"^TXD$", re.IGNORECASE),
+    re.compile(r"^GND$", re.IGNORECASE),
+    re.compile(r"^5n$", re.IGNORECASE),
 )
 _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|UX'?|3U0'?)$", re.IGNORECASE),
@@ -43,6 +55,23 @@ _SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS = (
 _SCHEMATIC_BINARY_INPUT_DESCRIPTION_ENDPOINT_PATTERNS = (
     re.compile(r"^Manual closing of synchronization$", re.IGNORECASE),
     re.compile(r"^手合同期$"),
+    re.compile(r"^Reset signal$", re.IGNORECASE),
+    re.compile(r"^信号复归$"),
+    re.compile(r"^Start printing$", re.IGNORECASE),
+    re.compile(r"^启动打印$"),
+    re.compile(r"^Enable remote operate$", re.IGNORECASE),
+    re.compile(r"^远方操作$"),
+    re.compile(r"^Remote reset$", re.IGNORECASE),
+    re.compile(r"^遥控复归接点$"),
+)
+# Device body / coil tags on control-box schematics (pin stubs land on these).
+_SCHEMATIC_DEVICE_ENDPOINT_PATTERNS = (
+    re.compile(r"^TC\d+$", re.IGNORECASE),
+    re.compile(r"^TWJ[A-Za-z]?\d*(?:~\d+)?$", re.IGNORECASE),
+    re.compile(r"^TBJ[A-Za-z]?\d*(?:~\d+)?$", re.IGNORECASE),
+    re.compile(r"^HWJ[A-Za-z]?\d*(?:~\d+)?$", re.IGNORECASE),
+    re.compile(r"^HBJ$", re.IGNORECASE),
+    re.compile(r"^ATBJV\d+$", re.IGNORECASE),
 )
 _TERMINAL_SEMANTIC_ROW_PATTERNS = (
     re.compile(r"^(?:UA|UB|UC|UN|3U0'?)$", re.IGNORECASE),
@@ -180,6 +209,26 @@ def build_terminal_candidates(
                     channel = _CHANNEL_NOISE
                     channel_detail = reason
                 elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_network_time_label"
+                    and abs(dy) > 8.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
+                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                    and channel_detail == "schematic_device_endpoint"
+                    and abs(dy) > 10.0
+                ):
+                    status = "rejected"
+                    reason = "schematic_semantic_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
                     len(value.strip()) == 1
                     and text.layer.upper() in profile["single_char_reject_layers"]
                 ):
@@ -263,6 +312,22 @@ def build_terminal_candidates(
                     )
                 )
         _add_schematic_ac_phase_line_span_candidates(
+            results=results,
+            index=index,
+            group=group,
+            sheet=sheet,
+            profile=profile,
+            candidate_ids=candidate_ids,
+        )
+        _add_schematic_wire_logic_near_endpoint_candidates(
+            results=results,
+            index=index,
+            group=group,
+            sheet=sheet,
+            profile=profile,
+            candidate_ids=candidate_ids,
+        )
+        _add_schematic_device_near_endpoint_candidates(
             results=results,
             index=index,
             group=group,
@@ -402,6 +467,240 @@ def _add_schematic_ac_phase_line_span_candidates(
                 source_block_name=text.source_block_name,
                 channel=_CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT,
                 channel_detail=detail,
+            )
+        )
+        existing_text_ids.add(text.text_id)
+
+
+def _add_schematic_wire_logic_near_endpoint_candidates(
+    *,
+    results: list[TerminalCandidate],
+    index: TextSpatialIndex,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    profile: dict[str, object],
+    candidate_ids: IdFactory,
+) -> None:
+    """Attach hierarchical terminal endpoints slightly outside default radius.
+
+    Control-box schematic wires often leave the numeric pin on one side and a
+    cabinet hierarchical designator (e.g. ``1-4C2D2``) just beyond the ordinary
+    18-unit endpoint window. Only the missing side is extended, and only for
+    wire-logic channel values, so AC-phase / terminal-page behavior stays
+    unchanged.
+    """
+
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return
+    orientation = group.orientation if group.orientation in {"horizontal", "grid"} else "horizontal"
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return
+
+    by_side: dict[str, list[TerminalCandidate]] = defaultdict(list)
+    existing_text_ids: set[str] = set()
+    for candidate in results:
+        if candidate.line_group_id != group.line_group_id:
+            continue
+        existing_text_ids.add(candidate.text_id)
+        if candidate.status == "accepted" and candidate.channel == _CHANNEL_TERMINAL_NUMERIC:
+            by_side[candidate.side].append(candidate)
+    numeric_sides = {side for side, candidates in by_side.items() if candidates}
+    if len(numeric_sides) != 1:
+        return
+
+    numeric_side = next(iter(numeric_sides))
+    missing_side = "right" if numeric_side == "left" else "left"
+    endpoint_map = dict(_endpoints_for_group(group))
+    endpoint = endpoint_map[missing_side]
+    radius_x = max(float(profile["radius_x"]), _SCHEMATIC_WIRE_LOGIC_SEARCH_RADIUS_X)
+    radius_y = float(profile["radius_y"])
+    min_height = float(profile["min_height"])
+    max_height = float(profile["max_height"])
+    bbox = (
+        endpoint[0] - radius_x,
+        endpoint[1] - radius_y,
+        endpoint[0] + radius_x,
+        endpoint[1] + radius_y,
+    )
+
+    for text in index.query(bbox):
+        if text.text_id in existing_text_ids:
+            continue
+        if not (min_height <= text.height <= max_height):
+            continue
+        value = _candidate_wire_logic_endpoint_value(text, sheet, orientation)
+        if value is None:
+            continue
+        dx = text.insert_x - endpoint[0]
+        dy = text.insert_y - endpoint[1]
+        if abs(dx) > radius_x or abs(dy) > radius_y:
+            continue
+        score = _candidate_score(
+            dx,
+            dy,
+            radius_x,
+            radius_y,
+            text.height,
+            missing_side,
+            orientation=orientation,
+            layer=text.layer,
+            value=value,
+            deprioritized_layers=profile["deprioritized_layers"],
+            deprioritized_layer_penalty=float(profile["deprioritized_layer_penalty"]),
+            single_char_penalty_layers=profile["single_char_penalty_layers"],
+            single_char_penalty=float(profile["single_char_penalty"]),
+            derived_numeric_penalty=0.0,
+            block_internal_numeric_penalty=float(profile["block_internal_numeric_penalty"]),
+            is_block_internal=False,
+            terminal_strip_mode=False,
+            horizontal_distance_weight=float(profile["terminal_strip_distance_x_weight"]),
+            cross_axis_distance_weight=float(profile["terminal_strip_distance_y_weight"]),
+        )
+        results.append(
+            TerminalCandidate(
+                candidate_id=candidate_ids.next(),
+                line_group_id=group.line_group_id,
+                sheet_id=group.sheet_id,
+                file_id=group.file_id,
+                side=missing_side,
+                text_id=text.text_id,
+                text=text.text,
+                value=value,
+                score=score,
+                status="accepted",
+                rejection_reason=None,
+                endpoint_x=endpoint[0],
+                endpoint_y=endpoint[1],
+                distance_x=round(abs(dx), 4),
+                distance_y=round(abs(dy), 4),
+                text_insert_x=text.insert_x,
+                text_insert_y=text.insert_y,
+                vertical_alignment_score=_cross_axis_alignment_score(
+                    dx, dy, radius_x, radius_y, orientation
+                ),
+                horizontal_side_score=_side_alignment_score(
+                    dx, dy, radius_x, radius_y, missing_side, orientation
+                ),
+                text_type_score=1.0,
+                height_score=1.0,
+                source_block_name=text.source_block_name,
+                channel=_CHANNEL_WIRE_LOGIC_ENDPOINT,
+                channel_detail="schematic_wire_logic_endpoint",
+            )
+        )
+        existing_text_ids.add(text.text_id)
+
+
+def _add_schematic_device_near_endpoint_candidates(
+    *,
+    results: list[TerminalCandidate],
+    index: TextSpatialIndex,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    profile: dict[str, object],
+    candidate_ids: IdFactory,
+) -> None:
+    """Attach control-box device tags (TC/TWJ/...) just past the default radius."""
+
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return
+    orientation = group.orientation if group.orientation in {"horizontal", "grid"} else "horizontal"
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return
+
+    by_side: dict[str, list[TerminalCandidate]] = defaultdict(list)
+    existing_text_ids: set[str] = set()
+    for candidate in results:
+        if candidate.line_group_id != group.line_group_id:
+            continue
+        existing_text_ids.add(candidate.text_id)
+        if candidate.status == "accepted" and candidate.channel == _CHANNEL_TERMINAL_NUMERIC:
+            by_side[candidate.side].append(candidate)
+    numeric_sides = {side for side, candidates in by_side.items() if candidates}
+    if len(numeric_sides) != 1:
+        return
+
+    numeric_side = next(iter(numeric_sides))
+    missing_side = "right" if numeric_side == "left" else "left"
+    endpoint_map = dict(_endpoints_for_group(group))
+    endpoint = endpoint_map[missing_side]
+    radius_x = max(float(profile["radius_x"]), _SCHEMATIC_DEVICE_ENDPOINT_SEARCH_RADIUS_X)
+    radius_y = float(profile["radius_y"])
+    min_height = float(profile["min_height"])
+    max_height = float(profile["max_height"])
+    bbox = (
+        endpoint[0] - radius_x,
+        endpoint[1] - radius_y,
+        endpoint[0] + radius_x,
+        endpoint[1] + radius_y,
+    )
+
+    for text in index.query(bbox):
+        if text.text_id in existing_text_ids:
+            continue
+        if not (min_height <= text.height <= max_height):
+            continue
+        detail = _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation)
+        if detail != "schematic_device_endpoint":
+            continue
+        value = _candidate_schematic_semantic_endpoint_value(text, sheet, orientation)
+        if value is None:
+            continue
+        dx = text.insert_x - endpoint[0]
+        dy = text.insert_y - endpoint[1]
+        if abs(dx) > radius_x or abs(dy) > radius_y:
+            continue
+        score = _candidate_score(
+            dx,
+            dy,
+            radius_x,
+            radius_y,
+            text.height,
+            missing_side,
+            orientation=orientation,
+            layer=text.layer,
+            value=value,
+            deprioritized_layers=profile["deprioritized_layers"],
+            deprioritized_layer_penalty=float(profile["deprioritized_layer_penalty"]),
+            single_char_penalty_layers=profile["single_char_penalty_layers"],
+            single_char_penalty=float(profile["single_char_penalty"]),
+            derived_numeric_penalty=0.0,
+            block_internal_numeric_penalty=float(profile["block_internal_numeric_penalty"]),
+            is_block_internal=False,
+            terminal_strip_mode=False,
+            horizontal_distance_weight=float(profile["terminal_strip_distance_x_weight"]),
+            cross_axis_distance_weight=float(profile["terminal_strip_distance_y_weight"]),
+        )
+        results.append(
+            TerminalCandidate(
+                candidate_id=candidate_ids.next(),
+                line_group_id=group.line_group_id,
+                sheet_id=group.sheet_id,
+                file_id=group.file_id,
+                side=missing_side,
+                text_id=text.text_id,
+                text=text.text,
+                value=value,
+                score=score,
+                status="accepted",
+                rejection_reason=None,
+                endpoint_x=endpoint[0],
+                endpoint_y=endpoint[1],
+                distance_x=round(abs(dx), 4),
+                distance_y=round(abs(dy), 4),
+                text_insert_x=text.insert_x,
+                text_insert_y=text.insert_y,
+                vertical_alignment_score=_cross_axis_alignment_score(
+                    dx, dy, radius_x, radius_y, orientation
+                ),
+                horizontal_side_score=_side_alignment_score(
+                    dx, dy, radius_x, radius_y, missing_side, orientation
+                ),
+                text_type_score=1.0,
+                height_score=1.0,
+                source_block_name=text.source_block_name,
+                channel=_CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT,
+                channel_detail="schematic_device_endpoint",
             )
         )
         existing_text_ids.add(text.text_id)
@@ -846,15 +1145,29 @@ def _candidate_schematic_semantic_endpoint_detail(
     ):
         return "schematic_ac_phase_label"
     if (
-        any(marker in sheet_context for marker in ("BINARY INPUT", "开入", "测控"))
+        any(
+            marker in sheet_context
+            for marker in ("BINARY INPUT", "开入", "测控", "压板", "功能接点")
+        )
         and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_BINARY_INPUT_SEMANTIC_ENDPOINT_PATTERNS)
     ):
         return "schematic_binary_input_function_label"
     if (
-        any(marker in sheet_context for marker in ("BINARY INPUT", "开入"))
+        any(
+            marker in sheet_context
+            for marker in ("BINARY INPUT", "开入", "压板", "功能接点")
+        )
         and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_BINARY_INPUT_DESCRIPTION_ENDPOINT_PATTERNS)
     ):
         return "schematic_binary_input_function_description"
+    if (
+        any(
+            marker in sheet_context
+            for marker in ("操作箱", "CONTROL CIRCUIT", "CONTROL BOX", "合闸", "跳闸出口")
+        )
+        and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_DEVICE_ENDPOINT_PATTERNS)
+    ):
+        return "schematic_device_endpoint"
     return None
 
 

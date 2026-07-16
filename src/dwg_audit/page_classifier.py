@@ -32,7 +32,12 @@ _GRID_HEAVY_MIN_HORIZONTAL_RATIO = 0.7
 _VERTICAL_COMPONENT_MIN_VERTICAL_RATIO = 0.55
 _BACKPLATE_TABLE_MIN_ENDPOINTS = 8
 _BACKPLATE_TABLE_MIN_ROW_NUMBERS = 6
-_BACKPLATE_ENDPOINT_PATTERN = re.compile(r"^[&@\s]*[0-9][A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?$")
+# Keep aligned with table_extractor._BACKPLATE_ENDPOINT_PATTERN so hierarchical
+# cabinet terminals such as `1-21QD1` / `& 3-21DK1-4` also upgrade 背板 pages.
+_BACKPLATE_ENDPOINT_PATTERN = re.compile(
+    r"^(?:[0-9](?:-[0-9]+)?[A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?|[A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?)$",
+    re.IGNORECASE,
+)
 _BACKPLATE_HEADER_PATTERN = re.compile(r"^[A-Za-z]{2,}[0-9]+[A-Za-z]?(?:[（(].*[）)])?$")
 _AUDIT_ROUTE_TARGETS = {
     "WireDiagramExtractor",
@@ -155,9 +160,14 @@ def _page_features(
 
     audit_texts = [text for text in texts if _text_in_audit_area(text, page)]
     numeric_text_count = sum(1 for text in audit_texts if text.is_numeric_candidate)
-    backplate_endpoint_count = sum(1 for text in audit_texts if _looks_like_backplate_endpoint(text.normalized_text))
+    backplate_endpoint_count = sum(
+        1
+        for text in audit_texts
+        if not text.source_block_name and _looks_like_backplate_endpoint(text.normalized_text)
+    )
     backplate_virtual_row_count = sum(1 for text in audit_texts if text.source_block_name and _looks_like_backplate_row_number(text.normalized_text))
     backplate_virtual_header_count = sum(1 for text in audit_texts if text.source_block_name and _looks_like_backplate_header(text.normalized_text))
+
 
     return {
         "text_count": len(texts),
@@ -426,10 +436,17 @@ def _text_in_audit_area(text: TextItem, page: SheetRecord) -> bool:
     return min_x <= text.insert_x <= max_x and min_y <= text.insert_y <= max_y
 
 
+def _normalize_backplate_endpoint(value: str | None) -> str:
+    """Strip leader markers/spaces so classifier and TableExtractor share identity."""
+    if not value:
+        return ""
+    return re.sub(r"^[^0-9A-Za-z]+", "", str(value).strip()).replace(" ", "")
+
+
 def _looks_like_backplate_endpoint(value: str | None) -> bool:
     if not value:
         return False
-    return bool(_BACKPLATE_ENDPOINT_PATTERN.fullmatch(str(value).strip()))
+    return bool(_BACKPLATE_ENDPOINT_PATTERN.fullmatch(_normalize_backplate_endpoint(value)))
 
 
 def _looks_like_backplate_row_number(value: str | None) -> bool:

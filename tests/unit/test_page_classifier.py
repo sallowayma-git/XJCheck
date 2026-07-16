@@ -351,6 +351,36 @@ def test_classify_pages_upgrades_structured_backplate_table_to_table_extractor()
     assert classification.capabilities == ("SymbolPorts", "TerminalGrid", "TableMapping")
 
 
+def test_classify_pages_upgrades_hierarchical_cabinet_backplate_endpoints() -> None:
+    """Hierarchical cabinet terminals (1-21QD1) must also upgrade backplate pages."""
+    sheet = _make_sheet(
+        filename="17 测控1装置背板.dwg",
+        sheet_title="测控1装置背板",
+        sheet_category="背板接线图",
+        audit_role="secondary",
+        audit_area_bbox=(0.0, 0.0, 300.0, 260.0),
+    )
+    texts = [_make_text("H", "S1", 210.0, 240.0, "BI1", source_block_name="FCK-851C-G-1")]
+    for index in range(1, 9):
+        y = 240.0 - index * 5.0
+        texts.append(_make_text(f"R{index}", "S1", 210.0, y, f"{index:02d}", source_block_name="FCK-851C-G-1"))
+        # Leading markers and hierarchical cabinet scopes appear in real测控柜 samples.
+        endpoint = f"& 1-21QD{index}" if index % 2 else f"3-21KLP{index}-2"
+        texts.append(_make_text(f"E{index}", "S1", 198.0, y, endpoint))
+
+    classifications = classify_pages([sheet], texts, [], [], [], DEFAULT_CONFIG)
+    classification = classifications["S1"]
+
+    assert classification.page_type == "背板表格型图"
+    assert classification.page_subtype == "backplate_virtual_terminal_table"
+    assert classification.table_like is True
+    assert classification.audit_disposition == "audit_required"
+    assert classification.route_target == "TableExtractor"
+    assert classification.features["backplate_endpoint_text_count"] == 8
+    assert classification.features["backplate_virtual_header_count"] == 1
+    assert classification.features["backplate_virtual_row_number_count"] == 8
+
+
 def test_classify_pages_emits_communication_medium_from_two_in_area_content_cues() -> None:
     sheet = _make_sheet(sheet_category=None, sheet_title="普通页")
     texts = [

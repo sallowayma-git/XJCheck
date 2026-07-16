@@ -19,6 +19,7 @@ from dwg_audit.desktop import render_project_preview
 from dwg_audit.desktop import update_issue_status as update_desktop_issue_status
 from dwg_audit.report import compare_project_regressions
 from dwg_audit.report import evaluate_corpus_census
+from dwg_audit.report import evaluate_extraction_verification
 from dwg_audit.report import evaluate_acceptance_project
 from dwg_audit.report import evaluate_acceptance_suite
 from dwg_audit.report import evaluate_hard_issue_label_pack
@@ -29,6 +30,7 @@ from dwg_audit.report import write_acceptance_report
 from dwg_audit.report import write_acceptance_suite_report
 from dwg_audit.report import write_baseline_manifest
 from dwg_audit.report import write_corpus_census_artifacts
+from dwg_audit.report import write_extraction_verification_artifacts
 from dwg_audit.report import write_promotion_gate_evidence
 from dwg_audit.report import write_regression_report
 from dwg_audit.report import ElectricalConnectionReviewPackError
@@ -858,6 +860,47 @@ def evaluate_corpus_census_cmd(
     typer.echo(f"- by_project: {paths['by_project']}")
     typer.echo(f"- summary: {paths['summary']}")
     if summary["status"] != "VALID":
+        raise typer.Exit(code=2)
+
+
+@app.command("verify-extraction")
+def verify_extraction_cmd(
+    project: list[str] = typer.Option(
+        ...,
+        "--project",
+        help="Alias=dir pairs like P001=.tmp/foo",
+    ),
+    output: Path = typer.Option(Path("extraction_verification"), "--output", "-o"),
+) -> None:
+    """Offline extraction health scorecard over persisted project bundles."""
+
+    project_dirs: dict[str, Path] = {}
+    for item in project:
+        if "=" not in item:
+            raise typer.BadParameter(f"Expected alias=dir, got: {item}")
+        alias, raw_path = item.split("=", 1)
+        alias = alias.strip()
+        if not alias:
+            raise typer.BadParameter(f"Project alias is empty: {item}")
+        project_path = Path(raw_path.strip()).expanduser().resolve()
+        if not project_path.is_dir():
+            raise typer.BadParameter(f"Project directory does not exist: {project_path}")
+        project_dirs[alias] = project_path
+
+    evaluation = evaluate_extraction_verification(project_dirs)
+    paths = write_extraction_verification_artifacts(evaluation, output)
+    summary = evaluation["summary"]
+    typer.echo("Extraction verification completed:")
+    typer.echo(f"- projects: {summary['project_count']}")
+    typer.echo(f"- status: {summary['status']}")
+    typer.echo(
+        f"- PASS/REVIEW/FAIL: {summary['pass_count']}/{summary['review_count']}/{summary['fail_count']}"
+    )
+    typer.echo(f"- by_project: {paths['by_project']}")
+    typer.echo(f"- by_page: {paths['by_page']}")
+    typer.echo(f"- summary: {paths['summary']}")
+    typer.echo(f"- markdown: {paths['markdown']}")
+    if summary["status"] == "FAIL":
         raise typer.Exit(code=2)
 
 

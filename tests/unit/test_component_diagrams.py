@@ -193,6 +193,33 @@ def test_extract_strip_two_port_component_pairs_accepts_zlp_body() -> None:
     assert all(pair.evidence["component_submode"] == "strip_two_port_component" for pair in pairs)
 
 
+def test_extract_strip_two_port_component_pairs_accepts_cabinet_module_clp_body() -> None:
+    """Cabinet module tags like 1C3LP4 (letter+digits before LP) must map like classic KLP bodies."""
+    sheet = _make_sheet()
+    texts = [
+        _make_text("T5337", "1C3LP4", 45.49, 241.50, layer="MARK"),
+        _make_text("T5335", "1", 47.5, 227.5, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T5334", "2", 47.5, 212.5, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("T5509", "1KD9", 47.0, 231.6),
+        _make_text("T5510", "1n408", 46.25, 206.0),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs(
+        [sheet],
+        texts,
+        [_make_vertical_group("GC0045", x=47.5, start_y=227.5, end_y=212.5)],
+    )
+
+    assert consumed == {"GC0045"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1C3LP4-1", "1KD9"),
+        ("1C3LP4-2", "1n408"),
+    }
+    assert {pair.pair_kind for pair in pairs} == {"component_mapping"}
+    assert all(pair.status == "pass" for pair in pairs)
+    assert all(pair.evidence["component_submode"] == "strip_two_port_component" for pair in pairs)
+
+
 def test_extract_strip_two_port_component_pairs_requires_supporting_vertical_group() -> None:
     sheet = _make_sheet()
     texts = [

@@ -776,13 +776,13 @@ def _is_slash_circle_two_contact_terminal_geometry(
     try:
         if not (
             port_count == 2
-            and int(histogram.get("LINE", 0)) == 4
+            and int(histogram.get("LINE", 0)) in {3, 4}
             and int(histogram.get("LWPOLYLINE", 0)) == 2
             and int(histogram.get("CIRCLE", 0)) == 1
             and int(histogram.get("TEXT", 0)) == 0
             and len(contacts) == 2
             and len(circles) == 1
-            and len(segments) == 4
+            and len(segments) == int(histogram.get("LINE", 0))
         ):
             return False
         contact_centers = [
@@ -1030,7 +1030,7 @@ def _is_four_radial_isolated_terminal_geometry(
         if not (
             port_count == 4
             and int(histogram.get("CIRCLE", 0)) == 1
-            and int(histogram.get("LINE", 0)) == 4
+            and int(histogram.get("LINE", 0)) in {3, 4}
             and int(histogram.get("LWPOLYLINE", 0)) == 4
             and int(histogram.get("TEXT", 0)) == 0
             and len(contacts) == len(segments) == 4
@@ -1190,7 +1190,7 @@ def _is_dual_frame_isolated_two_port_geometry(
             and int(histogram.get("LWPOLYLINE", 0)) == 4
             and int(histogram.get("TEXT", 0)) == 0
             and len(contacts) == 2
-            and len(segments) == 4
+            and len(segments) == int(histogram.get("LINE", 0))
             and len(boxes) == 2
         ):
             return False
@@ -2147,6 +2147,53 @@ def _is_four_numbered_contact_panel_geometry(
                 "midpoint": ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0),
             }
         )
+    if len(line_rows) == 3:
+        for stem_index, stem in enumerate(line_rows):
+            parallel = [
+                row for index, row in enumerate(line_rows) if index != stem_index
+            ]
+            parallel_dot = abs(
+                parallel[0]["unit"][0] * parallel[1]["unit"][0]
+                + parallel[0]["unit"][1] * parallel[1]["unit"][1]
+            )
+            if parallel_dot < 0.98 or any(
+                abs(
+                    stem["unit"][0] * row["unit"][0]
+                    + stem["unit"][1] * row["unit"][1]
+                )
+                > 0.05
+                for row in parallel
+            ):
+                continue
+            lengths = sorted(row["length"] for row in parallel)
+            if not (
+                0.48 <= lengths[0] / lengths[1] <= 0.52
+                and 0.85 <= stem["length"] / lengths[1] <= 0.90
+            ):
+                continue
+            projections = sorted(
+                (row["midpoint"][0] - stem["start"][0]) * stem["unit"][0]
+                + (row["midpoint"][1] - stem["start"][1]) * stem["unit"][1]
+                for row in parallel
+            )
+            if not (
+                abs(projections[0]) <= mean_contact_radius * 0.08
+                and abs(projections[1] - stem["length"])
+                <= mean_contact_radius * 0.08
+            ):
+                continue
+            if all(
+                abs(
+                    (row["midpoint"][0] - stem["start"][0])
+                    * parallel[0]["unit"][0]
+                    + (row["midpoint"][1] - stem["start"][1])
+                    * parallel[0]["unit"][1]
+                )
+                <= mean_contact_radius * 0.08
+                for row in parallel
+            ):
+                return True
+        return False
     for stem_index, stem in enumerate(line_rows):
         parallel = [row for index, row in enumerate(line_rows) if index != stem_index]
         if not all(

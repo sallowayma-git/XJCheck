@@ -390,6 +390,25 @@ def _pair_evidence(
         )
     )
     evidence.update(
+        _single_sided_wire_logic_annotation(
+            sheet=sheet,
+            selected=selected,
+            left_candidate=left_candidate,
+            right_candidate=right_candidate,
+            group_candidates=group_candidates,
+        )
+    )
+    if evidence.get("pair_kind", "ordinary_pair") == "ordinary_pair":
+        evidence.update(
+            _single_sided_schematic_device_stub_annotation(
+                group=group,
+                sheet=sheet,
+                selected=selected,
+                left_candidate=left_candidate,
+                right_candidate=right_candidate,
+            )
+        )
+    evidence.update(
         _terminal_continuation_semantics(
             group=group,
             sheet=sheet,
@@ -620,6 +639,8 @@ def _single_sided_schematic_semantic_annotation(
             "schematic_ac_phase_label",
             "schematic_binary_input_function_label",
             "schematic_binary_input_function_description",
+            "schematic_device_endpoint",
+            "schematic_dc_function_label",
         }
         and candidate.side == numeric_side
     ]
@@ -642,6 +663,111 @@ def _single_sided_schematic_semantic_annotation(
         "numeric_endpoint_raw": numeric_candidate.text,
         "numeric_endpoint_side": numeric_side,
         "ordinary_pair_eligible": False,
+    }
+
+
+def _single_sided_wire_logic_annotation(
+    *,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+    group_candidates: list[TerminalCandidate],
+) -> dict[str, object]:
+    """Mark single-sided numeric + same-side hierarchical designator as mapped.
+
+    Control-box schematics often place ``1-4Q1D31`` next to the pin number on the
+    same wire end while the opposite end is a bus/label only. That is not a
+    missing ordinary pair side.
+    """
+
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return {}
+    if bool(selected.left_value) == bool(selected.right_value):
+        return {}
+
+    numeric_candidate = left_candidate if selected.left_value else right_candidate
+    numeric_value = selected.left_value if selected.left_value else selected.right_value
+    if numeric_candidate is None or numeric_candidate.channel != _CHANNEL_TERMINAL_NUMERIC or not numeric_value:
+        return {}
+
+    numeric_side = "left" if selected.left_value else "right"
+    missing_side = "right" if selected.left_value else "left"
+    logic_candidates = [
+        candidate
+        for candidate in group_candidates
+        if candidate.status == "accepted"
+        and candidate.channel == _CHANNEL_WIRE_LOGIC_ENDPOINT
+        and candidate.side == numeric_side
+        and candidate.text_id != numeric_candidate.text_id
+        and candidate.value
+    ]
+    if not logic_candidates:
+        return {}
+    logic_candidates.sort(key=lambda item: item.score, reverse=True)
+    logic_candidate = logic_candidates[0]
+    return {
+        "source": "wire_component_mapping",
+        "pair_kind": "wire_component_mapping",
+        "component_submode": "schematic_wire_logic_annotation",
+        "semantic_kind": "schematic_wire_logic_annotation",
+        "semantic_mapping_missing_side": missing_side,
+        "logical_endpoint": logic_candidate.value,
+        "logical_endpoint_text_id": logic_candidate.text_id,
+        "logical_endpoint_raw": logic_candidate.text,
+        "logical_endpoint_side": numeric_side,
+        "numeric_endpoint": numeric_value,
+        "numeric_endpoint_text_id": numeric_candidate.text_id,
+        "numeric_endpoint_raw": numeric_candidate.text,
+        "numeric_endpoint_side": numeric_side,
+        "ordinary_pair_eligible": False,
+    }
+
+
+def _single_sided_schematic_device_stub_annotation(
+    *,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    selected: PairCandidate,
+    left_candidate: TerminalCandidate | None,
+    right_candidate: TerminalCandidate | None,
+) -> dict[str, object]:
+    """Demote short single-sided schematic stubs out of ordinary missing-side.
+
+    Control-box drawings often stop a short horizontal pin stub at a device
+    body (coil/relay) without a second terminal number. Length stays below a
+    normal pair span, so treat those as semantic device stubs.
+    """
+
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return {}
+    if bool(selected.left_value) == bool(selected.right_value):
+        return {}
+    if group.orientation not in {"horizontal", "grid"}:
+        return {}
+    # Short pin stubs into device bodies are typically < 30 drawing units.
+    if group.length >= 30.0:
+        return {}
+
+    numeric_candidate = left_candidate if selected.left_value else right_candidate
+    numeric_value = selected.left_value if selected.left_value else selected.right_value
+    if numeric_candidate is None or numeric_candidate.channel != _CHANNEL_TERMINAL_NUMERIC or not numeric_value:
+        return {}
+
+    missing_side = "right" if selected.left_value else "left"
+    numeric_side = "left" if selected.left_value else "right"
+    return {
+        "source": "semantic_mapping",
+        "pair_kind": "semantic_mapping",
+        "semantic_kind": "schematic_device_stub",
+        "semantic_mapping_kind": "schematic_device_stub",
+        "semantic_mapping_missing_side": missing_side,
+        "numeric_endpoint": numeric_value,
+        "numeric_endpoint_text_id": numeric_candidate.text_id,
+        "numeric_endpoint_raw": numeric_candidate.text,
+        "numeric_endpoint_side": numeric_side,
+        "ordinary_pair_eligible": False,
+        "device_stub_length": group.length,
     }
 
 
@@ -742,8 +868,9 @@ def _single_sided_terminal_continuation_semantics(
             "continuation_kind": continuation_kind,
             "continuation_missing_side": missing_side,
         }
-    if min(group.start_x, group.end_x) < 300.0:
-        return {}
+    # Main terminal-strip row segments (length 70-80) often keep the row number
+    # only in one column; the opposite column is intentionally filtered. Treat
+    # those single-sided hits as continuation regardless of left/right page x.
     return {
         "pair_kind": "continuation",
         "semantic_kind": "continuation_single_sided",

@@ -9,6 +9,8 @@ from dwg_audit.report.artifacts import write_project_artifacts
 from dwg_audit.report.baseline import write_baseline_manifest
 from dwg_audit.report.corpus_census import evaluate_corpus_census
 from dwg_audit.report.corpus_census import write_corpus_census_artifacts
+from dwg_audit.report.extraction_verification import evaluate_extraction_verification
+from dwg_audit.report.extraction_verification import write_extraction_verification_artifacts
 from dwg_audit.report.electrical_connection_review_pack import (
     ElectricalConnectionReviewPackError,
 )
@@ -55,6 +57,7 @@ __all__ = [
     "evaluate_acceptance_project",
     "evaluate_acceptance_suite",
     "evaluate_corpus_census",
+    "evaluate_extraction_verification",
     "evaluate_hard_issue_label_pack",
     "evaluate_hard_issue_precision",
     "evaluate_promotion_gate",
@@ -71,6 +74,7 @@ __all__ = [
     "write_acceptance_suite_report",
     "write_baseline_manifest",
     "write_corpus_census_artifacts",
+    "write_extraction_verification_artifacts",
     "write_electrical_connection_review_pack",
     "write_promotion_gate_evidence",
     "write_symbol_corpus_queue_artifacts",

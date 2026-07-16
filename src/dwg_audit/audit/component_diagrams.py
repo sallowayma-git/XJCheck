@@ -20,7 +20,11 @@ _SMALL_PORT_BOX_BLOCK_PORTS = {
     "KK2P": {"1", "2", "3", "4"},
     "JR-01": {"1", "2"},
 }
-_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:KLP|CLP|ZLP)\d+$", re.IGNORECASE)
+# Accept classic 1KLP9 / 1-4CLP2 and cabinet module tags like 1C3LP4 / 5C1LP2.
+_COMPONENT_BODY_PATTERN = re.compile(
+    r"^\d+(?:-\d+)?(?:(?:KLP|CLP|ZLP)\d+|[A-Za-z]\d+LP\d+)$",
+    re.IGNORECASE,
+)
 _KK_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?[A-Za-z]{1,5}\d*$", re.IGNORECASE)
 _SMALL_PORT_BOX_BODY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z']{0,4}$", re.IGNORECASE)
 _STRIP_ENDPOINT_BRIDGE_TOP_PATTERN = re.compile(r"^(?P<prefix>\d+-\d+)ZK-(?P<port>\d+)$", re.IGNORECASE)
