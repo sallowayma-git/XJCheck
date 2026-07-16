@@ -17,6 +17,8 @@ _CANVAS_WIDTH = 960.0
 _CANVAS_HEIGHT = 540.0
 _HEADER_HEIGHT = 52.0
 _EDGE_PAD = 18.0
+_MAX_PREVIEW_LINES = 240
+_MAX_PREVIEW_TEXTS = 160
 
 
 def render_project_preview(
@@ -36,18 +38,30 @@ def render_project_preview(
     run = latest["run"]
     artifact_raw = str(run.get("artifact_dir") or "").strip()
     artifact_dir = Path(artifact_raw) if artifact_raw else None
-    frames = load_report_frames(artifact_dir) if artifact_dir and artifact_dir.exists() else {}
-    issues = frames.get("issues", pd.DataFrame())
-    pages = frames.get("pages", pd.DataFrame())
-    lines = frames.get("lines", pd.DataFrame())
-    texts = frames.get("texts", pd.DataFrame())
-    line_groups = frames.get("line_groups", pd.DataFrame())
 
     # Prefer SQLite-retained issue records after conversion workspaces are compacted.
     sqlite_issues = latest.get("issues") or []
     issue_row: pd.Series | None = None
     if issue_id:
         issue_row = _issue_row_from_sqlite(sqlite_issues, issue_id)
+
+    # Lightweight path: when issue already has line geometry evidence, skip loading
+    # multi-megabyte parquet frames that freeze the desktop sidecar.
+    lightweight = issue_row is not None and _issue_has_geometry_evidence(issue_row)
+    if lightweight:
+        frames = {}
+    elif artifact_dir and artifact_dir.exists():
+        frames = load_report_frames(artifact_dir)
+    else:
+        frames = {}
+
+    issues = frames.get("issues", pd.DataFrame())
+    pages = frames.get("pages", pd.DataFrame())
+    lines = frames.get("lines", pd.DataFrame())
+    texts = frames.get("texts", pd.DataFrame())
+    line_groups = frames.get("line_groups", pd.DataFrame())
+
+    if issue_id:
         if issue_row is None and not issues.empty:
             issue_matches = issues[issues["issue_id"].astype(str) == issue_id]
             if not issue_matches.empty:
@@ -101,29 +115,34 @@ def render_project_preview(
     target_dir.mkdir(parents=True, exist_ok=True)
     crop_token = "issue" if highlight is not None else "sheet"
     target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}_{crop_token}.svg"
-    target_path.write_text(
-        _build_svg(
-            page_row,
-            visible_lines,
-            visible_texts,
-            focus_extent,
-            highlight=highlight,
-            issue_row=issue_row,
-            line_semantics=line_semantics,
-            cropped=highlight is not None,
-        ),
-        encoding="utf-8",
+    if len(visible_lines) > _MAX_PREVIEW_LINES:
+        visible_lines = visible_lines.iloc[:_MAX_PREVIEW_LINES].copy()
+    if len(visible_texts) > _MAX_PREVIEW_TEXTS:
+        visible_texts = visible_texts.iloc[:_MAX_PREVIEW_TEXTS].copy()
+
+    svg_text = _build_svg(
+        page_row,
+        visible_lines,
+        visible_texts,
+        focus_extent,
+        highlight=highlight,
+        issue_row=issue_row,
+        line_semantics=line_semantics,
+        cropped=highlight is not None,
     )
+    target_path.write_text(svg_text, encoding="utf-8")
 
     return {
         "project_id": project_id,
         "sheet_id": sheet_id,
         "issue_id": issue_id,
         "preview_path": str(target_path),
+        "preview_svg": svg_text,
         "artifact_dir": artifact_raw,
         "focus_bbox": list(focus_extent),
         "cropped_to_issue": highlight is not None,
-        "source": "sqlite_evidence" if not artifact_raw else "artifacts",
+        "source": "sqlite_evidence" if lightweight or not artifact_raw else "artifacts",
+        "lightweight": lightweight,
     }
 
 
@@ -418,6 +437,15 @@ def _clamp_extent(
 def _extent_span(extent: tuple[float, float, float, float]) -> float:
     min_x, min_y, max_x, max_y = extent
     return max(max_x - min_x, max_y - min_y, 1.0)
+
+
+def _issue_has_geometry_evidence(issue_row: pd.Series | None) -> bool:
+    if issue_row is None:
+        return False
+    evidence = _decode_jsonish(issue_row.get("evidence"))
+    if not isinstance(evidence, dict):
+        return False
+    return _is_point_pair(evidence.get("line_start")) and _is_point_pair(evidence.get("line_end"))
 
 
 def _issue_row_from_sqlite(issues: list[dict[str, Any]], issue_id: str) -> pd.Series | None:

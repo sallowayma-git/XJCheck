@@ -229,7 +229,14 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
 }
 
 function normalizePreviewPayload(payload: Omit<PreviewPayload, "preview_src"> & { preview_src?: string | null }): PreviewPayload {
-  const rawPreviewSrc = payload.preview_src ?? (payload.preview_path ? convertFileSrc(payload.preview_path) : null)
+  // Prefer inline SVG data URL: avoids asset-protocol file locks and WebView stalls.
+  let rawPreviewSrc: string | null = payload.preview_src ?? null
+  if (!rawPreviewSrc && payload.preview_svg) {
+    rawPreviewSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(payload.preview_svg)}`
+  }
+  if (!rawPreviewSrc && payload.preview_path) {
+    rawPreviewSrc = convertFileSrc(payload.preview_path)
+  }
   return {
     ...payload,
     preview_src: rawPreviewSrc ? withCacheBust(rawPreviewSrc) : null,
@@ -244,6 +251,10 @@ function toDesktopError(prefix: string, error: unknown): Error {
 }
 
 function withCacheBust(src: string): string {
+  // Data URLs must not receive query params; browsers treat them as part of the payload.
+  if (src.startsWith("data:")) {
+    return src
+  }
   const separator = src.includes("?") ? "&" : "?"
   return `${src}${separator}v=${Date.now()}`
 }

@@ -77,8 +77,13 @@ export type PreviewPayload = {
   sheet_id: string | null
   issue_id: string | null
   preview_path?: string | null
+  preview_svg?: string | null
   preview_src: string | null
   artifact_dir?: string
+  focus_bbox?: number[]
+  cropped_to_issue?: boolean
+  source?: string
+  lightweight?: boolean
 }
 
 export type AnalyzeSessionRequest = {

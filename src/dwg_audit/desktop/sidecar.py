@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import threading
 import uuid
 from pathlib import Path
 from typing import Any
@@ -30,13 +31,16 @@ def default_preview_cache_root() -> Path:
 class DesktopEventWriter:
     def __init__(self, stream = None) -> None:
         self.stream = stream or sys.stdout
+        self._lock = threading.Lock()
         if hasattr(self.stream, "reconfigure"):
             self.stream.reconfigure(encoding="utf-8")
 
     def emit(self, event_type: str, **payload: Any) -> None:
         record = {"event": event_type, **payload}
-        self.stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-        self.stream.flush()
+        line = json.dumps(record, ensure_ascii=False) + "\n"
+        with self._lock:
+            self.stream.write(line)
+            self.stream.flush()
 
 
 def analyze_session(

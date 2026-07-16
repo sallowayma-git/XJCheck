@@ -1,6 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { startTransition, useDeferredValue, useEffect, useEffectEvent, useMemo, useState } from "react"
+import { startTransition, useDeferredValue, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 
 import "./App.css"
 import logoUrl from "./assets/logo.png"
@@ -52,6 +52,7 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isPickingDirectory, setIsPickingDirectory] = useState(false)
   const [isRefreshingPreview, setIsRefreshingPreview] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isDropTargetActive, setIsDropTargetActive] = useState(false)
@@ -71,6 +72,9 @@ function App() {
     liveIssues: [],
     completedProjects: [],
   })
+  const processEventQueueRef = useRef<SidecarEvent[]>([])
+  const processFlushTimerRef = useRef<number | null>(null)
+
 
   const refreshRecentProjects = useEffectEvent(async () => {
     try {
@@ -203,105 +207,141 @@ function App() {
     }
   })
 
-  const handleEvent = useEffectEvent((event: SidecarEvent) => {
+  const applyProcessEvents = useEffectEvent((events: SidecarEvent[]) => {
+    if (!events.length) {
+      return
+    }
     setProcessState((current) => {
-      const nextLogs = [...current.logs, formatSidecarLog(event)]
-      const nextState: ProcessState = {
+      let nextState: ProcessState = {
         ...current,
-        logs: nextLogs.slice(-40),
+        logs: [...current.logs],
+        stageCards: current.stageCards.map((item) => ({ ...item })),
+        liveIssues: [...current.liveIssues],
       }
-
-      if (event.event === "run_started") {
-        nextState.sessionId = event.session_id
-      }
-
-      if (event.event === "progress") {
-        nextState.activeStage = event.stage
-        nextState.progressRatio = stageProgress(event.stage)
-        if (event.stage === "scan") {
-          nextState.totalSheets = event.sheet_count ?? current.totalSheets
+      for (const event of events) {
+        nextState = {
+          ...nextState,
+          logs: [...nextState.logs, formatSidecarLog(event)].slice(-40),
         }
-        nextState.stageCards = current.stageCards.map((item) =>
-          item.stage === event.stage
-            ? {
-                ...item,
-                detail: summarizeProgress(event),
-                done: false,
-              }
-            : stageOrder(item.stage) < stageOrder(event.stage)
-              ? { ...item, done: true }
-              : item,
-        )
-      }
 
-      if (event.event === "page_finished" && event.stage === "convert") {
-        nextState.completedPages = current.completedPages + 1
-        nextState.failedPages = current.failedPages + (isFailedPageStatus(event.status) ? 1 : 0)
-      }
+        if (event.event === "run_started") {
+          nextState.sessionId = event.session_id
+        }
 
-      if (event.event === "warning") {
-        nextState.warningCount = current.warningCount + 1
-      }
+        if (event.event === "progress") {
+          nextState.activeStage = event.stage
+          nextState.progressRatio = stageProgress(event.stage)
+          if (event.stage === "scan") {
+            nextState.totalSheets = event.sheet_count ?? nextState.totalSheets
+          }
+          nextState.stageCards = nextState.stageCards.map((item) =>
+            item.stage === event.stage
+              ? {
+                  ...item,
+                  detail: summarizeProgress(event),
+                  done: false,
+                }
+              : stageOrder(item.stage) < stageOrder(event.stage)
+                ? { ...item, done: true }
+                : item,
+          )
+        }
 
-      if (event.event === "issue_found") {
-        nextState.liveIssues = [
-          {
-            issue_id: event.issue_id,
-            rule_id: event.rule_id,
-            issue_type: event.issue_type ?? event.rule_id,
-            title: event.title,
-            summary: event.title,
-            explanation: "",
-            recommended_action: "",
-            severity: event.severity,
-            status: "open",
-            confidence: event.confidence ?? 0,
-            sheet_id: null,
-            file_id: null,
-            filename: event.filename ?? "",
-            sheet_no: event.sheet_no ?? "",
-            line_group_id: null,
-            left_value: event.left_value ?? null,
-            right_value: event.right_value ?? null,
-            primary_pair_id: null,
-            related_pair_ids: [],
-            sheet_ids: [],
-            values: [event.left_value, event.right_value].filter((value): value is string => Boolean(value)),
-            evidence_refs: [],
-            one_to_many_classification: event.one_to_many_classification ?? null,
-            evidence: {},
-          },
-          ...current.liveIssues,
-        ].slice(0, 50)
-      }
+        if (event.event === "page_finished" && event.stage === "convert") {
+          nextState.completedPages = nextState.completedPages + 1
+          nextState.failedPages = nextState.failedPages + (isFailedPageStatus(event.status) ? 1 : 0)
+        }
 
-      if (event.event === "project_stored") {
-        nextState.completedProjects = [
-          {
-            run_id: event.run_id,
-            session_id: current.sessionId ?? "session-runtime",
-            project_id: event.project_id,
-            project_name: event.project_name,
-            input_root: inputRoot,
-            artifact_dir: event.artifact_dir,
-            updated_at: new Date().toISOString(),
-            status: "completed",
-            sheet_count: event.sheet_count,
-            pair_count: event.pair_count,
-            issue_count: event.issue_count,
-          },
-        ]
-      }
+        if (event.event === "warning") {
+          nextState.warningCount = nextState.warningCount + 1
+        }
 
-      if (event.event === "run_finished") {
-        nextState.progressRatio = 1
-        nextState.stageCards = current.stageCards.map((item) => ({ ...item, done: true }))
-        nextState.completedProjects = event.projects
-      }
+        if (event.event === "issue_found") {
+          nextState.liveIssues = [
+            {
+              issue_id: event.issue_id,
+              rule_id: event.rule_id,
+              issue_type: event.issue_type ?? event.rule_id,
+              title: event.title,
+              summary: event.title,
+              explanation: "",
+              recommended_action: "",
+              severity: event.severity,
+              status: "open",
+              confidence: event.confidence ?? 0,
+              sheet_id: null,
+              file_id: null,
+              filename: event.filename ?? "",
+              sheet_no: event.sheet_no ?? "",
+              line_group_id: null,
+              left_value: event.left_value ?? null,
+              right_value: event.right_value ?? null,
+              primary_pair_id: null,
+              related_pair_ids: [],
+              sheet_ids: [],
+              values: [event.left_value, event.right_value].filter((value): value is string => Boolean(value)),
+              evidence_refs: [],
+              one_to_many_classification: event.one_to_many_classification ?? null,
+              evidence: {},
+            },
+            ...nextState.liveIssues,
+          ].slice(0, 50)
+        }
 
+        if (event.event === "project_stored") {
+          nextState.completedProjects = [
+            {
+              run_id: event.run_id,
+              session_id: nextState.sessionId ?? "session-runtime",
+              project_id: event.project_id,
+              project_name: event.project_name,
+              input_root: inputRoot,
+              artifact_dir: event.artifact_dir,
+              updated_at: new Date().toISOString(),
+              status: "completed",
+              sheet_count: event.sheet_count,
+              pair_count: event.pair_count,
+              issue_count: event.issue_count,
+            },
+          ]
+        }
+
+        if (event.event === "run_finished") {
+          nextState.progressRatio = 1
+          nextState.stageCards = nextState.stageCards.map((item) => ({ ...item, done: true }))
+          nextState.completedProjects = event.projects
+        }
+      }
       return nextState
     })
   })
+
+  const handleEvent = useEffectEvent((event: SidecarEvent) => {
+    // Batch high-frequency sidecar events so process screen does not thrash React.
+    processEventQueueRef.current.push(event)
+    if (processFlushTimerRef.current != null) {
+      return
+    }
+    processFlushTimerRef.current = window.setTimeout(() => {
+      processFlushTimerRef.current = null
+      const batch = processEventQueueRef.current
+      processEventQueueRef.current = []
+      applyProcessEvents(batch)
+    }, 80)
+  })
+
+  useEffect(() => {
+    return () => {
+      if (processFlushTimerRef.current != null) {
+        window.clearTimeout(processFlushTimerRef.current)
+        processFlushTimerRef.current = null
+      }
+      if (processEventQueueRef.current.length) {
+        applyProcessEvents(processEventQueueRef.current)
+        processEventQueueRef.current = []
+      }
+    }
+  }, [applyProcessEvents])
 
   async function handleAnalyzeClick() {
     const normalizedInputRoot = inputRoot.trim()
@@ -336,6 +376,14 @@ function App() {
 
     try {
       const payload = await desktopApi.analyzeSession({ inputRoot: normalizedInputRoot }, handleEvent)
+      if (processFlushTimerRef.current != null) {
+        window.clearTimeout(processFlushTimerRef.current)
+        processFlushTimerRef.current = null
+      }
+      if (processEventQueueRef.current.length) {
+        applyProcessEvents(processEventQueueRef.current)
+        processEventQueueRef.current = []
+      }
       await refreshRecentProjects()
       if (payload.projects[0]) {
         setSelectedProjectId(payload.projects[0].project_id)
@@ -547,39 +595,46 @@ function App() {
     const projectId = result?.run.project_id ?? selectedProjectId
     if (screen !== "result") {
       setIsRefreshingPreview(false)
+      setPreviewError(null)
       return
     }
     if (!projectId || !selectedIssue) {
       setPreviewSrc(null)
+      setPreviewError(null)
       setIsRefreshingPreview(false)
       return
     }
 
     let cancelled = false
     setIsRefreshingPreview(true)
+    setPreviewError(null)
 
-    void desktopApi
-      .renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId, selectedPreviewLineGroupId)
-      .then((preview) => {
-        if (cancelled) {
-          return
-        }
-        setPreviewSrc(preview.preview_src)
-        setLoadError(null)
-        setIsRefreshingPreview(false)
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return
-        }
-        const message = error instanceof Error ? error.message : `生成问题 ${selectedIssue.issue_id} 的预览失败。`
-        setLoadError(message)
-        setPreviewSrc(null)
-        setIsRefreshingPreview(false)
-      })
+    const timer = window.setTimeout(() => {
+      void desktopApi
+        .renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId, selectedPreviewLineGroupId)
+        .then((preview) => {
+          if (cancelled) {
+            return
+          }
+          setPreviewSrc(preview.preview_src)
+          setPreviewError(null)
+          setIsRefreshingPreview(false)
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return
+          }
+          const message = error instanceof Error ? error.message : `生成问题 ${selectedIssue.issue_id} 的预览失败。`
+          // Keep preview failures local so the inspector stays usable.
+          setPreviewError(message)
+          setPreviewSrc(null)
+          setIsRefreshingPreview(false)
+        })
+    }, 120)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [previewGeneration, result?.run.project_id, screen, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId, selectedProjectId])
 
@@ -1088,15 +1143,25 @@ function App() {
               <div className="panel inspector-preview">
                 <div className="preview-shell">
                   {previewSrc ? (
-                    <img src={previewSrc} alt="问题定位预览" className="preview-image" />
+                    <img
+                      src={previewSrc}
+                      alt="问题定位预览"
+                      className="preview-image"
+                      onError={() => {
+                        setPreviewSrc(null)
+                        setPreviewError("预览图像加载失败，请查看文字证据或点击重生成。")
+                      }}
+                    />
                   ) : (
                     <div className={`preview-empty${selectedIssue && isRefreshingPreview ? " is-loading" : ""}`}>
                       {selectedIssue
                         ? isRefreshingPreview
-                          ? "正在渲染当前页预览…"
-                          : previewOptions.length
-                            ? "若源图可访问，将在此显示定位预览；否则请依赖下方文字证据。"
-                            : "当前问题无可用预览引用，请查看文字证据。"
+                          ? "正在渲染问题区域预览…"
+                          : previewError
+                            ? previewError
+                            : previewOptions.length
+                              ? "暂无预览图。可点击“重生成预览”，或直接依赖下方文字证据。"
+                              : "当前问题无可用预览引用，请查看文字证据。"
                         : "请从左侧选择问题进行复核。"}
                     </div>
                   )}
