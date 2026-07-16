@@ -1352,6 +1352,10 @@
 - All five new subtypes are independent of definition name and fingerprint. Real rows reach `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`; renamed, rotated, uniformly scaled fixtures reach `MACHINE_GEOMETRY_RULE`; displaced-contact/frame/triangle/diagonal near-negatives are rejected. Fingerprints remain provenance only.
 - Fresh replay covered 15 unique P003 DWGs / 132 instances: PWF115 32, PWF98 54, PWF218 16, PWF259 9, SYMB1_M_30401 21. PWF259 emits zero ports/candidates; the four outward-port classes emit 310 independent port candidates total, with 170 measured line attachments, zero internal connectivity, and zero electrical union. Missing external wires remain unwired identities and are not fabricated.
 
+- XJDZ9-04 raw block geometry is exactly `11 CIRCLE + 11 TEXT + 12 LWPOLYLINE`; labels are `1..8/C+/G-/R-`. Eleven equal circles and eleven equal outward contacts form two regular columns with one extra end row, while the remaining polyline is a much larger rounded body. This creates a strict similarity-invariant subtype distinct from the even `2×N` numbered arrays.
+- The first XJDZ9-04 replay exposed a component-name false positive (`1-21CD11`) because the even-array name window stopped at pins 7/8. Functional-array naming must use the full 11-port axial extreme and require the designator beyond the topmost port. The corrected replay binds `1-21KK/2-21KK/3-21KK`.
+- Numeric hierarchical side endpoints such as `1-21ZK-2` require a subtype-scoped endpoint grammar and a measured 14-unit label reach; this is not a global relaxation. Three independent source occurrences of `1-21KK-1` all bind `1-21ZK-2` after the correction.
+
 
 ## 2026-07-16 15:55 Desktop industrial UI + backend runtime awareness
 

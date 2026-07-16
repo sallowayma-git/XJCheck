@@ -2861,6 +2861,180 @@ def test_numbered_round_contact_array_rejects_same_count_displaced_contact() -> 
     assert applied["classifier_status"] != "MATCHED"
 
 
+def _functional_round_contact_array_proposal(
+    *,
+    fingerprint: str,
+    rotation_deg: float = 0.0,
+    scale: float = 1.0,
+    mirrored: bool = False,
+    displaced_contact: bool = False,
+) -> dict:
+    document = ezdxf.new()
+    block = document.blocks.new("RENAMED_FUNCTIONAL_ARRAY")
+    angle = math.radians(rotation_deg)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def transform(point: tuple[float, float]) -> tuple[float, float]:
+        x = -point[0] if mirrored else point[0]
+        y = point[1]
+        return (
+            scale * (x * cosine - y * sine),
+            scale * (x * sine + y * cosine),
+        )
+
+    slots = (
+        ("1", -4.5, 12.5), ("2", 4.5, 12.5),
+        ("4", -4.5, 7.5), ("3", 4.5, 7.5),
+        ("5", -4.5, 2.5), ("6", 4.5, 2.5),
+        ("8", -4.5, -2.5), ("7", 4.5, -2.5),
+        ("C+", -4.5, -7.5), ("G-", 4.5, -7.5),
+        ("R-", 4.5, -12.5),
+    )
+    for slot, x, y in slots:
+        contact_y = y + (1.5 if displaced_contact and slot == "R-" else 0.0)
+        contact_x = -7.5 if x < 0.0 else 7.5
+        block.add_circle(transform((x, y)), radius=1.8 * scale)
+        left = transform((contact_x - 0.5, contact_y))
+        right = transform((contact_x + 0.5, contact_y))
+        block.add_lwpolyline(
+            [(left[0], left[1], 1.0), (right[0], right[1], 1.0)],
+            format="xyb",
+            close=True,
+        )
+        label = transform((x - 0.6, y - 1.0))
+        block.add_text(slot, dxfattribs={"insert": label, "height": scale})
+    body_left = transform((0.0, -17.5))
+    body_right = transform((0.0, 17.5))
+    block.add_lwpolyline(
+        [(body_left[0], body_left[1], 1.0), (body_right[0], body_right[1], 1.0)],
+        format="xyb",
+        close=True,
+    )
+    return propose_ports_from_block(
+        block,
+        definition_name="RENAMED_FUNCTIONAL_ARRAY",
+        definition_fingerprint=fingerprint,
+        max_ports=4,
+    ).to_dict()
+
+
+def test_functional_round_contact_array_is_complete_external_only_model() -> None:
+    fingerprint = "da27104b38567799b0cccfe4ccfcd40f0e6db3e3f7229c7f28bea17f9a03f4ee"
+    exact = apply_human_symbol_policy_to_proposal_row(
+        _functional_round_contact_array_proposal(fingerprint=fingerprint)
+    )
+    unseen = apply_human_symbol_policy_to_proposal_row(
+        _functional_round_contact_array_proposal(
+            fingerprint="unseen-functional-array",
+            rotation_deg=31.0,
+            scale=1.6,
+            mirrored=True,
+        )
+    )
+
+    expected_pins = ["1", "2", "3", "4", "5", "6", "7", "8", "C+", "G-", "R-"]
+    for applied in (exact, unseen):
+        assert applied["method"] == "numbered_contact_grid_v1"
+        assert applied["matched_family_rule_id"] == "numbered-functional-contact-array-v1"
+        assert applied["family_id"] == "component.external_multi_port.v1"
+        assert [port["component_pin"] for port in applied["ports"]] == expected_pins
+        assert applied["behavior_mode"] == "EXTERNAL_PORTS_ONLY"
+        assert applied["allow_internal_connectivity"] is False
+        assert applied["allow_electrical_union"] is False
+    assert exact["family_evidence_source"] == "MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER"
+    assert unseen["family_evidence_source"] == "MACHINE_GEOMETRY_RULE"
+
+
+def test_functional_round_contact_array_rejects_displaced_same_census() -> None:
+    proposal = apply_human_symbol_policy_to_proposal_row(
+        _functional_round_contact_array_proposal(
+            fingerprint="unseen-functional-array-negative",
+            displaced_contact=True,
+        )
+    )
+
+    assert proposal.get("matched_family_rule_id") != "numbered-functional-contact-array-v1"
+    assert proposal["classifier_status"] != "MATCHED"
+
+
+def test_functional_round_contact_array_binds_instance_name_and_outward_pin() -> None:
+    fingerprint = "da27104b38567799b0cccfe4ccfcd40f0e6db3e3f7229c7f28bea17f9a03f4ee"
+    proposal = apply_human_symbol_policy_to_proposal_row(
+        _functional_round_contact_array_proposal(fingerprint=fingerprint)
+    )
+    proposal["file_id"] = "F-functional-array"
+    instance = {
+        "symbol_instance_id": "SI-functional-array",
+        "project_id": "P-functional-array",
+        "sheet_id": "S-functional-array",
+        "file_id": "F-functional-array",
+        "entity_handle": "H-functional-array",
+        "definition_name": proposal["definition_name"],
+        "definition_fingerprint": fingerprint,
+        "transform_json": {
+            "matrix44": [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        },
+    }
+    texts = [
+        {
+            "text_id": "T-functional-name",
+            "handle": "HT-functional-name",
+            "sheet_id": "S-functional-array",
+            "file_id": "F-functional-array",
+            "normalized_text": "1-21KK",
+            "insert_x": 0.0,
+            "insert_y": 22.5,
+        },
+        {
+            "text_id": "T-functional-endpoint",
+            "handle": "HT-functional-endpoint",
+            "sheet_id": "S-functional-array",
+            "file_id": "F-functional-array",
+            "normalized_text": "1-21ZK-2",
+            "insert_x": -18.0,
+            "insert_y": 12.5,
+        },
+    ]
+    lines = [
+        {
+            "line_id": "L-functional-pin-1",
+            "handle": "HL-functional-pin-1",
+            "sheet_id": "S-functional-array",
+            "file_id": "F-functional-array",
+            "start_x": -7.5,
+            "start_y": 12.5,
+            "end_x": -17.5,
+            "end_y": 12.5,
+        }
+    ]
+    members = [
+        {
+            "member_type": "SOURCE_LINE",
+            "source_handle": "HL-functional-pin-1",
+            "electrical_network_id": "NET-1-21ZK-2",
+        }
+    ]
+
+    candidates = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, members
+    )
+    by_pin = {row["component_pin"]: row for row in candidates}
+
+    assert set(by_pin) == {"1", "2", "3", "4", "5", "6", "7", "8", "C+", "G-", "R-"}
+    assert by_pin["1"]["component_port_identity"] == "1-21KK-1"
+    assert by_pin["1"]["attached_line_handles"] == ["HL-functional-pin-1"]
+    assert by_pin["1"]["external_network_ids"] == ["NET-1-21ZK-2"]
+    assert by_pin["1"]["component_mapping_external_endpoints"] == ["1-21ZK-2"]
+    assert by_pin["1"]["status"] == "MEASURED_COMPONENT_PORT_MAPPING"
+    assert all(row["internal_connectivity_inferred"] is False for row in candidates)
+    assert all(row["electrical_union_eligible"] is False for row in candidates)
+
+
 def test_numbered_round_contact_array_uses_native_pins_without_world_numeric_labels() -> None:
     fingerprint = "3888263247353d6cae1d83660f34cc2ce4d0a0683caff489ad27d6a8c8dc8c9a"
     proposal = apply_human_symbol_policy_to_proposal_row(
@@ -2894,7 +3068,17 @@ def test_numbered_round_contact_array_uses_native_pins_without_world_numeric_lab
             "normalized_text": "1DK",
             "insert_x": 0.0,
             "insert_y": 20.0,
-        }
+        },
+        {
+            "text_id": "T-array-side-distractor",
+            "handle": "TH-array-side-distractor",
+            "sheet_id": "S-array",
+            "file_id": "F-array",
+            "text": "1QD1 @",
+            "normalized_text": "1QD1 @",
+            "insert_x": 8.0,
+            "insert_y": 0.0,
+        },
     ]
 
     candidates = build_instance_port_network_candidates(

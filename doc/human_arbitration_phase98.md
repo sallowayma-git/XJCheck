@@ -309,3 +309,11 @@ connectivity and electrical union.
 - `SYMB2_S_PWF303`: complete RX/ST parenthesis-contact optical marker is IGNORE and creates no communication mapping.
 - `A$C3CE477D4` / `A$C7ECC553D`: the complete two-semicircle/two-parallel-line capsule is routing/line-break artwork, not a two-port component. Emit no ports, bridge, mapping, connectivity or union.
 - Acceptance requires the complete relative topology; generic circles, generic two-contact symbols and ordinary parallel conductors are near-negatives and must not be suppressed.
+
+## 2026-07-16 XJDZ numbered and functional contact arrays
+
+- `XJDZ9-02 / XJDZ4-18 / XJDZ9-06 / XJDZ9-10` are complete numbered round-contact arrays. Every native pin `1..N` composes with the upper instance designator and maps only to its own outward same-side route. Pins are mutually isolated; no internal connectivity or electrical union is permitted.
+- `XJDZ9-04-2N4-009` is the functional variant with exactly 11 native pins: `1..8、C+、G-、R-`. All 11 are mutually isolated and outward-only. The instance name is the upper round-tag value (`1-21KK / 2-21KK / 3-21KK` in the verified pages), not a side endpoint label.
+- Human-confirmed example: `1-21KK-1 → 1-21ZK-2`. The same contract applies to every pin: `instance-pin → same-side external endpoint`; absent external wiring remains an unwired identity and must not create an internal bridge.
+- Geometry authority is the complete body/contact/text topology, not the fingerprint: the pure-number family is a regular `2×N` grid; the functional family is a five-row pair grid plus one extra `R-` row. Both require one repeated outer contact per circle and one much larger rounded body. Rotated/scaled/reflected complete members match; displaced same-census near-negatives remain review.
+- Full replay evidence: pure-number arrays cover 14 instances / 220 pins; XJDZ9-04 covers 3 DWGs / 7 instances / 77 pins. Every definition row is `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`; internal connectivity and union are zero.

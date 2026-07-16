@@ -2596,6 +2596,9 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 - [ ] Continue through the remaining 38 geometry groups, then rebuild the complete two-corpus queue and run final gates.
 - [x] Generalize PWF3 remote-interface, PWF303 optical bracket, and both two-arc routing-capsule variants as strict zero-semantic IGNORE subtypes.
 - [ ] Continue through the remaining 34 geometry groups, then rebuild the complete two-corpus queue and run final gates.
+- [x] Generalize XJDZ pure-number arrays (8/12/16/28 pins), replay 14 instances / 220 pins, and reject side endpoint labels as component names.
+- [x] Implement XJDZ9-04 as a separate 11-pin `1..8/C+/G-/R-` geometry subtype; replay all 3 source DWGs / 7 instances and prove `1-21KK-1 → 1-21ZK-2` with no internal connectivity/union.
+- [ ] Remove only the five replay-proven XJDZ queue rows, continue self-iteration over the residual groups, then rebuild P001 + complete P003 and run final gates.
 
 
 ## Decision log — 2026-07-16 15:55

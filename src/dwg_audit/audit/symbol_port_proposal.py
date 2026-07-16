@@ -667,6 +667,7 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
             "3888263247353d6cae1d83660f34cc2ce4d0a0683caff489ad27d6a8c8dc8c9a",
             "b43b51c32d7c54dbf3208c9e9d36eb3919e0e3da60dc211c23988d95fba5df3a",
             "358eeedf6d6dd01fca61d9d2947d826106d2f5741f65fc3d66721f195ae74fb0",
+            "da27104b38567799b0cccfe4ccfcd40f0e6db3e3f7229c7f28bea17f9a03f4ee",
         )
     },
 }
@@ -2345,6 +2346,179 @@ def _is_numbered_round_contact_array_geometry(
     return len(used_contacts) == port_count
 
 
+def _is_two_column_lopsided_regular_grid(
+    rows: Sequence[Mapping[str, Any]], *, tolerance: float = 0.08
+) -> bool:
+    """Recognize two regular columns where one column has one extra end row."""
+
+    try:
+        points = [
+            (float(row["center"][0]), float(row["center"][1])) for row in rows
+        ]
+    except (IndexError, KeyError, TypeError, ValueError):
+        return False
+    if len(points) != 11:
+        return False
+    center = (
+        sum(point[0] for point in points) / len(points),
+        sum(point[1] for point in points) / len(points),
+    )
+    covariance_xx = sum((point[0] - center[0]) ** 2 for point in points)
+    covariance_yy = sum((point[1] - center[1]) ** 2 for point in points)
+    covariance_xy = sum(
+        (point[0] - center[0]) * (point[1] - center[1]) for point in points
+    )
+    angle = 0.5 * math.atan2(2.0 * covariance_xy, covariance_xx - covariance_yy)
+    axes = [
+        (math.cos(angle), math.sin(angle)),
+        (-math.sin(angle), math.cos(angle)),
+    ]
+    for left_index, left in enumerate(points):
+        for right in points[left_index + 1 :]:
+            dx, dy = right[0] - left[0], right[1] - left[1]
+            norm = math.hypot(dx, dy)
+            if norm > 1e-9:
+                axes.append((dx / norm, dy / norm))
+
+    def matches(column_axis: tuple[float, float], row_axis: tuple[float, float]) -> bool:
+        projected = sorted(
+            (
+                point[0] * column_axis[0] + point[1] * column_axis[1],
+                point[0] * row_axis[0] + point[1] * row_axis[1],
+            )
+            for point in points
+        )
+        gaps = [
+            projected[index + 1][0] - projected[index][0]
+            for index in range(len(projected) - 1)
+        ]
+        split = max(range(len(gaps)), key=gaps.__getitem__) + 1
+        columns = (projected[:split], projected[split:])
+        if sorted(len(column) for column in columns) != [5, 6]:
+            return False
+        column_gap = abs(
+            sum(value[0] for value in columns[1]) / len(columns[1])
+            - sum(value[0] for value in columns[0]) / len(columns[0])
+        )
+        if column_gap <= 1e-9:
+            return False
+        if any(
+            max(value[0] for value in column) - min(value[0] for value in column)
+            > column_gap * tolerance
+            for column in columns
+        ):
+            return False
+        row_sets = [sorted(value[1] for value in column) for column in columns]
+        row_gaps = [
+            values[index + 1] - values[index]
+            for values in row_sets
+            for index in range(len(values) - 1)
+        ]
+        if not row_gaps or min(row_gaps) <= 1e-9:
+            return False
+        mean_gap = sum(row_gaps) / len(row_gaps)
+        if max(abs(gap - mean_gap) for gap in row_gaps) > mean_gap * tolerance:
+            return False
+        shorter, longer = sorted(row_sets, key=len)
+        return any(
+            max(abs(left - right) for left, right in zip(shorter, window))
+            <= mean_gap * tolerance
+            for window in (longer[:-1], longer[1:])
+        )
+
+    return any(
+        matches(axis, (-axis[1], axis[0]))
+        or matches((-axis[1], axis[0]), axis)
+        for axis in axes
+    )
+
+
+def _is_functional_round_contact_array_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize the 1..8/C+/G-/R- isolated outward-contact component."""
+
+    if port_count != 11:
+        return False
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    try:
+        if not (
+            int(histogram.get("TEXT", 0)) == 11
+            and int(histogram.get("CIRCLE", 0)) == 11
+            and int(histogram.get("LWPOLYLINE", 0)) == 12
+            and sum(int(value) for value in histogram.values()) == 34
+            and len(contacts) == 12
+            and len(circles) == 11
+        ):
+            return False
+        if {str(value).strip().upper() for value in shape.get("text_values") or []} != {
+            "1", "2", "3", "4", "5", "6", "7", "8", "C+", "G-", "R-"
+        }:
+            return False
+        parsed_contacts = sorted(
+            [
+                (
+                    float(item.get("chord_radius") or item["radius"]),
+                    item,
+                )
+                for item in contacts
+            ],
+            key=lambda row: row[0],
+        )
+        parsed_circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in circles
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    small_contacts = [item for _, item in parsed_contacts[:11]]
+    small_radii = [radius for radius, _ in parsed_contacts[:11]]
+    circle_radii = [radius for _, radius in parsed_circles]
+    if (
+        min(small_radii) <= 1e-9
+        or max(small_radii) / min(small_radii) > 1.05
+        or parsed_contacts[-1][0] / max(small_radii) < 20.0
+        or min(circle_radii) <= 1e-9
+        or max(circle_radii) / min(circle_radii) > 1.05
+        or not _is_two_column_lopsided_regular_grid(circles)
+        or not _is_two_column_lopsided_regular_grid(small_contacts)
+    ):
+        return False
+    circle_center = (
+        sum(center[0] for center, _ in parsed_circles) / 11.0,
+        sum(center[1] for center, _ in parsed_circles) / 11.0,
+    )
+    used_contacts: set[int] = set()
+    for center, radius in parsed_circles:
+        nearest = min(
+            (
+                (
+                    _distance(
+                        center,
+                        (float(contact["center"][0]), float(contact["center"][1])),
+                    ),
+                    index,
+                    (float(contact["center"][0]), float(contact["center"][1])),
+                )
+                for index, contact in enumerate(small_contacts)
+            ),
+            key=lambda item: item[0],
+        )
+        if nearest[1] in used_contacts or not 1.55 <= nearest[0] / radius <= 2.30:
+            return False
+        outward = (center[0] - circle_center[0], center[1] - circle_center[1])
+        contact_offset = (nearest[2][0] - center[0], nearest[2][1] - center[1])
+        if outward[0] * contact_offset[0] + outward[1] * contact_offset[1] <= 0.0:
+            return False
+        used_contacts.add(nearest[1])
+    return len(used_contacts) == 11
+
+
 def _is_eight_numbered_side_contact_panel_geometry(
     shape: Mapping[str, Any], *, port_count: int
 ) -> bool:
@@ -2652,6 +2826,13 @@ def classify_definition_family(
     ):
         machine_family = "component.external_multi_port.v1"
         matched_rule_id = "numbered-round-contact-array-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _is_functional_round_contact_array_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_multi_port.v1"
+        matched_rule_id = "numbered-functional-contact-array-v1"
         classifier_status = "MATCHED"
         confidence = 0.99
     elif machine_family is None and _is_four_numbered_contact_panel_geometry(
@@ -10144,6 +10325,9 @@ def propose_ports_from_block(
             or _is_numbered_round_contact_array_geometry(
                 shape_features, port_count=len(numbered_contact_ports)
             )
+            or _is_functional_round_contact_array_geometry(
+                shape_features, port_count=len(numbered_contact_ports)
+            )
         )
     )
     if numbered_contact_applied:
@@ -10595,7 +10779,7 @@ def _propose_numbered_contact_grid_ports(
     connectivity.
     """
 
-    labels: list[tuple[int, tuple[float, float]]] = []
+    labels: list[tuple[str, tuple[float, float]]] = []
     contact_candidates: list[tuple[tuple[float, float], float]] = []
     for entity in block:
         entity_type = str(entity.dxftype()).upper()
@@ -10605,8 +10789,11 @@ def _propose_numbered_contact_grid_ports(
                 insert = entity.dxf.insert
             except Exception:
                 continue
-            if re.fullmatch(r"[1-9][0-9]?", value):
-                labels.append((int(value), (float(insert.x), float(insert.y))))
+            normalized_value = value.upper()
+            if re.fullmatch(r"[1-9][0-9]?", normalized_value) or normalized_value in {
+                "C+", "G-", "R-"
+            }:
+                labels.append((normalized_value, (float(insert.x), float(insert.y))))
         elif entity_type == "LWPOLYLINE" and bool(
             getattr(entity, "closed", False)
         ):
@@ -10636,14 +10823,27 @@ def _propose_numbered_contact_grid_ports(
                 )
             )
     label_count = len(labels)
-    if not (
+    functional_order = ("1", "2", "3", "4", "5", "6", "7", "8", "C+", "G-", "R-")
+    functional_labels = {value for value, _ in labels} == set(functional_order)
+    if not functional_labels and not (
         label_count in {4, 6, 8}
         or 8 <= label_count <= 32 and label_count % 2 == 0
     ):
         return ()
-    labels.sort(key=lambda item: item[0])
+    labels.sort(
+        key=lambda item: (
+            functional_order.index(item[0])
+            if functional_labels
+            else int(item[0])
+        )
+    )
     label_values = [value for value, _ in labels]
-    if label_values != list(range(label_values[0], label_values[0] + len(labels))):
+    if functional_labels:
+        if tuple(label_values) != functional_order:
+            return ()
+    elif [int(value) for value in label_values] != list(
+        range(int(label_values[0]), int(label_values[0]) + len(labels))
+    ):
         return ()
     has_body = len(contact_candidates) == label_count + 1
     if len(contact_candidates) == label_count:
@@ -10661,7 +10861,9 @@ def _propose_numbered_contact_grid_ports(
         contacts = [center for center, _ in small]
     else:
         return ()
-    if has_body and label_values != list(range(1, label_count + 1)):
+    if has_body and not functional_labels and [int(value) for value in label_values] != list(
+        range(1, label_count + 1)
+    ):
         return ()
 
     remaining = set(range(len(contacts)))
@@ -10914,6 +11116,9 @@ def build_instance_port_network_candidates(
     compound_endpoint_designator = re.compile(
         r"^[A-Za-z][A-Za-z0-9']*(?:-[A-Za-z0-9']+)+$"
     )
+    hierarchical_endpoint_designator = re.compile(
+        r"^\d+(?:-\d+)+[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*$"
+    )
     hyphen_component_designator = re.compile(
         r"^[A-Za-z]{1,6}(?:-[A-Za-z]{1,6}){1,6}$"
     )
@@ -11114,7 +11319,15 @@ def build_instance_port_network_candidates(
         numbered_round_contact_array_model = (
             family_id == "component.external_multi_port.v1"
             and family.get("matched_family_rule_id")
-            == "numbered-round-contact-array-v1"
+            in {
+                "numbered-round-contact-array-v1",
+                "numbered-functional-contact-array-v1",
+            }
+        )
+        functional_round_contact_array_model = (
+            family_id == "component.external_multi_port.v1"
+            and family.get("matched_family_rule_id")
+            == "numbered-functional-contact-array-v1"
         )
         if single_row_contact_model:
             nested_path = str(instance.get("nested_path") or "").strip()
@@ -11218,6 +11431,7 @@ def build_instance_port_network_candidates(
             value = str(
                 text_row.get("normalized_text") or text_row.get("text") or ""
             ).strip()
+            component_value = value.strip(" @&").strip()
             try:
                 x = float(text_row.get("insert_x"))
                 y = float(text_row.get("insert_y"))
@@ -11226,7 +11440,7 @@ def build_instance_port_network_candidates(
             if labelled_terminal and terminal_designator.fullmatch(value):
                 terminal_labels.append((0.0, value, text_row))
             if component_port_model and (
-                component_designator.fullmatch(value)
+                component_designator.fullmatch(component_value)
                 or (
                     (
                         named_two_port_strip_model
@@ -11236,23 +11450,23 @@ def build_instance_port_network_candidates(
                         or numbered_round_contact_array_model
                     )
                     and (
-                        short_alpha_component_designator.fullmatch(value)
+                        short_alpha_component_designator.fullmatch(component_value)
                         or (
                             eight_numbered_side_contact_panel_model
-                            and single_alpha_component_designator.fullmatch(value)
+                            and single_alpha_component_designator.fullmatch(component_value)
                         )
                     )
                 )
                 or (
                     (named_two_row_box_model or vertical_two_port_box_model)
-                    and apostrophe_component_designator.fullmatch(value)
+                    and apostrophe_component_designator.fullmatch(component_value)
                 )
                 or (
                     single_row_contact_model
-                    and row_component_designator.fullmatch(value)
+                    and row_component_designator.fullmatch(component_value)
                 )
             ):
-                component_labels.append((0.0, value, text_row))
+                component_labels.append((0.0, component_value, text_row))
             if three_contact_socket_model and value.upper() in {"E", "L", "N"}:
                 socket_pin_texts.append((value.upper(), x, y, text_row))
             endpoint_value = value.rstrip().removesuffix("&").rstrip()
@@ -11264,6 +11478,10 @@ def build_instance_port_network_candidates(
                 or numbered_round_contact_array_model
             ) and (
                 terminal_designator.fullmatch(endpoint_value)
+                or (
+                    functional_round_contact_array_model
+                    and hierarchical_endpoint_designator.fullmatch(endpoint_value)
+                )
                 or (
                     eight_numbered_side_contact_panel_model
                     and compound_endpoint_designator.fullmatch(endpoint_value)
@@ -11421,12 +11639,96 @@ def build_instance_port_network_candidates(
                             ):
                                 filtered_labels.append((distance_value, value, row))
                         measured_component_labels = filtered_labels
+            elif functional_round_contact_array_model:
+                pin_world = {
+                    str(port.get("component_pin") or ""): world
+                    for port, world in zip(ports, world_ports)
+                    if math.isfinite(world[0]) and math.isfinite(world[1])
+                }
+                if {"1", "2", "C+", "G-"}.issubset(pin_world):
+                    upper = (
+                        (pin_world["1"][0] + pin_world["2"][0]) / 2.0,
+                        (pin_world["1"][1] + pin_world["2"][1]) / 2.0,
+                    )
+                    lower = (
+                        (pin_world["C+"][0] + pin_world["G-"][0]) / 2.0,
+                        (pin_world["C+"][1] + pin_world["G-"][1]) / 2.0,
+                    )
+                    axis = (upper[0] - lower[0], upper[1] - lower[1])
+                    axis_length = math.hypot(axis[0], axis[1])
+                    if axis_length > 1e-9:
+                        axis = (axis[0] / axis_length, axis[1] / axis_length)
+                        top_port_forward = max(
+                            (world[0] - center[0]) * axis[0]
+                            + (world[1] - center[1]) * axis[1]
+                            for world in world_ports
+                            if math.isfinite(world[0]) and math.isfinite(world[1])
+                        )
+                        measured_component_labels = [
+                            (distance_value, value, row)
+                            for distance_value, value, row in measured_component_labels
+                            if (
+                                top_port_forward + max(0.5, axis_length * 0.02)
+                                < (
+                                    (float(row.get("insert_x")) - center[0]) * axis[0]
+                                    + (float(row.get("insert_y")) - center[1]) * axis[1]
+                                )
+                                <= max(component_label_radius * 2.5, axis_length * 2.5)
+                                and abs(
+                                    (float(row.get("insert_x")) - center[0]) * axis[1]
+                                    - (float(row.get("insert_y")) - center[1]) * axis[0]
+                                )
+                                <= max(8.0, axis_length * 0.45)
+                            )
+                        ]
+            elif numbered_round_contact_array_model:
+                pin_world = {
+                    int(str(port.get("component_pin") or "")): world
+                    for port, world in zip(ports, world_ports)
+                    if str(port.get("component_pin") or "").isdigit()
+                    and math.isfinite(world[0])
+                    and math.isfinite(world[1])
+                }
+                last_pin = len(pin_world)
+                if last_pin >= 8 and {1, 2, last_pin - 1, last_pin}.issubset(pin_world):
+                    upper = (
+                        (pin_world[1][0] + pin_world[2][0]) / 2.0,
+                        (pin_world[1][1] + pin_world[2][1]) / 2.0,
+                    )
+                    lower = (
+                        (pin_world[last_pin - 1][0] + pin_world[last_pin][0]) / 2.0,
+                        (pin_world[last_pin - 1][1] + pin_world[last_pin][1]) / 2.0,
+                    )
+                    axis = (upper[0] - lower[0], upper[1] - lower[1])
+                    axis_length = math.hypot(axis[0], axis[1])
+                    if axis_length > 1e-9:
+                        axis = (axis[0] / axis_length, axis[1] / axis_length)
+                        body_half_height = axis_length / 2.0
+                        measured_component_labels = [
+                            (distance_value, value, row)
+                            for distance_value, value, row in measured_component_labels
+                            if (
+                                body_half_height * 1.05
+                                < (
+                                    (float(row.get("insert_x")) - center[0]) * axis[0]
+                                    + (float(row.get("insert_y")) - center[1]) * axis[1]
+                                )
+                                <= max(component_label_radius * 2.5, body_half_height * 2.0)
+                                and abs(
+                                    (float(row.get("insert_x")) - center[0]) * axis[1]
+                                    - (float(row.get("insert_y")) - center[1]) * axis[0]
+                                )
+                                <= max(8.0, body_half_height * 0.5)
+                            )
+                        ]
             component_labels = sorted(
                 measured_component_labels,
                 key=lambda item: (item[0], item[1]),
             )
         component_label_limit = component_label_radius * (
-            1.5
+            2.5
+            if numbered_round_contact_array_model
+            else 1.5
             if three_contact_socket_model
             else 1.2
             if vertical_two_port_box_model
@@ -11660,7 +11962,13 @@ def build_instance_port_network_candidates(
                 endpoint_matches: list[
                     tuple[float, float, tuple[str, float, float, dict[str, Any]]]
                 ] = []
-                endpoint_reach = 4.0 if two_contact_actuator_model else 8.0
+                endpoint_reach = (
+                    14.0
+                    if functional_round_contact_array_model
+                    else 4.0
+                    if two_contact_actuator_model
+                    else 8.0
+                )
                 # Prefer the label beside the line directly attached to this
                 # port.  Traverse the wider network only when that local stub
                 # has no endpoint label; this prevents a stale/over-unioned
