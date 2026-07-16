@@ -311,3 +311,184 @@ def test_build_entity_coverage_summary_page_rows_include_line_and_block_gaps() -
     assert page_row["unassigned_wire_segments"] == 1
     assert page_row["blocks"] == 1
     assert page_row["unclassified_blocks"] == 1
+
+
+def test_wire_coverage_excludes_non_conductive_page_and_block_artwork() -> None:
+    from dwg_audit.domain.models import LineEntity
+
+    table_page = SheetRecord(
+        sheet_id="S1",
+        file_id="F1",
+        filename="switch-table.dwg",
+        sheet_order=1,
+        sheet_no="01",
+        sheet_title="Switch table",
+        sheet_category="背板接线图",
+        audit_role="primary",
+        page_no_source="filename",
+        is_primary_audit_candidate=True,
+        audit_disposition="audit_required",
+        audit_area_bbox=(0.0, 0.0, 100.0, 100.0),
+        route_target="TableExtractor",
+    )
+    artifacts = _artifacts(texts=[_text("T1", "101", 10, 10)], pages=[table_page])
+    artifacts.lines = [
+        LineEntity(
+            line_id="GRID",
+            sheet_id="S1",
+            file_id="F1",
+            handle="GRID",
+            source_entity_type="LINE",
+            layer="0",
+            start_x=0.0,
+            start_y=10.0,
+            end_x=100.0,
+            end_y=10.0,
+            length=100.0,
+            angle_deg=0.0,
+            bbox_min_x=0.0,
+            bbox_min_y=10.0,
+            bbox_max_x=100.0,
+            bbox_max_y=10.0,
+        )
+    ]
+
+    frame = build_text_assignment_frame(artifacts)
+    summary_frame, summary_payload = build_entity_coverage_summary(frame, artifacts=artifacts)
+    page_row = summary_frame[summary_frame["summary_scope"] == "page"].iloc[0]
+
+    assert summary_payload["unassigned_wire_segments"] == 0
+    assert page_row["line_segments"] == 0
+    assert page_row["unassigned_wire_segments"] == 0
+
+
+def test_wire_coverage_keeps_positive_line_group_evidence_on_non_wire_route() -> None:
+    from dwg_audit.domain.models import LineEntity
+    from dwg_audit.domain.models import LineGroup
+
+    table_page = SheetRecord(
+        sheet_id="S1",
+        file_id="F1",
+        filename="switch-table.dwg",
+        sheet_order=1,
+        sheet_no="01",
+        sheet_title="Switch table",
+        sheet_category="背板接线图",
+        audit_role="primary",
+        page_no_source="filename",
+        is_primary_audit_candidate=True,
+        audit_disposition="audit_required",
+        audit_area_bbox=(0.0, 0.0, 100.0, 100.0),
+        route_target="TableExtractor",
+    )
+    artifacts = _artifacts(texts=[_text("T1", "101", 10, 10)], pages=[table_page])
+    artifacts.lines = [
+        LineEntity(
+            line_id="PROVEN_WIRE",
+            sheet_id="S1",
+            file_id="F1",
+            handle="PROVEN_WIRE",
+            source_entity_type="LWPOLYLINE",
+            layer="0",
+            start_x=30.0,
+            start_y=10.0,
+            end_x=40.0,
+            end_y=10.0,
+            length=10.0,
+            angle_deg=0.0,
+            bbox_min_x=30.0,
+            bbox_min_y=10.0,
+            bbox_max_x=40.0,
+            bbox_max_y=10.0,
+        )
+    ]
+    artifacts.line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=30.0,
+            start_y=10.0,
+            end_x=40.0,
+            end_y=10.0,
+            length=10.0,
+            wire_candidate_score=1.0,
+            member_line_ids=["PROVEN_WIRE"],
+        )
+    ]
+
+    frame = build_text_assignment_frame(artifacts)
+    summary_frame, summary_payload = build_entity_coverage_summary(frame, artifacts=artifacts)
+    page_row = summary_frame[summary_frame["summary_scope"] == "page"].iloc[0]
+
+    assert summary_payload["unassigned_wire_segments"] == 0
+    assert page_row["line_segments"] == 1
+    assert page_row["unassigned_wire_segments"] == 0
+
+
+def test_wire_coverage_keeps_group_evidence_but_excludes_expanded_block_geometry() -> None:
+    from dwg_audit.domain.models import LineEntity
+    from dwg_audit.domain.models import LineGroup
+
+    artifacts = _artifacts(texts=[_text("T1", "101", 10, 10)])
+    artifacts.lines = [
+        LineEntity(
+            line_id="BLOCK_LINE",
+            sheet_id="S1",
+            file_id="F1",
+            handle="BLOCK_LINE",
+            source_entity_type="LINE",
+            layer="0",
+            start_x=10.0,
+            start_y=10.0,
+            end_x=20.0,
+            end_y=10.0,
+            length=10.0,
+            angle_deg=0.0,
+            bbox_min_x=10.0,
+            bbox_min_y=10.0,
+            bbox_max_x=20.0,
+            bbox_max_y=10.0,
+            source_block_name="DEVICE_BODY",
+        ),
+        LineEntity(
+            line_id="PROVEN_WIRE",
+            sheet_id="S1",
+            file_id="F1",
+            handle="PROVEN_WIRE",
+            source_entity_type="LWPOLYLINE",
+            layer="0",
+            start_x=30.0,
+            start_y=10.0,
+            end_x=40.0,
+            end_y=10.0,
+            length=10.0,
+            angle_deg=0.0,
+            bbox_min_x=30.0,
+            bbox_min_y=10.0,
+            bbox_max_x=40.0,
+            bbox_max_y=10.0,
+        ),
+    ]
+    artifacts.line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=30.0,
+            start_y=10.0,
+            end_x=40.0,
+            end_y=10.0,
+            length=10.0,
+            wire_candidate_score=1.0,
+            member_line_ids=["PROVEN_WIRE"],
+        )
+    ]
+
+    frame = build_text_assignment_frame(artifacts)
+    summary_frame, summary_payload = build_entity_coverage_summary(frame, artifacts=artifacts)
+    page_row = summary_frame[summary_frame["summary_scope"] == "page"].iloc[0]
+
+    assert summary_payload["unassigned_wire_segments"] == 0
+    assert page_row["line_segments"] == 1
+    assert page_row["unassigned_wire_segments"] == 0

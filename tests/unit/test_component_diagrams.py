@@ -142,6 +142,71 @@ def test_extract_strip_two_port_component_pairs_builds_component_mapping() -> No
     assert first.evidence["external_endpoint_text_id"] == "T3859"
 
 
+def test_extract_strip_two_port_component_pairs_accepts_non_mirrored_definition() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("BODY", "5KLP10", 205.0, 205.3, layer="MARK"),
+        _make_text("PORT1", "1", 208.9, 190.0, layer="0", source_block_name="fjl-25-2a"),
+        _make_text("PORT2", "2", 208.9, 175.0, layer="0", source_block_name="fjl-25-2a"),
+        _make_text("TOP", "5KLP9-1", 204.3, 195.4),
+        _make_text("BOTTOM", "5n112", 205.8, 169.8),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs(
+        [sheet], texts, [_make_vertical_group()]
+    )
+
+    assert consumed == {"GC0132"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("5KLP10-1", "5KLP9-1"),
+        ("5KLP10-2", "5n112"),
+    }
+    assert {pair.evidence["component_block_name"] for pair in pairs} == {"fjl-25-2a"}
+
+
+def test_extract_strip_two_port_component_pairs_accepts_hierarchical_module_endpoint() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("BODY", "1-21CLP9", 49.85, 266.5, layer="MARK"),
+        _make_text("PORT1", "1", 54.37, 251.28, layer="0", source_block_name="FJL-25-2A"),
+        _make_text("PORT2", "2", 54.37, 236.29, layer="0", source_block_name="FJL-25-2A"),
+        _make_text("TOP", "1-21C1D36", 48.24, 256.60),
+        _make_text("BOTTOM", "1-21n427", 48.99, 231.0),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs(
+        [sheet],
+        texts,
+        [_make_vertical_group("GC", x=52.5, start_y=252.5, end_y=237.5)],
+    )
+
+    assert consumed == {"GC"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1-21CLP9-1", "1-21C1D36"),
+        ("1-21CLP9-2", "1-21n427"),
+    }
+
+
+def test_extract_strip_two_port_component_pairs_rejects_malformed_hierarchical_endpoint() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("BODY", "1-21CLP9", 49.85, 266.5, layer="MARK"),
+        _make_text("PORT1", "1", 54.37, 251.28, layer="0", source_block_name="FJL-25-2A"),
+        _make_text("PORT2", "2", 54.37, 236.29, layer="0", source_block_name="FJL-25-2A"),
+        _make_text("TOP", "1-21C-D36", 48.24, 256.60),
+        _make_text("BOTTOM", "1-21n427", 48.99, 231.0),
+    ]
+
+    pairs, consumed = extract_strip_two_port_component_pairs(
+        [sheet],
+        texts,
+        [_make_vertical_group("GC", x=52.5, start_y=252.5, end_y=237.5)],
+    )
+
+    assert pairs == []
+    assert consumed == set()
+
+
 def test_extract_strip_two_port_component_pairs_accepts_clp_body() -> None:
     sheet = _make_sheet()
     texts = [

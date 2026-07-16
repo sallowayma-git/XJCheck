@@ -4,6 +4,7 @@ from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ord
 from dwg_audit.audit.page_extractors import _mark_schematic_ground_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
+from dwg_audit.audit.page_extractors import _promote_regular_terminal_row_array_pairs
 from dwg_audit.audit.rules import build_issues
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -232,6 +233,136 @@ def test_mark_terminal_prefixed_endpoint_ordinary_pairs_keeps_uncovered_row_lock
 
     assert pair.status == "review"
     assert "ordinary_pair_eligible" not in pair.evidence
+
+
+def test_promote_regular_terminal_row_array_pairs_accepts_unique_stable_rows() -> None:
+    pairs = []
+    groups = []
+    for index in range(6):
+        pair = _pair(
+            {
+                "line_orientation": "horizontal",
+                "selected_left_candidate_id": f"CL{index}",
+                "selected_right_candidate_id": f"CR{index}",
+                "selected_left_channel": "terminal_numeric_channel",
+                "selected_right_channel": "terminal_numeric_channel",
+                "score_breakdown": {"ambiguity_gap": None},
+            },
+            pair_id=f"P{index}",
+            line_group_id=f"G{index}",
+            left_text_id=f"TL{index}",
+            right_text_id=f"TR{index}",
+        )
+        pair.left_value = str(181 - index)
+        pair.right_value = str(801 - index)
+        pairs.append(pair)
+        groups.append(
+            _line_group(
+                f"G{index}",
+                start_x=50.0,
+                end_x=125.0,
+                start_y=175.0 + index * 5.0,
+                end_y=175.0 + index * 5.0,
+                orientation="horizontal",
+                row_band_id=None,
+                wire_score=0.55,
+            )
+        )
+    sheet = _sheet("屏端子图", route_target="TerminalDiagramExtractor")
+
+    _promote_regular_terminal_row_array_pairs(pairs, groups, [sheet], DEFAULT_CONFIG)
+
+    assert {pair.status for pair in pairs} == {"pass"}
+    assert {pair.confidence_bucket for pair in pairs} == {"high"}
+    assert all(pair.evidence["terminal_row_array_authority"] is True for pair in pairs)
+    assert {pair.evidence["terminal_row_array_pitch"] for pair in pairs} == {5.0}
+
+
+def test_promote_regular_terminal_row_array_pairs_accepts_short_consecutive_sequence() -> None:
+    pairs = []
+    groups = []
+    for index, (left_value, right_value) in enumerate(((214, 824), (213, 823), (212, 822))):
+        pair = _pair(
+            {
+                "line_orientation": "horizontal",
+                "selected_left_candidate_id": f"CL{index}",
+                "selected_right_candidate_id": f"CR{index}",
+                "selected_left_channel": "terminal_numeric_channel",
+                "selected_right_channel": "terminal_numeric_channel",
+                "score_breakdown": {"ambiguity_gap": None},
+            },
+            pair_id=f"P{index}",
+            line_group_id=f"G{index}",
+            left_text_id=f"TL{index}",
+            right_text_id=f"TR{index}",
+        )
+        pair.left_value = str(left_value)
+        pair.right_value = str(right_value)
+        pairs.append(pair)
+        groups.append(
+            _line_group(
+                f"G{index}",
+                start_x=145.0,
+                end_x=220.0,
+                start_y=255.0 + index * 5.0,
+                end_y=255.0 + index * 5.0,
+                orientation="horizontal",
+                row_band_id=None,
+            )
+        )
+
+    _promote_regular_terminal_row_array_pairs(
+        pairs,
+        groups,
+        [_sheet("屏端子图", route_target="TerminalDiagramExtractor")],
+        DEFAULT_CONFIG,
+    )
+
+    assert {pair.status for pair in pairs} == {"pass"}
+    assert all(pair.evidence["terminal_row_array_size"] == 3 for pair in pairs)
+
+
+def test_promote_regular_terminal_row_array_pairs_keeps_ambiguous_or_irregular_rows() -> None:
+    pairs = []
+    groups = []
+    y_values = [100.0, 105.0, 111.3, 120.0, 132.7, 150.0]
+    for index, y_value in enumerate(y_values):
+        pair = _pair(
+            {
+                "line_orientation": "horizontal",
+                "selected_left_candidate_id": f"CL{index}",
+                "selected_right_candidate_id": f"CR{index}",
+                "selected_left_channel": "terminal_numeric_channel",
+                "selected_right_channel": "terminal_numeric_channel",
+                "score_breakdown": {"ambiguity_gap": None},
+            },
+            pair_id=f"P{index}",
+            line_group_id=f"G{index}",
+            left_text_id=f"TL{index}",
+            right_text_id=f"TR{index}",
+        )
+        pair.left_value = str(index + 1)
+        pair.right_value = str(index + 101)
+        if index == 0:
+            pair.alternative_pair_candidate_ids = ["ALT"]
+        pairs.append(pair)
+        groups.append(
+            _line_group(
+                f"G{index}",
+                start_x=50.0,
+                end_x=125.0,
+                start_y=y_value,
+                end_y=y_value,
+                orientation="horizontal",
+                row_band_id=None,
+            )
+        )
+    sheet = _sheet("屏端子图", route_target="TerminalDiagramExtractor")
+
+    _promote_regular_terminal_row_array_pairs(pairs, groups, [sheet], DEFAULT_CONFIG)
+
+    assert {pair.status for pair in pairs} == {"review"}
+    assert not any(pair.evidence.get("terminal_row_array_authority") for pair in pairs)
 
 
 def test_mark_input_matrix_covered_ordinary_pairs_discards_bare_local_number_pair() -> None:

@@ -776,13 +776,13 @@ def _is_slash_circle_two_contact_terminal_geometry(
     try:
         if not (
             port_count == 2
-            and int(histogram.get("LINE", 0)) in {3, 4}
+            and int(histogram.get("LINE", 0)) == 4
             and int(histogram.get("LWPOLYLINE", 0)) == 2
             and int(histogram.get("CIRCLE", 0)) == 1
             and int(histogram.get("TEXT", 0)) == 0
             and len(contacts) == 2
             and len(circles) == 1
-            and len(segments) == int(histogram.get("LINE", 0))
+            and len(segments) == 4
         ):
             return False
         contact_centers = [
@@ -1030,7 +1030,7 @@ def _is_four_radial_isolated_terminal_geometry(
         if not (
             port_count == 4
             and int(histogram.get("CIRCLE", 0)) == 1
-            and int(histogram.get("LINE", 0)) in {3, 4}
+            and int(histogram.get("LINE", 0)) == 4
             and int(histogram.get("LWPOLYLINE", 0)) == 4
             and int(histogram.get("TEXT", 0)) == 0
             and len(contacts) == len(segments) == 4
@@ -1190,7 +1190,7 @@ def _is_dual_frame_isolated_two_port_geometry(
             and int(histogram.get("LWPOLYLINE", 0)) == 4
             and int(histogram.get("TEXT", 0)) == 0
             and len(contacts) == 2
-            and len(segments) == int(histogram.get("LINE", 0))
+            and len(segments) == 4
             and len(boxes) == 2
         ):
             return False
@@ -2033,14 +2033,14 @@ def _is_four_numbered_contact_panel_geometry(
     try:
         if not (
             port_count == 4
-            and int(histogram.get("LINE", 0)) == 4
+            and int(histogram.get("LINE", 0)) in {3, 4}
             and int(histogram.get("LWPOLYLINE", 0)) == 4
             and int(histogram.get("CIRCLE", 0)) + int(histogram.get("ELLIPSE", 0)) == 4
             and int(histogram.get("TEXT", 0)) == 4
             and int(histogram.get("ARC", 0)) == 0
             and len(contacts) == 4
             and len(circles) + len(ellipses) == 4
-            and len(segments) == 4
+            and len(segments) == int(histogram.get("LINE", 0))
         ):
             return False
         values = sorted(

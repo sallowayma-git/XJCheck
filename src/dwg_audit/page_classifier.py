@@ -32,6 +32,12 @@ _GRID_HEAVY_MIN_HORIZONTAL_RATIO = 0.7
 _VERTICAL_COMPONENT_MIN_VERTICAL_RATIO = 0.55
 _BACKPLATE_TABLE_MIN_ENDPOINTS = 8
 _BACKPLATE_TABLE_MIN_ROW_NUMBERS = 6
+_DENSE_PANEL_TABLE_MIN_POLYLINES = 100
+_DENSE_PANEL_TABLE_MIN_HORIZONTAL_RATIO = 0.9
+_DENSE_PANEL_TABLE_MIN_GRID_BANDS = 3
+_DENSE_PANEL_TABLE_MAX_GRID_BANDS = 6
+_DENSE_PANEL_TABLE_MIN_BLOCKS = 4
+_DENSE_PANEL_TABLE_MAX_BLOCKS = 8
 # Keep aligned with table_extractor._BACKPLATE_ENDPOINT_PATTERN so hierarchical
 # cabinet terminals such as `1-21QD1` / `& 3-21DK1-4` also upgrade 背板 pages.
 _BACKPLATE_ENDPOINT_PATTERN = re.compile(
@@ -215,6 +221,7 @@ def _classify(
     backplate_endpoint_count = int(features.get("backplate_endpoint_text_count", 0))
     backplate_virtual_row_count = int(features.get("backplate_virtual_row_number_count", 0))
     backplate_virtual_header_count = int(features.get("backplate_virtual_header_count", 0))
+    block_count = int(features.get("block_count", 0))
 
     grid_heavy = (
         grid_band_count >= grid_min_band
@@ -233,6 +240,16 @@ def _classify(
         and backplate_virtual_header_count >= 1
     )
     backplate_table_routed = category == "背板接线图" and (backplate_table_like or table_like)
+    dense_panel_table_like = (
+        category != "元件接线图"
+        and polyline_count >= _DENSE_PANEL_TABLE_MIN_POLYLINES
+        and horizontal_ratio >= _DENSE_PANEL_TABLE_MIN_HORIZONTAL_RATIO
+        and _DENSE_PANEL_TABLE_MIN_GRID_BANDS
+        <= grid_band_count
+        <= _DENSE_PANEL_TABLE_MAX_GRID_BANDS
+        and backplate_endpoint_count >= _BACKPLATE_TABLE_MIN_ENDPOINTS
+        and _DENSE_PANEL_TABLE_MIN_BLOCKS <= block_count <= _DENSE_PANEL_TABLE_MAX_BLOCKS
+    )
 
     if page.audit_role == "skip":
         page_type = category or "非审计页"
@@ -250,6 +267,16 @@ def _classify(
         page_type = "背板表格型图"
         subtype = "backplate_virtual_terminal_table" if backplate_table_like else "backplate_geometric_table"
         confidence = 0.86
+        route_target = "TableExtractor"
+    elif dense_panel_table_like:
+        # Some dense backplate/contact panels are delivered without PRJ/XML
+        # sidecars. Their repeated low-band geometry remains recognizable even
+        # before virtual INSERT rows are expanded. Bound both band and block
+        # counts so dense wire diagrams and component pages stay on their own
+        # extractors.
+        page_type = "表格型图"
+        subtype = "dense_contact_panel_table"
+        confidence = 0.84
         route_target = "TableExtractor"
     elif table_like:
         page_type = "表格型图"
@@ -293,7 +320,7 @@ def _classify(
         features,
         route_target=route_target,
         audit_disposition=audit_disposition,
-        table_like=table_like or backplate_table_routed,
+        table_like=table_like or backplate_table_routed or dense_panel_table_like,
         grid_heavy=grid_heavy,
         audit_texts=audit_texts,
     )
@@ -303,7 +330,7 @@ def _classify(
         page_type=page_type,
         page_subtype=subtype,
         page_type_confidence=round(confidence, 2),
-        table_like=table_like or backplate_table_routed,
+        table_like=table_like or backplate_table_routed or dense_panel_table_like,
         grid_heavy=grid_heavy,
         route_target=route_target,
         features=features,

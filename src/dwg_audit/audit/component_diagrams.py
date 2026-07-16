@@ -10,7 +10,7 @@ from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.ids import IdFactory
 
 
-_STRIP_BLOCK_NAME = "FJL-25-2A_Mirror"
+_STRIP_BLOCK_BASENAME = "FJL-25-2A"
 _KK_MULTI_PORT_BLOCK_PORTS = {
     "KK2P": 4,
     "KK3P": 6,
@@ -30,7 +30,11 @@ _SMALL_PORT_BOX_BODY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z']{0,4}$", re.IGNORE
 _STRIP_ENDPOINT_BRIDGE_TOP_PATTERN = re.compile(r"^(?P<prefix>\d+-\d+)ZK-(?P<port>\d+)$", re.IGNORECASE)
 _STRIP_ENDPOINT_BRIDGE_BOTTOM_PATTERN = re.compile(r"^(?P<prefix>\d+-\d+)n(?P<number>\d{3,})$", re.IGNORECASE)
 _EXTERNAL_ENDPOINT_PATTERN = re.compile(
-    r"^(?:\d+(?:-\d+)?[A-Za-z]{1,4}\d+(?:-\d+)?|[A-Za-z]{1,4}\d+(?:-\d+)?)$",
+    r"^(?:"
+    r"\d+(?:-\d+)?[A-Za-z]\d+[A-Za-z]{1,4}\d+(?:-\d+)?"
+    r"|\d+(?:-\d+)?[A-Za-z]{1,4}\d+(?:-\d+)?"
+    r"|[A-Za-z]{1,4}\d+(?:-\d+)?"
+    r")$",
     re.IGNORECASE,
 )
 _SMALL_PORT_EXTERNAL_ENDPOINT_PATTERN = re.compile(
@@ -718,12 +722,12 @@ def _strip_port_pairs(texts: list[TextItem]) -> list[tuple[TextItem, TextItem]]:
     top_ports = [
         text
         for text in texts
-        if text.source_block_name == _STRIP_BLOCK_NAME and text.normalized_text == "1"
+        if _is_strip_block_name(text.source_block_name) and text.normalized_text == "1"
     ]
     bottom_ports = [
         text
         for text in texts
-        if text.source_block_name == _STRIP_BLOCK_NAME and text.normalized_text == "2"
+        if _is_strip_block_name(text.source_block_name) and text.normalized_text == "2"
     ]
     pairs: list[tuple[TextItem, TextItem]] = []
     used_bottom_ids: set[str] = set()
@@ -741,6 +745,16 @@ def _strip_port_pairs(texts: list[TextItem]) -> list[tuple[TextItem, TextItem]]:
         used_bottom_ids.add(bottom.text_id)
         pairs.append((top, bottom))
     return pairs
+
+
+def _is_strip_block_name(value: str | None) -> bool:
+    if not value:
+        return False
+    normalized = value.strip().casefold()
+    mirror_suffix = "_mirror"
+    if normalized.endswith(mirror_suffix):
+        normalized = normalized[: -len(mirror_suffix)]
+    return normalized == _STRIP_BLOCK_BASENAME.casefold()
 
 
 def _nearest_component_body(port_top: TextItem, texts: list[TextItem]) -> TextItem | None:

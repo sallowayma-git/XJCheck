@@ -345,6 +345,7 @@ def _append_line(
     start_y: float,
     end_x: float,
     end_y: float,
+    source_block_name: str | None = None,
 ) -> None:
     bbox = _line_bbox(start_x, start_y, end_x, end_y)
     sheet_lines.append(
@@ -365,6 +366,7 @@ def _append_line(
             bbox_min_y=bbox[1],
             bbox_max_x=bbox[2],
             bbox_max_y=bbox[3],
+            source_block_name=source_block_name,
         )
     )
 
@@ -462,6 +464,7 @@ def _extract_graphic_entity(
             float(start.y),
             float(end.x),
             float(end.y),
+            source_block_name,
         )
         return
 
@@ -500,6 +503,7 @@ def _extract_graphic_entity(
                 start[1],
                 end[0],
                 end[1],
+                source_block_name,
             )
         return
 
@@ -539,6 +543,7 @@ def _extract_graphic_entity(
                 start[1],
                 end[0],
                 end[1],
+                source_block_name,
             )
         return
 

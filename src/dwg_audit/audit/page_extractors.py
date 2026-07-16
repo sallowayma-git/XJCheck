@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
+from collections import defaultdict
 
 from dwg_audit.audit import component_diagrams
 from dwg_audit.audit.candidates import build_terminal_candidates
@@ -245,6 +246,7 @@ def _extract_pairs_for_route(
             _extend_unique_pairs(table_pairs, retry_pairs)
             table_mappings = _merge_table_mappings(table_mappings, retry_mappings)
         _mark_terminal_prefixed_endpoint_ordinary_pairs(pairs, table_mappings)
+        _promote_regular_terminal_row_array_pairs(pairs, line_groups, pages, config)
         pairs.extend(table_pairs)
     if executed_extractor == "WireDiagramExtractor":
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
@@ -682,6 +684,113 @@ def _mark_terminal_prefixed_endpoint_ordinary_pairs(
         pair.rationale = "Covered by terminal structured endpoint; prefixed terminal text must not be reduced to a bare ordinary pair."
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["covered_by_terminal_structured_endpoint"] = True
+
+
+def _promote_regular_terminal_row_array_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    pages: list[SheetRecord],
+    config: dict,
+) -> None:
+    """Promote unique two-sided rows in a stable terminal array."""
+
+    terminal_sheet_ids = {
+        page.sheet_id
+        for page in pages
+        if page.route_target == "TerminalDiagramExtractor" or page.sheet_category == "屏端子图"
+    }
+    if not terminal_sheet_ids:
+        return
+    group_map = {group.line_group_id: group for group in line_groups}
+    clusters: dict[tuple[str, float, float, float], list[tuple[Pair, LineGroup]]] = defaultdict(list)
+    for pair in pairs:
+        if pair.sheet_id not in terminal_sheet_ids:
+            continue
+        if pair.pair_kind != "ordinary_pair" or pair.status != "review":
+            continue
+        if not pair.left_value or not pair.right_value or not pair.left_text_id or not pair.right_text_id:
+            continue
+        if pair.alternative_pair_candidate_ids:
+            continue
+        evidence = pair.evidence or {}
+        if evidence.get("line_orientation") != "horizontal":
+            continue
+        if evidence.get("selected_left_channel") != "terminal_numeric_channel":
+            continue
+        if evidence.get("selected_right_channel") != "terminal_numeric_channel":
+            continue
+        if not evidence.get("selected_left_candidate_id") or not evidence.get("selected_right_candidate_id"):
+            continue
+        ambiguity_gap = evidence.get("score_breakdown", {}).get("ambiguity_gap")
+        if ambiguity_gap not in {None, ""}:
+            continue
+        group = group_map.get(pair.line_group_id)
+        if group is None or group.orientation != "horizontal":
+            continue
+        min_x, max_x = sorted((group.start_x, group.end_x))
+        key = (pair.sheet_id, round(min_x, 1), round(max_x, 1), round(group.length, 1))
+        clusters[key].append((pair, group))
+
+    min_rows = int(config.get("geometry", {}).get("terminal_row_array_min_rows", 6))
+    high_threshold = float(config.get("confidence", {}).get("high_threshold", 0.92))
+    for key, rows in clusters.items():
+        if len(rows) < 3:
+            continue
+        y_values = sorted({round((group.start_y + group.end_y) / 2.0, 4) for _, group in rows})
+        if len(y_values) != len(rows):
+            continue
+        diffs = [right - left for left, right in zip(y_values, y_values[1:], strict=False) if right > left]
+        if not diffs:
+            continue
+        pitch = min(diffs)
+        if not 2.0 <= pitch <= 20.0:
+            continue
+        regular = 0
+        for diff in diffs:
+            multiple = diff / pitch
+            nearest = round(multiple)
+            if 1 <= nearest <= 6 and abs(multiple - nearest) <= 0.08:
+                regular += 1
+        if regular / len(diffs) < 0.9:
+            continue
+        ordered_rows = sorted(
+            rows,
+            key=lambda item: (item[1].start_y + item[1].end_y) / 2.0,
+        )
+        short_sequential = _terminal_row_values_are_consecutive(ordered_rows)
+        if len(rows) < min_rows and not short_sequential:
+            continue
+        array_id = f"{key[0]}:{key[1]:.1f}:{key[2]:.1f}:{key[3]:.1f}"
+        for pair, _ in rows:
+            original_confidence = pair.confidence
+            pair.confidence = max(pair.confidence, high_threshold)
+            pair.status = "pass"
+            pair.confidence_bucket = "high"
+            pair.rationale = "Accepted by stable terminal row-array geometry with unique two-sided candidates."
+            pair.evidence["terminal_row_array_authority"] = True
+            pair.evidence["terminal_row_array_id"] = array_id
+            pair.evidence["terminal_row_array_size"] = len(rows)
+            pair.evidence["terminal_row_array_pitch"] = round(pitch, 4)
+            pair.evidence["pre_array_confidence"] = original_confidence
+
+
+def _terminal_row_values_are_consecutive(rows: list[tuple[Pair, LineGroup]]) -> bool:
+    if len(rows) < 3:
+        return False
+    try:
+        left_values = [int(str(pair.left_value)) for pair, _ in rows]
+        right_values = [int(str(pair.right_value)) for pair, _ in rows]
+    except (TypeError, ValueError):
+        return False
+    left_deltas = [right - left for left, right in zip(left_values, left_values[1:], strict=False)]
+    right_deltas = [right - left for left, right in zip(right_values, right_values[1:], strict=False)]
+    return (
+        bool(left_deltas)
+        and len(set(left_deltas)) == 1
+        and len(set(right_deltas)) == 1
+        and abs(left_deltas[0]) == 1
+        and left_deltas[0] == right_deltas[0]
+    )
 
 
 def _terminal_header_table_text_ids(table_mappings: list[dict[str, object]]) -> set[str]:

@@ -3630,6 +3630,264 @@ def test_build_issues_classifies_same_sheet_backplate_virtual_table_scope_review
     assert issue.evidence["conflicting_values"] == ["5FD11", "5FD15"]
 
 
+def test_build_issues_accepts_complete_backplate_table_fanout_as_structured_facts() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+
+    def complete_pair(
+        pair_id: str,
+        logical: str,
+        endpoint: str,
+        header_id: str,
+        right_id: str,
+        *,
+        sequence_valid: object = True,
+    ) -> Pair:
+        header, row = logical.rsplit("-", 1)
+        return Pair(
+            pair_id=pair_id,
+            line_group_id=None,
+            sheet_id="S0009",
+            file_id="F0009",
+            selected_pair_candidate_id=None,
+            left_value=logical,
+            right_value=endpoint,
+            confidence=0.95,
+            status="pass",
+            rationale="backplate virtual table",
+            confidence_bucket="high",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "sheet_id": "S0009",
+                    "source_block_name": "ZYQ-820E-02",
+                    "header_prefix": header,
+                    "header_text_id": header_id,
+                    "header_coord": [100.0, 200.0],
+                    "row_number": int(row),
+                    "raw_row_number": row,
+                    "middle_value": row,
+                    "middle_text_id": f"M{row}",
+                    "middle_coord": [110.0, 150.0],
+                    "logical_endpoint": logical,
+                    "right_value": endpoint,
+                    "right_text_id": right_id,
+                    "right_coord": [115.0, 150.0],
+                    "row_number_sequence_valid": sequence_valid,
+                    "column_roles": {
+                        "left": "virtual_row_number",
+                        "middle": "virtual_row_number",
+                        "right": "external_terminal_endpoint",
+                    },
+                },
+            },
+            pair_kind="table_mapping",
+        )
+
+    pairs = [
+        complete_pair("P1", "Ua1-18", "UD30", "H1", "R1"),
+        complete_pair("P2", "Ua1-18", "UD34", "H2", "R2"),
+        complete_pair("P3", "Ub1-18", "UD30", "H3", "R1", sequence_valid=1),
+    ]
+    sheets = [
+        SheetRecord("S0009", "F0009", "09 装置背板.dwg", 9, "09", "REAR WIRING", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    assert not any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+    assert [(pair.left_value, pair.right_value) for pair in pairs] == [
+        ("Ua1-18", "UD30"),
+        ("Ua1-18", "UD34"),
+        ("Ub1-18", "UD30"),
+    ]
+
+
+def test_build_issues_accepts_complete_terminal_table_cardinality_and_two_side_duplicate() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+
+    def terminal_pair(
+        pair_id: str,
+        logical: str,
+        endpoint: str,
+        *,
+        endpoint_side: str,
+    ) -> Pair:
+        header, row = logical.rsplit("D", 1)
+        mapping = {
+            "mapping_mode": "terminal_header_table",
+            "sheet_id": "S0011",
+            "header_prefix": f"{header}D",
+            "header_text_id": "H1",
+            "row_number": int(row),
+            "middle_value": row,
+            "middle_text_id": f"M{row}",
+            "logical_endpoint": logical,
+            "left_value": endpoint if endpoint_side == "left" else None,
+            "right_value": endpoint if endpoint_side == "right" else None,
+            "left_text_id": f"L{pair_id}" if endpoint_side == "left" else None,
+            "right_text_id": f"R{pair_id}" if endpoint_side == "right" else None,
+            "row_number_sequence_valid": True,
+            "column_roles": {
+                "left": "terminal_endpoint" if endpoint_side == "left" else "empty",
+                "middle": "row_number",
+                "right": "terminal_endpoint" if endpoint_side == "right" else "empty",
+            },
+        }
+        return Pair(
+            pair_id,
+            None,
+            "S0011",
+            "F0011",
+            None,
+            logical,
+            endpoint,
+            0.95,
+            "pass",
+            "terminal header table",
+            [],
+            "high",
+            {"source": "table_mapping", "table_mapping": mapping},
+            pair_kind="table_mapping",
+        )
+
+    pairs = [
+        terminal_pair("P1", "7U1D11", "I UB1", endpoint_side="left"),
+        terminal_pair("P2", "7U1D11", "I UB1", endpoint_side="right"),
+        terminal_pair("P3", "7U1D11", "7n606", endpoint_side="right"),
+        terminal_pair("P4", "7U1D10", "I UB1", endpoint_side="right"),
+    ]
+    sheets = [
+        SheetRecord("S0011", "F0011", "11 左侧端子图.dwg", 11, "11", "TERMINAL", "屏端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    assert not any(
+        issue.rule_id in {"R-ONE-TO-MANY", "R-MANY-TO-ONE", "R-DUPLICATE-PAIR"}
+        for issue in issues
+    )
+    assert len(pairs) == 4
+
+
+def test_build_issues_keeps_cross_table_complete_duplicate_visible() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+
+    def terminal_pair(pair_id: str, sheet_id: str, file_id: str, header_text_id: str) -> Pair:
+        mapping = {
+            "mapping_mode": "terminal_header_table",
+            "sheet_id": sheet_id,
+            "header_prefix": "7U1D",
+            "header_text_id": header_text_id,
+            "row_number": 11,
+            "middle_value": "11",
+            "middle_text_id": f"M-{sheet_id}",
+            "logical_endpoint": "7U1D11",
+            "left_value": None,
+            "right_value": "I UB1",
+            "left_text_id": None,
+            "right_text_id": f"R-{sheet_id}",
+            "row_number_sequence_valid": True,
+            "column_roles": {
+                "left": "empty",
+                "middle": "row_number",
+                "right": "terminal_endpoint",
+            },
+        }
+        return Pair(
+            pair_id,
+            None,
+            sheet_id,
+            file_id,
+            None,
+            "7U1D11",
+            "I UB1",
+            0.95,
+            "pass",
+            "terminal header table",
+            [],
+            "high",
+            {"source": "table_mapping", "table_mapping": mapping},
+            pair_kind="table_mapping",
+        )
+
+    pairs = [
+        terminal_pair("P1", "S0011", "F0011", "H1"),
+        terminal_pair("P2", "S0012", "F0012", "H2"),
+    ]
+    sheets = [
+        SheetRecord("S0011", "F0011", "11 左侧端子图.dwg", 11, "11", "TERMINAL", "屏端子图", "supplemental", "filename", True),
+        SheetRecord("S0012", "F0012", "12 右侧端子图.dwg", 12, "12", "TERMINAL", "屏端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    duplicate = next(issue for issue in issues if issue.rule_id == "R-DUPLICATE-PAIR")
+    assert duplicate.evidence["occurrences"] == 2
+
+
+def test_build_issues_accepts_complete_comma_component_chain_cardinality() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+
+    def component_pair(
+        pair_id: str,
+        logical: str,
+        endpoint: str,
+        raw_endpoint: str,
+        text_id: str,
+    ) -> Pair:
+        body, port = logical.rsplit("-", 1)
+        return Pair(
+            pair_id,
+            f"G{pair_id}",
+            "S0029",
+            "F0029",
+            None,
+            logical,
+            endpoint,
+            0.95,
+            "pass",
+            "strip component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+                "component_body": body,
+                "component_body_text_id": f"B{body}",
+                "component_port": port,
+                "component_port_text_id": f"PORT{logical}",
+                "component_block_name": "FJL-25-2A_Mirror",
+                "external_endpoint": endpoint,
+                "external_endpoint_raw": raw_endpoint,
+                "external_endpoint_split": endpoint,
+                "external_endpoint_text_id": text_id,
+                "logical_endpoint": logical,
+                "line_group_id": f"G{pair_id}",
+                "supporting_line_ids": [f"L{pair_id}"],
+            },
+            pair_kind="component_mapping",
+        )
+
+    pairs = [
+        component_pair("P1", "1KLP12-1", "1KLP13-1", "1KLP13-1,1KLP11-1", "T1"),
+        component_pair("P2", "1KLP12-1", "1KLP11-1", "1KLP13-1,1KLP11-1", "T1"),
+        component_pair("P3", "1KLP10-1", "1KLP11-1", "1KLP11-1", "T2"),
+    ]
+    sheets = [
+        SheetRecord("S0029", "F0029", "29 元件接线图3.dwg", 29, "29", "WIRING", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    assert not any(
+        issue.rule_id in {"R-ONE-TO-MANY", "R-MANY-TO-ONE", "R-DUPLICATE-PAIR"}
+        for issue in issues
+    )
+    assert len(pairs) == 3
+
+
 def test_build_issues_clusters_contiguous_same_sheet_backplate_scope_reviews() -> None:
     config = deepcopy(DEFAULT_CONFIG)
 

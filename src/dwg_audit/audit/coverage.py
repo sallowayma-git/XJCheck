@@ -39,6 +39,7 @@ _ASSIGNED_KINDS = {
 }
 
 _OUT_OF_SCOPE_DISPOSITIONS = {"skip_stable", "classify_only"}
+_CONDUCTIVE_WIRE_ROUTES = {"WireDiagramExtractor", "ComponentDiagramExtractor"}
 _NON_CONTRACT_SCOPE_REASONS = {
     "title_block_bbox",
     "frame_bbox",
@@ -440,6 +441,34 @@ def _line_in_audit_scope(line: Any, context: dict[str, Any]) -> bool:
     return start_inside or end_inside
 
 
+def _line_in_conductive_wire_scope(
+    line: Any,
+    context: dict[str, Any],
+    *,
+    is_line_group_member: bool,
+) -> bool:
+    """Return whether a segment belongs in conductive-wire coverage.
+
+    A CAD LINE is not automatically an electrical wire. Table grids, title
+    frames, polylines used as device outlines, and expanded block artwork are
+    drawing geometry. Existing line-group membership is positive electrical
+    evidence; otherwise only top-level LINE entities on wire/component routes
+    enter this coverage contract.
+    """
+
+    if not _line_in_audit_scope(line, context):
+        return False
+    if is_line_group_member:
+        return True
+    if context.get("route_target") not in _CONDUCTIVE_WIRE_ROUTES:
+        return False
+    if str(getattr(line, "source_entity_type", "") or "").upper() != "LINE":
+        return False
+    if getattr(line, "source_block_name", None):
+        return False
+    return True
+
+
 def _block_in_audit_scope(block: Any, context: dict[str, Any]) -> bool:
     if context.get("audit_disposition") in _OUT_OF_SCOPE_DISPOSITIONS:
         return False
@@ -457,12 +486,13 @@ def _wire_segment_coverage_by_page(
     by_page: dict[str, dict[str, int]] = defaultdict(lambda: {"line_segments": 0, "unassigned_wire_segments": 0})
     for line in artifacts.lines:
         context = contexts.get(getattr(line, "sheet_id", ""), {})
-        if not _line_in_audit_scope(line, context):
+        line_id = _line_entity_id(line)
+        is_member = line_id is not None and line_id in member_ids
+        if not _line_in_conductive_wire_scope(line, context, is_line_group_member=is_member):
             continue
         sheet_id = getattr(line, "sheet_id", "")
         by_page[sheet_id]["line_segments"] += 1
-        line_id = _line_entity_id(line)
-        if line_id is not None and line_id in member_ids:
+        if is_member:
             continue
         by_page[sheet_id]["unassigned_wire_segments"] += 1
     return dict(by_page)

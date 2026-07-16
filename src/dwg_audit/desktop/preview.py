@@ -179,6 +179,10 @@ def _build_svg(
             f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{_CANVAS_WIDTH}\" "
             f"height=\"{_CANVAS_HEIGHT}\" viewBox=\"0 0 {_CANVAS_WIDTH} {_CANVAS_HEIGHT}\">"
         ),
+        (
+            f"<metadata>view={'issue-crop' if cropped else 'full-sheet'};"
+            f"sheet={html.escape(str(page_row.get('sheet_no') or ''))}</metadata>"
+        ),
         "<rect width=\"100%\" height=\"100%\" fill=\"#fffdf8\" />",
         "<g id=\"page-lines\" stroke=\"#2b2b2b\" fill=\"none\">",
     ]

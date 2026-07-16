@@ -73,6 +73,38 @@ def _make_vertical_line(line_id: str, sheet_id: str, x: float, y1: float = 10.0,
     )
 
 
+def _make_block(block_id: str, sheet_id: str = "S1") -> BlockRecord:
+    return BlockRecord(
+        block_id=block_id,
+        sheet_id=sheet_id,
+        file_id="F1",
+        handle=block_id,
+        name="PANEL_CELL",
+        layer="0",
+        insert_x=20.0,
+        insert_y=20.0,
+        rotation_deg=0.0,
+        attributes_json="{}",
+    )
+
+
+def _make_closed_polyline(polyline_id: str, sheet_id: str = "S1") -> PolylineRecord:
+    return PolylineRecord(
+        polyline_id=polyline_id,
+        sheet_id=sheet_id,
+        file_id="F1",
+        handle=polyline_id,
+        source_entity_type="LWPOLYLINE",
+        layer="0",
+        vertex_count=4,
+        is_closed=True,
+        bbox_min_x=10.0,
+        bbox_min_y=10.0,
+        bbox_max_x=12.0,
+        bbox_max_y=12.0,
+    )
+
+
 def _make_numeric_text(text_id: str, sheet_id: str, x: float, y: float, value: str = "101") -> TextItem:
     return TextItem(
         text_id=text_id,
@@ -180,6 +212,51 @@ def test_classify_pages_marks_table_like_page() -> None:
     assert classification.page_type == "表格型图"
     assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "TableExtractor"
+
+
+def test_classify_pages_routes_dense_contact_panel_without_sidecar_category() -> None:
+    sheet = _make_sheet(
+        filename="standalone-panel.dwg",
+        sheet_title="Standalone panel",
+        sheet_category=None,
+        audit_role="secondary",
+    )
+    lines = [
+        _make_horizontal_line(f"H{band}_{index}", "S1", y=15.0 + band * 15.0)
+        for band in range(3)
+        for index in range(10)
+    ]
+    lines += [_make_vertical_line("V1", "S1", x=25.0), _make_vertical_line("V2", "S1", x=65.0)]
+    texts = [
+        _make_text(f"E{index}", "S1", 15.0 + index * 7.0, 30.0, f"{index + 1}ZD{index + 1}")
+        for index in range(8)
+    ]
+    polylines = [_make_closed_polyline(f"P{index}") for index in range(100)]
+    blocks = [_make_block(f"B{index}") for index in range(4)]
+
+    classification = classify_pages([sheet], texts, lines, polylines, blocks, DEFAULT_CONFIG)["S1"]
+
+    assert classification.page_type == "表格型图"
+    assert classification.page_subtype == "dense_contact_panel_table"
+    assert classification.table_like is True
+    assert classification.route_target == "TableExtractor"
+    assert classification.audit_disposition == "audit_required"
+
+
+def test_classify_pages_does_not_treat_dense_many_band_wire_page_as_panel_table() -> None:
+    sheet = _make_sheet(sheet_category=None)
+    lines = [_make_horizontal_line(f"H{index}", "S1", y=6.0 + index * 7.0) for index in range(10)]
+    texts = [
+        _make_text(f"E{index}", "S1", 15.0 + index * 7.0, 30.0, f"{index + 1}ZD{index + 1}")
+        for index in range(8)
+    ]
+    polylines = [_make_closed_polyline(f"P{index}") for index in range(100)]
+    blocks = [_make_block(f"B{index}") for index in range(20)]
+
+    classification = classify_pages([sheet], texts, lines, polylines, blocks, DEFAULT_CONFIG)["S1"]
+
+    assert classification.page_subtype == "grid_heavy_wire_diagram"
+    assert classification.route_target == "WireDiagramExtractor"
 
 
 def test_classify_pages_marks_vertical_component_page() -> None:

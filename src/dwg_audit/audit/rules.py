@@ -560,6 +560,13 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
             continue
 
         first = linked_pairs[0]
+        if _is_authoritative_structured_cardinality_group(linked_pairs):
+            # A complete backplate table row is already a machine-extracted
+            # structured fact. Repeated scoped rows may intentionally fan out;
+            # graph-shape rules must not reinterpret that evidence as an
+            # ordinary wire ambiguity. Source conflicts remain covered by the
+            # dedicated table-vs-ordinary rule.
+            continue
         backplate_scope_info = _backplate_virtual_table_same_sheet_scope_info(linked_pairs)
         if backplate_scope_info is not None:
             issues.append(
@@ -701,6 +708,8 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
             first = linked_pairs[0]
+            if _is_authoritative_structured_cardinality_group(linked_pairs):
+                continue
             terminal_header_info = _terminal_header_table_shared_endpoint_info(
                 linked_pairs,
                 right_value,
@@ -857,6 +866,8 @@ def _run_duplicate_pair(context: RuleContext) -> list[Issue]:
     for key, occurrences in graph.ordered_pair_counts.items():
         if occurrences > 1:
             linked_pairs = ordered_pairs[key]
+            if _is_authoritative_structured_cardinality_group(linked_pairs):
+                continue
             first = linked_pairs[0]
             issues.append(
                 context.issue_factory.build(
@@ -903,6 +914,136 @@ def _is_backplate_virtual_table_scope_review(linked_pairs: list[Pair]) -> bool:
         if mapping.get("mapping_mode") != "backplate_virtual_table":
             return False
     return True
+
+
+def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:
+    """Recognize complete table facts that need no generic graph review."""
+
+    if not linked_pairs:
+        return False
+    scope_keys: set[tuple[str, ...]] = set()
+    for pair in linked_pairs:
+        if getattr(pair, "pair_kind", "ordinary_pair") != "table_mapping":
+            return False
+        mapping = _table_mapping_evidence(pair)
+        mapping_mode = str(mapping.get("mapping_mode") or "")
+        if mapping_mode not in {"backplate_virtual_table", "terminal_header_table"}:
+            return False
+        row_sequence_valid = mapping.get("row_number_sequence_valid")
+        if not (row_sequence_valid is True or row_sequence_valid == 1):
+            return False
+        if str(mapping.get("sheet_id") or "") != str(pair.sheet_id or ""):
+            return False
+        if str(mapping.get("logical_endpoint") or "") != str(pair.left_value or ""):
+            return False
+        mapped_endpoint = mapping.get("right_value") or mapping.get("left_value")
+        if str(mapped_endpoint or "") != str(pair.right_value or ""):
+            return False
+        if not all(
+            mapping.get(key)
+            for key in (
+                "header_prefix",
+                "header_text_id",
+                "middle_text_id",
+            )
+        ):
+            return False
+        if mapping.get("row_number") is None:
+            return False
+        column_roles = mapping.get("column_roles")
+        if not isinstance(column_roles, dict):
+            return False
+        if mapping_mode == "backplate_virtual_table":
+            if not mapping.get("source_block_name") or not mapping.get("right_text_id"):
+                return False
+            if column_roles.get("middle") != "virtual_row_number":
+                return False
+            if column_roles.get("right") != "external_terminal_endpoint":
+                return False
+            scope_keys.add(
+                (
+                    mapping_mode,
+                    str(pair.sheet_id or ""),
+                    str(pair.file_id or ""),
+                    str(mapping.get("source_block_name") or ""),
+                )
+            )
+        else:
+            if column_roles.get("middle") != "row_number":
+                return False
+            left_is_endpoint = (
+                bool(mapping.get("left_text_id"))
+                and not mapping.get("right_text_id")
+                and column_roles.get("left") == "terminal_endpoint"
+                and column_roles.get("right") == "empty"
+            )
+            right_is_endpoint = (
+                bool(mapping.get("right_text_id"))
+                and not mapping.get("left_text_id")
+                and column_roles.get("right") == "terminal_endpoint"
+                and column_roles.get("left") == "empty"
+            )
+            if not (left_is_endpoint or right_is_endpoint):
+                return False
+            scope_keys.add(
+                (
+                    mapping_mode,
+                    str(pair.sheet_id or ""),
+                    str(pair.file_id or ""),
+                    str(mapping.get("header_prefix") or ""),
+                    str(mapping.get("header_text_id") or ""),
+                )
+            )
+    return len(scope_keys) == 1
+
+
+def _is_authoritative_structured_cardinality_group(linked_pairs: list[Pair]) -> bool:
+    return _is_authoritative_table_mapping_group(
+        linked_pairs
+    ) or _is_authoritative_comma_component_mapping_group(linked_pairs)
+
+
+def _is_authoritative_comma_component_mapping_group(linked_pairs: list[Pair]) -> bool:
+    """Accept complete component-chain facts sourced from comma endpoint groups."""
+
+    if len(linked_pairs) < 2:
+        return False
+    has_comma_group = False
+    for pair in linked_pairs:
+        if getattr(pair, "pair_kind", "ordinary_pair") != "component_mapping":
+            return False
+        if pair.status != "pass" or float(pair.confidence or 0.0) < 0.95:
+            return False
+        evidence = pair.evidence or {}
+        if evidence.get("source") != "component_mapping":
+            return False
+        if evidence.get("component_submode") != "strip_two_port_component":
+            return False
+        if str(evidence.get("logical_endpoint") or "") != str(pair.left_value or ""):
+            return False
+        if str(evidence.get("external_endpoint") or "") != str(pair.right_value or ""):
+            return False
+        if not all(
+            evidence.get(key)
+            for key in (
+                "component_body",
+                "component_body_text_id",
+                "component_port",
+                "component_port_text_id",
+                "component_block_name",
+                "external_endpoint_text_id",
+                "line_group_id",
+                "supporting_line_ids",
+            )
+        ):
+            return False
+        raw_endpoint = str(evidence.get("external_endpoint_raw") or "")
+        split_endpoint = str(evidence.get("external_endpoint_split") or "")
+        if not raw_endpoint or split_endpoint != str(pair.right_value or ""):
+            return False
+        if "," in raw_endpoint or "，" in raw_endpoint:
+            has_comma_group = True
+    return has_comma_group
 
 
 def _structured_mapping_shared_endpoint_scope_info(
