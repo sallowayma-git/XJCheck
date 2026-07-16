@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { startTransition, useDeferredValue, useEffect, useEffectEvent, useMemo, useState } from "react"
 
 import "./App.css"
+import logoUrl from "./assets/logo.png"
 import { desktopApi } from "./lib/desktopApi"
 import type { IssueSummary, ProjectResult, RecentProject, RunStageCard, SidecarEvent } from "./types"
 
@@ -554,8 +555,11 @@ function App() {
     <div className="shell">
       <header className="topbar">
         <div className="product-mark">
-          <strong>图纸跨页审计</strong>
-          <span>本地离线校验</span>
+          <img className="product-logo" src={logoUrl} alt="许继集团" />
+          <div className="product-mark-text">
+            <strong>图纸跨页审计</strong>
+            <span>本地离线校验</span>
+          </div>
         </div>
         <nav className="nav-strip" aria-label="主视图">
           <button type="button" className={screen === "launch" ? "nav-chip active" : "nav-chip"} onClick={() => setScreen("launch")}>

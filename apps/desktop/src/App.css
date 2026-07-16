@@ -21,12 +21,30 @@
 
 .product-mark {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.product-logo {
+  height: 28px;
+  width: auto;
+  max-width: 52px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.product-mark-text {
+  display: flex;
   flex-direction: column;
   gap: 0;
   min-width: 0;
 }
 
-.product-mark strong {
+.product-mark-text strong {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -36,7 +54,7 @@
   text-overflow: ellipsis;
 }
 
-.product-mark span {
+.product-mark-text span {
   font-size: 11px;
   color: var(--text-muted);
 }
