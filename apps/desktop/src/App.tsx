@@ -1004,7 +1004,7 @@ function App() {
                             <td>
                               <div className="issue-title-cell">
                                 <strong>{issue.title}</strong>
-                                <span className="muted">{labelRule(issue.rule_id)}</span>
+                                <span className="muted">{labelIssueCategory(issue)}</span>
                               </div>
                             </td>
                             <td>{formatPair(issue)}</td>
@@ -1205,7 +1205,7 @@ function App() {
                             <td>
                               <div className="issue-title-cell">
                                 <strong>{issue.title}</strong>
-                                <span className="muted">{issue.issue_family || labelRule(issue.rule_id)}</span>
+                                <span className="muted">{labelIssueCategory(issue)}</span>
                               </div>
                             </td>
                             <td>{formatPair(issue)}</td>
@@ -1350,21 +1350,22 @@ function App() {
                         <span>处理组</span>
                         <strong title={selectedIssue.review_group_label || undefined}>
                           {(selectedIssue.review_group_size ?? 1) > 1
-                            ? `${selectedIssue.review_group_label || selectedIssue.title}（${selectedIssue.review_group_size} 处）`
-                            : selectedIssue.review_group_label || "单条问题"}
+                            ? `${humanizeReviewGroupLabel(selectedIssue)}（${selectedIssue.review_group_size} 处）`
+                            : humanizeReviewGroupLabel(selectedIssue) || "单条问题"}
                         </strong>
                       </div>
                       <div className="detail-block">
                         <span>问题类别</span>
-                        <strong>{selectedIssue.issue_family || labelRule(selectedIssue.rule_id)}</strong>
+                        <strong>{labelIssueCategory(selectedIssue)}</strong>
                       </div>
                       <div className="detail-block">
-                        <span>图纸文件</span>
-                        <strong>{formatSourcePage(selectedIssue).detail || formatSourcePage(selectedIssue).label}</strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>图号</span>
-                        <strong>{selectedIssue.sheet_no || "未识别图号"}</strong>
+                        <span>来源图纸</span>
+                        <strong>
+                          {(() => {
+                            const source = formatSourcePage(selectedIssue)
+                            return source.secondary ? `${source.label} · ${source.secondary}` : source.label
+                          })()}
+                        </strong>
                       </div>
                       <div className="detail-block">
                         <span>端子连接</span>
@@ -1372,11 +1373,17 @@ function App() {
                       </div>
                       <div className="detail-block">
                         <span>相关端子号</span>
-                        <strong>{selectedIssue.values.length ? selectedIssue.values.join("、") : formatPair(selectedIssue)}</strong>
+                        <strong>
+                          {selectedIssue.values.length
+                            ? selectedIssue.values.join("、")
+                            : formatPair(selectedIssue)}
+                        </strong>
                       </div>
                       <div className="detail-block">
                         <span>连接关系</span>
-                        <strong>{labelTriage(selectedIssue.one_to_many_classification ?? readOneToManyClassification(selectedIssue))}</strong>
+                        <strong>
+                          {labelTriage(selectedIssue.one_to_many_classification ?? readOneToManyClassification(selectedIssue))}
+                        </strong>
                       </div>
                       <div className="detail-block">
                         <span>识别把握</span>
@@ -1384,15 +1391,17 @@ function App() {
                       </div>
                       <div className="detail-block">
                         <span>图纸位置</span>
-                        <strong className="coords-mono" title={formatIssueLocation(selectedIssue).detail}>
+                        <strong className={formatIssueLocation(selectedIssue).hasCoord ? "coords-mono" : undefined} title={formatIssueLocation(selectedIssue).detail}>
                           {formatIssueLocation(selectedIssue).label}
                         </strong>
                       </div>
                     </div>
-                    <div className="detail-block">
-                      <span>线端说明</span>
-                      <strong>{formatLineSemantics(selectedIssue) || "-"}</strong>
-                    </div>
+                    {formatLineSemantics(selectedIssue) ? (
+                      <div className="detail-block">
+                        <span>线端说明</span>
+                        <strong>{formatLineSemantics(selectedIssue)}</strong>
+                      </div>
+                    ) : null}
                     <div className="detail-block">
                       <span>摘要</span>
                       <strong>{selectedIssue.summary || selectedIssue.title}</strong>
@@ -1454,7 +1463,10 @@ function App() {
                       </div>
                     </div>
                     <details className="raw-toggle">
-                      <summary>更多技术细节（一般无需查看）</summary>
+                      <summary>更多技术细节（排障用，一般无需查看）</summary>
+                      <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
+                        以下为内部编号与原始记录，不影响日常复核。
+                      </p>
                       <div className="detail-block" style={{ marginTop: 8 }}>
                         <span>识别把握拆解</span>
                         {Object.keys(scoreBreakdown).length ? (
@@ -1471,7 +1483,7 @@ function App() {
                         )}
                       </div>
                       <div className="detail-block" style={{ marginTop: 8 }}>
-                        <span>内部编号</span>
+                        <span>内部编号（仅排障）</span>
                         <strong className="coords-mono">
                           {[
                             selectedIssue.issue_id ? `问题 ${selectedIssue.issue_id}` : null,
@@ -1483,13 +1495,14 @@ function App() {
                             selectedIssue.related_pair_ids.length
                               ? `关联配对 ${selectedIssue.related_pair_ids.join("、")}`
                               : null,
+                            selectedIssue.sheet_id ? `页面 ${selectedIssue.sheet_id}` : null,
                           ]
                             .filter(Boolean)
                             .join(" · ") || "-"}
                         </strong>
                       </div>
                       <div className="detail-block" style={{ marginTop: 8 }}>
-                        <span>证据链</span>
+                        <span>证据链（原始）</span>
                         <pre>{JSON.stringify(readEvidenceChain(selectedIssue), null, 2)}</pre>
                       </div>
                       <div className="detail-block" style={{ marginTop: 8 }}>
@@ -1577,13 +1590,24 @@ function formatSidecarLog(event: SidecarEvent): string {
     case "progress":
       return `[${stamp}] ${labelStage(event.stage)} · ${summarizeProgress(event)}`
     case "page_started":
-      return `[${stamp}] 开始处理 · ${event.filename}`
+      return `[${stamp}] 开始处理 · ${formatLogDrawingName(event.filename)}`
     case "page_finished":
-      return `[${stamp}] 完成 · ${event.filename} · ${labelPageStatus(event.status)}`
+      return `[${stamp}] 完成 · ${formatLogDrawingName(event.filename)} · ${labelPageStatus(event.status)}`
     case "warning":
-      return `[${stamp}] 注意 · ${event.filename ?? "图纸"} · ${event.message}`
-    case "issue_found":
-      return `[${stamp}] 发现问题 · ${labelSeverity(event.severity)} · ${event.title}`
+      return `[${stamp}] 注意 · ${formatLogDrawingName(event.filename) || "图纸"} · ${humanizeRuntimeMessage(event.message)}`
+    case "issue_found": {
+      const source = formatSourcePage({
+        filename: event.filename ?? "",
+        sheet_no: event.sheet_no ?? "",
+        evidence: {
+          sheet_title: event.sheet_title ?? "",
+          filename: event.filename ?? "",
+          sheet_no: event.sheet_no ?? "",
+        },
+      })
+      const sourceText = source.secondary ? `${source.label} · ${source.secondary}` : source.label
+      return `[${stamp}] 发现问题 · ${labelHandlingClass(event.handling_class ?? event.severity)} · ${event.title} · ${sourceText}`
+    }
     case "audit_finished":
       return `[${stamp}] 检查完成 · 共 ${event.issue_count} 个问题`
     case "project_stored":
@@ -1595,9 +1619,39 @@ function formatSidecarLog(event: SidecarEvent): string {
   }
 }
 
+function formatLogDrawingName(filename: string | null | undefined): string {
+  if (!filename) {
+    return "图纸"
+  }
+  return formatDrawingName(filename) || filename
+}
+
+function humanizeRuntimeMessage(message: string | null | undefined): string {
+  if (!message) {
+    return "出现提示"
+  }
+  let text = message.trim()
+  // Common converter / pipeline English leaks.
+  const replacements: Array<[RegExp, string]> = [
+    [/missing converter/gi, "缺少转换工具"],
+    [/invalid header/gi, "文件头异常"],
+    [/timed? out/gi, "处理超时"],
+    [/permission denied/gi, "无访问权限"],
+    [/not found/gi, "未找到"],
+    [/failed/gi, "失败"],
+    [/error/gi, "错误"],
+    [/warning/gi, "警告"],
+    [/Duplicate sheet numbers detected[^.]*\.?/gi, "发现重复图号，已按图纸顺序继续处理。"],
+  ]
+  for (const [pattern, replacement] of replacements) {
+    text = text.replace(pattern, replacement)
+  }
+  return text
+}
+
 function formatPair(issue: Pick<IssueSummary, "left_value" | "right_value">): string {
-  const left = issue.left_value?.trim() || "?"
-  const right = issue.right_value?.trim() || "?"
+  const left = issue.left_value?.trim() || "未识别"
+  const right = issue.right_value?.trim() || "未识别"
   return `${left} → ${right}`
 }
 
@@ -1959,19 +2013,80 @@ function formatLineSemantics(issue: Pick<IssueSummary, "evidence">): string {
   const evidence = readPairEvidence(issue)
   const parts: string[] = []
   const orientation = readLineOrientation(issue)
-  const leftSide = typeof evidence.left_side_label === "string" && evidence.left_side_label.trim() ? evidence.left_side_label : null
-  const rightSide = typeof evidence.right_side_label === "string" && evidence.right_side_label.trim() ? evidence.right_side_label : null
+  const leftSide = humanizeSideLabel(
+    typeof evidence.left_side_label === "string" && evidence.left_side_label.trim() ? evidence.left_side_label : null,
+  )
+  const rightSide = humanizeSideLabel(
+    typeof evidence.right_side_label === "string" && evidence.right_side_label.trim() ? evidence.right_side_label : null,
+  )
 
   if (orientation) {
     parts.push(`方向：${labelLineOrientation(orientation)}`)
   }
   if (leftSide) {
-    parts.push(`左侧：${leftSide}`)
+    parts.push(`左端：${leftSide}`)
   }
   if (rightSide) {
-    parts.push(`右侧：${rightSide}`)
+    parts.push(`右端：${rightSide}`)
   }
   return parts.join("；")
+}
+
+function humanizeSideLabel(value: string | null): string | null {
+  if (!value) {
+    return null
+  }
+  const map: Record<string, string> = {
+    left: "左侧",
+    right: "右侧",
+    top: "上侧",
+    bottom: "下侧",
+    start: "起点侧",
+    end: "终点侧",
+  }
+  const key = value.trim().toLowerCase()
+  if (map[key]) {
+    return map[key]
+  }
+  // Drop pure English technical tokens.
+  if (/^[a-z_]+$/i.test(value) && !/[\u4e00-\u9fff]/.test(value)) {
+    return null
+  }
+  return value
+}
+
+function labelIssueCategory(
+  issue: Pick<IssueSummary, "issue_family" | "rule_id" | "issue_type" | "title"> | Pick<IssueSummary, "issue_family" | "rule_id" | "title">,
+): string {
+  const family = String(issue.issue_family || "").trim()
+  if (family && !looksTechnicalToken(family)) {
+    return family
+  }
+  const byRule = labelRule(issue.rule_id)
+  if (byRule && byRule !== "未分类") {
+    return byRule
+  }
+  const issueType = "issue_type" in issue ? issue.issue_type : undefined
+  const byType = labelIssueType(issueType)
+  if (byType && byType !== "-") {
+    return byType
+  }
+  return issue.title || "未分类"
+}
+
+function humanizeReviewGroupLabel(issue: Pick<IssueSummary, "review_group_label" | "title" | "issue_family" | "rule_id">): string {
+  const raw = String(issue.review_group_label || "").trim()
+  if (!raw) {
+    return issue.title || labelIssueCategory(issue)
+  }
+  if (looksTechnicalToken(raw)) {
+    return issue.title || labelIssueCategory(issue)
+  }
+  return raw
+}
+
+function looksTechnicalToken(value: string): boolean {
+  return /^(R-|S\d{3,}|G\d{3,}|P\d{3,}|I\d{3,}|F\d{3,})/i.test(value) || /_/.test(value) && !/[\u4e00-\u9fff]/.test(value)
 }
 
 function readStructuredLocation(issue: IssueSummary | null): { coords: string; lineGroupId: string | null } {
@@ -2054,8 +2169,20 @@ function labelBreakdownKey(key: string): string {
     horizontal_side_score: "左右侧一致性",
     text_type_score: "文本类型",
     height_score: "字高",
+    distance_score: "距离",
+    orientation_score: "方向一致性",
+    same_line_score: "同线一致性",
+    total: "合计",
   }
-  return map[key] ?? key
+  if (map[key]) {
+    return map[key]
+  }
+  return key
+    .replace(/_/g, " ")
+    .replace(/\bscore\b/gi, "分值")
+    .replace(/\bconf(idence)?\b/gi, "把握")
+    .replace(/\bleft\b/gi, "左")
+    .replace(/\bright\b/gi, "右")
 }
 
 function isFailedPageStatus(status: string | null | undefined): boolean {
@@ -2141,21 +2268,20 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
         sheet_no: meta?.sheetNo || "",
       },
     })
-    const labelBits = [prefix]
-    if (source.label !== "来源页未识别") {
-      labelBits.push(source.secondary ? `${source.label} · ${source.secondary}` : source.label)
-    } else {
-      labelBits.push("关联图纸")
-    }
-
+    const pageText =
+      source.label !== "来源页未识别"
+        ? source.secondary
+          ? `${source.label} · ${source.secondary}`
+          : source.label
+        : "关联图纸"
     options.set(normalized, {
       sheetId: normalized,
-      label: labelBits.join(" · "),
-      caption: source.detail || source.label,
+      label: `${prefix} · ${pageText}`,
+      caption: source.detail || pageText,
     })
   }
 
-  addOption(issue.sheet_id, "问题所在图", {
+  addOption(issue.sheet_id, "本页", {
     sheetNo: issue.sheet_no || null,
     filename: issue.filename || null,
     sheetTitle: typeof issue.evidence?.sheet_title === "string" ? issue.evidence.sheet_title : null,
@@ -2163,7 +2289,7 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
 
   for (const ref of issue.evidence_refs) {
     const record = isRecord(ref) ? ref : null
-    addOption(readString(record?.sheet_id), "关联位置", {
+    addOption(readString(record?.sheet_id), "关联页", {
       sheetNo: readString(record?.sheet_no),
       filename: readString(record?.filename),
       sheetTitle: readString(record?.sheet_title),
@@ -2173,7 +2299,7 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
   for (const relatedSheetId of issue.sheet_ids) {
     const matchingRef = issue.evidence_refs.find((ref) => isRecord(ref) && readString(ref.sheet_id) === relatedSheetId)
     const record = isRecord(matchingRef) ? matchingRef : null
-    addOption(relatedSheetId, "关联图纸", {
+    addOption(relatedSheetId, "关联页", {
       sheetNo: readString(record?.sheet_no),
       filename: readString(record?.filename),
       sheetTitle: readString(record?.sheet_title),
@@ -2181,7 +2307,7 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
   }
 
   if (!options.size && issue.sheet_id) {
-    addOption(issue.sheet_id, "问题所在图", {
+    addOption(issue.sheet_id, "本页", {
       sheetNo: issue.sheet_no || null,
       filename: issue.filename || null,
     })
@@ -2283,7 +2409,7 @@ function labelSeverity(value: string): string {
     info: "提示",
     minor: "次要",
   }
-  return map[value.toLowerCase()] ?? value
+  return map[value.toLowerCase()] ?? "一般"
 }
 
 function labelIssueStatus(value: string): string {
@@ -2293,19 +2419,20 @@ function labelIssueStatus(value: string): string {
     resolved: "已处理",
     false_positive: "误报",
   }
-  return map[value] ?? value
+  return map[value] ?? "待处理"
 }
 
 function labelTriage(value: string | null | undefined): string {
   if (!value) {
-    return "无"
+    return "无特殊分支关系"
   }
   const map: Record<string, string> = {
     branch: "合法分支",
     review: "需人工确认",
     conflict: "存在冲突",
+    none: "无特殊分支关系",
   }
-  return map[value.toLowerCase()] ?? value
+  return map[value.toLowerCase()] ?? "需人工确认"
 }
 
 function labelProjectStatus(value: string): string {
@@ -2324,15 +2451,24 @@ function labelRule(value: string | null | undefined): string {
   }
   const map: Record<string, string> = {
     "R-CROSS-PAGE-CONFLICT": "跨页端子冲突",
+    "R-TABLE-MAPPING-SOURCE-CONFLICT": "表格与图内映射不一致",
+    "R-SEMANTIC-MAPPING-CONFLICT": "端子语义映射冲突",
     "R-ONE-TO-MANY": "一对多连接",
     "R-MANY-TO-ONE": "多对一连接",
     "R-MISSING-RECIPROCAL": "缺少对端回指",
     "R-PAIR-MISSING-SIDE": "端子缺侧",
     "R-PAIR-LOW-CONFIDENCE": "端子配对不确定",
     "R-DUPLICATE-SAME-LINE": "同线重复端子",
+    "R-DUPLICATE-PAIR": "重复配对",
     "R-SHEET-PAGE-MISMATCH": "页码不一致",
   }
-  return map[value] ?? value.replace(/^R-/, "").replace(/-/g, " ")
+  if (map[value]) {
+    return map[value]
+  }
+  if (value.startsWith("R-") || looksTechnicalToken(value)) {
+    return "其他检查项"
+  }
+  return value
 }
 
 function labelIssueType(value: string | null | undefined): string {
@@ -2346,8 +2482,11 @@ function labelIssueType(value: string | null | undefined): string {
     one_to_many: "一对多",
     many_to_one: "多对一",
     cross_page_conflict: "跨页冲突",
+    semantic_mapping_conflict: "语义映射冲突",
+    table_mapping_source_conflict: "表格映射冲突",
     missing_reciprocal: "缺少回指",
     sheet_page_mismatch: "页码不一致",
+    duplicate_pair: "重复配对",
   }
   if (map[value]) {
     return map[value]
@@ -2355,7 +2494,10 @@ function labelIssueType(value: string | null | undefined): string {
   if (value.startsWith("R-")) {
     return labelRule(value)
   }
-  return value.replace(/_/g, " ")
+  if (looksTechnicalToken(value)) {
+    return "其他类型"
+  }
+  return value
 }
 
 function labelLineOrientation(value: string | null | undefined): string {

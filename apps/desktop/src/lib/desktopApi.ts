@@ -274,9 +274,35 @@ function normalizePreviewPayload(payload: Omit<PreviewPayload, "preview_src"> & 
 
 function toDesktopError(prefix: string, error: unknown): Error {
   if (error instanceof Error) {
-    return new Error(`${prefix} ${error.message}`)
+    const message = humanizeDesktopErrorMessage(error.message)
+    return new Error(message ? `${prefix} ${message}` : prefix)
   }
   return new Error(prefix)
+}
+
+function humanizeDesktopErrorMessage(message: string): string {
+  const text = message.trim()
+  if (!text) {
+    return ""
+  }
+  const lower = text.toLowerCase()
+  if (lower.includes("no stored result") || lower.includes("no stored issue")) {
+    return "未找到对应校验结果，请重新打开项目。"
+  }
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return "操作超时，请稍后重试。"
+  }
+  if (lower.includes("permission") || lower.includes("access is denied")) {
+    return "没有访问权限，请检查目录权限。"
+  }
+  if (lower.includes("not found") || lower.includes("enoent")) {
+    return "未找到相关文件或目录。"
+  }
+  // Drop raw stack / path-heavy technical noise when it dominates.
+  if (/traceback|exception|at\s+\S+\(|error:\s*error/i.test(text)) {
+    return "请稍后重试；若仍失败可重新校验该项目。"
+  }
+  return text
 }
 
 function withCacheBust(src: string): string {
