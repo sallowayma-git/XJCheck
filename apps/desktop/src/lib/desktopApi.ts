@@ -204,6 +204,35 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
       one_to_many_classification:
         issue.one_to_many_classification ??
         (typeof issue.evidence?.one_to_many_classification === "string" ? issue.evidence.one_to_many_classification : null),
+      handling_class:
+        issue.handling_class ??
+        (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
+        deriveHandlingClass(issue),
+      handling_label:
+        issue.handling_label ??
+        (typeof issue.evidence?.handling_label === "string" ? issue.evidence.handling_label : null) ??
+        labelHandlingClass(
+          issue.handling_class ??
+            (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
+            deriveHandlingClass(issue),
+        ),
+      review_group_id:
+        issue.review_group_id ??
+        (typeof issue.evidence?.review_group_id === "string" ? issue.evidence.review_group_id : null) ??
+        issue.issue_id,
+      review_group_label:
+        issue.review_group_label ??
+        (typeof issue.evidence?.review_group_label === "string" ? issue.evidence.review_group_label : null) ??
+        issue.title,
+      review_group_size: Number(
+        issue.review_group_size ??
+          (typeof issue.evidence?.review_group_size === "number" ? issue.evidence.review_group_size : 1) ??
+          1,
+      ),
+      issue_family:
+        issue.issue_family ??
+        (typeof issue.evidence?.issue_family === "string" ? issue.evidence.issue_family : null) ??
+        issue.title,
       right_value: issue.right_value ?? null,
       evidence: issue.evidence ?? {},
     })),
@@ -257,4 +286,68 @@ function withCacheBust(src: string): string {
   }
   const separator = src.includes("?") ? "&" : "?"
   return `${src}${separator}v=${Date.now()}`
+}
+
+function deriveHandlingClass(issue: {
+  rule_id?: string
+  severity?: string
+  confidence?: number
+  evidence?: Record<string, unknown>
+  one_to_many_classification?: string | null
+}): string {
+  const evidence = issue.evidence ?? {}
+  const triage = String(
+    issue.one_to_many_classification ||
+      evidence.one_to_many_classification ||
+      evidence.many_to_one_classification ||
+      "",
+  ).toLowerCase()
+  if (triage.includes("conflict")) {
+    return "error"
+  }
+  if (triage.includes("branch")) {
+    return "warning"
+  }
+  if (triage.includes("review")) {
+    return issue.rule_id === "R-CROSS-PAGE-CONFLICT" || issue.rule_id === "R-TABLE-MAPPING-SOURCE-CONFLICT"
+      ? "error"
+      : "review"
+  }
+  const severity = String(issue.severity || "").toLowerCase()
+  if (["critical", "error", "high"].includes(severity)) {
+    return "error"
+  }
+  const ruleDefaults: Record<string, string> = {
+    "R-CROSS-PAGE-CONFLICT": "error",
+    "R-TABLE-MAPPING-SOURCE-CONFLICT": "error",
+    "R-SEMANTIC-MAPPING-CONFLICT": "error",
+    "R-MISSING-RECIPROCAL": "warning",
+    "R-MANY-TO-ONE": "warning",
+    "R-DUPLICATE-PAIR": "warning",
+    "R-SHEET-PAGE-MISMATCH": "warning",
+    "R-ONE-TO-MANY": "warning",
+    "R-PAIR-MISSING-SIDE": "review",
+    "R-PAIR-LOW-CONFIDENCE": "review",
+    "R-DUPLICATE-SAME-LINE": "review",
+  }
+  const mapped = ruleDefaults[String(issue.rule_id || "")]
+  if (mapped) {
+    return mapped
+  }
+  if (["major", "medium", "warning", "warn"].includes(severity)) {
+    return "warning"
+  }
+  return "review"
+}
+
+function labelHandlingClass(value: string | null | undefined): string {
+  const map: Record<string, string> = {
+    error: "错误",
+    warning: "警告",
+    review: "须复核",
+  }
+  if (!value) {
+    return "须复核"
+  }
+  return map[value] ?? value
 }

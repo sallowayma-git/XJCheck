@@ -43,6 +43,12 @@ export type IssueSummary = {
   values: string[]
   evidence_refs: Record<string, unknown>[]
   one_to_many_classification: string | null
+  handling_class?: string | null
+  handling_label?: string | null
+  review_group_id?: string | null
+  review_group_label?: string | null
+  review_group_size?: number | null
+  issue_family?: string | null
   evidence: Record<string, unknown>
 }
 

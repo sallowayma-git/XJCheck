@@ -8,6 +8,7 @@ from dwg_audit.audit.graph_builder import build_pair_graph
 from dwg_audit.audit.rule_base import AuditRule
 from dwg_audit.audit.rule_base import IssueFactory
 from dwg_audit.audit.rule_base import RuleContext
+from dwg_audit.audit.issue_triage import classify_and_group_issues
 from dwg_audit.audit.rule_base import cluster_issues
 from dwg_audit.audit.rule_base import select_rules
 from dwg_audit.domain.models import Issue
@@ -54,7 +55,9 @@ def build_issues(
     issues: list[Issue] = []
     for rule in select_rules(_RULES, enabled):
         issues.extend(rule.runner(context))
-    return cluster_issues(issues)
+    # First merge technical duplicates, then attach user-facing handling buckets
+    # and review groups so the workbench can triage hundreds of findings.
+    return classify_and_group_issues(cluster_issues(issues))
 
 
 def _run_pair_missing_side(context: RuleContext) -> list[Issue]:

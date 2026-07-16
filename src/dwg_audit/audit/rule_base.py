@@ -85,6 +85,8 @@ class IssueFactory:
         if extra:
             values.extend(str(value) for value in extra.get("conflicting_values", []) if value)
 
+        from dwg_audit.audit.issue_triage import RULE_ISSUE_TYPES
+
         return Issue(
             issue_id=self.issue_ids.next(),
             rule_id=rule_id,
@@ -103,7 +105,7 @@ class IssueFactory:
             sheet_order=sheet.sheet_order if sheet else None,
             rationale=pair.rationale,
             evidence=evidence,
-            issue_type=rule_id,
+            issue_type=RULE_ISSUE_TYPES.get(rule_id, rule_id),
             title=title or message,
             summary=message,
             explanation=explanation or message,
