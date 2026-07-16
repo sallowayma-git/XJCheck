@@ -1,0 +1,13 @@
+sample_id,project_id,project_name,sheet_id,filename,decision_kind,reason_code,source_handles,coord_x,coord_y,expected_state,review_basis
+TGT001,P003,11000 站控层网络通信柜,S0009,09 交换机接线图1.dwg,intersection,asserted_connection_marker_v1,3B840:VIRTUAL:236:0|3B840:VIRTUAL:236:3,114.780202,112.299963,ASSERTED,explicit connection-marker evidence at shared geometry
+TGT002,P003,11000 站控层网络通信柜,S0009,09 交换机接线图1.dwg,intersection,asserted_connection_marker_v1,3B840:VIRTUAL:230:0|3B840:VIRTUAL:230:3,127.280202,112.299963,ASSERTED,explicit connection-marker evidence at shared geometry
+TGT003,P003,11000 站控层网络通信柜,S0009,09 交换机接线图1.dwg,intersection,asserted_connection_marker_v1,3B840:VIRTUAL:224:0|3B840:VIRTUAL:224:3,139.780202,112.299963,ASSERTED,explicit connection-marker evidence at shared geometry
+TGT004,P003,11000 站控层网络通信柜,S0009,09 交换机接线图1.dwg,intersection,asserted_connection_marker_v1,3B9FD:VIRTUAL:69:2|3B9FD:VIRTUAL:70:0,225.089179,226.929508,ASSERTED,explicit connection-marker evidence at shared geometry
+TGT005,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,intersection,unmarked_internal_crossing_policy_v1,7B5:0|41274:3,162.5,120.0,REJECTED,interior crossing without endpoint or marker
+TGT006,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,intersection,unmarked_internal_crossing_policy_v1,7B5:2|40670:3,162.5,240.0,REJECTED,interior crossing without endpoint or marker
+TGT007,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,intersection,unmarked_internal_crossing_policy_v1,4065B|416EF,65.0,237.5,REJECTED,interior crossing without endpoint or marker
+TGT008,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,intersection,unmarked_internal_crossing_policy_v1,7B5:3|4066D,150.0,237.5,REJECTED,interior crossing without endpoint or marker
+TGT009,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,endpoint_endpoint,asserted_endpoint_merge_v1,9B2:2|9B2:3,112.5,105.0,ASSERTED,exact shared endpoint
+TGT010,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,endpoint_endpoint,asserted_endpoint_merge_v1,9B2:1|9B2:2,140.0,105.0,ASSERTED,exact shared endpoint
+TGT011,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,endpoint_endpoint,asserted_endpoint_merge_v1,9D7:2|9D7:3,150.0,105.0,ASSERTED,exact shared endpoint
+TGT012,P003,11000 站控层网络通信柜,S0004,04 交直流电源回路图.dwg,endpoint_endpoint,asserted_endpoint_merge_v1,7B5:0|7B5:3,150.0,120.0,ASSERTED,exact shared endpoint

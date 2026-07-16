@@ -43,6 +43,12 @@ export type IssueSummary = {
   values: string[]
   evidence_refs: Record<string, unknown>[]
   one_to_many_classification: string | null
+  handling_class?: string | null
+  handling_label?: string | null
+  review_group_id?: string | null
+  review_group_label?: string | null
+  review_group_size?: number | null
+  issue_family?: string | null
   evidence: Record<string, unknown>
 }
 
@@ -77,8 +83,13 @@ export type PreviewPayload = {
   sheet_id: string | null
   issue_id: string | null
   preview_path?: string | null
+  preview_svg?: string | null
   preview_src: string | null
   artifact_dir?: string
+  focus_bbox?: number[]
+  cropped_to_issue?: boolean
+  source?: string
+  lightweight?: boolean
 }
 
 export type AnalyzeSessionRequest = {
@@ -170,10 +181,14 @@ export type IssueFoundEvent = {
   title: string
   filename?: string
   sheet_no?: string
+  sheet_title?: string
   left_value?: string | null
   right_value?: string | null
   confidence?: number
   one_to_many_classification?: string | null
+  handling_class?: string | null
+  line_start?: number[] | null
+  line_end?: number[] | null
 }
 
 export type AuditFinishedEvent = {

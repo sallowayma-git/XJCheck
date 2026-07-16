@@ -110,4 +110,7 @@ def enrich_pages_from_classifications(
         page.table_like = classification.table_like
         page.grid_heavy = classification.grid_heavy
         page.audit_disposition = classification.audit_disposition
+        page.capabilities = list(classification.capabilities)
+        page.capability_evidence = classification.capability_evidence
+        page.communication_media = list(classification.communication_media)
         page.is_primary_audit_candidate = disposition_requires_audit(classification.audit_disposition)

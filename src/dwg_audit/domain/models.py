@@ -77,6 +77,9 @@ class SheetRecord:
     grid_heavy: bool | None = None
     route_target: str | None = None
     audit_disposition: str | None = None
+    capabilities: list[str] = field(default_factory=list)
+    capability_evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
+    communication_media: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -277,6 +280,9 @@ class PageClassification:
     route_target: str
     features: dict[str, Any] = field(default_factory=dict)
     audit_disposition: str = "classify_only"
+    capabilities: tuple[str, ...] = ()
+    capability_evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
+    communication_media: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -350,6 +356,13 @@ class ProjectArtifacts:
     issues: list[Issue] = field(default_factory=list)
     extraction_warnings: list[ExtractionWarning] = field(default_factory=list)
     extractor_runs: list[dict[str, Any]] = field(default_factory=list)
+    reader_runs: list[Any] = field(default_factory=list)
+    primitive_segments: list[Any] = field(default_factory=list)
+    extraction_censuses: list[dict[str, Any]] = field(default_factory=list)
+    canonical_scenes: list[dict[str, Any]] = field(default_factory=list)
+    symbol_port_definition_proposals: list[dict[str, Any]] = field(
+        default_factory=list
+    )
 
 
 def record_dict(instance: Any) -> dict[str, Any]:

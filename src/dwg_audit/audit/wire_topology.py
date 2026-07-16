@@ -10,6 +10,9 @@ from typing import Any
 
 import pandas as pd
 
+from dwg_audit.audit.crossover_jump import FAMILY as CROSSOVER_JUMP_FAMILY
+from dwg_audit.audit.crossover_jump import CrossoverJump
+from dwg_audit.audit.crossover_jump import recognize_crossover_jumps
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import ProjectArtifacts
@@ -120,7 +123,9 @@ def build_wire_topology_frames(
     artifacts: ProjectArtifacts,
     *,
     config: dict | None = None,
+    excluded_line_ids: set[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+    excluded_line_ids = excluded_line_ids or set()
     sheet_map = {sheet.sheet_id: sheet for sheet in artifacts.scan.pages}
     line_group_ids_by_line = _line_group_ids_by_line(artifacts)
     junction_id_factory = IdFactory("J")
@@ -130,7 +135,10 @@ def build_wire_topology_frames(
 
     lines_by_sheet: dict[str, list[LineEntity]] = defaultdict(list)
     for line in artifacts.lines:
-        if _line_in_scope(line, sheet_map.get(line.sheet_id)):
+        if (
+            line.line_id not in excluded_line_ids
+            and _line_in_scope(line, sheet_map.get(line.sheet_id))
+        ):
             lines_by_sheet[line.sheet_id].append(line)
 
     texts_by_sheet: dict[str, list[TextItem]] = defaultdict(list)
@@ -143,6 +151,16 @@ def build_wire_topology_frames(
         if _block_in_scope(block, sheet_map.get(block.sheet_id)):
             blocks_by_sheet[block.sheet_id].append(block)
 
+    crossover_jumps = recognize_crossover_jumps(artifacts.primitive_segments)
+    jumps_by_sheet_parent: dict[tuple[str | None, str | None], list[CrossoverJump]] = defaultdict(list)
+    for jump in crossover_jumps:
+        jumps_by_sheet_parent[(jump.sheet_id, jump.parent_handle)].append(jump)
+    crossover_jumps_by_block_id: dict[str, list[CrossoverJump]] = {}
+    for block in artifacts.blocks:
+        matched = jumps_by_sheet_parent.get((block.sheet_id, block.handle), [])
+        if matched:
+            crossover_jumps_by_block_id[block.block_id] = matched
+
     for sheet_id, sheet_lines in sorted(lines_by_sheet.items()):
         sheet = sheet_map.get(sheet_id)
         if sheet is None:
@@ -152,6 +170,7 @@ def build_wire_topology_frames(
             lines=sheet_lines,
             texts=texts_by_sheet.get(sheet_id, []),
             blocks=blocks_by_sheet.get(sheet_id, []),
+            crossover_jumps_by_block_id=crossover_jumps_by_block_id,
             line_group_ids_by_line=line_group_ids_by_line,
             config=config or {},
             junction_id_factory=junction_id_factory,
@@ -168,6 +187,19 @@ def build_wire_topology_frames(
         "junction_kind_counts": dict(sorted(Counter(junction_frame.get("kind", [])).items())),
         "networks_with_bridges": int(
             sum(1 for row in network_rows if row.get("bridged_gaps"))
+        ),
+        "crossover_jump_count": len(crossover_jumps),
+        "crossover_jump_bridge_count": sum(
+            1
+            for row in network_rows
+            for gap in row.get("bridged_gaps", [])
+            if gap.get("reason") == "crossover_jump"
+        ),
+        "crossover_jump_no_junction_count": sum(
+            1
+            for row in network_rows
+            for gap in row.get("bridged_gaps", [])
+            if gap.get("reason") == "crossover_jump" and gap.get("no_junction") is True
         ),
     }
     return junction_frame, network_frame, summary
@@ -334,6 +366,7 @@ def _build_sheet_topology(
     lines: list[LineEntity],
     texts: list[TextItem],
     blocks: list[BlockRecord],
+    crossover_jumps_by_block_id: dict[str, list[CrossoverJump]],
     line_group_ids_by_line: dict[str, list[str]],
     config: dict,
     junction_id_factory: IdFactory,
@@ -378,6 +411,7 @@ def _build_sheet_topology(
         normalized_lines,
         texts=texts,
         blocks=blocks,
+        crossover_jumps_by_block_id=crossover_jumps_by_block_id,
         cross_tol=cross_tol,
         bridge_gap=bridge_gap,
         text_gap=text_gap,
@@ -454,6 +488,10 @@ def _materialize_topology_rows(
                         "reason": event.get("reason"),
                         "evidence_text_ids": row["evidence_text_ids"],
                         "evidence_block_ids": row["evidence_block_ids"],
+                        "crossover_family": event.get("crossover_family"),
+                        "crossover_parent_handles": event.get("crossover_parent_handles", []),
+                        "crossover_primitive_ids": event.get("crossover_primitive_ids", []),
+                        "no_junction": bool(event.get("no_junction", False)),
                     }
                 )
 
@@ -663,6 +701,7 @@ def _collect_gap_bridges(
     *,
     texts: list[TextItem],
     blocks: list[BlockRecord],
+    crossover_jumps_by_block_id: dict[str, list[CrossoverJump]],
     cross_tol: float,
     bridge_gap: float,
     text_gap: float,
@@ -713,7 +752,18 @@ def _collect_gap_bridges(
                     )
                     if not evidence_text_ids and not evidence_block_ids:
                         continue
-                    reason = "inline_text" if evidence_text_ids else "block_span"
+                    matched_jumps = [
+                        jump
+                        for block_id in evidence_block_ids
+                        for jump in crossover_jumps_by_block_id.get(block_id, [])
+                    ]
+                    reason = (
+                        "crossover_jump"
+                        if matched_jumps
+                        else "inline_text"
+                        if evidence_text_ids
+                        else "block_span"
+                    )
                     union_find.union(left.line.line_id, right.line.line_id)
                     consumed_endpoints.add((left.line.line_id, "end"))
                     consumed_endpoints.add((right.line.line_id, "start"))
@@ -727,6 +777,18 @@ def _collect_gap_bridges(
                             "reason": reason,
                             "evidence_text_ids": evidence_text_ids,
                             "evidence_block_ids": evidence_block_ids,
+                            "crossover_family": CROSSOVER_JUMP_FAMILY if matched_jumps else None,
+                            "crossover_parent_handles": sorted(
+                                {str(jump.parent_handle) for jump in matched_jumps if jump.parent_handle}
+                            ),
+                            "crossover_primitive_ids": sorted(
+                                {
+                                    primitive_id
+                                    for jump in matched_jumps
+                                    for primitive_id in (*jump.line_ids, jump.arc_id)
+                                }
+                            ),
+                            "no_junction": bool(matched_jumps),
                         }
                     )
 

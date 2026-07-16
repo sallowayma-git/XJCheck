@@ -3863,3 +3863,1398 @@
   - next structural work should narrow to:
     - whether first `06` `101 -> ?` should be downgraded/ignored via generic semantic-ground policy
     - whether first `11` `? -> 601` / `601 -> 602` belong to another structure family or should be removed from default user-visible ordinary audit
+
+## Session Update 2026-07-09 (GND-covered 101 half-pairs now consume ordinary residuals)
+- Implemented the next minimal H02 slice in `page_extractors.py`:
+  - added a new semantic-consumption path for `schematic_dc_function_label` rows when the semantic endpoint is explicitly `GND`
+  - behavior is intentionally narrow:
+    - only `pair_kind=ordinary_pair`
+    - only one-sided half-pairs
+    - only `semantic_kind=schematic_semantic_endpoint`
+    - only `semantic_endpoint == GND`
+  - it does **not** consume other DC semantic rows such as `DC 0-5V/4-20mA +`, and it does not touch `? -> 105`
+- Reasoning from evidence:
+  - first `06` residual `PW0120/PW0141/PW0158 = 101 -> ?` already had parallel semantic pairs `GND -> 101`
+  - second `06` residual `PW0108/PW0121 = 101 -> ?` had the same pattern
+  - second `06` residual `PW0115/PW0128 = ? -> 105` had no matching `GND` semantic pair, so they must stay visible
+- New targeted tests:
+  - discard a bare `101 -> ?` half-pair when covered by `schematic_dc_function_label + GND`
+  - keep non-GND DC semantic rows and complete ordinary pairs untouched
+- Verification:
+  - targeted: `python -m pytest -q tests\unit\test_page_extractors.py` -> `18 passed`
+  - unit bundle: `python -m pytest -q tests\unit\test_wire_components.py tests\unit\test_page_extractors.py` -> `34 passed`
+  - full: `python -m pytest -q` -> `325 passed in 11.42s`
+- Fresh real-sample verification:
+  - first fresh `.tmp/phase101_ground_first/...` + `.tmp/phase101_ground_first_audit`
+    - `pair_count=1717` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 91 -> 88`
+    - `R-PAIR-MISSING-SIDE 24 -> 21`
+    - removed exactly:
+      - `PW0120 101 -> ?`
+      - `PW0141 101 -> ?`
+      - `PW0158 101 -> ?`
+    - still present, as intended:
+      - `PW0284 ? -> 601`
+      - `PW0285 601 -> 602`
+  - second fresh `.tmp/phase101_ground_second/...` + `.tmp/phase101_ground_second_audit`
+    - `pair_count=1615` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 12 -> 10`
+    - `R-PAIR-MISSING-SIDE 6 -> 4`
+    - removed exactly:
+      - `PW0108 101 -> ?`
+      - `PW0121 101 -> ?`
+    - still present, as intended:
+      - `PW0115 ? -> 105`
+      - `PW0128 ? -> 105`
+      - `PW0291 ? -> 507`
+      - `PW0442 ? -> 501`
+- Additional residual audit for next slice:
+  - first `11` `PW0284/PW0285` still have no structured or semantic takeover candidate
+  - `GW0284` only surfaces numeric `601` on the right; all left-side nearby texts (`5FD2`, `5KLP8`, port `1/2`) are rejected as noise/non-numeric
+  - `GW0285` only surfaces numeric `601 -> 602`; nearby `BCJ`, `Mechanical relay start-up`, `非电量出口启动`, and `5FD27` are all rejected as non-numeric/noise
+  - engineering consequence: `601/602` is not another missed `GND` semantic case; it remains either a new structure family or a display-layer/internal candidate
+
+## Session Update 2026-07-09 (wire-grid ordinary pairs are now shadow-only on WireDiagram pages)
+- Synced the latest user direction into an explicit contract:
+  - `ordinary` 近邻配对不再作为 `WireDiagramExtractor` 的默认审计主源
+  - 但产物仍保留，作为 shadow/fallback 证据供后续回看、对比和结构化修复使用
+- Implemented `page_extractors.py::_shadow_grid_wire_ordinary_pairs()`:
+  - it only touches `pair_kind=ordinary_pair`
+  - scope is intentionally narrow:
+    - `sheet_category == 二次原理图`
+    - `route_target == WireDiagramExtractor`
+    - `grid_heavy=True` or `page_subtype == grid_heavy_wire_diagram`
+    - `pair.evidence.line_orientation == "grid"`
+  - effect:
+    - sets `ordinary_pair_eligible=False`
+    - sets `ordinary_pair_shadow_only=True`
+    - sets `ordinary_pair_shadow_reason=wire_grid_primary`
+  - it does **not** discard the pair, rewrite values, or delete findings rows
+- New unit coverage:
+  - `tests/unit/test_page_extractors.py`
+    - shadow-only contract for wire-grid ordinary pairs
+  - existing rules coverage already proves `ordinary_pair_eligible=False` suppresses `R-PAIR-MISSING-SIDE` / `R-PAIR-LOW-CONFIDENCE`
+- Verification:
+  - targeted:
+    - `python -m pytest -q tests\unit\test_page_extractors.py` -> `19 passed`
+    - `python -m pytest -q tests\unit\test_pairs_and_rules.py -k "ordinary_pair_eligible or pair_missing_side or low_confidence"` -> `3 passed`
+  - full:
+    - `python -m pytest -q` -> `326 passed in 18.25s`
+- Fresh real-sample verification:
+  - first fresh `.tmp/phase102_wire_shadow_first/...`
+    - `pair_count=1717` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 88 -> 70`
+    - `issue_by_rule_pairkind` now:
+      - `component_mapping`: `R-MANY-TO-ONE=21`, `R-ONE-TO-MANY=16`
+      - `table_mapping`: `R-MANY-TO-ONE=9`, `R-CROSS-PAGE-CONFLICT=7`, `R-ONE-TO-MANY=7`, `R-DUPLICATE-PAIR=5`
+      - `ordinary_pair`: only `R-PAIR-MISSING-SIDE=4`, `R-PAIR-LOW-CONFIDENCE=1`
+    - remaining ordinary issues are no longer wire pages; they are only:
+      - `25 左侧端子图2.dwg`
+      - `26 右侧端子图1.dwg`
+      - `27 右侧端子图2.dwg`
+    - removed vs phase101 are exactly wire-grid ordinary symptoms from:
+      - `08 差动保护及信号回路.dwg`
+      - `09 高后备保护及信号回路.dwg`
+      - `10 低后备保护及信号回路.dwg`
+      - `11 非电量开入回路.dwg`
+      - `14 高操作回路图.dwg`
+      - `15 低操作回路图.dwg`
+  - second fresh `.tmp/phase102_wire_shadow_second/...`
+    - `pair_count=1615` unchanged
+    - pair-kind distribution unchanged
+    - `issue_count 10 -> 6`
+    - default issue list now contains only `table_mapping`:
+      - `R-ONE-TO-MANY=5`
+      - `R-MANY-TO-ONE=1`
+    - removed vs phase101 are exactly the four wire-grid ordinary residuals:
+      - `PW0115/PW0128 = ? -> 105` on `06 直流回路图.dwg`
+      - `PW0291 = ? -> 507` on `10 测控1控制回路图1.dwg`
+      - `PW0442 = ? -> 501` on `14 测控2开入回路图3.dwg`
+- Engineering consequence:
+  - the project has now crossed a real contract line:
+    - `WireDiagramExtractor` default output is structurally driven
+    - `ordinary_pair` on wire-grid pages is now internal shadow evidence, not default user-facing audit truth
+  - next work should not be “turn ordinary back on”
+  - next work should be:
+    - promote `? -> 105` into a structured wire/semantic family
+    - decide whether first `11` `601/602` is another structure family or shadow-only internal evidence
+
+## Session Update 2026-07-09 (anonymous wire port-box family audit for second `06/10/14`)
+- This loop intentionally stopped before code edits because the current evidence says the residual is **not** a same-row threshold miss.
+- Local audit completed against:
+  - `.tmp/phase102_wire_shadow_second/2_2/findings/{texts,terminal_candidates,text_assignments,blocks,line_groups,pairs}.parquet`
+  - user-provided local images for H02
+- Core findings:
+  - second `06`:
+    - `PW0115/PW0128 = ? -> 105` sit inside a repeated structure with visible `3-21n / 1-21n`, local stack `101/132/105/103`, repeated `1/2/3/4` ports, and module label `FCK-851C-G-1`
+    - `103` and `132` already close via current same-row structured mappings
+    - `105` does not; its row only reaches port `2`, so the missing capability is wire-side body-port / port-box reasoning, not ordinary proximity
+  - second `10/14`:
+    - `PW0291 ? -> 507` and `PW0442 ? -> 501` show the same larger pattern family: local numbers plus repeated ports plus `ZK/CLP/FCK` structure labels
+    - this makes the residual family cross-page, not a single-page quirk
+- Important non-decision:
+  - did **not** loosen `_SCOPED_EXTERNAL_ROW_Y_TOL` or related same-row gates
+  - doing so would collapse a structured family back into heuristic near-match behavior
+- Subagent note:
+  - spawned 2 explorer agents for code-reuse and visual/data-structure cross-check
+  - they did not return within the practical wait window, so the main thread proceeded with local evidence only
+- Verification:
+  - no new code edits this sub-slice
+  - no new pytest/full rerun was needed
+- Outcome:
+  - next implementation slice is now clearly scoped as a new wire-side anonymous/body-port family
+  - updated `task_plan.md`, `doc/findings.md`, and `doc/human_arbitration_phase98.md` with the structured conclusion and the minimal human questions
+
+## Session Update 2026-07-09 (scoped wire-logic body-port closes second `06` `105`)
+- Implemented a new structural slice in [wire_components.py](/F:/workspace/XJToolkit/src/dwg_audit/audit/wire_components.py) instead of reopening ordinary proximity:
+  - target family: wire-logic bodies like `*-21DK1`
+  - required signals:
+    - explicit `1/2/3/4` ports
+    - same-scope visible `n` prefix
+    - local-number endpoint
+    - horizontal support line
+  - guardrails:
+    - if the same local row already has a same-row structured external endpoint, keep it with `scoped_visible_prefix_external_endpoint_mapping`
+    - do not loosen `_SCOPED_EXTERNAL_ROW_Y_TOL`
+    - do not restore wire-grid ordinary as default truth source
+- A real-sample-only geometry issue surfaced during implementation:
+  - first attempt produced zero gain on second `06` because `105` row ports sat in a `DK1/DK2` ambiguity pocket under the generic nearest-body rule
+  - the fix was structural and narrow:
+    - for this new family only, assign a port to the body below it
+    - keep the existing `KLP/ZKK` inline family on its old generic grouping path
+- New synthetic coverage in [tests/unit/test_wire_components.py](/F:/workspace/XJToolkit/tests/unit/test_wire_components.py):
+  - positive: build `3-21DK1-2 -> 3-21n105` and `1-21DK1-2 -> 1-21n105`
+  - negative: require support-line evidence
+- Verification:
+  - targeted:
+    - `python -m pytest -q tests\unit\test_wire_components.py` -> `18 passed`
+    - `python -m pytest -q tests\unit\test_page_extractors.py -k "inline_body_port or ordinary_pair_shadow_only or dc_function_label"` -> `1 passed`
+  - full:
+    - `python -m pytest -q` -> `328 passed in 22.41s`
+- Fresh real-sample verification:
+  - second final `.tmp/phase103c_scoped_wire_logic_body_port_second/...` + `.tmp/phase103c_scoped_wire_logic_body_port_second_audit`
+    - `pair_count 1615 -> 1617`
+    - `wire_component_mapping 398 -> 400`
+    - `issue_count 6 -> 6`
+    - exact added pairs:
+      - `PWM0050 3-21DK1-2 -> 3-21n105`
+      - `PWM0051 1-21DK1-2 -> 1-21n105`
+    - no changes on second `10` / `14`
+  - first final `.tmp/phase103c_scoped_wire_logic_body_port_first/...` + `.tmp/phase103c_scoped_wire_logic_body_port_first_audit`
+    - `pair_count=1717` unchanged
+    - `wire_component_mapping=187` unchanged
+    - `issue_count=70` unchanged
+    - first `11` `PW0284/PW0285` stayed unchanged, which is consistent with the subagent judgment that they belong to a staggered `KLP` family not covered by this slice
+- Cleanup:
+  - removed intermediate `.tmp/phase103_*` and `.tmp/phase103b_*`
+  - retained only final `.tmp/phase103c_*` artifacts
+- Engineering consequence:
+  - second `06` `? -> 105` is no longer just shadow ordinary evidence; it now has structural `body-port -> scoped logical endpoint` coverage
+  - the next loop is no longer `06`
+  - it is:
+    - second `10/14` `507/501` on the `ZK/CLP` mixed structure
+    - first `11` `601/602` on the staggered `KLP` structure
+
+## Session Update 2026-07-09 (`507/501/601/602` 只读归属复审，收紧到最小人审问题)
+- This sub-slice intentionally did not change code. It only tightened the remaining structural hypotheses before the next extractor cut.
+- Local evidence review against retained `phase103c` artifacts showed that second `10/14` is more specific than the earlier broad `ZK/CLP mixed family` label:
+  - `PW0291 ? -> 507` already sits next to `PW0292 507 -> 1-21CD11`
+  - `PW0442 ? -> 501` already sits next to `PW0443 501 -> 3-21CLP10`
+  - so the missing capability is not “recognize the whole row”; it is “assign the left-side contact owner without reviving ordinary proximity”
+- The same review corrected the old first-`11` intuition:
+  - project findings already contain `PCM0089 5KLP8-1 -> 5n601`
+  - and `PWM0109/PCM0090 5KLP8-2 -> 5n310`
+  - therefore `PW0284/PW0285` are better read as a staggered `5KLP8` residual, not a generic `5KLP9` guess
+  - `602` still has no matching component-side structured pair, so it remains a business/semantic boundary question rather than an honest bare ordinary endpoint
+- Minimal business questions were updated accordingly:
+  - second `10/14`: should the left-side scoped local be emitted as an exact `ZK` contact pin, or only as a grouped contact-row endpoint?
+  - first `11`: confirm `601 -> 5KLP8-1 -> 5n601`; decide whether `602` belongs to a `5FD27/BCJ` functional chain or should stay continuation/internal for now
+- Verification:
+  - no code edits
+  - no pytest rerun in this sub-slice
+  - artifacts inspected locally: retained `phase103c` findings/audit parquet plus two read-only explorers
+
+## Session Update 2026-07-10 (topology-first architecture reset)
+- Read and evaluated `XJCheck 线网识别引擎升级深度研究与架构改造建议 v0.3` against the current taskbook and Phase 97-103 evidence.
+- Architecture decision:
+  - retain completed T0 coverage and T1 topology-shadow assets
+  - stop the unfinished T2 design that only replaces legacy LineGroup endpoint candidates with network open-endpoint candidates
+  - supersede unfinished T3/T4 with a five-layer primary model: Geometry Graph -> Symbol-Port Graph -> Electrical Net Graph -> Semantic Attachment Graph -> Project Graph
+  - keep LineGroup/candidates/pairs as compatibility and shadow outputs, not connectivity truth
+- Updated `doc/任务书.md`:
+  - added an explicit supersession note to 18.7
+  - added 18.8 with graph schemas, four-state topology decisions, symbol-library contract, ConstraintResolver, findings artifacts, phase gates, metrics, Agent loop, GNN thresholds and immediate next steps
+- Updated `task_plan.md`:
+  - current phase is now Phase 104 / Architecture Phase A
+  - old Phase 99-101 are marked superseded with their retained assets and successor phases stated
+  - added Phase 104-109 execution chain
+- Residual policy changed:
+  - `501/507/601/602` remain useful acceptance probes
+  - they no longer authorize new legacy `wire_components.py` families or value/page-specific fixes
+- Worktree hygiene:
+  - removed the unverified `scoped_contact_row` experiment started before the architecture pivot
+  - preserved all previously verified dirty changes
+- Verification:
+  - documentation-only architecture change; no pytest run required
+
+## Session Update 2026-07-10 (Phase 104 implementation kickoff with gpt-5.6-terra fan-out)
+- Spawned four `gpt-5.6-terra` agents with disjoint responsibilities:
+  - fresh baseline command/artifact/redline audit
+  - current topology insertion-point and zero-drift migration map
+  - executable ADR + Graph Schema v1 documents
+  - safe recognition configuration contract + tests
+- Added architecture contracts:
+  - `doc/architecture/topology_first_adr.md`
+  - `doc/architecture/graph_schema_v1.md`
+  - `doc/architecture/phase104_baseline.md`
+- Added Phase A runtime declaration without pipeline takeover:
+  - `recognition.primary_engine=legacy`
+  - `legacy_neighborhood.mode=shadow-compatible`
+  - text candidates allowed; topology connectivity/final-pair permissions reserved for the future topology-primary gate
+- Implemented reusable baseline freezing:
+  - new `dwg_audit.cli freeze-baseline` command
+  - hashes `manifest/findings/audit` artifacts and records Parquet row counts
+  - freezes config and arbitration evidence
+  - records Git HEAD, dirty file list and a diff/untracked-content fingerprint
+  - records pair/issue/coverage/legacy-topology metrics and validates redline identities
+- Fresh established-project baselines:
+  - first bundle: `.tmp/phase104_arch_baseline_first/...`
+    - `pairs=1717`, `issues=70`, `junctions=23148`, `networks=609`
+    - `unassigned_wire_segments=6868`, `unclassified_blocks=1034`
+  - second bundle: `.tmp/phase104_arch_baseline_second/2_2`
+    - `pairs=1617`, `issues=6`, `junctions=18929`, `networks=358`
+    - `unassigned_wire_segments=5305`, `unclassified_blocks=1126`
+  - every baseline-manifest redline identity is true
+- Ran a real held-out third-project probe on `10000 远动通信柜`:
+  - `12 sheets`, `527 pairs`, `17 issues`, `18537 junctions`, `213 networks`
+  - `ordinary_pair=491`, `component_mapping=28`, `table_mapping=6`, `continuation=2`
+  - no `wire_component_mapping` or `semantic_mapping`
+  - 16/17 issues are component-page ordinary missing/low-confidence rows involving local pin values
+  - conclusion: current first/second structural families do not transfer; this is Symbol-Port/Semantic evidence, not a reason to add third-project rules
+- Pipeline map confirmed:
+  - topology currently runs in `write_project_artifacts()` after route extractors and Pair generation
+  - the new geometry shadow insertion point is after page classification/audit-scope preparation and before route extractors
+  - legacy `wire_topology.py` directly unions T/gap evidence and does not split intersections first, so it remains a compatibility shadow rather than Graph Schema v1 truth
+- Verification:
+  - initial current-worktree baseline: `328 passed in 9.82s`
+  - targeted baseline/config tests: `5 passed`
+  - final full suite: `333 passed in 9.63s`
+  - `freeze-baseline --help` and `git diff --check` passed
+- Cleanup:
+  - removed duplicate side-output audit directories and temporary residual PNGs
+  - retained only self-contained first/second/third Phase 104 bundles
+
+## Session Update 2026-07-10 (Phase 105 geometry-only shadow graph)
+- Added `src/dwg_audit/audit/geometry_graph.py` as a zero-drift shadow path. It consumes only in-scope CAD line entities and does not use text, blocks, filenames, terminal values or project-specific rules for connectivity.
+- Implemented strict asserted endpoint snapping, orthogonal T-intersection splitting, optional crossing assertion, canonical nodes, split edges and edge-based connected components.
+- Separated the new strict `geometry_graph_asserted_snap_tolerance=0.05` from the legacy `junction_snap_tolerance=1.8`; the wider legacy tolerance is not allowed to create new geometry truth.
+- Added generic connection-marker classification for two short reversed coincident LWPOLYLINE segments sharing a parent handle. Marker segments are removed from wire edges and become junction evidence at crossings.
+- Added findings artifacts:
+  - `geometry_shadow_nodes.parquet`
+  - `geometry_shadow_edges.parquet`
+  - `geometry_shadow_components.parquet`
+  - `pair_geometry_shadow.parquet`
+  - `pair_geometry_shadow_summary.json`
+- Added a non-authoritative Pair projection. It reports whether a legacy LineGroup maps to one, many, or no pure-geometry components and never mutates Pair status/kind/confidence.
+- Frozen findings metrics:
+  - first ordinary: `579 unique / 149 multiple / 728 total` (`79.5330%` unique)
+  - second ordinary: `338 unique / 223 multiple / 561 total` (`60.2496%` unique)
+  - held-out remote cabinet ordinary: `434 unique / 57 multiple / 491 total` (`88.3910%` unique)
+- Primitive audit found that the previous high-degree nodes were degenerate connection-marker segments. After classification, maximum graph degree is `7/8/8` across first/second/held-out instead of `19/31/8`.
+- Verification before final documentation update:
+  - targeted geometry/report/config tests: `28 passed`
+  - earlier full suite after the initial graph slice: `338 passed`
+  - final full suite after marker classification and Pair projection: `340 passed in 10.40s`
+  - `git diff --check` passed with line-ending warnings only
+
+## Session Update 2026-07-10 (Phase 105 four-state geometry observations)
+- Used three read-only `gpt-5.6-luna` agents to audit second-set multi-component gaps, generic gap semantics, and Graph Schema/baseline boundaries. All code changes remained in the main agent.
+- Root-cause distribution for second ordinary multi-component rows:
+  - roughly 94% are two LineGroup member lines mapped to two geometry components
+  - roughly 80% have nearest gaps in the 10-25 drawing-unit range
+  - this is not asserted-snap noise and must not be auto-unioned
+- Added `geometry_shadow_observations.parquet` and summary output with all four states retained:
+  - ASSERTED canonical junctions
+  - POSSIBLE unique collinear facing endpoint gaps
+  - UNKNOWN ambiguous endpoint gaps
+  - REJECTED unmarked internal crossings
+- Non-ASSERTED observations never alter geometry components or legacy Pair output.
+- Real frozen-findings projection:
+  - first: `141/149` multi-component ordinary rows have gap evidence; `96` contain POSSIBLE and `48` contain UNKNOWN
+  - second: `214/223` have gap evidence; only `42` contain POSSIBLE while `180` contain UNKNOWN
+  - held-out: `20/57` have gap evidence, all 20 POSSIBLE and none UNKNOWN
+- Extended `pair_geometry_shadow` with component counts, member-line counts, nearest gap, observation IDs and states.
+- Extended baseline manifests with separate graph-shadow metrics and state identity/enum redlines; legacy topology metrics remain unchanged.
+- Targeted geometry/report/baseline/config verification: `32 passed`.
+- Final full-suite verification: `342 passed in 12.47s`; `git diff --check` passed with line-ending warnings only.
+- No new persistent `.tmp` products were created by this slice.
+# Session Update 2026-07-10 (review-package migration kickoff)
+- Started a delta review of `XJCheck_topology_upgrade_review_v1/docs` against the already implemented topology-first Phase 104/105 work.
+- Confirmed 16 review documents are present and the worktree reported no short-status entries at kickoff.
+- Created the required root `findings.md` planning memory file; retained the existing `task_plan.md` and `progress.md` history.
+- Tooling error: bundled `rg.exe` failed with Access Denied; switched to native PowerShell discovery/search commands.
+- Read package boundary and local-agent execution contract (`00`, `15`). Established that the package targets an older snapshot and must be applied as a delta, not copied as a fresh plan.
+- Read evidence/root-cause/best-practice/target-architecture/topology specifications (`01`-`05`) and recorded the delta against Phase 104/105.
+- Read symbol/constraint/project-graph/failure-loop/Findings V2 specifications (`06`-`10`) and recorded object, versioning, review, and inference constraints.
+- Completed all 16 review documents by reading the task decomposition, acceptance gates, dependencies, and drawing-type strategy (`11`-`14`).
+- Audited the current converter/config/dependencies and selected Reader discovery as the first zero-recognition-drift migration slice.
+- Read the package README/checklist/master taskbook and confirmed the Reader-first ordering and required extension seams.
+- Inspected ezdxf's installed ODA resolution behavior and fixed the implementation design for explicit Unix/AppImage paths without private API coupling.
+- Implemented the Reader Adapter foundation and cross-platform ODA discovery while preserving the legacy converter surface.
+- Targeted verification: `python -m pytest -q tests\unit\test_readers.py tests\unit\test_config.py` -> `9 passed`.
+- Full verification: `python -m pytest -q` -> `348 passed in 17.83s`.
+- `git diff --check` passed; reviewed the converter diff and confirmed the legacy conversion call/status path remains intact.
+- Probed the current environment through the new registry: ODA 27.1 is available from the configured Windows path.
+- Verified the package corpus runner interface; its recorded inventory points to the original `/mnt/data/xj_dataset` location, so the local Windows corpus root remains the next external input for the 27-project run.
+- Discovered the full local corpus under `F:\workspace\XJToolkit\test`.
+- First one-project smoke attempt was killed by an intentionally too-short shell timeout before the runner could complete; recorded for retry with a realistic bounded timeout.
+- Retried with `--resume` and a realistic bound. One-project corpus smoke completed: analyze/audit exit 0, 28 sheets, 0 conversion failures, `1717` pairs, `70` issues, `23148` junctions, `609` networks.
+- Smoke counts match the Phase 104 frozen first-project baseline exactly; artifacts are under `.tmp/phase110_reader_corpus_smoke`.
+- Final `git diff --check` still passes with line-ending warnings only; worktree contains only this slice's code/tests/planning files.
+
+# Session Update 2026-07-10 (review plan migration into canonical taskbook)
+- Recovered prior session state with `planning-with-files` and re-read current planning memory.
+- Audited `doc/任务书.md` section 18.8 against the latest review package delta.
+- Chose an additive 18.9 migration contract plus dependency-correct Phase 111+ task plan, preserving existing architecture and redline history.
+- Agent dispatch constraint: current spawn API cannot specify `agent_role="default"` or select `gpt-5.6-luna`; no non-compliant subagent was spawned.
+- Migrated the latest review plan into `doc/任务书.md` section 18.9 and updated the taskbook version to v1.0 topology-migration baseline.
+- Expanded `task_plan.md` into dependency-correct Phase 111-120 execution batches with explicit exit gates.
+- Updated the final MVP definition to match Topology V2 rather than the legacy Pair-first chain.
+- Verified new section numbering, planned phases and `git diff --check`; Phase 111 is complete.
+- Recorded the requested 5.6 Luna concurrent execution lanes under Phase 112, with dispatch explicitly gated on a compliant spawn interface.
+- Final consistency check passed: taskbook v1.0 header/final MVP, 18.9 headings, Phase 111-120 headings, and `git diff --check` are valid. Current phase advanced to Phase 112.
+
+# Session Update 2026-07-11 (Phase 112 restart and subagent dispatch)
+- Re-read the planning skill, ran session catchup, inspected current worktree/planning state, and searched for updated `AGENTS.md`.
+- No `AGENTS.md` file is currently present in the workspace tree; user explicitly authorized subagent scheduling.
+- Marked Phase 112 in progress and prepared three independent read-only dispatch lanes. The collaboration API has no model selector, so no unsupported model claim is made.
+- Dispatched three read-only subagents concurrently and waited for all results before continuing main-thread work.
+- Lane A confirmed 27 projects/502 DWG and supplied clean-run/hard-gate/freeze requirements.
+- Lane B supplied an additive `reader_run.json` provenance/cache design that preserves existing manifest/Parquet hashes.
+- Lane C traced the false-clean path and supplied the pipeline-level incomplete state contract, taxonomy, Issue design and 13-case failure-injection matrix.
+- Ran the full 27-project/502-sheet corpus in a brand-new output directory without resume or filtering; runtime 403.1s.
+- Aggregate runner result: analyze 27/27, audit 27/27, conversion-failure projects 0, pairs 29,801, issues 1,290.
+- Retained output at `.tmp/phase112_corpus_baseline_e8be15d`; next actions are independent hard validation, baseline freeze/redline checks, and benchmark split freeze.
+- Independent hard validation passed for all 27 projects/502 sheets and found no TIMEOUT logs.
+- Ran `freeze-baseline` for P001-P027; all 27 commands succeeded and wrote manifests under the corpus output's `baselines/` directory.
+- First aggregate manifest validator failed on an outdated `git` key assumption; inspected the schema and will validate against the actual `worktree` envelope instead of repeating the same check.
+- Second validator reached the correct `worktree` envelope but used `git_head`; actual field is `head`. Recorded the exact schema before the final validation attempt.
+- Corrected final validator passed all 27 manifests and all redlines; aggregate frozen metrics match the corpus runner.
+- Reviewed the complete benchmark split proposal and selected a path-independent repository fixture keyed by P001-P027 plus project name/count.
+- Added and locked `tests/fixtures/benchmark_split_v1.csv` plus its source-hash/usage policy document.
+- Validated the split fixture against the clean corpus summary and ran `git diff --check` successfully.
+- Marked Phase 112 complete and advanced the current phase to Phase 113.
+- Re-read the Reader/converter/pipeline/artifact/baseline code and fixed the first Phase 113 implementation slice to additive provenance with shadow-only cache identity.
+- Initial combined patch was rejected atomically because one baseline function context targeted the wrong file; no partial code change occurred. Switching to smaller file-scoped patches.
+- At user request, dispatched three code-writing subagents with disjoint file ownership and waited for all to complete.
+- Integrated changes now cover converter ReaderRun creation, pipeline transport/root artifact writing, optional baseline inventory, and targeted tests. Main-thread diff review found no overlapping edits.
+- Main-thread targeted verification: 48 passed.
+- Main-thread full verification: 367 passed in 9.16s.
+- Fresh calibration-project provenance run passed with 28 ReaderRun rows and unchanged legacy metrics.
+- Independent frame comparison confirmed six core legacy/topology artifacts exactly equal to the Phase 112 baseline; `git diff --check` passed.
+- Dispatched and completed a second three-agent coding wave for Gate Core, pipeline/artifact transport and Pair-independent data-quality audit.
+- Main-thread review confirmed the contracts align and identified the empty `audit_scope` Parquet hazard plus missing baseline inventory entry for extraction completeness.
+- Fixed the cross-lane Parquet hazard with explicit scope sentinels and added extraction sidecar to optional baseline inventory.
+- Combined targeted verification: 61 passed; full verification: 383 passed in 7.62s.
+- Fresh healthy calibration run passed the extraction gate as COMPLETE and retained exact legacy/topology frame equality; `git diff --check` passed.
+- Extended the pipeline integration test through rerun audit: invalid primary DWG yields 0 Pair and a persisted data-quality review Issue.
+- Final full suite remains 383 passed in 7.37s; Phase 113 core false-clean closure is complete, with ODA health check/DXF adapter left as the next slice.
+- Began the ODA health/DXF adapter audit. A direct `ODAFileConverter --help` probe timed out, confirming that health must use bounded conversion/readback rather than an unbounded GUI CLI metadata call.
+- Completed Reader/DXF entry audit and selected structured ReaderHealth + independent EzdxfReader; ODA executable metadata confirms version 27.1.0.0.
+- Parallel Reader work completed: EzdxfReader/Registry contract, ODA metadata/timeout health, and a read-only extraction integration map.
+- Main-thread review selected extraction-only adapter integration and operational ReaderRun health metadata; converter cache validation remains a separately verified follow-up.
+- Integrated EzdxfReader into CAD extraction, persisted Reader health metadata in ReaderRun, and added the real opt-in ODA conversion/readback smoke.
+- Targeted Reader/ODA/converter/CAD/gate tests: 56 passed.
+- Real ODA metadata and explicit conversion/readback smoke both passed READY with version 27.1.0.0 and stable build digest.
+- Full suite after Reader adapter integration passed: 401 tests in 9.18s.
+- Ran fresh calibration P001 and validation P003 without touching held-out projects; both passed the extraction gate and matched Phase 112 exactly across 16 persisted frames.
+- `git diff --check` passed with line-ending warnings only. Phase 113 now enters its final cache-DXF-validation closure slice.
+- Implemented the final Phase 113 cache validation slice through EzdxfReader with explicit `DXF_VALIDATION_FAILED` provenance.
+- Targeted converter/Reader/CAD tests passed: 48; full suite passed: 403 in 8.95s.
+- Fresh calibration P001 converted 24/24 applicable sheets and completed rerun audit. Cross-baseline comparison found 20/23 common Parquet frames exact; the other three are limited to runtime path/duration and equivalent nested-object representations, with no semantic metric drift.
+- Accepted the Phase 113 exit gate and advanced the persistent loop to Phase 114 Backend-Neutral Primitive Model.
+- Recovered the persistent session and audited Phase 114 ownership boundaries. Selected an additive extraction-result envelope plus a dedicated primitive normalizer so native CAD geometry is captured before it is lost, while legacy six-tuple unpacking and all downstream consumers remain unchanged.
+- Added the versioned primitive normalizer, additive extraction result, ProjectArtifacts transport, `primitive_segments.parquet`, summary artifact and synthetic fixtures.
+- Targeted primitive/extraction/report verification passed (30 tests); full suite passed at 406 tests. Fresh P001 generated 29,666 primitives with original polyline handles and Reader provenance, while legacy semantic frames remained stable.
+- Phase 114 remains active: next slice is analytic/approximated ELLIPSE handling for non-uniform transforms plus explicit layer-role candidate policy and transform completeness evidence.
+- Added analytic ELLIPSE persistence, ancestor Matrix44 transform chains and explicit UNKNOWN layer-role evidence. Targeted 31 tests and full 406 tests pass.
+- Ran healthy validation P003: 17,794 primitives, 14,816 normalized with complete handle/world/bbox/Reader evidence. Formal regression comparison against Phase 112 has zero Pair, Issue, rule, status and extraction deltas.
+- Accepted the Phase 114 exit gate and advanced the persistent loop to Phase 115 Formal Topology Decisions V2.
+- Audited Phase 105 observations and every topology union site. Confirmed geometry observations are a safe append-only seed, while legacy wire topology's text/block bridging must remain excluded from V2 decisions/networks.
+- Implemented append-only junction observations/topology decisions, deterministic reason/provenance fields and a non-ASSERTED union invariant verifier. Targeted 34 and full 409 tests passed before overlap work.
+- Added explicit collinear-overlap observations with a synthetic proof that geometry components remain separate in Phase 115. Full suite now passes 410 tests.
+- P001/P003 real decision runs and formal regression comparisons pass with zero Pair/Issue delta and zero non-ASSERTED union violations. Phase 115 remains active for text/block POSSIBLE evidence and real-page ground truth.
+- Added POSSIBLE-only inline text/block evidence, a 12-row validation ground-truth fixture and an independent evaluator. Full suite passes 413 tests.
+- Latest P001/P003 formal regression remains zero-delta; ground truth is 12/12 with asserted crossing false-connect 0/4, and both projects have zero non-ASSERTED union violations.
+- Accepted Phase 115 and advanced the persistent loop to Phase 116 ASSERTED-Only Electrical Networks & Witness.
+- Implemented ASSERTED-only ElectricalNetwork, members, open endpoints, possible boundaries and application artifacts. Added shortest endpoint witnesses and read-only overmerge/split validator.
+- Targeted 21 tests and full 416 tests pass. P003 has 452 networks, zero non-ASSERTED applications, 100% witness completeness and full handle traceability.
+- Phase 116 remains active: classify 64 internal-boundary overmerge suspicions, add drawing/symbol/cross-page boundary artifacts, and complete legacy Pair -> NetworkEndpoint equivalence before the exit gate.
+- Validator exposed an overlap-tolerance architecture bug. Split overlap alignment from endpoint snap tolerance; P003 overmerge suspicions dropped 64 -> 0 without suppressing the validator.
+- Added network boundary observations, legacy Pair/V2 equivalence and rerun Issue witnesses. P001 and P003 endpoint/Issue witness completeness is 100%, all resolved witnesses trace handles, and no non-ASSERTED decision is applied.
+- Full suite passes 418 tests; formal P001/P003 regression remains zero Pair/Issue delta. Accepted Phase 116 and advanced to Phase 117 Symbol Registry & Top-50 Backlog.
+- Audited Phase 117 inputs and hardcoded families. Primitive local geometry is sufficient for path-independent definition fingerprints; selected project-level inventory/unknown queue as the first slice and KLP/ZKK family configuration as the first later zero-drift migration.
+
+# Session Update 2026-07-11 (Phase 117 symbol inventory first slice)
+- Recovered session state: Phase 113-116 exit gates already accepted; active work is Phase 117 Symbol Registry & Top-50 Backlog.
+- Dispatched concurrent haiku agents with disjoint ownership (registry+tests, baseline inventory, report-artifact tests) under supervisor-only main thread policy.
+- Hardened fingerprint/ID uniqueness and pure corpus backlog ranking in `symbol_registry.py` with 6 unit tests.
+- Confirmed artifact write path already emits symbol tables; added non-empty INSERT inventory write test; baseline optional symbol metrics + inventory coverage tests.
+- Targeted tests: 31 passed (symbol/report/baseline). Full suite: 427 passed.
+- Offline inventory from phase116 primitives: P001 67/1144, P003 33/475, critical eligible 0; provisional backlog 79 families.
+- Next: fresh analyze write-path on P001/P003 (or broader non-held-out corpus), Top-50 export for annotation, then zero-drift family YAML only after fixtures.
+
+# Session Update 2026-07-11 (Phase 117 write-path + corpus Top-50)
+- Fresh analyze write-path on P001/P003 wrote symbol_definitions/instances/unknown_queue + summary; formal regression vs phase116 is pair/issue delta 0.
+- Analyzed 19 non-held-out projects (~269s) and ranked 165 geometry families; Top-50 exported without held-out labels.
+- Aggregate corpus: 847 definition rows, 15,759 instances, critical eligible 0.
+- Freezing symbol-aware baselines for P001/P003 and building Top-N definition/port fixture scaffolds next; family YAML migration still gated on zero-drift fixtures.
+
+# Session Update 2026-07-11 (Phase 117 Top-N fixtures)
+- Added Top-N definition signature fixtures (6 families) and empty port-fixture scaffold (11 entries) with policy docs and unit tests.
+- Full suite 437 passed. P001/P003 symbol baselines frozen with optional symbol metrics.
+- Started zero-drift YAML migration for inline body families KLP/ZKK as the last Phase 117 exit blocker before human port annotation.
+
+# Session Update 2026-07-11 (Phase 117 exit gate accepted)
+- Completed config-backed zero-drift migration for inline body families KLP/ZKK.
+- Full suite 443 passed; P001/P003 formal regression after migration is pair/issue delta 0 with identical inline evidence counts.
+- Accepted Phase 117 exit gate and advanced the persistent loop to Phase 118 Multi-Label Page Capabilities.
+- Next Phase 118 first slice: page capability multi-label matrix (WireTopology/SymbolPorts/TerminalGrid/TableMapping/CrossPageReference/CommunicationMedium/MetadataOnly) without filename/page patches; keep backplate off pure LayoutOnly.
+
+# Session Update 2026-07-11 (Phase 118 capability shadow slice)
+- Added additive multi-label page capabilities, evidence and communication-media fields to PageClassification/SheetRecord; legacy route_target remains the only execution router.
+- Page findings now contain `page_capability_matrix`; `communication_medium_candidates.parquet` carries only two-cue, in-audit-area candidate evidence for fiber/serial/ethernet/time-sync/logical. It is explicitly excluded from topology connectivity.
+- Structured backplate pages now expose SymbolPorts + TerminalGrid + TableMapping candidates. Their route is intentionally still unchanged until the next TableStructure slice proves that grid lines cannot enter geometry/wire networks.
+- Synthetic classifier tests cover grid, backplate, multi-medium positive and title-block/one-cue negative cases. Full suite: 445 passed in 18.73s.
+- Phase 118 remains active: implement generic TableStructure grid/cell/header scope, filter only validated structural line IDs from topology inputs, then prove real P001/P003 and no legacy drift.
+
+# Session Update 2026-07-11 (Phase 118 verified TableStructure isolation)
+- Added geometry-only `table_structure_profiles` with full-grid/cell/header evidence, and an additive parquet/summary artifact.
+- V2 geometry and wire builders now accept optional excluded line IDs. The report path supplies only profile IDs from a second independently-labelled `TableMapping` or `TerminalGrid` page; ordinary WireTopology grids are never excluded solely by geometry.
+- Synthetic grid+lead regression and real P001/P003 proof completed. P001 excludes 134 structural IDs with zero occurrence in V2 geometry edges/wire networks and Pair/Issue delta 0/0; P003 has no grid profile and serial medium is shadow-only with V2 delta 0.
+- Full suite: 452 passed. Phase 118 remains active for the backplate hybrid execution contract and broader real medium/cross-page capability evidence.
+
+# Session Update 2026-07-11 (Phase 118 recovery + TableStructure proof)
+- Recovered after other-agent quota failures: capabilities + TableStructure already partially present; full suite was 452 then 454 after config/tests.
+- Confirmed dual-gate exclusion (TableMapping|TerminalGrid ∩ complete grid). Fresh P001 excludes 134 structural terminal-grid lines from V2 topology with Pair/Issue delta 0; P003 unchanged and has one communication-medium candidate only.
+- Added table_structure config defaults and TerminalGrid exclusion unit test.
+- Phase 118 exit gate accepted on multi-label synthetic/real proofs + no cross-medium topology contamination + table-grid structural-line isolation. Advancing to Phase 119.
+
+# Session Update 2026-07-11 (Phase 119 first slice)
+- Implemented ProjectProfile, text token parser, and geometry-only semantic attachment candidates; wired shadow artifacts into write_project_artifacts.
+- Unit coverage for new modules + report artifacts; full suite 476 passed.
+- Fresh P001/P003 analyze: profile/tokens/attachments present; formal Pair/Issue delta 0 vs Phase 118.
+- Next: ScopeResolver for semantic-row/body-port/scoped-prefix with explicit selected/rejected reasons; keep attachments non-authoritative for topology.
+
+# Session Update 2026-07-11 (Phase 119 Scope+Constraint exit)
+- Implemented ScopeResolver and ConstraintResolver shadow chain; wired into write_project_artifacts.
+- Targeted + full suite green (492 passed). Fresh P001/P003: strong_violation_count=0, inviolable_strong_constraints=true, Pair/Issue delta 0.
+- Accepted Phase 119 exit gate. Deferred optional OR-Tools matching. Advanced to Phase 120 Project Graph / Audit V2 / Promotion Review.
+
+# Session Update 2026-07-11 (Phase 120 exit + migration loop closure)
+- Implemented EndpointIdentity/ProjectGraph/Audit V2/Failure Queue shadow products; wired analyze + rerun-audit paths.
+- Full suite 517 passed. P001/P003 Pair/Issue delta 0 vs Phase 119; witness completeness 1.0; strong constraint violations 0; no POSSIBLE union; held-out untouched.
+- Accepted Phase 120 exit gate with promotion evidence artifact. Topology V2 migration Phases 113-120 complete under legacy-primary rollback-safe posture. Learning/GNN track remains gated.
+
+# Session Update 2026-07-11 (Held-out release gate + promotion evidence v2)
+- Executed release-only held-out evaluate on 8 projects (188s); all analyze/audit success; pair/issue delta 0 vs Phase 112; witness 1.0; false_clean 0; no strong violations; no POSSIBLE union.
+- Recorded `.tmp/phase120_promotion_gate_evidence_v2.json` with honest hard-precision status UNMEASURED_NO_LABELS and proxy_pass=true.
+- MVP DoD for shadow/compare/rollback path satisfied; topology V2 primary flip remains blocked on human-labeled hard precision + product decision. Learning track still gated.
+
+# Session Update 2026-07-11 (Hard-issue precision harness + promotion evidence v3)
+- Froze cal/val hard-issue labels (65 on P001) and implemented evaluate-hard-issues harness.
+- Measured micro hard-issue precision/recall = 1.0/1.0 on P001+P003; suite 520 passed.
+- Held-out release proxy remains pass without tuning. Primary engine remains legacy; review-only V2 assist is evidenced as ready.
+
+# Session Update 2026-07-12 (Phase 121 promotion-gate reproducibility)
+
+- Recovered clean main worktree; Phases 113-120 already marked complete but `.tmp` promotion evidence was empty.
+- Chose architecture-layer slice: formal, reproducible promotion-gate evaluation (taskbook 18.9.9 deliverables) without primary flip or held-out tuning.
+- Implemented `promotion_gate.py`, CLI, unit tests; fixed findings.md NUL integrity issue.
+- Fresh analyze+audit on calibration P001 and validation P003 succeeded.
+- Promotion gate: structural_pass_all=true; hard precision status PASS_ON_FROZEN_CALVAL_LABELS; review-only ready; primary flip blocked.
+- Verification: targeted promotion tests 4 passed; full suite 523 passed, 1 skipped.
+- Phase 121 exit gate accepted. primary_engine remains legacy.
+
+# Session Update 2026-07-12 (Phase 121 fail-closed hardening)
+- Recovered the other agent's Phase 121 work and ran three independent read-only audits. All agreed the healthy evidence was valid but the evaluator had fail-open paths.
+- Hardened promotion metrics against missing/invalid JSON and Parquet, incomplete audit pages, clean=false, invalid witness ratios, non-ASSERTED union, unknown/unresolved critical failures and missing engine/graph/failure evidence.
+- Hardened hard-issue evaluation against missing predictions and empty-label vacuous precision; primary readiness now requires non-empty precision+recall on cal/val and held-out human gold plus explicit product approval.
+- CLI now reads the authoritative primary engine from config, normalizes held-out splits, validates inputs and exits nonzero on structural failure.
+- Fresh P001/P003 promotion evidence regenerated under `.tmp/phase121_promotion_gate_evidence_fail_closed/`: structural pass true, all artifact statuses valid, review-only true, primary flip false.
+- Verification: targeted 36 passed; full 540 passed, 1 skipped; diff check clean except line-ending warnings.
+
+# Session Update 2026-07-12 (Phase 122 formal topology metrics)
+- Concurrent agents implemented a pure topology evaluator, stable CSV/summary writer and a real P003 evidence audit; main thread reviewed and corrected the interfaces.
+- Added structural/scoped/project measurement states, current source-handle truth support, persisted witness summary use, fail-closed artifact validation and project-scope topology-gold requirement for primary readiness.
+- Integrated topology metrics into `evaluate-promotion-gate` and CLI `--topology-truth`; output now includes per-project CSV and aggregate JSON.
+- Added compatibility only for readable legacy zero-row suspicion Parquet. Missing/corrupt/non-empty schema failures still close the gate.
+- Verification: targeted 43 passed; full 547 passed, 1 skipped; diff check clean except CRLF warnings.
+- Fresh post-fix P001/P003 rerun remains pending: approval backend returned HTTP 503 and explicitly prohibited alternate execution.
+## 2026-07-12 Session Recovery And Recognition-Engine Reorientation
+
+- Recovered the prior session with `planning-with-files`; 12 messages were not yet synchronized into the planning files.
+- Confirmed the worktree contains the Phase 121/122 promotion and topology metrics batch described in the handoff.
+- Phase 122 remains `in_progress`: targeted tests and the full suite passed, but the post-fix real P001/P003 topology-metrics rerun was not completed because the prior execution backend returned HTTP 503.
+- Reoriented the next implementation work toward the user's requested engine core: real `test/` DWG census, extraction completeness, reusable electrical semantics, and symbol dependency/port-library architecture.
+- Invariant retained: `primary_engine=legacy`; no held-out tuning and no claim of real-run success without fresh artifacts.
+
+## 2026-07-12 Phase 123 Parallel Foundation
+
+- Dispatched fresh subagents under disjoint ownership and waited for every return before main-thread work.
+- Added isolated extraction census, electrical semantic graph, and symbol dependency library modules with unit tests; main-thread review and pipeline integration remain pending.
+- Counted 502 original DWG files under `test/`; this corpus will drive representative extraction-completeness evidence rather than page-specific rule additions.
+- Completed the first main-thread review of extraction census and its tests; accepted the fail-closed model-space/XREF/unit/block-expansion direction, with support-tier reconciliation required before pipeline integration.
+- Completed initial review of the electrical semantic and symbol dependency models; safety gates are acceptable, but artifact adapters and real-corpus round trips are required before topology consumption.
+- Verified against current code that production extraction and primitive normalization are still ModelSpace-only; category-gated/silent block expansion remains an extraction-completeness risk.
+- Selected the integration architecture: build census while the native DXF is open, carry it through `CadExtractionResult`/`ProjectArtifacts`, persist artifacts, and fold blocking diagnostics into the existing extraction gate without changing legacy Pair/Issue generation.
+- Reviewed the current extraction gate and identified its blind spot: non-empty but unconsumed CAD content is not represented. Deferred fatal unsupported thresholds until real-corpus measurements are available.
+- Located reusable P001/P003 converted DXFs in the Phase 121 bundles, enabling a real census without a new ODA conversion run.
+- Ran diagnostic census across 34 converted P001/P003 files. Results exposed universal unitless inputs, large ARC/CIRCLE/HATCH populations, viewport-only PaperSpace on two P001 files, and two non-uniform nested block warnings on one P003 component page.
+- Refined extraction census to schema v2 with separate paper-native/viewport counts, semantic versus shadow coverage tiers, and non-fatal scale-review diagnostics; structural loss paths remain fail-closed. Added focused tests; verification pending.
+- Census v2 verification passed (`11 passed`) and P001/P003 re-measurement now yields 34/34 structural COMPLETE while retaining all scale, viewport, semantic, shadow, and non-uniform-transform review evidence.
+- Integrated census v2 into CAD extraction, `ProjectArtifacts`, project artifact writing, and the existing extraction gate. Added tests for extraction propagation, persisted empty artifacts, and structural census failure codes; verification pending.
+- Fixed two first-run integration test issues (fixture scale expectation and explicit artifact inventory). The full targeted census propagation suite now passes: `52 passed`.
+- Reviewed electrical semantic graph inputs against the current artifact writer and approved a shadow-only Parquet/summary integration design; implementation and real validation pending.
+- Integrated the electrical semantic graph into the findings write path with node, relation, evidence, constraint Parquet files and a summary JSON. Added artifact-contract assertions; verification pending.
+- Audited symbol inventory and Top-N fixtures. Confirmed production integration must be config-backed and fail closed; test fixtures remain pending human review and cannot drive registration, critical findings, or electrical union.
+- Chosen adapter boundary: project inventory plus optional `config.symbol_library.path`, with unknown/pending defaults and explicit validation artifacts. Implementation pending.
+- Located P001/P003 source roots and matching converted-DXF caches for a fresh pipeline verification without ODA dependency.
+- Confirmed the local ODA 27.1.0 executable is available and cache validation will use the standard conversion path.
+- Completed fresh cached analyze+audit for P001/P003. New census, semantic, and symbol artifacts are present and valid; Pair/Issue counts and pair identity sets exactly match Phase 121 baselines.
+- Confirmed the old Phase 122 topology evidence is pre-fix/invalid; prepared to evaluate only the fresh Phase 123 bundles with scoped P003 truth.
+- Completed the Phase 122 post-fix promotion/topology rerun on fresh bundles: structural pass=true, review-only assist=true, primary flip=false, P003 scoped junction 1.0/1.0, and no legacy drift.
+- Appended `doc/任务书.md` section 18.9.12 with measured Phase 123 status, evidence paths, invariants, and the Phase 124 loop. The referenced external docs directory is absent from this checkout and was recorded explicitly.
+- Phase 123 exit accepted. Entered Phase 124 for corpus-scale census, layout-aware canonical scene, and production symbol review tooling.
+- Added the config-backed symbol dependency artifact adapter, default `symbol_library.path: null`, and tests for inventory-only unknowns, human-confirmed registered ports/connectivity, invalid critical promotion, and missing configured libraries. Write-path integration and verification pending.
+- Integrated resolved symbol library, validation, issues, and summary artifacts into project findings; default projects remain non-authoritative until a human-reviewed config library is supplied.
+
+## 2026-07-13 Phase 124 Recovery
+
+- Recovered the persistent goal and re-read the current plan state.
+- Found new Phase 124 corpus census, canonical scene, and symbol-review files in the shared worktree. The symbol-review agent returned HTTP 502 after writing files; main-thread audit is required before marking that slice complete.
+- Completed initial main-thread review of the corpus census evaluator; fail-closed aggregation is sound, with status/complete consistency and CLI integration still pending.
+- Completed initial main-thread review of the layout-aware canonical scene; the shadow/provenance design is sound, with real-volume and artifact integration checks pending.
+- Completed initial review of the symbol-review files left by the failed agent; safety structure appears sound, but promotion/rejected-item semantics and independent tests remain pending.
+- Independently verified the symbol review and Phase 124 foundation tests: `35 passed`; rejected-symbol retention remains non-authoritative and safe.
+- Began canonical scene integration: CAD extraction now builds layout-aware shadow scenes and carries them through `CadExtractionResult`/`ProjectArtifacts`; artifact writing and verification remain pending.
+- Added canonical scene artifact writer and integrated per-file JSON plus records/views/diagnostics/unresolved-source Parquet outputs into findings. Added propagation and empty-schema tests; verification pending.
+- Corrected the pipeline attachment point and verified canonical scene propagation/artifact output with `40 passed`.
+- Defined the corpus census CLI contract and fail-closed exit behavior; implementation pending.
+- Added `evaluate-corpus-census`, status/complete consistency validation, and CLI/module tests. Verification pending.
+- Verified the Phase 124 integrated targeted set: `60 passed`.
+- Recovered the active loop goal after the 2026-07-13 handoff; `primary_engine=legacy` remains unchanged and the referenced external docs directory is still absent.
+- Independently verified the previously untested symbol review promotion-gate patch: `24 passed` across symbol dependency artifacts, review workflow, and core library validation.
+- Dispatched two fresh non-overlapping development slices. The symbol backlog artifact slice added deterministic pending review/validation/summary writers; the topology metrics slice hardened deterministic, fail-closed project/corpus output. A third real-project subagent could not start because completed agents still occupied the concurrency limit, so the main thread will run that evidence directly.
+- Subagent-reported verification is not yet accepted as the main-thread exit gate; source review, integration tests, full pytest, and fresh real-corpus evidence remain pending.
+- First symbol backlog integration run produced the three JSON files but failed the report contract because `findings.json` uses an explicit artifact inventory. Added the missing inventory entries; rerun pending.
+- Main-thread integration verification now passes: symbol/review/report suite `51 passed`; topology metrics/promotion/CLI suite `44 passed`; `git diff --check` reports no whitespace errors.
+- Began real-corpus selection. Confirmed the historical third-project remote-cabinet probe is held-out and will not be used for tuning or as the required additional non-held-out run.
+- Selected P004 (`12000 主变及35kV网络通信柜`, frozen split `training_candidate`) as the additional real project. Fresh outputs will use a new Phase 124 directory and preserve all prior evidence bundles.
+- Created `.tmp/phase124_real_engine_evidence`; the first cache preload attempt copied zero files because `-LiteralPath` does not expand wildcards. Switched to explicit enumeration with count verification.
+- Preloaded 24 P001 and 10 P003 DXF cache files, then completed fresh normal analyze runs for P001/P003.
+- Completed fresh P004 analyze through ODA File Converter 27.1.0: 8 auditable DWGs converted/extracted, with cover/catalog/layout pages skipped by the normal routing policy.
+- Completed `run-audit` successfully for P001, P003, and P004 under `.tmp/phase124_real_engine_evidence/`.
+- `evaluate-corpus-census` over P001/P003/P004 completed with status `VALID`; 42/42 extracted files are structurally COMPLETE.
+- Regression comparison vs Phase 121 reports pair/issue count delta 0 and extraction/rule/status delta 0 for P001 and P003. Exact identity-set verification is the remaining compatibility check.
+- The first full-frame identity helper failed inside pandas on nested 0-D array object values; switched to canonical recursive JSON hashing plus explicit business identity tuples.
+- Exact P001/P003 compatibility check passed: Pair/Issue identity sets and normalized full-row hashes are all equal to Phase 121.
+- Added `validate-symbol-review` and `promote-symbol-review` CLI commands. Pending review documents validate without gaining authority; promotion fails closed unless the review is complete, and output replacement requires `--force`.
+- Symbol review CLI/module targeted suite passes `38 passed`; the real example reports `valid=true`, `promotion_ready=false`.
+- Full Python suite passes `629 passed, 1 skipped in 14.32s`.
+- Phase 124 code and three-project gates are accepted. The remaining exit item is the frozen-split 27-project/502-DWG census run plus taskbook closure; held-out results will be reporting-only.
+- Completed the frozen-split corpus run: 27/27 projects analyzed, 0 failed, 502 raw DWGs mapped exactly, 415 auditable pages extracted, elapsed 637.2 seconds.
+- Full corpus and non-held-out census aggregations both report `VALID`; all 415 extracted files are structurally COMPLETE. Held-out usage remains reporting-only.
+- Non-held-out aggregate: 285 scenes / 350,649 canonical records, 847 pending symbols, 19,723 legacy pairs, zero scene/semantic union eligibility, zero semantic constraint violations, and zero V2 changes to legacy results.
+- Closed Phase 124 and entered Phase 125 for scale/transform evidence plus the non-held-out Top-N symbol-port review loop.
+- Final Phase 124 verification: `git diff --check` has no whitespace errors; `configs/default.yml` still sets `recognition.primary_engine: legacy`. The persistent upgrade goal remains active for Phase 125.
+
+### Phase 125: Scale Evidence, Transform Fidelity, And Top-N Symbol Ports
+- **Status:** complete
+- **Date:** 2026-07-13
+- Actions taken:
+  - Recovered previous agent handoff: Phase 124 complete, Phase 125 in progress.
+  - Implemented fail-closed scale evidence + transform fidelity (`extract/scale_evidence.py`).
+  - Implemented shadow-gap electrical-relevance triage (`report/shadow_gap_triage.py`).
+  - Implemented non-held-out Top-N symbol corpus queue + CLI (`report/symbol_corpus_queue.py`, `evaluate-symbol-corpus-queue`).
+  - Wired scale/transform/shadow-gap artifacts into normal findings write path.
+  - Offline evidence from Phase 124 P001/P003/P004 censuses under `.tmp/phase125_scale_shadow_offline/`.
+  - Built 27-project Top-50 queue under `.tmp/phase125_symbol_corpus_queue/` (19 ranking / 8 held-out reporting-only).
+  - Fresh P001 write-path under `.tmp/phase125_writepath_p001/`: pairs 1717 identity-equal, new artifacts present, no geometry mutation.
+- Verification:
+  - targeted: `51 passed`
+  - full: `641 passed, 1 skipped`
+  - primary_engine: legacy
+  - git diff --check: no whitespace errors
+- Next:
+  - Phase 126 human Top-N port annotation consumption and measured OCS/WCS millimetre path.
+
+### Phase 126: Human Port Annotation Consumption And Certified Millimetre Path
+- **Status:** complete
+- **Date:** 2026-07-13
+- Actions taken:
+  - Measured OCS/WCS extrusion identity and nested block units inside `extraction_census`.
+  - Transform fidelity consumes measurements: `MEASURED_IDENTITY` / `MEASURED_NON_IDENTITY` / `MEASURED_ALIGNED` / `MEASURED_UNITLESS` / fail-closed readiness states including `MEASURED_PENDING_PROMOTION`.
+  - Built Top-N symbol review pack generator + consume path (`report/symbol_corpus_review_pack.py`).
+  - CLI: `generate-symbol-corpus-review-pack`, `consume-symbol-review`.
+  - Shadow-only REGISTERED port placements (`audit/symbol_port_shadow.py`) wired into findings write-path.
+  - Generated Top-5/Top-10 human annotation templates from Phase 125 queue; inventory-resolved=10/10 for Top-10.
+  - Real P001 multi-file OCS measurement: identity OCS, unitless nested blocks, scale unresolved → NOT_READY_SCALE; no geometry mutation.
+- Verification:
+  - full suite: `649 passed, 1 skipped`
+  - primary_engine: legacy
+- Next:
+  - Phase 127 human annotation of Top-N ports and millimetre promotion research once unit gold exists.
+
+### Phase 127: Human Top-N Port Gold And Millimetre Promotion Research
+- **Status:** in_progress
+- **Date:** 2026-07-13
+- Actions taken:
+  - Implemented DXF geometry MACHINE_PROPOSED port proposals (`symbol_port_proposal.py`, CLI `propose-symbol-ports`).
+  - Fixed nested runner bundle resolution (`project_bundle.py`) for promotion/topology/hard-issue readers.
+  - Fixed Top-N review pack ambiguous definition_name aliases (highest rank keeps alias).
+  - Generated Top-50 machine draft pack + human checklist under `.tmp/phase127_machine_port_proposals_top50/`.
+  - Re-ran promotion gate on real nested P001/P003/P004 evidence with frozen cal/val labels.
+- Gate result:
+  - structural_pass_all=true
+  - ready_for_review_only_v2_assist=true
+  - calval_hard_pass=true (frozen labels)
+  - ready_for_primary_engine_flip=false (heldout human gold + topology project gold + product approval missing)
+  - primary_engine remains legacy
+- Verification:
+  - full unit suite: `626 passed, 1 skipped`
+- Next:
+  - Human confirm checklist drafts (cannot be automated without violating trust policy)
+  - Expand real-corpus structural evidence beyond 3 projects
+  - Collect held-out human hard labels and project-scope topology gold
+  - Backfilled audit artifacts for all 27 corpus_502 projects via `rerun_audit_from_findings`.
+  - Full-corpus promotion gate: structural_pass_all=true (27/27); ready_for_review_only=true; primary flip still false.
+  - Evidence: `.tmp/phase127_promotion_gate_full_corpus_audit/`.
+  - Held-out hard-gold empty template: `.tmp/phase127_heldout_hard_issue_gold_template/`.
+
+### Phase 127 takeover (2026-07-13)
+
+- Recovered the referenced Codex task in a new thread using `planning-with-files` and inspected the authoritative worktree.
+- Confirmed current status is Phase 127 in progress; Phase 125/126 are complete despite the older chat ending during early Phase 125 planning.
+- Confirmed the worktree contains the uncommitted accumulated migration and `recognition.primary_engine` must remain `legacy`.
+- Next action: audit the Phase 127 human-review boundary and implement the next non-authoritative engine improvement that can be verified without inventing human gold.
+
+### Phase 127 delegated safety audit (2026-07-13)
+
+- Completed three fresh read-only audits: symbol-review provenance, project topology gold, and unit/scale gold.
+- Confirmed three fail-closed defects to fix before accepting human inputs: machine-only symbol evidence promotion, self-declared project topology CSV/all-zero readiness, and partial/contradictory transform-scale readiness.
+- Selected three non-overlapping safety patches for concurrent implementation; legacy recognition outputs and primary engine are out of scope.
+
+### Phase 127 safety patch integration (2026-07-13)
+
+- Concurrent implementations returned for scale readiness, topology promotion readiness, and symbol review provenance.
+- Reported focused verification: scale 15 plus adjacent 26 passed; topology 56 plus artifact 6 passed; symbol module 12 passed.
+- Known integration failure: `test_human_confirmed_review_can_promote_and_feed_port_shadow` uses only `symbol_corpus_queue` evidence and must be updated to include a non-held-out primary source under the new contract.
+- Main-thread source review, integration repair, full suite, and real evidence readback remain pending.
+- Main-thread repaired the old promotion fixture with a non-held-out `HUMAN_REVIEW_INPUT` source and retained the corpus queue only as supporting provenance.
+- Combined scale/symbol/topology safety suite now passes `107 passed`; full repository verification remains pending.
+- Full repository suite passes `698 passed, 1 skipped`; `recognition.primary_engine` remains `legacy`.
+- `git diff --check` found only one added blank line at EOF in `doc/任务书.md` and `task_plan.md`; cleanup and real-evidence readback remain pending.
+- Removed the two terminal blank lines. Located the real Phase 127 Top-50 machine review document and Phase 124/127 P001/P003 evidence bundles for read-only post-fix validation.
+- Real readback passed: Top-50 is valid/pending/non-promotable; P003 truth is scoped-only with real overmerge/split null; P001 is 24/24 NOT_READY_SCALE with zero geometry application.
+- The three safety-hardening subtasks are accepted. Phase 127 remains in progress for certified topology/unit/symbol human inputs and their tooling.
+
+### Phase 127 topology gold pack module return (2026-07-13)
+
+- Added an isolated `topology-gold-pack-v1` module and tests through a fresh one-shot subagent.
+- Reported contract: five-file pending template; project/split/page/SHA binding; fail-closed human certification; pending remains valid but not project scope.
+- Reported verification: `10 passed` plus a real P001 24-page pending template. Main-thread source review and CLI/promotion integration remain pending.
+- Main-thread hardened certification against empty three-table packs, required `REVIEW_COMPLETE`, and restricted source handles to `lines.parquet` rather than text/block handles.
+- Topology gold + metrics + promotion targeted suite passes `68 passed`; CLI integration and full-suite verification remain pending.
+- Added `build-topology-gold-template` and `validate-topology-gold`; CLI + topology targeted suite passes `89 passed`.
+- Real P001 template generated at `.tmp/phase127_topology_gold_template_p001_takeover/`: 24 pages, valid pending, zero labels, `project_scope=false`; normal validation exits 0 and `--require-certified` exits 2 as required.
+- Full suite after topology gold CLI integration passes `712 passed, 1 skipped`; `git diff --check` is clean and primary engine remains legacy.
+- User requested a machine-assisted human-review layer driven by taskbook electrical definitions and real DWGs. Next action is three concurrent read-only semantic audits over non-held-out evidence; their outputs remain MACHINE_PROPOSED, never human gold.
+- New task takeover recovered this exact Phase 127 boundary from the attached prior conversation. `session-catchup.py` reported no unsynchronised context; the shared worktree and persistent planning files remain authoritative.
+- Recovery error: the first parallel read batch was aborted because the bundled `rg.exe` could not start (`Access denied`). Switched to PowerShell-native enumeration; no repository mutation resulted from the failed batch.
+- Recovery logging error: a cross-file append patch assumed the same tail anchor in `findings.md` and `progress.md`; the patch was atomically rejected and then split by file.
+- The first three Phase 127 semantic-audit subagents all failed before returning evidence: one stream disconnect and two HTTP 503/no-account responses. They made no edits and will not be reused; a fresh one-shot retry is required.
+- The fresh three-agent retry also failed before returning any report (three stream disconnects). No agent edited the worktree. Stop retrying the unavailable service and complete the three-perspective audit in the main thread.
+
+### Phase 127 ZCode handoff continuation (2026-07-13)
+
+- Recovered Codex session `rollout-2026-07-13T20-35-19-019f5b79...` at the dual-subagent-failure boundary.
+- Main-thread three-perspective audit on non-held-out evidence:
+  - Symbol: Top-50 MACHINE_PROPOSED ports remain non-promotable; ports=0 on production inventory until human confirmation.
+  - Wire/cross-page: P001 has 1221 CANDIDATE cross-page matches (label fan-out up to 88) and 3152 open endpoints; no POSSIBLE union.
+  - Constraint/semantic: P001 constraint review 1710 (LOW_MARGIN 1431, SCOPE_AMBIGUITY 279); electrical_union_eligible=0.
+- Implemented MACHINE_PROPOSED electrical connection review pack:
+  - Module: `src/dwg_audit/report/electrical_connection_review_pack.py`
+  - CLI: `build-electrical-connection-review-pack`, `validate-electrical-connection-review-pack`
+  - Tests: `tests/unit/test_electrical_connection_review_pack.py` + CLI help/command tests
+  - Soft family quotas prevent cross-page volume from starving other review families
+- Real evidence packs:
+  - P001: 100 proposals = cross-page 50 / attachment 20 / open-endpoint 20 / pair 10; valid; promotion_ready=false
+  - P003: 100 proposals = attachment 73 / open-endpoint 20 / pair 5 / cross-page 2; valid; promotion_ready=false
+  - Paths: `.tmp/phase127_electrical_connection_review_pack_p001/`, `.tmp/phase127_electrical_connection_review_pack_p003/`
+- Verification: targeted 29 passed; full suite **720 passed, 1 skipped**; `recognition.primary_engine` remains `legacy`.
+- Still blocked for Phase 127 close / primary flip: human Top-N ports, project topology gold labels, held-out human hard gold, unit gold, product approval.
+
+### 2026-07-14 Human-machine collaboration continuation
+
+- Recovered 95 unsynchronised conversation messages and reconciled them against the authoritative worktree.
+- Commit `4c4cd3d electrical semantic review artifacts` is present on both `main` and `origin/main`; the worktree is clean.
+- Full suite before publication passed `720 passed, 1 skipped`.
+- Main-thread status audit started to separate existing review-pack generation from the still-missing safe consumption and engine-feedback loop.
+- Search tooling note: bundled `rg.exe` was denied execution; switched the audit to PowerShell-native search without changing repository content.
+- Completed a direct non-held-out P001 F0007 feasibility trial with two independent subagents: raw CAD semantics and rendered visual review. Both returned handle/coordinate-bound decisions; external port mappings agreed, while dynamic switch-contact state exposed a necessary conflict/defer boundary.
+- User confirmed production does not use CLI. The next implementation slice is an internal native-app/service API for agent adjudication evidence + consensus; no new CLI and no separate recognition engine.
+- Fixed the first engine defect exposed by the dual-agent trial: closed two-point bulge polylines no longer create fake free endpoints, and repeated full-width rows now win over decorative free ends for multi-port proposals.
+- Real PWF236 proposal now lands on `(0,0), (20,0), (0,10), (20,10)` instead of two real plus two decorative endpoints. Targeted symbol suite: `21 passed`; full suite: `722 passed, 1 skipped`.
+- First definition-proposal propagation test failed because internal port serialization omitted `annotation_status`; kept the fail-closed test and switched persisted ports to review-safe serialization.
+- First native-service F0007 run found PWF236 emitted 6 ports under production `max_ports=6`: four correct row endpoints plus two generic decorative fallbacks. Updated the selector so complete repeated rows suppress generic expansion.
+- The first combined instance-port/network binding patch was atomically rejected on a stale function-return anchor; no partial edits occurred. Split the implementation by module.
+- Added normal native-service propagation for definition-level port proposals and instance-level `PORT_TO_EXTERNAL_NETWORK` shadow candidates. No user CLI is required.
+- Fresh F0007 native run: PWF236 6 instances x 4 explicit ports = 24 measured external attachments; all bind line handles and network IDs, internal connectivity remains false/deferred, union/critical counts remain zero.
+- Compatibility: pairs 78/78 and pair candidates 62/62 are full-row hash identical before/after. Final full suite: `724 passed, 1 skipped`.
+
+### 2026-07-14 cleanup and next validation boundary
+
+- User will perform human annotation in another task and will report any adjudications back; this thread must not inspect, edit, or delete that task's annotation outputs without an explicit handoff.
+- Cleanup scope is limited to this thread's ignored trial directories: `.tmp/visual_dwg_trial`, `.tmp/phase127_native_port_input`, and `.tmp/phase127_native_port_output{,_v2,_v3}` (about 24.7 MB total).
+- Source, tests, taskbook, planning files, historical Phase 124-127 evidence, and any separate annotation artifacts remain out of cleanup scope.
+- Cleanup completed: removed five trial directories and 16 Python/pytest cache directories; Git has no untracked files.
+- Next-round read-only locator failed once because `ezdxf.Vec3` does not support slicing; switch to explicit x/y access before dispatching exactly two requested subagents.
+- First P003 PWF324/SignBlock audit attempt produced no evidence: raw agent failed with HTTP 429 and the visual wait was interrupted. Agent registry is now clear; restart with two fresh agents only.
+
+## 2026-07-14 Recognition Blind-Spot Audit
+
+- Performed a read-only audit of page routing, pairing support, persisted corpus census, symbol inventory, and cross-page/open-endpoint evidence.
+- No recognition code or tests were changed. Only planning records were updated.
+- Confirmed current non-reliable classes: layout-only pages, non-table backplates, unknown categories, communication/cross-page connectivity, unknown symbol ports/internal connectivity, viewport-only layouts, unsupported HATCH/SPLINE/POINT semantics, and scale-dependent geometry.
+- Search error: bundled `rg.exe` was denied by Windows; switched to PowerShell `Get-ChildItem`/`Select-String` and did not repeat the failing command.
+
+### 2026-07-14 P001 human symbol adjudication (incremental)
+
+- Review mode: one definition at a time, bound to the original non-held-out DWG, INSERT handle, and insertion coordinates. Do not bulk-promote machine proposals.
+- `SYMB2_M_PWF165`, fingerprint `39b95b5118323d4d8ec235cb43fb72f9b99c8d90ce9f4b2027ee2bdda6255ed5`:
+  - Source: P001 `04 交流回路图1.dwg`, representative INSERT handle `11266` at `(137.5, 220.0)`.
+  - Human adjudication: the referenced block is a number/text block, not an electrical symbol. Remove it from electrical-symbol candidates; it has zero ports and must never bridge or union networks.
+  - Separate visual rule: the nearby wave/omission marker is a line-break/end marker. Its two sides are disconnected, so pairs such as `707 -> 708`, `709 -> 710`, and `711 -> 712` must not be inferred through it.
+- `SYMB2_M_PWF191`, fingerprint `9a1c6d15833092f32027442d19bd52f5f384395b0bb113e252e5bfbfe66cb85b`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative INSERT handle `23353` at `(145.0001, 207.4991)`; repeated handles `233A5`, `233B3`, `23366`, `233C4` share the same reviewed definition.
+  - Human adjudication: this is a real graphical symbol but carries no connection meaning and may be ignored by electrical recognition.
+  - Required engine behavior: preserve the source object for provenance, expose zero electrical ports, create no internal connectivity group, perform no wire bridge/union, and generate no Pair/Network/Issue solely from this symbol.
+- These decisions are authoritative human input for the two exact fingerprints above. They do not generalize by visual resemblance or block-name prefix to other fingerprints.
+- `SYMB2_M_PWF194`, fingerprint `a78b06f3c9ab76dc9d36aeecdecb3a32599dbbc55c0e186dbecce76a9ecc780b`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, INSERT handles `2337F` at `(290.0, 235.0)` and `2338D` at `(290.0, 215.0)`.
+  - Human adjudication: this is an electrical switch symbol, but the depicted state has no conductive meaning; its two sides are disconnected and the symbol may be ignored for connectivity.
+  - Required engine behavior: preserve symbol identity/provenance, reject the machine-proposed `MP1 -> MP2` path, apply no electrical union or bridge, and generate no issue merely because the switch is open.
+- `SYMB2_M_PWF224`, fingerprint `61255c39029679e1151d9d4e8fe3884a538ea97638fa6f605d8a1d17713d8dc2`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, handles `23354` `(85.0001, 207.4991)`, `233A6`, and `233B4`.
+  - Human adjudication: generic KLP electrical symbol. Native nearby `1`/`2` text binds the left/right external ports; for example `1KLP1-1 + 1QD2` binds port 1 to the left-side `1QD2` terminal. The right port binds only to the terminal on its own right-side wire.
+  - Required engine behavior: retain separately measured external port-to-wire/network attachments but never infer body-internal connectivity or a union between ports 1 and 2.
+- `SYMB2_M_PWF229`, fingerprint `4843ab10418b48bf18e403125a6c80ba490c88d0987c42f712b5c24c8503dc61`:
+  - Source: P001 `04 交流回路图1.dwg`, representative handle `1126C` at `(145.0, 220.0)`.
+  - Human adjudication: electrical line-break/omission symbol with no connectivity attribute. Its left/right geometric endpoints must be ignored and must never be bridged.
+- Engine change: fingerprint-bound human policy now removes ports for PWF165/PWF191/PWF194/PWF229 and prevents the generic two-port `POSSIBLE` series group for PWF224; unreviewed same-name/different-fingerprint symbols remain unchanged.
+- `SYMB2_M_PWF231`, fingerprint `2ede8a4fcebd958209b99a25e477726c0b55f86b32d00650130a89acad0bf89c`:
+  - Source: P001 `04 交流回路图1.dwg`, representative handle `112CE` at `(77.5, 220.0)`.
+  - Human adjudication: generic labelled terminal. The native text directly above (for example `1ID1`) is the terminal designator, not an independent component label.
+  - Engine behavior: create shadow terminal-to-external-wire attachments that retain the designator and the two locally touched line/network facts; do not infer an internal left/right union pending explicit terminal-conductor confirmation.
+- `SYMB2_M_PWF233`, fingerprint `e2e32701027b07d3f74b5941716ca9328daf926abad92f0b4b5f2081b3f52fe2`:
+  - Source: P001 `06 直流回路图.dwg`, representative handle `192A2` at `(50.0, 272.5)`.
+  - Human adjudication: same generic labelled-terminal family as PWF231; labels can be letter-first, e.g. `ZD1` / `ZD9`.
+  - Engine behavior: terminal designator matcher accepts both number-first (`1ID1`) and letter-first (`ZD1`) identifiers; each remains a provenance-bound external attachment with no inferred internal union.
+- `SYMB2_M_PWF243`, fingerprint `b3115ea33fe4e1b57d4cfa6394c3125c42f5776b589f8297b4053cf3d7a7a073`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `2334E` at `(60.0011, 209.9991)`, rotated 270 degrees.
+  - Human adjudication: same generic labelled-terminal family; labels such as `1QD2` / `1QD3` are terminal designators.
+  - Engine behavior: exact-fingerprint policy reuses the labelled-terminal binding and preserves no-internal-union safety.
+- `FJL-25-2A_Mirror`, fingerprint `69f5c09b9bfe7e7c3c9db62eaa577a51b98801ec22bb366b8d5d2513ae1b247b`:
+  - Source: P001 `22 元件接线图2.dwg`, representative handle `2F409` at `(55.2366, 238.8056)`.
+  - Human adjudication: a long-strip two-port component. Its top/bottom ports point outward; its body does not connect them. The round label identifies the component, and `+` denotes a component-port/external-terminal relation, e.g. `1-2CLP5-1 + KD15` and `1-2CLP5-2 + 1-2n414`.
+  - Engine behavior: retain the existing generic `strip_two_port_component(KLP/CLP/ZLP)` component_mapping extractor for composite endpoint construction; exact V2 symbol policy suppresses any generic two-port internal connectivity group.
+- `SYMB2_M_PWF196`, fingerprint `634756a0bafe88dd763d740c97fe13dbbd65921586360b6f96a87d2dc2a408f4`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `23397` at `(290.0, 225.0)`.
+  - Human adjudication: open electrical switch, in the same non-conductive class as the previously reviewed PWF194 instances. It has no usable electrical ports and may be ignored for connectivity.
+  - Engine behavior: exact fingerprint is `IGNORE_ELECTRICAL`; preserve provenance but clear ports and prohibit bridge/union/Pair/Network inference.
+- `SYMB2_M_PWF206`, fingerprint `b37828da29525da55540cc801a451c80b23b3b44b19cd00b7680ddfe1771f746`:
+  - Source: P001 `06 直流回路图.dwg`, representative handle `EE8C` at `(182.5, 270.0)`.
+  - Human adjudication: functional conversion/device graphic (DC+/DC- to DC); ignored by current wire-topology recognition, with no ports and no connectivity.
+  - Engine behavior: exact fingerprint is `IGNORE_ELECTRICAL`; preserve provenance only and prohibit bridge/union/Pair/Network inference.
+- `SYMB2_M_PWF208`, fingerprint `cfe71411f229bb03fbcff9605b5b3dc0ace82f26b83a4d53fee308559e04412d`:
+  - Source: P001 `05 交流回路图2.dwg`, handles `2170A` `(55.0, 177.5)` and `21728` `(55.0, 202.5)`, both rotated 270 degrees.
+  - Human adjudication: left-side equipment-area device graphic; ignored for V2 wire topology.
+  - Scope guard: this decision covers the exact PWF208 fingerprint only. Neighboring left-area blocks at other coordinates/fingerprints remain unclassified until separately reviewed.
+- `SYMB2_M_PWF210`, fingerprint `ef9845390ad82463e1efac6f04551d65d189a6d9a311ce8c2b1398021e70c7cc`:
+  - Source: P001 `11 非电量开入回路.dwg`, representative handle `2CEAE` at `(162.5, 80.0)`.
+  - Human adjudication: no actual electrical meaning. Ignore for V2 recognition; no ports and no connectivity.
+- `SYMB2_M_PWF232`, fingerprint `5f5573087fee9f48a503ecdede638903fcb979dd5031aaf1e98e69d07f2707f8`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `23348` at `(110.0011, 224.9958)`.
+  - Human adjudication: generic labelled terminal; upper text such as `1QD5` is its terminal designator.
+- Generalization added: a definition may enter the high-confidence terminal model only when it has compact circle-terminal geometry, a structured terminal designator, and an externally touched line. It emits `MEASURED_TERMINAL_ATTACHMENT` shadow facts with no inferred internal union. The policy is geometry+evidence based; block names, page names, and coordinates are not classification inputs.
+- Cross-project P001/P003 terminal-family audit completed after the PWF232 adjudication. PWF234 was initially below the overly narrow primitive-count threshold and is now human-confirmed after visual review; PWF216, PWF236-PWF242, PWF318, and PWF324 remain needs-human. Free endpoints or a matching name alone are insufficient. One delegated report incorrectly cited PWF232 handle `2334E`; authoritative main-thread evidence remains handle `23348`.
+- `SYMB2_M_PWF234`, fingerprint `03db302eda788e4107a4dc2e882e6da52af3d56ea388d8a8f5789e6892a52211`:
+  - Source: P001 `08 差动保护及信号回路.dwg`, representative handle `23358` at `(57.5011, 237.4958)`.
+  - Human adjudication: generic labelled terminal, including its four-way geometry drawing; upper `1QD1` / `1QD2` text is the terminal designator.
+  - Generalization repair: compact terminal geometry permits 2-4 LINE and 2-4 LWPOLYLINE primitives when the 5-unit compact bbox, two arcs, designator, and external line evidence are all present. This admits PWF234 but still rejects the tall PWF208 device geometry.
+- `SYMB2_M_PWF236`, fingerprint `e84d37eab1d5e64b04de0e6aae32137b3ae80676267d6e24e71266aa4b9e7ee9`:
+  - Human adjudication: multi-port component. Its ports connect outward only; upper instance label + numeric port form full identity (for example `1DK-3`) and existing `component_mapping` relates that identity to its external endpoint (for example `ZD1`).
+  - Engine integration: V2 instance-port shadow candidates now project existing `component_mapping` facts into `component_port_identity`, external endpoint list, pair IDs, and cross-page-match eligibility. `internal_connectivity_inferred` remains false and union eligibility remains false.
+- `SYMB2_M_PWF237`, fingerprint `835a7dcc7eae596a7b1a600a48f0e579bf800a22b1add1ffbcc44d2ddb95e054`:
+  - Human adjudication: three-row/six-port version of the multi-port component, e.g. `1-2ZKK-1..6`. Each port maps independently to the external terminal on its own side; no internal connectivity.
+  - Engine behavior: exact fingerprint reuses the existing `kk_multi_port_component` mapping plus V2 component-port shadow projection; composite identities such as `1-2ZKK-3` are cross-page-match eligible only through their mapped external endpoints.
+- `SYMB2_M_PWF238`, fingerprint `cce15b281bc0c0ef0df95453bffcd991d28e73e7683a513b4c3e5f979c243438`:
+  - Source: P001 `04 交流回路图1.dwg`, representative handle `1129E` at `(207.5, 220.0)`.
+  - Human adjudication: generic labelled terminal; `1ID4 / 1ID5 / 1ID6` are terminal designators.
+  - Engine behavior: exact terminal policy binds designator and external wire evidence; no inferred internal union.
+## 2026-07-15 Phase 128 basic-terminal generalization started
+
+- User confirmed PWF239 is still a basic labelled terminal and requested multiple-agent diagnosis of weak generalization.
+- Three concurrent read-only agents completed geometry, semantic-evidence, and implementation audits and were closed. Shared conclusion: replace primitive-count memorization with normalized ARC-body geometry and model geometry/label/wire as independent evidence.
+- Integration is in progress; exact human fingerprint policies remain authoritative, while generic classification will remain shadow-only and fail-closed.
+- Source review located an incomplete refactor: the classifier requires `shape_features` that proposal generation never emits. This is the first implementation item; no classification authority was changed by the incomplete state.
+- Implemented block-local shape extraction for ARC radii, geometry/text counts, and exact LINE/polyline/ARC/CIRCLE extents; `propose_ports_from_block()` now persists these features. Added positive unseen-terminal and negative same-count/no-ARC regressions. Targeted symbol suite: `22 passed`.
+- Added fail-closed terminal evidence binding: a generic terminal reaches `MEASURED_TERMINAL_ATTACHMENT` only with normalized geometry, one unambiguous structured designator, and an outward-aligned external line endpoint. Missing evidence now yields terminal-specific review statuses; near-tied labels yield `TERMINAL_BINDING_AMBIGUOUS`.
+- Endpoint tolerance is now radius/transform-scale normalized for geometry-classified terminals and external lines must align with the transformed outward port direction. Exact human fingerprint policies remain available as authoritative definition overrides.
+- Added additive summary counters for terminal geometry, complete independent evidence, ambiguous bindings, review-only rows, and per-status counts. Combined symbol/report targeted suite: `46 passed`.
+- Human decision registered for PWF239: P001 `06 直流回路图.dwg`, DXF `F0007_51ec3d17.dxf`, INSERT `EEB7` at `(150.0, 252.5)`, fingerprint `c578f4c57480a4eabf4f0affb3ac93a9ca7e3eef23ca67e810605b48f06ac99b`; classified as the same basic labelled-terminal family.
+- Phase 128 targeted regression (`test_symbol_port_proposal.py`, `test_component_diagrams.py`, `test_report_artifacts.py`) passes `67 passed`; `git diff --check` is clean apart from expected Git line-ending notices. Primary engine remains legacy and all new terminal facts remain shadow-only/non-union.
+- Real-source verification on `.tmp/phase124_corpus_502/P001/.../F0007_51ec3d17.dxf`: PWF239 is recognized by the generic geometry path (`ARC=[1.25,1.25]`, size `4.25 x 3.75`, 3 ports), while PWF236 is rejected as a terminal (`21.0 x 15.125`, 32 primitives). This proves the result is not dependent only on the PWF239 fingerprint override.
+- Final full repository suite: `745 passed, 1 skipped` in 33.41s; final diff check has no whitespace errors. Primary engine remains legacy pending the broader human-gold replacement gate.
+
+## 2026-07-15 Phase 129 family-generalization audit
+
+- User redirected the work from next-symbol review to a full audit of previously adjudicated components, explicitly requiring models to generalize rather than orbit fingerprints.
+- First concurrent batch was closed after two refresh-token failures and one long-running non-return. A fresh no-history batch of three read-only agents completed geometry-family, semantic-policy, and code-dependency audits; all agents were explicitly closed.
+- Agreed implementation order: versioned family classification, strict proposal/instance identity binding, centralized fail-closed behavior policy, additive family evidence fields, then drift/ambiguity regression coverage.
+- User clarified that confirmed IGNORE classes must also generalize by geometry. Extracted all confirmed P001 IGNORE positives from real DXFs and recorded rotation/scale-invariant aspect, entity histogram, arc groups, text/HATCH evidence, and proposed-port topology for separate subfamily models.
+- Added `symbol-family-classification-v1` and `symbol-behavior-policy-v1`. Existing fingerprints are now versioned human family members/compatibility fallbacks; geometry rules classify terminals, external two-/multi-port components, and seven confirmed IGNORE subfamilies.
+- IGNORE generalization is active: complete geometry-family matches clear electrical ports as `GEOMETRY_FAMILY_NON_CONNECTIVE` even under unseen fingerprints, while incomplete lookalikes remain review-only. Original CAD provenance is retained and all union/critical flags remain false.
+- Added exact proposal/instance fingerprint binding with explicit mismatch rejection, legacy unverified fallback status, family/policy/binding fields, and additive report counters.
+- Real P001 synthetic-fingerprint audit: IGNORE positives PWF165/191/194/196/206/208/210/229 all matched and suppressed; controls PWF224/231/233/234/236/237/239 were not suppressed; FJL generalized to external strip two-port. Targeted suite `72 passed`; full suite `750 passed, 1 skipped`; diff check clean apart from line-ending notices.
+
+## 2026-07-15 Phase 130 cleanup and fresh census
+
+- Created local commit `4dc5d27 generalize adjudicated symbol families` before cleanup.
+- Cleanup inventory: `.tmp` ~3.10 GiB across 27 Phase 121-127 runs; Python/pytest caches are ignored; tracked old process/research/page-review docs have no exact source/test path references.
+- Preservation decision: retain active `doc/任务书.md` and one rewritten canonical `doc/human_arbitration_phase98.md`; regenerate machine/process evidence from raw DWGs after cleanup.
+- Rewrote `doc/human_arbitration_phase98.md` as a concise canonical record of every confirmed IGNORE, terminal, KLP/DK/ZKK, and FJL decision, including source DWG/handle/coordinates, family semantics, and observed fingerprint drift.
+- Deleted all 27 `.tmp` runs (~3.10 GiB), `.pytest_cache`, 15 Python cache directories, and 23 tracked legacy architecture/research/page-review documents. Post-cleanup `doc/` contains only `任务书.md` and `human_arbitration_phase98.md`.
+- Clean no-cache full suite passed `750 passed, 1 skipped` in 149.42s.
+- Fresh P001 (24 DWGs) and P003 (10 DWGs) analyses completed from raw sources under `.tmp/current_symbol_census`; no old Phase 121-127 directories were restored.
+- Fresh-census repair: dense 420×295/47-text SignBlock geometry now enters `non_electrical.drawing_metadata.v1` instead of multi-port review; PWF236/PWF237 repeated equal-ARC multi-port geometry now remains recognized across fingerprint drift. Targeted regression: `53 passed`.
+- Conservative definition-level aggregation requires all machine observations for a fingerprint to agree; mixed `MATCHED/UNKNOWN` remains human review. Result: P001 has 25 resolved, 38 electrical needs-human, 4 metadata/zero-port; P003 has 10 resolved, 18 electrical needs-human, 5 metadata/zero-port. Across projects there are 46 unique electrical definitions needing human adjudication.
+- Highest-priority unresolved definition is P003 `SYMB2_S_PWF324` (100 instances): mixed geometry observations currently alternate between UNKNOWN and functional-graphic IGNORE, so it must be human-confirmed before family promotion.
+- Final post-repair full suite passed `752 passed, 1 skipped` in 24.01s with pytest/Python cache writes disabled.
+- After extracting the compact 46-symbol review JSON and PWF324 SVG/PNG, removed the fresh heavy census outputs (`209,806,595` bytes). `.tmp` now contains only the current review pack (~626 KiB), not historical process runs.
+- Human adjudication: P003 `SYMB2_S_PWF324` is an Ethernet communication-port component, but P1/P2 and all equivalent ports require no external communication mapping; the whole component is ignored for current recognition.
+- Added `communication.ethernet_port_ignored.v1`, covering both observed 2/3-LWPOLYLINE and 4/5-machine-port states across fingerprints. A wider PWF330-like two-text negative remains outside the model. Targeted suite: `55 passed`.
+- Fresh P003 replay confirmed all three PWF324 definition observations are `HUMAN_ADJUDICATED_NON_CONNECTIVE` in `communication.ethernet_port_ignored.v1`; no ports or mappings survive. The compact unresolved queue dropped from 46 to 45, with PWF316 next.
+- Rendered the next review crop for P003 PWF316 (`05 信号回路图.dwg`, handle `A214`, `(627.5,464.375)`), then removed the 70,393,802-byte temporary replay directory; only compact review artifacts remain.
+- Human adjudication: PWF316 is an ST single-mode optical communication port; do not create `1T/1R` send/receive mappings and ignore the whole component for current recognition.
+- Added `communication.optical_st_port_ignored.v1` with scale/rotation-normalized single-ARC topology and a two-ARC terminal negative. Targeted suite: `57 passed`; unresolved queue moves from 45 to 44.
+- Continuation audit confirmed the PWF316 engine policy, negative test, taskbook entry, canonical arbitration row, and progress/findings records are all present. Mechanically removed PWF316 from `.tmp/current_symbol_review/unresolved_symbols.json`; the compact queue now records 44 unresolved definitions, with cross-project PWF318 (23 instances) next.
+- PWF318 single-page replay converted the original P001 DWG successfully and recovered handle `11176`; first raster-render attempt failed because the active Python environment does not include optional `matplotlib`. Switched to the installed ezdxf SVG backend plus an available local rasterizer instead of repeating that attempt.
+- The second renderer path exposed two environment/API mismatches: this ezdxf version has no `RenderContext.current_layout` property, and bundled `sharp` cannot resolve its `detect-libc` dependency from the workspace runtime. Per the no-repeat rule, abandoned that path and moved to a dependency-free Pillow raster of recursively expanded DXF primitives/text for the review crop.
+- The first Pillow crop revealed an important locator distinction: `(40.0,220.0)` belongs to the enclosing parent instance; canonical expansion places nested PWF318 handle `11176` at `(40.0,232.495)` with geometry down to `y≈228.001`. Corrected the review crop target box to the expanded world geometry while retaining the original coordinate in provenance.
+- Finalized the PWF318 review pack as only `P001_PWF318_11176.png` plus `unresolved_symbols.json`; removed the temporary single-page replay and resolved PWF324/PWF316 screenshots/SVGs. Queue validation confirms `44` entries, PWF316 absent, and PWF318 first with 23 instances. Current symbol-proposal unit suite passes `37 passed` with cache writes disabled.
+- Human adjudication: PWF318 is a ground symbol. It creates no mapping, attachment, bridge, or union and must enter a geometry-generalized IGNORE family. Initial subagent spawn configuration was rejected because full-history forks cannot also override `agent_type`; retry uses a self-contained no-history worker assignment.
+- Registered the PWF318 decision in the taskbook, canonical arbitration record, findings, and active plan; removed it from the compact queue (`44 -> 43`). Started a no-history engine/test worker for the generalized ground model while the main thread continued.
+- Rebuilt P001 `21 元件接线图1.dwg` for the next KK2P review. Representative handle `27FDC` is a top-level INSERT at `(47.5,252.5)`; the definition spans roughly `x=35..60`, `y=237.5..267.5`, contains four numbered positions and repeats seven times on the page. Preparing a context crop around the first instance.
+- The ground-model worker completed and was immediately closed; its scoped tests reported `39 passed`. Main review accepted the family/policy wiring but rejected count/length evidence as sufficient by itself: topology still needs lead-to-bars orthogonality/centering and contact-to-lead binding. KK2P crop visually confirms a four-position rectangular component with ports 1/2/3/4 and external labels around the body.
+- Main-thread integration added normalized line segments and round-contact center/radius evidence, then required orthogonal centered lead-to-bar binding, monotonic bar shortening by distance, and contact-to-opposite-lead binding. Same-count offset-lead negative remains unsuppressed; symbol proposal suite passes `39 passed`.
+- A fresh PWF318 single-page replay completed, but the first generic JSON scan found no persisted row keyed directly by the definition fingerprint; validation must inspect the run's symbol proposal artifact format instead of assuming proposal rows are JSON-persisted under that key.
+- Artifact inspection showed the run emitted seven top-level definition proposals and omitted nested PWF318, while canonical-scene records do contain it. The classifier itself will be validated directly against the recovered DXF block; nested-definition proposal coverage is recorded as a separate V2 rollout gap.
+- Direct real-block validation succeeded: exact PWF318 emits `HUMAN_CONFIRMED_MEMBER / HUMAN_ADJUDICATED_NON_CONNECTIVE`, while the identical geometry under an unseen fingerprint emits `MATCHED / GEOMETRY_FAMILY_NON_CONNECTIVE`; both clear all ports under `ground-symbol-four-line-bulged-contact-v1`.
+- Confirmed `symbol_definitions_v1` and `symbol_instances_v1` already contain nested PWF318, so the missing default proposal is specifically an artifacts integration gap. Started a second no-history worker limited to `report/artifacts.py` and its analyze-project integration test.
+- Removed both temporary replay directories and the resolved PWF318 crop after preserving evidence in findings/progress. The compact review pack now contains only the 43-item queue and the current KK2P screenshot.
+- The nested-definition worker completed and was immediately closed. Main review added per-DXF document caching and file-local sheet/handle binding, then targeted integration/unit/report tests passed `80 passed`; a real P001 analyze-project replay persisted PWF318 as zero-port `HUMAN_ADJUDICATED_NON_CONNECTIVE`.
+- First full-suite invocation failed during collection because this shell did not expose the repository root as importable `tests` (`ModuleNotFoundError: tests` in `test_acceptance_evaluation.py`). This is an invocation-environment issue rather than a code failure; retry will set `PYTHONPATH=.;src` explicitly instead of repeating the same command.
+- Full-suite retry with explicit `PYTHONPATH=.;src` passed `759 passed, 1 skipped` in 19.45s. Diff check is clean apart from expected line-ending notices; all replay directories are removed and only the KK2P crop plus 43-item compact queue remain.
+- User adjudicated KK2P as a four-port external-mapping component: ports are internally isolated and each maps outward using `instance-name + port-number`. Fresh P001 replay proves the circle label is `1DK`; first-instance mappings are `1DK-1 -> ZD9`, `1DK-2 -> 1QD5`, `1DK-3 -> ZD1`, and `1DK-4 -> 1QD1`.
+- Real artifact audit shows those four mappings already exist exactly as `component_mapping` rows at confidence `0.95`; ordinary `1->3` / `2->4` body-internal candidates are discarded. KK2P's remaining defect is definition-family status (`UNKNOWN/REVIEW_ONLY`), so implementation should promote its 2×2 four-contact geometry to `component.external_multi_port.v1` without changing the proven extractor.
+- First combined documentation patch failed because the rewritten canonical arbitration file does not contain the assumed PWF237 bullet text. No partial edits were applied; retry will anchor KK2P after the actual section content instead of repeating the failed context.
+- KK2P worker completed and was immediately closed; it added exact-member policy, text-slot evidence, 2×2 contact evidence, and positive/negative tests (`41 passed` reported). Real block validation succeeds for exact and synthetic fingerprints with four retained ports and no union.
+- Main review rejected the first rotation-invariance proof as incomplete because both line topology and contact clustering used absolute X/Y axes. The rule will be tightened to rotation-independent parallel/perpendicular line groups and pairwise contact distances before final acceptance.
+- First combined rotation-hardening patch failed on a mismatched unit-test tail context; apply_patch made no partial changes. Retry will split source and test edits and anchor the test after its actual final assertion.
+- Reworked KK2P rotation invariance using two relative parallel/perpendicular line groups and pairwise rectangle side/diagonal distances; added a true 37° ezdxf block extraction regression. Combined symbol/component suite passes `63 passed`.
+- Fresh P001 analyze-project replay now emits KK2P as `HUMAN_CONFIRMED_MEMBER / EXTERNAL_PORTS_ONLY`, four ports, no internal connectivity/union, and exactly `1DK-1→ZD9`, `1DK-2→1QD5`, `1DK-3→ZD1`, `1DK-4→1QD1` at confidence `0.95`. Queue moved `43 -> 42`; PWF171 is next.
+- Rebuilt P001 `11 非电量开入回路.dwg` for PWF171. Representative handle `2CE94` is a top-level INSERT at `(161.25,235.0)`, bbox `x=160.3125..162.1875`, `y=230.5..235.75`, with `5 LINE + 2 LWPOLYLINE`; nearby row labels include `207` and `本体重瓦斯 / Proper heavy gas trip`. Preparing the localized review crop.
+- Final KK2P/PWF318 integration full suite passes `762 passed, 1 skipped` in 18.56s; diff check is clean apart from line-ending notices. Removed both replay directories and the resolved KK2P crop. Current compact pack contains only the 42-item queue and PWF171 screenshot.
+- Human adjudication: PWF171 is a small diode with no connectivity or mapping; the adjacent large boxed diode is also IGNORE. Fresh source replay identifies the boxed device as existing PWF191 (`2CE58`, `(165.0,240.0)`), already zero-port under a prior generic-graphic IGNORE policy. The implementation should unify/refine both as geometry states of a diode-ignore family while preserving provenance.
+- Registered the dual-state diode decision in the taskbook, canonical arbitration record, findings, and active plan. The first compact-queue patch used the pre-side-review queue head and did not apply; no partial queue edit occurred. Retry will inspect the current queue because concurrent reverse-queue work may have changed its count/order.
+- Current queue was already 41 after concurrent WTX-871 resolution; removing PWF171 correctly moved it to 40 with PWF330 next. Rebuilt P001 `07 网络通讯回路图.dwg`: PWF330 handle `1C27C` at `(135.0,257.5)`, bbox `133.5..147.5 × 253.75..261.25`, contains `TEXT ETHER/NET + 3 LWPOLYLINE`; nearby instance label is `LAN1`.
+- Diode worker completed and was immediately closed (`47 passed` reported). Real validation: PWF171 exact/unseen both enter the new diode family and clear ports; PWF191 exact is refined by policy, but unseen geometry still enters the old generic graphic family because the worker did not actually derive boxed topology. Bare rotation logic also remains axis-bound. Main-thread hardening is required before final verification.
+- Geometry inspection measured PWF191's third LWPOLYLINE as a closed non-bulged outer rectangle and confirmed two repeated four-line short motifs by normalized length multiplicities. Integration will persist straight closed-polyline extents, derive outer-box/repeated-motif evidence, and bind bare-diode lines to the contact-defined axis.
+- First combined diode-hardening patch failed at a stale return-dictionary anchor because concurrent WTX-871 feature work has extended the same shape-feature function. No partial edits were applied; retry will split helper changes, extraction state, normalization, and return fields into separate patches using current anchors.
+- After split integration, diode unit run exposed two failures: the worker's fabricated unseen bare-diode fixture does not satisfy the newly enforced contact-axis topology, and an unrelated concurrently added four-coil test is currently failing in another active workstream. The diode fixture will be replaced with real PWF171 geometry plus a 37° transformed variant; four-coil files/logic will not be touched by this task.
+- Replaced the bare fixture with real normalized PWF171 geometry plus a 37° rotation; diode-focused tests pass `2 passed`. Direct real-DXF validation proves exact/unseen PWF171 and PWF191 both enter `electrical.diode_symbol_ignored.v1`, clear every port, and use their distinct bare/boxed rule IDs.
+- Final diode-family repository gate passed `769 passed, 1 skipped` in 55.96s. The post-diode compact queue was `40`; concurrent WTX resolution has since reduced it to `39`. PWF171 is absent and PWF330 remains the next unresolved definition.
+- Removed resolved diode/replay crops and confirmed the obsolete WTX `AC42` crop is gone. A concurrent WTX audit has produced a new `DZB_RIGHT` side-review crop; it is preserved alongside PWF330 and `unresolved_symbols.json` rather than being mistaken for stale output.
+
+## 2026-07-15 reverse-queue adjudication: WTX-871
+
+- A first attempt to append this side review used a stale KK2P anchor and applied no changes; the retry is anchored at the actual progress tail.
+- Side review started from the low-priority end of `.tmp/current_symbol_review/unresolved_symbols.json` to avoid blocking the main high-priority queue.
+- Human adjudication for P003 `11 通信管理机接线图.dwg`, INSERT `WTX-871` handle `3C556` at `(217.668689,275.0)`, fingerprint `7248c0ad77ce6f3a36201f048652a9a63b49fa66a6541b1eb481ad44da886dd7`: this is a communication-management panel and must not be ignored as one symbol.
+- Required semantics: recognize the repeated small square pin cells inside COM/LAN/CAN groups; each cell exposes two opposite external mapping sides. The large panel outline and large COM/socket outlines are grouping geometry only and must not become single machine ports. No cell-to-cell or group-to-group internal union is allowed without separate confirmation.
+- User requires every adjudication to be implemented directly in the engine, verified on the source page, and followed by deletion of resolved screenshots/replay products. Only the current unconfirmed screenshot should remain.
+- Real WTX-871 definition inspection found 86 closed 5×5 pin cells in two 43-cell rows, each with one native pin label. The rows split geometrically into eight 5-pin COM groups plus one 3-pin CAN group per row; engine work will target these cells rather than the panel bbox.
+- WTX LAN1..LAN4 use four 12.5×12.0689 socket outlines with two tiny decorative rectangles each, unlike COM/CAN 5×5 cells. Planned engine family will emit COM/CAN cell-side attachment loci and LAN socket-level attachment loci while rejecting outer panel and decorative socket details.
+- Baseline single-page audit confirms the defect: WTX-871 becomes a false two-port open-switch candidate, emits two unresolved panel-edge candidates, and creates no COM/LAN/CAN mappings. A family-specific repeated-cell proposal path is required before instance binding.
+- Detailed source alignment shows the intended output is a component mapping per wired cell: native `COM/CAN group + pin number` on the panel side maps to the rotated external terminal label reached from that cell's outward short line (for example `COM1-3 -> 1-42TD1`). Unwired cells must not generate guessed mappings.
+- Real page routing is `unknown -> LayoutOnlyExtractor/classify_only`, so the new communication-panel mapping pass must be family-driven and independent of the existing component-page gate; otherwise a correct cell detector would still produce zero pairs.
+- Integration design selected: add a geometry/content-based `communication_multiport_panel` page route and a dedicated `component_mapping` extractor using group+pin identity, outward-side label proximity, and supporting vertical-line evidence. This reuses the existing Pair contract while avoiding name/fingerprint memorization.
+- First classifier inspection command assumed `audit/page_classifier.py`; the repository stores that module elsewhere, so the parallel read failed without changing files. Retry will locate the actual module with `rg --files` instead of repeating the path.
+- Located the classifier at `src/dwg_audit/page_classifier.py`. LAN inspection found line stubs but no external endpoint labels, so this page can prove LAN port geometry/line attachment but not a named external endpoint; COM/CAN mappings remain the first implementable high-confidence slice.
+- Legacy extraction omits all 121 nested WTX native texts from `texts.parquet`, invalidating the initial page-classifier/component-extractor approach. Switched implementation to specialized definition parsing in `propose_ports_from_block`, with logical group+pin identity carried into symbol instance binding; this path runs independently of page routing.
+- Engine implementation scope is now localized to `symbol_port_proposal.py` plus unit tests: repeated-cell definition parser, versioned communication-panel family, additive semantic port fields, and evidence-complete instance mapping. This avoids changing global page routing or legacy text extraction.
+- Definition parser implemented and validated on the real WTX block: it finds all 86 COM/CAN pin cells, emits identities from `COM1-1` through `CAN2-3`, assigns upper/lower outward sides, and classifies the exact member as `component.external_communication_panel.v1 / EXTERNAL_PORTS_ONLY`. Panel edges and LAN decorative internals emit no generic ports.
+- Instance binding implemented. After correcting lower-row rotated-label reach, the real page now yields exactly 46 `MEASURED_COMPONENT_PORT_MAPPING` candidates and 40 `PANEL_CELL_UNWIRED` candidates: examples include `COM1-3 -> 1-42TD1`, `COM2-3 -> 1-42TD6`, and `COM16-5 -> 1-42TD78`. Every measured mapping has the exact short outward line handle; no internal union is enabled.
+- Reverse-queue WTX continuation: added geometry-driven LAN socket discovery under the same communication-panel family. On the real definition the proposal now retains 86 labelled COM/CAN pin cells plus four labelled LAN socket loci (`LAN1..LAN4`) for 90 total ports; LAN rows carry no fabricated endpoint mapping and remain review/geometry-only unless independent line/text evidence exists.
+- Hardened the family gate to validate `mapped_cell_port_count` separately from `lan_socket_port_count`, so adding four socket-level candidates cannot invalidate the 86-cell model. Dense numbered rectangles without native COM/CAN/LAN group structure remain a tested negative.
+- Added synthetic regressions covering `max_ports=4` bypass, all group+pin identities, upper/lower outward binding, cleaned `@/&` endpoint labels, exact-line evidence, LAN unresolved behavior, and no internal union. Targeted result: `52 passed` in `tests/unit/test_symbol_port_proposal.py`.
+- Fresh raw-DWG `analyze-project` on P003 `11 通信管理机接线图.dwg` now persists WTX-871 as `component.external_communication_panel.v1 / EXTERNAL_PORTS_ONLY`, method `repeated_communication_panel_ports_v1`, with 90 ports. Instance output is exactly 46 `MEASURED_COMPONENT_PORT_MAPPING` plus 44 `PANEL_CELL_UNWIRED` (40 unwired COM/CAN cells and four LAN sockets); false `switch.open` candidates are zero.
+- Related extraction/integration regression passes `31 passed` (`test_cad_extract.py` + `test_analyze_project.py`). Removed WTX-871 from the current compact queue (`39 -> 38`); resolved screenshot and replay directories are being deleted after this evidence was persisted. KNS2500-6RS1FSST-P1 remains the next side-review item.
+- Cleanup completed: removed both WTX/KNS source-page replay directories and the confirmed WTX screenshot after preserving measured evidence. The KNS2500 crop is now the only screenshot owned by this side review; main-thread PWF330/DZB crops were left untouched.
+- Human adjudication for P003 `KNS2500-6RS1FSST-P1`, handle `3CB98` at `(82.5,165.0)`: the entire device region is IGNORE. Its internal elements are never conductive, and no mappings are to be created for `PG/P-/P+`, `COM1..COM6`, `A/B/TX/RX/GND`, or `ST 1T/1R`, regardless of adjacent external text.
+- Implemented `communication.equipment_panel_ignored.v1` with an exact human-member fallback and a geometry/content model requiring a tall dense panel, six COM section labels, power and ST optical labels, paired optical-circle radii, repeated contact polylines, and a dominant parallel-line group. The rule does not use block name, insertion coordinates, or fingerprint as family identity.
+- Positive tests prove exact and unseen fingerprints both clear all ports; close-shape negatives missing `COM6` or `ST` remain unsuppressed. Symbol proposal suite passes `58 passed`; related extraction/integration suite passes `31 passed`.
+- Fresh P003 source-page replay persists KNS as `HUMAN_CONFIRMED_MEMBER / IGNORE`, zero ports, zero symbol network candidates, and zero pair rows matching KNS/COM/1T/1R semantics. Removed KNS from the live compact queue after concurrent updates (`37 -> 36`).
+- KNS replay directory and confirmed crop were deleted after verification. The reverse queue now points to P001 `WBH-814E-E1SA-101`, handle `388E1` at `(222.5,257.5)` in `20 非电量保护背板图.dwg`; its INSERT expands over most of the backplate (`x=32.3..412.7`, `y=52.3..257.7`), so the next review crop renders the complete expanded block rather than a misleading insertion-point neighborhood.
+- Human adjudication for `WBH-814E-E1SA-101`: the full backplate is not IGNORE metadata. It is a table-routing container, and the engine must recognize terminal mappings inside its populated plugin tables. Implementation must prove real mappings on the source page before this queue row can be closed.
+- Baseline already routed the page as `背板表格型图 / backplate_virtual_terminal_table -> TableExtractor` and emitted 56 high-confidence `table_mapping` pairs: `NDY306A=8`, `NKR308A=36`, `NTZ302A=12`. The V2 defect was isolated to the outer definition remaining UNKNOWN with two false free-endpoint ports.
+- Added `structural.backplate_table_container.v1` and behavior `TABLE_CONTAINER`: the outer block emits no symbol ports or network candidates, while `table_mapping_preserved=true` explicitly documents that nested table extraction remains active. Generalization requires dense line/polyline table geometry, at least 28 row numbers from 01..32, at least three plugin header prefixes, and at least five slot numbers; it does not use block name, coordinates, or fingerprint.
+- Close-shape negatives with only two plugin headers or a truncated 01..20 row grid do not enter the family. Targeted symbol/table/page suite passes `91 passed`; analyze-project integration passes `21 passed`.
+- Fresh source replay preserves `TableExtractor/audit_required` and all 56 terminal mappings, while the WBH outer definition becomes `HUMAN_ADJUDICATED_TABLE_CONTAINER`, zero ports and zero symbol network candidates. Removed the resolved queue row after concurrent updates (`32 -> 31`).
+- Generalization check on the next reverse item `WBH-812E-E1SA-101` succeeded without adding a fingerprint/name rule: the unseen definition enters `structural.backplate_table_container.v1 / GEOMETRY_FAMILY_TABLE_CONTAINER`, keeps `背板表格型图 -> TableExtractor`, and emits 27 table mappings (`NCK316A=12`, `NDY306A=9`, `NJL315A=6`) with zero outer ports. This same-family item can be auto-resolved rather than sent back for duplicate adjudication.
+- Auto-removed `WBH-812E-E1SA-101` from the compact queue (`31 -> 30`) after real-page proof, then localized the next distinct item: P001 `SYMB2_S_PWF4`, handle `1D356` at `(314.9881,74.9881)` in `06 直流回路图.dwg`. It is the red-boxed GND/contact graphic left of `JD11`, with real geometry `LINE=4`, `LWPOLYLINE=4`, one closed bulged contact, three parallel stepped open polylines, and two currently false generic ports; it remains pending human confirmation.
+- Human confirmed PWF4 as GND: whole symbol is IGNORE with zero ports, mappings, connectivity, or union. Added exact provenance plus generalized `ground-symbol-contact-led-stepped-bars-v1`, requiring three duplicated parallel bars in `1.0/0.6/0.2` proportions, stepped centres, a perpendicular lead attached to the longest-bar midpoint, and a closed round contact at the opposite endpoint.
+- Exact and real unseen-fingerprint blocks both enter `electrical.ground_symbol_ignored.v1`; a rotated 37-degree synthetic variant also matches, while a same-count detached-contact negative remains unsuppressed. Symbol suite passes `70 passed`.
+- Fresh source-page replay persists PWF4 as `HUMAN_ADJUDICATED_NON_CONNECTIVE`, zero ports and zero symbol network candidates. Three existing `GND -> 101` semantic review pairs are at unrelated x≈125 rows, not the PWF4 instance at x≈315, so they remain untouched. Removed PWF4 after concurrent queue updates (`29 -> 28`).
+- Commit-boundary verification: full repository suite passes `795 passed, 1 skipped` in 17.84s; `git diff --check` reports no whitespace errors. The reviewed commit scope includes the generalized symbol families and bindings, nested proposal recovery, backplate table-container behavior, crossover-jump wire topology, synchronized tests/progress/taskbook/arbitration records, and the user-requested removal of stale tracked process documents.
+- Created local commit `c292748 generalize adjudicated symbols and topology` containing the complete coordinated change set. Planning/progress completion markers are amended into the same commit so the worktree remains clean before the next review round.
+- The final amended local commit is `62634f0 generalize adjudicated symbols and topology`; full gate remained `795 passed, 1 skipped` and the worktree was clean at the round boundary.
+- New reverse-round human adjudication: P001 `SYMB2_M_PWF87`, handle `1D355` at `(322.4881,77.4881)` in `06 直流回路图.dwg`, is a generic terminal named `JD11`. Its left and right external attachments must remain visible, but the two sides are internally disconnected and must never be unioned through the terminal body.
+- Added exact human membership and generalized `slash-circle-two-contact-terminal-v1` under `labelled_terminal.generic.v1`. The model requires symmetric equal-radius side contacts, one centered larger circle, two axial contact-to-circle leads, and two opposite collinear slash segments meeting at the body centre; it is rotation/scale invariant and does not use the PWF name or fingerprint for normal matching.
+- Fresh source replay emits two `MEASURED_TERMINAL_ATTACHMENT` rows under designator `JD11`: left handle `1D358` and right handle `1D357` bind to two distinct external network IDs. Both rows keep `internal_connectivity_inferred=false` and `electrical_union_eligible=false`.
+- Exact and 37-degree rotated unseen geometry retain two external ports under `TERMINAL_NO_INTERNAL`; a same-count central-circle offset negative stays `REVIEW_ONLY`. Symbol suite passes `75 passed`. Removed PWF87 after concurrent queue updates (`27 -> 26`).
+- The next reverse item is P001 `SYMB2_M_PWF104`, handle `1D354` at `(332.4881,77.4881)` on the same DC page. The highlighted `CZ` assembly contains three labelled inner contacts `E/L/N`, a large outer circle, and external directions to the left/top/bottom; its per-contact mapping and internal-connectivity semantics require human adjudication before implementation.
+- Human confirmed `E/L/N` as three mutually isolated ports whose complete identities combine the outer instance name: `CZ-E`, `CZ-L`, `CZ-N`. Added exact policy plus geometry family subrule `three-contact-labelled-socket-v1`, and replaced the generic two-extreme draft with three radial contact proposals.
+- Instance binding assigns nearby one-letter pin labels one-to-one to the three radial ports, binds the short outer designator `CZ`, and resolves the external endpoint label only through the port's exact external network. Real mappings are `CZ-E→JD11`, `CZ-L→JD2`, and `CZ-N→JD7`, each on a distinct network ID.
+- The geometry model requires one large outer circle, three equal inner circles, six equal round contacts split into three inner markers and three radial outer contacts, plus three inward radial leads. Same primitive counts with one detached outer contact do not generalize. Definition/binding suite passes `81 passed`.
+- Final source replay emits exactly three `MEASURED_COMPONENT_PORT_MAPPING` rows, all `internal_connectivity_inferred=false` and `electrical_union_eligible=false`. Removed PWF104 after concurrent queue updates (`25 -> 24`).
+- The next reverse item is P001 `SYMB2_M_PWF102`, handle `1D36D` at `(252.4881,39.9881)` on the same DC page. It is the highlighted four-contact `KZKK` assembly with ports `1/2/3/4`, left-side neighbors `JD8/JD3`, and right-side continuation into the adjacent `CD-WSK-H-J-G` block. The internal switch/mechanism strokes require human connectivity semantics before mapping implementation.
+
+## 2026-07-15 Phase 137 PWF89 generic terminal adjudication
+
+- User confirmed PWF89 is the same generic-terminal business family as the other JD terminals. `JD1/JD2/JD6` are instance designators; the four outward directions are internally isolated, and only a direction with an actual external line contact may emit an attachment/match.
+- Representative provenance: P001 `06 直流回路图.dwg`, handle `1D360`, `(222.4881378,109.9881378)`, fingerprint `84868127dc04f2454ab00c79d63b6d4a57792b2f47365725934a88bcf1986d65`; P001/P003 contain eight instances.
+- PWF89 must extend `labelled_terminal.generic.v1` with a strict four-contact slash-circle state rather than create a PWF-specific family. Complete identities come from each instance's unique JD label; unused directions remain absent and all directions stay no-union.
+- Started a one-shot worker after inspecting the already implemented PWF87 two-contact generic-terminal path. The live compact queue is 26 with PWF89 still first pending removal.
+- The first planning-skill read attempt failed at JavaScript parsing before any shell call. Retried with an explicit multiline tool object and double-quoted PowerShell path; the complete skill file then loaded successfully.
+- The one-shot worker completed and was immediately closed. Main review retained its shared-family direction but hardened the geometry gate: the original patch counted four radial lines without proving that the fifth line was the centred slash, so same-count unrelated drawings could be absorbed.
+- Added exact/unseen, 37-degree rotation, 1.7x scale, off-centre-slash, skewed-contact, partial-wire, reverse-line, JD binding, distinct-network, and no-union regressions. The complete symbol proposal unit file passes `78 passed`; analyze-project integration passes `21 passed`; `git diff --check` passes.
+- Changed the four-way state so unwired directions emit no candidate row. A fresh P001 replay emits exactly 14 rows for 14 outward-wired directions across six instances: 11 named `MEASURED_TERMINAL_ATTACHMENT` rows and three unnamed `TERMINAL_WIRE_ONLY_REVIEW` rows. No row infers internal connectivity or electrical union.
+- The replay binds visible `JD1/JD6/JD2/JD3/JD8` instances without broadcasting names. Distinct attached line handles and external network IDs remain side-specific; one source instance without a unique JD label stays review-only.
+- Removed PWF89 from the live compact queue only after re-reading its current head (`26 -> 25`). Deleted the resolved PWF89 crop after producing the successor crop; independent `SIDE_P001_PWF105_1D34C.png` and side-review replay directories remain untouched.
+- The old `current_symbol_census` replay had already been intentionally cleaned, so a first lookup failed. Rebuilt a dedicated one-page P001 replay from the source DWG instead of depending on stale paths.
+- The first screenshot-render attempt found that both system and bundled Python lack matplotlib. Switched to a direct ezdxf decomposition plus PIL renderer and produced `P001_PWF12a_1D2D4.png` without changing engine behavior.
+
+## 2026-07-15 Phase 138 PWF12a next adjudication
+
+- Live next item is `SYMB2_S_PWF12a`, fingerprint `b440ea59c6edcaa2edd135cbfd3ca4d54f80bb2ea554a9ec7af3eeba5a6be3d0`, eight instances across P001/P003.
+- P001 handle `1D2D4` is nested under `SYMB2_M_PWF105[1D34C]`; parent insertion is `(297.4886,109.9881)` and the selected lower nested world insertion is approximately `(297.4886,99.9881)`.
+- Rendered and visually checked `.tmp/current_symbol_review/P001_PWF12a_1D2D4.png`. The red box isolates the lower numbered `2` state inside the `A'` two-row enclosure. Awaiting human semantics before any engine/model change.
+- Final full regression after PWF89 integration passes `803 passed, 1 skipped`. Queue validation is `25/25`, PWF89 is absent, and PWF12a is the first live main-queue item.
+- Human adjudication: PWF12a follows the PWF105 two-row business rule. It inherits `A'` and contributes independent `A'-1 -> upper same-side line` / `A'-2 -> lower same-side line` mappings; no row-to-row connectivity or union is allowed.
+- A fresh current-head replay shows PWF105 already emits two correct `MEASURED_COMPONENT_PORT_MAPPING` rows (`A'-1` through line `1D353`, `A'-2` through `1D364`). PWF12a itself remains `UNKNOWN / REVIEW_ONLY` and emits 12 duplicate/partial rows with no component identity, so the next engine change must establish parent ownership/row-mechanism evidence instead of adding another parallel mapping set.
+- The first post-change replay command failed because the independently owned `.tmp/side_mid_pwf105/input` directory was cleaned after the baseline read. No source or result was partially changed; rebuild a main-owned single-page input directly from the authoritative DWG path and do not retry the stale side path.
+- Added exact PWF12a authority plus generalized `component.external_row_contact.v1 / single-row-circle-contact-mechanism-v1`. The proposer now emits one line-bound row contact instead of the former two free extremes; 37-degree/1.8x unseen geometry matches and a same-count offset-contact negative stays outside the family.
+- Added parent ownership using nested-path ancestry and parent fingerprint/family classification. PWF12a nested under PWF105 is evidence owned by the parent and emits no duplicate candidates; standalone placements bind one-letter/short component names plus local numeric pins.
+- Corrected nested transform selection from the first chain matrix to the last cumulative current-instance matrix. This prevents multiple child rows from collapsing to the parent origin.
+- Synthetic contract suite passes `4 passed`; combined symbol/PWF12a unit gate passes `88 passed`.
+- Fresh P001 replay: PWF105 emits `A'-1` through `1D353 / EN2-d1d7...` and `A'-2` through `1D364 / EN2-79f3...`; nested PWF12a emits zero rows; standalone PWF12a emits `K-6` through `1D38E / EN2-9f77...` and `K-5` through `1D38F`. All rows remain no-connectivity/no-union.
+- Fresh P003 replay: PWF12a geometry matches the same family, nested children emit zero duplicates, and parent PWF105 alone emits the two `A'-1/A'-2` mappings through lines `420E5/420E8`. The live queue moved concurrently from 25 to 23 while PWF12a remained first.
+- First full-suite gate after PWF12a integration reported `814 passed, 1 skipped, 1 failed`. The failure is a concurrently added dual-row signal-panel IGNORE regression: its exact family is correct but the broad `repeated-external-port-geometry-v1` rule wins the matched-rule slot before the strict IGNORE geometry. Inspect classifier precedence and make the strict IGNORE family win rather than suppressing the test.
+- The dual-row IGNORE classifier changed concurrently before the focused rerun; direct exact/unseen classification then returned the expected strict `dual-row-hatched-circle-panel-v1`, and its focused test passed. Re-running the current complete suite passes `815 passed, 1 skipped`.
+- Analyze-project integration passes `21 passed`; `git diff --check` passes. Removed PWF12a from the live queue after a final re-read (`23 -> 22`).
+- Replayed next head `SYMB2_S_PWF317` on P003 `05 信号回路图.dwg`: current engine already emits `communication.optical_st_port_ignored.v1 / confirmed-optical-st-port-geometry-v1 / IGNORE`, zero ports. It is a stale queue row resolved by the previously confirmed PWF316 geometry family and does not require another human question.
+- The first PWF317 removal patch lost a race because a concurrent reviewer changed queue count `22 -> 21`; the patch failed atomically. Re-read the live head and removed only PWF317 (`21 -> 20`) without overwriting the concurrent removal.
+- Replayed the new head `LA38-11-209B-G` from P001 `21 元件接线图1.dwg`, handle `27F43`, `(65.0,102.49837)`. Current V2 is genuinely `UNKNOWN / REVIEW_ONLY`: `4 CIRCLE + 4 LWPOLYLINE + 3 LINE + 4 TEXT`, text values `11/12/13/14`, and three unreliable free-extreme ports.
+- Rendered and visually checked `.tmp/current_symbol_review/P001_LA38_27F43.png`. The crop shows four numbered contacts under device `5FA`, with visible lower endpoints `5FD3` and `5n115`; it is the next single human question.
+- Cleaned all Phase 138/PWF317/LA38 replay directories and the resolved PWF12a crop after preserving evidence. The review directory now contains only the LA38 crop and live queue JSON.
+- First final queue assertion expected the just-observed count `20`, but a concurrent reviewer removed another unrelated row before validation and the assertion failed without modifying data. Re-read validates `19/19`; PWF12a/PWF317 remain absent and LA38 remains the first live item.
+- Human adjudication for LA38: instance `5FA`; four complete identities `5FA-11/12/13/14`; every port is internally isolated and maps only to its own outward lead. Confirmed examples: `5FA-13 -> 5FD3`, `5FA-14 -> 5n115`.
+- Added exact authority, consecutive-number grid proposal support, and strict `four-numbered-independent-contact-panel-v1` geometry under `component.external_multi_port.v1`. Initial LA38 tests pass `3 passed`.
+- First combined symbol gate reported `97 passed, 1 failed`: the new native-pin precedence was applied to the existing KZKK four-contact frame even though KZKK free-extreme ports carry no native `component_pin`, suppressing its instance label fallback. Split LA38's native-pin condition from the shared four-contact external-mapping behavior; do not weaken either geometry family.
+- After splitting LA38 native pins from KZKK label fallback, the combined symbol/PWF12a/LA38 gate passes `98 passed`.
+- Fresh P001 replay promotes LA38 to `HUMAN_CONFIRMED_MEMBER / component.external_multi_port.v1 / four-numbered-independent-contact-panel-v1 / EXTERNAL_PORTS_ONLY` with four ports. Across six instances it emits 24 identity rows and no internal connectivity/union.
+- Representative handle `27F43` now binds `5FA-13 → 5FD3 / 2949E / EN2-e784...` and `5FA-14 → 5n115 / 294A0 / EN2-21c1...`. `5FA-11/12` remain label-only because no actual outward line exists; no relation is fabricated.
+- Analyze-project integration passes `21 passed`; final current-head repository gate passes `823 passed, 1 skipped`; `git diff --check` passes. Removed LA38 from the live queue after re-reading concurrent changes (`17 -> 16`).
+- Replayed new head P001 `SYMB2_M_PWF176`, fingerprint `8ffdfeebc545ed07bf9b740146cf2c8c729557b453649d679f18248d228d308e`, `08 差动保护及信号回路.dwg`, handle `233C5`, `(85.07056,167.50439)`. V2 is still `UNKNOWN / REVIEW_ONLY` with two real attached endpoints labelled `13/14` but no accepted instance identity or body semantics.
+- Rendered and visually checked `.tmp/current_symbol_review/P001_PWF176_233C5.png`. The crop shows instance `1FA`, contacts `13/14`, an open slanted mechanism line and a mechanically linked lower actuator; it requires human confirmation of whether 13/14 are internally connected, conditionally switched, mutually isolated, or ignored.
+- Human adjudication received for PWF176: `1FA-13` and `1FA-14` are always internally disconnected; each maps only to its own outward lead. Confirmed `1FA-13 -> 1QD3`; no port-to-port connectivity or union is allowed.
+- Added exact authority plus generalized `component.external_strip_two_port.v1 / two-contact-mechanical-actuator-v1`. The model uses both round contacts, opposed axial leads, open oblique blade, and the complete lower actuator geometry rather than block name/fingerprint for generalization.
+- Added exact, unseen rotated/scaled, close-shape negative, and instance-binding coverage in `tests/unit/test_pwf176_mapping.py`; focused result is `3 passed`, compile and `git diff --check` pass.
+- Fresh single-page replay now emits `1FA-13 -> 1QD3 / 233CE / EN2-bbf...` and independent `1FA-14 -> 233CB / EN2-fac...`; both are `MEASURED_COMPONENT_PORT_MAPPING` with no internal connectivity/union. The endpoint binder accepts only a structured designator located on the same external network and leaves the unconfirmed right endpoint empty.
+- Full P001 replay emits 12 correct rows across all six PWF176 instances (`1FA`, `1-2FA`, `3-2FA`, `5FA`, `1-4FA`, `3-4FA`). Scoped gates pass `100 passed` and `21 passed`; final repository gate passes `834 passed, 1 skipped`.
+- Appended the PWF176 ruling/model/replay boundary to the canonical arbitration record and taskbook. Removed only PWF176 from the concurrently changing live queue and cleaned its resolved crop/single-page replay; queue now validates `12/12` with PWF176 absent.
+- Revalidated new head P001 `A$C5C9C7C64`, `04 交流回路图1.dwg`, handle `112A6`, `(40.0,220.0)`, fingerprint `346f8b...`. It remains `UNKNOWN / REVIEW_ONLY` with three draft extrema over a nested three-row `LVS CB` assembly.
+- Rendered and visually checked `.tmp/current_symbol_review/P001_AC5C9C7C64_112A6.png`; the red box includes the shared left rail, three PWF208 rows, three round contacts, bottom line, and nested ground symbol, while surrounding context shows `1ID7/1ID8/1ID9`. Awaiting human semantics.
+- Human adjudication received for `A$C5C9C7C64`: the complete `LVS CB` parent is whole-component IGNORE. No row, shared rail, ground, lead, external line, or nearby `1ID7/1ID8/1ID9` text creates mapping or connectivity.
+- Added exact authority plus generalized `electrical.nonconnective_grounded_three_row_cb_panel_ignored.v1 / grounded-three-row-repeated-mechanism-panel-v1`. The model consumes the complete parent skeleton and name-independent nested child geometry signatures, not the anonymous block name or fingerprint.
+- Added rotated/scaled unseen-fingerprint positive and same-count displaced-child negative coverage in `tests/unit/test_ac5c9c7c64_ignore.py`; focused result is `2 passed`, compile and `git diff --check` pass.
+- Fresh replay of P001 pages 04/05 finds all four instances (`112A6`, `114FB`, `21681`, `21799`), persists zero-port IGNORE for both source definitions, and emits zero symbol network candidates. External attachment, internal connectivity, and union are all false.
+- Appended the A$C5C9C7C64 ruling, complete nested geometry boundary, and replay evidence to the canonical arbitration record/taskbook. Scoped gates pass `107 passed` and `21 passed`; final repository gate passes `842 passed, 1 skipped`.
+- Removed only the resolved A$C5C9C7C64 queue row/crop/replay after re-reading concurrent changes; live queue now validates `10/10` with that fingerprint absent.
+- Revalidated new head P001 `A$C6A636705`, `07 网络通讯回路图.dwg`, handle `1C298`, `(345.0,270.0)`, fingerprint `2c4f732...`. Current V2 remains `UNKNOWN / REVIEW_ONLY` with two draft ports over an exact `2 ARC + 2 LINE` closed capsule.
+- Rendered and visually checked `.tmp/current_symbol_review/P001_AC6A636705_1C298.png`; the red capsule spans the B+/B- rows between TD1/TD4 and WBH-812E-101 terminals 601/602, with the shielding-layer route shown below. Awaiting human semantics.
+- Human adjudication received for A$C6A636705: whole capsule IGNORE; preserve the underlying B+ and B- modelspace routes as two separate uninterrupted networks, do not union them, and do not bind either to `Shielding layer`. Confirmed B+ relation is `TD1 -> 1n601`.
+- Added exact authority plus generalized `non_electrical.cable_sleeve_ignored.v1 / closed-opposed-semicircle-cable-sleeve-v1`. The strict matcher verifies equal opposed semicircles, arc midpoint directions, equal parallel sides, all four endpoint attachments, and full closed-capsule proportions.
+- Added exact, rotated/scaled unseen, inward-bowing same-count negative, and independent-underlying-line coverage in `tests/unit/test_ac6a636705_ignore.py`; focused result is `3 passed`.
+- Fresh page-07 replay persists zero-port IGNORE across all four instances and zero capsule candidates. B+ line `1C28E / EN2-280c...` and B- line `1C28F / EN2-26a8...` remain distinct uninterrupted networks; semantic pair `TD1 -> 601` remains present, interpreted under visible device scope `1n` as `TD1 -> 1n601`.
+- Appended A$C6A636705 semantics, geometry boundaries, and route-preservation evidence to the canonical human record and taskbook. Scoped symbol gates pass `123 passed`; analyze-project integration passes `21 passed`; final repository gate passes `848 passed, 1 skipped`.
+
+## 2026-07-15 Phase 130 PWF330 adjudication
+
+- User confirmed P001 `SYMB2_S_PWF330` is a complete communication/Ethernet LAN port component that must be ignored as a whole. It creates no communication mapping, electrical mapping, attachment, bridge, Pair, Network, or union.
+- Registered source provenance: `07 网络通讯回路图.dwg`, handle `1C27C`, `(135.0,257.5)`, fingerprint `b65e304c63f2661098d380605c4000e75855fbfcc57985109fad3a21c1c88ed5`, 12 instances, block-local `ETHER/NET + 3 LWPOLYLINE`.
+- Updated the taskbook and canonical arbitration record. Started one no-history worker restricted to the geometry-generalized PWF330 family rule and unit tests; the main thread continues queue preparation and next-symbol rendering.
+- Removed PWF330 from the compact queue (`38 -> 37`); next main-queue definition is P001 `A$C2E3F2C02`, 10 instances, representative `14 高操作回路图.dwg` handle `276BF` at `(209.9986,142.4945)`.
+- Next-crop discovery command returned exit code 1 because it included a nonexistent top-level `scripts/` path. The same call confirmed the old census DXF was intentionally deleted; continued by locating the converter under `src/dwg_audit/ingest/dwg_converter.py` instead of repeating that search.
+- PWF330 worker completed and was immediately closed; it reported `54 passed` and added exact/unseen suppression plus positive/negative tests. Main review accepts the strict `ETHER/NET + 3 closed LWPOLYLINE` evidence direction but found its claimed rotation proof only swaps width/height at 90°.
+- Current closed-straight-polyline features use CAD-axis bounding boxes, so a 37° rotation can change each width/height and invalidate or distort the rule. Before acceptance, derive orientation-independent side lengths/topology from the polyline edges and add a real arbitrary-angle extraction regression.
+- Replayed the two-page PWF330/next-symbol source set successfully in 5.3s: both DWGs converted and extracted (`07 网络通讯回路图`: 74 texts/83 lines/36 blocks; `14 高操作回路图`: 121 texts/207 lines/90 blocks).
+- A cache-listing command assumed converted DXFs live under the project result's `input/cache`; that path does not exist in this workflow layout. No files changed; locate the actual conversion paths from the manifest/reader provenance instead of repeating the directory assumption.
+- Fresh real-source artifact confirms PWF330 exact behavior is safely suppressed, but disproves the worker's unseen topology fixture: the real block has two closed bulged contact polylines plus one closed straight body, not three closed straight bodies. Exact fingerprint policy masked this mismatch.
+- Real proposal evidence is `LWPOLYLINE=3`, `TEXT=2`, text values `ETHER/NET`, two normalized contacts at opposite sides, one straight closed body, aspect `1.6`, four pre-policy machine ports. The geometry rule and test fixture must be corrected from this source evidence before acceptance.
+- Direct DXF inspection: PWF330's body is a closed 7.5×7.5 four-edge square; contacts are two closed two-vertex bulged circles of diameter 1 at local x `0` and `11`; text positions lie inside the square. This supports an orientation-free rule using square edge lengths, equal contact radii, contact-axis/body-center alignment, and `ETHER/NET` containment.
+- Located the required feature-extraction change: closed straight LWPOLYLINE records currently persist only center plus axis-aligned width/height. Add ordered closed-edge lengths to that existing record while retaining width/height for backward compatibility; no schema consumer needs removal or renaming.
+- Arbitrary-angle regression can exercise the public `propose_ports_from_block(..., definition_fingerprint=...)` path on a synthetic ezdxf block transformed at 37° and non-unit scale, then apply the normal behavior policy; this validates extraction and classification together rather than hand-editing cached shape fields.
+- Main-thread hardening complete: PWF330 now shares `communication.ethernet_port_ignored.v1` with PWF324 but uses its own `ethernet-lan-wide-contact-body-topology-v1` rule. Closed straight polylines retain backward-compatible bbox fields and add normalized edge lengths.
+- The corrected rule requires exact `ETHER/NET` block text, one four-equal-edge square body, two equal bulged contacts, contact-spacing/body-side ratio, and body-center alignment on the contact axis. PWF names, coordinates, and fingerprints are not normal classification inputs.
+- Targeted corrected tests pass `4 passed`: exact member, unseen real-shape evidence, true 37°/2.3× ezdxf extraction, and incomplete-contact/topology negative.
+- Full PWF330 source validation passes: exact fingerprint yields `HUMAN_CONFIRMED_MEMBER / HUMAN_ADJUDICATED_NON_CONNECTIVE`; the same real block under `unseen-real-pwf330` yields `MATCHED / GEOMETRY_FAMILY_NON_CONNECTIVE`. Both use `ethernet-lan-wide-contact-body-topology-v1` and retain zero ports. Entire symbol-port unit suite passes `59 passed`.
+- Rendered the next main-queue crop `P001_AC2E3F2C02_276BF.png`. It shows an inline upward semicircular bridge/gap graphic on the `204 Manual closing / 手动合闸` line; an equivalent instance appears below on `211 Manual tripping / 手动跳闸`.
+- First cleanup safety check falsely rejected an in-workspace target because the root suffix used a doubled backslash. No deletion occurred. Retried with `Path.GetRelativePath` containment validation, then safely removed the resolved PWF330 crop and two-page replay directory.
+- Concurrent side review reduced the compact queue while this work ran; current validated count is `35`, with `A$C2E3F2C02` (10 instances) still first. Preserved its independently owned `SIDE_P001_AC26C55624_276B6.png` crop.
+- Final repository gate after PWF330 integration passes `779 passed, 1 skipped` in 22.67s.
+
+## 2026-07-15 Phase 130 A$C2E3F2C02 wire-jump adjudication
+
+- User clarified that `A$C2E3F2C02` is not a symbol. It is ordinary wire geometry drawn with an upward semicircular jump so the continuing conductor can visibly cross another conductor.
+- Authoritative topology: the two collinear leads and semicircle are one continuous path; the crossed line remains continuous on its own; the two paths do not connect at their geometric intersection. This item must not use IGNORE behavior because clearing it would incorrectly break the continuing wire.
+- Planned family is a wire primitive such as `wire.crossover_jump.v1`, recognized from a semicircular ARC whose endpoints bind two collinear outward leads. Geometry must generalize under arbitrary rotation/scale and must suppress false component-port review while preserving same-path connectivity only.
+- Updated the taskbook and canonical arbitration record, removed `A$C2E3F2C02` from the compact symbol queue (`35 -> 34`), and started a one-shot engine worker. Next main item is cross-project `Ld_DzbJD_Left` with 10 instances; representative P001 handle `30F34` at `(55.0,252.5)` in `17 差动保护背板图.dwg`.
+- Fresh P001 replay converted/extracted the next page successfully (`302` texts, `636` lines, `4` blocks, `215` polylines). `Ld_DzbJD_Left` contains duplicated stepped bars/stem plus a leftward lead and appears visually as a compact ground-like marker beside `GND` at the top-left `01 电源地` row.
+- Rendered `P001_DZB_LEFT_30F34.png` with the target highlighted. Although it visually resembles a ground marker and mirrors the already resolved right-side family, no semantic decision is inferred until the user confirms this specific left state.
+- User confirmed `Ld_DzbJD_Left` is a ground symbol. It must enter a geometry-generalized ground IGNORE state with zero ports, mappings, attachments, connectivity, and union.
+- The wire-jump worker completed and was immediately closed. It added an isolated `wire.crossover_jump.v1` recognizer and 3 passing tests, but explicitly did not connect it to report/wire-topology artifacts; main-thread integration and source-page verification remain required.
+- Main review of the isolated crossover module confirms it emits only primitive-id union pairs plus `no_junction=True`. No production caller exists; `build_wire_topology_frames` is the correct integration boundary currently used by report artifacts. The worker tests use dictionaries and do not yet prove compatibility with real extracted primitive rows or instance transforms.
+- Ground-worker code review finds the new rule correctly enters the common `electrical.ground_symbol_ignored.v1` family and checks `6 LINE + 3 LWPOLYLINE` plus `_has_repeated_stepped_ground_topology`; unit fixtures cover mirror and offset failures. Real extracted block/page validation is still needed because fixtures hand-build normalized feature rows.
+- Resolved the reflection-equivalent left/right family collision with shared geometry fallback `electrical.nonconnective_stepped_marker_ignored.v1 / stepped-duplicate-bar-nonconnective-v1`. Exact fingerprints still refine the human semantics to left ground vs right marker; unseen mirrored geometry is safely ignored without pretending geometry alone distinguishes the label.
+- Integrated crossover recognition into `build_wire_topology_frames`: matching block evidence refines a gap bridge to `reason=crossover_jump`, records family/parent/primitive ids and `no_junction=true`, and leaves the crossing line outside the local bridge. Added additive `wire_crossover_jumps.json` artifact.
+- Combined targeted regression passes `85 passed` across crossover recognizer, wire topology, and symbol proposal suites, including true 37°/2.4× jump geometry, local crossing isolation, exact semantic refinement, unseen fallback, and negatives.
+- Final recurrence gap is localized in symbol behavior: current modes only support IGNORE/TABLE/TERMINAL/EXTERNAL/REVIEW. Add a distinct `WIRE_PRIMITIVE` mode that suppresses symbol ports/review without claiming non-connectivity; actual path union remains owned by wire topology.
+- First combined WIRE_PRIMITIVE patch assumed a multiline `TABLE_CONTAINER_FAMILIES` declaration; the current file uses a one-line frozenset, so the patch failed atomically with no partial edits. Retry is split into constants/policy, classifier/helper, behavior, and tests using current anchors.
+- Added exact/geometry `WIRE_PRIMITIVE` symbol behavior for `wire.crossover_jump.v1`. It clears false symbol ports with statuses `HUMAN_ADJUDICATED_WIRE_PRIMITIVE` or `GEOMETRY_FAMILY_WIRE_PRIMITIVE`, while leaving all path connectivity to crossover topology rather than calling the wire non-connective.
+- Expanded targeted/integration gate passes `109 passed` across crossover, wire topology, symbol proposal, and analyze-project suites. Started a post-integration two-page real replay for final artifact validation.
+- Post-integration replay exceeded the 120-second command limit and returned exit 124, despite conversion/extraction finishing in ~2 seconds. Inspection found the full findings set already written, including wire/symbol/unknown artifacts, and no residual Python/ODA process; validation proceeds from those complete artifacts instead of repeating the timed-out command.
+- Real artifacts confirm exact proposal semantics are correct: A$ is `HUMAN_ADJUDICATED_WIRE_PRIMITIVE`, left ground is zero-port `HUMAN_ADJUDICATED_NON_CONNECTIVE`, representative bridge has `reason=crossover_jump/no_junction=true`, and no arc-apex junction row exists.
+- Real audit also exposed two remaining defects: the primitive recognizer overmatched 41 block groups (including PWF234) because it searched subsets inside larger definitions, and `unknown_symbol_queue_v1.parquet` is generated before proposal policy so both resolved definitions still appear OPEN. Tighten jump groups to exactly `2 LINE + 1 ARC` and filter the machine unknown queue using authoritative resolved proposal fingerprints.
+- Tightened recognizer grouping to include every primitive in one INSERT group and accept only complete groups containing exactly two LINE plus one ARC. This prevents subset matches inside terminals/devices.
+- Artifact-order inspection confirms unknown queue is serialized immediately after raw symbol inventory, before finalized family/behavior proposals. Defer its write until after proposal finalization and remove only fingerprints with high-confidence IGNORE/WIRE_PRIMITIVE/TABLE_CONTAINER behavior; terminal/external review rows remain untouched.
+- Follow-up schema audit shows `unknown_symbol_queue_v1` is intentionally the raw unregistered-definition inventory (`registered_definition_count=0`) and existing baseline/tests depend on that contract. Do not mutate it with behavior policy. Human work selection continues through the separate compact queue, while authoritative proposal status prevents electrical review/port semantics. The earlier planned raw-queue filter is withdrawn.
+- After whole-group cardinality hardening, the real combined primitive corpus yields exactly five jumps, all A$C2E3F2C02 instances (`276BF/276C0/276C1/276C2/276C3`); all 36 false terminal/device matches are eliminated.
+- Final targeted/integration rerun remains green at `109 passed` after strict-group hardening and WIRE_PRIMITIVE behavior.
+- Removed resolved left-ground screenshot and both verification replay directories after preserving evidence. Concurrent reverse review reduced the live compact queue from 32 to 28; `SYMB2_M_PWF89` remains first with 8 instances, and independently owned `SIDE_P001_AC08415381_216BC.png` is preserved.
+- Final repository gate passes `796 passed, 1 skipped` in 17.39s.
+- A first progress/findings update used two correct bullets in the wrong adjacency order and failed atomically; this retry anchors only the exact existing lines and applies no duplicated record.
+- Wire-topology review confirms current networks are built from legacy `LineEntity` rows, while LINE/ARC members inside A$C2E3F2C02 exist in `artifacts.primitive_segments`. Crossover integration therefore needs a controlled primitive-to-network bridge at `build_wire_topology_frames`, not merely importing the recognizer.
+- `_collect_gap_bridges` already has a generic `block_span` bridge that can merge two collinear external lines separated by a block, while ordinary full crossings remain `crossing_observation` unless `merge_crossings` is enabled. Real-page output must be measured before adding a second bridge path; the specific jump family may need to replace generic block evidence with stronger semantics rather than duplicate an already-correct union.
+- Combined ground/crossover source replay completed successfully on both representative pages. Next audit reads real symbol proposals, primitive rows, external lines, junctions, and networks to determine the actual delta.
+- First combined parquet-inspection script had one extra closing parenthesis in the nearby-line boolean mask and exited before reading any rows; no files changed. Retry uses separately named start/end mask expressions instead of repeating the nested expression.
+- Second inspection recovered decisive data before failing on `or []` against a numpy array in network-row filtering. Ground exact output is safely zero-port under `electrical.ground_symbol_ignored.v1`, but its geometry rule id is the older `dzb-right-stepped-duplicate-bar-marker-v1`, proving the new ground rule overlaps an earlier classifier branch and is not actually selected. Network filtering will normalize ndarray/list values explicitly on retry.
+- Real jump primitives are present for each INSERT as two nested LINE rows and one ARC row with transformed world geometry. The representative external conductor rows are `L0139` ending at `(209.9986,142.4945)` and `L0121` starting at `(219.9986,142.4945)`.
+- Baseline real-page topology already merges `L0139` and `L0121` through junction `J0270` at `(214.9986,142.4945)` with `reason=block_span` and evidence block `B0062`. The jump recognizer should refine this bridge to `reason=crossover_jump` and add no-junction provenance, not create another union.
+- Block `B0062` maps exactly to INSERT handle `276BF`. The conductor crossing the raised arc is legacy line `L0088`, spanning vertically through x `214.9986`; it belongs to the same broad page network through other legitimate junctions, so no-junction correctness must be asserted locally by absence of a jump/crossing junction event, not by comparing final network IDs.
+- Direct real left-ground validation: exact fingerprint is zero-port ground IGNORE; unseen fingerprint is also zero-port geometry IGNORE but falls into the older DZB-right family/rule. The new ground rule is shadowed by an earlier reflection-equivalent rule. Behavioral safety is correct, but family generalization must resolve this non-identifiability honestly.
+- Existing DZB-right regression explicitly requires unseen rotated geometry to retain the right-marker family, so simply moving the new ground rule earlier would silently relabel that generalized family. The left/right overlap needs a topology/chirality discriminator or a documented shared fallback, not rule-order roulette.
+- Production artifact integration points are confirmed: `PrimitiveSegment` has sheet/parent handle plus local/world geometry, and report writing already persists `primitive_segments.parquet`. A new additive `wire_crossover_jumps.json` can preserve recognized jump/no-junction provenance without breaking existing consumers.
+- Registered the left-ground decision in the taskbook and canonical arbitration record. Started a one-shot worker restricted to the left-ground geometry rule and unit tests after closing the wire worker, avoiding concurrent edits to `symbol_port_proposal.py`.
+- First queue-removal patch used the earlier count `34` and did not apply because concurrent reverse review had already reduced the file to `33`; no partial queue edit occurred. Re-read the live head and removed only `Ld_DzbJD_Left`, producing a validated intended count of `32` with `SYMB2_M_PWF89` next.
+- The left-ground worker completed and was immediately closed. It added `ground-symbol-repeated-line-stepped-v1` under `electrical.ground_symbol_ignored.v1`, with exact/unseen, rotation/scale/mirror, and offset negative coverage; reported full symbol-port unit result `65 passed`. Main review and real-source replay remain before acceptance.
+- Replayed P001 `06 直流回路图.dwg` for next item PWF89 (`169` texts, `128` lines, `84` blocks, `5` polylines) and rendered `P001_PWF89_1D360.png`. The red-box symbol has a central circle/slash, four surrounding contacts/leads, and appears at `JD1` on `AC230V L`; similar `JD2/JD6` instances appear nearby.
+- Next queue symbol `A$C2E3F2C02` real definition is `2 LINE + 1 semicircular ARC`: leads `0→3.75` and `6.25→10`, ARC center `(5,0)`, radius `1.25`, angles `0..180`. Context rendering is still required before asking the user.
+
+## 2026-07-15 midpoint review: Ld_DzbJD_Right started
+
+- User confirmed the current midpoint symbol has no connectivity and no external mapping and must enter the IGNORE model.
+- Locked the target to fingerprint `08a272799dbac4bf36f36ebcc1091f94b2273cf27fce8741a3cf31b150d5d123`, representative P001 handle `2AF3` in `27 右侧端子图2.dwg` at approximately `(115.000001674681, 157.5)`.
+- Engine baseline remains `UNKNOWN / REVIEW_ONLY` with one false port. Next action is a real-geometry family plus close-shape negative tests, followed by source-block/page verification and cleanup.
+- Added exact policy and geometry-generalized family `electrical.nonconnective_dzb_right_marker_ignored.v1`. The matcher binds three duplicated stepped bars, a doubled orthogonal stem, and the attached half-length side lead using rotation/scale-invariant relative topology.
+- Added arbitrary rotation/scale positive coverage and a same-count offset-duplicate negative. Targeted DZB tests pass `2 passed`; the complete symbol-proposal unit file passes `58 passed`; analyze-project integration passes `21 passed`.
+- Fresh P001 source-page replay persists `Ld_DzbJD_Right` as `HUMAN_ADJUDICATED_NON_CONNECTIVE / IGNORE`, `ports=0`, all attachment/connectivity/union flags false, and zero symbol network candidates. Direct unseen-fingerprint replay enters `MATCHED / GEOMETRY_FAMILY_NON_CONNECTIVE` with the same zero-port behavior.
+- Appended the ruling and generalized geometry boundary to the taskbook and canonical human-arbitration record. Removed the resolved queue row while preserving concurrent main-thread queue changes; cleanup of this item's screenshot/replay directories follows.
+- Cleanup completed for the resolved DZB item: deleted `SIDE_P001_DZB_RIGHT_2AF3.png`, `.tmp/side_mid_dzb_right`, and its verification replay. The main-thread PWF330 crop remains untouched. Queue validation is `35/35` after concurrent-safe removal.
+- Selected new midpoint index 17: P001 `A$C26C55624`, `14 高操作回路图.dwg`, handle `276B6`, `(249.9986338,134.9945)`, fingerprint `4f4abeddea8e309da9df83614ee3def2228b9e72a1f9a6e788b270ab13ec8fa1`.
+- Current V2 remains `UNKNOWN / REVIEW_ONLY` with two proposed ports. Real definition geometry is `4 LINE + 2` closed straight `LWPOLYLINE`, including a tall rectangle, lower overlap rectangle/diagonal, two left leads and one right lead. Rendered `SIDE_P001_AC26C55624_276B6.png` for human adjudication.
+- Human adjudication: `A$C26C55624` is internally disconnected and has no mapping meaning; classify the whole graphic as IGNORE.
+- First real-block verification attempt failed because the concurrently owned `phase130_pwf330_next` conversion directory was deleted between inspection and replay. Switched to an independent source-DWG replay directory rather than relying on that transient path again.
+- First geometry regression exposed that free-endpoint proposal count changes from 2 to 3 after arbitrary rotation even though the definition topology is identical. The strict family gate is therefore being corrected to accept `{2,3}` machine draft ports while retaining the full rectangle/diagonal/attachment topology checks; port count is not semantic truth.
+- Added exact policy and geometry family `electrical.nonconnective_three_lead_box_ignored.v1`, plus arbitrary rotation/scale positive and detached-lead negative tests.
+- Independent source-DWG replay succeeded after rebuilding from `14 高操作回路图.dwg`: exact member is `HUMAN_ADJUDICATED_NON_CONNECTIVE / IGNORE`, `ports=0`, network candidates `0`, and all attachment/connectivity/union flags false. The same real block under an unseen fingerprint is `MATCHED / GEOMETRY_FAMILY_NON_CONNECTIVE`, also zero-port.
+- Final scoped gates pass: `61 passed` in the complete symbol proposal unit file and `21 passed` in analyze-project integration.
+- Cleaned the resolved `A$C26C55624` replay directory and screenshot, removed its compact-queue row while preserving concurrent changes, and validated the queue at `33/33`.
+- New midpoint is cross-project `SYMB2_M_PWF103`, fingerprint `eec06b5aa9987f50b15e7871e0545c46d26b47ec64abdf9ff796d67c2e328bee`; P001 representative is `06 直流回路图.dwg`, handle `1D348`, `(252.5563,109.9881)`.
+- Fresh P001 replay confirms current V2 is only `component.external_strip_two_port.v1 / REVIEW_REQUIRED`, with two draft ports. Real geometry is `7 LINE + 4` closed bulged contacts `+ 2 CIRCLE`; nearby labels show instance `AK`, port numbers `1/2`, left `AC230V L`, and a right-side numbered endpoint. Rendered `SIDE_P001_PWF103_1D348.png` for human connectivity/mapping adjudication.
+- Human adjudication: `AK-1` maps only to the left external line and `AK-2` only to the right external line; the two ports are internally disconnected.
+- Baseline candidate audit confirms both world ports already bind exact line endpoints and external network IDs at confidence `0.95`, but identities remain incomplete (`component_designator=null`, `component_port_identity=null`) and status is only `MEASURED_EXTERNAL_ATTACHMENT`. Engine work must add strict family promotion plus `AK-1/AK-2` identity binding and retain no-union behavior.
+- First arbitrary-rotation family regression failed because closed two-point bulged contacts derived radius from an axis-aligned bbox, shrinking the measured radius after non-right-angle rotation; the same test also showed the old generic review heuristic's raw bbox aspect is rotation-bound. Corrected contact diameter to pairwise point distance and kept the close-shape negative assertion focused on rejection from the confirmed family rather than requiring the legacy generic review fallback.
+- Full symbol regression then exposed that replacing the legacy `radius` field changed the concurrently added stepped-marker family. Preserved the historical bbox-derived `radius` for compatibility and added a separate rotation-invariant `chord_radius`; the AK strip matcher consumes `chord_radius`, while existing families retain their prior evidence contract.
+- After restoring radius compatibility, the stepped-marker test still failed independently: its classifier branch called only the older DZB-right ratio helper and required an oriented aspect absent from the synthetic contract, while the newly added `_has_repeated_stepped_ground_topology` helper was never used. Integrated the two safe geometry states as alternatives under the same zero-port stepped-marker family.
+- Final real P001 replay now emits exactly two PWF103 mappings: `AK-1` left to external network `EN2-7865...` via line `1D37A`, and `AK-2` right to `EN2-d1d...` via `1D353`. Both rows are `MEASURED_COMPONENT_PORT_MAPPING / COMPONENT_PORT_TO_EXTERNAL_NETWORK`, with no internal connectivity or union.
+- Unseen-fingerprint replay of the real block is `MATCHED / component.external_strip_two_port.v1 / EXTERNAL_PORTS_ONLY` with two retained ports. Final gates pass: symbol proposal `68 passed`; analyze-project integration `21 passed`.
+- Appended PWF103 to the canonical arbitration record/taskbook, removed its queue row without overwriting concurrent main-thread removals, and deleted its source replay and resolved crop. Queue validates at `29/29`.
+- New midpoint is P001 `A$C08415381`, fingerprint `59cf96d51fc55afa4f77a383e0ecf990270dbafbbcd454943b3473039f1a9e5b`, representative `05 交流回路图2.dwg`, handle `216BC`, `(37.5,149.9999997)`, currently `UNKNOWN` with three draft ports.
+- Fresh source replay confirms this is a large repeated three-row/four-output assembly labelled `HVS CB`, with `12 ARC + 27 LINE + 4` duplicated closed contacts. Current free-endpoint proposal retains only three arbitrary extremes and has no family classification, so it cannot be repaired without human port/internal-topology semantics.
+- Rendered `SIDE_P001_AC08415381_216BC.png`; nearby right-side labels are `1-2UD1~2`, `1-2UD3~4`, `1-2UD5~6`, and `1-2UD7~8`.
+- Human adjudication: the entire `HVS CB` component has no mapping meaning and is IGNORE; none of the visible branches or nearby UD labels becomes a component mapping.
+- Added exact policy and generalized family `electrical.nonconnective_repeated_coil_panel_ignored.v1`. Arbitrary 31°/1.8× unseen-fingerprint geometry matches; a same-count offset-arc negative remains unsuppressed. Focused result: `2 passed`.
+- Fresh P001 replay now persists exact `HUMAN_ADJUDICATED_NON_CONNECTIVE / IGNORE`, `ports=0`, network candidates `0`, and all external attachment/internal connectivity/union flags false. The same real block under an unseen fingerprint is `MATCHED / GEOMETRY_FAMILY_NON_CONNECTIVE`, also zero-port.
+- Final gates pass: symbol proposal `73 passed`; analyze-project integration `21 passed`.
+- Appended `A$C08415381` to the canonical arbitration record/taskbook, removed its queue row without overwriting concurrent main-thread removals, and deleted its source replay and resolved crop.
+- New midpoint after concurrent queue movement is cross-project `SYMB2_M_PWF105`, fingerprint `55c2e04f990b264e93b235f7ed3c078a6034a853b3201192f447e7b346d8f06d`, P001 representative `06 直流回路图.dwg`, handle `1D34C`, `(297.4886,109.9881)`, currently `UNKNOWN` with two draft ports.
+- Fresh P001 replay shows a rectangular `A'` two-position box spanning two separate horizontal lines, with visible local port numbers `1/2`; the definition contains two nested INSERTs, one outer closed rectangle, and four closed round contacts. V2 remains `UNKNOWN / REVIEW_ONLY` with two draft ports.
+- Rendered `SIDE_P001_PWF105_1D34C.png` for human confirmation of whether `A'-1/A'-2` are independent external mappings, internally connected, or entirely ignored.
+- Human adjudication: emit `A'-1 -> upper same-side line` and `A'-2 -> lower same-side line`. With no explicit internal-connectivity confirmation, retain `internal_connectivity_inferred=false` and prohibit union.
+- Baseline audit found the generic free-endpoint proposer is geometrically wrong: it selects outer-box corners `(-2.5,-15)` and `(-2.5,5)`, so all four instance candidates are unresolved. Engine work must replace these with the two repeated row contact loci before binding `A'` and port numbers `1/2`.
+- Implemented strict geometry family `component.external_strip_two_port.v1 / named-two-row-box-four-contact-v1` and a dedicated row-port proposer. It replaces the false outer-box corners with `BP1=(0,0)` and `BP2=(0,-10)`, labels them `1/2`, and preserves upper/lower attachment side without any internal union.
+- Added rotation/scale and unseen-fingerprint generalization coverage, an offset-contact negative, and instance binding coverage for apostrophe designators. The complete symbol proposal unit file passes `84 passed`; analyze-project integration passes `21 passed`; `git diff --check` passes.
+- Fresh P001 source replay emits exactly two handle `1D34C` mappings: `A'-1` upper via line `1D353` to network `EN2-d1d7b32e-bf0b-5f5d-b849-fca62153f788`, and `A'-2` lower via line `1D364` to `EN2-79f320f1-1ba6-59dd-bd63-f1d710d3a9d0`. Both are `MEASURED_COMPONENT_PORT_MAPPING / COMPONENT_PORT_TO_EXTERNAL_NETWORK`, with `internal_connectivity_inferred=false` and `electrical_union_eligible=false`.
+- The first full gate exposed a concurrent PWF12a fixture where parent and child proposals shared one fingerprint under different names. Intersected exact-fingerprint candidates with exact definition name, then suppressed only mappings identical in file/sheet/identity/world point/line/network. Focused parent/child coverage passes `5 passed`; the final full repository gate passes `811 passed, 1 skipped`.
+- Replayed the real P001 source again after the parent/child guard; handle `1D34C` still emits only the same correct `A'-1/A'-2` mappings. Removed PWF105 from the live compact queue after re-reading it (`24 -> 23`); queue count and row count both validate at `23`.
+- Deleted the resolved `SIDE_P001_PWF105_1D34C.png` and `.tmp/side_mid_pwf105` after validation; preserved the main-thread `P001_PWF12a_1D2D4.png`.
+- Selected live queue midpoint index 11, P003 `SYMB2_M_PWF270`, and rebuilt `05 信号回路图.dwg` in `.tmp/side_mid_pwf270`. Current V2 remains generic multi-port review with four unresolved geometric extrema and no attached line/network evidence.
+- Rendered and visually checked `.tmp/current_symbol_review/SIDE_P003_PWF270_A22C.png`; the red box isolates the long repeated two-row INSERT beside `GXTX18`. Awaiting human semantics before any PWF270 engine policy or geometry family is added.
+- Human adjudication received for PWF270: all four unresolved extrema are false ports and the whole component is IGNORE. Engine work must use the complete repeated geometry rather than fingerprint-only suppression.
+- Added exact policy plus geometry family `electrical.nonconnective_dual_row_signal_panel_ignored.v1 / dual-row-hatched-circle-panel-v1`. The matcher verifies the complete two-row line/circle/rectangle/HATCH/contact topology with radius-normalized, rotation/scale-invariant relationships.
+- Added exact and unseen `37°/1.9×` positive coverage plus a same-count offset-circle negative. Complete symbol proposal tests pass `86 passed`; analyze-project integration passes `21 passed`; compile and `git diff --check` pass.
+- Fresh P003 source replay persists PWF270 as `HUMAN_CONFIRMED_MEMBER / IGNORE`, `ports=[]`, all external/internal/union flags false, and zero network candidates for handle `A22C` or its fingerprint. Direct real-block replay under an unseen fingerprint is `MATCHED / IGNORE` with the same zero-port behavior.
+- Final repository gate passes `815 passed, 1 skipped`. Re-read the concurrently shortened live queue and removed only PWF270 (`22 -> 21`); deleted its resolved crop and `.tmp/side_mid_pwf270` replay directory after preserving the canonical evidence.
+- A concurrent main-queue removal changed the live queue again from `21` to `20` between midpoint listing and detail lookup. Re-read all rows and selected the actual current midpoint `SYMB2_S_PWF11a` rather than continuing with the stale PWF31 index.
+- Fresh P001 replay shows PWF11a is already generalized by `component.external_row_contact.v1 / single-row-circle-contact-mechanism-v1`: `1D384` emits `K-3 → 1D38C / EN2-12d0...`, and `1D385` emits `K-4 → 1D38D`; both are independent `MEASURED_COMPONENT_PORT_MAPPING` rows with no internal connectivity or union.
+- Removed this stale pre-generalization queue row without asking for redundant human adjudication (`20 -> 19`) and deleted `.tmp/side_mid_pwf11a`. The refreshed midpoint is now `SYMB2_M_PWF31`.
+- Replayed PWF31 on P001 `06 直流回路图.dwg`. V2 is still `UNKNOWN / REVIEW_ONLY`; its two proposed endpoints do attach separately to lines `1D352` and `1D351`, but there is no accepted component identity or body-internal semantics.
+- Rendered and visually checked `.tmp/current_symbol_review/SIDE_P001_PWF31_1D34F.png`. The red box isolates the X-marked vertical two-contact graphic between `AC230V L/N`; awaiting human independent-port/internal-connectivity/IGNORE semantics before changing the engine.
+- Human adjudication received for PWF31: ignore the complete component; its upper/lower contacts are internally disconnected and create no mapping. Reuse the existing `switch.open.v1` zero-port business family with a new strict X-contact geometry subtype rather than adding fingerprint-only suppression.
+- Added exact policy and strict geometry subtype `switch.open.v1 / crossed-two-contact-open-switch-v1`. It verifies the two equal contacts, inward collinear leads, centred opposite-slope X and remaining bulged mechanism path using radius-normalized rotation/scale-invariant geometry.
+- Added exact and unseen `37°/1.8×` positives plus an offset-X negative. Complete symbol proposal tests pass `91 passed`; analyze-project integration passes `21 passed`; compile and `git diff --check` pass.
+- Fresh P001 replay persists PWF31 as `HUMAN_CONFIRMED_MEMBER / IGNORE`, zero ports and zero candidates for handle `1D34F` or its fingerprint. Direct replay of the real block under an unseen fingerprint is `MATCHED / IGNORE`, also with all external/internal/union flags false.
+- Final repository gate passes `823 passed, 1 skipped`. Removed PWF31 from the live queue (`19 -> 18`) and deleted its resolved crop/replay directory. The refreshed midpoint is `WBH-813E-E1SH-101`.
+- Fresh P001 replay shows `WBH-813E-E1SH-101` is already `structural.backplate_table_container.v1 / dense-multi-plugin-backplate-table-v1 / TABLE_CONTAINER`: direct ports and network candidates are zero while nested plugin tables remain preserved. Removed the stale queue row (`18 -> 17`) and deleted its replay without requesting redundant human input.
+- Replayed P003 `DGICOM4000-4GX24GE-HV-HV` from `09 交换机接线图1.dwg`. V2 remains a generic two-port review with two unattached extrema, despite the definition being a full multi-connector equipment panel.
+- Rendered and visually checked `.tmp/current_symbol_review/SIDE_P003_DGICOM_3B840.png`; the red box encloses the complete GE/GX/Console/FAULT/PWR/GND switch panel. Awaiting human whole-panel IGNORE versus connector-mapping semantics.
+- Human adjudication received: ignore the complete DGICOM4000 panel and every native connector graphic; produce no communication or electrical mappings. Engine work will reuse `communication.equipment_panel_ignored.v1` with a strict wide-switch-panel subtype rather than fingerprint-only suppression.
+- Implemented and verified `wide-ge-gx-power-switch-panel-v1`. Exact and unseen rotated/scaled positives are zero-port IGNORE; missing-label and displaced-circle negatives remain review. Complete symbol proposal tests pass `95 passed`; analyze-project integration passes `21 passed`.
+- Fresh raw-DWG replay of `09 交换机接线图1.dwg` persists DGICOM4000 as `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]` with all external/internal/union permissions false. Handle `3B840` and fingerprint `9ab714...` produce zero symbol-port network candidates; the same real proposal with an unseen fingerprint is `MATCHED / IGNORE`.
+- Removed the resolved DGICOM4000 queue row and cleaned its crop/replay. The refreshed midpoint `A$C1D4D7376` was already implemented by the reverse lane; an independent replay of `05 信号回路图.dwg` reconfirmed `hatched-circle-inline-indicator-v1 / HUMAN_CONFIRMED_MEMBER / IGNORE`, zero ports and zero candidates, so its stale queue row was also removed without requesting duplicate human input.
+- Refreshed live midpoint is P003 `SYMB2_S_PWF24a`, fingerprint `a662de3d...`, `06 交换机回路图1.dwg` handle `119F7` at `(287.3411,85.0)`. Fresh V2 remains `UNKNOWN / REVIEW_ONLY` with three draft extrema and six instance review rows across two placements. Rendered `.tmp/current_symbol_review/SIDE_P003_PWF24A_119F7.png`; awaiting human port/mapping/IGNORE semantics before modifying the engine.
+- Human adjudication received: PWF24a is whole-component IGNORE. Added exact provenance plus generalized `electrical.nonconnective_circle_contact_marker_ignored.v1 / diameter-circle-offset-contact-marker-v1`, with rotation/scale positive and offset-contact negative coverage.
+- Fresh raw-DWG replay persists PWF24a as `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`, all emission/attachment/connectivity/union flags false, and zero candidates for handle `119F7` or fingerprint `a662de3d...`. Gates pass: focused `2 passed`, full symbol proposal `99 passed`, analyze-project integration `21 passed`, full suite `836 passed, 1 skipped`.
+- Removed the resolved PWF24a queue row/crop/replay after a concurrent-safe queue refresh (`13 -> 12`). New live midpoint is P001 `A$C38910F98`, `11 非电量开入回路.dwg` handle `2CF8F`, `(160,250)`. Fresh V2 remains `UNKNOWN / REVIEW_ONLY` with the two endpoints of a single 50-unit horizontal line; rendered `.tmp/current_symbol_review/SIDE_P001_AC389_2CF8F.png` for human wire-versus-ignore adjudication.
+- Human adjudication received: exact horizontal panel-internal span is whole-component IGNORE and its sides are disconnected. Corpus audit found target instance count `1`, two total single-LINE definitions in P001/P003, and zero in P003; broad geometry ignore would be unsafe.
+- Added exact-only `non_electrical.panel_internal_line.v1` policy and a close safety regression proving an unseen same-geometry line is not suppressed. Fresh replay yields target `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]` and zero candidates, while neighboring vertical `A$C72EB63F1` remains `UNKNOWN / REVIEW_ONLY`. Symbol proposal tests pass `102 passed`; analyze-project integration passes `21 passed`.
+- Full regression after the exact-only safety exception passes `842 passed, 1 skipped`.
+- Removed the resolved horizontal-line queue row/crop and retained the same fresh source replay for the new midpoint `A$C72EB63F1`, handle `2CF90`. It remains `UNKNOWN / REVIEW_ONLY`, proving the exact exception did not overclaim. Rendered `.tmp/current_symbol_review/SIDE_P001_AC72_2CF90.png` with the complete 180-unit vertical span and surrounding panel routes; awaiting framework-versus-common-bus semantics.
+- Human adjudication received: A$C72 is physically a common bus, but its branch connectivity is outside current audit scope; treat the complete exact member as IGNORE, with no endpoint or intersecting-route connectivity. Added exact-only `non_electrical.panel_internal_bus_excluded.v1` plus an unseen-identical-geometry non-suppression regression.
+- Fresh raw-DWG replay yields `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`, all attachment/connectivity/union flags false, and zero candidates for handle `2CF90` or fingerprint `ae788d00...`; A$C389 remains exact zero-port IGNORE. Focused safety tests pass `2 passed`, symbol proposal `106 passed`, analyze-project integration `21 passed`.
+- Full regression after the exact common-bus audit exclusion passes `843 passed, 1 skipped`.
+- KZKK validation note: the first read-only DXF inspection script used slice notation on accelerated `Vec3`, which raises `TypeError`; switched to explicit `.x/.y` access for the retry. The engine module itself compiles successfully.
+- KZKK definition validation now passes for both exact and unseen fingerprints: exact is `HUMAN_CONFIRMED_MEMBER`, unseen is geometry `MATCHED`; both retain four ports under `component.external_multi_port.v1 / four-contact-isolated-switch-frame-v1 / EXTERNAL_PORTS_ONLY`. The first artifact-binding script assumed the proposal JSON used a `definitions/proposals` list and hit `StopIteration`; inspect the actual report schema and reuse its target metadata on retry.
+- First complete KZKK unit run: `87 passed, 2 failed`. The source-DWG block and real binding already pass, but the synthetic geometry fixture emitted zero draft ports, so both its exact/unseen proposal assertion and its dependent binding assertion failed. Diagnose the fixture/proposer mismatch; do not relax the real geometry recognizer.
+- Second focused KZKK test retry remains `1 passed, 2 failed`. Rotation-invariant contact radius was corrected to chord radius, but one exact/unseen case still reports zero ports and the synthetic binding has no rows. Next inspect each case's fingerprint-binding status and emitted proposal independently; the real source block continues to produce the correct four mappings.
+- KZKK source replay is complete: exact proposal is `HUMAN_CONFIRMED_MEMBER / four-contact-isolated-switch-frame-v1`, four ports, `EXTERNAL_PORTS_ONLY`, no internal connectivity/union. Persisted mappings are exactly `KZKK-1→JD8`, `KZKK-2→CD-WSK-H-J-G-5`, `KZKK-3→JD3`, `KZKK-4→CD-WSK-H-J-G-6`; all four are `MEASURED_COMPONENT_PORT_MAPPING` and no-union. Focused and full symbol proposal suites pass `3 passed` and `89 passed`; `git diff --check` passes.
+- The first repository-wide gate invoked bare `pytest -q` and failed during collection because this Windows launcher did not put the repository root on `sys.path` (`tests.support` import missing). Retry through `python -m pytest -q`, matching the project invocation used by prior successful gates.
+- Final KZKK repository gate passes `818 passed, 1 skipped` via `python -m pytest -q`. The live compact queue was concurrently reduced to `0/0`, so there is no PWF102 row left to remove; preserve that main-thread state rather than rewriting the queue. Clean only the side-owned PWF102 replay/crop, then continue with the already-rendered unconfirmed PWF31 crop.
+- Reverse P003 `A$C1D4D7376` human adjudication is implemented as whole-component IGNORE. Added exact provenance plus generalized family `electrical.nonconnective_inline_indicator_ignored.v1 / hatched-circle-inline-indicator-v1` over the complete `6 LINE + 1 CIRCLE + 2 HATCH` topology; fingerprint is not the generalization mechanism.
+- Exact and unseen rotated/scaled definitions both resolve to zero-port `IGNORE`; a same-count oblique-marker offset remains review. Fresh `07 交换机回路图.dwg` replay persists `HUMAN_CONFIRMED_MEMBER`, `ports=[]`, all external/internal/union permissions false, and zero symbol network candidates. Gates pass: focused `2 passed`, full symbol proposal `93 passed`, analyze-project integration `21 passed`, compile and `git diff --check`.
+- Reverse P003 `DGICOM3000-2GX8GE-HV` is now a whole-region IGNORE under shared family `communication.equipment_panel_ignored.v1`, subtype `compact-ge-gx-power-switch-panel-v1`. The compact 8GE/2GX model is separate from the concurrently implemented wide DGICOM4000 subtype and requires its complete native label arrays, repeated square-cell evidence, four-circle optical grid, and dense panel census.
+- Exact and rotated/scaled unseen synthetic members suppress all ports; missing `GE8` and a displaced optical circle remain review. Fresh `11 元件接线图4.dwg` replay persists `HUMAN_CONFIRMED_MEMBER / IGNORE`, `ports=[]`, all external/internal/union permissions false, and zero network candidates across the definition. Gates pass: focused `2 passed`, full symbol proposal `97 passed`, analyze-project integration `21 passed`, compile and `git diff --check`.
+- Reverse P003 `HYKL-X12-02` is now whole-panel IGNORE under `communication.equipment_panel_ignored.v1 / dual-row-pe-tx-rx-interface-panel-v1`. The model requires the full 4x2 equal-circle grid, eight one-radius outward contacts, enclosing rounded body, exact primitive census, and PE1/PE2/GND/TX/RX/IN/OUT native labels.
+- Exact and rotated/scaled unseen variants suppress all ports; a single displaced circle/contact pair remains review. Fresh `08 元件接线图1.dwg` replay persists `HUMAN_CONFIRMED_MEMBER / IGNORE`, zero ports and zero candidates for both real instances, with all external/internal/union permissions false. Gates pass: focused `2 passed`, full symbol proposal `101 passed`, analyze-project integration `21 passed`, compile and `git diff --check`.
+- Reverse P003 `KK1P` is implemented as `component.external_strip_two_port.v1 / vertical-numbered-two-port-box-v1`. The definition-specific proposer replaces four false outer-box corner extrema with midpoint contacts `(0,15)` pin `1` and `(0,-15)` pin `2`; both point outward and can never union through the body.
+- Exact and rotated/scaled unseen geometry match; a shifted internal divider stays outside the family. Fresh `08 元件接线图1.dwg` replay emits exactly four measured no-union mappings across two instances: `AK-1 -> JD1`, `AK-2 -> A'-1`, `A'-1 -> AK-2`, and `A'-2 -> JD5`. Gates pass: focused `3 passed`, full symbol proposal `105 passed`, analyze-project integration `21 passed`, compile and `git diff --check`.
+- Main queue stale-head validation reran all four current-census `KK1P` instances from P001/P003. Two definition proposals match `vertical-numbered-two-port-box-v1`; eight instance-port rows bind `AK-1/2` or `A'-1/2` to their same-side attached lines, with no internal connectivity and no electrical union. Removed only the refreshed `KK1P` row (`8 -> 7`) and advanced to P001 `SYMB2_M_PWF182`, handle `27718` at `(82.4986339,57.4945)`.
+- Recovery-note error: an initial parallel `rg` orchestration returned exit code `1` because one searched path did not exist and another PowerShell wildcard was invalid. Retried with repository-root globs and explicit non-error handling; no files or engine state were affected.
+- Removed completed Phase 148 AC6 and KK1P replay artifacts after verifying every resolved path stayed under the workspace. The queue's historical census DXF path was already absent, so rebuilt PWF182 from the original DWG in `.tmp/phase149_pwf182_replay`; conversion and extraction completed successfully (`121 texts / 207 lines / 90 blocks / 38 polylines`).
+- PWF182 fresh output confirms `UNKNOWN / REVIEW_ONLY`, four false diagonal-end drafts per instance, zero attached lines, and no inferred connectivity/union. Rendered `.tmp/current_symbol_review/P001_PWF182_27718.png` with both source context and a target detail view; awaiting one human semantic decision before changing the engine.
+- Rendering-note error: the first CAD rendering attempt used the system Python's missing `matplotlib` package. Switched to a direct `ezdxf` geometry decomposition plus Pillow renderer and produced the verified crop without installing or changing dependencies.
+- Human adjudication received for PWF182: whole-symbol IGNORE, with left/right internally disconnected and no mapping. Delegated a bounded engine/test/canonical-doc implementation lane while the main lane advances immediately to the next unknown symbol; the worker must preserve the concurrent uncommitted CD-WSK eight-port geometry changes already present in `symbol_port_proposal.py`.
+- Delegation-note error: the first worker spawn combined `fork_context=true` with an explicit agent type, which the agent service rejects for full-history forks. Retried without the explicit type; worker `Boyle` (`019f663c-e7d8-7f40-afc8-bf58b5c82034`) started successfully. The main lane does not wait on it.
+- Without waiting for the PWF182 worker, rebuilt P001 `16 高低压侧操作箱信号回路.dwg` for queue item `SYMB2_M_PWF192`. Fresh extraction completed (`93 texts / 110 lines / 74 blocks / 14 polylines`). Four instances remain `UNKNOWN / REVIEW_ONLY`; each has two real same-row external attachments but no accepted component behavior or union.
+- Rendered and visually verified `.tmp/current_symbol_review/P001_PWF192_202A3.png`. The red box isolates the open-blade/actuator graphic on the `保护跳闸 / Prot. trip` route; awaiting human IGNORE versus independent-port/internal-switch semantics before changing the engine.
+- Human adjudication received for PWF192: whole-symbol IGNORE, left/right internally disconnected, zero mappings and no union. Its implementation lane will start after the PWF182 worker releases the shared symbol-classifier/test files; meanwhile the main lane advances to the next unknown symbol.
+- Recovery-note error: a parallel catchup/status command returned exit code `1` only because its final `rg` search had no PWF182 match yet; the status output was still captured and showed the delegated worker actively editing the shared classifier/tests. No retry of the same search is needed.
+- Reused the fresh P001 `14 高操作回路图.dwg` replay to inspect `SYMB2_S_PWF10` without blocking on implementation workers. Both instances remain `UNKNOWN / REVIEW_ONLY`; each has one measured line attachment and one false/unresolved draft, with no connectivity or union.
+- Rendered and visually verified `.tmp/current_symbol_review/P001_PWF10_275F5.png`. The red box isolates the two-contact/semicircular motif immediately before QF (with the sibling before KO); awaiting human IGNORE/port/connectivity semantics.
+- Human adjudication received for PWF10: whole-symbol IGNORE. User explicitly reinforced the required completion gate: geometry generalization rather than fingerprint memorization, dedicated source replay after implementation, proof of recognition, and cleanup of screenshot/input/replay before advancing. Phase 151 now encodes these as separate mandatory steps.
+- PWF182 worker completed and was immediately closed. Verification evidence: focused `3 passed`, symbol proposal `112 passed`, full repository `855 passed, 1 skipped`, and `git diff --check` clean. Fresh replay proves `27718/27719` zero ports/candidates/topology applications/semantic relations/network members with connectivity and union disabled. Removed only the refreshed PWF182 live row (`6 -> 5`); artifact cleanup follows before the next implementation lane starts.
+- Completed PWF182 cleanup after path-boundary checks: deleted its review crop, copied input, and replay tree; refreshed queue is consistent at `5/5` with PWF192 as head. Started serial worker `Sagan` (`019f6648-be3d-74d2-987c-a4ff2ca71ab5`) to implement and independently replay PWF192 followed by PWF10 while preserving all existing classifier/test changes.
+- Serial PWF192/PWF10 worker completed and was immediately closed. Main-thread artifact inspection confirms PWF192 four instances and PWF10 two instances are `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`, candidates `0`, with port emission, external attachment, internal connectivity, and electrical union all disabled; topology applications, semantic relations, and network members are also zero for each target.
+- Geometry review confirms the PWF192 matcher normalizes all seven undirected segments in a contact-defined frame, while PWF10 uses complete open-polyline vertices/widths/bulges/visibility plus the closed contact region. Neither geometry branch reads definition name, coordinate, or fingerprint. Gates reported by the completed worker: both focused sets `3 passed`, symbol proposal `119 passed`, integration `28 passed`, full repository `865 passed, 1 skipped`, `git diff --check` clean.
+- Re-read the concurrently shortened queue (`4/4`) and removed only PWF192 and PWF10 (`4 -> 2`), preserving FEIDIAO and PWF102. A diagnostic artifact/process listing returned exit code `1` only because no active Python process existed after both replays had already finished; the replay directories and reports were present and valid.
+- Cleaned all PWF192/PWF10 baseline and post-change input/replay directories plus both review crops after main-thread verification. Queue refresh then showed PWF102 had been concurrently removed by its owning lane, leaving only FEIDIAO.
+- Fresh FEIDIAO replay matches the existing geometry-generalized three-contact socket model and emits E/L/N as three independent measured ports with no connectivity/union. Existing unseen and rotated/scaled regressions confirm this is not fingerprint memorization. Removed the final stale FEIDIAO row (`1 -> 0`); compact queue is now `0/0` and its dedicated artifacts are being cleaned before rebuilding the next review round.
+- Rebuilt full P001 (24 analyzed DWGs) and P003 (10 analyzed DWGs) census under current code. After excluding title metadata and aggregating duplicate per-page proposals, the fresh queue contains five substantive unique definitions: PWF314 (10 instances), A$C08084C19 (2), A$C7E971F70 (2), A$C1DEA74F8 (1), and A$C7B3746B1 (1).
+- Rendered `.tmp/current_symbol_review/P001_PWF314_3056A.png`; PWF314 is a clear circled ground-contact variant. Prior general ground-symbol IGNORE authority applies, so Phase 153 will extend the geometric ground family and replay all ten placements instead of asking the user to repeat the same adjudication.
+- Started one-shot worker `Godel` (`019f6664-c504-7332-b253-dec8736dd92a`) for the PWF314 ground subtype, transformed/negative regressions, eight-page dedicated replay covering all ten placements, canonical docs, and full gates. Main lane will verify and clean before exposing the next symbol.
+- PWF314 worker completed and was immediately closed. Main-thread replay inspection confirms all eight page proposals are `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`, candidates `0`, and target topology applications, semantic nodes/relations, endpoint witnesses, and network members all `0`; connectivity/union are false. Gates: focused `2 passed`, symbol proposal `121 passed`, integration `21 passed`, full repository `867 passed, 1 skipped`, compile and `git diff --check` pass.
+- Re-read the fresh five-item queue and removed only PWF314 (`5 -> 4`), preserving A$C08084C19, A$C7E971F70, A$C1DEA74F8, and A$C7B3746B1. PWF314 replay/crop cleanup follows before presenting the new head.
+- Cleaned the PWF314 replay and crop after verification. Inspected the new head A$C08084C19 and sibling A$C7E971F70: all eight persisted child placements are nested under human-confirmed DGICOM4000 whole-panel IGNORE parents, yet V2 still emits child review candidates. Opened Phase 154 as a generalized ancestor-policy fix rather than requesting redundant labels for panel artwork.
+- Ignored-parent worker completed and was immediately closed. Main inspection confirms P003 09/10 keep both DGICOM parents `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`; A$C080/A$C7E child candidates, topology applications, semantic relations, endpoint witnesses, and network members are all zero. Gates: symbol proposal `126 passed`, integration `22 passed`, full repository `873 passed, 1 skipped`, compile and `git diff --check` pass.
+- Re-read the four-item compact queue and removed only the two nested-only ignored descendants (`4 -> 2`), preserving A$C1DEA74F8 and A$C7B3746B1. The Phase 154 replay and A$C080 review crop are now eligible for cleanup before the next screenshot.
+- Cleaned the Phase 154 input/replay and A$C080 crop after verification. New head A$C1DEA74F8 remains a distinct nested vertical zigzag element under a non-IGNORE CD-WSK parent; rendered `.tmp/current_symbol_review/P001_AC1DEA74F8_27268.png`. Its top/bottom endpoints both attach to separate parent virtual lines, so human semantics are required before any suppression or connectivity rule.
+- User corrected the P003 scope: the entire N2604 contract folder is a test set, not only the 11000 cabinet. Enumeration finds 25 cabinet subdirectories and 450 DWGs. Opened Phase 156 to build a separate full-root census, aggregate all cabinets with P001, preserve A$C1 pending state, and only then replace/clean the obsolete 11000-only census.
+- Complete N2604 root census finished in 699.4s with 25/25 project outputs, 450 DWG source rows, 370 converted/analyzed drawings, 80 intentional cover/directory skips, and zero failed conversion statuses. Rebuilt P001 current-code census afterward to avoid mixing pre-PWF314 artifacts.
+- Replaced the compact queue with a full-scope aggregation: 76 unique geometry/fingerprint groups and 1,088 live instance rows after title-metadata and authoritative ignored-ancestor filtering. Primary names retain aliases for same-fingerprint definitions; priority uses instance count × cabinet-project coverage. PWF168 is the new global head (206 instances/four cabinets); A$C1 remains safely queued at rank 68 with its existing screenshot and pending human semantics.
+- Side midpoint human adjudication implemented for P001 `CD-WSK-H-J-G`: eight pins are mutually isolated, map only outward, and compose with the upper circular-tag instance name. Added exact provenance plus generalized `eight-numbered-side-contact-panel-v1`; focused exact/unseen/negative/binding tests pass `3 passed`.
+- Fresh raw-DWG replay of `21 元件接线图1.dwg` persists eight ports for handle `2739F` under `HUMAN_CONFIRMED_MEMBER / EXTERNAL_PORTS_ONLY`. Instance `K` maps `3→JR-1`, `4→JR-2`, `5→KZKK-2`, `6→KZKK-4`; pins `1/2/7/8` have no external line and remain label-only. Every row has internal connectivity and electrical union disabled.
+- Expanded gates pass: complete symbol-proposal coverage plus the dedicated CD-WSK contract `115 passed`; analyze-project integration `21 passed`; `git diff --check` clean. Removed only fingerprint `d1202915...` from the concurrently refreshed compact queue (`7 -> 6`) and retained all other rows.
+- Final repository gate after CD-WSK integration passes `856 passed, 1 skipped`.
+- Side midpoint JR-01 adjudication implemented as two outward-only ports under `horizontal-numbered-two-circle-box-v1`; focused exact/unseen/negative/binding coverage passes `3 passed`.
+- Fresh raw-DWG replay of P001 `21 元件接线图1.dwg` recognizes handle `273A5` as `HUMAN_CONFIRMED_MEMBER / EXTERNAL_PORTS_ONLY` and persists exactly `JR-1→K-3` and `JR-2→K-4`, both no-connectivity/no-union.
+- JR expanded gates pass: dedicated/complete-symbol/legacy-component coverage `143 passed`, analyze-project integration `21 passed`, and `git diff --check` clean. Removed only JR fingerprint `4045826f...` from the live queue (`5 -> 4`).
+- Final repository gate after JR-01 integration passes `865 passed, 1 skipped`; the side-owned screenshot/input/replay were removed after path-boundary verification.
+- Revalidated stale live row PWF102 with a fresh original-page replay: `HUMAN_CONFIRMED_MEMBER / four-contact-isolated-switch-frame-v1`, four ports, and exact no-union mappings `KZKK-1→JD8`, `KZKK-2→CD-WSK-H-J-G-5`, `KZKK-3→JD3`, `KZKK-4→CD-WSK-H-J-G-6`. Removed only the stale PWF102 row after the concurrent queue had already dropped PWF192/PWF10 (`2 -> 1`).
+
+## 2026-07-16 Phase 155 bounded implementation
+
+- Resumed the shared workspace without reverting or overwriting the existing eight-file coordination diff. Scope is limited to the human-confirmed P001 `A$C1DEA74F8` whole-symbol IGNORE implementation, generalized geometry tests, one-page source replay, canonical append-only documentation, and requested gates.
+- The implementation lane must not commit Git and must leave `.tmp/current_symbol_review/unresolved_symbols.json`, `P001_AC1DEA74F8_27268.png`, and all main-thread queue/review artifacts untouched.
+- Regression scope explicitly retains both roots: P001 `test/110kV变压器保护柜/WBH-812E-E1SA(二侧差动+调压)+WBH-813E-E1SH+WBH-813E-E1SH+WBH-814E-E1SA` and complete P003 `test/【出原理图】N2604HBJ20732J合同` (25 cabinet projects / 450 DWGs).
+- Implemented `electrical.nonconnective_vertical_zigzag_element_ignored.v1 / narrow-frame-four-cell-zigzag-v1`. The matcher derives its frame from the sole closed rectangle, then requires two equal opposite axial leads, four equal-slope diagonals across five equal levels, and duplicated full-width bars joining adjacent diagonals at exactly the three interior levels; definition name and fingerprint are not read by the geometry branch.
+- Added exact plus unseen 37°/1.7× transformed positive coverage and a `12 LINE + 1 LWPOLYLINE` near negative with one duplicate bar offset. Focused gate passes: `python -m pytest -q tests/unit/test_symbol_port_proposal.py -k vertical_zigzag` -> `2 passed, 126 deselected`.
+- First fresh single-page replay correctly suppressed handle `27268` through exact human policy, but its stale `elongated-gap-two-port-candidate-v1` rule revealed a fixture-to-source topology mismatch. Real geometry has four equal-slope diagonals whose adjacent ends lie on opposite frame sides and are joined by the duplicated bars. Updated the complete-geometry contract accordingly; the stored pre-fix raw census shape now independently matches the new family with an unseen fingerprint, and focused tests still pass.
+- Second independent fresh replay to `.tmp/phase155_ac1_replay/output_geometry/input` proves the real definition now reaches `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER / narrow-frame-four-cell-zigzag-v1 / HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`. Target candidates, topology applications, semantic nodes/relations, endpoint witnesses, and network members are all zero; every connectivity/union permission and inferred flag is false.
+- Added analyze-project integration coverage for an unseen-fingerprint complete geometry and downstream zero-candidate suppression. Final gates pass: focused geometry `2 passed`; symbol proposal `128 passed`; analyze-project integration `23 passed`; full repository `876 passed, 1 skipped`; compileall and `git diff --check` clean. No Git commit was created, and the main-thread queue, review screenshot, and replay artifacts were intentionally retained.
+- Human adjudication received for P001 `A$C1DEA74F8`: the entire narrow vertical four-cell zigzag element is IGNORE; top/bottom are not ports, no mapping or internal connectivity exists, and electrical union is forbidden. Started one-shot implementation worker `Mencius` for complete-geometry generalization, transformed/unseen positives, same-count close negatives, dedicated `21 元件接线图1.dwg` replay, canonical docs, and full gates while the main lane audits the complete P001 + full-root P003 queue.
+- Delegation-note error: the first spawn attempt combined `fork_context=true` with an explicit `agent_type`, which the agent service rejects for full-history forks. Retried with inherited agent type/model/reasoning; worker `Mencius` (`019f669c-4c0d-7340-a728-043d3d717a8d`) started successfully. No repository state was changed by the rejected call.
+- Main lane re-read `.tmp/current_symbol_review/unresolved_symbols.json` from synchronized P001 plus complete-root P003. The global head is `SYMB2_M_PWF168`, 206 instances across four P003 cabinet projects; locked representative is `16000 220kV电压并列柜/06 开入回路图.dwg`, handle `28711`, world `(306.4530494,264.2319530)`. Rendering/visual verification proceeds while the A$C1 implementation worker runs.
+- Rendered and visually verified `.tmp/current_symbol_review/P003_PWF168_28711.png`. The red box isolates the complete inline rectangular `R1XD` component; current V2 proposes two shadow-only endpoints attached to distinct external routes. Awaiting human IGNORE/port/internal-connectivity semantics after the active A$C1 acceptance gate completes.
+- Rendering-note error: the first Pillow rectangle call passed WCS-derived y coordinates in inverted screen order and raised `ValueError: y1 must be greater than or equal to y0`. Normalized the four screen bounds before drawing; the retry produced the verified crop. No engine or census artifact was affected.
+- Human adjudication received for full-root P003 queue head `SYMB2_M_PWF168`: ignore the complete inline rectangular `R1XD` element across all 206 instances; left/right are not ports and create no mapping, internal connectivity, or union. Queue implementation behind the active A$C1 worker because both tasks touch the same classifier/tests; main lane advances to the next distinct full-scope item without waiting.
+- Inspected and rendered the next full-scope item as `.tmp/current_symbol_review/P003_PWF209_F255.png`: `SYMB2_M_PWF209`, 89 instances/eight P003 cabinets, representative `04 交流回路图.dwg` handle `F255` at `(32.5,267.5)`. The crop isolates one complete four-contact/two-row component with paired inward semicircular lobes on the UA route; awaiting human mapping and internal-connectivity semantics.
+- Diagnostic-note error: a temporary artifact/process check returned exit code `1` because there were no matching A$C1 replay directories or active Python processes at that instant. Reissued a non-error diagnostic and confirmed the absence; no files or engine state were changed.
+- Human adjudication received for `SYMB2_M_PWF209`: its circular-arc wire motif was already semantically ignored in an earlier round. Generalize that authority to the complete two-row/four-arc/four-contact definition; emit zero ports, mappings, internal connectivity, and union across all 89 instances. Queue it with PWF168 behind the currently active shared-classifier worker, and continue to PWF163 in the main lane.
+- Rendered and visually verified `.tmp/current_symbol_review/P003_PWF163_8047.png`. It is a standard open switch/contact on the `Device alarm` route and falls under prior repeated human authority: electrical switches are whole-symbol IGNORE, internally disconnected, with no ports/mappings/union. Marked it for switch-family generalization without requesting redundant annotation; continue to the next distinct geometry.
+- Rendered and visually verified `.tmp/current_symbol_review/P003_PWF175_287CD.png`. The red box isolates a two-circle/two-contact/two-lead motif labelled with device text above and native `1`/`2` below; 63 instances occur across six P003 cabinets. Awaiting human whole-IGNORE versus numbered outward-port/internal-connectivity semantics.
+- Human adjudication received for `SYMB2_M_PWF175`: compose upper instance name with native pins; `instance-1` maps to the left same-side route and `instance-2` maps to the right same-side route. Pins 1/2 are internally isolated and must never union. Queue a generalized outward-two-port model and continue annotation.
+- A$C1 one-shot worker completed and was immediately closed. Main-thread inspection independently confirms `A$C1DEA74F8[27268]` is `HUMAN_CONFIRMED_MEMBER / narrow-frame-four-cell-zigzag-v1 / IGNORE / ports=[]`; target candidates, topology applications, semantic nodes/relations, endpoint witnesses, and network members are all zero, with all port/attachment/connectivity/union flags false. Reported gates pass: focused `2`, symbol proposal `128`, integration `23`, full repository `876 passed, 1 skipped`, compile and `git diff --check`.
+- Removed only the resolved A$C1 geometry group from the full-scope live queue (`76 -> 75`), preserving P001 and all complete-root P003 rows. Its dedicated replay and review crop are now eligible for path-checked cleanup.
+- After verifying both resolved absolute targets remained under `F:\workspace\XJToolkit\.tmp`, removed `.tmp/phase155_ac1_replay` and `P001_AC1DEA74F8_27268.png`; both paths now report absent. No current PWF168/PWF209/PWF163/PWF175 crop or full census output was touched.
+- Started one-shot serial worker `Nash` (`019f66af-e4b9-79b1-86d3-61c2507393f2`) for the shared-classifier implementation of PWF168, PWF209, PWF163, and PWF175; the worker owns code/tests/docs/replay only and must not touch the live queue or main-thread crops.
+- Rendered and visually verified `.tmp/current_symbol_review/P003_KK2P_OF11_12_2BF75.png`. The complete composite has four main pins `1..4` plus auxiliary pins/contacts `11/12/14`; 30 instances span ten P003 cabinets. Awaiting human naming, per-pin external mapping, and internal-connectivity semantics.
+- Human adjudication received for `KK2P+OF11-12`: use the upper circular-tag instance name and expose only `instance-1/2/3/4`, each mapped to its same-side external lead. Ignore the complete right auxiliary OF area including `11/12/14`; it contributes no ports or mappings. The main four ports remain mutually isolated/no-union under the established multi-port component contract.
+- Rendered and visually verified `.tmp/current_symbol_review/P003_PWF216_28704.png`. It matches the earlier human-confirmed vertical-box/bottom-diagonal ignorable device class; mark all 52 instances for complete-geometry IGNORE generalization with zero ports/mappings/connectivity/union, without repeating the semantic question.
+- Rendered and visually verified `.tmp/current_symbol_review/P003_PWF166_27ABF.png`. The red box isolates a short vertical contact stack between panel label `PE1` and external `GND`; 33 instances span five P003 cabinets. Awaiting grounding-ignore versus terminal/mapping semantics.
+- Inspected full-scope `SYMB2_M_PWF172` at P003 `16000/06 开入回路图.dwg`, handle `28712`; it is the `LED1` diode/emission-arrow graphic already visible beside PWF168. Apply the user's prior whole-diode IGNORE authority across 35 instances/four cabinets, with zero ports/mappings/connectivity/union, and strengthen the geometry model instead of requesting a duplicate label.
+- Prepared and visually checked `.tmp/current_symbol_review/P003_PWF115_1A00D.png` for the next one-at-a-time question. The red box isolates a rotated/scaled four-direction circular junction/contact motif; do not present it until the current PWF166 grounding decision is received.
+- Accepted a bounded serial Phase 157-160 implementation batch for PWF168/PWF209/PWF163/PWF175. The lane must preserve all existing uncommitted work, make no Git commit, retain the live queue/screenshots/censuses, and record both P001 plus the complete P003 contract root (25 cabinets/450 DWGs). Every family must be geometry-generalized with fingerprint used only as provenance, transformed unseen positives, same-count close negatives, real replay evidence, downstream connectivity/union gates, canonical documentation, full tests, compileall, and `git diff --check`.
+- Main-thread acceptance prep independently dumped all four representative block definitions from the preserved full P003 census and confirmed every requested entity count and relative coordinate. The first read-only dump failed only because accelerated ezdxf `Vec3` objects do not support slicing; retrying with explicit `.x/.y` succeeded and changed no artifacts. The measured ratios are now recorded in `findings.md` for later matcher/test review.
+- Two read-only attempts to inspect the active `Nash` worker through thread APIs did not return within bounded waits and were terminated; the worker itself was not interrupted. Acceptance will rely on its completion notification and shared-file evidence instead of repeating the stalled status calls.
+- `Nash` produced no code/test/docs/replay activity for roughly ten minutes, and a single recovery message to that same channel also timed out. With no concurrent shared-file writer visible, the main thread has taken ownership of Phase 157-160 rather than spawning another overlapping agent.
+- Closed the stale `Nash` execution slot after it remained `running` without usable output; no completed result was consumed and no concurrent writer remains. Partial exact-policy entries already present in the shared classifier are preserved for the replacement worker to finish and verify.
+- Reconciled the user's audit against the actual queue: current file declares and contains `75` geometry groups totaling `1,087` instances, reflecting prior removal of the single A$C1 row. Confirmed the remaining named known-authority rows and all three duplicate-name pairs with distinct fingerprints. Opened Phase 166 to finish geometry/replay debt before asking any further semantic question.
+- Current known-semantics debt is therefore `18` live rows / `630` instances; the user's `19`-row total includes the resolved A$C1 row. Ancestry inspection confirms A$C080 is DGICOM-nested, while A$C7E has both DGICOM and `WYD-811-401` parent placements; require parent-specific replay before deleting either queue row.
+- Read back the P003 `10000` proposal: `WYD-811-401` is presently only a two-extrema `line_break.non_connective.candidate.v1 / REVIEW_ONLY`, so its A$C7E children cannot yet inherit whole-panel suppression. Route this through complete-parent equipment-panel geometry rather than a child fingerprint exception.
+- Raw parent census proves WYD is a dense COM/LAN/USB/VGA/PWR device panel (`189` polylines, `96` texts, repeated sockets/circles/hatches), so prior whole-equipment-panel IGNORE authority applies. Queue a strict parent geometry subtype after the active shared-classifier repair lane finishes.
+- Read back cabinet-14000 proposals: `DGICOM4000-8G12GX8GE-HV-HV` is currently a false two-port elongated strip, not whole-panel IGNORE. Therefore both A$C child rows require new complete-parent geometry subtypes (DGICOM 8G12 and WYD), not changes to the general ancestor traversal or child fingerprint exceptions.
+- Direct block census records the DGICOM 8G12 subtype's complete `379/252/120/111/54/40/3` LINE/LWPOLYLINE/ARC/TEXT/HATCH/CIRCLE/INSERT topology and native GX/GE/P/Console/PWR labels for the upcoming strict parent matcher.
+- Diagnostic-note error: the first repository search for `A$C7E971F70` used a double-quoted PowerShell regex, so `$C7E...` interpolation produced an unclosed group. Retried with `rg -F` fixed strings; no files or engine state were changed.
+- Diagnostic-note error: a combined `git diff --stat` plus `rg` status command exited `1` only because the initial search found no new PWF168/PWF209/PWF163/PWF175 implementation matches at that instant; diff output was valid. A later explicit search confirms partial policy entries now exist, so replacement implementation must inspect and complete rather than duplicate them.
+- Closed all three Phase 166 agents immediately on completion. The two read-only audits confirm current totals, mixed A$C7E ancestry, duplicate-fingerprint isolation, FJL equivalence, and 2/4/6-port KK+OF subtypes. The implementation worker reported passing gates, but main-thread source/test inspection rejects acceptance: no four-family tests exist and all four new matchers use incorrect real LWPOLYLINE census assumptions, so exact fingerprint suppression could falsely appear as geometry generalization. Restart a focused repair/replay lane; do not remove queue rows yet.
+- Closed both subsequent prep explorers immediately on completion. Their evidence supplies page coverage, strict per-fingerprint switch subtypes, the full WYD panel contract, and FJL/KK selective-main replay matrices. Corrected one reported arithmetic slip: the eight switch IGNORE fingerprints total `121` instances exactly, matching the user's audit.
+- Main-thread representative replay exposed and fixed a second PWF209 defect: the repair matcher expected an abstract distance grid, while real arc centres form two inner columns/two inset levels with inward-facing semicircles. Replaced it with strict 2x2 arc/contact/line/orientation geometry; focused test passes and fresh PWF209 now reports `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`.
+- Built 13 cabinet-scoped fresh inputs from the complete P003 census and replayed all 40 unique source DWGs containing the four Phase157-160 groups. Aggregate counts exactly recover 421 instances; all 33 proposal rows for the three IGNORE groups have zero downstream artifacts, and all 16 PWF175 proposal rows expose two no-union ports. PWF175 retains a 24-candidate naming gap on two network/communication pages, so only the three IGNORE rows are currently eligible for queue removal.
+- Inspected the 24 unnamed PWF175 candidates in their original pages: both use short alphabetic device label `DYQK`. Extended only `named-isolated-two-circle-two-port-v1` into the existing short-alpha label contract and added a binding regression. Fresh rerun yields all `DYQK-1..12` identities on both pages, all attached and no-union.
+- Final Phase157-160 gates pass: symbol proposal `130 passed`, integration `23 passed`, full repository `878 passed, 1 skipped`, compileall and `git diff --check`. Mechanically removed only PWF168/PWF209/PWF163/PWF175 from the live queue (`75 -> 71`, `1,087 -> 666`); new head is `KK2P+OF11-12`.
+- After path-boundary verification, removed the complete Phase157-160 replay tree and only the four resolved review crops. Current PWF166/PWF115 and later review artifacts remain intact.
+- Prepared original-source replay inputs for the remaining known-semantics batches without touching census/queue: switch IGNORE = 23 DWGs across 14 units; DGICOM8G12/WYD parent panels = 3 DWGs across 2 units; FJL/KK selective ports = 17 DWGs across 15 units. These inputs will be run only after each shared-classifier implementation stabilizes.
+- Implemented the four Phase 157-160 geometry-only classifier branches while
+  preserving all existing partial policy entries and limiting edits to the
+  requested files. Focused symbol proposal tests remain green.
+- Verification: focused symbol proposal 128 passed; analyze-project integration
+  23 passed; full pytest 876 passed, 1 skipped; compileall and git diff --check
+  passed. No queue, screenshot, census, or Git commit was touched.
+- 2026-07-16: Implemented switch-class IGNORE coordination slice in `symbol_port_proposal.py`; preserved existing dirty work, no git commit. Added separate PWF166 six/four-contact rules and geometry-only frame/gap rules. Full validation pending.
+- Phase166 known-semantics closure: PWF166 is authoritative grounding artwork and both six-/four-contact complete-geometry subtypes are whole-symbol `electrical.ground_symbol_ignored.v1`, with zero ports, mappings, connectivity, or union. Switch replay covers 23 DWGs / 121 instances; every accepted subtype is `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER` with zero downstream candidates.
+- Complete DGICOM 8G12 and WYD communication-panel parents now use separate strict equipment-panel geometry subtypes. Three-page replay proves both parents are zero-port IGNORE and all 12 previously queued child placements are suppressed only through recognized whole-parent ancestry.
+- FJL/KK selective-port closure: fresh 17-DWG replay recovers FJL=34, Mirror=29, KK1=2, KK2=30, KK3=10 instances. FJL exposes only line-bound pins 1/2; KK exposes only main pins 1..2/4/6 and suppresses OF 11/12/14. All emitted candidates are no-internal/no-union; wired instances attach their own external lines. Added end-to-end identity/network/endpoint assertions. Queue removed 4 groups / 76 instances.
+- Historical IGNORE self-iteration completed for PWF172 (35 LED/diode-arrow instances) and PWF216 (52 narrow-frame instances). Strict complete segment graphs support rotation/reflection/uniform scale and reject same-count displaced negatives. Eight-page replay yields 5/5 and 8/8 combined-evidence definition rows, zero ports and zero candidates. Live queue is now `53 groups / 364 instances` after also removing the already replay-proven DGICOM/WYD parent rows.
+- Original-image audit confirmed DGICOM3000-4GX8GE-HV inherits the historical whole-communication-panel IGNORE contract. Added a separate complete 4GX/8GE subtype using exact primitive census, required GE/GX/Console/power labels, square-cell count and an eight-circle optical-array distance signature. Fresh original-page replay is combined evidence, zero ports/candidates; queue is `52 groups / 362 instances`.
+- 2026-07-16: Completed WFS/ELXAL geometry-generalization repair. Focused exact/unseen/negative tests pass (`3 passed`); all 7 source DWGs replay with combined machine+human evidence. WFS: 7 instances, 14/14 named and attached polarity mappings, zero internal/union. ELXAL: 6+2 instances across two fingerprints, four isolated ports 11..14, zero internal/union. Removed only these three verified queue rows: `52/362 -> 49/347`.
+- 2026-07-16: Ran six parallel read-only audits over all 49 remaining groups and immediately closed every agent. No additional row has both historical authority and complete geometry proof yet. Preserved duplicate `*U17` fingerprints separately and prioritized high-volume PWF115/PWF85/PWF98 plus strict ancestry handling for SignBlock.
+- 2026-07-16: Added transparent-wrapper backlog filtering and a focused regression; all 14 SignBlock/A$C alias instances have zero local geometry signatures and were removed without runtime IGNORE or descendant suppression (`49/347 -> 48/333`).
+- 2026-07-16: Closed PWF85 over 6 DWGs / 26 instances and PWF200/PWF204/PWF235 over 14 DWGs / 40 instances. Every row uses combined machine+human evidence with subtype-specific invariant geometry, zero ports/candidates/connectivity/union. Live queue is `44 groups / 267 instances`.
+- 2026-07-16: Closed PWF266 over 3 original pages / 6 instances using an independent eight-line duplicated-blade switch geometry rule. Exact and renamed geometry both suppress all ports/candidates; a displaced-line same-census negative is rejected.
+- 2026-07-16: Implemented five additional engine subtypes from historical arbitration and original-page evidence: PWF115 four-radial isolated terminal; PWF98 round-body isolated two-port; PWF218 dual-frame isolated two-port; SYMB1_M_30401 triangle-body isolated two-port; PWF259 rectangular-diagonal mechanism IGNORE. Fingerprints are provenance only.
+- 2026-07-16: Fresh 15-page replay recovered all 132 instances with combined evidence. PWF259 has zero downstream semantics; the four port families retain only outward attachment and report zero internal connectivity/union. Full symbol proposal unit suite passes `148 passed`. Removed only the five replay-proven queue rows: `43/261 -> 38/129`.
+- 2026-07-16: Closed PWF3/PWF303 and both anonymous two-arc routing-capsule fingerprints with three strict geometry-only IGNORE subtypes. Six original pages recover 13/13 instances, all combined evidence and zero ports/candidates. Symbol proposal suite passes `149 passed`; live queue is `34 groups / 116 instances`.
+
+
+## Session: 2026-07-16 15:55 — Desktop industrial workbench
+
+### Frontend productization (M9/M11 slice)
+- **Status:** complete (UI + runtime mode)
+- Actions taken:
+  - Redesigned desktop shell to industrial palette: gray/black/white/rice/amber (灰黑白米黄).
+  - Tightened Chinese product copy to pragmatic concise audit tone.
+  - Result layout: issue list | sticky preview | structured evidence; raw JSON collapsed.
+  - Launch shows engine runtime pill: native sidecar vs browser mock; warns when not connected.
+  - desktopApi error strings localized; `runtimeMode()` / `isNative()` exposed.
+  - Mock issue titles localized for browser preview.
+  - `npm` install + `tsc --noEmit` + `vite build` verified in this session.
+- Files:
+  - `apps/desktop/src/index.css`
+  - `apps/desktop/src/App.css`
+  - `apps/desktop/src/App.tsx`
+  - `apps/desktop/src/lib/desktopApi.ts`
+  - `apps/desktop/src/lib/mockData.ts`
+  - `apps/desktop/README.md`
+- Next:
+  - Smoke real `tauri:dev` against sample project + packaged sidecar.
+  - Optional: page_no / left-right dedicated filters; high-risk non-blocking toast on process page.
+- 2026-07-16: Restart recovery complete. Three one-shot Luna read-only audits were closed after locating the generic numbered-contact extraction/classification/binding path, confirming representative source-page coverage for the clear XJDZ 8/12/16/28-pin batch, and finding no other remaining queue row with both historical semantic authority and complete geometry proof. XJDZ9-04 C+/G-/R- was escalated non-blockingly with original path, handle, coordinates, and screenshot.
+- 2026-07-16: Implemented the reusable numbered round-contact array engine. It now supports strict contiguous `2 × N` arrays up to 32 pins, removes the factorial assignment path for large arrays, separates the single large body polyline from repeated outer contacts, and classifies only complete circle/contact/body/text topology. Focused transformed/unseen/displaced-negative tests pass `6 passed`.
+- Focused-test errors resolved: the first run exposed equal-radius tuple sorting attempting to compare dictionaries; sorting now uses an explicit radius key. Test assertions initially used `matched_rule_id`/`family_rule_id`; the public contract is `matched_family_rule_id`. Neither error affected replay artifacts or the live queue.
+- Direct converted-DXF checks now produce 8/12/16/28 ordered `component_pin` ports for XJDZ9-02/XJDZ4-18/XJDZ9-06/XJDZ9-10. Every row is `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`, `EXTERNAL_PORTS_ONLY`, with no internal-connectivity or union authority.
+- Full symbol proposal unit suite passes `154 passed`. Full-census provenance resolves the four numbered families to eight unique original pages across units 16000/18000/19000/20000/23000/27000; these eight pages are the mandatory focused replay set before queue removal.
+- 2026-07-16: First six-page numbered-array replay recovered 8 proposal rows / 14 instances / 220 native pins with combined evidence and zero internal connectivity/union. Binder repair now always consumes native `component_pin` for this geometry family, marks relations as component-port mappings, applies outward line alignment, and accepts trimmed CAD boundary markers around component labels. Focused `7 passed`; full symbol suite `155 passed`.
+- Replay diagnostics found and rejected a false-positive naming result: XJDZ4-18 side endpoint labels (`1n607`, `1-1n112`) were temporarily selected as the component designator instead of upper `DYQK`. Do not clear this batch until direction-aware component-name filtering is verified. The attempted removal of the first temporary replay directory was blocked by the local execution policy and changed nothing; fresh results were written to `replay2`/`replay3` instead.
+- Screenshot-rendering errors: system and bundled Python both lack matplotlib; no images were produced. Switched to ezdxf's installed SVG backend instead of retrying matplotlib.
+- 2026-07-16: Replay4 acceptance closes the pure-number array batch: 14 instances / 220 native pins across six focused inputs, with correct instance names (`DYQK`, `1BSQ/2BSQ/3BSQ`, etc.), combined geometry+human evidence, and zero internal connectivity/union.
+- Human adjudication recorded for XJDZ9-04: expose exactly `1..8/C+/G-/R-`, compose each with the upper instance name, and map only to the same-side external endpoint; example `1-21KK-1 → 1-21ZK-2`.
+- Implemented strict `numbered-functional-contact-array-v1`: complete `11 CIRCLE + 11 TEXT + 12 LWPOLYLINE` census, exact functional label set, five paired rows plus one extra end row, one-to-one outward circle/contact relation, and one dominant body. Exact and rotated/scaled/mirrored unseen positives match; a displaced same-census negative stays review. Focused tests pass `9 passed`; full symbol proposal suite passes `158 passed` before the final endpoint-binding assertion was added.
+- First XJDZ9-04 all-page replay recovered 7 instances / 77 pins but incorrectly chose side endpoint `1-21CD11` as the component name. Replaced the even-array height estimate with a functional 11-port top-boundary gate; second replay correctly binds `1-21KK/2-21KK/3-21KK`.
+- Third replay covers all 3 source DWGs / 7 instances. All three definition rows are `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`; every instance has all 11 identities; all three `1-21KK-1` occurrences map to `1-21ZK-2` with network-scoped endpoint evidence. All 77 candidates have `internal_connectivity_inferred=false` and `electrical_union_eligible=false`.
+
+### Phase 6: Launch cleanup / delete / issue-crop retention
+- **Status:** complete
+- Actions taken:
+  - 审计完成后 compact session 工作区，SQLite 保留 issue + 坐标辅助信息。
+  - 应用退出调用 cleanup_transient_workspaces，清理转化产物与 preview-cache。
+  - 启动页最近项目支持删除记录（danger 操作列 + confirm）。
+  - 启动页双面板铺满 workspace 高度（导入区 dropzone 放大 + 最近项目表可滚动）。
+  - preview 无 artifacts 时走 sqlite evidence 合成裁剪图。
+  - 补 lifecycle 单测；修复 workspace_compacted 事件 session_id 重复传参。
+- Files created/modified:
+  - src/dwg_audit/desktop/sidecar.py
+  - src/dwg_audit/desktop/preview.py
+  - src/dwg_audit/desktop/state_store.py
+  - apps/desktop/src/App.tsx
+  - apps/desktop/src/App.css
+  - apps/desktop/src/lib/desktopApi.ts
+  - apps/desktop/src-tauri/src/main.rs
+  - tests/unit/test_desktop_lifecycle.py
+

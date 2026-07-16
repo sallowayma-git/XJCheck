@@ -42,6 +42,8 @@ ingest:
   convert_version: "R2018"
   audit_before_load: true
   ascii_stage_dir: ".cache/odafc_stage"
+  # External ODA processes; 0 = auto (min(4, CPU count)).
+  convert_workers: 0
 
 layout:
   page_no_source_priority:
@@ -72,6 +74,13 @@ geometry:
   grid_band_y_tolerance: 5.0
   grid_min_band_count: 8
 
+topology:
+  geometry_graph_asserted_snap_tolerance: 0.05
+  geometry_graph_marker_max_span: 1.0
+  geometry_graph_marker_match_tolerance: 0.75
+  geometry_graph_possible_gap_tolerance: 25.0
+  geometry_graph_gap_alignment_tolerance: 0.25
+
 text:
   numeric_pattern: "^[0-9]+$"
   allow_suffix: false
@@ -93,6 +102,27 @@ extract:
   insert_virtual_entity_categories:
     - "元件接线图"
     - "背板接线图"
+
+recognition:
+  primary_engine: "legacy"
+  legacy_neighborhood:
+    mode: "shadow-compatible"
+    allow_for_text_candidates: true
+    allow_for_connectivity: false
+    allow_for_final_pair: false
+
+wire_components:
+  inline_body_families:
+    - "KLP"
+    - "ZKK"
+
+symbol_library:
+  path: null
+
+table_structure:
+  axis_tolerance: 0.5
+  intersection_tolerance: 0.5
+  min_axis_count: 3
 
 page_category_overrides:
   二次原理图:

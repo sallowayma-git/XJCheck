@@ -2,6 +2,7 @@ from dwg_audit.audit.wire_components import extract_component_prefixed_signal_pa
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.utils.config import DEFAULT_CONFIG, load_config
 
 
 def _make_sheet(sheet_category: str = "二次原理图") -> SheetRecord:
@@ -407,6 +408,65 @@ def test_extract_component_prefixed_signal_pairs_builds_inline_zkk_body_port_map
     assert first.evidence["local_number_text_id"] == "E1"
 
 
+def test_extract_component_prefixed_signal_pairs_builds_scoped_wire_logic_body_port_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("SP1", "3-21n", 285.0, 217.0),
+        _make_text("B1", "3-21DK1", 196.423569, 210.461523),
+        _make_text("P1", "1", 186.874302, 198.784916),
+        _make_text("P2", "2", 206.874302, 198.791899),
+        _make_text("E1", "105", 265.622905, 198.162655),
+        _make_text("P3", "3", 186.874302, 208.777933),
+        _make_text("P4", "4", 206.874302, 208.791899),
+        _make_text("E2", "103", 265.622905, 208.162655),
+        _make_text("SP2", "1-21n", 285.0, 284.5),
+        _make_text("B2", "1-21DK1", 196.423569, 277.961523),
+        _make_text("P5", "1", 186.874302, 266.284916),
+        _make_text("P6", "2", 206.874302, 266.291899),
+        _make_text("E3", "105", 265.622905, 265.662655),
+        _make_text("P7", "3", 186.874302, 276.277933),
+        _make_text("P8", "4", 206.874302, 276.291899),
+        _make_text("E4", "103", 265.622905, 275.662655),
+    ]
+
+    lines = [
+        _make_line("L1", 207.5, 197.5, 267.5, 197.5),
+        _make_line("L2", 207.5, 207.5, 267.5, 207.5),
+        _make_line("L3", 207.5, 265.0, 267.5, 265.0),
+        _make_line("L4", 207.5, 275.0, 267.5, 275.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts, lines)
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert {
+        ("3-21DK1-2", "3-21n105"),
+        ("1-21DK1-2", "1-21n105"),
+    } <= pair_values
+    assert ("3-21DK1-4", "3-21n103") not in pair_values
+    assert ("1-21DK1-4", "1-21n103") not in pair_values
+    first = next(pair for pair in pairs if pair.left_value == "3-21DK1-2")
+    assert first.evidence["component_submode"] == "inline_body_port_mapping"
+    assert first.evidence["component_body"] == "3-21DK1"
+    assert first.evidence["component_port"] == "2"
+    assert first.evidence["local_number"] == "105"
+
+
+def test_extract_component_prefixed_signal_pairs_requires_line_evidence_for_scoped_wire_logic_body_port_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("SP1", "3-21n", 285.0, 217.0),
+        _make_text("B1", "3-21DK1", 196.423569, 210.461523),
+        _make_text("P1", "1", 186.874302, 198.784916),
+        _make_text("P2", "2", 206.874302, 198.791899),
+        _make_text("E1", "105", 265.622905, 198.162655),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs([sheet], texts)
+
+    assert pairs == []
+
+
 def test_extract_component_prefixed_signal_pairs_requires_inline_klp_line_evidence() -> None:
     sheet = _make_sheet()
     texts = [
@@ -438,3 +498,110 @@ def test_extract_component_prefixed_signal_pairs_keeps_unanchored_inline_local_n
     pairs = extract_component_prefixed_signal_pairs([sheet], texts, lines)
 
     assert pairs == []
+
+
+def test_default_config_inline_body_families_are_klp_and_zkk() -> None:
+    assert set(DEFAULT_CONFIG["wire_components"]["inline_body_families"]) == {"KLP", "ZKK"}
+    assert set(load_config()["wire_components"]["inline_body_families"]) == {"KLP", "ZKK"}
+
+
+def test_extract_component_prefixed_signal_pairs_default_config_keeps_inline_klp_mapping() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("B1", "3-2KLP1", 130.0, 105.0),
+        _make_text("P1", "1", 120.0, 100.0),
+        _make_text("E1", "3-2QD2", 90.0, 105.5),
+        _make_text("P2", "2", 140.0, 100.0),
+        _make_text("E2", "116", 170.0, 104.5),
+        _make_text("B2", "1KLP1", 130.0, 55.0),
+        _make_text("P3", "1", 120.0, 50.0),
+        _make_text("E3", "1QD2", 90.0, 55.5),
+        _make_text("P4", "2", 140.0, 50.0),
+        _make_text("E4", "116", 170.0, 54.5),
+    ]
+    lines = [
+        _make_line("L1", 92.0, 100.0, 120.0, 100.0),
+        _make_line("L2", 140.0, 100.0, 168.0, 100.0),
+        _make_line("L3", 92.0, 50.0, 120.0, 50.0),
+        _make_line("L4", 140.0, 50.0, 168.0, 50.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        lines,
+        config=load_config(),
+    )
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert pair_values == {
+        ("3-2KLP1-1", "3-2QD2"),
+        ("3-2KLP1-2", "3-2n116"),
+        ("1KLP1-1", "1QD2"),
+        ("1KLP1-2", "1n116"),
+    }
+    first = next(pair for pair in pairs if pair.left_value == "3-2KLP1-1")
+    assert first.evidence["component_submode"] == "inline_klp_component_port_mapping"
+
+
+def test_extract_component_prefixed_signal_pairs_config_can_drop_zkk_family() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("B1", "3-2ZKK", 315.0, 153.65),
+        _make_text("P1", "1", 304.374302, 150.934916),
+        _make_text("P2", "2", 324.374302, 150.941899),
+        _make_text("E1", "719", 335.625, 150.605016),
+        _make_text("P3", "3", 304.374302, 140.927933),
+        _make_text("P4", "4", 324.374302, 140.941899),
+        _make_text("E2", "720", 335.625, 140.605016),
+        _make_text("P5", "5", 304.374302, 130.941899),
+        _make_text("P6", "6", 324.374302, 130.927933),
+        _make_text("E3", "721", 335.625, 130.632793),
+    ]
+    lines = [
+        _make_line("L1", 325.0, 150.0, 337.5, 150.0),
+        _make_line("L2", 325.0, 140.0, 337.5, 140.0),
+        _make_line("L3", 325.0, 130.0, 337.5, 130.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        lines,
+        config={"wire_components": {"inline_body_families": ["KLP"]}},
+    )
+
+    assert pairs == []
+
+
+def test_extract_component_prefixed_signal_pairs_missing_wire_components_section_falls_back() -> None:
+    sheet = _make_sheet()
+    texts = [
+        _make_text("B1", "3-2KLP1", 130.0, 105.0),
+        _make_text("P1", "1", 120.0, 100.0),
+        _make_text("E1", "3-2QD2", 90.0, 105.5),
+        _make_text("P2", "2", 140.0, 100.0),
+        _make_text("E2", "116", 170.0, 104.5),
+        _make_text("B2", "3-2ZKK", 315.0, 153.65),
+        _make_text("P3", "2", 324.374302, 150.941899),
+        _make_text("E3", "719", 335.625, 150.605016),
+    ]
+    lines = [
+        _make_line("L1", 92.0, 100.0, 120.0, 100.0),
+        _make_line("L2", 140.0, 100.0, 168.0, 100.0),
+        _make_line("L3", 325.0, 150.0, 337.5, 150.0),
+    ]
+
+    pairs = extract_component_prefixed_signal_pairs(
+        [sheet],
+        texts,
+        lines,
+        config={},
+    )
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert {
+        ("3-2KLP1-1", "3-2QD2"),
+        ("3-2KLP1-2", "3-2n116"),
+        ("3-2ZKK-2", "719"),
+    } <= pair_values

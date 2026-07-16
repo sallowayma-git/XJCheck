@@ -299,35 +299,7 @@ class DesktopStateStore:
             ).fetchall()
         return {
             "run": _row_to_run(run_row),
-            "issues": [
-                {
-                    "issue_id": row["issue_id"],
-                    "rule_id": row["rule_id"],
-                    "issue_type": row["issue_type"] or row["rule_id"],
-                    "title": row["title"],
-                    "summary": row["summary"],
-                    "explanation": row["explanation"],
-                    "recommended_action": row["recommended_action"],
-                    "severity": row["severity"],
-                    "status": row["status"],
-                    "confidence": float(row["confidence"]),
-                    "sheet_id": row["sheet_id"] or None,
-                    "file_id": row["file_id"] or None,
-                    "filename": row["filename"],
-                    "sheet_no": row["sheet_no"],
-                    "line_group_id": row["line_group_id"] or None,
-                    "left_value": row["left_value"] or None,
-                    "right_value": row["right_value"] or None,
-                    "primary_pair_id": row["primary_pair_id"] or None,
-                    "one_to_many_classification": row["one_to_many_classification"] or None,
-                    "evidence": json.loads(row["evidence_json"] or "{}"),
-                    "evidence_refs": json.loads(row["evidence_refs_json"] or "[]"),
-                    "related_pair_ids": json.loads(row["related_pair_ids_json"] or "[]"),
-                    "sheet_ids": json.loads(row["sheet_ids_json"] or "[]"),
-                    "values": json.loads(row["values_json"] or "[]"),
-                }
-                for row in issue_rows
-            ],
+            "issues": [_issue_row_to_summary(row) for row in issue_rows],
             "page_findings": [
                 {
                     "sheet_id": row["sheet_id"],
@@ -383,32 +355,7 @@ class DesktopStateStore:
             ).fetchone()
         if row is None:
             return None
-        return {
-            "issue_id": row["issue_id"],
-            "rule_id": row["rule_id"],
-            "issue_type": row["issue_type"] or row["rule_id"],
-            "title": row["title"],
-            "summary": row["summary"],
-            "explanation": row["explanation"],
-            "recommended_action": row["recommended_action"],
-            "severity": row["severity"],
-            "status": row["status"],
-            "confidence": float(row["confidence"]),
-            "sheet_id": row["sheet_id"] or None,
-            "file_id": row["file_id"] or None,
-            "filename": row["filename"],
-            "sheet_no": row["sheet_no"],
-            "line_group_id": row["line_group_id"] or None,
-            "left_value": row["left_value"] or None,
-            "right_value": row["right_value"] or None,
-            "primary_pair_id": row["primary_pair_id"] or None,
-            "one_to_many_classification": row["one_to_many_classification"] or None,
-            "evidence": json.loads(row["evidence_json"] or "{}"),
-            "evidence_refs": json.loads(row["evidence_refs_json"] or "[]"),
-            "related_pair_ids": json.loads(row["related_pair_ids_json"] or "[]"),
-            "sheet_ids": json.loads(row["sheet_ids_json"] or "[]"),
-            "values": json.loads(row["values_json"] or "[]"),
-        }
+        return _issue_row_to_summary(row)
 
     def purge_session(self, session_id: str) -> int:
         with self._connect() as conn:
@@ -423,6 +370,62 @@ class DesktopStateStore:
             conn.execute("DELETE FROM issue_summaries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             deleted = conn.execute("DELETE FROM runs WHERE session_id = ?", (session_id,)).rowcount
         return int(deleted or len(run_ids))
+
+    def list_runs_for_project(self, project_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM runs
+                WHERE project_id = ?
+                ORDER BY updated_at DESC
+                """,
+                (project_id,),
+            ).fetchall()
+        return [_row_to_run(row) for row in rows]
+
+    def list_all_runs(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM runs
+                ORDER BY updated_at DESC
+                """
+            ).fetchall()
+        return [_row_to_run(row) for row in rows]
+
+    def purge_project(self, project_id: str) -> int:
+        with self._connect() as conn:
+            run_ids = [
+                row["run_id"]
+                for row in conn.execute(
+                    "SELECT run_id FROM runs WHERE project_id = ?",
+                    (project_id,),
+                ).fetchall()
+            ]
+            if not run_ids:
+                return 0
+            placeholders = ",".join("?" for _ in run_ids)
+            conn.execute(f"DELETE FROM page_findings WHERE run_id IN ({placeholders})", run_ids)
+            conn.execute(f"DELETE FROM issue_summaries WHERE run_id IN ({placeholders})", run_ids)
+            deleted = conn.execute(
+                f"DELETE FROM runs WHERE run_id IN ({placeholders})",
+                run_ids,
+            ).rowcount
+        return int(deleted or len(run_ids))
+
+    def update_run_artifact_dir(self, *, run_id: str, artifact_dir: str) -> None:
+        now = _now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE runs
+                SET artifact_dir = ?, updated_at = ?
+                WHERE run_id = ?
+                """,
+                (artifact_dir, now, run_id),
+            )
 
     def _ensure_schema(self) -> None:
         with self._connect() as conn:
@@ -508,6 +511,74 @@ class DesktopStateStore:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
+
+
+def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:
+    evidence = json.loads(row["evidence_json"] or "{}")
+    if not isinstance(evidence, dict):
+        evidence = {}
+    handling_class = str(evidence.get("handling_class") or "").strip()
+    if not handling_class:
+        # Backfill for runs stored before triage enrichment.
+        from dwg_audit.audit.issue_triage import summarize_handling
+
+        handling_class = next(
+            (
+                key
+                for key, count in summarize_handling(
+                    [
+                        {
+                            "rule_id": row["rule_id"],
+                            "severity": row["severity"],
+                            "confidence": float(row["confidence"] or 0.0),
+                            "evidence": evidence,
+                        }
+                    ]
+                ).items()
+                if key != "other" and count
+            ),
+            "review",
+        )
+        evidence = {
+            **evidence,
+            "handling_class": handling_class,
+            "handling_label": {"error": "错误", "warning": "警告", "review": "须复核"}.get(
+                handling_class, "须复核"
+            ),
+        }
+    return {
+        "issue_id": row["issue_id"],
+        "rule_id": row["rule_id"],
+        "issue_type": row["issue_type"] or row["rule_id"],
+        "title": row["title"],
+        "summary": row["summary"],
+        "explanation": row["explanation"],
+        "recommended_action": row["recommended_action"],
+        "severity": row["severity"],
+        "status": row["status"],
+        "confidence": float(row["confidence"]),
+        "sheet_id": row["sheet_id"] or None,
+        "file_id": row["file_id"] or None,
+        "filename": row["filename"],
+        "sheet_no": row["sheet_no"],
+        "line_group_id": row["line_group_id"] or None,
+        "left_value": row["left_value"] or None,
+        "right_value": row["right_value"] or None,
+        "primary_pair_id": row["primary_pair_id"] or None,
+        "one_to_many_classification": row["one_to_many_classification"] or None,
+        "handling_class": handling_class or evidence.get("handling_class") or "review",
+        "handling_label": evidence.get("handling_label")
+        or {"error": "错误", "warning": "警告", "review": "须复核"}.get(handling_class, "须复核"),
+        "review_group_id": evidence.get("review_group_id") or row["issue_id"],
+        "review_group_label": evidence.get("review_group_label") or row["title"],
+        "review_group_size": int(evidence.get("review_group_size") or 1),
+        "issue_family": evidence.get("issue_family") or row["title"],
+        "evidence": evidence,
+        "evidence_refs": json.loads(row["evidence_refs_json"] or "[]"),
+        "related_pair_ids": json.loads(row["related_pair_ids_json"] or "[]"),
+        "sheet_ids": json.loads(row["sheet_ids_json"] or "[]"),
+        "values": json.loads(row["values_json"] or "[]"),
+    }
 
 
 def _row_to_run(row: sqlite3.Row) -> dict[str, Any]:

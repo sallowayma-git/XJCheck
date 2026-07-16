@@ -1,0 +1,797 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xjtoolkit.local/schemas/symbol_dependency_library.schema.json",
+  "title": "XJToolkit symbol dependency library review document",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "review_workflow",
+    "geometry_definitions",
+    "symbols"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "symbol-dependency-library-v1"
+    },
+    "review_workflow": {
+      "$ref": "#/$defs/reviewWorkflow"
+    },
+    "geometry_definitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/geometryDefinition"
+      }
+    },
+    "symbols": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/symbol"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": ".*\\S.*"
+    },
+    "nullableString": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stringSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "vector3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "annotationStatus": {
+      "enum": [
+        "UNKNOWN",
+        "MACHINE_PROPOSED",
+        "PENDING_HUMAN_REVIEW",
+        "HUMAN_CONFIRMED",
+        "REJECTED"
+      ]
+    },
+    "registryStatus": {
+      "enum": [
+        "UNKNOWN",
+        "CANDIDATE",
+        "REGISTERED",
+        "DEPRECATED"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "source_kind",
+        "locator",
+        "project_id",
+        "held_out"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "source_kind": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "locator": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "project_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "held_out": {
+          "type": "boolean"
+        }
+      }
+    },
+    "alias": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "namespace",
+        "source_id"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "namespace": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "source_id": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "geometryIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "definition_id",
+        "version",
+        "fingerprint"
+      ],
+      "properties": {
+        "definition_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "symbolIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "version",
+        "fingerprint"
+      ],
+      "properties": {
+        "family": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "geometryDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "definition_id",
+        "version",
+        "fingerprint",
+        "aliases",
+        "sources"
+      ],
+      "properties": {
+        "definition_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/alias"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    },
+    "geometryDependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dependency_id",
+        "target",
+        "required"
+      ],
+      "properties": {
+        "dependency_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "target": {
+          "$ref": "#/$defs/geometryIdentity"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "portBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parent_port_id",
+        "child_port_id"
+      ],
+      "properties": {
+        "parent_port_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "child_port_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "symbolDependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dependency_id",
+        "target",
+        "instance_name",
+        "local_transform",
+        "port_bindings",
+        "required"
+      ],
+      "properties": {
+        "dependency_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "target": {
+          "$ref": "#/$defs/symbolIdentity"
+        },
+        "instance_name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "local_transform": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "port_bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/portBinding"
+          }
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "port_id",
+        "local_position",
+        "outward_direction",
+        "port_type",
+        "aliases",
+        "source_ids",
+        "annotation_status"
+      ],
+      "properties": {
+        "port_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "local_position": {
+          "$ref": "#/$defs/vector3"
+        },
+        "outward_direction": {
+          "$ref": "#/$defs/vector3"
+        },
+        "port_type": {
+          "enum": [
+            "UNKNOWN",
+            "ELECTRICAL",
+            "POWER",
+            "SIGNAL",
+            "CONTROL",
+            "COMMUNICATION",
+            "GROUND",
+            "SHIELD",
+            "MECHANICAL"
+          ]
+        },
+        "aliases": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "source_ids": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "annotation_status": {
+          "$ref": "#/$defs/annotationStatus"
+        }
+      }
+    },
+    "connectivityGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "group_id",
+        "port_ids",
+        "state",
+        "annotation_status",
+        "source_ids"
+      ],
+      "properties": {
+        "group_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "port_ids": {
+          "$ref": "#/$defs/stringSet",
+          "minItems": 2
+        },
+        "state": {
+          "enum": [
+            "UNKNOWN",
+            "POSSIBLE",
+            "ASSERTED",
+            "REJECTED"
+          ]
+        },
+        "annotation_status": {
+          "$ref": "#/$defs/annotationStatus"
+        },
+        "source_ids": {
+          "$ref": "#/$defs/stringSet"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "annotation_status": {
+                "const": "PENDING_HUMAN_REVIEW"
+              }
+            },
+            "required": [
+              "annotation_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "UNKNOWN",
+                  "POSSIBLE",
+                  "REJECTED"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "ASSERTED"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "annotation_status": {
+                "const": "HUMAN_CONFIRMED"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "itemReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reviewer",
+        "reviewed_at",
+        "evidence_source_ids",
+        "notes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PENDING_HUMAN_REVIEW",
+            "HUMAN_CONFIRMED",
+            "REJECTED"
+          ]
+        },
+        "reviewer": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "reviewed_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_source_ids": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullableString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "PENDING_HUMAN_REVIEW"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reviewer": {
+                "type": "null"
+              },
+              "reviewed_at": {
+                "type": "null"
+              },
+              "evidence_source_ids": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "HUMAN_CONFIRMED",
+                  "REJECTED"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reviewer": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "reviewed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "evidence_source_ids": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backlog_rank",
+        "review_reason_codes",
+        "family",
+        "version",
+        "fingerprint",
+        "definition_names",
+        "geometry_dependencies",
+        "symbol_dependencies",
+        "ports",
+        "internal_connectivity_groups",
+        "aliases",
+        "sources",
+        "annotation_status",
+        "registry_status",
+        "critical_issue_eligible",
+        "review"
+      ],
+      "properties": {
+        "backlog_rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "review_reason_codes": {
+          "$ref": "#/$defs/stringSet",
+          "minItems": 1
+        },
+        "family": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "definition_names": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "geometry_dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/geometryDependency"
+          }
+        },
+        "symbol_dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/symbolDependency"
+          }
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "internal_connectivity_groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/connectivityGroup"
+          }
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/alias"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "annotation_status": {
+          "$ref": "#/$defs/annotationStatus"
+        },
+        "registry_status": {
+          "$ref": "#/$defs/registryStatus"
+        },
+        "critical_issue_eligible": {
+          "type": "boolean"
+        },
+        "review": {
+          "$ref": "#/$defs/itemReview"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "review": {
+                "properties": {
+                  "status": {
+                    "const": "PENDING_HUMAN_REVIEW"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            },
+            "required": [
+              "review"
+            ]
+          },
+          "then": {
+            "properties": {
+              "annotation_status": {
+                "enum": [
+                  "UNKNOWN",
+                  "MACHINE_PROPOSED",
+                  "PENDING_HUMAN_REVIEW"
+                ]
+              },
+              "registry_status": {
+                "enum": [
+                  "UNKNOWN",
+                  "CANDIDATE"
+                ]
+              },
+              "critical_issue_eligible": {
+                "const": false
+              },
+              "internal_connectivity_groups": {
+                "items": {
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "UNKNOWN",
+                        "POSSIBLE",
+                        "REJECTED"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "review": {
+                "properties": {
+                  "status": {
+                    "const": "HUMAN_CONFIRMED"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            },
+            "required": [
+              "review"
+            ]
+          },
+          "then": {
+            "properties": {
+              "annotation_status": {
+                "const": "HUMAN_CONFIRMED"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "review": {
+                "properties": {
+                  "status": {
+                    "const": "REJECTED"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            },
+            "required": [
+              "review"
+            ]
+          },
+          "then": {
+            "properties": {
+              "annotation_status": {
+                "const": "REJECTED"
+              },
+              "registry_status": {
+                "enum": [
+                  "UNKNOWN",
+                  "CANDIDATE",
+                  "DEPRECATED"
+                ]
+              },
+              "critical_issue_eligible": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "registry_status": {
+                "const": "REGISTERED"
+              }
+            },
+            "required": [
+              "registry_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "annotation_status": {
+                "const": "HUMAN_CONFIRMED"
+              },
+              "review": {
+                "properties": {
+                  "status": {
+                    "const": "HUMAN_CONFIRMED"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "critical_issue_eligible": {
+                "const": true
+              }
+            },
+            "required": [
+              "critical_issue_eligible"
+            ]
+          },
+          "then": {
+            "properties": {
+              "annotation_status": {
+                "const": "HUMAN_CONFIRMED"
+              },
+              "registry_status": {
+                "const": "REGISTERED"
+              },
+              "ports": {
+                "minItems": 1,
+                "items": {
+                  "properties": {
+                    "annotation_status": {
+                      "const": "HUMAN_CONFIRMED"
+                    }
+                  }
+                }
+              },
+              "review": {
+                "properties": {
+                  "status": {
+                    "const": "HUMAN_CONFIRMED"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reviewWorkflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflow_version",
+        "document_status",
+        "notes"
+      ],
+      "properties": {
+        "workflow_version": {
+          "const": "symbol-library-review-v1"
+        },
+        "document_status": {
+          "enum": [
+            "PENDING_HUMAN_REVIEW",
+            "REVIEW_COMPLETE"
+          ]
+        },
+        "notes": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    }
+  }
+}

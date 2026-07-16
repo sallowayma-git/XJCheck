@@ -11,12 +11,14 @@ from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.rule_base import AuditRule
 from dwg_audit.audit.rule_base import RuleContext
 from dwg_audit.audit.rules import build_issues
+from dwg_audit.audit.symbol_dependency_library import SymbolDependencyLibrary
 
 __all__ = [
     "AuditRule",
     "PairGraphSummary",
     "PairingExtractionResult",
     "RuleContext",
+    "SymbolDependencyLibrary",
     "build_pair_graph",
     "build_line_groups",
     "build_terminal_candidates",

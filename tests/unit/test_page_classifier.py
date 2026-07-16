@@ -142,6 +142,7 @@ def test_classify_pages_marks_grid_heavy_wire_diagram() -> None:
     assert classification.audit_disposition == "audit_required"
     assert classification.route_target == "WireDiagramExtractor"
     assert classification.features["grid_band_count"] >= 8
+    assert classification.capabilities == ("WireTopology",)
 
 
 def test_classify_pages_marks_table_like_page() -> None:
@@ -347,3 +348,35 @@ def test_classify_pages_upgrades_structured_backplate_table_to_table_extractor()
     assert classification.route_target == "TableExtractor"
     assert classification.features["backplate_virtual_header_count"] == 1
     assert classification.features["backplate_virtual_row_number_count"] == 8
+    assert classification.capabilities == ("SymbolPorts", "TerminalGrid", "TableMapping")
+
+
+def test_classify_pages_emits_communication_medium_from_two_in_area_content_cues() -> None:
+    sheet = _make_sheet(sheet_category=None, sheet_title="普通页")
+    texts = [
+        _make_text("LC", "S1", 20.0, 40.0, "LC"),
+        _make_text("RX", "S1", 40.0, 40.0, "RX"),
+        _make_text("RS", "S1", 20.0, 30.0, "RS485"),
+        _make_text("GND", "S1", 40.0, 30.0, "GND"),
+    ]
+
+    classification = classify_pages([sheet], texts, [], [], [], DEFAULT_CONFIG)["S1"]
+
+    assert classification.communication_media == ("fiber_optic", "serial")
+    assert "CommunicationMedium" in classification.capabilities
+    assert classification.capability_evidence["CommunicationMedium"]["state"] == "candidate"
+    assert classification.route_target == "LayoutOnlyExtractor"
+
+
+def test_classify_pages_does_not_emit_medium_from_one_cue_or_title_block_text() -> None:
+    sheet = _make_sheet(sheet_category=None, sheet_title="RS485 LC RX")
+    # Only LC is in the audit area.  The serial/fiber-looking title is outside it.
+    texts = [
+        _make_text("LC", "S1", 20.0, 40.0, "LC"),
+        _make_text("TITLE", "S1", 20.0, 95.0, "RS485 RX GND"),
+    ]
+
+    classification = classify_pages([sheet], texts, [], [], [], DEFAULT_CONFIG)["S1"]
+
+    assert classification.communication_media == ()
+    assert classification.capabilities == ("MetadataOnly",)

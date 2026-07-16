@@ -57,7 +57,9 @@ class IssueFactory:
             "confidence": pair.confidence,
             "filename": sheet.filename if sheet else None,
             "sheet_no": sheet.sheet_no if sheet else None,
+            "sheet_title": sheet.sheet_title if sheet else None,
             "sheet_order": sheet.sheet_order if sheet else None,
+            "page_no_source": sheet.page_no_source if sheet else None,
             "line_start": [group.start_x, group.start_y] if group else None,
             "line_end": [group.end_x, group.end_y] if group else None,
             "rationale": pair.rationale,
@@ -70,20 +72,30 @@ class IssueFactory:
         evidence_refs = []
         for related_pair in related:
             related_sheet = self.sheet_map.get(related_pair.sheet_id)
+            related_group = self.group_map.get(related_pair.line_group_id)
             evidence_refs.append(
                 {
                     "pair_id": related_pair.pair_id,
                     "sheet_id": related_pair.sheet_id,
                     "filename": related_sheet.filename if related_sheet else None,
                     "sheet_no": related_sheet.sheet_no if related_sheet else None,
+                    "sheet_title": related_sheet.sheet_title if related_sheet else None,
                     "sheet_order": related_sheet.sheet_order if related_sheet else None,
                     "line_group_id": related_pair.line_group_id,
+                    "line_start": (
+                        [related_group.start_x, related_group.start_y] if related_group else None
+                    ),
+                    "line_end": (
+                        [related_group.end_x, related_group.end_y] if related_group else None
+                    ),
                 }
             )
 
         values = [value for value in {pair.left_value, pair.right_value} if value]
         if extra:
             values.extend(str(value) for value in extra.get("conflicting_values", []) if value)
+
+        from dwg_audit.audit.issue_triage import RULE_ISSUE_TYPES
 
         return Issue(
             issue_id=self.issue_ids.next(),
@@ -103,7 +115,7 @@ class IssueFactory:
             sheet_order=sheet.sheet_order if sheet else None,
             rationale=pair.rationale,
             evidence=evidence,
-            issue_type=rule_id,
+            issue_type=RULE_ISSUE_TYPES.get(rule_id, rule_id),
             title=title or message,
             summary=message,
             explanation=explanation or message,

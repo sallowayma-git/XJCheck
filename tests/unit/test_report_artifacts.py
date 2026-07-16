@@ -1,9 +1,11 @@
 import json
+from dataclasses import fields
 from pathlib import Path
 
 import pandas as pd
 
 from dwg_audit.domain.models import Issue
+from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import Manifest
 from dwg_audit.domain.models import PageClassification
 from dwg_audit.domain.models import Pair
@@ -13,6 +15,12 @@ from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SidecarInfo
 from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.domain.models import TerminalCandidate
+from dwg_audit.domain.models import TextItem
+from dwg_audit.domain.models import record_dict
+from dwg_audit.extract.primitive_normalizer import PRIMITIVE_ALGORITHM_VERSION
+from dwg_audit.extract.primitive_normalizer import PRIMITIVE_SCHEMA_VERSION
+from dwg_audit.extract.primitive_normalizer import PrimitiveSegment
+from dwg_audit.readers import ReaderRun
 from dwg_audit.report.artifacts import write_audit_outputs
 from dwg_audit.report.artifacts import write_project_artifacts
 
@@ -68,18 +76,215 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
         project_root="C:/demo",
     )
 
-    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan), tmp_path)
+    reader_run = ReaderRun(
+        file_id="F0001",
+        backend_name="odafc",
+        backend_version="27.1.0",
+        backend_build_id=None,
+        capabilities={"native_dwg": True},
+        discovery_source="config",
+        options={"target_version": "R2018", "audit": True},
+        status="skipped",
+        cache_hit=False,
+        cache_identity_enforced=True,
+        document_path=None,
+        error_code=None,
+        detail=source.skip_reason,
+    )
+    extraction_gate_payload = {
+        "analysis_status": "COMPLETE",
+        "clean_conclusion_allowed": True,
+        "incomplete_page_count": 0,
+        "incomplete_sheet_ids": [],
+        "failure_code_counts": {},
+        "pages": [
+            {
+                "sheet": "S0001",
+                "file": "F0001",
+                "filename": "01.dwg",
+                "audit_role": "skip",
+                "audit_disposition": "skip_stable",
+                "status": "NOT_APPLICABLE",
+                "failure_codes": [],
+                "primitive_counts": {"text": 0, "line": 0, "block": 0, "polyline": 0, "total": 0},
+                "warning_codes": [],
+                "executed_extractor": None,
+            }
+        ],
+    }
+
+    class GateStub:
+        def to_dict(self) -> dict:
+            return extraction_gate_payload
+
+    project_dir = write_project_artifacts(
+        ProjectArtifacts(scan=scan, reader_runs=[reader_run]),
+        tmp_path,
+        extraction_gate=GateStub(),
+    )
     findings_dir = project_dir / "findings"
     page_findings_dir = findings_dir / "page_findings"
     findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    reader_run_payload = json.loads((project_dir / "reader_run.json").read_text(encoding="utf-8"))
+    extraction_gate_written = json.loads(
+        (project_dir / "extraction_completeness.json").read_text(encoding="utf-8")
+    )
 
     assert (project_dir / "manifest.json").exists()
+    assert reader_run_payload == {
+        "schema_version": "reader-run-manifest/v1",
+        "project_id": "Demo 项目",
+        "runs": [reader_run.to_dict()],
+    }
+    assert extraction_gate_written == extraction_gate_payload
+    assert json.loads((project_dir / "manifest.json").read_text(encoding="utf-8")) == record_dict(scan.manifest)
+    assert list(pd.read_parquet(findings_dir / "source_files.parquet").columns) == [
+        field.name for field in fields(SourceFileRecord)
+    ]
+    assert "reader_run" not in findings_payload
+    assert "reader_runs" not in findings_payload
     assert (findings_dir / "findings.md").exists()
     assert (findings_dir / "findings.json").exists()
     assert (findings_dir / "polylines.parquet").exists()
+    assert (findings_dir / "primitive_segments.parquet").exists()
+    extraction_census = json.loads(
+        (findings_dir / "extraction_census.json").read_text(encoding="utf-8")
+    )
+    assert extraction_census == {
+        "schema_version": "extraction-census-project-v1",
+        "project_id": "Demo 项目",
+        "file_count": 0,
+        "files": [],
+    }
+    extraction_census_summary = json.loads(
+        (findings_dir / "extraction_census_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert extraction_census_summary["file_count"] == 0
+    assert extraction_census_summary["status_counts"] == {}
+    assert extraction_census_summary["error_code_counts"] == {}
+    scale_summary = json.loads(
+        (findings_dir / "scale_evidence_summary.json").read_text(encoding="utf-8")
+    )
+    assert scale_summary["file_count"] == 0
+    assert scale_summary["applied_to_geometry_count"] == 0
+    assert scale_summary["geometry_mutation_forbidden"] is True
+    assert scale_summary["canonical_millimetre_ready"] is False
+    shadow_gap_summary = json.loads(
+        (findings_dir / "shadow_gap_triage_summary.json").read_text(encoding="utf-8")
+    )
+    assert shadow_gap_summary["total_shadow_unsupported_entities"] == 0
+    assert shadow_gap_summary["any_adapter_authorized"] is False
+    canonical_scene_summary = json.loads(
+        (findings_dir / "canonical_scene_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert canonical_scene_summary["scene_count"] == 0
+    assert canonical_scene_summary["shadow_contract_valid"] is True
+    assert (findings_dir / "canonical_scene").is_dir()
+    assert pd.read_parquet(findings_dir / "canonical_scene_records.parquet").empty
+    assert pd.read_parquet(findings_dir / "canonical_scene_views.parquet").empty
+    assert pd.read_parquet(
+        findings_dir / "canonical_scene_diagnostics.parquet"
+    ).empty
+    assert pd.read_parquet(findings_dir / "primitive_segments.parquet").empty
+    assert json.loads(
+        (findings_dir / "primitive_segments_summary.json").read_text(encoding="utf-8")
+    ) == {
+        "schema_version": "primitive-summary-v1",
+        "primitive_schema_version": "primitive-segment-v1",
+        "total": 0,
+        "kind_counts": {},
+        "status_counts": {},
+        "unsupported_kind_counts": {},
+    }
+    symbol_summary = json.loads(
+        (findings_dir / "symbol_inventory_summary.json").read_text(encoding="utf-8")
+    )
+    assert symbol_summary["definition_count"] == 0
+    assert symbol_summary["unknown_critical_issue_eligible_count"] == 0
+    assert (findings_dir / "symbol_definitions_v1.parquet").exists()
+    assert (findings_dir / "symbol_instances_v1.parquet").exists()
+    assert (findings_dir / "unknown_symbol_queue_v1.parquet").exists()
+    symbol_dependency_library = json.loads(
+        (findings_dir / "symbol_dependency_library.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert symbol_dependency_library["source_status"] == "not_configured"
+    assert symbol_dependency_library["summary"]["symbol_count"] == 0
+    symbol_dependency_validation = json.loads(
+        (findings_dir / "symbol_dependency_validation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert symbol_dependency_validation["valid"] is True
+    assert symbol_dependency_validation["load_issues"] == []
+    assert (findings_dir / "symbol_dependency_issues.parquet").exists()
+    assert pd.read_parquet(findings_dir / "symbol_dependency_issues.parquet").empty
+    symbol_dependency_summary = json.loads(
+        (findings_dir / "symbol_dependency_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert symbol_dependency_summary["library_valid"] is True
+    port_shadow_summary = json.loads(
+        (findings_dir / "symbol_port_shadow_summary.json").read_text(encoding="utf-8")
+    )
+    assert port_shadow_summary["placement_count"] == 0
+    assert port_shadow_summary["electrical_union_eligible_count"] == 0
+    assert port_shadow_summary["critical_issue_eligible_count"] == 0
+    port_shadow_placements = json.loads(
+        (findings_dir / "symbol_port_shadow_placements.json").read_text(encoding="utf-8")
+    )
+    assert port_shadow_placements["placements"] == []
     assert (findings_dir / "extraction_warnings.parquet").exists()
     assert (findings_dir / "wire_junctions.parquet").exists()
     assert (findings_dir / "wire_networks.parquet").exists()
+    assert (findings_dir / "geometry_shadow_nodes.parquet").exists()
+    assert (findings_dir / "geometry_shadow_edges.parquet").exists()
+    assert (findings_dir / "geometry_shadow_components.parquet").exists()
+    assert (findings_dir / "geometry_shadow_observations.parquet").exists()
+    assert (findings_dir / "junction_observations_v2.parquet").exists()
+    assert (findings_dir / "topology_decisions.parquet").exists()
+    topology_decision_summary = json.loads(
+        (findings_dir / "topology_decision_summary.json").read_text(encoding="utf-8")
+    )
+    assert topology_decision_summary["decision_count"] == 0
+    assert topology_decision_summary["non_asserted_union_violation_count"] == 0
+    electrical_summary = json.loads(
+        (findings_dir / "electrical_network_summary.json").read_text(encoding="utf-8")
+    )
+    assert electrical_summary["network_count"] == 0
+    assert electrical_summary["non_asserted_union_application_count"] == 0
+    assert (findings_dir / "electrical_networks_v2.parquet").exists()
+    assert (findings_dir / "network_members_v2.parquet").exists()
+    assert (findings_dir / "network_open_endpoints_v2.parquet").exists()
+    assert (findings_dir / "possible_boundaries_v2.parquet").exists()
+    assert (findings_dir / "topology_decision_applications.parquet").exists()
+    assert (findings_dir / "network_endpoint_witnesses_v2.parquet").exists()
+    witness_summary = json.loads(
+        (findings_dir / "network_witness_summary.json").read_text(encoding="utf-8")
+    )
+    assert witness_summary["witness_count"] == 0
+    assert witness_summary["witness_completeness"] == 1.0
+    validation_summary = json.loads(
+        (findings_dir / "network_validation_summary.json").read_text(encoding="utf-8")
+    )
+    assert validation_summary["suspicion_count"] == 0
+    assert (findings_dir / "network_validation_suspicions_v2.parquet").exists()
+    assert (findings_dir / "network_boundaries_v2.parquet").exists()
+    assert (findings_dir / "legacy_pair_network_equivalence.parquet").exists()
+    assert json.loads(
+        (findings_dir / "legacy_pair_network_equivalence_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )["legacy_result_change_count"] == 0
+    assert (findings_dir / "geometry_shadow_observation_summary.json").exists()
+    assert (findings_dir / "pair_geometry_shadow.parquet").exists()
+    assert (findings_dir / "pair_geometry_shadow_summary.json").exists()
     assert not page_findings_dir.exists()
     assert findings_payload["page_findings_count"] == 1
     assert len(findings_payload["page_findings"]) == 1
@@ -89,11 +294,484 @@ def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> Non
     assert findings_payload["page_findings"][0]["audit_disposition"] == "skip_stable"
     assert findings_payload["page_findings"][0]["filename"] == "01.dwg"
     assert findings_payload["page_findings"][0]["route_target"] == "SkipExtractor"
+    assert findings_payload["analysis_status"] == "COMPLETE"
+    assert findings_payload["clean_conclusion_allowed"] is True
+    assert findings_payload["incomplete_page_count"] == 0
+    assert findings_payload["failure_code_counts"] == {}
+    assert findings_payload["page_findings"][0]["extraction_status"] == "NOT_APPLICABLE"
+    assert findings_payload["page_findings"][0]["failure_codes"] == []
     assert findings_payload["page_findings"][0]["structure_summary"]["pair_count"] == 0
     assert findings_payload["audit_disposition_counts"] == {"skip_stable": 1}
     assert "page_findings/" not in findings_payload["artifacts"]["findings"]
     assert "wire_junctions.parquet" in findings_payload["artifacts"]["findings"]
+    assert "primitive_segments.parquet" in findings_payload["artifacts"]["findings"]
+    assert "primitive_segments_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "extraction_census.json" in findings_payload["artifacts"]["findings"]
+    assert "extraction_census_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "scale_evidence.json" in findings_payload["artifacts"]["findings"]
+    assert "scale_evidence_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "transform_fidelity.json" in findings_payload["artifacts"]["findings"]
+    assert "shadow_gap_triage.json" in findings_payload["artifacts"]["findings"]
+    assert "shadow_gap_triage_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene/" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_records.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_views.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_diagnostics.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_unresolved_sources.parquet" in findings_payload["artifacts"]["findings"]
+    assert "canonical_scene_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_definitions_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "symbol_instances_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "unknown_symbol_queue_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "symbol_inventory_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_library.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_validation.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_issues.parquet" in findings_payload["artifacts"]["findings"]
+    assert "symbol_dependency_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_review_backlog.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_review_validation.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_review_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_port_shadow_placements.json" in findings_payload["artifacts"]["findings"]
+    assert "symbol_port_shadow_summary.json" in findings_payload["artifacts"]["findings"]
     assert "wire_networks.parquet" in findings_payload["artifacts"]["findings"]
+
+    assert "geometry_shadow_nodes.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_edges.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_components.parquet" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_observations.parquet" in findings_payload["artifacts"]["findings"]
+    assert "junction_observations_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "topology_decisions.parquet" in findings_payload["artifacts"]["findings"]
+    assert "topology_decision_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "electrical_networks_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "network_members_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "network_open_endpoints_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "possible_boundaries_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "topology_decision_applications.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_network_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "network_endpoint_witnesses_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "network_witness_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "network_validation_suspicions_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "network_validation_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "network_boundaries_v2.parquet" in findings_payload["artifacts"]["findings"]
+    assert "network_boundary_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "legacy_pair_network_equivalence.parquet" in findings_payload["artifacts"]["findings"]
+    assert "legacy_pair_network_equivalence_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "geometry_shadow_observation_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "pair_geometry_shadow.parquet" in findings_payload["artifacts"]["findings"]
+    assert "pair_geometry_shadow_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "project_profile.json" in findings_payload["artifacts"]["findings"]
+    assert "text_tokens.parquet" in findings_payload["artifacts"]["findings"]
+    assert "semantic_attachment_candidates.parquet" in findings_payload["artifacts"]["findings"]
+    assert "semantic_attachment_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "scope_decisions.parquet" in findings_payload["artifacts"]["findings"]
+    assert "scope_resolution_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "constraint_decisions.parquet" in findings_payload["artifacts"]["findings"]
+    assert "constraint_resolution_summary.json" in findings_payload["artifacts"]["findings"]
+    assert (findings_dir / "project_profile.json").exists()
+    assert (findings_dir / "text_tokens.parquet").exists()
+    assert (findings_dir / "semantic_attachment_candidates.parquet").exists()
+    assert (findings_dir / "semantic_attachment_summary.json").exists()
+    assert (findings_dir / "scope_decisions.parquet").exists()
+    assert (findings_dir / "scope_resolution_summary.json").exists()
+    assert (findings_dir / "constraint_decisions.parquet").exists()
+    assert (findings_dir / "constraint_resolution_summary.json").exists()
+    assert (findings_dir / "electrical_semantic_nodes.parquet").exists()
+    assert (findings_dir / "electrical_semantic_relations.parquet").exists()
+    assert (findings_dir / "electrical_semantic_evidence.parquet").exists()
+    assert (findings_dir / "electrical_semantic_constraints.parquet").exists()
+    electrical_semantic_summary = json.loads(
+        (findings_dir / "electrical_semantic_summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert electrical_semantic_summary["shadow_only"] is True
+    assert electrical_semantic_summary["valid"] is True
+    assert electrical_semantic_summary["electrical_union_eligible_count"] == 0
+    assert findings_payload["project_profile_summary"]["page_count"] == 1
+    assert findings_payload["project_profile_summary"]["strip_count"] == 0
+    assert findings_payload["semantic_attachment_summary"]["total_count"] == 0
+    assert "decision_count" in findings_payload["scope_resolution_summary"]
+    assert "decision_count" in findings_payload["constraint_resolution_summary"]
+    assert findings_payload["constraint_resolution_summary"]["inviolable_strong_constraints"] is True
+    assert (findings_dir / "endpoint_identities_v1.parquet").exists()
+    assert (findings_dir / "cross_page_endpoint_candidates_v1.parquet").exists()
+    assert (findings_dir / "project_graph_summary.json").exists()
+    assert (findings_dir / "engine_comparison_v1.json").exists()
+    assert "endpoint_identities_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "cross_page_endpoint_candidates_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "project_graph_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "engine_comparison_v1.json" in findings_payload["artifacts"]["findings"]
+    assert findings_payload["project_graph_summary"]["node_counts"]["endpoint_identities"] == 0
+    assert findings_payload["engine_comparison"]["pair_count"] == 0
+    assert pd.read_parquet(findings_dir / "endpoint_identities_v1.parquet").empty
+    assert pd.read_parquet(findings_dir / "cross_page_endpoint_candidates_v1.parquet").empty
+    assert "audit_v2_issue_clusters.parquet" in findings_payload["artifacts"]["audit"]
+    assert "failure_queue.parquet" in findings_payload["artifacts"]["audit"]
+
+
+def test_write_project_artifacts_persists_phase119_shadow_semantic_artifacts(
+    tmp_path: Path,
+) -> None:
+    """One numeric text near a line endpoint yields tokens + attachment shadow files."""
+    source = SourceFileRecord(
+        file_id="F0001",
+        path="C:/demo/04.dwg",
+        filename="04.dwg",
+        ext=".dwg",
+        sha256="abc",
+        size_bytes=10,
+        sheet_order=4,
+        detected_page_no="04",
+        detected_from="filename",
+        sheet_title="交流回路图1",
+        sheet_category="二次原理图",
+        skip_reason=None,
+        valid_dwg_header=True,
+        conversion_status="converted",
+    )
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-11T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[source],
+            sidecars=[
+                SidecarInfo("prj", "C:/demo/demo.prj", "parsed", "gbk", []),
+                SidecarInfo(
+                    "terminal_xml",
+                    "C:/demo/LdDzbInfo.xml",
+                    "parsed",
+                    "utf-8",
+                    [],
+                ),
+            ],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord(
+                "S0001",
+                "F0001",
+                "04.dwg",
+                4,
+                "04",
+                "交流回路图1",
+                "二次原理图",
+                "primary",
+                "filename",
+                True,
+            )
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    texts = [
+        TextItem(
+            text_id="T1",
+            sheet_id="S0001",
+            file_id="F0001",
+            handle="H1",
+            entity_type="TEXT",
+            text="101",
+            normalized_text="101",
+            is_numeric_candidate=True,
+            layer="0",
+            rotation_deg=0.0,
+            height=2.5,
+            insert_x=10.0,
+            insert_y=20.0,
+            bbox_min_x=9.0,
+            bbox_min_y=19.0,
+            bbox_max_x=12.0,
+            bbox_max_y=22.0,
+        )
+    ]
+    lines = [
+        LineEntity(
+            line_id="L1",
+            sheet_id="S0001",
+            file_id="F0001",
+            handle="H2",
+            source_entity_type="LINE",
+            layer="0",
+            start_x=10.0,
+            start_y=20.0,
+            end_x=50.0,
+            end_y=20.0,
+            length=40.0,
+            angle_deg=0.0,
+            bbox_min_x=10.0,
+            bbox_min_y=20.0,
+            bbox_max_x=50.0,
+            bbox_max_y=20.0,
+        )
+    ]
+
+    project_dir = write_project_artifacts(
+        ProjectArtifacts(scan=scan, texts=texts, lines=lines),
+        tmp_path,
+    )
+    findings_dir = project_dir / "findings"
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    project_profile = json.loads((findings_dir / "project_profile.json").read_text(encoding="utf-8"))
+    tokens = pd.read_parquet(findings_dir / "text_tokens.parquet")
+    attachments = pd.read_parquet(findings_dir / "semantic_attachment_candidates.parquet")
+    attachment_summary = json.loads(
+        (findings_dir / "semantic_attachment_summary.json").read_text(encoding="utf-8")
+    )
+
+    assert (findings_dir / "project_profile.json").exists()
+    assert (findings_dir / "text_tokens.parquet").exists()
+    assert (findings_dir / "semantic_attachment_candidates.parquet").exists()
+    assert (findings_dir / "semantic_attachment_summary.json").exists()
+    assert (findings_dir / "scope_decisions.parquet").exists()
+    assert (findings_dir / "scope_resolution_summary.json").exists()
+    assert (findings_dir / "constraint_decisions.parquet").exists()
+    assert (findings_dir / "constraint_resolution_summary.json").exists()
+    assert "project_profile.json" in findings_payload["artifacts"]["findings"]
+    assert "text_tokens.parquet" in findings_payload["artifacts"]["findings"]
+    assert "semantic_attachment_candidates.parquet" in findings_payload["artifacts"]["findings"]
+    assert "semantic_attachment_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "scope_decisions.parquet" in findings_payload["artifacts"]["findings"]
+    assert "scope_resolution_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "constraint_decisions.parquet" in findings_payload["artifacts"]["findings"]
+    assert "constraint_resolution_summary.json" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_nodes.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_relations.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_evidence.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_constraints.parquet" in findings_payload["artifacts"]["findings"]
+    assert "electrical_semantic_summary.json" in findings_payload["artifacts"]["findings"]
+
+    assert project_profile["schema_version"] == "project-profile-v1"
+    assert project_profile["project_id"] == "Demo 项目"
+    assert findings_payload["project_profile_summary"]["page_count"] == 1
+    assert findings_payload["project_profile_summary"]["strip_count"] == 0
+    assert findings_payload["project_profile_summary"]["sidecar_status"]["prj"] == "parsed"
+
+    assert not tokens.empty
+    assert tokens.iloc[0]["token_kind"] == "TERMINAL_LOCAL"
+    assert tokens.iloc[0]["local_number"] == "101"
+    assert tokens.iloc[0]["token_id"] == "TK1-T1"
+
+    assert not attachments.empty
+    selected = attachments[attachments["selected"] == True]  # noqa: E712
+    assert len(selected) >= 1
+    assert selected.iloc[0]["target_line_id"] == "L1"
+    assert selected.iloc[0]["token_kind"] == "TERMINAL_LOCAL"
+    assert attachment_summary["selected_count"] >= 1
+    assert attachment_summary["total_count"] >= 1
+    assert findings_payload["semantic_attachment_summary"]["selected_count"] >= 1
+    assert findings_payload["semantic_attachment_summary"]["total_count"] >= 1
+    assert "decision_count" in findings_payload["scope_resolution_summary"]
+    assert "decision_count" in findings_payload["constraint_resolution_summary"]
+    assert "algorithm_version" in findings_payload["constraint_resolution_summary"]
+    assert findings_payload["constraint_resolution_summary"]["inviolable_strong_constraints"] is True
+    constraint_summary = json.loads(
+        (findings_dir / "constraint_resolution_summary.json").read_text(encoding="utf-8")
+    )
+    assert constraint_summary["algorithm_version"] == "constraint-resolver-v1"
+
+
+def test_write_project_artifacts_builds_symbol_inventory_from_insert_primitives(
+    tmp_path: Path,
+) -> None:
+    """Non-empty INSERT + local LINE child yields one unknown definition and two instances."""
+    source = SourceFileRecord(
+        file_id="F0001",
+        path="C:/demo/04.dwg",
+        filename="04.dwg",
+        ext=".dwg",
+        sha256="abc",
+        size_bytes=10,
+        sheet_order=4,
+        detected_page_no="04",
+        detected_from="filename",
+        sheet_title="交流回路图1",
+        sheet_category="二次原理图",
+        skip_reason=None,
+        valid_dwg_header=True,
+        conversion_status="converted",
+    )
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Demo 项目",
+            project_name="Demo 项目",
+            created_at="2026-07-03T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=1,
+            sheet_count=1,
+            valid_dwg_files=1,
+            invalid_dwg_files=0,
+            source_files=[source],
+            sidecars=[],
+            project_name_sources={"filesystem_project_name": "Demo 项目"},
+            warnings=[],
+        ),
+        pages=[
+            SheetRecord(
+                "S0001",
+                "F0001",
+                "04.dwg",
+                4,
+                "04",
+                "交流回路图1",
+                "二次原理图",
+                "primary",
+                "filename",
+                True,
+            )
+        ],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    local_line_geometry = '{"end":[1,0,0],"start":[0,0,0]}'
+    primitive_segments = [
+        PrimitiveSegment(
+            primitive_id="PS00000001",
+            schema_version=PRIMITIVE_SCHEMA_VERSION,
+            algorithm_version=PRIMITIVE_ALGORITHM_VERSION,
+            sheet_id="S0001",
+            file_id="F0001",
+            layout_name="Model",
+            entity_handle="I1",
+            parent_handle=None,
+            source_entity_type="INSERT",
+            primitive_kind="INSERT",
+            definition_name="DEVICE",
+            nested_path="DEVICE[I1]",
+            layer="0",
+            layer_role_candidate="UNKNOWN",
+            layer_role_reason_code="LAYER_ROLE_UNCLASSIFIED",
+            linetype="BYLAYER",
+            segment_index=0,
+            local_geometry_json='{"insert":[0,0,0]}',
+            world_geometry_json='{"insert":[0,0,0]}',
+            transform_json='{"translation":[0,0,0]}',
+            bbox_min_x=0.0,
+            bbox_min_y=0.0,
+            bbox_max_x=1.0,
+            bbox_max_y=1.0,
+            reader_backend="odafc",
+            reader_version="27.1.0",
+            source_status="normalized",
+        ),
+        PrimitiveSegment(
+            primitive_id="PS00000002",
+            schema_version=PRIMITIVE_SCHEMA_VERSION,
+            algorithm_version=PRIMITIVE_ALGORITHM_VERSION,
+            sheet_id="S0001",
+            file_id="F0001",
+            layout_name="Model",
+            entity_handle="I2",
+            parent_handle=None,
+            source_entity_type="INSERT",
+            primitive_kind="INSERT",
+            definition_name="DEVICE",
+            nested_path="DEVICE[I2]",
+            layer="0",
+            layer_role_candidate="UNKNOWN",
+            layer_role_reason_code="LAYER_ROLE_UNCLASSIFIED",
+            linetype="BYLAYER",
+            segment_index=0,
+            local_geometry_json='{"insert":[100,50,0]}',
+            world_geometry_json='{"insert":[100,50,0]}',
+            transform_json='{"translation":[100,50,0]}',
+            bbox_min_x=100.0,
+            bbox_min_y=50.0,
+            bbox_max_x=101.0,
+            bbox_max_y=51.0,
+            reader_backend="odafc",
+            reader_version="27.1.0",
+            source_status="normalized",
+        ),
+        PrimitiveSegment(
+            primitive_id="PS00000003",
+            schema_version=PRIMITIVE_SCHEMA_VERSION,
+            algorithm_version=PRIMITIVE_ALGORITHM_VERSION,
+            sheet_id="S0001",
+            file_id="F0001",
+            layout_name="Model",
+            entity_handle="L1",
+            parent_handle="I1",
+            source_entity_type="LINE",
+            primitive_kind="LINE",
+            definition_name="DEVICE",
+            nested_path="DEVICE[I1]",
+            layer="PORT",
+            layer_role_candidate="UNKNOWN",
+            layer_role_reason_code="LAYER_ROLE_UNCLASSIFIED",
+            linetype="BYLAYER",
+            segment_index=0,
+            local_geometry_json=local_line_geometry,
+            world_geometry_json=local_line_geometry,
+            transform_json="{}",
+            bbox_min_x=0.0,
+            bbox_min_y=0.0,
+            bbox_max_x=1.0,
+            bbox_max_y=0.0,
+            reader_backend="odafc",
+            reader_version="27.1.0",
+            source_status="normalized",
+        ),
+    ]
+
+    project_dir = write_project_artifacts(
+        ProjectArtifacts(scan=scan, primitive_segments=primitive_segments),
+        tmp_path,
+    )
+    findings_dir = project_dir / "findings"
+    symbol_summary = json.loads(
+        (findings_dir / "symbol_inventory_summary.json").read_text(encoding="utf-8")
+    )
+    definitions = pd.read_parquet(findings_dir / "symbol_definitions_v1.parquet")
+    instances = pd.read_parquet(findings_dir / "symbol_instances_v1.parquet")
+    unknown_queue = pd.read_parquet(findings_dir / "unknown_symbol_queue_v1.parquet")
+    findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+
+    assert symbol_summary["definition_count"] == 1
+    assert symbol_summary["instance_count"] == 2
+    assert symbol_summary["unknown_definition_count"] == 1
+    assert symbol_summary["unknown_critical_issue_eligible_count"] == 0
+
+    assert not definitions.empty
+    assert len(definitions) == 1
+    assert definitions.iloc[0]["definition_name"] == "DEVICE"
+    assert definitions.iloc[0]["instance_count"] == 2
+    assert definitions.iloc[0]["registry_status"] == "UNKNOWN"
+    assert bool(definitions.iloc[0]["critical_issue_eligible"]) is False
+    assert "definition_fingerprint" in definitions.columns
+    assert "registry_status" in definitions.columns
+    assert "critical_issue_eligible" in definitions.columns
+    assert str(definitions.iloc[0]["definition_fingerprint"])
+
+    assert not instances.empty
+    assert len(instances) == 2
+    assert set(instances["entity_handle"]) == {"I1", "I2"}
+    assert set(instances["definition_name"]) == {"DEVICE"}
+    assert "definition_fingerprint" in instances.columns
+    assert "registry_status" in instances.columns
+    assert (
+        instances.iloc[0]["definition_fingerprint"]
+        == definitions.iloc[0]["definition_fingerprint"]
+    )
+
+    assert not unknown_queue.empty
+    assert len(unknown_queue) == 1
+    assert unknown_queue.iloc[0]["definition_name"] == "DEVICE"
+    assert bool(unknown_queue.iloc[0]["critical_issue_eligible"]) is False
+    assert "definition_fingerprint" in unknown_queue.columns
+    assert "critical_issue_eligible" in unknown_queue.columns
+
+    assert "symbol_definitions_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "symbol_instances_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "unknown_symbol_queue_v1.parquet" in findings_payload["artifacts"]["findings"]
+    assert "symbol_inventory_summary.json" in findings_payload["artifacts"]["findings"]
 
 
 def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path: Path) -> None:
@@ -152,6 +830,7 @@ def test_write_project_artifacts_can_persist_page_findings_when_enabled(tmp_path
         tmp_path,
         config={"runtime": {"persist_page_findings_files": True}},
     )
+    assert not (project_dir / "reader_run.json").exists()
     findings_dir = project_dir / "findings"
     page_findings_dir = findings_dir / "page_findings"
     findings_payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
@@ -1055,6 +1734,22 @@ def test_write_audit_outputs_emits_issue_artifacts_with_evidence_fields(tmp_path
     assert "- Summary: 数字 101 在不同跨页位置出现冲突配对。" in report_text
     assert "- Explanation: 同一线号在高置信 pair 中关联到了不一致的目标数字。" in report_text
     assert "- RecommendedAction: 优先复核 04.dwg 上对应线端的跨页引用。" in report_text
+    assert (audit_dir / "audit_v2_issue_clusters.parquet").exists()
+    assert (audit_dir / "audit_v2_summary.json").exists()
+    assert (audit_dir / "failure_queue.parquet").exists()
+    assert (audit_dir / "failure_queue_summary.json").exists()
+    audit_v2_summary = json.loads(
+        (audit_dir / "audit_v2_summary.json").read_text(encoding="utf-8")
+    )
+    assert audit_v2_summary["issue_count"] == 1
+    assert audit_v2_summary["cluster_count"] >= 1
+    assert audit_v2_summary["legacy_issue_stream_retained"] is True
+    failure_queue_summary = json.loads(
+        (audit_dir / "failure_queue_summary.json").read_text(encoding="utf-8")
+    )
+    assert "item_count" in failure_queue_summary
+    assert "audit_v2_issue_clusters.parquet" in findings_payload["artifacts"]["audit"]
+    assert "failure_queue.parquet" in findings_payload["artifacts"]["audit"]
 
 
 def test_write_audit_outputs_shows_continuation_pair_semantics(tmp_path: Path) -> None:

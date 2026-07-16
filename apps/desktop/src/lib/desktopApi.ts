@@ -14,11 +14,23 @@ const COMMANDS = {
   loadResult: "desktop_load_result",
   renderPreview: "desktop_render_preview",
   setIssueStatus: "desktop_set_issue_status",
+  deleteProject: "desktop_delete_project",
+  cleanupWorkspaces: "desktop_cleanup_workspaces",
 } as const
 
 const mockIssueStatuses = new Map<string, IssueStatus>()
 
+export type DesktopRuntimeMode = "native" | "browser-mock"
+
 export const desktopApi = {
+  runtimeMode(): DesktopRuntimeMode {
+    return isTauri() ? "native" : "browser-mock"
+  },
+
+  isNative(): boolean {
+    return isTauri()
+  },
+
   async analyzeSession(request: AnalyzeSessionRequest, onEvent: (event: SidecarEvent) => void): Promise<AnalyzeSessionResult> {
     if (!isTauri()) {
       return emitMockAnalyzeSessionEvents(request.inputRoot, onEvent)
@@ -35,7 +47,7 @@ export const desktopApi = {
         projects: payload.projects.map(normalizeRecentProject),
       }
     } catch (error) {
-      throw toDesktopError("Failed to run native analyze-session.", error)
+      throw toDesktopError("审计任务启动失败。", error)
     } finally {
       unlisten?.()
     }
@@ -50,7 +62,7 @@ export const desktopApi = {
       const projects = await invoke<RecentProject[]>(COMMANDS.listRecentProjects)
       return projects.map(normalizeRecentProject)
     } catch (error) {
-      throw toDesktopError("Failed to load native recent projects.", error)
+      throw toDesktopError("读取最近项目失败。", error)
     }
   },
 
@@ -63,7 +75,7 @@ export const desktopApi = {
       const result = await invoke<ProjectResult>(COMMANDS.loadResult, { projectId })
       return normalizeProjectResult(result)
     } catch (error) {
-      throw toDesktopError(`Failed to load native result for project ${projectId}.`, error)
+      throw toDesktopError("加载校验结果失败。", error)
     }
   },
 
@@ -86,7 +98,7 @@ export const desktopApi = {
       })
       return normalizePreviewPayload(payload)
     } catch (error) {
-      throw toDesktopError(`Failed to render native preview for project ${projectId}.`, error)
+      throw toDesktopError("无法生成图纸预览。", error)
     }
   },
 
@@ -104,7 +116,29 @@ export const desktopApi = {
       })
       return await this.loadResult(projectId)
     } catch (error) {
-      throw toDesktopError(`Failed to update native issue status for ${issueId}.`, error)
+      throw toDesktopError("保存处理状态失败。", error)
+    }
+  },
+
+  async deleteProject(projectId: string): Promise<void> {
+    if (!isTauri()) {
+      return
+    }
+    try {
+      await invoke(COMMANDS.deleteProject, { projectId })
+    } catch (error) {
+      throw toDesktopError("删除项目记录失败。", error)
+    }
+  },
+
+  async cleanupWorkspaces(): Promise<void> {
+    if (!isTauri()) {
+      return
+    }
+    try {
+      await invoke(COMMANDS.cleanupWorkspaces)
+    } catch (error) {
+      throw toDesktopError("清理过程文件失败。", error)
     }
   },
 
@@ -115,7 +149,7 @@ export const desktopApi = {
 
     try {
       const selected = await open({
-        title: "Select DWG project directory",
+        title: "选择 DWG 项目目录",
         directory: true,
         multiple: false,
         defaultPath: defaultPath?.trim() || undefined,
@@ -125,7 +159,7 @@ export const desktopApi = {
       }
       return typeof selected === "string" ? selected : null
     } catch (error) {
-      throw toDesktopError("Failed to open native directory picker.", error)
+      throw toDesktopError("打开目录选择器失败。", error)
     }
   },
 }
@@ -170,6 +204,35 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
       one_to_many_classification:
         issue.one_to_many_classification ??
         (typeof issue.evidence?.one_to_many_classification === "string" ? issue.evidence.one_to_many_classification : null),
+      handling_class:
+        issue.handling_class ??
+        (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
+        deriveHandlingClass(issue),
+      handling_label:
+        issue.handling_label ??
+        (typeof issue.evidence?.handling_label === "string" ? issue.evidence.handling_label : null) ??
+        labelHandlingClass(
+          issue.handling_class ??
+            (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
+            deriveHandlingClass(issue),
+        ),
+      review_group_id:
+        issue.review_group_id ??
+        (typeof issue.evidence?.review_group_id === "string" ? issue.evidence.review_group_id : null) ??
+        issue.issue_id,
+      review_group_label:
+        issue.review_group_label ??
+        (typeof issue.evidence?.review_group_label === "string" ? issue.evidence.review_group_label : null) ??
+        issue.title,
+      review_group_size: Number(
+        issue.review_group_size ??
+          (typeof issue.evidence?.review_group_size === "number" ? issue.evidence.review_group_size : 1) ??
+          1,
+      ),
+      issue_family:
+        issue.issue_family ??
+        (typeof issue.evidence?.issue_family === "string" ? issue.evidence.issue_family : null) ??
+        issue.title,
       right_value: issue.right_value ?? null,
       evidence: issue.evidence ?? {},
     })),
@@ -195,7 +258,14 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
 }
 
 function normalizePreviewPayload(payload: Omit<PreviewPayload, "preview_src"> & { preview_src?: string | null }): PreviewPayload {
-  const rawPreviewSrc = payload.preview_src ?? (payload.preview_path ? convertFileSrc(payload.preview_path) : null)
+  // Prefer inline SVG data URL: avoids asset-protocol file locks and WebView stalls.
+  let rawPreviewSrc: string | null = payload.preview_src ?? null
+  if (!rawPreviewSrc && payload.preview_svg) {
+    rawPreviewSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(payload.preview_svg)}`
+  }
+  if (!rawPreviewSrc && payload.preview_path) {
+    rawPreviewSrc = convertFileSrc(payload.preview_path)
+  }
   return {
     ...payload,
     preview_src: rawPreviewSrc ? withCacheBust(rawPreviewSrc) : null,
@@ -204,12 +274,106 @@ function normalizePreviewPayload(payload: Omit<PreviewPayload, "preview_src"> & 
 
 function toDesktopError(prefix: string, error: unknown): Error {
   if (error instanceof Error) {
-    return new Error(`${prefix} ${error.message}`)
+    const message = humanizeDesktopErrorMessage(error.message)
+    return new Error(message ? `${prefix} ${message}` : prefix)
   }
   return new Error(prefix)
 }
 
+function humanizeDesktopErrorMessage(message: string): string {
+  const text = message.trim()
+  if (!text) {
+    return ""
+  }
+  const lower = text.toLowerCase()
+  if (lower.includes("no stored result") || lower.includes("no stored issue")) {
+    return "未找到对应校验结果，请重新打开项目。"
+  }
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return "操作超时，请稍后重试。"
+  }
+  if (lower.includes("permission") || lower.includes("access is denied")) {
+    return "没有访问权限，请检查目录权限。"
+  }
+  if (lower.includes("not found") || lower.includes("enoent")) {
+    return "未找到相关文件或目录。"
+  }
+  // Drop raw stack / path-heavy technical noise when it dominates.
+  if (/traceback|exception|at\s+\S+\(|error:\s*error/i.test(text)) {
+    return "请稍后重试；若仍失败可重新校验该项目。"
+  }
+  return text
+}
+
 function withCacheBust(src: string): string {
+  // Data URLs must not receive query params; browsers treat them as part of the payload.
+  if (src.startsWith("data:")) {
+    return src
+  }
   const separator = src.includes("?") ? "&" : "?"
   return `${src}${separator}v=${Date.now()}`
+}
+
+function deriveHandlingClass(issue: {
+  rule_id?: string
+  severity?: string
+  confidence?: number
+  evidence?: Record<string, unknown>
+  one_to_many_classification?: string | null
+}): string {
+  const evidence = issue.evidence ?? {}
+  const triage = String(
+    issue.one_to_many_classification ||
+      evidence.one_to_many_classification ||
+      evidence.many_to_one_classification ||
+      "",
+  ).toLowerCase()
+  if (triage.includes("conflict")) {
+    return "error"
+  }
+  if (triage.includes("branch")) {
+    return "warning"
+  }
+  if (triage.includes("review")) {
+    return issue.rule_id === "R-CROSS-PAGE-CONFLICT" || issue.rule_id === "R-TABLE-MAPPING-SOURCE-CONFLICT"
+      ? "error"
+      : "review"
+  }
+  const severity = String(issue.severity || "").toLowerCase()
+  if (["critical", "error", "high"].includes(severity)) {
+    return "error"
+  }
+  const ruleDefaults: Record<string, string> = {
+    "R-CROSS-PAGE-CONFLICT": "error",
+    "R-TABLE-MAPPING-SOURCE-CONFLICT": "error",
+    "R-SEMANTIC-MAPPING-CONFLICT": "error",
+    "R-MISSING-RECIPROCAL": "warning",
+    "R-MANY-TO-ONE": "warning",
+    "R-DUPLICATE-PAIR": "warning",
+    "R-SHEET-PAGE-MISMATCH": "warning",
+    "R-ONE-TO-MANY": "warning",
+    "R-PAIR-MISSING-SIDE": "review",
+    "R-PAIR-LOW-CONFIDENCE": "review",
+    "R-DUPLICATE-SAME-LINE": "review",
+  }
+  const mapped = ruleDefaults[String(issue.rule_id || "")]
+  if (mapped) {
+    return mapped
+  }
+  if (["major", "medium", "warning", "warn"].includes(severity)) {
+    return "warning"
+  }
+  return "review"
+}
+
+function labelHandlingClass(value: string | null | undefined): string {
+  const map: Record<string, string> = {
+    error: "错误",
+    warning: "警告",
+    review: "须复核",
+  }
+  if (!value) {
+    return "须复核"
+  }
+  return map[value] ?? value
 }

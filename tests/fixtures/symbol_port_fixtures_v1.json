@@ -1,0 +1,161 @@
+{
+  "fixture_version": "symbol-port-fixtures-v1",
+  "fingerprint_version": "local-geometry-fingerprint-v1",
+  "entries": [
+    {
+      "definition_fingerprint": "39b95b5118323d4d8ec235cb43fb72f9b99c8d90ce9f4b2027ee2bdda6255ed5",
+      "definition_names": [
+        "SYMB2_M_PWF165"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=1; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "2ede8a4fcebd958209b99a25e477726c0b55f86b32d00650130a89acad0bf89c",
+      "definition_names": [
+        "SYMB2_M_PWF231",
+        "SYMB2_M_PWF248"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=2; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "9a1c6d15833092f32027442d19bd52f5f384395b0bb113e252e5bfbfe66cb85b",
+      "definition_names": [
+        "SYMB2_M_PWF191"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=3; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "a78b06f3c9ab76dc9d36aeecdecb3a32599dbbc55c0e186dbecce76a9ecc780b",
+      "definition_names": [
+        "SYMB2_M_PWF194"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=4; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "b3115ea33fe4e1b57d4cfa6394c3125c42f5776b589f8297b4053cf3d7a7a073",
+      "definition_names": [
+        "SYMB2_M_PWF243"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=5; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "fdf0b99a76ef4e246c6da96397e82b0a6a219743c2d1b03d8b760cc0d47386ff",
+      "definition_names": [
+        "Title_xjdw-yw"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=6; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "e2e32701027b07d3f74b5941716ca9328daf926abad92f0b4b5f2081b3f52fe2",
+      "definition_names": [
+        "SYMB2_M_PWF233"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=7; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "69f5c09b9bfe7e7c3c9db62eaa577a51b98801ec22bb366b8d5d2513ae1b247b",
+      "definition_names": [
+        "FJL-25-2A_Mirror"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=8; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "61255c39029679e1151d9d4e8fe3884a538ea97638fa6f605d8a1d17713d8dc2",
+      "definition_names": [
+        "SYMB2_M_PWF224"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=9; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "4843ab10418b48bf18e403125a6c80ba490c88d0987c42f712b5c24c8503dc61",
+      "definition_names": [
+        "SYMB2_M_PWF229"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded from non-heldout backlog corpus_rank=10; ports unknown pending human review."
+    },
+    {
+      "definition_fingerprint": "3f7ef8a0ca8b88180e8cf7094e95355e6b2837e7e598cba3a19ce04e6445620a",
+      "definition_names": [
+        "KK2P"
+      ],
+      "registry_status": "UNKNOWN",
+      "symbol_family": null,
+      "internal_connectivity_state": "UNKNOWN",
+      "declared_port_count": 0,
+      "ports": [],
+      "critical_issue_eligible": false,
+      "annotation_status": "PENDING_HUMAN_REVIEW",
+      "notes": "Pre-seeded KK2P name feature from non-heldout backlog corpus_rank=20; ports unknown pending human review."
+    }
+  ]
+}
