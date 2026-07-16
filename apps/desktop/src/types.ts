@@ -181,10 +181,14 @@ export type IssueFoundEvent = {
   title: string
   filename?: string
   sheet_no?: string
+  sheet_title?: string
   left_value?: string | null
   right_value?: string | null
   confidence?: number
   one_to_many_classification?: string | null
+  handling_class?: string | null
+  line_start?: number[] | null
+  line_end?: number[] | null
 }
 
 export type AuditFinishedEvent = {

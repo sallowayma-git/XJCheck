@@ -63,12 +63,16 @@ def rerun_audit_from_findings(
                 issue_type=issue.issue_type or issue.rule_id,
                 severity=issue.severity,
                 title=issue.title or issue.message,
-                filename=evidence.get("filename"),
-                sheet_no=evidence.get("sheet_no"),
+                filename=evidence.get("filename") or issue.filename,
+                sheet_no=evidence.get("sheet_no") or issue.sheet_no,
+                sheet_title=evidence.get("sheet_title"),
                 left_value=issue.left_value,
                 right_value=issue.right_value,
                 confidence=issue.confidence,
                 one_to_many_classification=evidence.get("one_to_many_classification"),
+                handling_class=evidence.get("handling_class"),
+                line_start=evidence.get("line_start"),
+                line_end=evidence.get("line_end"),
             )
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)

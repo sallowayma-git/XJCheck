@@ -284,7 +284,15 @@ function App() {
               values: [event.left_value, event.right_value].filter((value): value is string => Boolean(value)),
               evidence_refs: [],
               one_to_many_classification: event.one_to_many_classification ?? null,
-              evidence: {},
+              handling_class: event.handling_class ?? null,
+              evidence: {
+                filename: event.filename ?? "",
+                sheet_no: event.sheet_no ?? "",
+                sheet_title: event.sheet_title ?? "",
+                line_start: event.line_start ?? null,
+                line_end: event.line_end ?? null,
+                handling_class: event.handling_class ?? null,
+              },
             },
             ...nextState.liveIssues,
           ].slice(0, 50)
@@ -504,6 +512,10 @@ function App() {
         issue.issue_family ?? "",
         triage ?? "",
         formatPair(issue),
+        formatSourcePage(issue).detail,
+        formatSourcePage(issue).label,
+        formatIssueLocation(issue).label,
+        formatIssueLocation(issue).detail,
         issue.values.join(" "),
       ]
         .join(" ")
@@ -969,29 +981,38 @@ function App() {
                 <table className="data-table compact">
                   <thead>
                     <tr>
-                      <th>图纸</th>
+                      <th>来源图纸</th>
                       <th>问题</th>
                       <th>端子</th>
-                      <th>图号</th>
+                      <th>位置</th>
                       <th>把握</th>
                     </tr>
                   </thead>
                   <tbody>
                     {processState.liveIssues.length ? (
-                      processState.liveIssues.map((issue) => (
-                        <tr key={issue.issue_id}>
-                          <td title={issue.filename}>{formatDrawingName(issue.filename)}</td>
-                          <td>
-                            <div className="issue-title-cell">
-                              <strong>{issue.title}</strong>
-                              <span className="muted">{labelRule(issue.rule_id)}</span>
-                            </div>
-                          </td>
-                          <td>{formatPair(issue)}</td>
-                          <td>{issue.sheet_no || "-"}</td>
-                          <td title="识别把握，不是问题严重程度">{formatConfidence(issue.confidence)}</td>
-                        </tr>
-                      ))
+                      processState.liveIssues.map((issue) => {
+                        const source = formatSourcePage(issue)
+                        const location = formatIssueLocation(issue)
+                        return (
+                          <tr key={issue.issue_id}>
+                            <td title={source.detail || source.label}>
+                              <div className="issue-title-cell">
+                                <strong>{source.label}</strong>
+                                {source.secondary ? <span className="muted">{source.secondary}</span> : null}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="issue-title-cell">
+                                <strong>{issue.title}</strong>
+                                <span className="muted">{labelRule(issue.rule_id)}</span>
+                              </div>
+                            </td>
+                            <td>{formatPair(issue)}</td>
+                            <td title={location.detail}>{location.label}</td>
+                            <td title="识别把握，不是问题严重程度">{formatConfidence(issue.confidence)}</td>
+                          </tr>
+                        )
+                      })
                     ) : (
                       <tr>
                         <td colSpan={5}>
@@ -1158,16 +1179,18 @@ function App() {
                       <th>处理</th>
                       <th>问题说明</th>
                       <th>端子连接</th>
-                      <th>图号</th>
+                      <th>来源图纸</th>
+                      <th>位置</th>
                       <th>处理组</th>
                       <th>状态</th>
-                      <th>把握</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredIssues.length ? (
                       filteredIssues.map((issue) => {
                         const handling = resolveHandlingClass(issue)
+                        const source = formatSourcePage(issue)
+                        const location = formatIssueLocation(issue)
                         return (
                           <tr
                             key={issue.issue_id}
@@ -1186,7 +1209,13 @@ function App() {
                               </div>
                             </td>
                             <td>{formatPair(issue)}</td>
-                            <td>{issue.sheet_no || "-"}</td>
+                            <td title={source.detail || source.label}>
+                              <div className="issue-title-cell">
+                                <strong>{source.label}</strong>
+                                {source.secondary ? <span className="muted">{source.secondary}</span> : null}
+                              </div>
+                            </td>
+                            <td title={location.detail}>{location.label}</td>
                             <td title={issue.review_group_label || undefined}>
                               {(issue.review_group_size ?? 1) > 1
                                 ? `${issue.review_group_size} 处同类`
@@ -1195,7 +1224,6 @@ function App() {
                             <td>
                               <span className={`chip status-${normalizeToken(issue.status)}`}>{labelIssueStatus(issue.status)}</span>
                             </td>
-                            <td title="识别把握，不是问题严重程度">{formatConfidence(issue.confidence)}</td>
                           </tr>
                         )
                       })
@@ -1332,11 +1360,11 @@ function App() {
                       </div>
                       <div className="detail-block">
                         <span>图纸文件</span>
-                        <strong>{formatDrawingName(selectedIssue.filename)}</strong>
+                        <strong>{formatSourcePage(selectedIssue).detail || formatSourcePage(selectedIssue).label}</strong>
                       </div>
                       <div className="detail-block">
                         <span>图号</span>
-                        <strong>{selectedIssue.sheet_no || "-"}</strong>
+                        <strong>{selectedIssue.sheet_no || "未识别图号"}</strong>
                       </div>
                       <div className="detail-block">
                         <span>端子连接</span>
@@ -1355,8 +1383,10 @@ function App() {
                         <strong title="识别把握，不是问题严重程度">{formatConfidence(selectedIssue.confidence)}</strong>
                       </div>
                       <div className="detail-block">
-                        <span>导线位置</span>
-                        <strong className="coords-mono">{structuredLocation.coords || "未给出坐标"}</strong>
+                        <span>图纸位置</span>
+                        <strong className="coords-mono" title={formatIssueLocation(selectedIssue).detail}>
+                          {formatIssueLocation(selectedIssue).label}
+                        </strong>
                       </div>
                     </div>
                     <div className="detail-block">
@@ -1405,11 +1435,11 @@ function App() {
                     </div>
                     <div className="detail-grid">
                       <div className="detail-block">
-                        <span>关联图号</span>
+                        <span>关联图纸</span>
                         <strong>
-                          {selectedIssue.sheet_ids.length
-                            ? selectedIssue.sheet_ids.join("、")
-                            : selectedIssue.sheet_no || "-"}
+                          {formatRelatedSourcePages(selectedIssue).length
+                            ? formatRelatedSourcePages(selectedIssue).join("；")
+                            : formatSourcePage(selectedIssue).label}
                         </strong>
                       </div>
                       <div className="detail-block">
@@ -1419,7 +1449,7 @@ function App() {
                             ? "正在生成…"
                             : activePreviewOption
                               ? activePreviewOption.caption
-                              : selectedIssue.filename || selectedIssue.sheet_no || "-"}
+                              : formatSourcePage(selectedIssue).label}
                         </strong>
                       </div>
                     </div>
@@ -1736,9 +1766,157 @@ function shortenPath(path: string, max = 48): string {
 
 function formatDrawingName(filename: string | null | undefined): string {
   if (!filename) {
-    return "-"
+    return ""
   }
   return filename.replace(/\.(dwg|dxf)$/i, "")
+}
+
+function readSheetTitle(issue: Pick<IssueSummary, "evidence" | "filename">): string {
+  const fromEvidence = issue.evidence?.sheet_title
+  if (typeof fromEvidence === "string" && fromEvidence.trim()) {
+    return fromEvidence.trim()
+  }
+  const stem = formatDrawingName(issue.filename)
+  if (!stem) {
+    return ""
+  }
+  // Common project naming: "05 差动保护回路图" → title after leading page number.
+  const matched = stem.match(/^\s*\d+[A-Za-z]?\s+(.+)$/)
+  return matched?.[1]?.trim() || stem
+}
+
+function formatSourcePage(
+  issue: Pick<IssueSummary, "filename" | "sheet_no" | "evidence">,
+): { label: string; secondary: string; detail: string } {
+  const sheetNo = String(issue.sheet_no || issue.evidence?.sheet_no || "").trim()
+  const title = readSheetTitle(issue)
+  const fileLabel = formatDrawingName(issue.filename) || String(issue.evidence?.filename || "").replace(/\.(dwg|dxf)$/i, "")
+  const detailParts = [
+    sheetNo ? `图号 ${sheetNo}` : null,
+    title || null,
+    fileLabel && fileLabel !== title ? `文件 ${fileLabel}` : null,
+  ].filter((value): value is string => Boolean(value))
+
+  if (sheetNo && title) {
+    return {
+      label: `图号 ${sheetNo}`,
+      secondary: title,
+      detail: detailParts.join(" · "),
+    }
+  }
+  if (sheetNo) {
+    return {
+      label: `图号 ${sheetNo}`,
+      secondary: fileLabel && fileLabel !== sheetNo ? fileLabel : "",
+      detail: detailParts.join(" · ") || `图号 ${sheetNo}`,
+    }
+  }
+  if (title) {
+    return {
+      label: title,
+      secondary: fileLabel && fileLabel !== title ? fileLabel : "",
+      detail: detailParts.join(" · ") || title,
+    }
+  }
+  if (fileLabel) {
+    return { label: fileLabel, secondary: "", detail: fileLabel }
+  }
+  return { label: "来源页未识别", secondary: "", detail: "未能关联到具体图纸页" }
+}
+
+function formatPointPair(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length < 2) {
+    return null
+  }
+  const x = Number(value[0])
+  const y = Number(value[1])
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null
+  }
+  return `(${x.toFixed(1)}, ${y.toFixed(1)})`
+}
+
+function formatIssueLocation(
+  issue: Pick<IssueSummary, "evidence" | "filename" | "sheet_no" | "left_value" | "right_value">,
+): { label: string; detail: string; hasCoord: boolean } {
+  const evidence = issue.evidence ?? {}
+  const nested =
+    evidence.pair_evidence && typeof evidence.pair_evidence === "object" && !Array.isArray(evidence.pair_evidence)
+      ? (evidence.pair_evidence as Record<string, unknown>)
+      : null
+  const start = formatPointPair(evidence.line_start ?? nested?.line_start)
+  const end = formatPointPair(evidence.line_end ?? nested?.line_end)
+  if (start && end) {
+    return {
+      label: `${start} → ${end}`,
+      detail: `导线坐标 ${start} → ${end}（图纸坐标系）`,
+      hasCoord: true,
+    }
+  }
+  if (start) {
+    return {
+      label: start,
+      detail: `导线端点坐标 ${start}（图纸坐标系）`,
+      hasCoord: true,
+    }
+  }
+  const source = formatSourcePage(issue)
+  const pairHint = [issue.left_value, issue.right_value].filter(Boolean).join(" → ")
+  if (source.label !== "来源页未识别") {
+    return {
+      label: "本页（无坐标）",
+      detail: pairHint
+        ? `已定位到 ${source.detail || source.label}，端子 ${pairHint}；导线几何坐标未写入本条问题`
+        : `已定位到 ${source.detail || source.label}；导线几何坐标未写入本条问题`,
+      hasCoord: false,
+    }
+  }
+  return {
+    label: "位置未知",
+    detail: "未关联到来源图纸，也没有坐标",
+    hasCoord: false,
+  }
+}
+
+function formatRelatedSourcePages(issue: IssueSummary): string[] {
+  const labels: string[] = []
+  const seen = new Set<string>()
+  const push = (meta: { sheet_no?: string | null; filename?: string | null; sheet_title?: string | null }) => {
+    const fake: Pick<IssueSummary, "filename" | "sheet_no" | "evidence"> = {
+      filename: meta.filename || "",
+      sheet_no: meta.sheet_no || "",
+      evidence: {
+        sheet_title: meta.sheet_title || "",
+        filename: meta.filename || "",
+        sheet_no: meta.sheet_no || "",
+      },
+    }
+    const source = formatSourcePage(fake)
+    const key = source.detail || source.label
+    if (!key || seen.has(key) || source.label === "来源页未识别") {
+      return
+    }
+    seen.add(key)
+    labels.push(source.secondary ? `${source.label} · ${source.secondary}` : source.label)
+  }
+
+  push({
+    sheet_no: issue.sheet_no,
+    filename: issue.filename,
+    sheet_title: typeof issue.evidence?.sheet_title === "string" ? issue.evidence.sheet_title : null,
+  })
+
+  for (const ref of issue.evidence_refs) {
+    if (!isRecord(ref)) {
+      continue
+    }
+    push({
+      sheet_no: readString(ref.sheet_no),
+      filename: readString(ref.filename),
+      sheet_title: readString(ref.sheet_title),
+    })
+  }
+  return labels
 }
 
 function readOneToManyClassification(issue: Pick<IssueSummary, "one_to_many_classification" | "evidence">): string | null {
@@ -1946,6 +2124,7 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
     meta?: {
       sheetNo?: string | null
       filename?: string | null
+      sheetTitle?: string | null
     },
   ) => {
     const normalized = sheetId?.trim()
@@ -1953,30 +2132,33 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
       return
     }
 
-    const bits = [prefix]
-    const captionBits = []
-    if (meta?.sheetNo) {
-      bits.push(`图 ${meta.sheetNo}`)
-      captionBits.push(`图 ${meta.sheetNo}`)
-    }
-    if (meta?.filename) {
-      bits.push(meta.filename)
-      captionBits.push(meta.filename)
-    }
-    if (!captionBits.length) {
-      captionBits.push(normalized)
+    const source = formatSourcePage({
+      filename: meta?.filename || "",
+      sheet_no: meta?.sheetNo || "",
+      evidence: {
+        sheet_title: meta?.sheetTitle || "",
+        filename: meta?.filename || "",
+        sheet_no: meta?.sheetNo || "",
+      },
+    })
+    const labelBits = [prefix]
+    if (source.label !== "来源页未识别") {
+      labelBits.push(source.secondary ? `${source.label} · ${source.secondary}` : source.label)
+    } else {
+      labelBits.push("关联图纸")
     }
 
     options.set(normalized, {
       sheetId: normalized,
-      label: bits.join(" · "),
-      caption: captionBits.join(" · "),
+      label: labelBits.join(" · "),
+      caption: source.detail || source.label,
     })
   }
 
   addOption(issue.sheet_id, "问题所在图", {
     sheetNo: issue.sheet_no || null,
     filename: issue.filename || null,
+    sheetTitle: typeof issue.evidence?.sheet_title === "string" ? issue.evidence.sheet_title : null,
   })
 
   for (const ref of issue.evidence_refs) {
@@ -1984,15 +2166,25 @@ function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: strin
     addOption(readString(record?.sheet_id), "关联位置", {
       sheetNo: readString(record?.sheet_no),
       filename: readString(record?.filename),
+      sheetTitle: readString(record?.sheet_title),
     })
   }
 
   for (const relatedSheetId of issue.sheet_ids) {
-    addOption(relatedSheetId, "关联图纸")
+    const matchingRef = issue.evidence_refs.find((ref) => isRecord(ref) && readString(ref.sheet_id) === relatedSheetId)
+    const record = isRecord(matchingRef) ? matchingRef : null
+    addOption(relatedSheetId, "关联图纸", {
+      sheetNo: readString(record?.sheet_no),
+      filename: readString(record?.filename),
+      sheetTitle: readString(record?.sheet_title),
+    })
   }
 
   if (!options.size && issue.sheet_id) {
-    addOption(issue.sheet_id, "问题所在图")
+    addOption(issue.sheet_id, "问题所在图", {
+      sheetNo: issue.sheet_no || null,
+      filename: issue.filename || null,
+    })
   }
 
   return Array.from(options.values())
@@ -2010,20 +2202,32 @@ function buildEvidenceRefEntries(
     const sheetId = readString(record?.sheet_id)
     const sheetNo = readString(record?.sheet_no)
     const filename = readString(record?.filename)
+    const sheetTitle = readString(record?.sheet_title)
     const pairId = readString(record?.pair_id)
     const lineGroupId = readString(record?.line_group_id)
-    const coord = formatEvidenceCoord(record?.coord)
+    const start = formatPointPair(record?.line_start)
+    const end = formatPointPair(record?.line_end)
+    const coord =
+      start && end ? `${start} → ${end}` : start || formatEvidenceCoord(record?.coord)
+
+    const source = formatSourcePage({
+      filename: filename || "",
+      sheet_no: sheetNo || "",
+      evidence: {
+        sheet_title: sheetTitle || "",
+        filename: filename || "",
+        sheet_no: sheetNo || "",
+      },
+    })
 
     const titleBits = [`位置 ${index + 1}`]
-    if (sheetNo) {
-      titleBits.push(`图 ${sheetNo}`)
-    } else if (filename) {
-      titleBits.push(filename)
-    } else if (sheetId) {
-      titleBits.push("关联图纸")
+    if (source.label !== "来源页未识别") {
+      titleBits.push(source.secondary ? `${source.label} · ${source.secondary}` : source.label)
     }
 
-    const subtitleBits = [filename && sheetNo ? filename : null, coord].filter((value): value is string => Boolean(value))
+    const subtitleBits = [coord || (source.label !== "来源页未识别" ? "本页（无坐标）" : null)].filter(
+      (value): value is string => Boolean(value),
+    )
 
     return {
       key: `${sheetId ?? "no-sheet"}:${pairId ?? lineGroupId ?? index}`,
