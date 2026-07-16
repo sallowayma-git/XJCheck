@@ -14,6 +14,8 @@ const COMMANDS = {
   loadResult: "desktop_load_result",
   renderPreview: "desktop_render_preview",
   setIssueStatus: "desktop_set_issue_status",
+  deleteProject: "desktop_delete_project",
+  cleanupWorkspaces: "desktop_cleanup_workspaces",
 } as const
 
 const mockIssueStatuses = new Map<string, IssueStatus>()
@@ -115,6 +117,28 @@ export const desktopApi = {
       return await this.loadResult(projectId)
     } catch (error) {
       throw toDesktopError(`状态写回失败（${issueId}）。`, error)
+    }
+  },
+
+  async deleteProject(projectId: string): Promise<void> {
+    if (!isTauri()) {
+      return
+    }
+    try {
+      await invoke(COMMANDS.deleteProject, { projectId })
+    } catch (error) {
+      throw toDesktopError(`删除项目记录失败（${projectId}）。`, error)
+    }
+  },
+
+  async cleanupWorkspaces(): Promise<void> {
+    if (!isTauri()) {
+      return
+    }
+    try {
+      await invoke(COMMANDS.cleanupWorkspaces)
+    } catch (error) {
+      throw toDesktopError("清理过程文件失败。", error)
     }
   },
 

@@ -5230,3 +5230,31 @@
 - Focused-test errors resolved: the first run exposed equal-radius tuple sorting attempting to compare dictionaries; sorting now uses an explicit radius key. Test assertions initially used `matched_rule_id`/`family_rule_id`; the public contract is `matched_family_rule_id`. Neither error affected replay artifacts or the live queue.
 - Direct converted-DXF checks now produce 8/12/16/28 ordered `component_pin` ports for XJDZ9-02/XJDZ4-18/XJDZ9-06/XJDZ9-10. Every row is `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`, `EXTERNAL_PORTS_ONLY`, with no internal-connectivity or union authority.
 - Full symbol proposal unit suite passes `154 passed`. Full-census provenance resolves the four numbered families to eight unique original pages across units 16000/18000/19000/20000/23000/27000; these eight pages are the mandatory focused replay set before queue removal.
+- 2026-07-16: First six-page numbered-array replay recovered 8 proposal rows / 14 instances / 220 native pins with combined evidence and zero internal connectivity/union. Binder repair now always consumes native `component_pin` for this geometry family, marks relations as component-port mappings, applies outward line alignment, and accepts trimmed CAD boundary markers around component labels. Focused `7 passed`; full symbol suite `155 passed`.
+- Replay diagnostics found and rejected a false-positive naming result: XJDZ4-18 side endpoint labels (`1n607`, `1-1n112`) were temporarily selected as the component designator instead of upper `DYQK`. Do not clear this batch until direction-aware component-name filtering is verified. The attempted removal of the first temporary replay directory was blocked by the local execution policy and changed nothing; fresh results were written to `replay2`/`replay3` instead.
+- Screenshot-rendering errors: system and bundled Python both lack matplotlib; no images were produced. Switched to ezdxf's installed SVG backend instead of retrying matplotlib.
+- 2026-07-16: Replay4 acceptance closes the pure-number array batch: 14 instances / 220 native pins across six focused inputs, with correct instance names (`DYQK`, `1BSQ/2BSQ/3BSQ`, etc.), combined geometry+human evidence, and zero internal connectivity/union.
+- Human adjudication recorded for XJDZ9-04: expose exactly `1..8/C+/G-/R-`, compose each with the upper instance name, and map only to the same-side external endpoint; example `1-21KK-1 → 1-21ZK-2`.
+- Implemented strict `numbered-functional-contact-array-v1`: complete `11 CIRCLE + 11 TEXT + 12 LWPOLYLINE` census, exact functional label set, five paired rows plus one extra end row, one-to-one outward circle/contact relation, and one dominant body. Exact and rotated/scaled/mirrored unseen positives match; a displaced same-census negative stays review. Focused tests pass `9 passed`; full symbol proposal suite passes `158 passed` before the final endpoint-binding assertion was added.
+- First XJDZ9-04 all-page replay recovered 7 instances / 77 pins but incorrectly chose side endpoint `1-21CD11` as the component name. Replaced the even-array height estimate with a functional 11-port top-boundary gate; second replay correctly binds `1-21KK/2-21KK/3-21KK`.
+- Third replay covers all 3 source DWGs / 7 instances. All three definition rows are `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`; every instance has all 11 identities; all three `1-21KK-1` occurrences map to `1-21ZK-2` with network-scoped endpoint evidence. All 77 candidates have `internal_connectivity_inferred=false` and `electrical_union_eligible=false`.
+
+### Phase 6: Launch cleanup / delete / issue-crop retention
+- **Status:** complete
+- Actions taken:
+  - 审计完成后 compact session 工作区，SQLite 保留 issue + 坐标辅助信息。
+  - 应用退出调用 cleanup_transient_workspaces，清理转化产物与 preview-cache。
+  - 启动页最近项目支持删除记录（danger 操作列 + confirm）。
+  - 启动页双面板铺满 workspace 高度（导入区 dropzone 放大 + 最近项目表可滚动）。
+  - preview 无 artifacts 时走 sqlite evidence 合成裁剪图。
+  - 补 lifecycle 单测；修复 workspace_compacted 事件 session_id 重复传参。
+- Files created/modified:
+  - src/dwg_audit/desktop/sidecar.py
+  - src/dwg_audit/desktop/preview.py
+  - src/dwg_audit/desktop/state_store.py
+  - apps/desktop/src/App.tsx
+  - apps/desktop/src/App.css
+  - apps/desktop/src/lib/desktopApi.ts
+  - apps/desktop/src-tauri/src/main.rs
+  - tests/unit/test_desktop_lifecycle.py
+

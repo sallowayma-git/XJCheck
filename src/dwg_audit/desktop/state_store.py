@@ -424,6 +424,62 @@ class DesktopStateStore:
             deleted = conn.execute("DELETE FROM runs WHERE session_id = ?", (session_id,)).rowcount
         return int(deleted or len(run_ids))
 
+    def list_runs_for_project(self, project_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM runs
+                WHERE project_id = ?
+                ORDER BY updated_at DESC
+                """,
+                (project_id,),
+            ).fetchall()
+        return [_row_to_run(row) for row in rows]
+
+    def list_all_runs(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM runs
+                ORDER BY updated_at DESC
+                """
+            ).fetchall()
+        return [_row_to_run(row) for row in rows]
+
+    def purge_project(self, project_id: str) -> int:
+        with self._connect() as conn:
+            run_ids = [
+                row["run_id"]
+                for row in conn.execute(
+                    "SELECT run_id FROM runs WHERE project_id = ?",
+                    (project_id,),
+                ).fetchall()
+            ]
+            if not run_ids:
+                return 0
+            placeholders = ",".join("?" for _ in run_ids)
+            conn.execute(f"DELETE FROM page_findings WHERE run_id IN ({placeholders})", run_ids)
+            conn.execute(f"DELETE FROM issue_summaries WHERE run_id IN ({placeholders})", run_ids)
+            deleted = conn.execute(
+                f"DELETE FROM runs WHERE run_id IN ({placeholders})",
+                run_ids,
+            ).rowcount
+        return int(deleted or len(run_ids))
+
+    def update_run_artifact_dir(self, *, run_id: str, artifact_dir: str) -> None:
+        now = _now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE runs
+                SET artifact_dir = ?, updated_at = ?
+                WHERE run_id = ?
+                """,
+                (artifact_dir, now, run_id),
+            )
+
     def _ensure_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(

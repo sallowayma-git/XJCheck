@@ -7,9 +7,16 @@ from typing import Any
 
 import pandas as pd
 
+from dwg_audit.desktop.sidecar import default_preview_cache_root
 from dwg_audit.desktop.state_store import DesktopStateStore
 from dwg_audit.desktop.state_store import default_state_db_path
 from dwg_audit.report import load_report_frames
+
+# Fixed screen canvas keeps issue previews readable in the dense inspector.
+_CANVAS_WIDTH = 960.0
+_CANVAS_HEIGHT = 540.0
+_HEADER_HEIGHT = 52.0
+_EDGE_PAD = 18.0
 
 
 def render_project_preview(
@@ -26,55 +33,84 @@ def render_project_preview(
     if latest is None:
         raise FileNotFoundError(f"No stored result found for project_id={project_id}")
 
-    artifact_dir = Path(latest["run"]["artifact_dir"])
-    frames = load_report_frames(artifact_dir)
+    run = latest["run"]
+    artifact_raw = str(run.get("artifact_dir") or "").strip()
+    artifact_dir = Path(artifact_raw) if artifact_raw else None
+    frames = load_report_frames(artifact_dir) if artifact_dir and artifact_dir.exists() else {}
     issues = frames.get("issues", pd.DataFrame())
     pages = frames.get("pages", pd.DataFrame())
     lines = frames.get("lines", pd.DataFrame())
     texts = frames.get("texts", pd.DataFrame())
     line_groups = frames.get("line_groups", pd.DataFrame())
 
+    # Prefer SQLite-retained issue records after conversion workspaces are compacted.
+    sqlite_issues = latest.get("issues") or []
     issue_row: pd.Series | None = None
     if issue_id:
-        issue_matches = issues[issues["issue_id"].astype(str) == issue_id] if not issues.empty else pd.DataFrame()
-        if issue_matches.empty:
+        issue_row = _issue_row_from_sqlite(sqlite_issues, issue_id)
+        if issue_row is None and not issues.empty:
+            issue_matches = issues[issues["issue_id"].astype(str) == issue_id]
+            if not issue_matches.empty:
+                issue_row = issue_matches.iloc[0]
+        if issue_row is None:
             raise FileNotFoundError(f"No issue found for issue_id={issue_id}")
-        issue_row = issue_matches.iloc[0]
         sheet_id = sheet_id or str(issue_row.get("sheet_id") or "")
 
     if not sheet_id:
         raise ValueError("sheet_id is required when issue_id is not provided.")
 
-    page_matches = pages[pages["sheet_id"].astype(str) == sheet_id] if not pages.empty else pd.DataFrame()
-    if page_matches.empty:
-        raise FileNotFoundError(f"No page found for sheet_id={sheet_id}")
-    page_row = page_matches.iloc[0]
+    page_row = _resolve_page_row(
+        pages=pages,
+        sheet_id=sheet_id,
+        issue_row=issue_row,
+        page_findings=latest.get("page_findings") or [],
+    )
+    highlight = _resolve_highlight(issue_row, line_groups, line_group_id=line_group_id)
+    line_semantics = _resolve_line_semantics(issue_row, line_groups, line_group_id=line_group_id)
 
-    extent = (
+    page_extent = (
         _json_bbox(page_row.get("audit_area_bbox"))
         or _json_bbox(page_row.get("frame_bbox"))
         or _json_bbox(page_row.get("extent_bbox"))
+        or _extent_from_highlight(highlight)
+        or _extent_from_issue_evidence(issue_row)
     )
-    if extent is None:
+    if page_extent is None:
         raise ValueError(f"Page {sheet_id} does not have a usable extent bbox.")
 
     sheet_lines = lines[lines["sheet_id"].astype(str) == sheet_id] if not lines.empty else pd.DataFrame()
     sheet_texts = texts[texts["sheet_id"].astype(str) == sheet_id] if not texts.empty else pd.DataFrame()
-    highlight = _resolve_highlight(issue_row, line_groups, line_group_id=line_group_id)
-    line_semantics = _resolve_line_semantics(issue_row, line_groups, line_group_id=line_group_id)
+    if sheet_lines.empty and highlight is not None:
+        sheet_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
+    if sheet_texts.empty and issue_row is not None:
+        sheet_texts = _synthetic_text_frame(issue_row, sheet_id=sheet_id)
 
-    target_dir = (output_dir or artifact_dir / "cache" / "previews").expanduser().resolve()
+    focus_extent = _resolve_focus_extent(
+        page_extent=page_extent,
+        highlight=highlight,
+        issue_row=issue_row,
+        texts=sheet_texts,
+    )
+    visible_lines = _filter_lines_in_extent(sheet_lines, focus_extent)
+    visible_texts = _filter_texts_in_extent(sheet_texts, focus_extent)
+    if visible_lines.empty and highlight is not None:
+        visible_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
+
+    preview_root = default_preview_cache_root() / project_id
+    target_dir = (output_dir or preview_root).expanduser().resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
-    target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}.svg"
+    crop_token = "issue" if highlight is not None else "sheet"
+    target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}_{crop_token}.svg"
     target_path.write_text(
         _build_svg(
             page_row,
-            sheet_lines,
-            sheet_texts,
-            extent,
+            visible_lines,
+            visible_texts,
+            focus_extent,
             highlight=highlight,
             issue_row=issue_row,
             line_semantics=line_semantics,
+            cropped=highlight is not None,
         ),
         encoding="utf-8",
     )
@@ -84,7 +120,10 @@ def render_project_preview(
         "sheet_id": sheet_id,
         "issue_id": issue_id,
         "preview_path": str(target_path),
-        "artifact_dir": str(artifact_dir),
+        "artifact_dir": artifact_raw,
+        "focus_bbox": list(focus_extent),
+        "cropped_to_issue": highlight is not None,
+        "source": "sqlite_evidence" if not artifact_raw else "artifacts",
     }
 
 
@@ -97,36 +136,40 @@ def _build_svg(
     highlight: dict[str, Any] | None,
     issue_row: pd.Series | None,
     line_semantics: dict[str, str] | None,
+    cropped: bool,
 ) -> str:
-    min_x, min_y, max_x, max_y = extent
-    width = max(max_x - min_x, 1.0)
-    height = max(max_y - min_y, 1.0)
-    pad = max(width, height) * 0.02
-    canvas_width = width + (pad * 2.0)
-    canvas_height = height + (pad * 2.0)
+    transform = _make_view_transform(extent)
+    tx = transform["tx"]
+    ty = transform["ty"]
+    scale = transform["scale"]
 
-    def tx(x: float) -> float:
-        return round((x - min_x) + pad, 2)
+    def sx(x: float) -> float:
+        return round(tx(x), 2)
 
-    def ty(y: float) -> float:
-        return round((max_y - y) + pad, 2)
+    def sy(y: float) -> float:
+        return round(ty(y), 2)
+
+    # Coordinates are already projected to screen pixels.
+    line_stroke = 1.4
+    highlight_stroke = 3.2
+    endpoint_r = 4.8
 
     svg_lines = [
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
         (
-            f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{round(canvas_width, 2)}\" "
-            f"height=\"{round(canvas_height, 2)}\" viewBox=\"0 0 {round(canvas_width, 2)} {round(canvas_height, 2)}\">"
+            f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{_CANVAS_WIDTH}\" "
+            f"height=\"{_CANVAS_HEIGHT}\" viewBox=\"0 0 {_CANVAS_WIDTH} {_CANVAS_HEIGHT}\">"
         ),
         "<rect width=\"100%\" height=\"100%\" fill=\"#fffdf8\" />",
-        "<g id=\"page-lines\" stroke=\"#2b2b2b\" stroke-width=\"1\" fill=\"none\">",
+        "<g id=\"page-lines\" stroke=\"#2b2b2b\" fill=\"none\">",
     ]
 
     for _, row in lines.iterrows():
         svg_lines.append(
             (
-                f"<line x1=\"{tx(float(row['start_x']))}\" y1=\"{ty(float(row['start_y']))}\" "
-                f"x2=\"{tx(float(row['end_x']))}\" y2=\"{ty(float(row['end_y']))}\" "
-                f"stroke=\"#343434\" stroke-width=\"0.9\" />"
+                f"<line x1=\"{sx(float(row['start_x']))}\" y1=\"{sy(float(row['start_y']))}\" "
+                f"x2=\"{sx(float(row['end_x']))}\" y2=\"{sy(float(row['end_y']))}\" "
+                f"stroke=\"#343434\" stroke-width=\"{round(line_stroke, 2)}\" />"
             )
         )
     svg_lines.append("</g>")
@@ -137,12 +180,16 @@ def _build_svg(
             text = html.escape(str(row.get("normalized_text") or row.get("text") or ""))
             if not text:
                 continue
-            fill = "#111111" if bool(row.get("is_numeric_candidate")) else "#5b5b5b"
-            opacity = "0.95" if bool(row.get("is_numeric_candidate")) else "0.55"
-            font_size = max(6.0, min(float(row.get("height") or 2.5) * 3.0, 16.0))
+            is_numeric = bool(row.get("is_numeric_candidate"))
+            fill = "#111111" if is_numeric else "#5b5b5b"
+            opacity = "0.98" if is_numeric else "0.72"
+            world_height = float(row.get("height") or 2.5)
+            font_size = max(11.0, min(world_height * scale * 1.15, 28.0))
+            if is_numeric:
+                font_size = max(font_size, 13.0)
             svg_lines.append(
                 (
-                    f"<text x=\"{tx(float(row['insert_x']))}\" y=\"{ty(float(row['insert_y']))}\" "
+                    f"<text x=\"{sx(float(row['insert_x']))}\" y=\"{sy(float(row['insert_y']))}\" "
                     f"font-size=\"{round(font_size, 2)}\" fill=\"{fill}\" opacity=\"{opacity}\" "
                     f"font-family=\"Consolas, 'Segoe UI', sans-serif\">{text}</text>"
                 )
@@ -156,34 +203,42 @@ def _build_svg(
         max_hx = max(start[0], end[0])
         min_hy = min(start[1], end[1])
         max_hy = max(start[1], end[1])
-        rect_pad = max(width, height) * 0.01
-        rect_x = tx(min_hx - rect_pad)
-        rect_y = ty(max_hy + rect_pad)
-        rect_w = round((max_hx - min_hx) + (rect_pad * 2.0), 2)
-        rect_h = round((max_hy - min_hy) + (rect_pad * 2.0), 2)
+        # Padding in world units, then projected to screen.
+        world_pad = max(_extent_span(extent) * 0.04, 2.0)
+        rect_x = sx(min_hx - world_pad)
+        rect_y = sy(max_hy + world_pad)
+        rect_w = round(abs(sx(max_hx + world_pad) - sx(min_hx - world_pad)), 2)
+        rect_h = round(abs(sy(min_hy - world_pad) - sy(max_hy + world_pad)), 2)
 
         svg_lines.extend(
             [
                 "<g id=\"issue-highlight\">",
                 (
                     f"<rect x=\"{rect_x}\" y=\"{rect_y}\" width=\"{rect_w}\" height=\"{rect_h}\" "
-                    f"fill=\"rgba(255,0,0,0.04)\" stroke=\"#d11f1f\" stroke-width=\"2.2\" />"
+                    f"fill=\"rgba(176, 45, 32, 0.08)\" stroke=\"#b02d20\" "
+                    f"stroke-width=\"{round(highlight_stroke, 2)}\" />"
                 ),
                 (
-                    f"<line x1=\"{tx(start[0])}\" y1=\"{ty(start[1])}\" x2=\"{tx(end[0])}\" y2=\"{ty(end[1])}\" "
-                    f"stroke=\"#d11f1f\" stroke-width=\"2.8\" />"
+                    f"<line x1=\"{sx(start[0])}\" y1=\"{sy(start[1])}\" x2=\"{sx(end[0])}\" y2=\"{sy(end[1])}\" "
+                    f"stroke=\"#b02d20\" stroke-width=\"{round(highlight_stroke + 0.6, 2)}\" />"
                 ),
-                f"<circle cx=\"{tx(start[0])}\" cy=\"{ty(start[1])}\" r=\"3.4\" fill=\"#d11f1f\" />",
-                f"<circle cx=\"{tx(end[0])}\" cy=\"{ty(end[1])}\" r=\"3.4\" fill=\"#d11f1f\" />",
+                f"<circle cx=\"{sx(start[0])}\" cy=\"{sy(start[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"#b02d20\" />",
+                f"<circle cx=\"{sx(end[0])}\" cy=\"{sy(end[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"#b02d20\" />",
                 "</g>",
             ]
         )
 
     title = html.escape(str(page_row.get("sheet_title") or page_row.get("filename") or ""))
     subtitle_parts = [f"sheet={page_row.get('sheet_no') or page_row.get('sheet_id')}"]
+    if cropped:
+        subtitle_parts.append("view=issue-crop")
     if issue_row is not None:
         subtitle_parts.append(f"issue={issue_row.get('issue_id')}")
         subtitle_parts.append(f"rule={issue_row.get('rule_id')}")
+        left_value = issue_row.get("left_value")
+        right_value = issue_row.get("right_value")
+        if left_value not in (None, "") or right_value not in (None, ""):
+            subtitle_parts.append(f"pair={left_value or '?'}→{right_value or '?'}")
     if line_semantics:
         orientation = line_semantics.get("line_orientation")
         if orientation:
@@ -196,13 +251,311 @@ def _build_svg(
     svg_lines.extend(
         [
             "<g id=\"header\">",
-            f"<text x=\"12\" y=\"24\" font-size=\"18\" fill=\"#101010\" font-family=\"Segoe UI, sans-serif\">{title}</text>",
-            f"<text x=\"12\" y=\"44\" font-size=\"12\" fill=\"#666666\" font-family=\"Segoe UI, sans-serif\">{subtitle}</text>",
+            (
+                f"<rect x=\"0\" y=\"0\" width=\"{_CANVAS_WIDTH}\" height=\"{_HEADER_HEIGHT}\" "
+                f"fill=\"rgba(247, 244, 238, 0.94)\" />"
+            ),
+            f"<text x=\"14\" y=\"22\" font-size=\"15\" fill=\"#1a1814\" font-family=\"Segoe UI, sans-serif\">{title}</text>",
+            f"<text x=\"14\" y=\"40\" font-size=\"11\" fill=\"#6b6458\" font-family=\"Segoe UI, sans-serif\">{subtitle}</text>",
             "</g>",
             "</svg>",
         ]
     )
     return "\n".join(svg_lines) + "\n"
+
+
+def _make_view_transform(extent: tuple[float, float, float, float]) -> dict[str, Any]:
+    min_x, min_y, max_x, max_y = extent
+    width = max(max_x - min_x, 1e-6)
+    height = max(max_y - min_y, 1e-6)
+    avail_w = _CANVAS_WIDTH - (_EDGE_PAD * 2.0)
+    avail_h = _CANVAS_HEIGHT - _HEADER_HEIGHT - (_EDGE_PAD * 2.0)
+    scale = min(avail_w / width, avail_h / height)
+    content_w = width * scale
+    content_h = height * scale
+    origin_x = (_CANVAS_WIDTH - content_w) / 2.0
+    origin_y = _HEADER_HEIGHT + ((_CANVAS_HEIGHT - _HEADER_HEIGHT - content_h) / 2.0)
+
+    def tx(x: float) -> float:
+        return origin_x + ((x - min_x) * scale)
+
+    def ty(y: float) -> float:
+        # CAD Y-up -> SVG Y-down
+        return origin_y + ((max_y - y) * scale)
+
+    return {"tx": tx, "ty": ty, "scale": scale}
+
+
+def _resolve_focus_extent(
+    *,
+    page_extent: tuple[float, float, float, float],
+    highlight: dict[str, Any] | None,
+    issue_row: pd.Series | None,
+    texts: pd.DataFrame,
+) -> tuple[float, float, float, float]:
+    """Prefer a tight crop around the issue geometry instead of the full sheet."""
+    if highlight is None:
+        return page_extent
+
+    start = highlight["start"]
+    end = highlight["end"]
+    points: list[tuple[float, float]] = [start, end]
+
+    evidence = _decode_jsonish(issue_row.get("evidence")) if issue_row is not None else None
+    if isinstance(evidence, dict):
+        for key in ("left_point", "right_point", "left_insert", "right_insert"):
+            point = evidence.get(key)
+            if _is_point_pair(point):
+                points.append((float(point[0]), float(point[1])))
+        for key in ("candidate_points", "related_points"):
+            values = evidence.get(key)
+            if isinstance(values, list):
+                for item in values:
+                    if _is_point_pair(item):
+                        points.append((float(item[0]), float(item[1])))
+
+    values: set[str] = set()
+    if issue_row is not None:
+        for key in ("left_value", "right_value"):
+            value = issue_row.get(key)
+            if value not in (None, ""):
+                values.add(str(value).strip())
+        decoded_values = _decode_jsonish(issue_row.get("values"))
+        if isinstance(decoded_values, list):
+            values.update(str(item).strip() for item in decoded_values if item not in (None, ""))
+
+    if values and not texts.empty:
+        for _, row in texts.iterrows():
+            label = str(row.get("normalized_text") or row.get("text") or "").strip()
+            if label in values:
+                points.append((float(row["insert_x"]), float(row["insert_y"])))
+
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+
+    span_x = max(max_x - min_x, 1.0)
+    span_y = max(max_y - min_y, 1.0)
+    page_span = _extent_span(page_extent)
+    # Keep enough context around the wire/terminals without falling back to full sheet.
+    pad = max(span_x, span_y) * 0.55
+    pad = max(pad, page_span * 0.03, 12.0)
+    pad = min(pad, page_span * 0.25)
+
+    crop = (
+        min_x - pad,
+        min_y - pad,
+        max_x + pad,
+        max_y + pad,
+    )
+    return _clamp_extent(crop, page_extent)
+
+
+def _filter_lines_in_extent(lines: pd.DataFrame, extent: tuple[float, float, float, float]) -> pd.DataFrame:
+    if lines.empty:
+        return lines
+    min_x, min_y, max_x, max_y = extent
+
+    def keep(row: pd.Series) -> bool:
+        x1, y1 = float(row["start_x"]), float(row["start_y"])
+        x2, y2 = float(row["end_x"]), float(row["end_y"])
+        return _segment_intersects_bbox(x1, y1, x2, y2, min_x, min_y, max_x, max_y)
+
+    mask = lines.apply(keep, axis=1)
+    filtered = lines[mask]
+    return filtered if not filtered.empty else lines.head(0)
+
+
+def _filter_texts_in_extent(texts: pd.DataFrame, extent: tuple[float, float, float, float]) -> pd.DataFrame:
+    if texts.empty:
+        return texts
+    min_x, min_y, max_x, max_y = extent
+    xs = texts["insert_x"].astype(float)
+    ys = texts["insert_y"].astype(float)
+    mask = (xs >= min_x) & (xs <= max_x) & (ys >= min_y) & (ys <= max_y)
+    filtered = texts[mask]
+    return filtered if not filtered.empty else texts.head(0)
+
+
+def _segment_intersects_bbox(
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    min_x: float,
+    min_y: float,
+    max_x: float,
+    max_y: float,
+) -> bool:
+    if _point_in_bbox(x1, y1, min_x, min_y, max_x, max_y) or _point_in_bbox(x2, y2, min_x, min_y, max_x, max_y):
+        return True
+    # Reject if both ends are fully on one outside side.
+    if max(x1, x2) < min_x or min(x1, x2) > max_x or max(y1, y2) < min_y or min(y1, y2) > max_y:
+        return False
+    # Conservative accept for segments crossing the crop window.
+    return True
+
+
+def _point_in_bbox(x: float, y: float, min_x: float, min_y: float, max_x: float, max_y: float) -> bool:
+    return min_x <= x <= max_x and min_y <= y <= max_y
+
+
+def _clamp_extent(
+    crop: tuple[float, float, float, float],
+    page_extent: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    page_min_x, page_min_y, page_max_x, page_max_y = page_extent
+    min_x, min_y, max_x, max_y = crop
+    return (
+        max(min_x, page_min_x),
+        max(min_y, page_min_y),
+        min(max_x, page_max_x),
+        min(max_y, page_max_y),
+    )
+
+
+def _extent_span(extent: tuple[float, float, float, float]) -> float:
+    min_x, min_y, max_x, max_y = extent
+    return max(max_x - min_x, max_y - min_y, 1.0)
+
+
+def _issue_row_from_sqlite(issues: list[dict[str, Any]], issue_id: str) -> pd.Series | None:
+    for item in issues:
+        if str(item.get("issue_id") or "") == issue_id:
+            return pd.Series(item)
+    return None
+
+
+def _resolve_page_row(
+    *,
+    pages: pd.DataFrame,
+    sheet_id: str,
+    issue_row: pd.Series | None,
+    page_findings: list[dict[str, Any]],
+) -> pd.Series:
+    if not pages.empty:
+        matches = pages[pages["sheet_id"].astype(str) == sheet_id]
+        if not matches.empty:
+            return matches.iloc[0]
+
+    for page in page_findings:
+        if str(page.get("sheet_id") or "") == sheet_id:
+            return pd.Series(
+                {
+                    "sheet_id": sheet_id,
+                    "sheet_no": page.get("sheet_no") or "",
+                    "sheet_title": page.get("sheet_title") or page.get("filename") or sheet_id,
+                    "filename": page.get("filename") or "",
+                    "extent_bbox": None,
+                    "frame_bbox": None,
+                    "audit_area_bbox": None,
+                }
+            )
+
+    filename = ""
+    sheet_no = ""
+    sheet_title = sheet_id
+    if issue_row is not None:
+        filename = str(issue_row.get("filename") or "")
+        sheet_no = str(issue_row.get("sheet_no") or "")
+        sheet_title = filename or sheet_id
+    return pd.Series(
+        {
+            "sheet_id": sheet_id,
+            "sheet_no": sheet_no,
+            "sheet_title": sheet_title,
+            "filename": filename,
+            "extent_bbox": None,
+            "frame_bbox": None,
+            "audit_area_bbox": None,
+        }
+    )
+
+
+def _extent_from_highlight(highlight: dict[str, Any] | None) -> tuple[float, float, float, float] | None:
+    if highlight is None:
+        return None
+    start = highlight["start"]
+    end = highlight["end"]
+    min_x = min(start[0], end[0])
+    max_x = max(start[0], end[0])
+    min_y = min(start[1], end[1])
+    max_y = max(start[1], end[1])
+    pad = max(max(max_x - min_x, max_y - min_y) * 0.8, 20.0)
+    return (min_x - pad, min_y - pad, max_x + pad, max_y + pad)
+
+
+def _extent_from_issue_evidence(issue_row: pd.Series | None) -> tuple[float, float, float, float] | None:
+    if issue_row is None:
+        return None
+    evidence = _decode_jsonish(issue_row.get("evidence"))
+    if not isinstance(evidence, dict):
+        return None
+    line_start = evidence.get("line_start")
+    line_end = evidence.get("line_end")
+    if _is_point_pair(line_start) and _is_point_pair(line_end):
+        return _extent_from_highlight(
+            {
+                "start": (float(line_start[0]), float(line_start[1])),
+                "end": (float(line_end[0]), float(line_end[1])),
+            }
+        )
+    return None
+
+
+def _synthetic_line_frame(highlight: dict[str, Any], *, sheet_id: str) -> pd.DataFrame:
+    start = highlight["start"]
+    end = highlight["end"]
+    return pd.DataFrame(
+        [
+            {
+                "line_id": "synthetic-issue-line",
+                "sheet_id": sheet_id,
+                "start_x": float(start[0]),
+                "start_y": float(start[1]),
+                "end_x": float(end[0]),
+                "end_y": float(end[1]),
+            }
+        ]
+    )
+
+
+def _synthetic_text_frame(issue_row: pd.Series, *, sheet_id: str) -> pd.DataFrame:
+    evidence = _decode_jsonish(issue_row.get("evidence"))
+    rows: list[dict[str, Any]] = []
+    if isinstance(evidence, dict):
+        line_start = evidence.get("line_start")
+        line_end = evidence.get("line_end")
+        left_value = issue_row.get("left_value")
+        right_value = issue_row.get("right_value")
+        if _is_point_pair(line_start) and left_value not in (None, ""):
+            rows.append(
+                {
+                    "text_id": "synthetic-left",
+                    "sheet_id": sheet_id,
+                    "text": str(left_value),
+                    "normalized_text": str(left_value),
+                    "is_numeric_candidate": True,
+                    "height": 2.5,
+                    "insert_x": float(line_start[0]),
+                    "insert_y": float(line_start[1]) + 4.0,
+                }
+            )
+        if _is_point_pair(line_end) and right_value not in (None, ""):
+            rows.append(
+                {
+                    "text_id": "synthetic-right",
+                    "sheet_id": sheet_id,
+                    "text": str(right_value),
+                    "normalized_text": str(right_value),
+                    "is_numeric_candidate": True,
+                    "height": 2.5,
+                    "insert_x": float(line_end[0]),
+                    "insert_y": float(line_end[1]) + 4.0,
+                }
+            )
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
 def _resolve_highlight(

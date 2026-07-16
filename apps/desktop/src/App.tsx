@@ -56,6 +56,7 @@ function App() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isDropTargetActive, setIsDropTargetActive] = useState(false)
   const [launchImportStatus, setLaunchImportStatus] = useState<LaunchImportStatus | null>(null)
+  const [isDeletingProjectId, setIsDeletingProjectId] = useState<string | null>(null)
   const deferredIssueSearch = useDeferredValue(issueSearch)
   const [processState, setProcessState] = useState<ProcessState>({
     sessionId: null,
@@ -87,6 +88,30 @@ function App() {
   useEffect(() => {
     void refreshRecentProjects()
   }, [refreshRecentProjects])
+
+  useEffect(() => {
+    if (!isTauri()) {
+      return
+    }
+    let unlisten: (() => void) | undefined
+    void getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        event.preventDefault()
+        try {
+          await desktopApi.cleanupWorkspaces()
+        } catch {
+          // Best-effort cleanup on exit; never block close on cleanup failure.
+        } finally {
+          await getCurrentWindow().destroy()
+        }
+      })
+      .then((fn) => {
+        unlisten = fn
+      })
+    return () => {
+      unlisten?.()
+    }
+  }, [])
 
   const applyImportedInputRoot = useEffectEvent((nextPath: string, source: "picker" | "drop") => {
     setInputRoot(nextPath)
@@ -345,6 +370,44 @@ function App() {
       setLoadError(message)
     } finally {
       setIsPickingDirectory(false)
+    }
+  }
+
+  async function handleDeleteProject(projectId: string, projectName: string) {
+    if (!projectId) {
+      return
+    }
+    if (isDeletingProjectId) {
+      return
+    }
+    const confirmed = window.confirm(
+      `确认删除项目记录「${projectName || projectId}」？\n将移除应用内保存的 issue 与辅助信息，且不可恢复。`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setIsDeletingProjectId(projectId)
+    setLoadError(null)
+    try {
+      if (isTauri()) {
+        await desktopApi.deleteProject(projectId)
+      }
+      setRecentProjects((current) => current.filter((item) => item.project_id !== projectId))
+      if (selectedProjectId === projectId) {
+        setSelectedProjectId(null)
+        setResult(null)
+        setSelectedIssueId(null)
+        setPreview(null)
+        if (screen === "result") {
+          setScreen("launch")
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除项目记录失败。"
+      setLoadError(message)
+    } finally {
+      setIsDeletingProjectId(null)
     }
   }
 
@@ -620,7 +683,7 @@ function App() {
                     placeholder="项目根目录路径"
                   />
                 </label>
-                <div className="button-row">
+                <div className="button-row launch-actions">
                   <button type="button" className="primary-button" disabled={!inputRoot.trim() || isAnalyzing} onClick={() => void handleAnalyzeClick()}>
                     {isAnalyzing ? "运行中…" : "开始校验"}
                   </button>
@@ -634,6 +697,9 @@ function App() {
                     <span>浏览器仅可预览界面与 mock 数据。请用 `npm run tauri:dev` 或安装包启动，以接入 Python sidecar。</span>
                   </div>
                 ) : null}
+                <div className="launch-import-footer muted">
+                  审计完成后仅保留 issue 与坐标等辅助信息；过程转化与缓存会在退出时清理。
+                </div>
               </div>
             </article>
 
@@ -646,7 +712,7 @@ function App() {
                   </button>
                 </div>
               </div>
-              <div className="table-wrap">
+              <div className="table-wrap launch-recent-table">
                 <table className="data-table compact">
                   <thead>
                     <tr>
@@ -656,6 +722,7 @@ function App() {
                       <th>问题数</th>
                       <th>状态</th>
                       <th>路径</th>
+                      <th className="actions-col">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -679,11 +746,24 @@ function App() {
                           <td className="path-cell" title={project.input_root}>
                             {project.input_root}
                           </td>
+                          <td className="actions-col">
+                            <button
+                              type="button"
+                              className="danger-button"
+                              disabled={isDeletingProjectId === project.project_id || isAnalyzing}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleDeleteProject(project.project_id, project.project_name)
+                              }}
+                            >
+                              {isDeletingProjectId === project.project_id ? "删除中…" : "删除"}
+                            </button>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           <div className="empty-state">暂无最近项目。完成一次审计后将显示在此列表。</div>
                         </td>
                       </tr>

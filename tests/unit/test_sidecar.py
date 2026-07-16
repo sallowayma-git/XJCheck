@@ -168,8 +168,12 @@ def test_render_project_preview_writes_svg_with_issue_highlight(tmp_path: Path) 
     assert preview_path.exists()
     svg = preview_path.read_text(encoding="utf-8")
     assert "<svg" in svg
-    assert "stroke=\"#d11f1f\"" in svg
+    assert "id=\"issue-highlight\"" in svg
+    assert "view=issue-crop" in svg
     assert "sheet=01" in svg
+    assert preview.get("cropped_to_issue") is True
+    assert isinstance(preview.get("focus_bbox"), list)
+    assert len(preview["focus_bbox"]) == 4
 
 
 def test_render_project_preview_prefers_explicit_line_group_override(tmp_path: Path) -> None:
@@ -224,7 +228,11 @@ def test_render_project_preview_prefers_explicit_line_group_override(tmp_path: P
     )
 
     svg = Path(preview["preview_path"]).read_text(encoding="utf-8")
-    assert "x1=\"12.4\" y1=\"32.4\" x2=\"92.4\" y2=\"32.4\" stroke=\"#d11f1f\"" in svg
+    assert "id=\"issue-highlight\"" in svg
+    assert "view=issue-crop" in svg
+    # Cropped canvas is fixed-size; highlight must still draw the override segment endpoints.
+    assert "stroke=\"#b02d20\"" in svg
+    assert preview.get("cropped_to_issue") is True
 
 
 def test_update_issue_status_syncs_state_store_and_audit_files(tmp_path: Path) -> None:

@@ -182,6 +182,44 @@ fn desktop_set_issue_status(
     )
 }
 
+#[tauri::command]
+fn desktop_delete_project(app: AppHandle, project_id: String) -> Result<Value, String> {
+    let workspace_root = default_workspace_root()?;
+    let state_db = default_state_db_path()?;
+    run_sidecar_json_owned(
+        &app,
+        vec![
+            "delete-project-record".to_string(),
+            "--project-id".to_string(),
+            project_id,
+            "--workspace-root".to_string(),
+            workspace_root.to_string_lossy().to_string(),
+            "--state-db".to_string(),
+            state_db.to_string_lossy().to_string(),
+        ],
+    )
+}
+
+#[tauri::command]
+fn desktop_cleanup_workspaces(app: AppHandle) -> Result<Value, String> {
+    run_cleanup_workspaces(&app)
+}
+
+fn run_cleanup_workspaces(app: &AppHandle) -> Result<Value, String> {
+    let workspace_root = default_workspace_root()?;
+    let state_db = default_state_db_path()?;
+    run_sidecar_json_owned(
+        app,
+        vec![
+            "cleanup-workspaces".to_string(),
+            "--workspace-root".to_string(),
+            workspace_root.to_string_lossy().to_string(),
+            "--state-db".to_string(),
+            state_db.to_string_lossy().to_string(),
+        ],
+    )
+}
+
 fn run_sidecar_json_owned(app: &AppHandle, args: Vec<String>) -> Result<Value, String> {
     let output = build_desktop_sidecar_command(app, &args)?
         .output()
@@ -256,8 +294,16 @@ fn main() {
             desktop_list_recent_projects,
             desktop_load_result,
             desktop_render_preview,
-            desktop_set_issue_status
+            desktop_set_issue_status,
+            desktop_delete_project,
+            desktop_cleanup_workspaces
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Best-effort: drop conversion workspaces/preview cache, keep SQLite issues.
+                let _ = run_cleanup_workspaces(app_handle);
+            }
+        });
 }

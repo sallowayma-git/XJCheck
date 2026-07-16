@@ -10,6 +10,8 @@ from dwg_audit.audit.symbol_library_review import load_symbol_review_document
 from dwg_audit.audit.symbol_library_review import promote_symbol_review_document
 from dwg_audit.desktop import DesktopEventWriter
 from dwg_audit.desktop import analyze_session as run_desktop_session
+from dwg_audit.desktop import cleanup_transient_workspaces as cleanup_desktop_workspaces
+from dwg_audit.desktop import delete_project_record as delete_desktop_project_record
 from dwg_audit.desktop import list_recent_projects as load_recent_projects
 from dwg_audit.desktop import load_project_result as load_desktop_project_result
 from dwg_audit.desktop import purge_session as purge_desktop_session
@@ -588,6 +590,40 @@ def purge_session(
             indent=2,
         )
     )
+
+
+@app.command("cleanup-workspaces")
+def cleanup_workspaces(
+    workspace_root: Path | None = typer.Option(None, "--workspace-root", file_okay=False, dir_okay=True, resolve_path=True),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+) -> None:
+    typer.echo(
+        json.dumps(
+            cleanup_desktop_workspaces(
+                workspace_root=workspace_root,
+                state_db_path=state_db,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
+@app.command("delete-project-record")
+def delete_project_record_cmd(
+    project_id: str = typer.Option(..., "--project-id"),
+    workspace_root: Path | None = typer.Option(None, "--workspace-root", file_okay=False, dir_okay=True, resolve_path=True),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+) -> None:
+    try:
+        payload = delete_desktop_project_record(
+            project_id=project_id,
+            workspace_root=workspace_root,
+            state_db_path=state_db,
+        )
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 @app.command("render-preview")

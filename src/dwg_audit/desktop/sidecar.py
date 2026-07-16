@@ -22,6 +22,11 @@ def default_workspace_root() -> Path:
     return local_app_data / "dwg-audit" / "sessions"
 
 
+def default_preview_cache_root() -> Path:
+    local_app_data = Path.home() / "AppData" / "Local"
+    return local_app_data / "dwg-audit" / "preview-cache"
+
+
 class DesktopEventWriter:
     def __init__(self, stream = None) -> None:
         self.stream = stream or sys.stdout
@@ -43,6 +48,7 @@ def analyze_session(
     include_audit: bool = True,
     state_db_path: Path | None = None,
     event_writer: DesktopEventWriter | None = None,
+    compact_after_store: bool = True,
 ) -> list[dict[str, Any]]:
     resolved_input = input_root.expanduser().resolve()
     resolved_workspace = workspace_root.expanduser().resolve()
@@ -87,11 +93,24 @@ def analyze_session(
         stored_runs.append(summary)
         writer.emit("project_stored", session_id=run_session_id, **summary)
 
+    compact_info: dict[str, Any] | None = None
+    if compact_after_store:
+        compact_info = compact_session_workspace(
+            session_id=run_session_id,
+            workspace_root=resolved_workspace,
+            state_db_path=state_store.db_path,
+        )
+        writer.emit("workspace_compacted", **compact_info)
+        for summary in stored_runs:
+            summary["artifact_dir"] = ""
+            summary["compacted"] = True
+
     writer.emit(
         "run_finished",
         session_id=run_session_id,
         project_count=len(stored_runs),
         projects=stored_runs,
+        compacted=bool(compact_info),
     )
     return stored_runs
 
@@ -128,7 +147,9 @@ def update_issue_status(
     if issue is None:
         raise FileNotFoundError(f"No stored issue found for issue_id={issue_id}")
 
-    _persist_issue_status_to_artifacts(Path(run["artifact_dir"]), issue_id=issue_id, status=normalized_status)
+    artifact_dir = str(run.get("artifact_dir") or "").strip()
+    if artifact_dir:
+        _persist_issue_status_to_artifacts(Path(artifact_dir), issue_id=issue_id, status=normalized_status)
     return {
         "project_id": project_id,
         "run_id": run["run_id"],
@@ -149,13 +170,142 @@ def purge_session(
     session_workspace = workspace_root.expanduser().resolve() / session_id
     removed_workspace = False
     if session_workspace.exists():
-        shutil.rmtree(session_workspace)
+        shutil.rmtree(session_workspace, ignore_errors=True)
         removed_workspace = True
     return {
         "session_id": session_id,
         "deleted_runs": deleted_runs,
         "removed_workspace": removed_workspace,
         "workspace_path": str(session_workspace),
+    }
+
+
+def compact_session_workspace(
+    *,
+    session_id: str,
+    workspace_root: Path,
+    state_db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Drop conversion/DXF/cache workspaces after issues are persisted to SQLite."""
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    session_workspace = workspace_root.expanduser().resolve() / session_id
+    updated_runs = 0
+    for run in store.list_all_runs():
+        if str(run.get("session_id") or "") != session_id:
+            continue
+        store.update_run_artifact_dir(run_id=str(run["run_id"]), artifact_dir="")
+        updated_runs += 1
+
+    removed_workspace = False
+    removed_bytes_estimate = 0
+    if session_workspace.exists():
+        removed_bytes_estimate = _dir_size_bytes(session_workspace)
+        shutil.rmtree(session_workspace, ignore_errors=True)
+        removed_workspace = not session_workspace.exists()
+
+    return {
+        "session_id": session_id,
+        "updated_runs": updated_runs,
+        "removed_workspace": removed_workspace,
+        "removed_bytes_estimate": removed_bytes_estimate,
+        "workspace_path": str(session_workspace),
+    }
+
+
+def cleanup_transient_workspaces(
+    *,
+    workspace_root: Path | None = None,
+    state_db_path: Path | None = None,
+    preview_cache_root: Path | None = None,
+) -> dict[str, Any]:
+    """Remove conversion sessions and regenerated preview cache; keep SQLite issue records."""
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    resolved_workspace = (workspace_root or default_workspace_root()).expanduser().resolve()
+    resolved_preview_cache = (preview_cache_root or default_preview_cache_root()).expanduser().resolve()
+
+    cleared_artifact_dirs = 0
+    for run in store.list_all_runs():
+        artifact_dir = str(run.get("artifact_dir") or "").strip()
+        if not artifact_dir:
+            continue
+        path = Path(artifact_dir)
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+            cleared_artifact_dirs += 1
+        store.update_run_artifact_dir(run_id=str(run["run_id"]), artifact_dir="")
+
+    removed_sessions = 0
+    if resolved_workspace.exists():
+        for child in list(resolved_workspace.iterdir()):
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+                if not child.exists():
+                    removed_sessions += 1
+
+    removed_preview_cache = False
+    if resolved_preview_cache.exists():
+        shutil.rmtree(resolved_preview_cache, ignore_errors=True)
+        removed_preview_cache = not resolved_preview_cache.exists()
+
+    return {
+        "cleared_artifact_dirs": cleared_artifact_dirs,
+        "removed_sessions": removed_sessions,
+        "removed_preview_cache": removed_preview_cache,
+        "workspace_root": str(resolved_workspace),
+        "kept_issue_records": True,
+    }
+
+
+def delete_project_record(
+    *,
+    project_id: str,
+    workspace_root: Path | None = None,
+    state_db_path: Path | None = None,
+    preview_cache_root: Path | None = None,
+) -> dict[str, Any]:
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    resolved_workspace = (workspace_root or default_workspace_root()).expanduser().resolve()
+    resolved_preview_cache = (preview_cache_root or default_preview_cache_root()).expanduser().resolve()
+    runs = store.list_runs_for_project(project_id)
+    if not runs:
+        raise FileNotFoundError(f"No stored result found for project_id={project_id}")
+
+    removed_paths: list[str] = []
+    session_ids: set[str] = set()
+    for run in runs:
+        session_ids.add(str(run.get("session_id") or ""))
+        artifact_dir = str(run.get("artifact_dir") or "").strip()
+        if artifact_dir:
+            path = Path(artifact_dir)
+            if path.exists():
+                shutil.rmtree(path, ignore_errors=True)
+                removed_paths.append(str(path))
+
+    deleted_runs = store.purge_project(project_id)
+
+    for session_id in session_ids:
+        if not session_id:
+            continue
+        session_path = resolved_workspace / session_id
+        if session_path.exists():
+            remaining = [
+                item
+                for item in store.list_all_runs()
+                if str(item.get("session_id") or "") == session_id
+            ]
+            if not remaining:
+                shutil.rmtree(session_path, ignore_errors=True)
+                removed_paths.append(str(session_path))
+
+    preview_dir = resolved_preview_cache / project_id
+    if preview_dir.exists():
+        shutil.rmtree(preview_dir, ignore_errors=True)
+        removed_paths.append(str(preview_dir))
+
+    return {
+        "project_id": project_id,
+        "deleted_runs": deleted_runs,
+        "removed_paths": removed_paths,
     }
 
 
@@ -306,3 +456,17 @@ def _persist_issue_status_to_artifacts(project_dir: Path, *, issue_id: str, stat
     frame.loc[mask, "status"] = status
     frame.to_parquet(parquet_path, index=False)
     frame.to_json(json_path, orient="records", force_ascii=False, indent=2)
+
+
+def _dir_size_bytes(path: Path) -> int:
+    total = 0
+    try:
+        for child in path.rglob("*"):
+            if child.is_file():
+                try:
+                    total += child.stat().st_size
+                except OSError:
+                    continue
+    except OSError:
+        return total
+    return total
