@@ -29,6 +29,7 @@
 | `SYMB2_S_PWF330` | P001 `07 网络通讯回路图.dwg`, `1C27C`, `(135.0,257.5)` | `b65e304c63f2661098d380605c4000e75855fbfcc57985109fad3a21c1c88ed5` | ETHER/NET、LAN 通信端口组件；不建立任何通信或电气映射，整体忽略 | `communication.ethernet_port_ignored.v1` |
 | `SYMB2_S_PWF316` | `05 信号回路图.dwg`, `A214`, `(627.5,464.375)` | `32f327c96740e2b52598d08b894a9071d6fbeff2f5404d1e81addf7e5ce741db` | ST 单模光纤通信端口；不建立 `1T/1R` 发送/接收映射，整体忽略 | `communication.optical_st_port_ignored.v1` |
 | `SYMB2_S_PWF318` | `04 交流回路图1.dwg`, `11176`, 外层 `(40.0,220.0)`；嵌套展开 `(40.0,232.495)` | `a6c74f98075e063d0bd026cee40d021e30ded7fb6eabca346385d81d1f8f81e7` | 接地符号；不建立任何映射、端口、桥接或并网关系，整体忽略 | `electrical.ground_symbol_ignored.v1` |
+| `SYMB2_S_PWF314` | P001 `17 差动保护背板图.dwg`, nested handle `3056A`, world `(400.7324,68.9934)`；P001/P003 指定 8 页均有实例 | `1ee219a2138f046ca744c25611726492fb54b31ef2126f57af79a85f66adb36a` | 继承既有接地符号权威；圆圈内阶梯接地变体整体忽略，零端口、零映射、禁止 connectivity/union | `electrical.ground_symbol_ignored.v1` |
 | `Ld_DzbJD_Left` | P001 `17 差动保护背板图.dwg`, `30F34`, `(55.0,252.5)`；同定义亦见 P003 | `d2978aaddce462eeea764d8295a059d646b00da794aeab718a568e6470bbf56b` | 左侧阶梯/重复线画法的接地符号；无端口、无映射，整体忽略 | `electrical.ground_symbol_ignored.v1` |
 | `Ld_DzbJD_Right` | P001 `27 右侧端子图2.dwg`, `2AF3`, `(115.0000017,157.5)`；P003 同定义 `3CD15`, `(92.5,160.0)` | `08a272799dbac4bf36f36ebcc1091f94b2273cf27fce8741a3cf31b150d5d123` | 右侧 DZB 辅助标记；无联通属性、无任何外部映射，整体忽略 | `electrical.nonconnective_dzb_right_marker_ignored.v1` |
 | `A$C26C55624` | P001 `14 高操作回路图.dwg`, `276B6`, `(249.9986338,134.9945)` | `4f4abeddea8e309da9df83614ee3def2228b9e72a1f9a6e788b270ab13ec8fa1` | 三引线矩形器件图形；内部不连通、无任何映射意义，整体忽略 | `electrical.nonconnective_three_lead_box_ignored.v1` |
@@ -51,6 +52,7 @@
 - PWF330：同属以太网/LAN 端口忽略族的宽体状态，块内文字为 `ETHER`/`NET`、含 3 个 LWPOLYLINE；作为独立几何子规则按文字布局、闭合轮廓拓扑及旋转/缩放不变量识别，不再作为 PWF324 的负例，也不能仅靠宽高比或 fingerprint 吸收其他宽体图形。
 - PWF316：单 ARC、单 LINE、双 LWPOLYLINE、两个机器几何端口、无块内文字，归一化 ARC 半径 `0.25..0.35`、长宽比 `1.6..2.1`；`ST单模/1T/1R` 是实例周边文字，不产生映射。
 - PWF318：一个闭合圆形接点、单根引线和三条互相平行且长度逐级递减的接地横线；旋转/缩放后仍按线方向、平行关系、长度层级及圆形接点绑定识别。仅有相同实体数量但不具备该拓扑的普通分支不得被吸收。
+- PWF314：独立规则 `circled-stepped-bar-ground-contact-v1` 要求完整 `4 LINE + 1 CIRCLE + 1` 个闭合 bulged `LWPOLYLINE`。三条同中心平行 bar 的长度比约 `1:0.75:0.5`、相邻间距约最长 bar 的 `0.25`；垂直 lead 从最长 bar 中点连接闭合接触区；外圆中心、半径与完整 motif 的包围关系同时受约束。规则仅使用相对向量、距离和比例，支持旋转、反射及统一缩放；外圆偏移、contact 脱离、bar 比例或间距失真时保持 review。独立 8 页 fresh replay 覆盖要求中的 10 个主 placements，并因 09/10 各有第二个父面板实例实际展开为 12 行；全部 `IGNORE / ports=[]`、零候选且无 topology/semantic/network member。
 - `Ld_DzbJD_Left`：三条阶梯横线以 LINE 与 open LWPOLYLINE 重复绘制，重复 stem 与侧向引线绑定。精确人工成员保留 `electrical.ground_symbol_ignored.v1` 语义；该几何与已确认右侧标记互为镜像，未见 fingerprint 的完整命中进入共享 `electrical.nonconnective_stepped_marker_ignored.v1`，避免凭几何伪造“接地/右标记”语义差异。两者行为均为零端口 IGNORE。
 - `Ld_DzbJD_Right`：三个逐级缩短、中心共线的平行条分别由 LINE 与开放双点 LWPOLYLINE 重合绘制；最长条中心连接一对重合正交杆及半长侧引线。按相对方向、长度比例、重合和端点绑定泛化，任一重绘条偏移或杆件拓扑不完整时保持 review。
 - `A$C26C55624`：大矩形底部嵌套一个同宽小矩形，小矩形含对角线；三条等长平行引线以“两侧二对一”方式绑定大矩形边。按矩形边长比例、中心关系、对角角点和引线端点拓扑泛化，任一引线脱离或内部结构不完整时保持 review。
@@ -181,6 +183,9 @@
 - 泛化族为 `communication.equipment_panel_ignored.v1`，严格子规则 `wide-ge-gx-power-switch-panel-v1`。定义级联合验证完整 GE/P/GX/T/R/Console/FAULT/PWR 文字阵列、24 个以上近方形接口单元、8 个等半径共线圆的 `3.36r/4.84r` 交替间距、至少 40 个闭合 bulged 接口轮廓及约 `4.22:1` 的宽体比例；支持旋转和统一缩放，不依赖定义名或 fingerprint。
 - 负例边界：缺少任一完整 `P1..24`/`GE1..24` 标签、任一光口圆偏离共线轴或交替间距、接口单元不足、实体密度或宽体比例不符时不得自动忽略。
 - 真实验证：精确成员输出 `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`；同一真实定义替换为未见 fingerprint 后输出 `MATCHED / IGNORE / ports=[]`。原图重跑中 handle `3B840` 与该 fingerprint 的实例级 network candidates 均为 0。
+- whole-panel IGNORE 权威必须由所有嵌套后代继承：candidate/binding 阶段沿 `nested_path` 逐级解析全部祖先，只要任一祖先 proposal 经统一 classify/evaluate 得到 `behavior_mode=IGNORE` 且 `suppressed_by_policy=true`，该后代不得生成 symbol-port network candidate。此规则不依赖 DGICOM 名称、child 名称、child fingerprint 或固定层级；`A$C08084C19`、`A$C7E971F70` 仅是暴露该通用缺陷的真实样本，不登记为记忆式忽略成员。
+- 祖先继承边界：`TABLE_CONTAINER`、`EXTERNAL_PORTS_ONLY`、`TERMINAL_NO_INTERNAL`、`WIRE_PRIMITIVE`、`REVIEW_ONLY` 等非 `IGNORE` 行为不得抑制嵌套 child；尤其必须保留背板表格、嵌套端子和多端口组件既有提取链路。
+- post-change 真实验证：独立重跑 P003 `09/10 交换机接线图`，两页 DGICOM proposal 均保持 `communication.equipment_panel_ignored.v1 / wide-ge-gx-power-switch-panel-v1 / HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`。`A$C08084C19` 与 `A$C7E971F70` 的 8 个 placements 仍保留 definition proposal/census，但 network candidates 合计为 0；目标 child 在 topology decisions/applications、semantic nodes/relations/evidence/constraints、endpoint witnesses、network members 中均为 0。
 
 ### `SYMB2_S_PWF24a` — 双圆接点标记整体忽略
 
@@ -254,6 +259,53 @@
 - 真实单页 replay 输出 `HUMAN_CONFIRMED_MEMBER / horizontal_numbered_two_circle_box_ports_v1 / EXTERNAL_PORTS_ONLY`，并持久化 `JR-1→K-3 / PCS0001`、`JR-2→K-4 / PCS0002`；两行 `internal_connectivity_inferred=false`、`electrical_union_eligible=false`。
 - 精确成员与旋转 `37°`、缩放 `1.8×` 的未见 fingerprint 均命中；保持实体数量但横移任一小接点的负例不得进入该族。
 
+### `A$C1DEA74F8` — 窄框四级锯齿元件整体 IGNORE
+
+- 来源：P001 `21 元件接线图1.dwg`，nested handle `27268`，world `(143.75,40.0)`，fingerprint `0b72b0b02116d00c0a8c196e1b45c6d693450315f37e77ba636c0a03065f3785`。人工确认完整图形整体忽略；上下不是端口，无外部映射、无内部联通，禁止 electrical union。
+- 泛化族为 `electrical.nonconnective_vertical_zigzag_element_ignored.v1`，严格规则 `narrow-frame-four-cell-zigzag-v1`。完整定义必须为 `12 LINE + 1` 个闭合矩形 LWPOLYLINE：窄框长短比约 `2.801`，上下两条等长轴向引线各约框长 `0.2143`；框内五个等距轴向层级由四条同斜率跨框对角线占据，三个内部层级各有两条重合全宽横杆连接相邻对角线的异侧端点。
+- fingerprint 仅登记人工 provenance。规则在矩形局部坐标中验证比例、层级、方向和端点绑定，支持旋转、反射与统一缩放；未见 fingerprint 的 `37° / 1.7×` 正例命中，保持同样 `12+1` primitive 数量但移动一条重复横杆的负例不命中。
+- fresh 单页 replay 中 handle `27268` 为 `HUMAN_CONFIRMED_MEMBER / IGNORE / ports=[]`，且几何证据为 `narrow-frame-four-cell-zigzag-v1`；目标 candidates、topology、semantic、endpoint witness、network member 全为 0，全部 connectivity/union 标志为 false。
+- 当前回归必须同时覆盖 P001 上述保护柜项目与完整 P003 `F:\workspace\XJToolkit\test\【出原理图】N2604HBJ20732J合同` 根目录（25 个柜体项目、450 张 DWG），不得将 P003 缩减为单个柜体子目录。
+
 ## 7. 待人工裁决区
 
 本文件不保留历史机器猜测。清理后由最新 P001/P003 全量分析重新生成待裁决清单；只有用户明确回答后的条目才会移入以上“已确认”章节。
+
+## Phase166 已确认泛化裁决
+
+- `PWF166`：接地结构整体 IGNORE。六触点与四触点为两个独立完整几何 subtype；均为零端口、零映射、零联通、禁止 union，不以名称或 fingerprint 进行分类。
+- `FJL-25-2A` / Mirror：只保留实际接线的 pins `1/2`，二者内部不连通，分别绑定本侧外线；外侧装饰触点不作为端口。
+- `KK1P/KK2P/KK3P+OF11-12`：只保留主端口 `1..2/4/6`，以“上方实例名-端口号”形成身份并绑定同侧外线；OF 辅助区 `11/12/14` 整体不参与端口、映射或联通。
+- `PWF172` LED/二极管发光箭头与 `PWF216` 窄框/底部斜线结构：完整图形整体 IGNORE，零端口、零映射、零联通。两者均已用完整相对拓扑在全部出现页 replay，不再进入人工队列。
+- `DGICOM3000-4GX8GE-HV`：沿用 DGICOM 完整通信面板整体 IGNORE。GE/GX、Console、PWR/GND、光纤圆阵列和面板内部端口图形均不建立通信或电气映射；完整面板零端口、零联通、禁止 union。
+# Phase 157-160 geometry contracts
+
+PWF168 (58325f4a...), PWF209 (7cd4cc6f...), and PWF163 (dc5a2723...) are
+whole-symbol IGNORE families. PWF175 (2d7264d3...) is a named isolated
+two-port family: the upper instance name composes with native pins 1 and 2,
+which bind only to their measured same-side routes. Fingerprints are retained
+as provenance only; geometry matching is invariant to translation, rotation,
+uniform scale, and reflection. All four prohibit inferred internal
+connectivity and electrical union.
+- Phase 157-160 repair: initial implementation used post-filter LWPOLYLINE counts and missed complete raw definitions. Replacement uses raw contacts plus normalized relative geometry; exact fingerprints are provenance only.
+- Final full-root replay covers 13 cabinet units, 40 unique source DWGs, and all 421 real instances. PWF168=206, PWF209=89, and PWF163=63 are geometry-confirmed `IGNORE / ports=[]` with zero candidate/topology/semantic/witness/network artifacts.
+- PWF175=63 instances emit exactly 126 outward ports. All 126 bind a same-side external line and compose a device identity; numeric designators such as `7QK` and subtype-scoped short alpha name `DYQK` both produce `instance-pin` identities. Internal connectivity and electrical union remain false.
+- Switch-class IGNORE authorization (121 instances): eight supplied fingerprint prefixes are provenance only. All accepted unseen members must pass normalized relative geometry; ports, mapping, attachment, internal connectivity, critical eligibility and union are zero. PWF166 six-contact and four-contact variants are mutual geometry negatives.
+- WFS polarity component: complete rounded body with two axial contacts and native `+/-` markers is an external-only two-port component. Compose the nearby instance designator with each polarity pin; each pin maps only to its own attached external line/network. The two pins never connect internally and never participate in electrical union. Fingerprint `888624f4...` is provenance; the classifier uses complete relative geometry.
+- `ELXAL5-B11-209B`: both known fingerprints (`caa42087...`, `e91786a7...`) implement the same complete four-independent-port geometry. Native pins `11/12/13/14` compose with the instance name and map only to their own external line when present; unwired pins remain identities without fabricated mappings. All four are internally isolated/no-union. Same name does not authorize fingerprint merging; both are separately retained as provenance members of one strict geometry subtype.
+- Switch IGNORE generalization addition: the complete PWF85 three-contact selector/slash artwork and complete PWF200/PWF204/PWF235 actuated-contact assemblies are electrical switch graphics under the repeated human authority “whole switch artwork IGNORE, internally non-connective, no ports or mappings.” Each geometry remains a separate strict subtype; this authority must not absorb outward 13/14 components whose ports were explicitly retained.
+## Phase 166 historical-arbitration self-iteration: isolated components
+
+- `SYMB2_M_PWF115`: four orthogonal basic-terminal contacts around a circular body. Emit four outward ports only; no pair is internally connected or union-eligible.
+- `SYMB2_M_PWF98`: two axial contacts around a round body. Emit the two external ports independently; visible body geometry does not authorize an internal bridge.
+- `SYMB2_M_PWF218`: two-contact dual-frame mechanism. Left/right ports attach only to their own external route; internal frame/diagonal artwork is non-conductive.
+- `SYMB1_M_30401`: triangular-body axial component. Top/bottom contacts are independent external ports; the triangle does not connect them.
+- `SYMB2_M_PWF259`: complete rectangular/diagonal mechanism is IGNORE. The four old proposals were bbox extrema rather than physical ports; emit no port, mapping, internal connectivity, or union.
+- Engine acceptance requires complete normalized topology, transformed unseen positives, displaced near-negatives, and replay of every occurrence page. Exact fingerprints record adjudication provenance only.
+
+## Phase 166 communication and routing markers
+
+- `SYMB2_S_PWF3`: complete RX/TX remote-interface marker is IGNORE; its contact, round body and centre slash are recognition geometry only.
+- `SYMB2_S_PWF303`: complete RX/ST parenthesis-contact optical marker is IGNORE and creates no communication mapping.
+- `A$C3CE477D4` / `A$C7ECC553D`: the complete two-semicircle/two-parallel-line capsule is routing/line-break artwork, not a two-port component. Emit no ports, bridge, mapping, connectivity or union.
+- Acceptance requires the complete relative topology; generic circles, generic two-contact symbols and ordinary parallel conductors are near-negatives and must not be suppressed.

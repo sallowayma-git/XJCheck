@@ -1,9 +1,13 @@
 # Task Plan: XJToolkit DWG Audit MVP Closure
 
 ## Goal
+本轮授权切片：8 个 switch-class whole IGNORE fingerprints，合计 121 实例；仅编辑协调文件，不触碰 live queue/current crops/current census，不提交 git。
 重新对齐并完成 [doc/任务书.md](/F:/workspace/XJToolkit/doc/任务书.md) 定义的 DWG 审计 MVP 主链：输入项目级 DWG，生成结构化 findings 运行态，先做页级分类，再按图种路由到对应识别器，产出 pair / table mapping / evidence，运行项目级规则引擎，并输出可复核异常报告。
 
 ## Current Phase
+Phase 157-160 implementation: PWF168/PWF209/PWF163/PWF175 geometry contracts
+are in progress; existing partial policy entries are preserved.
+Switch-class batch: safe geometry contracts added for PWF166(6/4 contacts), PWF265 frame, and horizontal four-line gap; PWF26/DPDT/dense-panel remain provenance-only pending direct block proof.
 Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase 143 side midpoint `DGICOM4000-4GX24GE-HV-HV` is starting alongside the main queue. Side work appends to root progress/findings and does not use subagents.
 
 ## Phases
@@ -358,6 +362,10 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 | 人工标注不单独立项；真值获取改为"覆盖率合同 + agent 对 DXF 的结构裁决 + 人工抽查仲裁" | 两套样本默认全对、任务书已沉淀期望语义样例，"是否全部提取"可以变成机器可算指标；归属数据天然成为后续可解释 ML / GNN 的弱标签，无需独立标注工程 |
 
 ## Errors Encountered
+| First 14-page actuated-switch input preparation copied zero files | PowerShell consumed Python's Unicode path output using the wrong console encoding, corrupting Chinese source paths; `Copy-Item` errors were non-terminating and the empty analyze command misleadingly exited 0. | Set `PYTHONIOENCODING=utf-8`, enable `$ErrorActionPreference='Stop'`, rebuild only the verified temp input/output directories, and assert copied-file count before replay. |
+| PWF85 six-page replay remained exact-only | First selector-switch geometry replay | Persisted exact IGNORE rows reach classification with ports already cleared (`port_count=0`), and the real diagonal slash is `~8 contact radii`, not the synthetic `10`. Permit only `{0,4}` for this complete geometry and align the invariant slash-length contract to the measured source. |
+| Synthetic WFS binding test returned no rows | New instance-binding regression | The helper proposal had no `file_id`/`sheet_id`, so fingerprint binding correctly found no file-local proposal. Add the same file/sheet identity used by the synthetic instance. |
+| WFS transformed positive was not geometry-classified | Focused WFS/ELXAL gate | The normalized bulged-contact `radius` is axis-aligned-bbox dependent after rotation. Use the already-recorded normalized `chord_radius` for invariant body/contact ratios, retaining exact census and polarity-layout guards. |
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | `apply_patch` context verification failed while appending review findings | Expected a bullet without its leading `Version/cache contracts` phrase | Re-read the file tail and reapplied against the exact current line |
@@ -2045,6 +2053,11 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 - [x] Add regression tests, run targeted suites, and append the confirmed PWF239/generalization result to progress and taskbook
 - **Status:** complete
 
+#### Phase 157-160 acceptance-prep errors
+- The first read-only ezdxf geometry dump attempted to slice an accelerated `Vec3` and failed with `TypeError: an integer is required`. No repository or test artifact changed. Retry by reading explicit `.x/.y` coordinates; do not repeat the slicing form.
+- A read-only `Nash` thread-status request and a subsequent thread-list query both failed to return promptly; each was terminated without interrupting the worker. Do not repeat these blocking status calls. Use the worker completion notification plus low-frequency shared-file timestamps for acceptance.
+- After ten minutes with no shared-file or dedicated-artifact activity, one bounded recovery message to the same worker channel also failed to return and was terminated. No worker patch exists and no concurrent writer is visible. Main thread therefore owns and completes the bounded batch; do not spawn a second writer.
+
 ### Phase 129: Adjudicated Component Family Generalization
 - [x] Restart and complete concurrent geometry-family, semantic-policy, and code-dependency audits after the interrupted agent batch; close every one-shot agent
 - [x] Add versioned definition-family classifications for terminals, external-only components, open/line-break candidates, and non-electrical reviewed members
@@ -2257,6 +2270,139 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 - [x] Refresh the compact queue to `0/0` before rebuilding the next review round
 - **Status:** complete
 
+### Phase 153: SYMB2_S_PWF314 Circled-Ground Generalization
+- [x] Rebuild full P001/P003 census under current V2 and generate a fresh compact queue
+- [x] Identify PWF314 as a circled-contact ground-symbol variant covered by prior human ground IGNORE authority
+- [x] Add a strict rotation/uniform-scale complete-geometry ground IGNORE subtype
+- [x] Add unseen/transformed positives and close ground-like negatives
+- [x] Dedicated-replay all P001/P003 source pages containing the 10 real instances and prove zero ports/mappings/union
+- [x] Remove only PWF314, clean its crop/replay, and present the next distinct unresolved geometry
+- **Status:** complete
+
+### Phase 154: Ignored-Parent Nested-Symbol Suppression
+- [x] Inspect A$C08084C19 and A$C7E971F70 ancestry in the fresh P003 census
+- [x] Prove every real placement is nested under human-confirmed DGICOM4000 whole-panel IGNORE
+- [x] Suppress all nested child port candidates when any ancestor behavior is whole-symbol IGNORE
+- [x] Preserve nested extraction under TABLE_CONTAINER/non-IGNORE ancestors with regressions
+- [x] Fresh-replay P003 09/10 pages and prove both child definitions emit zero candidates/relations/union
+- [x] Remove both stale child rows, clean the crop/replay, and present the next distinct item
+- **Status:** complete
+
+### Phase 155: A$C1DEA74F8 Vertical Zigzag Element Adjudication
+- [x] Advance after ancestor-suppression replay and cleanup
+- [x] Inspect fresh P001 proposal/candidates and complete local geometry
+- [x] Render handle `27268` inside the CD-WSK component context
+- [x] Obtain human semantics: whole-symbol IGNORE, zero ports/mappings/connectivity/union
+- [x] Add strict complete-geometry IGNORE family for the narrow frame, four repeated zigzag cells, and two axial leads
+- [x] Add exact and unseen rotated/scaled positives plus a same-primitive-count near negative
+- [x] Replay P001 `21 元件接线图1.dwg` and prove handle `27268` has zero ports/candidates/topology/semantic/network artifacts and no connectivity/union
+- [x] Run focused, symbol-proposal, integration, repository, compile, and diff-check gates
+- [x] Append canonical docs and planning records for both P001 and full-root P003 test scopes
+- [x] Leave the shared review queue, screenshot, and all replay artifacts untouched for main-thread ownership
+- **Status:** complete
+
+#### Phase 155 errors
+- The first dedicated replay reached the correct exact-policy `IGNORE` state but retained the old generic matched rule, exposing that the initial synthetic zigzag connected adjacent diagonals directly while the real symbol joins opposite-side diagonal endpoints through each duplicated crossbar. Corrected both matcher and fixture to require four equal-slope diagonals plus opposite-side bar joins; do not treat exact-policy suppression alone as geometry-generalization proof.
+
+### Phase 156: Expand N2604 Contract Test-Set Scope
+- [x] Accept the user correction that the entire N2604 contract folder is a test-set root
+- [x] Enumerate 25 cabinet subprojects and 450 DWG files beneath the root
+- [x] Run a fresh recursive V2 census for the complete contract folder into a new output tree
+- [x] Aggregate every generated cabinet project with a synchronized fresh P001 census, excluding only metadata and ignored-parent-only descendants
+- [x] Rebuild the compact human-review queue while preserving pending A$C1DEA74F8
+- [x] Validate counts/provenance, then retire the obsolete 11000-only census and continue annotation
+- **Status:** complete
+
+### Phase 157: Full-Scope Queue Head SYMB2_M_PWF168 Adjudication
+- [x] Re-read the live queue produced from synchronized P001 plus the complete P003 contract root
+- [x] Lock the global head to `SYMB2_M_PWF168` (`206` instances across four P003 cabinet projects)
+- [x] Render and visually verify one representative in source-page context
+- [x] Obtain human semantics: whole-symbol IGNORE with zero ports/mappings/connectivity/union
+- [x] Implement generalized behavior, replay every relevant scope, remove only the resolved row, and clean artifacts
+- **Status:** complete
+
+### Phase 158: Full-Scope Queue Next SYMB2_M_PWF209 Adjudication
+- [x] Advance main lane without waiting for the serialized IGNORE implementation workers
+- [x] Inspect the complete four-contact/two-row arc geometry and source context
+- [x] Render representative `F255` from full-root P003 cabinet `15000`
+- [x] Apply prior human authority: the complete circular-arc wire motif is IGNORE with zero ports/mappings/connectivity/union
+- [x] Implement generalized behavior, replay all affected scopes, remove only the resolved row, and clean artifacts
+- **Status:** complete
+
+### Phase 159: Full-Scope PWF163 Prior-Switch Authority Generalization
+- [x] Inspect the representative source crop and complete `3 LINE + 4 contact-region` geometry
+- [x] Identify it as the same open-switch/contact semantics already repeatedly adjudicated IGNORE
+- [x] Avoid requesting redundant human annotation
+- [x] Extend the switch IGNORE family with transformed positives and close same-count negatives
+- [x] Replay all 63 instances/seven cabinet projects, remove only the resolved row, and clean artifacts
+- **Status:** complete
+
+### Phase 160: Full-Scope SYMB2_M_PWF175 Adjudication
+- [x] Select the next distinct live queue item after prior-authority PWF163
+- [x] Inspect its two-circle/two-contact/two-lead geometry and source labels
+- [x] Render representative `287CD` in source-page context
+- [x] Obtain human semantics: `instance-1` maps left, `instance-2` maps right, and the two ports are internally isolated
+- [x] Implement generalized behavior, replay all affected scopes, remove only the resolved row, and clean artifacts
+- **Status:** complete
+
+### Phase 161: Full-Scope KK2P+OF11-12 Composite Adjudication
+- [x] Select the next live item after PWF175
+- [x] Inspect its complete composite four-main-pin plus OF11/12/14 geometry
+- [x] Render representative `2BF75` in source-page context
+- [x] Obtain human semantics: only named main pins 1/2/3/4 map outward; auxiliary 11/12/14 and its mechanism are ignored
+- [ ] Implement generalized behavior, replay all affected scopes, remove only the resolved row, and clean artifacts
+- **Status:** in_progress
+
+### Phase 162: Full-Scope PWF216 Prior-Ignore Generalization
+- [x] Inspect representative vertical enclosure in source context
+- [x] Match it to the previously human-confirmed ignorable vertical-box/bottom-diagonal device class
+- [x] Avoid redundant semantic annotation
+- [ ] Add complete-geometry transformed/unseen positives and close negatives
+- [ ] Replay 52 instances/four cabinets, remove only the resolved row, and clean artifacts
+- **Status:** in_progress
+
+### Phase 163: Full-Scope SYMB2_M_PWF166 Adjudication
+- [x] Inspect the vertical contact-stack geometry and PE/GND source context
+- [x] Render representative `27ABF` from P003 cabinet `10000`
+- [x] Apply the user's queue-audit authority: both fingerprint-distinct PWF166 groups are switch-class whole IGNORE
+- [ ] Implement generalized behavior, replay all affected scopes, remove only the resolved row, and clean artifacts
+- **Status:** in_progress
+
+### Phase 164: Full-Scope PWF172 Prior-Diode Authority Generalization
+- [x] Inspect the complete LED/diode geometry adjacent to PWF168
+- [x] Match prior human authority that diode and LED graphics are whole-symbol IGNORE
+- [x] Avoid redundant semantic annotation
+- [ ] Add complete diode/arrow geometry transformed positives and close negatives
+- [ ] Replay 35 instances/four cabinets, remove only the resolved row, and clean artifacts
+- **Status:** in_progress
+
+### Phase 165: Full-Scope SYMB2_M_PWF115 Adjudication
+- [x] Inspect the four-direction circle/lead geometry at a route crossing
+- [x] Render representative rotated/scaled handle `1A00D` in source context
+- [ ] Present only after PWF166 is adjudicated, preserving one-at-a-time review
+- [ ] Obtain human IGNORE versus four-way junction/port connectivity semantics
+- [ ] Implement generalized behavior, replay all affected scopes, remove only the resolved row, and clean artifacts
+- **Status:** in_progress
+
+### Phase 166: Reconcile Known-Semantics Queue Before Further Human Review
+- [x] Accept the user's read-only queue audit as the semantic baseline
+- [x] Re-read the current file by fingerprint: `75` groups / `1,087` instances after A$C1 removal
+- [x] Confirm duplicate-name groups must remain fingerprint-distinct (`PWF166`, `*U17`, `ELXAL5-B11-209B`)
+- [x] Implement/replay/remove the four already-adjudicated high-volume groups PWF168/PWF209/PWF163/PWF175
+- [ ] Audit and replay-filter A$C08084C19/A$C7E971F70 under complete DGICOM ancestry across the full P003 root
+- [ ] Generalize/replay all known switch-IGNORE fingerprints without merging by name
+- [ ] Generalize/replay FJL-25-2A and KK1P/2P/3P+OF selective multi-port families
+- [ ] Rebuild the queue from current engine output, synchronize canonical docs, and expose only genuinely unknown geometries
+- **Status:** in_progress
+
+#### Phase 157-160 bounded serial implementation contract (2026-07-16)
+- Preserve every existing uncommitted change; do not create a Git commit.
+- Do not modify or clean `.tmp/current_symbol_review/unresolved_symbols.json`, current review screenshots, or either current census.
+- Record and verify both test roots: P001 protection-cabinet project and complete P003 `test/【出原理图】N2604HBJ20732J合同` (25 cabinet projects / 450 DWGs).
+- Implement, in order, geometry-generalized behavior for PWF168 IGNORE, PWF209 IGNORE, PWF163 IGNORE, and PWF175 named outward-only ports; fingerprints are provenance only.
+- Require exact, transformed unseen-positive, same-count close-negative, representative source replay, downstream zero-artifact/no-union evidence, canonical append-only documentation, focused/full tests, compileall, and `git diff --check`.
+- Place only dedicated implementation/replay artifacts below `.tmp/phase157_160_worker` and leave all main-thread live artifacts untouched.
+
 ### Phase 139: Midpoint SYMB2_M_PWF270 Adjudication
 - [x] Select the current live midpoint without taking the main queue head
 - [x] Replay P003 `05 信号回路图.dwg` and inspect the current V2 proposal/candidates
@@ -2406,3 +2552,55 @@ Phase 142 midpoint `WBH-813E-E1SH-101` auto-resolved as a table container; Phase
 - [x] Replay original handle `273A5` and verify exactly two measured no-union mappings
 - [x] Run expanded gates, remove only JR-01 from the live queue, clean side artifacts, and advance
 - **Status:** complete
+### Phase 157-160 repair verification
+- Corrected raw contact histogram handling (PWF168/PWF209/PWF163/PWF175 = 3/4/4/2) and relative geometry gates; exact fingerprints remain provenance.
+- Focused unseen/negative unit proof, integration, compileall, and diff-check completed.
+
+#### Phase 166 continuation errors (2026-07-16)
+- First three-way delegation attempt combined `fork_context=true` with explicit `agent_type`; the service rejects that combination because full-history forks inherit the parent role/model. No agent was created and no file changed. Retried by omitting `agent_type` while keeping the three scopes disjoint.
+- First broad `rg` diagnostic included a nonexistent `scripts` path and scanned generated census JSON too widely, producing truncated output and exit code 1. Narrow subsequent searches to source/tests and enumerate `.tmp/phase166_*` separately; no file changed.
+- The three replacement Phase 166 agents all exhausted retries with HTTP 429 before producing usable output or edits. Their slots were already absent when `close_agent` was issued. Main thread owns all three batches and will progress serially rather than repeat the same failed delegation approach.
+- First switch replay JSON probe assumed the artifact root was a bare list; at least one file is an object payload, so iteration yielded string keys and raised `AttributeError`. Retry with schema-aware extraction of `proposals`/`rows`; no file changed.
+- First focused Phase166 matcher test run was `2 passed / 1 failed`: one new exact member remained `HUMAN_EXACT_MEMBER`, proving at least one synthetic geometry did not reach its machine matcher. Diagnose per subtype and tighten/fix the matcher or fixture before replay; do not weaken the acceptance assertion.
+- First fresh 23-page switch replay recovered all 8 fingerprints / 121 instances with zero emitted ports/candidates, but NKP remained exact-only. Real normalization stores its folded path as one `normalized_open_lwpolylines` row containing three `normalized_open_lwpolyline_segments`; the synthetic fixture assumed three rows. Correct the complete-path contract and rerun all pages before queue removal.
+- First FJL/KK policy patch used an outdated assumed reason string for the existing Mirror entry, so `apply_patch` could not find the context and changed nothing. Re-read the local policy block and patch against exact current lines.
+- First FJL/KK focused run passed FJL and KK 2/4-port cases but the rotated/scaled KK 6-port unseen fixture missed: the inherited grid helper used a fixed normalized tolerance, so uniform scale changed the effective threshold. Derive clustering tolerance from the main-grid extent and rerun; keep auxiliary-circle and complete-census gates unchanged.
+- First FJL/KK fresh replay selected FJL's two farthest decorative contacts, leaving all 63 FJL/Mirror instances unattached. Raw source lines terminate at the inner pair, so change the proposer to the two line-bound contacts and rerun every source page before queue removal.
+- The first `phase166_ports_replay2` orchestration used a 1-second shell timeout; the command was terminated after creating only the first partial cabinet output. No Python process remained. Remove only that verified `.tmp` replay directory and rerun with a suitable timeout.
+- First PWF172/PWF216 replay proved PWF216 geometry matched all 8 definition rows, while PWF172 stayed exact-only. The real LED open paths intentionally have one zero start-width followed by three equal positive width fields; the delegated matcher incorrectly required all four widths positive. Correct this exact path contract and replay all 8 pages before queue removal.
+- DGICOM3000 replay preflight wrote `if(Test-Path $in -or Test-Path $out)`, which PowerShell parsed as a `Test-Path -or` parameter error. It was non-terminating and both paths were new, so the intended single-page replay still completed successfully. Use parenthesized `(Test-Path ...) -or (Test-Path ...)` in future guards.
+- First WFS/ELXAL implementation worker remained running after source-only partial edits, with no tests or completion result and no active Python process. It was explicitly closed to prevent overlapping writes. Preserve and audit the partial diff, then restart a one-shot repair worker to complete proposer/classifier/binding/tests before any replay or queue removal.
+- First seven-page WFS/ELXAL replay validated WFS but both ELXAL fingerprints remained exact-only. The strict contact-to-circle ratio rounded to `1.0400116` on one real contact, just beyond the synthetic `1.04` ceiling. Widen only this measured normalization tolerance to `1.045`, retain all complete-census/grid/line constraints, and rerun every occurrence page.
+- First new WFS/ELXAL focused test run was `1 failed / 1 passed`: the synthetic WFS placed both internal circles on one horizontal line, so extracted oriented aspect was `12.75` instead of the real `2.893`; it correctly failed the strict geometry rule and fell into the broad strip candidate. Move only the synthetic internal circle/text positions to reproduce the real vertical extent, then rerun.
+- Second focused run kept ELXAL green but the rotated synthetic WFS missed because the normalized oriented bbox of two-point bulged paths is not rotation invariant. Replace the aspect gate with the real invariant contract: equal small contacts span one body diameter, share the body centre, and two equal polarity circles sit at symmetric `~0.625R` axial offsets.
+
+#### Phase 166 accepted closures
+- [x] Replay and remove eight switch/ground IGNORE fingerprints (121 instances), including both independent PWF166 grounding shapes.
+- [x] Recognize complete DGICOM/WYD parents and suppress only their nested child artwork.
+- [x] Replay FJL/KK over 17 DWGs; retain only line-bound/main pins, suppress OF 11/12/14, add end-to-end no-union mapping tests, and remove 76 queued instances.
+- [x] Generalize PWF172/PWF216 from historical IGNORE rulings, replay all 8 occurrence pages, and remove 87 queued instances.
+- [x] Generalize DGICOM3000 complete communication-panel IGNORE and replay its original page with zero ports/candidates.
+- [x] Close WFS polarity two-port and both ELXAL four-port fingerprints with geometry evidence, seven-page replay, named port identities, and no-union proof; queue is `49 groups / 347 instances`.
+- [x] Exclude transparent zero-local-geometry INSERT wrappers without granting ancestor IGNORE; remove SignBlock's 14 non-questions safely.
+- [x] Generalize PWF85 and three distinct actuated-switch subtypes (PWF200/PWF204/PWF235), replay every occurrence page, and prove zero downstream semantics.
+- [ ] Self-iterate the remaining `34 groups / 116 instances` from historical rulings, ancestry, and complete geometry; do not repeat resolved semantic questions.
+- [ ] Rebuild P001 + complete P003 queue, run all tests/compile/diff gates, clean verified temporary artifacts, commit on `codex/*`, and push.
+
+### Phase 166 isolated-component continuation (2026-07-16)
+- [x] Close PWF266 as an eight-line/two-contact actuated-switch IGNORE subtype over all 6 instances.
+- [x] Convert PWF115 to four independent radial terminal ports with no internal connectivity/union.
+- [x] Convert PWF98, PWF218, and SYMB1_M_30401 to strict isolated axial two-port subtypes.
+- [x] Reject PWF259's four bbox extrema and ignore its complete rectangular/diagonal mechanism.
+- [x] Add renamed/rotated/scaled positives and same-census displaced negatives; focused symbol suite is `148 passed`.
+- [x] Replay all 15 occurrence pages / 132 instances with combined geometry+human evidence and zero inferred connectivity/union.
+- [ ] Continue through the remaining 38 geometry groups, then rebuild the complete two-corpus queue and run final gates.
+- [x] Generalize PWF3 remote-interface, PWF303 optical bracket, and both two-arc routing-capsule variants as strict zero-semantic IGNORE subtypes.
+- [ ] Continue through the remaining 34 geometry groups, then rebuild the complete two-corpus queue and run final gates.
+
+
+## Decision log — 2026-07-16 15:55
+| Decision | Rationale |
+|---|---|
+| Desktop UI palette = 灰黑白米黄 industrial workbench | Taskbook §10.12 enterprise dense audit tool; user rejected blue marketing look |
+| Show native vs browser-mock engine pill | Prevent frontend empty-spin; force real validation path via Tauri+sidecar |
+| Keep all CAD logic in Python sidecar | UI only orchestrates and displays findings/report surfaces |

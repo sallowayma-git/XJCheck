@@ -323,6 +323,31 @@ def test_rank_symbol_annotation_backlog_orders_by_priority_and_coverage() -> Non
     assert backlog.iloc[2]["priority_score"] == 4
 
 
+def test_rank_symbol_annotation_backlog_excludes_transparent_insert_wrappers() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "project_id": "P",
+                "definition_name": "SignBlock_0.1",
+                "definition_fingerprint": "empty-wrapper",
+                "instance_count": 14,
+                "local_geometry_signature_count": 0,
+            },
+            {
+                "project_id": "P",
+                "definition_name": "REAL_CHILD",
+                "definition_fingerprint": "real-child",
+                "instance_count": 2,
+                "local_geometry_signature_count": 3,
+            },
+        ]
+    )
+
+    backlog = rank_symbol_annotation_backlog([frame])
+
+    assert list(backlog["definition_fingerprint"]) == ["real-child"]
+
+
 def test_empty_primitive_segments_returns_empty_frames_and_zero_summary() -> None:
     definitions, instances, unknown, summary = build_project_symbol_inventory(
         pd.DataFrame(), project_id="EMPTY"

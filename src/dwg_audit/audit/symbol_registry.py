@@ -194,6 +194,18 @@ def rank_symbol_annotation_backlog(
         return pd.DataFrame(columns=_BACKLOG_COLUMNS)
 
     combined = pd.concat(frames, ignore_index=True)
+    # Definitions with no local geometry signatures are transparent INSERT
+    # wrappers.  Their expanded descendants are inventoried independently, so
+    # the wrapper itself has no port/connectivity question for a human to
+    # answer.  Do not classify it as whole-symbol IGNORE: that would wrongly
+    # suppress meaningful descendants through ancestor policy.
+    if "local_geometry_signature_count" in combined.columns:
+        signature_counts = pd.to_numeric(
+            combined["local_geometry_signature_count"], errors="coerce"
+        )
+        combined = combined[signature_counts.isna() | signature_counts.gt(0)]
+    if combined.empty:
+        return pd.DataFrame(columns=_BACKLOG_COLUMNS)
     ranked_rows: list[dict[str, Any]] = []
     for fingerprint, group in combined.groupby("definition_fingerprint", sort=False):
         definition_names = sorted(

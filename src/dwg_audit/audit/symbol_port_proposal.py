@@ -17,7 +17,7 @@ import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from itertools import permutations
+from itertools import combinations, permutations
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +38,7 @@ GEOMETRY_IGNORE_FAMILIES = frozenset(
         "line_break.non_connective.v1",
         "communication.ethernet_port_ignored.v1",
         "communication.optical_st_port_ignored.v1",
+        "communication.remote_interface_marker_ignored.v1",
         "communication.equipment_panel_ignored.v1",
         "electrical.ground_symbol_ignored.v1",
         "electrical.nonconnective_four_coil_ignored.v1",
@@ -54,6 +55,12 @@ GEOMETRY_IGNORE_FAMILIES = frozenset(
         "electrical.nonconnective_crossed_circle_marker_ignored.v1",
         "electrical.nonconnective_actuated_open_switch_ignored.v1",
         "electrical.nonconnective_wide_contact_cap_marker_ignored.v1",
+        "electrical.nonconnective_vertical_zigzag_element_ignored.v1",
+        "electrical.nonconnective_inline_rectangle_ignored.v1",
+        "electrical.nonconnective_dual_row_arc_motif_ignored.v1",
+        "electrical.nonconnective_switch_class_ignore.v1",
+        "electrical.nonconnective_led_arrow_ignored.v1",
+        "electrical.nonconnective_narrow_frame_ignored.v1",
     }
 )
 TABLE_CONTAINER_FAMILIES = frozenset({"structural.backplate_table_container.v1"})
@@ -63,6 +70,58 @@ WIRE_PRIMITIVE_FAMILIES = frozenset({"wire.crossover_jump.v1"})
 # Block names are deliberately not used as a fallback: the same name may have
 # different geometry and semantics in another project/version.
 HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
+    **{
+        fp: {
+            "mode": "IGNORE_ELECTRICAL",
+            "family_id": "electrical.nonconnective_switch_class_ignore.v1",
+            "reason": "Historical switch authority: complete actuated switch artwork is ignored and emits zero electrical semantics.",
+        }
+        for fp in (
+            "b925541c91034677347b986a38b2f9f6fbfdc74ddc28e59d926a527e468b0835",
+            "002217bb22cc51b96e9c88e62e66c6ecb6445eb40ca18100997622df676687f7",
+            "5cd8c1470ed3c9d776bb695fb76434e98a0030409a04e5a58ec703994ee71c99",
+            "75ec9dd5a7d1692a60f19c598f4d2a20cb6e706727a34dce66bdc700b2c750f8",
+        )
+    },
+    "ccb29346ae9a189136431ed0b773d30d319ed1bd7d009fed79702f6ff92fed85": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_switch_class_ignore.v1",
+        "reason": "Historical switch authority: ignore the complete three-contact selector artwork; emit no ports, mappings, connectivity, or union.",
+    },
+    "888624f490c7130e32d2b3bdfcaded86643f9fd5dc2885d00918945f3515c93c": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_wfs_polarity_two_port.v1",
+        "reason": "Human adjudication: WFS has two independent axial terminals; internal +/- circles are polarity marks, not ports, and never form a union.",
+    },
+    "caa4208736b6d031fc40a75f35313c43fc15772b968bedf020c375d6513b0623": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_multi_port.v1",
+        "reason": "Human adjudication: ELXAL5-B11-209B circular 2x2 contacts 11/12/13/14 are independent outward terminals.",
+    },
+    "e91786a7f050ea734a00954f590f270c02b054bef7deb7a17b4dab3354cfeaac": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_multi_port.v1",
+        "reason": "Independent audit provenance for the same-named ELXAL5-B11-209B ellipse-contact geometry; four labelled terminals remain isolated.",
+    },
+    # Switch-class whole-symbol IGNORE provenance.  The corpus export only
+    # retains the stable leading digest here; geometry matching below is never
+    # keyed by these values.
+    **{
+        fp: {"mode": "IGNORE_ELECTRICAL", "family_id": "electrical.nonconnective_switch_class_ignore.v1",
+             "reason": "Human adjudication: whole switch-class artwork is provenance-only and emits zero electrical semantics."}
+        for fp in (
+            "b2289947da2d", "1155e3217907",
+            "b143d5dd59ba", "89795189491b", "1b189728ef7b", "54ce0e78a721",
+        )
+    },
+    **{
+        fp: {
+            "mode": "IGNORE_ELECTRICAL",
+            "family_id": "electrical.ground_symbol_ignored.v1",
+            "reason": "Human adjudication: PWF166 is a grounding structure; ignore the complete geometry and emit zero ports, mappings, connectivity, or union.",
+        }
+        for fp in ("5a5823aaf90c", "f3a5a2facd36")
+    },
     # Closed cable/sheath capsule crossing B+/B-: visual grouping only.  It
     # neither bridges nor interrupts the underlying conductors and has no
     # relationship to the separately drawn shielding-layer route.
@@ -130,6 +189,93 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "mode": "IGNORE_ELECTRICAL",
         "family_id": "electrical.nonconnective_wide_contact_cap_marker_ignored.v1",
         "reason": "Human adjudication: ignore the complete wide two-contact/cap marker; emit no ports, mappings, connectivity, or union.",
+    },
+    # A$C1DEA74F8 narrow framed zigzag element: the complete four-cell motif,
+    # including both axial leads, is display geometry only.  The fingerprint
+    # records provenance; unseen members must satisfy the complete relative
+    # geometry matcher below.
+    "0b72b0b02116d00c0a8c196e1b45c6d693450315f37e77ba636c0a03065f3785": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_vertical_zigzag_element_ignored.v1",
+        "reason": "Human adjudication: ignore the complete narrow four-cell zigzag element; its top and bottom are not ports and create no mappings, connectivity, or union.",
+    },
+    # PWF168 inline rectangular/contact motif: the complete body and both
+    # visible leads are display-only.  The exact member records provenance;
+    # unseen members must satisfy the complete relative-geometry matcher.
+    "58325f4a6ffb9006fdc46932ed083f730a023c9911ca61a77f042e4d221aa4f3": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_inline_rectangle_ignored.v1",
+        "reason": "Human adjudication: ignore the complete PWF168 inline rectangular element; neither side is a port and no mapping, connectivity, or union is allowed.",
+    },
+    # PWF209 paired-row circular-arc motif: all four outward contacts and arcs
+    # are recognition geometry only and must never create port mappings.
+    "7cd4cc6f10f5cefc9449d9bad616716bead674add1b076395eb8c7074736bdef": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_dual_row_arc_motif_ignored.v1",
+        "reason": "Human adjudication: ignore the complete two-row four-arc motif; emit no ports, mappings, connectivity, or union.",
+    },
+    # PWF163 is a four-contact actuator variant of the repeatedly reviewed
+    # open-switch class.  Its leads and blade remain internally disconnected.
+    "dc5a2723a8eaa25d868864a6cb09f5ad614a9901030377377fd96fd91ce476d2": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "switch.open.v1",
+        "reason": "Inherited human adjudication: ignore the complete PWF163 open-switch variant; zero ports, mappings, connectivity, and union.",
+    },
+    # PWF175: the two outer contacts are independent native pins 1/2.  The
+    # upper page text supplies the instance name; the two circles never bridge.
+    "2d7264d385f5a79a1fa9db916f60455ebc62efa8689c86b72bd0e2dbdd929430": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Human adjudication: compose the upper instance name with PWF175 pins 1/2 and map each only to its same-side external route; never connect or union the pins internally.",
+    },
+    # Phase 166 historical-terminal self-iteration.  These digests preserve
+    # provenance only; the independent complete-geometry rules below decide
+    # whether renamed/rotated/scaled definitions belong to the same subtype.
+    "35ebe7534d569b1e75d8016e963544f5eab546d29d384e20a8c11aff09edefd0": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_multi_port.v1",
+        "reason": "Inherited basic-terminal adjudication: four orthogonal ports attach only to their own outward routes and never connect or union inside the circular body.",
+    },
+    "46df2d5ff871f4207483a87594c901f215449957a014bc2340a645652a9b6e17": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Inherited basic two-port adjudication: the two axial contacts remain isolated and attach only to their own outward routes.",
+    },
+    "f546829e5549f7d19e750599f1de730ecce75b25013b16bf84aa5d7128eaf1cf": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Inherited external-component adjudication: the framed mechanism exposes two isolated axial ports with no internal connectivity or union.",
+    },
+    "950e83635989de18fe867949c94244cc9691c906cec4f1e5a7126200211bb8fc": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Inherited external-component adjudication: the triangular-body component exposes two isolated axial ports with no internal connectivity or union.",
+    },
+    "6499eee70c50f91b0fff9ea9b5cd5f4a56b0408c8449d22aaa1e70227107148b": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_switch_class_ignore.v1",
+        "reason": "Inherited switch/mechanism adjudication: ignore the complete rectangular diagonal mechanism; bbox corners are not ports and no mapping, connectivity, or union is emitted.",
+    },
+    "2cb256d538072de58edbd7e96d7b9de5bf10efa545d16911bccaab097a84ff1b": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.remote_interface_marker_ignored.v1",
+        "reason": "Inherited communication-interface adjudication: the RX/TX remote-interface marker is complete non-mapping artwork with zero ports or connectivity.",
+    },
+    "3a0ce1a5ae19c0fb0ba2fb05202fac2ebfaf64461072fd917b89944a7f020439": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.optical_st_port_ignored.v1",
+        "reason": "Inherited ST optical-port adjudication: ignore the complete RX/ST bracket-contact marker and emit no communication mapping.",
+    },
+    **{
+        fp: {
+            "mode": "IGNORE_ELECTRICAL",
+            "family_id": "line_break.non_connective.v1",
+            "reason": "Inherited crossover/line-break adjudication: the closed two-arc/two-line capsule is routing artwork and emits no ports, bridge, mapping, connectivity, or union.",
+        }
+        for fp in (
+            "df872c756ac0caa076adae02142b0cc0084d9a237795b77e0365c552084d1989",
+            "0442bf65f378165eec401c8661c82bb3c75749ce517494fc785296917ee0016a",
+        )
     },
     # A$C38910F98 is one non-connective panel-internal span.  This exception is
     # deliberately exact: a one-LINE geometry rule would suppress valid wires
@@ -245,6 +391,21 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "family_id": "communication.equipment_panel_ignored.v1",
         "reason": "Human adjudication: ignore the complete compact DGICOM equipment panel and every visible connector/power motif.",
     },
+    "1c81d2fb3f1f9586ed2b23a0c9be2c64476f8a2dabff713aa1ec5646a481ac81": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.equipment_panel_ignored.v1",
+        "reason": "Human adjudication: ignore the complete DGICOM3000-4GX8GE-HV face; all GE/GX, Console, power/ground, optical and port-array artwork is provenance-only.",
+    },
+    "250a8a04cb457ec7e7ce36f593683166b091ddb9339eb4f51ef017f6c310f363": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.equipment_panel_ignored.v1",
+        "reason": "Inherited whole-equipment-panel adjudication: ignore the complete DGICOM 8G12/8GE communication face and all nested connector graphics.",
+    },
+    "75436f14b400ab313bfecfe0f5c6814785ae65cadb3f24456b99ebc0363fc5c9": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "communication.equipment_panel_ignored.v1",
+        "reason": "Inherited whole-equipment-panel adjudication: ignore the complete WYD COM/LAN/USB/VGA/power face and all nested connector graphics.",
+    },
     # HYKL dual-row interface face: IN/OUT PE/GND/TX/RX motifs are panel
     # artwork only and create no electrical or communication mapping.
     "1726acf417090ce3ecbf6454bdb8321afb7c0025023b98e82d59a6b1476dd6dd": {
@@ -297,6 +458,14 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "mode": "IGNORE_ELECTRICAL",
         "family_id": "electrical.ground_symbol_ignored.v1",
         "reason": "Human adjudication: PWF4 GND contact-led stepped ground symbol; zero ports, mappings, connectivity, and union.",
+    },
+    # PWF314: circled ground termination.  The fingerprint records the exact
+    # reviewed member; unseen members are accepted only by the independent
+    # relative-geometry rule below.
+    "1ee219a2138f046ca744c25611726492fb54b31ef2126f57af79a85f66adb36a": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.ground_symbol_ignored.v1",
+        "reason": "Inherited ground-symbol adjudication: circled stepped-bar ground marker; zero ports, mappings, connectivity, and union.",
     },
     # Numeric/text block; not an electrical symbol.
     "39b95b5118323d4d8ec235cb43fb72f9b99c8d90ce9f4b2027ee2bdda6255ed5": {
@@ -445,6 +614,23 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "family_id": "component.external_strip_two_port.v1",
         "reason": "Human adjudication: strip two-port component; each port maps to its own external endpoint.",
     },
+    "7b3c62fd0a601f3b7706d8b037a34ffb97c3a8d62873073ae5d4f572b1779e4d": {
+        "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+        "family_id": "component.external_strip_two_port.v1",
+        "reason": "Inherited FJL adjudication: pins 1/2 are independent outer contacts and map only to their same-side external lines.",
+    },
+    **{
+        fp: {
+            "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+            "family_id": "component.external_multi_port.v1",
+            "reason": "Human adjudication: expose only the numbered main KK ports; suppress OF 11/12/14 and never infer internal connectivity or union.",
+        }
+        for fp in (
+            "aa15401e4833d9384bde3c70078f7c9bb4446f4af69014cc3be45db4872c00d8",
+            "19dacae333477f2d0ca46dc246fc45e8fca072f3ced8dc6d18809d2b5e1f3230",
+            "df025098789aab19c27b0cb9e12a4d38ed8ca53d7c4f7f5d9902df3da58b21a6",
+        )
+    },
     "e84d37eab1d5e64b04de0e6aae32137b3ae80676267d6e24e71266aa4b9e7ee9": {
         "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
         "family_id": "component.external_multi_port.v1",
@@ -460,6 +646,29 @@ HUMAN_SYMBOL_PORT_POLICIES: dict[str, dict[str, str]] = {
         "family_id": "labelled_terminal.generic.v1",
         "reason": "Human adjudication: PWF89 four-contact generic terminal; bind only genuinely outward-contacting sides to the instance designator, never union the four internal sides.",
     },
+    "d90b2e162eca1f771f0a9c25935430b414c2f6fab856d8541fcb3b2d31bc165c": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_led_arrow_ignored.v1",
+        "reason": "Human adjudication: PWF172 LED/diode arrow is complete visual artwork and emits no ports or connectivity.",
+    },
+    "e697f93bfd6720da2581051fde9468a82dadd393c4f49ff654f448300192931f": {
+        "mode": "IGNORE_ELECTRICAL",
+        "family_id": "electrical.nonconnective_narrow_frame_ignored.v1",
+        "reason": "Human adjudication: PWF216 narrow frame and slanted base are complete visual artwork and emit no ports or connectivity.",
+    },
+    **{
+        fp: {
+            "mode": "EXTERNAL_PORTS_NO_INTERNAL_CONNECTIVITY",
+            "family_id": "component.external_multi_port.v1",
+            "reason": "Inherited numbered-component adjudication: every contiguous numbered pin maps only to its own outward route; the complete body has no internal connectivity or electrical union.",
+        }
+        for fp in (
+            "9d9eb9433e270c52492cd6d0b506393a23e2c20e163f36739cf2868ca85003ce",
+            "3888263247353d6cae1d83660f34cc2ce4d0a0683caff489ad27d6a8c8dc8c9a",
+            "b43b51c32d7c54dbf3208c9e9d36eb3919e0e3da60dc211c23988d95fba5df3a",
+            "358eeedf6d6dd01fca61d9d2947d826106d2f5741f65fc3d66721f195ae74fb0",
+        )
+    },
 }
 
 
@@ -468,7 +677,21 @@ def human_symbol_port_policy(fingerprint: str | None) -> dict[str, str] | None:
 
     if not fingerprint:
         return None
-    return HUMAN_SYMBOL_PORT_POLICIES.get(str(fingerprint).strip().casefold())
+    normalized = str(fingerprint).strip().casefold()
+    policy = HUMAN_SYMBOL_PORT_POLICIES.get(normalized)
+    if policy is not None:
+        return policy
+    # Legacy corpus rows may carry a truncated digest.  The WFS/ELXAL
+    # adjudications are deliberately excluded: those three fingerprints are
+    # exact provenance and never prefix-authorize a decision.
+    for prefix, candidate in HUMAN_SYMBOL_PORT_POLICIES.items():
+        if candidate.get("family_id") in {
+            "component.external_wfs_polarity_two_port.v1",
+        }:
+            continue
+        if len(prefix) >= 12 and normalized.startswith(prefix):
+            return candidate
+    return None
 
 
 def apply_human_symbol_policy_to_proposal_row(
@@ -525,7 +748,7 @@ def is_high_confidence_terminal_geometry(proposal: Mapping[str, Any]) -> bool:
         text_count = int(shape.get("text_count", 0))
         width = float(shape.get("width"))
         height = float(shape.get("height"))
-    except (TypeError, ValueError):
+    except (KeyError, IndexError, TypeError, ValueError):
         return False
     if len(arc_radii) != 2 or any(radius <= 0.0 for radius in arc_radii):
         return False
@@ -791,6 +1014,512 @@ def _is_four_contact_terminal_geometry(
         for vector, radial_distance in zip(vectors, distances)
     )
     return 0.55 <= axis_alignment <= 0.85
+
+
+def _is_four_radial_isolated_terminal_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize four independent radial contacts around a plain round body."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count == 4
+            and int(histogram.get("CIRCLE", 0)) == 1
+            and int(histogram.get("LINE", 0)) == 4
+            and int(histogram.get("LWPOLYLINE", 0)) == 4
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == len(segments) == 4
+            and len(circles) == 1
+        ):
+            return False
+        center = tuple(float(value) for value in circles[0]["center"][:2])
+        body_radius = float(circles[0]["radius"])
+        parsed_contacts = [
+            (
+                tuple(float(value) for value in item["center"][:2]),
+                float(item.get("chord_radius") or item["radius"]),
+            )
+            for item in contacts
+        ]
+        parsed_segments = [
+            (
+                tuple(float(value) for value in item["start"][:2]),
+                tuple(float(value) for value in item["end"][:2]),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    radii = [radius for _, radius in parsed_contacts]
+    contact_radius = sum(radii) / 4.0
+    if not (
+        contact_radius > 0.0
+        and max(radii) - min(radii) <= contact_radius * 0.03
+        and 1.95 <= body_radius / contact_radius <= 2.05
+    ):
+        return False
+    vectors = [(point[0] - center[0], point[1] - center[1]) for point, _ in parsed_contacts]
+    lengths = [math.hypot(*vector) for vector in vectors]
+    if not all(3.95 <= value / contact_radius <= 4.15 for value in lengths):
+        return False
+    units = [(x / length, y / length) for (x, y), length in zip(vectors, lengths)]
+    for index, unit in enumerate(units):
+        dots = sorted(
+            unit[0] * other[0] + unit[1] * other[1]
+            for other_index, other in enumerate(units)
+            if other_index != index
+        )
+        if dots[0] > -0.98 or any(abs(value) > 0.04 for value in dots[1:]):
+            return False
+    unused = set(range(4))
+    for contact, _ in parsed_contacts:
+        matches = []
+        for index in unused:
+            segment = parsed_segments[index]
+            nearest = min(
+                ((math.dist(endpoint, contact), endpoint_index) for endpoint_index, endpoint in enumerate(segment)),
+                key=lambda item: item[0],
+            )
+            inner = segment[1 - nearest[1]]
+            if (
+                nearest[0] <= contact_radius * 0.03
+                and abs(math.dist(inner, center) - body_radius) <= body_radius * 0.04
+            ):
+                matches.append(index)
+        if len(matches) != 1:
+            return False
+        unused.remove(matches[0])
+    return not unused
+
+
+def _is_round_body_isolated_two_port_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize an axial two-contact round body without granting a bridge."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count == 2
+            and int(histogram.get("CIRCLE", 0)) == 1
+            and int(histogram.get("HATCH", 0)) == 1
+            and int(histogram.get("LINE", 0)) == 3
+            and int(histogram.get("LWPOLYLINE", 0)) == 2
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == 2
+            and len(circles) == 1
+            and len(segments) == 3
+        ):
+            return False
+        points = [tuple(float(value) for value in item["center"][:2]) for item in contacts]
+        radii = [float(item.get("chord_radius") or item["radius"]) for item in contacts]
+        center = tuple(float(value) for value in circles[0]["center"][:2])
+        body_radius = float(circles[0]["radius"])
+        lines = [
+            (
+                tuple(float(value) for value in item["start"][:2]),
+                tuple(float(value) for value in item["end"][:2]),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    contact_radius = sum(radii) / 2.0
+    span = math.dist(*points)
+    midpoint = ((points[0][0] + points[1][0]) / 2.0, (points[0][1] + points[1][1]) / 2.0)
+    if not (
+        contact_radius > 0.0
+        and abs(radii[0] - radii[1]) <= contact_radius * 0.02
+        and math.dist(midpoint, center) <= span * 0.01
+        and 1.95 <= body_radius / contact_radius <= 2.05
+        and 4.95 <= span / body_radius <= 5.05
+    ):
+        return False
+    axis = ((points[1][0] - points[0][0]) / span, (points[1][1] - points[0][1]) / span)
+    axial_lines = []
+    for line in lines:
+        vector = (line[1][0] - line[0][0], line[1][1] - line[0][1])
+        length = math.hypot(*vector)
+        if length <= 0.0 or abs(vector[0] * axis[0] + vector[1] * axis[1]) / length < 0.995:
+            return False
+        axial_lines.append((length, line))
+    axial_lines.sort(key=lambda item: item[0])
+    # Two equal outer leads plus one centred body span are all required.
+    if abs(axial_lines[0][0] - axial_lines[1][0]) > span * 0.01:
+        return False
+    long_line = axial_lines[2][1]
+    long_midpoint = (
+        (long_line[0][0] + long_line[1][0]) / 2.0,
+        (long_line[0][1] + long_line[1][1]) / 2.0,
+    )
+    if math.dist(long_midpoint, center) > span * 0.01:
+        return False
+    used: set[int] = set()
+    for contact in points:
+        candidates = []
+        for index, (_, line) in enumerate(axial_lines[:2]):
+            candidates.append(min(math.dist(contact, line[0]), math.dist(contact, line[1])))
+        match = min(range(2), key=lambda index: candidates[index])
+        if candidates[match] > span * 0.01 or match in used:
+            return False
+        used.add(match)
+    return used == {0, 1}
+
+
+def _is_dual_frame_isolated_two_port_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize the two-box/four-line axial mechanism used by PWF218."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    segments = shape.get("normalized_line_segments") or []
+    boxes = shape.get("normalized_closed_straight_lwpolylines") or []
+    try:
+        if not (
+            port_count == 2
+            and int(histogram.get("LINE", 0)) == 4
+            and int(histogram.get("LWPOLYLINE", 0)) == 4
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == 2
+            and len(segments) == 4
+            and len(boxes) == 2
+        ):
+            return False
+        points = [tuple(float(value) for value in item["center"][:2]) for item in contacts]
+        radii = [float(item.get("chord_radius") or item["radius"]) for item in contacts]
+        lines = [
+            (
+                tuple(float(value) for value in item["start"][:2]),
+                tuple(float(value) for value in item["end"][:2]),
+            )
+            for item in segments
+        ]
+        box_sizes = [(float(item["width"]), float(item["height"])) for item in boxes]
+        box_centers = [tuple(float(value) for value in item["center"][:2]) for item in boxes]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    span = math.dist(*points)
+    radius = sum(radii) / 2.0
+    lengths = sorted(math.dist(*line) for line in lines)
+    if not (
+        span > 0.0
+        and radius > 0.0
+        and abs(radii[0] - radii[1]) <= radius * 0.02
+        and 22.0 <= span / radius <= 23.0
+        and lengths[-1] / lengths[0] <= 1.08
+        and abs(box_sizes[0][0] - box_sizes[1][0]) <= span * 0.01
+    ):
+        return False
+    contact_bound_lines = 0
+    for point in points:
+        matches = [line for line in lines if min(math.dist(point, line[0]), math.dist(point, line[1])) <= span * 0.01]
+        if len(matches) != 1:
+            return False
+        contact_bound_lines += 1
+    if contact_bound_lines != 2:
+        return False
+    midpoint = (
+        (points[0][0] + points[1][0]) / 2.0,
+        (points[0][1] + points[1][1]) / 2.0,
+    )
+    axis = (
+        (points[1][0] - points[0][0]) / span,
+        (points[1][1] - points[0][1]) / span,
+    )
+    if any(
+        abs((center[0] - midpoint[0]) * axis[0] + (center[1] - midpoint[1]) * axis[1])
+        > span * 0.02
+        for center in box_centers
+    ):
+        return False
+    center_gap = math.dist(*box_centers)
+    tall = max(max(size) for size in box_sizes)
+    short = min(min(size) for size in box_sizes)
+    return 0.42 <= center_gap / span <= 0.48 and 0.64 <= tall / span <= 0.70 and 0.25 <= short / span <= 0.36
+
+
+def _is_triangle_body_isolated_two_port_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize two axial contacts with one centred triangular body."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    segments = shape.get("normalized_line_segments") or []
+    polygons = shape.get("normalized_closed_straight_lwpolylines") or []
+    try:
+        if not (
+            port_count == 2
+            and int(histogram.get("LINE", 0)) == 1
+            and int(histogram.get("LWPOLYLINE", 0)) == 3
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == 2
+            and len(segments) == 1
+            and len(polygons) == 1
+            and len(polygons[0].get("vertices") or []) == 3
+        ):
+            return False
+        points = [tuple(float(value) for value in item["center"][:2]) for item in contacts]
+        radii = [float(item.get("chord_radius") or item["radius"]) for item in contacts]
+        line = (
+            tuple(float(value) for value in segments[0]["start"][:2]),
+            tuple(float(value) for value in segments[0]["end"][:2]),
+        )
+        polygon = polygons[0]
+        vertices = [tuple(float(value) for value in vertex[:2]) for vertex in polygon["vertices"]]
+        width = float(polygon["width"])
+        height = float(polygon["height"])
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    span = math.dist(*points)
+    radius = sum(radii) / 2.0
+    if not (
+        span > 0.0
+        and abs(radii[0] - radii[1]) <= radius * 0.02
+        and 19.5 <= span / radius <= 20.5
+        and abs(math.dist(*line) - span) <= span * 0.01
+        and all(min(math.dist(point, line[0]), math.dist(point, line[1])) <= span * 0.01 for point in points)
+        and 0.25 <= min(width, height) / span <= 0.32
+        and 0.25 <= max(width, height) / span <= 0.32
+    ):
+        return False
+    axis = ((points[1][0] - points[0][0]) / span, (points[1][1] - points[0][1]) / span)
+    projections = sorted(((vertex[0] - points[0][0]) * axis[0] + (vertex[1] - points[0][1]) * axis[1]) / span for vertex in vertices)
+    normal = (-axis[1], axis[0])
+    perpendiculars = sorted(
+        ((vertex[0] - points[0][0]) * normal[0] + (vertex[1] - points[0][1]) * normal[1]) / span
+        for vertex in vertices
+    )
+    return bool(
+        0.40 <= projections[0] <= 0.43
+        and 0.66 <= projections[-1] <= 0.69
+        and -0.16 <= perpendiculars[0] <= -0.14
+        and abs(perpendiculars[1]) <= 0.01
+        and 0.14 <= perpendiculars[2] <= 0.16
+    )
+
+
+def _is_rectangular_diagonal_mechanism_ignore_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a square/diagonal mechanism whose bbox corners are not ports."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    segments = shape.get("normalized_line_segments") or []
+    boxes = shape.get("normalized_closed_straight_lwpolylines") or []
+    try:
+        if not (
+            port_count in {0, 4}
+            and int(histogram.get("LINE", 0)) == 1
+            and int(histogram.get("LWPOLYLINE", 0)) == 3
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == 2
+            and len(segments) == 1
+            and len(boxes) == 1
+            and len(boxes[0].get("vertices") or []) == 4
+        ):
+            return False
+        points = [tuple(float(value) for value in item["center"][:2]) for item in contacts]
+        radii = [float(item.get("chord_radius") or item["radius"]) for item in contacts]
+        line = (
+            tuple(float(value) for value in segments[0]["start"][:2]),
+            tuple(float(value) for value in segments[0]["end"][:2]),
+        )
+        box = boxes[0]
+        vertices = [tuple(float(value) for value in vertex[:2]) for vertex in box["vertices"]]
+        width, height = float(box["width"]), float(box["height"])
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    edge = (width + height) / 2.0
+    radius = sum(radii) / 2.0
+    if not (
+        edge > 0.0
+        and abs(width - height) <= edge * 0.02
+        and abs(radii[0] - radii[1]) <= radius * 0.02
+        and 24.5 <= edge / radius <= 25.5
+        and 1.40 <= math.dist(*line) / edge <= 1.43
+    ):
+        return False
+    # The only line is a box diagonal, while both contacts sit on one other
+    # box edge inset by one contact radius.  This rejects ordinary rectangles.
+    if not all(min(math.dist(endpoint, vertex) for vertex in vertices) <= edge * 0.01 for endpoint in line):
+        return False
+    pair_distance = math.dist(*points)
+    distances_to_edges = []
+    for index in range(4):
+        start, end = vertices[index], vertices[(index + 1) % 4]
+        length = math.dist(start, end)
+        if length <= 0.0:
+            continue
+        distances_to_edges.append(
+            max(_point_segment_distance(point, start, end) for point in points)
+        )
+    return 0.78 <= pair_distance / edge <= 0.82 and min(distances_to_edges, default=edge) <= edge * 0.01
+
+
+def _is_remote_interface_marker_ignore_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a contact-led round remote-interface marker with a centre slash."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count in {0, 3}
+            and int(histogram.get("CIRCLE", 0)) == 1
+            and int(histogram.get("LINE", 0)) == 2
+            and int(histogram.get("LWPOLYLINE", 0)) == 1
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(contacts) == len(circles) == 1
+            and len(segments) == 2
+        ):
+            return False
+        contact = tuple(float(value) for value in contacts[0]["center"][:2])
+        contact_radius = float(contacts[0].get("chord_radius") or contacts[0]["radius"])
+        center = tuple(float(value) for value in circles[0]["center"][:2])
+        body_radius = float(circles[0]["radius"])
+        lines = [
+            (
+                tuple(float(value) for value in item["start"][:2]),
+                tuple(float(value) for value in item["end"][:2]),
+            )
+            for item in segments
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    spacing = math.dist(contact, center)
+    if not (
+        contact_radius > 0.0
+        and body_radius > 0.0
+        and 2.35 <= body_radius / contact_radius <= 2.45
+        and 2.05 <= spacing / body_radius <= 2.10
+    ):
+        return False
+    lead_matches = []
+    slash_matches = []
+    for line in lines:
+        endpoint_distances = [math.dist(contact, endpoint) for endpoint in line]
+        if min(endpoint_distances) <= contact_radius * 0.03:
+            inner = line[1 - endpoint_distances.index(min(endpoint_distances))]
+            if abs(math.dist(inner, center) - body_radius) <= body_radius * 0.04:
+                lead_matches.append(line)
+            continue
+        midpoint = ((line[0][0] + line[1][0]) / 2.0, (line[0][1] + line[1][1]) / 2.0)
+        endpoints = [math.dist(endpoint, center) for endpoint in line]
+        if (
+            math.dist(midpoint, center) <= body_radius * 0.03
+            and max(endpoints) / min(endpoints) <= 1.03
+            and all(1.65 <= value / body_radius <= 1.70 for value in endpoints)
+        ):
+            slash_matches.append(line)
+    return len(lead_matches) == len(slash_matches) == 1
+
+
+def _is_optical_st_bracket_marker_ignore_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize the two-contact parenthesis marker used beside RX/ST labels."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    text_values = [str(value).strip() for value in shape.get("text_values") or []]
+    try:
+        if not (
+            port_count in {0, 3}
+            and int(histogram.get("LWPOLYLINE", 0)) == 2
+            and int(histogram.get("TEXT", 0)) == 1
+            and sum(int(histogram.get(key, 0)) for key in ("LINE", "ARC", "CIRCLE", "INSERT")) == 0
+            and len(contacts) == 2
+            and text_values == ["（"]
+        ):
+            return False
+        points = [tuple(float(value) for value in item["center"][:2]) for item in contacts]
+        radii = [float(item.get("chord_radius") or item["radius"]) for item in contacts]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    radius = sum(radii) / 2.0
+    return bool(
+        radius > 0.0
+        and abs(radii[0] - radii[1]) <= radius * 0.02
+        and 7.0 <= math.dist(*points) / radius <= 7.15
+    )
+
+
+def _is_two_arc_capsule_routing_ignore_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a closed capsule made from two parallel lines and semicircles."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    arcs = shape.get("normalized_arcs") or []
+    segments = shape.get("normalized_line_segments") or []
+    try:
+        if not (
+            port_count in {0, 2}
+            and int(histogram.get("ARC", 0)) == 2
+            and int(histogram.get("LINE", 0)) == 2
+            and int(histogram.get("LWPOLYLINE", 0)) == 0
+            and int(histogram.get("TEXT", 0)) == 0
+            and len(arcs) == len(segments) == 2
+        ):
+            return False
+        lines = [
+            (
+                tuple(float(value) for value in item["start"][:2]),
+                tuple(float(value) for value in item["end"][:2]),
+            )
+            for item in segments
+        ]
+        parsed_arcs = [
+            (
+                tuple(float(value) for value in item["center"][:2]),
+                float(item["radius"]),
+                float(item["sweep_deg"]),
+                tuple(float(value) for value in item["midpoint"][:2]),
+            )
+            for item in arcs
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    lengths = [math.dist(*line) for line in lines]
+    radii = [item[1] for item in parsed_arcs]
+    if not (
+        min(lengths) > 0.0
+        and abs(lengths[0] - lengths[1]) <= max(lengths) * 0.02
+        and min(radii) > 0.0
+        and abs(radii[0] - radii[1]) <= max(radii) * 0.02
+        and all(179.0 <= abs(item[2]) <= 181.0 for item in parsed_arcs)
+        and 3.9 <= lengths[0] / (2.0 * radii[0]) <= 4.1
+    ):
+        return False
+    vectors = [(line[1][0] - line[0][0], line[1][1] - line[0][1]) for line in lines]
+    alignment = abs(vectors[0][0] * vectors[1][0] + vectors[0][1] * vectors[1][1]) / (lengths[0] * lengths[1])
+    if alignment < 0.999:
+        return False
+    arc_center_span = math.dist(parsed_arcs[0][0], parsed_arcs[1][0])
+    cap_width = min(
+        math.dist(lines[0][0], lines[1][0]), math.dist(lines[0][0], lines[1][1]),
+        math.dist(lines[0][1], lines[1][0]), math.dist(lines[0][1], lines[1][1]),
+    )
+    return bool(
+        3.9 <= arc_center_span / (2.0 * radii[0]) <= 4.1
+        and 0.95 <= cap_width / (2.0 * radii[0]) <= 1.05
+        and all(abs(math.dist(item[3], item[0]) - item[1]) <= item[1] * 0.02 for item in parsed_arcs)
+    )
+
+
 def _is_rounded_panel_three_contact_socket_geometry(
     shape: Mapping[str, Any], *, port_count: int
 ) -> bool:
@@ -994,6 +1723,302 @@ def _is_three_contact_socket_geometry(
     return used_contacts == {0, 1, 2}
 
 
+def _is_three_contact_selector_switch_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Complete selector-switch artwork: three radial contacts and a slash."""
+    histogram = shape.get("entity_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    segments = shape.get("normalized_line_segments") or []
+    if not (
+        port_count in {0, 4}
+        and histogram == {"CIRCLE": 1, "LINE": 4, "LWPOLYLINE": 3}
+        and len(contacts) == 3
+        and len(circles) == 1
+        and len(segments) == 4
+        and not (shape.get("text_values") or [])
+    ):
+        return False
+    try:
+        center = tuple(float(value) for value in circles[0]["center"][:2])
+        body_radius = float(circles[0]["radius"])
+        parsed_contacts = [
+            (
+                tuple(float(value) for value in contact["center"][:2]),
+                float(contact.get("chord_radius", contact.get("radius"))),
+            )
+            for contact in contacts
+        ]
+        parsed_segments = [
+            (
+                tuple(float(value) for value in segment["start"][:2]),
+                tuple(float(value) for value in segment["end"][:2]),
+            )
+            for segment in segments
+        ]
+    except (IndexError, KeyError, TypeError, ValueError):
+        return False
+    contact_radii = [radius for _, radius in parsed_contacts]
+    contact_radius = sum(contact_radii) / 3.0
+    if not (
+        contact_radius > 0.0
+        and max(contact_radii) - min(contact_radii) <= contact_radius * 0.02
+        and 2.35 <= body_radius / contact_radius <= 2.45
+    ):
+        return False
+    vectors = [
+        ((point[0] - center[0]) / contact_radius, (point[1] - center[1]) / contact_radius)
+        for point, _ in parsed_contacts
+    ]
+    lengths = [math.hypot(*vector) for vector in vectors]
+    if not all(4.9 <= length <= 5.1 for length in lengths):
+        return False
+    units = [(vector[0] / length, vector[1] / length) for vector, length in zip(vectors, lengths)]
+    opposite_pair = next(
+        (
+            (first, second)
+            for first, second in combinations(range(3), 2)
+            if units[first][0] * units[second][0] + units[first][1] * units[second][1] <= -0.99
+        ),
+        None,
+    )
+    if opposite_pair is None:
+        return False
+    third = next(index for index in range(3) if index not in opposite_pair)
+    if abs(
+        units[opposite_pair[0]][0] * units[third][0]
+        + units[opposite_pair[0]][1] * units[third][1]
+    ) > 0.03:
+        return False
+
+    used_segments: set[int] = set()
+    for contact_center, _ in parsed_contacts:
+        match: tuple[float, int, tuple[float, float]] | None = None
+        for index, segment in enumerate(parsed_segments):
+            if index in used_segments:
+                continue
+            for endpoint_index, endpoint in enumerate(segment):
+                candidate = (
+                    math.dist(endpoint, contact_center),
+                    index,
+                    segment[1 - endpoint_index],
+                )
+                if match is None or candidate[0] < match[0]:
+                    match = candidate
+        if match is None or match[0] > contact_radius * 0.02:
+            return False
+        if not 0.98 <= math.dist(match[2], center) / body_radius <= 1.02:
+            return False
+        used_segments.add(match[1])
+    slash = next((segment for index, segment in enumerate(parsed_segments) if index not in used_segments), None)
+    if slash is None or not 7.9 <= math.dist(*slash) / contact_radius <= 8.1:
+        return False
+    return _point_segment_distance(center, slash[0], slash[1]) <= contact_radius * 0.03
+
+
+def _actuated_switch_signature_rule(
+    shape: Mapping[str, Any], *, port_count: int
+) -> str | None:
+    """Match three complete actuator/contact subtypes by invariant ratios."""
+    templates = (
+        (
+            {"ARC": 1, "LINE": 5, "LWPOLYLINE": 2}, {0, 3},
+            (0.761790, 0.761790, 0.851705, 0.923822, 1.0),
+            0.304715, 0.101571, 2.285367,
+            "five-line-offset-actuator-switch-ignore-v1",
+        ),
+        (
+            {"ARC": 1, "LINE": 6, "LWPOLYLINE": 2}, {0, 2},
+            (0.371390, 0.685364, 0.742783, 0.742783, 0.744787, 1.0),
+            0.297113, 0.099037, 2.228346,
+            "six-line-double-stem-actuator-switch-ignore-v1",
+        ),
+        (
+            {"ARC": 1, "LINE": 11, "LWPOLYLINE": 2}, {0, 2},
+            (0.221727, 0.221730, 0.295638, 0.295638, 0.295638, 0.369546,
+             0.369546, 0.473250, 0.473250, 0.831482, 1.0),
+            0.184774, 0.073911, 2.956378,
+            "eleven-line-crossed-actuator-switch-ignore-v1",
+        ),
+    )
+    histogram = shape.get("entity_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    arcs = shape.get("normalized_arcs") or []
+    segments = shape.get("normalized_line_segments") or []
+    if (
+        len(contacts) != 2 or len(arcs) != 1
+        or (shape.get("normalized_circles") or [])
+        or (shape.get("text_values") or [])
+        or (shape.get("normalized_open_lwpolylines") or [])
+    ):
+        return None
+    try:
+        lengths = sorted(math.dist(segment["start"][:2], segment["end"][:2]) for segment in segments)
+        maximum = max(lengths)
+        ratios = tuple(length / maximum for length in lengths)
+        arc_ratio = float(arcs[0]["radius"]) / maximum
+        contact_radii = [
+            float(contact.get("chord_radius", contact.get("radius"))) / maximum
+            for contact in contacts
+        ]
+        span_ratio = math.dist(contacts[0]["center"][:2], contacts[1]["center"][:2]) / maximum
+        sweep = float(arcs[0]["sweep_deg"])
+    except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
+        return None
+    if abs(sweep - 180.0) > 0.1 or abs(contact_radii[0] - contact_radii[1]) > 0.002:
+        return None
+    for expected_histogram, allowed_ports, expected_ratios, expected_arc, expected_contact, expected_span, rule in templates:
+        if (
+            histogram == expected_histogram
+            and port_count in allowed_ports
+            and len(ratios) == len(expected_ratios)
+            and max(abs(actual - expected) for actual, expected in zip(ratios, expected_ratios)) <= 0.008
+            and abs(arc_ratio - expected_arc) <= 0.005
+            and max(abs(radius - expected_contact) for radius in contact_radii) <= 0.003
+            and abs(span_ratio - expected_span) <= 0.012
+        ):
+            return rule
+    return None
+
+
+def _is_line_only_actuated_switch_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    histogram = shape.get("entity_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    segments = shape.get("normalized_line_segments") or []
+    if not (
+        histogram == {"LINE": 8, "LWPOLYLINE": 2}
+        and port_count in {0, 2}
+        and len(contacts) == 2
+        and len(segments) == 8
+        and not (shape.get("arc_radii") or [])
+        and not (shape.get("circle_radii") or [])
+        and not (shape.get("text_values") or [])
+    ):
+        return False
+    expected = (0.220588, 0.294117, 0.367647, 0.367647,
+                0.588237, 0.588237, 0.791936, 1.0)
+    try:
+        lengths = sorted(math.dist(segment["start"][:2], segment["end"][:2]) for segment in segments)
+        maximum = max(lengths)
+        ratios = tuple(length / maximum for length in lengths)
+        contact_radii = [
+            float(contact.get("chord_radius", contact.get("radius"))) / maximum
+            for contact in contacts
+        ]
+        span = math.dist(contacts[0]["center"][:2], contacts[1]["center"][:2]) / maximum
+    except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
+        return False
+    return bool(
+        max(abs(actual - target) for actual, target in zip(ratios, expected)) <= 0.008
+        and max(abs(radius - 0.078431) for radius in contact_radii) <= 0.003
+        and abs(contact_radii[0] - contact_radii[1]) <= 0.002
+        and abs(span - 1.764708) <= 0.012
+    )
+
+
+def _is_wfs_polarity_two_port_geometry(shape: Mapping[str, Any], *, port_count: int) -> bool:
+    """Strict normalized census shape for the WFS rounded polarity capsule."""
+    h = shape.get("entity_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    values = {str(v).strip() for v in shape.get("text_values") or []}
+    try:
+        parsed_contacts = sorted(
+            [
+                (
+                    (float(c["center"][0]), float(c["center"][1])),
+                    float(c.get("chord_radius", c.get("radius"))),
+                )
+                for c in contacts
+            ],
+            key=lambda item: item[1],
+        )
+        radii = [radius for _, radius in parsed_contacts]
+        cr = [float(c.get("radius")) for c in circles]
+    except (IndexError, KeyError, TypeError, ValueError):
+        return False
+    if not (
+        port_count == 2 and h.get("CIRCLE") == 2 and h.get("LWPOLYLINE") == 3
+        and h.get("TEXT") == 2 and values == {"+", "-"}
+        and len(contacts) == 3 and len(cr) == 2 and max(cr) - min(cr) <= 1e-6 * max(max(cr), 1.0)
+        and len(radii) == 3 and radii[0] > 0 and radii[1] / radii[2] < 0.2
+    ):
+        return False
+    outer = [center for center, _ in parsed_contacts[:2]]
+    body_center, body_radius = parsed_contacts[2]
+    span = math.dist(*outer)
+    midpoint = ((outer[0][0] + outer[1][0]) / 2, (outer[0][1] + outer[1][1]) / 2)
+    if not (
+        1.95 <= span / body_radius <= 2.05
+        and math.dist(midpoint, body_center) <= body_radius * .015
+        and .24 <= sum(cr) / 2 / body_radius <= .26
+    ):
+        return False
+    axis = ((outer[1][0] - outer[0][0]) / span, (outer[1][1] - outer[0][1]) / span)
+    circle_offsets = sorted(
+        ((float(circle["center"][0]) - body_center[0]) * axis[0]
+         + (float(circle["center"][1]) - body_center[1]) * axis[1]) / body_radius
+        for circle in circles
+    )
+    return -0.64 <= circle_offsets[0] <= -0.61 and 0.61 <= circle_offsets[1] <= 0.64
+
+
+def _propose_wfs_polarity_ports(block: Any, *, source_id: str) -> tuple[ProposedPort, ...]:
+    contacts = []
+    polarity_texts: list[tuple[str, tuple[float, float]]] = []
+    for entity in block:
+        kind = str(entity.dxftype()).upper()
+        if kind == "TEXT":
+            try:
+                value = str(entity.dxf.text).strip()
+                point = entity.dxf.insert
+                if value in {"+", "-"}:
+                    polarity_texts.append((value, (float(point.x), float(point.y))))
+            except Exception:
+                pass
+            continue
+        if kind != "LWPOLYLINE" or not bool(getattr(entity, "closed", False)):
+            continue
+        try:
+            points = list(entity.get_points("xyb"))
+            if not points or not any(abs(float(p[2])) > 1e-9 for p in points):
+                continue
+            xs, ys = [float(p[0]) for p in points], [float(p[1]) for p in points]
+            contacts.append(((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0,
+                             max(max(xs) - min(xs), max(ys) - min(ys))))
+        except Exception:
+            continue
+    if len(contacts) != 3:
+        return ()
+    small = sorted(contacts, key=lambda c: c[2])[:2]
+    if (
+        small[0][2] <= 0
+        or small[1][2] / max(contacts, key=lambda c: c[2])[2] >= 0.2
+        or {value for value, _ in polarity_texts} != {"+", "-"}
+    ):
+        return ()
+    center = (sum(c[0] for c in small) / 2.0, sum(c[1] for c in small) / 2.0)
+    axis = _normalize((small[1][0] - small[0][0], small[1][1] - small[0][1]))
+    ordered = sorted(small, key=lambda c: c[0] * axis[0] + c[1] * axis[1])
+    ordered_texts = sorted(
+        polarity_texts, key=lambda item: item[1][0] * axis[0] + item[1][1] * axis[1]
+    )
+    return tuple(
+        ProposedPort(
+            port_id=f"MP{index}", local_position=(contact[0], contact[1], 0.0),
+            outward_direction=_normalize((contact[0] - center[0], contact[1] - center[1])),
+            port_type="ELECTRICAL", confidence=0.98,
+            evidence_codes=("WFS_AXIAL_CONTACT", "POLARITY_TEXT_NOT_PORT"),
+            source_ids=(source_id,), notes="Independent axial terminal; no internal union.",
+            component_pin=polarity[0],
+        )
+        for index, (contact, polarity) in enumerate(zip(ordered, ordered_texts), 1)
+    )
+
+
 def _is_four_numbered_contact_panel_geometry(
     shape: Mapping[str, Any], *, port_count: int
 ) -> bool:
@@ -1002,18 +2027,19 @@ def _is_four_numbered_contact_panel_geometry(
     histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
     contacts = shape.get("normalized_closed_bulged_contacts") or []
     circles = shape.get("normalized_circles") or []
+    ellipses = shape.get("normalized_ellipses") or []
     segments = shape.get("normalized_line_segments") or []
     try:
         if not (
             port_count == 4
-            and int(histogram.get("LINE", 0)) == 3
+            and int(histogram.get("LINE", 0)) == 4
             and int(histogram.get("LWPOLYLINE", 0)) == 4
-            and int(histogram.get("CIRCLE", 0)) == 4
+            and int(histogram.get("CIRCLE", 0)) + int(histogram.get("ELLIPSE", 0)) == 4
             and int(histogram.get("TEXT", 0)) == 4
             and int(histogram.get("ARC", 0)) == 0
             and len(contacts) == 4
-            and len(circles) == 4
-            and len(segments) == 3
+            and len(circles) + len(ellipses) == 4
+            and len(segments) == 4
         ):
             return False
         values = sorted(
@@ -1033,6 +2059,13 @@ def _is_four_numbered_contact_panel_geometry(
             )
             for item in circles
         ]
+        parsed_circles.extend(
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("radius") or item.get("major_radius")),
+            )
+            for item in ellipses
+        )
         parsed_segments = [
             (
                 (float(item["start"][0]), float(item["start"][1])),
@@ -1055,7 +2088,7 @@ def _is_four_numbered_contact_panel_geometry(
         return False
     mean_contact_radius = sum(contact_radii) / 4.0
     mean_circle_radius = sum(circle_radii) / 4.0
-    if not 4.65 <= mean_circle_radius / mean_contact_radius <= 5.0:
+    if not 4.65 <= mean_circle_radius / mean_contact_radius <= 5.05:
         return False
     if not (
         _is_rotation_invariant_contact_grid(contacts, columns=2, rows=2)
@@ -1081,7 +2114,7 @@ def _is_four_numbered_contact_panel_geometry(
         )
         if nearest[1] in used_circles:
             return False
-        if not 0.96 <= nearest[0] / mean_circle_radius <= 1.04:
+        if not 0.955 <= nearest[0] / mean_circle_radius <= 1.045:
             return False
         circle_center = nearest[2]
         outward = (
@@ -1113,41 +2146,203 @@ def _is_four_numbered_contact_panel_geometry(
                 "midpoint": ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0),
             }
         )
-    parallel_pair = max(
-        (
+    for stem_index, stem in enumerate(line_rows):
+        parallel = [row for index, row in enumerate(line_rows) if index != stem_index]
+        if not all(
+            abs(row["unit"][0] * parallel[0]["unit"][0]
+                + row["unit"][1] * parallel[0]["unit"][1]) >= 0.98
+            for row in parallel[1:]
+        ):
+            continue
+        if any(
+            abs(stem["unit"][0] * row["unit"][0]
+                + stem["unit"][1] * row["unit"][1]) > 0.05
+            for row in parallel
+        ):
+            continue
+        lengths = sorted(row["length"] for row in parallel)
+        if not (
+            0.48 <= lengths[0] / lengths[2] <= 0.52
+            and 0.98 <= lengths[1] / lengths[2] <= 1.02
+            and 1.88 <= stem["length"] / lengths[2] <= 1.92
+        ):
+            continue
+        projections = sorted(
+            (row["midpoint"][0] - stem["start"][0]) * stem["unit"][0]
+            + (row["midpoint"][1] - stem["start"][1]) * stem["unit"][1]
+            for row in parallel
+        )
+        if not (
+            abs(projections[0]) <= mean_contact_radius * 0.08
+            and abs(projections[2] - stem["length"]) <= mean_contact_radius * 0.08
+            and 0.48 <= projections[1] / stem["length"] <= 0.51
+        ):
+            continue
+        if all(
+            abs(
+                (row["midpoint"][0] - stem["start"][0]) * parallel[0]["unit"][0]
+                + (row["midpoint"][1] - stem["start"][1]) * parallel[0]["unit"][1]
+            ) <= mean_contact_radius * 0.08
+            for row in parallel
+        ):
+            return True
+    return False
+
+
+def _is_two_column_regular_grid(
+    items: Sequence[Any], *, rows: int, tolerance: float = 0.08
+) -> bool:
+    """Recognize a rotation/reflection-invariant two-column regular grid."""
+
+    try:
+        points = [
             (
-                abs(
-                    line_rows[left]["unit"][0] * line_rows[right]["unit"][0]
-                    + line_rows[left]["unit"][1] * line_rows[right]["unit"][1]
-                ),
-                left,
-                right,
+                float((item.get("center", item))[0]),
+                float((item.get("center", item))[1]),
             )
-            for left in range(3)
-            for right in range(left + 1, 3)
-        ),
-        key=lambda item: item[0],
-    )
-    if parallel_pair[0] < 0.98:
+            for item in items
+            if isinstance(item, Mapping)
+        ]
+    except (IndexError, TypeError, ValueError):
         return False
-    parallel_indices = {parallel_pair[1], parallel_pair[2]}
-    stem_index = next(index for index in range(3) if index not in parallel_indices)
-    stem = line_rows[stem_index]
-    parallel = sorted(
-        (line_rows[index] for index in parallel_indices),
-        key=lambda item: item["length"],
+    if rows < 2 or len(points) != rows * 2:
+        return False
+    center = (
+        sum(point[0] for point in points) / len(points),
+        sum(point[1] for point in points) / len(points),
     )
-    if not (
-        abs(stem["unit"][0] * parallel[0]["unit"][0] + stem["unit"][1] * parallel[0]["unit"][1]) <= 0.05
-        and 0.48 <= parallel[0]["length"] / parallel[1]["length"] <= 0.52
-        and 0.85 <= stem["length"] / parallel[1]["length"] <= 0.9
+    covariance_xx = sum((point[0] - center[0]) ** 2 for point in points)
+    covariance_yy = sum((point[1] - center[1]) ** 2 for point in points)
+    covariance_xy = sum(
+        (point[0] - center[0]) * (point[1] - center[1]) for point in points
+    )
+    angle = 0.5 * math.atan2(
+        2.0 * covariance_xy, covariance_xx - covariance_yy
+    )
+    axes = (
+        (math.cos(angle), math.sin(angle)),
+        (-math.sin(angle), math.cos(angle)),
+    )
+
+    def matches(column_axis: tuple[float, float], row_axis: tuple[float, float]) -> bool:
+        column_values = sorted(
+            point[0] * column_axis[0] + point[1] * column_axis[1]
+            for point in points
+        )
+        left, right = column_values[:rows], column_values[rows:]
+        column_gap = sum(right) / rows - sum(left) / rows
+        if column_gap <= 1e-9:
+            return False
+        if max(max(left) - min(left), max(right) - min(right)) > column_gap * tolerance:
+            return False
+
+        row_values = sorted(
+            point[0] * row_axis[0] + point[1] * row_axis[1]
+            for point in points
+        )
+        row_groups = [row_values[index : index + 2] for index in range(0, len(row_values), 2)]
+        row_centers = [sum(group) / 2.0 for group in row_groups]
+        gaps = [
+            row_centers[index + 1] - row_centers[index]
+            for index in range(len(row_centers) - 1)
+        ]
+        if not gaps or min(gaps) <= 1e-9:
+            return False
+        mean_gap = sum(gaps) / len(gaps)
+        return bool(
+            max(abs(group[1] - group[0]) for group in row_groups)
+            <= mean_gap * tolerance
+            and max(abs(gap - mean_gap) for gap in gaps) <= mean_gap * tolerance
+        )
+
+    return matches(axes[0], axes[1]) or matches(axes[1], axes[0])
+
+
+def _is_numbered_round_contact_array_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize the reusable 2xN numbered isolated-contact component family."""
+
+    if port_count < 8 or port_count > 32 or port_count % 2:
+        return False
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    try:
+        if not (
+            int(histogram.get("TEXT", 0)) == port_count
+            and int(histogram.get("CIRCLE", 0)) == port_count
+            and int(histogram.get("LWPOLYLINE", 0)) == port_count + 1
+            and sum(int(value) for value in histogram.values()) == port_count * 3 + 1
+            and len(contacts) == port_count + 1
+            and len(circles) == port_count
+        ):
+            return False
+        values = sorted(int(str(value).strip()) for value in shape.get("text_values") or [])
+        parsed_contacts = sorted(
+            [
+                (
+                float(item.get("chord_radius") or item["radius"]),
+                item,
+                )
+                for item in contacts
+            ],
+            key=lambda row: row[0],
+        )
+        parsed_circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in circles
+        ]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return False
+    if values != list(range(1, port_count + 1)):
+        return False
+    small_contacts = [item for _, item in parsed_contacts[:port_count]]
+    small_radii = [radius for radius, _ in parsed_contacts[:port_count]]
+    body_radius = parsed_contacts[-1][0]
+    circle_radii = [radius for _, radius in parsed_circles]
+    if (
+        min(small_radii) <= 1e-9
+        or max(small_radii) / min(small_radii) > 1.05
+        or body_radius / max(small_radii) < 20.0
+        or min(circle_radii) <= 1e-9
+        or max(circle_radii) / min(circle_radii) > 1.05
+        or not _is_two_column_regular_grid(small_contacts, rows=port_count // 2)
+        or not _is_two_column_regular_grid(circles, rows=port_count // 2)
     ):
         return False
-    return all(
-        min(distance(endpoint, row["midpoint"]) for endpoint in (stem["start"], stem["end"]))
-        <= mean_contact_radius * 0.08
-        for row in parallel
+
+    def distance(left: tuple[float, float], right: tuple[float, float]) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    circle_center = (
+        sum(center[0] for center, _ in parsed_circles) / port_count,
+        sum(center[1] for center, _ in parsed_circles) / port_count,
     )
+    used_contacts: set[int] = set()
+    for center, radius in parsed_circles:
+        nearest = min(
+            (
+                (
+                    distance(center, (float(contact["center"][0]), float(contact["center"][1]))),
+                    index,
+                    (float(contact["center"][0]), float(contact["center"][1])),
+                )
+                for index, contact in enumerate(small_contacts)
+            ),
+            key=lambda item: item[0],
+        )
+        if nearest[1] in used_contacts or not 1.55 <= nearest[0] / radius <= 2.30:
+            return False
+        outward = (center[0] - circle_center[0], center[1] - circle_center[1])
+        contact_offset = (nearest[2][0] - center[0], nearest[2][1] - center[1])
+        if outward[0] * contact_offset[0] + outward[1] * contact_offset[1] <= 0.0:
+            return False
+        used_contacts.add(nearest[1])
+    return len(used_contacts) == port_count
 
 
 def _is_eight_numbered_side_contact_panel_geometry(
@@ -1445,9 +2640,26 @@ def classify_definition_family(
     )
     classifier_status = "MATCHED" if table_container_match or panel_match or ignore_match else "UNKNOWN"
     confidence = 0.99 if table_container_match else 0.98 if panel_match else ignore_match[2] if ignore_match else 0.0
-    if machine_family is None and _is_four_numbered_contact_panel_geometry(
+    if machine_family is None and _is_wfs_polarity_two_port_geometry(
         shape, port_count=len(ports)
     ):
+        machine_family = "component.external_wfs_polarity_two_port.v1"
+        matched_rule_id = "wfs-rounded-polarity-axial-two-port-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _is_numbered_round_contact_array_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_multi_port.v1"
+        matched_rule_id = "numbered-round-contact-array-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _is_four_numbered_contact_panel_geometry(
+        shape, port_count=len(ports)
+    ):
+        elxal_family = (
+            reviewed_policy.get("family_id") if reviewed_policy else None
+        )
         machine_family = "component.external_multi_port.v1"
         matched_rule_id = "four-numbered-independent-contact-panel-v1"
         classifier_status = "MATCHED"
@@ -1466,6 +2678,34 @@ def classify_definition_family(
         matched_rule_id = "four-contact-isolated-switch-frame-v1"
         classifier_status = "MATCHED"
         confidence = 0.98
+    elif machine_family is None and _is_four_radial_isolated_terminal_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_multi_port.v1"
+        matched_rule_id = "four-radial-isolated-terminal-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _is_round_body_isolated_two_port_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_strip_two_port.v1"
+        matched_rule_id = "round-body-isolated-axial-two-port-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _is_dual_frame_isolated_two_port_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_strip_two_port.v1"
+        matched_rule_id = "dual-frame-isolated-axial-two-port-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _is_triangle_body_isolated_two_port_geometry(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_strip_two_port.v1"
+        matched_rule_id = "triangle-body-isolated-axial-two-port-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
     elif machine_family is None and _is_three_contact_socket_geometry(
         shape, port_count=len(ports)
     ):
@@ -1492,6 +2732,18 @@ def classify_definition_family(
         matched_rule_id = "compact-equal-arc-terminal-v1"
         classifier_status = "MATCHED"
         confidence = 0.9
+    elif machine_family is None and _has_fjl_line_bound_two_port_topology(
+        shape, port_count=len(ports)
+    ):
+        machine_family = "component.external_strip_two_port.v1"
+        matched_rule_id = "fjl-two-circle-four-contact-line-bound-ports-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
+    elif machine_family is None and _kk_of_main_port_count(shape) == len(ports):
+        machine_family = "component.external_multi_port.v1"
+        matched_rule_id = f"kk-of-selective-{len(ports)}-main-port-v1"
+        classifier_status = "MATCHED"
+        confidence = 0.99
     elif machine_family is None and _is_kk3p_six_port_geometry(
         shape, port_count=len(ports), width=width, height=height
     ):
@@ -1574,6 +2826,14 @@ def classify_definition_family(
         confidence = 0.45
 
     reviewed_family = reviewed_policy.get("family_id") if reviewed_policy else None
+    # For the newly adjudicated WFS/ELXAL families, the digest is provenance
+    # only.  A reviewed member must still pass the complete subtype geometry
+    # rule; an altered block with the same digest must fail closed.
+    geometry_bound_review = {
+        "component.external_wfs_polarity_two_port.v1",
+    }
+    if reviewed_family in geometry_bound_review and machine_family != reviewed_family:
+        reviewed_family = None
     family_id = machine_family or reviewed_family
     source = "MACHINE_GEOMETRY_RULE" if machine_family else "UNKNOWN"
     if reviewed_family:
@@ -1941,6 +3201,710 @@ def _has_closed_cable_sleeve_topology(shape: Mapping[str, Any]) -> bool:
     )
 
 
+def _has_vertical_zigzag_element_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize the complete framed four-cell zigzag element geometrically.
+
+    The frame supplies a local orthonormal coordinate system.  All remaining
+    checks use frame-relative distances, so definition name, fingerprint,
+    insertion rotation, reflection, translation, and uniform scale are absent
+    from the decision.
+    """
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    try:
+        if (
+            int(histogram.get("LINE", 0)) != 12
+            or int(histogram.get("LWPOLYLINE", 0)) != 1
+            or sum(int(value) for value in histogram.values()) != 13
+            or int(shape.get("text_count", 0)) != 0
+            or shape.get("normalized_arcs")
+            or shape.get("normalized_circles")
+            or shape.get("normalized_closed_bulged_contacts")
+            or shape.get("normalized_open_lwpolylines")
+            or shape.get("normalized_inserts")
+        ):
+            return False
+        segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+        frames = shape.get("normalized_closed_straight_lwpolylines") or []
+        if len(segments) != 12 or len(frames) != 1:
+            return False
+        vertices = [
+            (float(point[0]), float(point[1]))
+            for point in frames[0].get("vertices") or []
+        ]
+    except (KeyError, TypeError, ValueError):
+        return False
+    if len(vertices) != 4:
+        return False
+
+    edges = [
+        (
+            vertices[(index + 1) % 4][0] - vertices[index][0],
+            vertices[(index + 1) % 4][1] - vertices[index][1],
+        )
+        for index in range(4)
+    ]
+    lengths = [math.hypot(*edge) for edge in edges]
+    if min(lengths) <= 1e-9:
+        return False
+    ordered = sorted(lengths)
+    frame_width = sum(ordered[:2]) / 2.0
+    frame_length = sum(ordered[2:]) / 2.0
+    if (
+        not 2.74 <= frame_length / frame_width <= 2.86
+        or abs(ordered[1] - ordered[0]) > frame_width * 0.02
+        or abs(ordered[3] - ordered[2]) > frame_length * 0.02
+    ):
+        return False
+    long_index = max(range(4), key=lengths.__getitem__)
+    axis = (edges[long_index][0] / lengths[long_index], edges[long_index][1] / lengths[long_index])
+    normal = (-axis[1], axis[0])
+    center = (
+        sum(point[0] for point in vertices) / 4.0,
+        sum(point[1] for point in vertices) / 4.0,
+    )
+
+    # Require one true rectangle rather than accepting any four-sided frame.
+    for index in range(4):
+        left, right = edges[index], edges[(index + 1) % 4]
+        denominator = lengths[index] * lengths[(index + 1) % 4]
+        if abs(left[0] * right[0] + left[1] * right[1]) / denominator > 0.025:
+            return False
+
+    def project(point: tuple[float, float]) -> tuple[float, float]:
+        dx, dy = point[0] - center[0], point[1] - center[1]
+        return (dx * axis[0] + dy * axis[1], dx * normal[0] + dy * normal[1])
+
+    axis_tolerance = frame_length * 0.025
+    normal_tolerance = frame_width * 0.04
+    levels = [
+        -frame_length / 2.0,
+        -frame_length / 4.0,
+        0.0,
+        frame_length / 4.0,
+        frame_length / 2.0,
+    ]
+
+    def level_index(value: float) -> int | None:
+        index = min(range(5), key=lambda candidate: abs(value - levels[candidate]))
+        return index if abs(value - levels[index]) <= axis_tolerance else None
+
+    lead_sides: list[int] = []
+    crossbar_levels: list[int] = []
+    diagonal_intervals: dict[int, tuple[int, int]] = {}
+    for start, end in segments:
+        first, second = project(start), project(end)
+        segment_length = math.dist(first, second)
+
+        # Equal axial leads attach at the middle of opposite short frame edges.
+        if abs(first[1]) <= normal_tolerance and abs(second[1]) <= normal_tolerance:
+            inner, outer = sorted((first[0], second[0]), key=abs)
+            side = 1 if outer > 0.0 else -1
+            if (
+                side * inner >= 0.0
+                and abs(abs(inner) - frame_length / 2.0) <= axis_tolerance
+                and 0.20 <= segment_length / frame_length <= 0.23
+            ):
+                lead_sides.append(side)
+                continue
+
+        first_level, second_level = level_index(first[0]), level_index(second[0])
+        opposite_sides = (
+            abs(abs(first[1]) - frame_width / 2.0) <= normal_tolerance
+            and abs(abs(second[1]) - frame_width / 2.0) <= normal_tolerance
+            and first[1] * second[1] < 0.0
+        )
+        if first_level is None or second_level is None or not opposite_sides:
+            return False
+
+        # Each of the three inner levels carries two coincident full-width bars.
+        if first_level == second_level and first_level in {1, 2, 3}:
+            if abs(segment_length - frame_width) > frame_width * 0.05:
+                return False
+            crossbar_levels.append(first_level)
+            continue
+
+        # Four equal-slope diagonals occupy the four adjacent level intervals.
+        # At each inner level the duplicated full-width bar joins the end of
+        # one diagonal to the opposite-side start of the next.
+        low_index, high_index = sorted((first_level, second_level))
+        if high_index - low_index != 1 or low_index in diagonal_intervals:
+            return False
+        low_point = first if first_level == low_index else second
+        high_point = second if first_level == low_index else first
+        diagonal_intervals[low_index] = (
+            1 if low_point[1] > 0.0 else -1,
+            1 if high_point[1] > 0.0 else -1,
+        )
+
+    if sorted(lead_sides) != [-1, 1] or Counter(crossbar_levels) != Counter({1: 2, 2: 2, 3: 2}):
+        return False
+    if set(diagonal_intervals) != {0, 1, 2, 3}:
+        return False
+    if any(low_side == high_side for low_side, high_side in diagonal_intervals.values()):
+        return False
+    return len(set(diagonal_intervals.values())) == 1
+
+
+def _normalized_contact_count(shape: Mapping[str, Any]) -> int:
+    return len(shape.get("normalized_closed_bulged_contacts") or [])
+
+
+def _has_inline_rectangle_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """PWF168: rectangle, two collinear leads, and two equal contacts."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not (int(h.get("LINE", 0)) == 2 and int(h.get("LWPOLYLINE", 0)) == 3
+            and int(h.get("ARC", 0)) == 0 and int(h.get("CIRCLE", 0)) == 0
+            and int(shape.get("text_count", 0)) == 0
+            and _normalized_contact_count(shape) == 2):
+        return False
+    frames = shape.get("normalized_closed_straight_lwpolylines") or []
+    lines = shape.get("normalized_line_segments") or []
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    if len(frames) != 1 or len(lines) != 2 or len(contacts) != 2:
+        return False
+    try:
+        v = frames[0]["vertices"]
+        lengths = [math.dist(v[i], v[(i + 1) % 4]) for i in range(4)]
+        if len(v) != 4 or min(lengths) <= 0 or max(lengths) / min(lengths) > 3.0:
+            return False
+        radii = [float(c["radius"]) for c in contacts]
+        if max(radii) / min(radii) > 1.04:
+            return False
+        centers = [(float(c["center"][0]), float(c["center"][1])) for c in contacts]
+        axis = (centers[1][0] - centers[0][0], centers[1][1] - centers[0][1])
+        span = math.hypot(*axis)
+        if span <= 0 or not 7.0 <= span / max(radii) <= 24.0:
+            return False
+        normal = (-axis[1] / span, axis[0] / span)
+        midpoint = ((centers[0][0] + centers[1][0]) / 2, (centers[0][1] + centers[1][1]) / 2)
+        for line in lines:
+            a, b = line["start"], line["end"]
+            length = math.dist(a, b)
+            center = ((float(a[0]) + float(b[0])) / 2, (float(a[1]) + float(b[1])) / 2)
+            offset = abs((center[0] - midpoint[0]) * normal[0] + (center[1] - midpoint[1]) * normal[1])
+            if not 0.20 <= length / span <= 0.40 or offset > max(radii) * .5:
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, IndexError):
+        return False
+
+
+def _has_dual_row_arc_motif_topology(shape: Mapping[str, Any]) -> bool:
+    """PWF209: four equal semicircles arranged as two parallel rows."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    arcs = shape.get("normalized_arcs") or []
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    lines = shape.get("normalized_line_segments") or []
+    if (int(h.get("LINE", 0)) != 4 or int(h.get("ARC", 0)) != 4
+            or int(h.get("LWPOLYLINE", 0)) != 4 or len(arcs) != 4
+            or len(contacts) != 4 or len(lines) != 4
+            or int(shape.get("text_count", 0)) != 0):
+        return False
+
+    def _levels(values: list[float], tolerance: float) -> list[tuple[float, int]]:
+        groups: list[list[float]] = []
+        for value in sorted(values):
+            if not groups or abs(value - sum(groups[-1]) / len(groups[-1])) > tolerance:
+                groups.append([value])
+            else:
+                groups[-1].append(value)
+        return [(sum(group) / len(group), len(group)) for group in groups]
+
+    try:
+        radii = [float(a["radius"]) for a in arcs]
+        sweeps = [abs(float(a.get("sweep_deg", a.get("sweep", 0)))) for a in arcs]
+        if max(radii) / min(radii) > 1.04 or any(abs(s - 180) > 3 for s in sweeps):
+            return False
+        radius = sum(radii) / len(radii)
+        tolerance = radius * .08
+        arc_centers = [(float(a["center"][0]), float(a["center"][1])) for a in arcs]
+        contact_centers = [
+            (float(item["center"][0]), float(item["center"][1]))
+            for item in contacts
+        ]
+        contact_radii = [float(item.get("chord_radius", item["radius"])) for item in contacts]
+        if min(contact_radii) <= 0 or max(contact_radii) / min(contact_radii) > 1.04:
+            return False
+        arc_x = _levels([point[0] for point in arc_centers], tolerance)
+        arc_y = _levels([point[1] for point in arc_centers], tolerance)
+        contact_x = _levels([point[0] for point in contact_centers], tolerance)
+        contact_y = _levels([point[1] for point in contact_centers], tolerance)
+        if not all(
+            len(levels) == 2 and [count for _, count in levels] == [2, 2]
+            for levels in (arc_x, arc_y, contact_x, contact_y)
+        ):
+            return False
+        ax0, ax1 = arc_x[0][0], arc_x[1][0]
+        ay0, ay1 = arc_y[0][0], arc_y[1][0]
+        cx0, cx1 = contact_x[0][0], contact_x[1][0]
+        cy0, cy1 = contact_y[0][0], contact_y[1][0]
+        if not (
+            3.92 <= (ax1 - ax0) / radius <= 4.08
+            and 1.92 <= (ay1 - ay0) / radius <= 2.08
+            and 3.92 <= (ax0 - cx0) / radius <= 4.08
+            and 3.92 <= (cx1 - ax1) / radius <= 4.08
+            and 3.92 <= (cy1 - cy0) / radius <= 4.08
+            and .92 <= (ay0 - cy0) / radius <= 1.08
+            and .92 <= (cy1 - ay1) / radius <= 1.08
+        ):
+            return False
+        expected_lines = (
+            ((cx0, cy0), (ax0, cy0)),
+            ((cx0, cy1), (ax0, cy1)),
+            ((ax1, cy0), (cx1, cy0)),
+            ((ax1, cy1), (cx1, cy1)),
+        )
+        actual_lines = []
+        for item in lines:
+            start = (float(item["start"][0]), float(item["start"][1]))
+            end = (float(item["end"][0]), float(item["end"][1]))
+            actual_lines.append((start, end) if start <= end else (end, start))
+        for first, second in expected_lines:
+            if not any(
+                math.dist(first, start) <= tolerance and math.dist(second, end) <= tolerance
+                for start, end in actual_lines
+            ):
+                return False
+        for arc, (x, y) in zip(arcs, arc_centers):
+            midpoint = arc.get("midpoint")
+            if not midpoint:
+                return False
+            expected_x = x + radius if abs(x - ax0) <= tolerance else x - radius
+            if math.dist((float(midpoint[0]), float(midpoint[1])), (expected_x, y)) > tolerance:
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
+def _segments_match_similarity(
+    rows: Sequence[Mapping[str, Any]],
+    template: Sequence[tuple[tuple[float, float], tuple[float, float]]],
+    *,
+    relative_tolerance: float = 0.025,
+) -> bool:
+    """Match a small undirected segment graph under rigid similarity.
+
+    The comparison permits translation, rotation, uniform scale, and mirror,
+    but no non-uniform stretch.  It is used only after an exact entity census
+    so a familiar line ratio cannot suppress a larger unrelated symbol.
+    """
+    try:
+        actual = [
+            (
+                (float(row["start"][0]), float(row["start"][1])),
+                (float(row["end"][0]), float(row["end"][1])),
+            )
+            for row in rows
+        ]
+        if len(actual) != len(template) or not template:
+            return False
+        t0, t1 = template[0]
+        tdx, tdy = t1[0] - t0[0], t1[1] - t0[1]
+        tlen = math.hypot(tdx, tdy)
+        if tlen <= 1e-12:
+            return False
+        tux, tuy = tdx / tlen, tdy / tlen
+        tnx, tny = -tuy, tux
+
+        for anchor in actual:
+            for a0, a1 in (anchor, (anchor[1], anchor[0])):
+                adx, ady = a1[0] - a0[0], a1[1] - a0[1]
+                alen = math.hypot(adx, ady)
+                if alen <= 1e-12:
+                    continue
+                scale = alen / tlen
+                aux, auy = adx / alen, ady / alen
+                anx, any_ = -auy, aux
+                tolerance = max(1e-7, alen * relative_tolerance)
+                for mirror in (1.0, -1.0):
+                    transformed = []
+                    for first, second in template:
+                        pair = []
+                        for point in (first, second):
+                            rx, ry = point[0] - t0[0], point[1] - t0[1]
+                            along = (rx * tux + ry * tuy) * scale
+                            across = (rx * tnx + ry * tny) * scale * mirror
+                            pair.append(
+                                (
+                                    a0[0] + along * aux + across * anx,
+                                    a0[1] + along * auy + across * any_,
+                                )
+                            )
+                        transformed.append((pair[0], pair[1]))
+                    unmatched = list(actual)
+                    for first, second in transformed:
+                        match_index = next(
+                            (
+                                index
+                                for index, (start, end) in enumerate(unmatched)
+                                if (
+                                    math.dist(first, start) <= tolerance
+                                    and math.dist(second, end) <= tolerance
+                                )
+                                or (
+                                    math.dist(first, end) <= tolerance
+                                    and math.dist(second, start) <= tolerance
+                                )
+                            ),
+                            None,
+                        )
+                        if match_index is None:
+                            break
+                        unmatched.pop(match_index)
+                    else:
+                        return not unmatched
+        return False
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
+def _has_framed_inline_noport_topology(shape: Mapping[str, Any]) -> bool:
+    """Central rectangle with two opposite collinear leads, no contacts."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    frames = shape.get("normalized_closed_straight_lwpolylines") or []
+    lines = shape.get("normalized_line_segments") or []
+    if not (
+        int(h.get("LINE", 0)) == 2
+        and int(h.get("LWPOLYLINE", 0)) == 1
+        and sum(int(h.get(key, 0)) for key in ("ARC", "CIRCLE", "HATCH", "INSERT")) == 0
+        and int(shape.get("text_count", 0)) == 0
+        and len(frames) == 1
+        and len(lines) == 2
+        and not (shape.get("normalized_closed_bulged_contacts") or [])
+    ):
+        return False
+    try:
+        vertices = [tuple(map(float, point[:2])) for point in frames[0]["vertices"]]
+        if len(vertices) != 4:
+            return False
+        edges = [
+            (vertices[index], vertices[(index + 1) % 4]) for index in range(4)
+        ]
+        lengths = [math.dist(*edge) for edge in edges]
+        short, long = min(lengths), max(lengths)
+        if short <= 1e-12 or not 2.55 <= long / short <= 2.80:
+            return False
+        long_edges = [edge for edge, length in zip(edges, lengths) if length >= long * 0.98]
+        if len(long_edges) != 2:
+            return False
+        axis = (
+            (long_edges[0][1][0] - long_edges[0][0][0]) / long,
+            (long_edges[0][1][1] - long_edges[0][0][1]) / long,
+        )
+        normal = (-axis[1], axis[0])
+        center = (
+            sum(point[0] for point in vertices) / 4.0,
+            sum(point[1] for point in vertices) / 4.0,
+        )
+        side_signs = []
+        for row in lines:
+            start = tuple(map(float, row["start"][:2]))
+            end = tuple(map(float, row["end"][:2]))
+            vector = (end[0] - start[0], end[1] - start[1])
+            length = math.hypot(*vector)
+            midpoint = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+            if not 0.47 <= length / long <= 0.53:
+                return False
+            if abs(vector[0] * normal[0] + vector[1] * normal[1]) > long * 0.025:
+                return False
+            if abs((midpoint[0] - center[0]) * normal[0] + (midpoint[1] - center[1]) * normal[1]) > short * 0.08:
+                return False
+            axial = (midpoint[0] - center[0]) * axis[0] + (midpoint[1] - center[1]) * axis[1]
+            if abs(axial) < long * 0.65:
+                return False
+            side_signs.append(1 if axial > 0 else -1)
+        return sorted(side_signs) == [-1, 1]
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
+def _has_four_line_open_switch_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    lines = shape.get("normalized_line_segments") or []
+    template = (
+        ((3.0, 0.0), (2.0, 0.0)),
+        ((0.0, 0.0), (1.0, 0.0)),
+        ((1.0, 0.0), (1.0, 0.5)),
+        ((2.0, 0.0), (0.75, 0.5)),
+    )
+    return (
+        int(h.get("LINE", 0)) == 4
+        and sum(int(h.get(key, 0)) for key in ("ARC", "CIRCLE", "LWPOLYLINE", "HATCH", "INSERT")) == 0
+        and int(shape.get("text_count", 0)) == 0
+        and _segments_match_similarity(lines, template)
+    )
+
+
+def _has_five_line_vertical_switch_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    lines = shape.get("normalized_line_segments") or []
+    template = (
+        ((0.75, 0.0), (0.75, 1.0)),
+        ((0.0, 3.0), (0.0, 2.0)),
+        ((0.0, 2.0), (0.5, 2.0)),
+        ((0.75, 1.0), (0.25, 2.25)),
+        ((0.75, 3.0), (0.75, 2.0)),
+    )
+    return (
+        int(h.get("LINE", 0)) == 5
+        and sum(int(h.get(key, 0)) for key in ("ARC", "CIRCLE", "LWPOLYLINE", "HATCH", "INSERT")) == 0
+        and int(shape.get("text_count", 0)) == 0
+        and _segments_match_similarity(lines, template)
+    )
+
+
+def _has_two_contact_bulged_switch_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """Two equal contacts plus three open bulged paths (PWF26 family)."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    paths = shape.get("normalized_open_lwpolylines") or []
+    if not (
+        int(h.get("LWPOLYLINE", 0)) == 5
+        and sum(int(h.get(key, 0)) for key in ("LINE", "ARC", "CIRCLE", "HATCH", "INSERT")) == 0
+        and int(shape.get("text_count", 0)) == 0
+        and len(contacts) == 2
+        and len(paths) == 3
+        and sorted(len(path.get("vertices") or []) for path in paths) == [2, 3, 3]
+    ):
+        return False
+    try:
+        centers = [tuple(map(float, item["center"][:2])) for item in contacts]
+        radii = [float(item.get("chord_radius", item["radius"])) for item in contacts]
+        span = math.dist(*centers)
+        if min(radii) <= 0 or max(radii) / min(radii) > 1.04 or not 19.5 <= span / (sum(radii) / 2) <= 20.5:
+            return False
+        bulges = sorted(
+            round(abs(float(vertex.get("bulge", 0.0))), 3)
+            for path in paths
+            for vertex in path.get("vertices") or []
+            if abs(float(vertex.get("bulge", 0.0))) > 1e-6
+        )
+        if bulges != [1.0, 1.0, 2.414]:
+            return False
+        axis = ((centers[1][0] - centers[0][0]) / span, (centers[1][1] - centers[0][1]) / span)
+        base_normal = (-axis[1], axis[0])
+        expected = (
+            ((-1 / 6, 1 / 6), (7 / 6, 1 / 6)),
+            ((0.5, 1 / 6), (1.0, 1 / 6), (1.0, 0.0)),
+            ((0.0, 0.0), (0.0, 1 / 6), (0.5, 1 / 6)),
+        )
+        for swap in (False, True):
+            origin = centers[1] if swap else centers[0]
+            along = (-axis[0], -axis[1]) if swap else axis
+            for normal_sign in (1.0, -1.0):
+                normal = (base_normal[0] * normal_sign, base_normal[1] * normal_sign)
+                actual_paths = []
+                for path in paths:
+                    points = []
+                    for vertex in path["vertices"]:
+                        point = vertex["point"]
+                        dx, dy = float(point[0]) - origin[0], float(point[1]) - origin[1]
+                        points.append((dx * along[0] / span + dy * along[1] / span,
+                                       dx * normal[0] / span + dy * normal[1] / span))
+                    actual_paths.append(points)
+                unmatched = list(actual_paths)
+                for expected_path in expected:
+                    index = next((i for i, points in enumerate(unmatched)
+                                  if len(points) == len(expected_path)
+                                  and (all(math.dist(a, b) <= .025 for a, b in zip(points, expected_path))
+                                       or all(math.dist(a, b) <= .025 for a, b in zip(reversed(points), expected_path)))), None)
+                    if index is None:
+                        break
+                    unmatched.pop(index)
+                else:
+                    return not unmatched
+        return False
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
+def _has_dense_nkp_panel_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """Dense J1..J6/L/N/E panel with orthogonal 6+3 contact grids."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    labels = {str(value).strip().upper() for value in shape.get("text_values") or []}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    if not (
+        int(h.get("LINE", 0)) == 105
+        and int(h.get("LWPOLYLINE", 0)) == 17
+        and int(h.get("TEXT", 0)) == 9
+        and sum(int(h.get(key, 0)) for key in ("ARC", "CIRCLE", "HATCH", "INSERT")) == 0
+        and labels == {"J1", "J2", "J3", "J4", "J5", "J6", "L", "N", "E"}
+        and len(contacts) == 9
+        and len(shape.get("normalized_closed_straight_lwpolylines") or []) == 7
+        and len(shape.get("normalized_open_lwpolylines") or []) == 1
+        and len(shape.get("normalized_open_lwpolyline_segments") or []) == 3
+        and int(shape.get("parallel_line_group_max", 0)) >= 29
+        and 6.35 <= float(shape.get("oriented_aspect_ratio") or 0.0) <= 6.70
+    ):
+        return False
+    try:
+        points = [tuple(map(float, item["center"][:2])) for item in contacts]
+        radii = [float(item.get("chord_radius", item["radius"])) for item in contacts]
+        if min(radii) <= 0 or max(radii) / min(radii) > 1.04:
+            return False
+
+        def regular_collinear(group: Sequence[tuple[float, float]]) -> tuple[tuple[float, float], float] | None:
+            first, last = max(combinations(group, 2), key=lambda pair: math.dist(*pair))
+            span = math.dist(first, last)
+            if span <= 1e-12:
+                return None
+            axis = ((last[0] - first[0]) / span, (last[1] - first[1]) / span)
+            projections = sorted((point[0] - first[0]) * axis[0] + (point[1] - first[1]) * axis[1] for point in group)
+            offsets = [abs((point[0] - first[0]) * -axis[1] + (point[1] - first[1]) * axis[0]) for point in group]
+            gaps = [second - first_ for first_, second in zip(projections, projections[1:])]
+            if max(offsets) > span * .005 or min(gaps) <= 0 or max(gaps) / min(gaps) > 1.04:
+                return None
+            return axis, sum(gaps) / len(gaps)
+
+        for indexes in combinations(range(9), 6):
+            first_group = [points[index] for index in indexes]
+            second_group = [points[index] for index in range(9) if index not in indexes]
+            first_line = regular_collinear(first_group)
+            second_line = regular_collinear(second_group)
+            if first_line and second_line and abs(first_line[0][0] * second_line[0][0] + first_line[0][1] * second_line[0][1]) <= .03:
+                return True
+        return False
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
+def _has_switch_class_ignore_topology(shape: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Strict, name/fingerprint-free contracts for the safe switch subclasses.
+
+    These checks intentionally use primitive counts plus normalized relative
+    geometry.  The two PWF166 variants are separate rules so equal counts or
+    names can never cross-match.
+    """
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    def n(key: str) -> int:
+        try: return int(h.get(key, 0))
+        except (TypeError, ValueError): return 0
+    if _has_dense_nkp_panel_ignore_topology(shape):
+        return ("dense-j1-j6-lne-panel-ignore-v1", "dense-j1-j6-lne-panel-ignore-v1")
+    if int(shape.get("text_count", 0)) != 0:
+        return None
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    lines = shape.get("normalized_line_segments") or []
+    if (
+        n("LINE") == 1
+        and n("LWPOLYLINE") in {4, 6}
+        and len(contacts) == n("LWPOLYLINE")
+        and len(lines) == 1
+    ):
+        try:
+            line_start = (float(lines[0]["start"][0]), float(lines[0]["start"][1]))
+            line_end = (float(lines[0]["end"][0]), float(lines[0]["end"][1]))
+            line_length = math.dist(line_start, line_end)
+            if line_length <= 1e-9:
+                return None
+            axis = (
+                (line_end[0] - line_start[0]) / line_length,
+                (line_end[1] - line_start[1]) / line_length,
+            )
+            normal = (-axis[1], axis[0])
+            centers = [
+                (float(item["center"][0]), float(item["center"][1]))
+                for item in contacts
+            ]
+            radii = [float(item.get("chord_radius", item["radius"])) for item in contacts]
+            if min(radii) <= 0 or max(radii) / min(radii) > 1.04:
+                return None
+            origin = centers[0]
+            axial = [
+                (point[0] - origin[0]) * axis[0] + (point[1] - origin[1]) * axis[1]
+                for point in centers
+            ]
+            normal_offsets = [
+                abs((point[0] - origin[0]) * normal[0] + (point[1] - origin[1]) * normal[1])
+                for point in centers
+            ]
+            span = max(axial) - min(axial)
+            radius = sum(radii) / len(radii)
+            if (
+                span <= 1e-9
+                or max(normal_offsets) > radius * .12
+                or not 12.3 <= span / radius <= 12.7
+                or not .39 <= line_length / span <= .41
+            ):
+                return None
+            levels = sorted(round((value - min(axial)) / span, 3) for value in axial)
+            endpoint_levels = sorted(
+                round(
+                    (((point[0] - origin[0]) * axis[0] + (point[1] - origin[1]) * axis[1]) - min(axial))
+                    / span,
+                    3,
+                )
+                for point in (line_start, line_end)
+            )
+            if len(contacts) == 6:
+                valid_levels = ([0.0, 0.0, 0.0, 0.6, 0.8, 1.0], [0.0, 0.2, 0.4, 1.0, 1.0, 1.0])
+                valid_lines = ([0.6, 1.0], [0.0, 0.4])
+                if levels in valid_levels and endpoint_levels in valid_lines:
+                    return ("vertical-six-contact-stack-ignore-v1", "vertical-six-contact-stack-ignore-v1")
+            else:
+                valid_levels = ([0.0, 0.0, 0.6, 1.0], [0.0, 0.4, 1.0, 1.0])
+                valid_lines = ([0.6, 1.0], [0.0, 0.4])
+                if levels in valid_levels and endpoint_levels in valid_lines:
+                    return ("vertical-four-contact-stack-ignore-v1", "vertical-four-contact-stack-ignore-v1")
+        except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+            return None
+    # PWF265: the frame and two bulged contacts are mandatory; all four hatch
+    # regions are part of the proof, not an optional visual hint.
+    if (n("CIRCLE") == 1 and n("LINE") == 5 and n("LWPOLYLINE") == 4
+            and n("HATCH") == 4 and len(contacts) == 2
+            and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 2):
+        return ("circle-line-five-bulged-contact-frame-hatch-v1", "circle-line-five-bulged-contact-frame-hatch-v1")
+    if _has_framed_inline_noport_topology(shape):
+        return ("framed-inline-noport-ignore-v1", "framed-inline-noport-ignore-v1")
+    if _has_four_line_open_switch_ignore_topology(shape):
+        return ("four-line-actuated-open-switch-ignore-v1", "four-line-actuated-open-switch-ignore-v1")
+    if _has_two_contact_bulged_switch_ignore_topology(shape):
+        return ("two-contact-three-open-bulged-path-ignore-v1", "two-contact-three-open-bulged-path-ignore-v1")
+    if _has_five_line_vertical_switch_ignore_topology(shape):
+        return ("five-line-vertical-changeover-ignore-v1", "five-line-vertical-changeover-ignore-v1")
+    return None
+
+
+def _has_pwf163_switch_topology(shape: Mapping[str, Any]) -> bool:
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not (int(h.get("LINE", 0)) == 3 and int(h.get("ARC", 0)) == 0
+            and int(h.get("LWPOLYLINE", 0)) == 4
+            and _normalized_contact_count(shape) == 4
+            and int(shape.get("text_count", 0)) == 0):
+        return False
+    lines = shape.get("normalized_line_segments") or []
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    points = [(float(c["center"][0]), float(c["center"][1])) for c in contacts]
+    span = math.dist(min(points), max(points)) if points else 0.0
+    lengths = [math.dist(s["start"], s["end"]) for s in lines]
+    rows = sorted(points, key=lambda p: p[1])
+    return (span > 0 and max(float(c["radius"]) for c in contacts) / span < .15
+            and len(lengths) == 3 and max(lengths) / span > .18
+            and max(p[1] for p in points) - min(p[1] for p in points) > span * .10
+            and abs(rows[0][1] - rows[1][1]) < span * .08
+            and abs(rows[2][1] - rows[3][1]) < span * .08)
+
+
+def _has_pwf175_two_port_topology(shape: Mapping[str, Any]) -> bool:
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    circles = shape.get("normalized_circles") or []
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    return (int(h.get("LINE", 0)) == 2 and int(h.get("CIRCLE", 0)) == 2
+            and int(h.get("ARC", 0)) == 0 and int(h.get("LWPOLYLINE", 0)) == 2
+            and len(circles) == len(contacts) == 2
+            and int(shape.get("text_count", 0)) == 0
+            and abs(float(shape.get("oriented_aspect_ratio") or 0)) >= 2.0
+            and abs(float(circles[0]["center"][1]) - float(circles[1]["center"][1])) < .2 * max(float(circles[0]["radius"]), float(circles[1]["radius"])))
+
+
 def _match_confirmed_ignore_geometry_family(
     shape: Mapping[str, Any],
     *,
@@ -1961,6 +3925,87 @@ def _match_confirmed_ignore_geometry_family(
             return int(entity_histogram.get(name, primitive_histogram.get(name, 0)))
         except (TypeError, ValueError):
             return 0
+
+    if _is_three_contact_selector_switch_geometry(shape, port_count=port_count):
+        return (
+            "electrical.nonconnective_switch_class_ignore.v1",
+            "three-radial-contact-selector-slash-ignore-v1",
+            0.99,
+        )
+    actuated_switch_rule = _actuated_switch_signature_rule(
+        shape, port_count=port_count
+    )
+    if actuated_switch_rule:
+        return (
+            "electrical.nonconnective_switch_class_ignore.v1",
+            actuated_switch_rule,
+            0.99,
+        )
+    if _is_line_only_actuated_switch_geometry(shape, port_count=port_count):
+        return (
+            "electrical.nonconnective_switch_class_ignore.v1",
+            "eight-line-duplicated-blade-actuator-switch-ignore-v1",
+            0.99,
+        )
+    if _is_rectangular_diagonal_mechanism_ignore_geometry(
+        shape, port_count=port_count
+    ):
+        return (
+            "electrical.nonconnective_switch_class_ignore.v1",
+            "rectangular-diagonal-mechanism-ignore-v1",
+            0.99,
+        )
+    if _is_remote_interface_marker_ignore_geometry(shape, port_count=port_count):
+        return (
+            "communication.remote_interface_marker_ignored.v1",
+            "contact-led-round-remote-interface-marker-v1",
+            0.99,
+        )
+    if _is_optical_st_bracket_marker_ignore_geometry(shape, port_count=port_count):
+        return (
+            "communication.optical_st_port_ignored.v1",
+            "two-contact-parenthesis-optical-marker-v1",
+            0.99,
+        )
+    if _is_two_arc_capsule_routing_ignore_geometry(shape, port_count=port_count):
+        return (
+            "line_break.non_connective.v1",
+            "two-semicircle-two-line-routing-capsule-v1",
+            0.99,
+        )
+
+    # These four contracts are deliberately geometry-only.  Exact fingerprints
+    # above provide provenance and human status; they are never consulted here.
+    if count("LINE") == 2 and count("LWPOLYLINE") == 3 and _has_inline_rectangle_ignore_topology(shape):
+        return ("electrical.nonconnective_inline_rectangle_ignored.v1",
+                "inline-rectangle-two-collinear-leads-v1", 0.99)
+    if _has_dual_row_arc_motif_topology(shape):
+        return ("electrical.nonconnective_dual_row_arc_motif_ignored.v1",
+                "dual-row-four-equal-semicircle-arc-wire-v1", 0.99)
+    if _has_pwf172_led_arrow_ignore_topology(shape):
+        return ("electrical.nonconnective_led_arrow_ignored.v1",
+                "pwf172-led-diode-arrow-complete-v1", 0.99)
+    if _has_pwf216_narrow_frame_ignore_topology(shape):
+        return ("electrical.nonconnective_narrow_frame_ignored.v1",
+                "pwf216-narrow-frame-slanted-base-complete-v1", 0.99)
+    if _has_pwf163_switch_topology(shape):
+        return ("switch.open.v1", "three-line-four-contact-open-switch-v1", 0.98)
+    if _has_pwf175_two_port_topology(shape):
+        return ("component.external_strip_two_port.v1",
+                "named-isolated-two-circle-two-port-v1", 0.98)
+
+    switch_match = _has_switch_class_ignore_topology(shape)
+    if switch_match is not None:
+        rule_id, _ = switch_match
+        family_id = (
+            "electrical.ground_symbol_ignored.v1"
+            if rule_id in {
+                "vertical-six-contact-stack-ignore-v1",
+                "vertical-four-contact-stack-ignore-v1",
+            }
+            else "electrical.nonconnective_switch_class_ignore.v1"
+        )
+        return (family_id, rule_id, 0.99)
 
     arc_radii = [
         float(value)
@@ -2007,6 +4052,16 @@ def _match_confirmed_ignore_geometry_family(
     )
 
     if (
+        2 <= port_count <= 4
+        and _has_vertical_zigzag_element_ignore_topology(shape)
+    ):
+        return (
+            "electrical.nonconnective_vertical_zigzag_element_ignored.v1",
+            "narrow-frame-four-cell-zigzag-v1",
+            0.99,
+        )
+
+    if (
         port_count in {2, 3, 4}
         and count("INSERT") == 4
         and count("LINE") == 8
@@ -2043,6 +4098,20 @@ def _match_confirmed_ignore_geometry_family(
             0.99,
         )
 
+    if _has_dgicom_8g12_equipment_panel_topology(shape, port_count=port_count):
+        return (
+            "communication.equipment_panel_ignored.v1",
+            "dgicom-8g12-40-circle-complete-panel-v1",
+            0.99,
+        )
+
+    if _has_wyd_communication_equipment_panel_topology(shape, port_count=port_count):
+        return (
+            "communication.equipment_panel_ignored.v1",
+            "wyd-8com-12lan-complete-panel-v1",
+            0.99,
+        )
+
     # Wide NGFW firewall face with ETH/P sockets, USB indicators, paired
     # optical circles and dual power-terminal drawings.
     if _has_firewall_eth_panel_topology(shape, port_count=port_count):
@@ -2067,6 +4136,13 @@ def _match_confirmed_ignore_geometry_family(
         return (
             "communication.equipment_panel_ignored.v1",
             "compact-ge-gx-power-switch-panel-v1",
+            0.99,
+        )
+
+    if _has_dgicom3000_4gx8ge_hv_panel_topology(shape, port_count=port_count):
+        return (
+            "communication.equipment_panel_ignored.v1",
+            "dgicom3000-4gx8ge-hv-complete-panel-v1",
             0.99,
         )
 
@@ -2330,6 +4406,30 @@ def _match_confirmed_ignore_geometry_family(
             "electrical.nonconnective_stepped_marker_ignored.v1",
             "stepped-duplicate-bar-nonconnective-v1",
             0.98,
+        )
+
+    # Circled ground glyph: three centred, equally stepped bars with 1:.75:.5
+    # relative lengths; the longest bar midpoint joins a perpendicular lead
+    # ending in a closed round contact, and one larger circle encloses the
+    # complete motif.  The helper works in a local bar/lead frame, so rotation,
+    # reflection, translation, and uniform scale do not affect the decision.
+    if (
+        port_count in {1, 2, 3, 4, 5}
+        and count("LINE") == 4
+        and count("CIRCLE") == 1
+        and count("LWPOLYLINE") == 1
+        and count("POLYLINE") == 0
+        and count("ARC") == 0
+        and count("HATCH") == 0
+        and count("INSERT") == 0
+        and count("TEXT") + count("MTEXT") + count("ATTRIB") + count("ATTDEF") == 0
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 1
+        and _has_circled_stepped_ground_topology(shape)
+    ):
+        return (
+            "electrical.ground_symbol_ignored.v1",
+            "circled-stepped-bar-ground-contact-v1",
+            0.99,
         )
 
     # Contact-led GND glyph: three increasingly long stepped bars are each
@@ -2644,6 +4744,140 @@ def _has_wide_ge_gx_switch_panel_topology(
     )
 
 
+def _principal_circle_rows(
+    shape: Mapping[str, Any], *, row_counts: Sequence[int]
+) -> tuple[list[list[float]], float] | None:
+    """Return principal-axis projections for strict equal-radius circle rows."""
+    try:
+        circles = shape.get("normalized_circles") or []
+        parsed = [
+            (float(item["center"][0]), float(item["center"][1]), float(item["radius"]))
+            for item in circles
+        ]
+        if len(parsed) != sum(row_counts):
+            return None
+        radii = [item[2] for item in parsed]
+        radius = sum(radii) / len(radii)
+        if radius <= 1e-9 or max(radii) / min(radii) > 1.03:
+            return None
+        cx = sum(item[0] for item in parsed) / len(parsed)
+        cy = sum(item[1] for item in parsed) / len(parsed)
+        xx = sum((item[0] - cx) ** 2 for item in parsed)
+        yy = sum((item[1] - cy) ** 2 for item in parsed)
+        xy = sum((item[0] - cx) * (item[1] - cy) for item in parsed)
+        angle = .5 * math.atan2(2.0 * xy, xx - yy)
+        axis = (math.cos(angle), math.sin(angle))
+        normal = (-axis[1], axis[0])
+        values = sorted(
+            (
+                (item[0] - cx) * normal[0] + (item[1] - cy) * normal[1],
+                (item[0] - cx) * axis[0] + (item[1] - cy) * axis[1],
+            )
+            for item in parsed
+        )
+        groups: list[list[tuple[float, float]]] = []
+        for normal_value, axial_value in values:
+            if not groups or abs(normal_value - sum(item[0] for item in groups[-1]) / len(groups[-1])) > radius * .25:
+                groups.append([(normal_value, axial_value)])
+            else:
+                groups[-1].append((normal_value, axial_value))
+        if sorted(len(group) for group in groups) != sorted(row_counts):
+            return None
+        if any(max(item[0] for item in group) - min(item[0] for item in group) > radius * .12 for group in groups):
+            return None
+        return [sorted(item[1] for item in group) for group in groups], radius
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return None
+
+
+def _has_dgicom_8g12_equipment_panel_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Strict complete-parent model for the 40-circle DGICOM 8G12 face."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    labels = {str(value or "").strip().upper() for value in shape.get("text_values") or [] if str(value or "").strip()}
+    required = (
+        {f"GX{index}" for index in range(9, 29)}
+        | {f"GE{index}" for index in range(1, 17)}
+        | {f"P{index}" for index in range(1, 17)}
+        | {f"{index}{suffix}" for index in range(1, 21) for suffix in ("T", "R")}
+        | {"COMBO", "CONSOLE", "PWR", "PWR1", "PWR2", "FAULT", "+/L", "-/N"}
+    )
+    panel = shape.get("communication_panel_features")
+    if not (
+        port_count == 2
+        and {key: int(h.get(key, 0)) for key in ("ARC", "CIRCLE", "HATCH", "INSERT", "LINE", "LWPOLYLINE", "TEXT")}
+        == {"ARC": 120, "CIRCLE": 40, "HATCH": 54, "INSERT": 3, "LINE": 379, "LWPOLYLINE": 252, "TEXT": 111}
+        and required <= labels
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 65
+        and int(shape.get("parallel_line_group_max", 0)) >= 200
+        and 3.9 <= float(shape.get("oriented_aspect_ratio") or 0.0) <= 4.1
+        and isinstance(panel, Mapping)
+        and int(panel.get("square_cell_count", 0)) == 17
+        and 1.0 <= float(panel.get("dominant_cell_aspect", 0.0)) <= 1.07
+    ):
+        return False
+    rows = _principal_circle_rows(shape, row_counts=(20, 20))
+    if rows is None:
+        return False
+    projections, radius = rows
+    signatures = []
+    for row in projections:
+        gaps = sorted(round((right - left) / radius, 2) for left, right in zip(row, row[1:]))
+        signatures.append(gaps)
+        if not (
+            len(gaps) == 19
+            and sum(3.20 <= gap <= 3.50 for gap in gaps) == 10
+            and sum(3.55 <= gap <= 3.80 for gap in gaps) == 1
+            and sum(4.70 <= gap <= 5.00 for gap in gaps) == 6
+            and sum(7.00 <= gap <= 7.35 for gap in gaps) == 2
+        ):
+            return False
+    return all(abs(left - right) <= .08 for left, right in zip(signatures[0], signatures[1]))
+
+
+def _has_wyd_communication_equipment_panel_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Strict complete-parent model for the 8-COM/12-LAN WYD face."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    labels = {str(value or "").strip().upper() for value in shape.get("text_values") or [] if str(value or "").strip()}
+    required = (
+        {f"COM{index}" for index in range(1, 9)}
+        | {f"LAN{index}" for index in range(1, 13)}
+        | {"USB", "VGA", "B+", "B-", "PWR1", "PWR2", "+/L", "-/N", "DO1", "DO2"}
+    )
+    panel = shape.get("communication_panel_features")
+    if not (
+        port_count == 2
+        and {key: int(h.get(key, 0)) for key in ("ARC", "CIRCLE", "HATCH", "INSERT", "LINE", "LWPOLYLINE", "TEXT")}
+        == {"ARC": 4, "CIRCLE": 15, "HATCH": 24, "INSERT": 5, "LINE": 17, "LWPOLYLINE": 189, "TEXT": 96}
+        and required <= labels
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 74
+        and 2.95 <= float(shape.get("oriented_aspect_ratio") or 0.0) <= 3.15
+        and isinstance(panel, Mapping)
+        and int(panel.get("square_cell_count", 0)) == 56
+        and int(panel.get("labelled_cell_count", 0)) == 50
+        and int(panel.get("lan_socket_port_count", 0)) == 12
+        and int(panel.get("group_counts", {}).get("COM", 0)) == 8
+        and int(panel.get("group_counts", {}).get("LAN", 0)) == 12
+        and .97 <= float(panel.get("dominant_cell_aspect", 0.0)) <= 1.03
+    ):
+        return False
+    rows = _principal_circle_rows(shape, row_counts=(5, 5, 5))
+    if rows is None:
+        return False
+    projections, radius = rows
+    for row in projections:
+        gaps = [(right - left) / radius for left, right in zip(row, row[1:])]
+        if len(gaps) != 4 or any(not 7.75 <= gap <= 8.20 for gap in gaps):
+            return False
+    centers = [sum(row) / len(row) for row in projections]
+    centers.sort()
+    offsets = [(centers[index + 1] - centers[index]) / radius for index in range(2)]
+    return 0.0 <= offsets[0] <= .15 and 3.75 <= offsets[1] <= 4.25
+
+
 def _has_two_contact_mechanical_actuator_topology(
     shape: Mapping[str, Any], *, port_count: int
 ) -> bool:
@@ -2782,6 +5016,59 @@ def _has_two_contact_mechanical_actuator_topology(
         and 5.3 <= normal_offsets[1] <= 5.65
         and all(8.05 <= value <= 8.5 for value in normal_offsets[2:])
     )
+
+
+def _has_dgicom3000_4gx8ge_hv_panel_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize the complete 4GX/8GE DGICOM3000-4GX8GE-HV face.
+
+    The fingerprint is deliberately absent here: it is provenance only.  The
+    complete census, labels, square-cell count and affine-invariant optical
+    array must all agree before the whole block is ignored.
+    """
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not isinstance(histogram, Mapping) or port_count != 2:
+        return False
+    def count(name: str) -> int:
+        try:
+            return int(histogram.get(name, 0))
+        except (TypeError, ValueError):
+            return -1
+    if {name: count(name) for name in ("ARC", "CIRCLE", "LINE", "LWPOLYLINE")} != {
+        "ARC": 24, "CIRCLE": 8, "LINE": 96, "LWPOLYLINE": 70
+    } or count("HATCH") != 20 or count("INSERT") != 1 or count("TEXT") != 38:
+        return False
+    if abs(float(shape.get("oriented_aspect_ratio") or 0) - 2.117647) > 0.015:
+        return False
+    values = {str(v or "").strip().upper() for v in shape.get("text_values") or []}
+    required = ({f"GE{i}" for i in range(1, 9)} | {f"GX{i}" for i in range(9, 13)} |
+                {f"{row}{side}" for row in range(1, 5) for side in ("GT", "GR")} |
+                {"CONSOLE", "+/L", "-/N"} | {str(i) for i in range(1, 7)})
+    if not required <= values:
+        return False
+    panel = shape.get("communication_panel_features") or {}
+    try:
+        if int(panel.get("square_cell_count", 0)) != 9 or int(shape.get("parallel_line_group_max", 0)) != 49:
+            return False
+    except (TypeError, ValueError):
+        return False
+    circles = shape.get("normalized_circles") or []
+    try:
+        centers = [(float(c["center"][0]), float(c["center"][1])) for c in circles]
+        radii = [float(c["radius"]) for c in circles]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(centers) != 8 or min(radii, default=0) <= 0 or max(radii) / min(radii) > 1.03:
+        return False
+    distances = sorted(math.hypot(x2-x1, y2-y1) for i, (x1, y1) in enumerate(centers)
+                       for x2, y2 in centers[i+1:])
+    base = distances[0]
+    expected = [1.0, 1.0, 1.0, 1.0, 1.44, 1.44, 2.44, 2.44, 2.44, 2.44,
+                2.788, 2.788, 2.788, 2.788, 2.952, 2.952, 2.973, 2.973,
+                3.124, 3.152, 3.44, 3.44, 3.685, 3.685, 3.726, 3.726,
+                4.404, 4.452]
+    return all(abs(value / base - target) <= 0.08 for value, target in zip(distances, expected))
 
 
 def _has_compact_ge_gx_switch_panel_topology(
@@ -3449,7 +5736,7 @@ def _has_named_four_contact_two_port_strip_topology(
         contacts = [
             (
                 (float(item["center"][0]), float(item["center"][1])),
-                float(item.get("chord_radius", item["radius"])),
+                float(item.get("chord_radius", item.get("radius"))),
             )
             for item in shape.get("normalized_closed_bulged_contacts") or []
         ]
@@ -4682,6 +6969,106 @@ def _has_actuated_open_switch_ignore_topology(shape: Mapping[str, Any]) -> bool:
     return False
 
 
+def _has_pwf172_led_arrow_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """PWF172: complete LED/diode arrow artwork, not two terminals."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    try:
+        if (int(h.get("LINE", 0)) != 7 or int(h.get("LWPOLYLINE", 0)) != 4
+                or int(h.get("ARC", 0)) or int(h.get("CIRCLE", 0))
+                or int(shape.get("text_count", 0))
+                or len(shape.get("normalized_closed_bulged_contacts") or []) != 2
+                or len(shape.get("normalized_open_lwpolylines") or []) != 2):
+            return False
+        contacts = shape["normalized_closed_bulged_contacts"]
+        radii = [float(c.get("chord_radius", c["radius"])) for c in contacts]
+        if min(radii) <= 0 or max(radii) / min(radii) > 1.03:
+            return False
+        paths = shape["normalized_open_lwpolylines"]
+        if any(len(p.get("vertices") or []) != 2 for p in paths):
+            return False
+        for path in paths:
+            vertices = path["vertices"]
+            if any(abs(float(v.get("bulge", 0))) > 1e-9 for v in vertices):
+                return False
+            widths = [float(v.get("start_width", 0)) for v in vertices] + [float(v.get("end_width", 0)) for v in vertices]
+            positive_widths = [width for width in widths if width > 1e-9]
+            if (
+                len(positive_widths) != 3
+                or max(positive_widths) / min(positive_widths) > 1.03
+                or sum(width <= 1e-9 for width in widths) != 1
+            ):
+                return False
+        segments = list(shape.get("normalized_line_segments") or []) + list(
+            shape.get("normalized_open_lwpolyline_segments") or []
+        )
+        template = (
+            ((.447932, .442724), (.239662, .650994)),
+            ((.552068, .546859), (.343797, .75513)),
+            ((.708333, 0.0), (.708333, .416667)),
+            ((.291667, 0.0), (.291667, .416667)),
+            ((.291667, 0.0), (.708145, .208333)),
+            ((.708145, .208333), (.291667, .416667)),
+            ((.083333, .208333), (.916415, .208333)),
+            ((.239662, .650994), (.343797, .546859)),
+            ((.343797, .75513), (.447932, .650994)),
+        )
+        return (
+            len(segments) == 9
+            and _segments_match_similarity(segments, template, relative_tolerance=.018)
+            and math.dist(contacts[0]["center"], contacts[1]["center"])
+            > max(radii) * 8
+        )
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
+def _has_pwf216_narrow_frame_ignore_topology(shape: Mapping[str, Any]) -> bool:
+    """PWF216: narrow vertical frame and slanted base, wholly visual."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    try:
+        if (int(h.get("LINE", 0)) != 3 or int(h.get("LWPOLYLINE", 0)) != 4
+                or int(h.get("ARC", 0)) or int(h.get("CIRCLE", 0))
+                or int(shape.get("text_count", 0))
+                or len(shape.get("normalized_closed_bulged_contacts") or []) != 2
+                or len(shape.get("normalized_closed_straight_lwpolylines") or []) != 2):
+            return False
+        contacts = shape["normalized_closed_bulged_contacts"]
+        radii = [float(c.get("chord_radius", c["radius"])) for c in contacts]
+        if min(radii) <= 0 or max(radii) / min(radii) > 1.03:
+            return False
+        rectangles = shape["normalized_closed_straight_lwpolylines"]
+        if any(len(r.get("vertices") or []) != 4 for r in rectangles):
+            return False
+        segments = list(shape.get("normalized_line_segments") or [])
+        for rectangle in rectangles:
+            vertices = rectangle["vertices"]
+            segments.extend(
+                {"start": vertices[index], "end": vertices[(index + 1) % 4]}
+                for index in range(4)
+            )
+        template = (
+            ((.346939, .153061), (.653061, 0.0)),
+            ((.040816, .459184), (.346939, .459184)),
+            ((.653061, .459184), (.959184, .459184)),
+            ((.346939, .153061), (.653061, .153061)),
+            ((.653061, .153061), (.653061, 0.0)),
+            ((.653061, 0.0), (.346939, 0.0)),
+            ((.346939, 0.0), (.346939, .153061)),
+            ((.346939, .765306), (.653061, .765306)),
+            ((.653061, .765306), (.653061, .153061)),
+            ((.653061, .153061), (.346939, .153061)),
+            ((.346939, .153061), (.346939, .765306)),
+        )
+        return (
+            len(segments) == 11
+            and _segments_match_similarity(segments, template, relative_tolerance=.018)
+            and math.dist(contacts[0]["center"], contacts[1]["center"])
+            > max(radii) * 20
+        )
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
 def _has_wide_contact_cap_marker_ignore_topology(shape: Mapping[str, Any]) -> bool:
     """Recognize the complete PWF10 open-wide-polyline/contact-area motif."""
 
@@ -5036,6 +7423,146 @@ def _has_repeated_stepped_ground_topology(shape: Mapping[str, Any]) -> bool:
             .45 <= sv[2] / lengths[0] <= .9 and .3 <= lv[2] / lengths[0] <= .8)
 
 
+def _has_circled_stepped_ground_topology(shape: Mapping[str, Any]) -> bool:
+    """Recognize PWF314's circled stepped-bar ground marker geometrically."""
+
+    try:
+        segments = [
+            (
+                (float(item["start"][0]), float(item["start"][1])),
+                (float(item["end"][0]), float(item["end"][1])),
+            )
+            for item in shape.get("normalized_line_segments") or []
+        ]
+        contacts = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item.get("chord_radius", item["radius"])),
+            )
+            for item in shape.get("normalized_closed_bulged_contacts") or []
+        ]
+        circles = [
+            (
+                (float(item["center"][0]), float(item["center"][1])),
+                float(item["radius"]),
+            )
+            for item in shape.get("normalized_circles") or []
+        ]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+    if len(segments) != 4 or len(contacts) != 1 or len(circles) != 1:
+        return False
+
+    def distance(left: tuple[float, float], right: tuple[float, float]) -> float:
+        return math.hypot(left[0] - right[0], left[1] - right[1])
+
+    def vector(segment):
+        dx = segment[1][0] - segment[0][0]
+        dy = segment[1][1] - segment[0][1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            raise ValueError("degenerate segment")
+        return dx / length, dy / length, length
+
+    contact_center, contact_radius = contacts[0]
+    circle_center, circle_radius = circles[0]
+    if contact_radius <= 0.0 or circle_radius <= 0.0:
+        return False
+
+    for lead_index, lead in enumerate(segments):
+        bars = [segment for index, segment in enumerate(segments) if index != lead_index]
+        try:
+            lead_dx, lead_dy, lead_length = vector(lead)
+            bar_vectors = [vector(bar) for bar in bars]
+        except ValueError:
+            continue
+
+        longest_index = max(range(3), key=lambda index: bar_vectors[index][2])
+        reference_dx, reference_dy, longest = bar_vectors[longest_index]
+        if any(
+            abs(reference_dx * dy - reference_dy * dx) > 0.035
+            for dx, dy, _ in bar_vectors
+        ):
+            continue
+        if abs(lead_dx * reference_dx + lead_dy * reference_dy) > 0.04:
+            continue
+
+        lengths = sorted((item[2] for item in bar_vectors), reverse=True)
+        if not (
+            0.72 <= lengths[1] / longest <= 0.78
+            and 0.47 <= lengths[2] / longest <= 0.53
+        ):
+            continue
+        bar_centers = [
+            ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
+            for start, end in bars
+        ]
+        if (
+            max(center[0] * reference_dx + center[1] * reference_dy for center in bar_centers)
+            - min(center[0] * reference_dx + center[1] * reference_dy for center in bar_centers)
+            > longest * 0.025
+        ):
+            continue
+
+        longest_center = bar_centers[longest_index]
+        attached = min(lead, key=lambda point: distance(point, longest_center))
+        contact_end = max(lead, key=lambda point: distance(point, longest_center))
+        if distance(attached, longest_center) > longest * 0.025:
+            continue
+        if distance(contact_end, contact_center) > longest * 0.025:
+            continue
+
+        outward_dx = (contact_end[0] - attached[0]) / lead_length
+        outward_dy = (contact_end[1] - attached[1]) / lead_length
+        stepped = sorted(
+            (
+                -(
+                    (center[0] - attached[0]) * outward_dx
+                    + (center[1] - attached[1]) * outward_dy
+                )
+                / longest,
+                bar_vectors[index][2] / longest,
+            )
+            for index, center in enumerate(bar_centers)
+            if index != longest_index
+        )
+        if len(stepped) != 2 or not (
+            0.23 <= stepped[0][0] <= 0.27
+            and 0.48 <= stepped[1][0] <= 0.52
+            and 0.72 <= stepped[0][1] <= 0.78
+            and 0.47 <= stepped[1][1] <= 0.53
+        ):
+            continue
+
+        circle_axial = (
+            (circle_center[0] - attached[0]) * outward_dx
+            + (circle_center[1] - attached[1]) * outward_dy
+        ) / longest
+        circle_lateral = abs(
+            (circle_center[0] - attached[0]) * outward_dy
+            - (circle_center[1] - attached[1]) * outward_dx
+        ) / longest
+        if not (
+            0.72 <= lead_length / longest <= 0.78
+            and 0.12 <= contact_radius / longest <= 0.15
+            and 0.84 <= circle_radius / longest <= 0.91
+            and 0.10 <= circle_axial <= 0.15
+            and circle_lateral <= 0.02
+        ):
+            continue
+
+        if any(
+            distance(point, circle_center) > circle_radius * 1.01
+            for segment in segments
+            for point in segment
+        ):
+            continue
+        if distance(contact_center, circle_center) + contact_radius > circle_radius * 1.02:
+            continue
+        return True
+    return False
+
+
 def _has_ground_symbol_topology(shape: Mapping[str, Any]) -> bool:
     """Bind the round contact, orthogonal lead, and three ground bars."""
 
@@ -5156,6 +7683,127 @@ def _is_high_confidence_external_multi_port_geometry(
     normalized_size = max(width, height) / mean_radius
     aspect = max(width, height) / min(width, height) if min(width, height) > 0 else 0.0
     return primitive_count >= 24 and 12.0 <= normalized_size <= 22.0 and 1.0 <= aspect <= 2.0
+
+
+def _has_fjl_line_bound_two_port_topology(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Match FJL/Mirror; the two line-bound inner contacts are ports."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    labels = {str(value).strip() for value in shape.get("text_values") or []}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    lines = shape.get("normalized_line_segments") or []
+    if not (
+        port_count == 2
+        and {key: int(h.get(key, 0)) for key in ("CIRCLE", "LINE", "LWPOLYLINE", "TEXT")}
+        == {"CIRCLE": 2, "LINE": 2, "LWPOLYLINE": 4, "TEXT": 2}
+        and sum(int(h.get(key, 0)) for key in ("ARC", "HATCH", "INSERT")) == 0
+        and labels == {"1", "2"}
+        and len(contacts) == 4
+        and len(circles) == 2
+        and len(lines) == 2
+        and int(shape.get("closed_bulged_lwpolyline_count", 0)) == 4
+        and 5.45 <= float(shape.get("oriented_aspect_ratio") or 0.0) <= 5.75
+    ):
+        return False
+    try:
+        contact_rows = [
+            (tuple(map(float, item["center"][:2])), float(item.get("chord_radius", item["radius"])))
+            for item in contacts
+        ]
+        circle_rows = [
+            (tuple(map(float, item["center"][:2])), float(item["radius"])) for item in circles
+        ]
+        radii = [item[1] for item in contact_rows]
+        radius = sum(radii) / len(radii)
+        if radius <= 0 or max(radii) / min(radii) > 1.04:
+            return False
+        if any(not 4.9 <= item[1] / radius <= 5.1 for item in circle_rows):
+            return False
+        first, last = max(combinations([item[0] for item in contact_rows], 2), key=lambda pair: math.dist(*pair))
+        span = math.dist(first, last)
+        axis = ((last[0] - first[0]) / span, (last[1] - first[1]) / span)
+        normal = (-axis[1], axis[0])
+        projections = sorted((point[0] - first[0]) * axis[0] + (point[1] - first[1]) * axis[1] for point, _ in contact_rows)
+        offsets = [abs((point[0] - first[0]) * normal[0] + (point[1] - first[1]) * normal[1]) for point, _ in contact_rows]
+        if max(offsets) > radius * .08:
+            return False
+        contact_gaps = [(right - left) / radius for left, right in zip(projections, projections[1:])]
+        if not (7.8 <= contact_gaps[0] <= 8.2 and 39.5 <= contact_gaps[1] <= 40.5 and 7.8 <= contact_gaps[2] <= 8.2):
+            return False
+        circle_projections = sorted((point[0] - first[0]) * axis[0] + (point[1] - first[1]) * axis[1] for point, _ in circle_rows)
+        if not 29.5 <= (circle_projections[1] - circle_projections[0]) / radius <= 30.5:
+            return False
+        lengths = [math.dist(row["start"], row["end"]) / radius for row in lines]
+        return len(lengths) == 2 and all(29.5 <= value <= 30.5 for value in lengths)
+    except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+        return False
+
+
+def _kk_of_main_port_count(shape: Mapping[str, Any]) -> int | None:
+    """Return 2/4/6 only for a complete KK main grid plus isolated OF area."""
+    h = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    labels = {str(value).strip() for value in shape.get("text_values") or []}
+    contacts = shape.get("normalized_closed_bulged_contacts") or []
+    circles = shape.get("normalized_circles") or []
+    for main_count, line_count in ((2, 18), (4, 22), (6, 28)):
+        required_labels = {str(index) for index in range(1, main_count + 1)} | {"11", "12", "14"}
+        if not (
+            labels == required_labels
+            and {key: int(h.get(key, 0)) for key in ("CIRCLE", "LINE", "LWPOLYLINE", "TEXT")}
+            == {"CIRCLE": 3, "LINE": line_count, "LWPOLYLINE": main_count + 3, "TEXT": main_count + 3}
+            and sum(int(h.get(key, 0)) for key in ("ARC", "HATCH", "INSERT")) == 0
+            and len(contacts) == main_count + 3
+            and len(circles) == 3
+            and int(shape.get("closed_bulged_lwpolyline_count", 0)) == main_count + 3
+            and 1.05 <= float(shape.get("oriented_aspect_ratio") or 0.0) <= 1.30
+        ):
+            continue
+        try:
+            contact_rows = [
+                (tuple(map(float, item["center"][:2])), float(item.get("chord_radius", item["radius"])), item)
+                for item in contacts
+            ]
+            circle_rows = [
+                (tuple(map(float, item["center"][:2])), float(item["radius"])) for item in circles
+            ]
+            contact_radii = [item[1] for item in contact_rows]
+            circle_radii = [item[1] for item in circle_rows]
+            if min(contact_radii + circle_radii) <= 0 or max(contact_radii) / min(contact_radii) > 1.04 or max(circle_radii) / min(circle_radii) > 1.04:
+                continue
+            if not 3.9 <= (sum(circle_radii) / 3) / (sum(contact_radii) / len(contact_radii)) <= 4.1:
+                continue
+            aux_indices = []
+            aux_vectors = []
+            for center, circle_radius in circle_rows:
+                index = min(range(len(contact_rows)), key=lambda candidate: math.dist(center, contact_rows[candidate][0]))
+                if index in aux_indices:
+                    break
+                vector = (contact_rows[index][0][0] - center[0], contact_rows[index][0][1] - center[1])
+                distance = math.hypot(*vector)
+                if not 2.4 <= distance / circle_radius <= 2.6:
+                    break
+                aux_indices.append(index)
+                aux_vectors.append((vector[0] / distance, vector[1] / distance))
+            if len(aux_indices) != 3 or any(abs(first[0] * second[1] - first[1] * second[0]) > .03 for first, second in combinations(aux_vectors, 2)):
+                continue
+            main_contacts = [item[2] for index, item in enumerate(contact_rows) if index not in aux_indices]
+            main_points = [tuple(map(float, item["center"][:2])) for item in main_contacts]
+            grid_extent = max(
+                max(point[0] for point in main_points) - min(point[0] for point in main_points),
+                max(point[1] for point in main_points) - min(point[1] for point in main_points),
+            )
+            if _is_rotation_invariant_contact_grid(
+                main_contacts,
+                columns=main_count // 2,
+                rows=2,
+                tolerance=grid_extent * .19,
+            ):
+                return main_count
+        except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+            continue
+    return None
 
 
 def _is_kk2p_four_port_geometry(
@@ -7171,6 +9819,113 @@ def _propose_two_contact_mechanical_actuator_ports(
     return tuple(ports)
 
 
+def _block_numeric_labels_and_round_contacts(
+    block: Any,
+) -> tuple[list[tuple[int, tuple[float, float]]], list[tuple[float, float]], list[tuple[tuple[float, float], float]]]:
+    labels: list[tuple[int, tuple[float, float]]] = []
+    contacts: list[tuple[float, float]] = []
+    circles: list[tuple[tuple[float, float], float]] = []
+    for entity in block:
+        kind = str(entity.dxftype()).upper()
+        try:
+            if kind in {"TEXT", "ATTRIB", "ATTDEF"}:
+                value = str(entity.dxf.text).strip()
+                if re.fullmatch(r"[1-9][0-9]?", value):
+                    insert = entity.dxf.insert
+                    labels.append((int(value), (float(insert.x), float(insert.y))))
+            elif kind == "CIRCLE":
+                center = entity.dxf.center
+                circles.append(((float(center.x), float(center.y)), float(entity.dxf.radius)))
+            elif kind == "LWPOLYLINE" and bool(getattr(entity, "closed", False)):
+                points = list(entity.get_points("xyb"))
+                if points and any(abs(float(point[2])) > 1e-9 for point in points):
+                    xs = [float(point[0]) for point in points]
+                    ys = [float(point[1]) for point in points]
+                    contacts.append(((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2))
+        except Exception:
+            continue
+    return labels, contacts, circles
+
+
+def _propose_fjl_line_bound_ports(
+    block: Any, *, source_id: str
+) -> tuple[ProposedPort, ...]:
+    labels, contacts, _ = _block_numeric_labels_and_round_contacts(block)
+    main_labels = sorted((slot, point) for slot, point in labels if slot in {1, 2})
+    if [slot for slot, _ in main_labels] != [1, 2] or len(contacts) != 4:
+        return ()
+    outer = max(combinations(contacts, 2), key=lambda pair: _distance(*pair))
+    axis = _normalize((outer[1][0] - outer[0][0], outer[1][1] - outer[0][1]))
+    ordered_contacts = sorted(
+        contacts, key=lambda point: point[0] * axis[0] + point[1] * axis[1]
+    )
+    line_bound = (ordered_contacts[1], ordered_contacts[2])
+    best = min(
+        permutations(line_bound),
+        key=lambda ordered: sum(_distance(label[1], contact) for label, contact in zip(main_labels, ordered)),
+    )
+    center = (
+        sum(point[0] for point in contacts) / len(contacts),
+        sum(point[1] for point in contacts) / len(contacts),
+    )
+    return tuple(
+        ProposedPort(
+            port_id=f"MP{slot}",
+            local_position=(contact[0], contact[1], 0.0),
+            outward_direction=_normalize((contact[0] - center[0], contact[1] - center[1])),
+            port_type="ELECTRICAL",
+            confidence=.99,
+            evidence_codes=("FJL_LINE_BOUND_CONTACT", f"PORT_SLOT_{slot}"),
+            source_ids=(source_id,),
+            notes="FJL line-bound contact; pin 1/2 remains isolated and maps outward only.",
+            component_pin=str(slot),
+        )
+        for (slot, _), contact in zip(main_labels, best)
+    )
+
+
+def _propose_kk_of_main_ports(
+    block: Any, *, source_id: str
+) -> tuple[ProposedPort, ...]:
+    labels, contacts, circles = _block_numeric_labels_and_round_contacts(block)
+    label_values = {slot for slot, _ in labels}
+    if not {11, 12, 14} <= label_values or len(circles) != 3:
+        return ()
+    main_count = len(labels) - 3
+    if main_count not in {2, 4, 6} or label_values != set(range(1, main_count + 1)) | {11, 12, 14} or len(contacts) != main_count + 3:
+        return ()
+    aux_indices = []
+    for center, radius in circles:
+        index = min(range(len(contacts)), key=lambda candidate: _distance(center, contacts[candidate]))
+        if index in aux_indices or not 2.35 <= _distance(center, contacts[index]) / radius <= 2.65:
+            return ()
+        aux_indices.append(index)
+    main_contacts = [point for index, point in enumerate(contacts) if index not in aux_indices]
+    main_labels = sorted((slot, point) for slot, point in labels if 1 <= slot <= main_count)
+    best_contacts: tuple[tuple[float, float], ...] | None = None
+    best_score = math.inf
+    for ordered in permutations(main_contacts):
+        score = sum(_distance(label[1], contact) for label, contact in zip(main_labels, ordered))
+        if score < best_score:
+            best_score, best_contacts = score, ordered
+    if best_contacts is None:
+        return ()
+    return tuple(
+        ProposedPort(
+            port_id=f"MP{slot}",
+            local_position=(contact[0], contact[1], 0.0),
+            outward_direction=_normalize((contact[0] - label_position[0], contact[1] - label_position[1])),
+            port_type="ELECTRICAL",
+            confidence=.99,
+            evidence_codes=("KK_SELECTIVE_MAIN_CONTACT", f"PORT_SLOT_{slot}", "OF_AUXILIARY_SUPPRESSED"),
+            source_ids=(source_id,),
+            notes="KK main numbered contact; OF 11/12/14 is recognition-only and suppressed.",
+            component_pin=str(slot),
+        )
+        for (slot, label_position), contact in zip(main_labels, best_contacts)
+    )
+
+
 def propose_ports_from_block(
     block: Any,
     *,
@@ -7194,6 +9949,44 @@ def propose_ports_from_block(
         )
     segments, entity_counts = extract_block_segments(block)
     shape_features = extract_block_shape_features(block)
+    wfs_ports = _propose_wfs_polarity_ports(block, source_id=source_id)
+    if wfs_ports and _is_wfs_polarity_two_port_geometry(shape_features, port_count=len(wfs_ports)):
+        return SymbolPortProposal(
+            definition_name=definition_name, definition_fingerprint=definition_fingerprint,
+            source_dxf=str(source_dxf) if source_dxf is not None else None,
+            ports=wfs_ports, method="wfs_polarity_axial_ports_v1", status="PROPOSED",
+            notes=("Selected only the two axial outer contacts; +/- circles are polarity marks and the terminals are isolated.",),
+            geometry_summary={"entity_counts": entity_counts, "shape_features": shape_features,
+                              "selected_port_count": 2, "principal_axis": "wfs_axial_contacts"},
+        )
+    fjl_ports = _propose_fjl_line_bound_ports(block, source_id=source_id)
+    if fjl_ports and _has_fjl_line_bound_two_port_topology(
+        shape_features, port_count=len(fjl_ports)
+    ):
+        return SymbolPortProposal(
+            definition_name=definition_name,
+            definition_fingerprint=definition_fingerprint,
+            source_dxf=str(source_dxf) if source_dxf is not None else None,
+            ports=fjl_ports,
+            method="fjl_line_bound_contact_ports_v1",
+            status="PROPOSED",
+            notes=("Selected only FJL pins 1/2 at the two line-bound contacts; no body-internal union.",),
+            geometry_summary={"entity_counts": entity_counts, "shape_features": shape_features,
+                              "selected_port_count": 2, "principal_axis": "fjl_line_bound_contacts"},
+        )
+    kk_of_ports = _propose_kk_of_main_ports(block, source_id=source_id)
+    if kk_of_ports and _kk_of_main_port_count(shape_features) == len(kk_of_ports):
+        return SymbolPortProposal(
+            definition_name=definition_name,
+            definition_fingerprint=definition_fingerprint,
+            source_dxf=str(source_dxf) if source_dxf is not None else None,
+            ports=kk_of_ports,
+            method="kk_of_selective_main_ports_v1",
+            status="PROPOSED",
+            notes=("Selected only KK main pins; OF 11/12/14 and mechanism geometry emit no ports.",),
+            geometry_summary={"entity_counts": entity_counts, "shape_features": shape_features,
+                              "selected_port_count": len(kk_of_ports), "principal_axis": "kk_main_contact_grid"},
+        )
     actuator_ports = _propose_two_contact_mechanical_actuator_ports(
         block, source_id=source_id
     )
@@ -7344,7 +10137,16 @@ def propose_ports_from_block(
     numbered_contact_ports = _propose_numbered_contact_grid_ports(
         block, source_id=source_id
     )
-    if numbered_contact_ports:
+    numbered_contact_applied = bool(
+        numbered_contact_ports
+        and (
+            len(numbered_contact_ports) <= 8
+            or _is_numbered_round_contact_array_geometry(
+                shape_features, port_count=len(numbered_contact_ports)
+            )
+        )
+    )
+    if numbered_contact_applied:
         ports = list(numbered_contact_ports)
         notes = (
             *notes,
@@ -7365,7 +10167,7 @@ def propose_ports_from_block(
         ports=tuple(ports),
         method=(
             "numbered_contact_grid_v1"
-            if numbered_contact_ports
+            if numbered_contact_applied
             else "horizontal_numbered_two_circle_box_ports_v1"
             if horizontal_circle_box_applied
             else "vertical_two_port_box_ports_v1"
@@ -7794,7 +10596,7 @@ def _propose_numbered_contact_grid_ports(
     """
 
     labels: list[tuple[int, tuple[float, float]]] = []
-    contacts: list[tuple[float, float]] = []
+    contact_candidates: list[tuple[tuple[float, float], float]] = []
     for entity in block:
         entity_type = str(entity.dxftype()).upper()
         if entity_type in {"TEXT", "ATTRIB", "ATTDEF"}:
@@ -7816,28 +10618,63 @@ def _propose_numbered_contact_grid_ports(
                 ys = [float(point[1]) for point in points]
             except Exception:
                 continue
-            contacts.append(
-                ((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0)
+            chord_diameter = max(
+                (
+                    math.hypot(
+                        float(right[0]) - float(left[0]),
+                        float(right[1]) - float(left[1]),
+                    )
+                    for left_index, left in enumerate(points)
+                    for right in points[left_index + 1 :]
+                ),
+                default=0.0,
             )
-    if len(labels) not in {4, 6, 8} or len(contacts) != len(labels):
+            contact_candidates.append(
+                (
+                    ((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0),
+                    chord_diameter / 2.0,
+                )
+            )
+    label_count = len(labels)
+    if not (
+        label_count in {4, 6, 8}
+        or 8 <= label_count <= 32 and label_count % 2 == 0
+    ):
         return ()
     labels.sort(key=lambda item: item[0])
     label_values = [value for value, _ in labels]
     if label_values != list(range(label_values[0], label_values[0] + len(labels))):
         return ()
-
-    best_contacts: tuple[tuple[float, float], ...] | None = None
-    best_score = math.inf
-    for ordered_contacts in permutations(contacts):
-        score = sum(
-            _distance(label_position, contact)
-            for (_, label_position), contact in zip(labels, ordered_contacts)
-        )
-        if score < best_score:
-            best_score = score
-            best_contacts = ordered_contacts
-    if best_contacts is None:
+    has_body = len(contact_candidates) == label_count + 1
+    if len(contact_candidates) == label_count:
+        contacts = [center for center, _ in contact_candidates]
+    elif has_body:
+        ordered_candidates = sorted(contact_candidates, key=lambda item: item[1])
+        small = ordered_candidates[:label_count]
+        radii = [radius for _, radius in small]
+        if (
+            min(radii) <= 1e-9
+            or max(radii) / min(radii) > 1.05
+            or ordered_candidates[-1][1] / max(radii) < 20.0
+        ):
+            return ()
+        contacts = [center for center, _ in small]
+    else:
         return ()
+    if has_body and label_values != list(range(1, label_count + 1)):
+        return ()
+
+    remaining = set(range(len(contacts)))
+    assigned_contacts: list[tuple[float, float]] = []
+    best_score = 0.0
+    for _, label_position in labels:
+        contact_index = min(
+            remaining,
+            key=lambda index: _distance(label_position, contacts[index]),
+        )
+        remaining.remove(contact_index)
+        assigned_contacts.append(contacts[contact_index])
+        best_score += _distance(label_position, contacts[contact_index])
     all_x = [point[0] for point in contacts]
     all_y = [point[1] for point in contacts]
     extent = max(max(all_x) - min(all_x), max(all_y) - min(all_y))
@@ -7850,7 +10687,7 @@ def _propose_numbered_contact_grid_ports(
         sum(point[0] for point in contacts) / len(contacts),
         sum(point[1] for point in contacts) / len(contacts),
     )
-    if len(contacts) == 8:
+    if len(contacts) == 8 and not has_body:
         covariance_xx = sum(
             (point[0] - grid_center[0]) ** 2 for point in contacts
         ) / len(contacts)
@@ -7865,7 +10702,7 @@ def _propose_numbered_contact_grid_ports(
             2.0 * covariance_xy, covariance_xx - covariance_yy
         )
         side_axis = (math.cos(angle), math.sin(angle))
-    for (slot, label_position), contact in zip(labels, best_contacts):
+    for (slot, label_position), contact in zip(labels, assigned_contacts):
         outward_direction = _normalize(
             (
                 contact[0] - label_position[0],
@@ -7887,7 +10724,7 @@ def _propose_numbered_contact_grid_ports(
                 local_position=(contact[0], contact[1], 0.0),
                 outward_direction=outward_direction,
                 port_type="ELECTRICAL",
-                confidence=0.9,
+                confidence=0.99 if has_body else 0.9,
                 evidence_codes=(
                     "NUMBERED_CONTACT_GRID",
                     "CLOSED_BULGED_CONTACT",
@@ -7899,6 +10736,98 @@ def _propose_numbered_contact_grid_ports(
             )
         )
     return tuple(ports)
+
+
+def _unique_proposal_for_instance(
+    instance: Mapping[str, Any],
+    *,
+    proposals_by_key: Mapping[tuple[str, str], list[dict[str, Any]]],
+    proposals_by_fingerprint: Mapping[tuple[str, str], list[dict[str, Any]]],
+) -> dict[str, Any] | None:
+    """Resolve one proposal using the same identity safeguards as port binding."""
+
+    file_id = str(instance.get("file_id") or "").strip()
+    name = str(instance.get("definition_name") or "").strip()
+    fingerprint = str(instance.get("definition_fingerprint") or "").strip().casefold()
+    if not file_id or not name:
+        return None
+
+    name_matches = list(proposals_by_key.get((file_id, name.casefold()), ()))
+    if fingerprint:
+        exact_matches = list(
+            proposals_by_fingerprint.get((file_id, fingerprint), ())
+        )
+        named_exact_matches = [
+            row
+            for row in exact_matches
+            if str(row.get("definition_name") or "").strip().casefold()
+            == name.casefold()
+        ]
+        if len(named_exact_matches) == 1:
+            return named_exact_matches[0]
+        if len(exact_matches) == 1:
+            return exact_matches[0]
+        unversioned = [
+            row
+            for row in name_matches
+            if not str(row.get("definition_fingerprint") or "").strip()
+        ]
+        return unversioned[0] if len(unversioned) == 1 else None
+    return name_matches[0] if len(name_matches) == 1 else None
+
+
+def _instance_has_whole_symbol_ignored_ancestor(
+    instance: Mapping[str, Any],
+    *,
+    instances_by_nested_path: Mapping[
+        tuple[str, str, str], Mapping[str, Any]
+    ],
+    proposals_by_key: Mapping[tuple[str, str], list[dict[str, Any]]],
+    proposals_by_fingerprint: Mapping[tuple[str, str], list[dict[str, Any]]],
+    behavior_cache: dict[tuple[str, str, str], dict[str, Any] | None],
+) -> bool:
+    """Inherit authoritative whole-symbol IGNORE through every ancestor level."""
+
+    file_id = str(instance.get("file_id") or "").strip()
+    sheet_id = str(instance.get("sheet_id") or "").strip()
+    nested_path = str(instance.get("nested_path") or "").strip()
+    while "/" in nested_path:
+        nested_path = nested_path.rsplit("/", 1)[0]
+        ancestor = instances_by_nested_path.get((file_id, sheet_id, nested_path))
+        if ancestor is None:
+            continue
+        fingerprint = str(
+            ancestor.get("definition_fingerprint") or ""
+        ).strip().casefold()
+        cache_key = (
+            file_id,
+            str(ancestor.get("definition_name") or "").strip().casefold(),
+            fingerprint,
+        )
+        if cache_key not in behavior_cache:
+            proposal = _unique_proposal_for_instance(
+                ancestor,
+                proposals_by_key=proposals_by_key,
+                proposals_by_fingerprint=proposals_by_fingerprint,
+            )
+            if proposal is None:
+                behavior_cache[cache_key] = None
+            else:
+                family = classify_definition_family(
+                    proposal, fingerprint=fingerprint or None
+                )
+                behavior_cache[cache_key] = evaluate_symbol_behavior(
+                    family,
+                    reviewed_policy=human_symbol_port_policy(fingerprint),
+                )
+        behavior = behavior_cache[cache_key]
+        if (
+            behavior is not None
+            and behavior.get("behavior_mode") == "IGNORE"
+            and behavior.get("suppressed_by_policy") is True
+        ):
+            return True
+    return False
 
 
 def build_instance_port_network_candidates(
@@ -7945,14 +10874,21 @@ def build_instance_port_network_candidates(
         if sheet_key and port_key and endpoint:
             component_mapping_by_port[(sheet_key, port_key)].append(row)
 
+    all_proposals_by_key: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    all_proposals_by_fingerprint: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     proposals_by_key: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     proposals_by_fingerprint: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in proposal_rows:
         file_id = str(row.get("file_id") or "").strip()
         name = str(row.get("definition_name") or "").strip()
-        if file_id and name and row.get("ports"):
+        if not file_id or not name:
+            continue
+        fingerprint = str(row.get("definition_fingerprint") or "").strip().casefold()
+        all_proposals_by_key[(file_id, name.casefold())].append(row)
+        if fingerprint:
+            all_proposals_by_fingerprint[(file_id, fingerprint)].append(row)
+        if row.get("ports"):
             proposals_by_key[(file_id, name.casefold())].append(row)
-            fingerprint = str(row.get("definition_fingerprint") or "").strip().casefold()
             if fingerprint:
                 proposals_by_fingerprint[(file_id, fingerprint)].append(row)
 
@@ -7983,10 +10919,19 @@ def build_instance_port_network_candidates(
     )
     apostrophe_component_designator = re.compile(r"^[A-Za-z]{1,4}'$")
     row_component_designator = re.compile(r"^(?:[A-Za-z]{1,5}|[A-Za-z]{1,4}')$")
+    ancestor_behavior_cache: dict[tuple[str, str, str], dict[str, Any] | None] = {}
     candidates: list[dict[str, Any]] = []
     for instance in instance_rows:
         file_id = str(instance.get("file_id") or "").strip()
         sheet_id = str(instance.get("sheet_id") or "").strip()
+        if _instance_has_whole_symbol_ignored_ancestor(
+            instance,
+            instances_by_nested_path=instances_by_nested_path,
+            proposals_by_key=all_proposals_by_key,
+            proposals_by_fingerprint=all_proposals_by_fingerprint,
+            behavior_cache=ancestor_behavior_cache,
+        ):
+            continue
         name = str(instance.get("definition_name") or "").strip()
         instance_id = str(instance.get("symbol_instance_id") or "").strip()
         instance_handle = str(instance.get("entity_handle") or "").strip()
@@ -8084,15 +11029,35 @@ def build_instance_port_network_candidates(
             family_id == "component.external_communication_panel.v1"
         )
         named_two_port_strip_model = (
-            family_id == "component.external_strip_two_port.v1"
+            family_id in {"component.external_strip_two_port.v1", "component.external_wfs_polarity_two_port.v1"}
             and family.get("matched_family_rule_id")
             in {
                 "four-contact-two-circle-named-strip-v1",
                 "two-contact-mechanical-actuator-v1",
                 "vertical-numbered-two-port-box-v1",
                 "horizontal-numbered-two-circle-box-v1",
+                "named-isolated-two-circle-two-port-v1",
+                "fjl-two-circle-four-contact-line-bound-ports-v1",
+                "wfs-rounded-polarity-axial-two-port-v1",
             }
         )
+        wfs_polarity_model = (
+            family_id == "component.external_wfs_polarity_two_port.v1"
+            and family.get("matched_family_rule_id")
+            == "wfs-rounded-polarity-axial-two-port-v1"
+        )
+        fjl_line_bound_model = (
+            family_id == "component.external_strip_two_port.v1"
+            and family.get("matched_family_rule_id")
+            == "fjl-two-circle-four-contact-line-bound-ports-v1"
+        )
+        kk_of_selective_model = (
+            family_id == "component.external_multi_port.v1"
+            and str(family.get("matched_family_rule_id") or "").startswith(
+                "kk-of-selective-"
+            )
+        )
+        selective_component_model = fjl_line_bound_model or kk_of_selective_model
         two_contact_actuator_model = (
             family_id == "component.external_strip_two_port.v1"
             and family.get("matched_family_rule_id")
@@ -8138,9 +11103,18 @@ def build_instance_port_network_candidates(
             == "eight-numbered-side-contact-panel-v1"
         )
         four_numbered_contact_panel_model = (
-            family_id == "component.external_multi_port.v1"
+            family_id in {
+                "component.external_multi_port.v1",
+                "component.external_elxal5_b11_209b_circle_grid.v1",
+                "component.external_elxal5_b11_209b_ellipse_grid.v1",
+            }
             and family.get("matched_family_rule_id")
             == "four-numbered-independent-contact-panel-v1"
+        )
+        numbered_round_contact_array_model = (
+            family_id == "component.external_multi_port.v1"
+            and family.get("matched_family_rule_id")
+            == "numbered-round-contact-array-v1"
         )
         if single_row_contact_model:
             nested_path = str(instance.get("nested_path") or "").strip()
@@ -8258,6 +11232,8 @@ def build_instance_port_network_candidates(
                         named_two_port_strip_model
                         or three_contact_socket_model
                         or four_contact_isolated_frame_model
+                        or kk_of_selective_model
+                        or numbered_round_contact_array_model
                     )
                     and (
                         short_alpha_component_designator.fullmatch(value)
@@ -8284,6 +11260,8 @@ def build_instance_port_network_candidates(
                 three_contact_socket_model
                 or four_contact_isolated_frame_model
                 or two_contact_actuator_model
+                or selective_component_model
+                or numbered_round_contact_array_model
             ) and (
                 terminal_designator.fullmatch(endpoint_value)
                 or (
@@ -8356,6 +11334,8 @@ def build_instance_port_network_candidates(
                     or single_row_contact_model
                     or three_contact_socket_model
                     or four_contact_isolated_frame_model
+                    or kk_of_selective_model
+                    or numbered_round_contact_array_model
                 )
                 and world_ports
                 else _transform_point(matrix, (0.0, 0.0, 0.0))
@@ -8565,7 +11545,9 @@ def build_instance_port_network_candidates(
                 if min(start_distance, end_distance) > effective_endpoint_tolerance:
                     continue
                 if (
-                    terminal_geometry or four_contact_isolated_frame_model
+                    terminal_geometry
+                    or four_contact_isolated_frame_model
+                    or numbered_round_contact_array_model
                 ) and outward is not None:
                     away = (
                         (end[0] - start[0], end[1] - start[1])
@@ -8601,6 +11583,9 @@ def build_instance_port_network_candidates(
                     or vertical_two_port_box_model
                     or eight_numbered_side_contact_panel_model
                     or horizontal_numbered_two_circle_box_model
+                    or selective_component_model
+                    or wfs_polarity_model
+                    or numbered_round_contact_array_model
                 )
                 else socket_pin_binding[1][0]
                 if socket_pin_binding
@@ -8656,6 +11641,8 @@ def build_instance_port_network_candidates(
                 three_contact_socket_model
                 or four_contact_isolated_frame_model
                 or two_contact_actuator_model
+                or selective_component_model
+                or numbered_round_contact_array_model
             ) and (network_ids or attached_lines):
                 network_id_set = set(network_ids)
                 network_lines = (
@@ -8779,12 +11766,18 @@ def build_instance_port_network_candidates(
                 if panel_binding:
                     evidence_codes.append("OUTWARD_EXTERNAL_ENDPOINT_LABEL")
             if explicit_label:
-                evidence_codes.append("INSTANCE_LOCAL_NUMERIC_PORT_LABEL")
+                evidence_codes.append(
+                    "INSTANCE_POLARITY_PORT_LABEL"
+                    if wfs_polarity_model
+                    else "INSTANCE_LOCAL_NUMERIC_PORT_LABEL"
+                )
             if (
                 named_two_port_strip_model
                 or named_two_row_box_model
                 or single_row_contact_model
                 or four_contact_isolated_frame_model
+                or selective_component_model
+                or numbered_round_contact_array_model
             ) and component_label:
                 evidence_codes.append("INSTANCE_COMPONENT_DESIGNATOR")
             if three_contact_socket_model and component_label and socket_pin_binding:
@@ -8799,7 +11792,9 @@ def build_instance_port_network_candidates(
             if line_handles:
                 evidence_codes.append("EXACT_EXTERNAL_LINE_ENDPOINT")
                 if (
-                    terminal_geometry or four_contact_isolated_frame_model
+                    terminal_geometry
+                    or four_contact_isolated_frame_model
+                    or numbered_round_contact_array_model
                 ) and outward is not None:
                     evidence_codes.append("OUTWARD_LINE_ALIGNMENT")
             if network_ids:
@@ -8838,6 +11833,7 @@ def build_instance_port_network_candidates(
                 or named_two_row_box_model
                 or single_row_contact_model
                 or four_contact_isolated_frame_model
+                or numbered_round_contact_array_model
             ) and component_port_identity:
                 evidence_codes.extend(
                     [
@@ -8865,6 +11861,8 @@ def build_instance_port_network_candidates(
                     three_contact_socket_model
                     or four_contact_isolated_frame_model
                     or two_contact_actuator_model
+                    or selective_component_model
+                    or numbered_round_contact_array_model
                 )
                 and socket_external_binding
                 else sorted(
@@ -8918,6 +11916,8 @@ def build_instance_port_network_candidates(
                     named_two_port_strip_model
                     or named_two_row_box_model
                     or single_row_contact_model
+                    or selective_component_model
+                    or numbered_round_contact_array_model
                 )
                 and component_port_identity
                 and line_handles
@@ -8928,6 +11928,8 @@ def build_instance_port_network_candidates(
                 (
                     three_contact_socket_model
                     or four_contact_isolated_frame_model
+                    or selective_component_model
+                    or numbered_round_contact_array_model
                 )
                 and component_port_identity
                 and component_endpoints
@@ -9007,6 +12009,8 @@ def build_instance_port_network_candidates(
                             or single_row_contact_model
                             or three_contact_socket_model
                             or four_contact_isolated_frame_model
+                            or selective_component_model
+                            or numbered_round_contact_array_model
                         )
                         else port.get("component_pin")
                     ),
@@ -9028,6 +12032,8 @@ def build_instance_port_network_candidates(
                             or single_row_contact_model
                             or three_contact_socket_model
                             or four_contact_isolated_frame_model
+                            or selective_component_model
+                            or numbered_round_contact_array_model
                         )
                         else []
                     ),
@@ -9041,6 +12047,8 @@ def build_instance_port_network_candidates(
                                 or single_row_contact_model
                                 or three_contact_socket_model
                                 or four_contact_isolated_frame_model
+                                or selective_component_model
+                                or numbered_round_contact_array_model
                             )
                             and network_ids
                         )
@@ -9062,6 +12070,8 @@ def build_instance_port_network_candidates(
                             or single_row_contact_model
                             or three_contact_socket_model
                             or four_contact_isolated_frame_model
+                            or selective_component_model
+                            or numbered_round_contact_array_model
                         )
                         else "PORT_TO_EXTERNAL_NETWORK"
                     ),

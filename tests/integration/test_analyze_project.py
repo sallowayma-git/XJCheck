@@ -11,6 +11,13 @@ from typer.testing import CliRunner
 from dwg_audit.cli import app
 
 
+def test_switch_class_policy_prefix_is_provenance_only() -> None:
+    from dwg_audit.audit.symbol_port_proposal import human_symbol_port_policy
+    policy = human_symbol_port_policy("5a5823aaf90c-full-digest-from-manifest")
+    assert policy is not None
+    assert policy["mode"] == "IGNORE_ELECTRICAL"
+
+
 def test_analyze_project_recovers_nested_symbol_definition_proposal(
     monkeypatch, tmp_path: Path,
 ) -> None:
@@ -54,6 +61,181 @@ def test_analyze_project_recovers_nested_symbol_definition_proposal(
     assert len(child_rows) == 1
     assert child_rows[0]["ports"] == []
     assert child_rows[0]["family_id"] == "electrical.ground_symbol_ignored.v1"
+
+
+def test_analyze_project_geometry_ignores_unseen_vertical_zigzag_element(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "21 元件接线图1.dwg").write_bytes(b"AC1018demo")
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        block = doc.blocks.new("UNSEEN_VERTICAL_ZIGZAG")
+        half_width, half_length = 0.625, 1.75
+        block.add_lwpolyline(
+            [
+                (-half_width, -half_length),
+                (-half_width, half_length),
+                (half_width, half_length),
+                (half_width, -half_length),
+            ],
+            close=True,
+        )
+        block.add_line((0.0, -2.5), (0.0, -half_length))
+        block.add_line((0.0, half_length), (0.0, 2.5))
+        levels = (-half_length, -0.875, 0.0, 0.875, half_length)
+        for low_level, high_level in zip(levels, levels[1:]):
+            block.add_line(
+                (-half_width, low_level), (half_width, high_level)
+            )
+        for level in levels[1:-1]:
+            block.add_line((-half_width, level), (half_width, level))
+            block.add_line((-half_width, level), (half_width, level))
+        doc.modelspace().add_blockref("UNSEEN_VERTICAL_ZIGZAG", (100.0, 100.0))
+        doc.saveas(target)
+
+    monkeypatch.setattr(
+        "dwg_audit.ingest.dwg_converter._detect_odafc_exe",
+        lambda config: fake_exe,
+    )
+    monkeypatch.setattr(
+        "dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert
+    )
+    output_dir = tmp_path / "artifacts"
+    result = CliRunner().invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads(
+        (output_dir / "run_summary.json").read_text(encoding="utf-8")
+    )
+    findings = Path(run_summary[0]["artifact_dir"]) / "findings"
+    proposals = json.loads(
+        (findings / "symbol_port_definition_proposals.json").read_text(
+            encoding="utf-8"
+        )
+    )["proposals"]
+    target_rows = [
+        row for row in proposals if row["definition_name"] == "UNSEEN_VERTICAL_ZIGZAG"
+    ]
+    assert len(target_rows) == 1
+    target = target_rows[0]
+    assert target["classifier_status"] == "MATCHED"
+    assert target["family_id"] == "electrical.nonconnective_vertical_zigzag_element_ignored.v1"
+    assert target["matched_family_rule_id"] == "narrow-frame-four-cell-zigzag-v1"
+    assert target["behavior_mode"] == "IGNORE"
+    assert target["ports"] == []
+    assert target["allow_port_emission"] is False
+    assert target["allow_external_attachment"] is False
+    assert target["allow_internal_connectivity"] is False
+    assert target["allow_electrical_union"] is False
+
+    candidates = json.loads(
+        (findings / "symbol_port_network_candidates.json").read_text(
+            encoding="utf-8"
+        )
+    )["candidates"]
+    assert not [
+        row for row in candidates if row["definition_name"] == "UNSEEN_VERTICAL_ZIGZAG"
+    ]
+
+
+def test_analyze_project_suppresses_direct_and_deep_children_of_ignored_parent(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    ignored_fingerprint = (
+        "9ab7144823696cf159b562ccd4a64c5801bdf99275c605494d4964302cc04bd1"
+    )
+    artifacts_module = __import__(
+        "dwg_audit.report.artifacts", fromlist=["build_project_symbol_inventory"]
+    )
+    original_inventory = artifacts_module.build_project_symbol_inventory
+
+    def inventory_with_ignored_parent(*args, **kwargs):
+        definitions, instances, queue, summary = original_inventory(*args, **kwargs)
+        parent_definition = definitions["definition_name"] == "IGNORED_PARENT"
+        parent_instance = instances["definition_name"] == "IGNORED_PARENT"
+        definitions.loc[parent_definition, "definition_fingerprint"] = ignored_fingerprint
+        instances.loc[parent_instance, "definition_fingerprint"] = ignored_fingerprint
+        return definitions, instances, queue, summary
+
+    monkeypatch.setattr(
+        "dwg_audit.report.artifacts.build_project_symbol_inventory",
+        inventory_with_ignored_parent,
+    )
+    project = tmp_path / "projectA"
+    project.mkdir()
+    (project / "09 ignored parent.dwg").write_bytes(b"AC1018demo")
+    fake_exe = tmp_path / "ODAFileConverter.exe"
+    fake_exe.write_text("stub", encoding="utf-8")
+
+    def fake_convert(source: Path, target: Path, **_: object) -> None:
+        doc = ezdxf.new("R2018")
+        direct_child = doc.blocks.new("DIRECT_CHILD")
+        direct_child.add_line((-2.0, 0.0), (2.0, 0.0))
+        deep_child = doc.blocks.new("DEEP_CHILD")
+        deep_child.add_line((0.0, -2.0), (0.0, 2.0))
+        intermediate = doc.blocks.new("INTERMEDIATE")
+        intermediate.add_blockref("DEEP_CHILD", (5.0, 0.0))
+        ignored_parent = doc.blocks.new("IGNORED_PARENT")
+        ignored_parent.add_blockref("DIRECT_CHILD", (0.0, 0.0))
+        ignored_parent.add_blockref("INTERMEDIATE", (10.0, 0.0))
+        doc.modelspace().add_blockref("IGNORED_PARENT", (100.0, 100.0))
+        doc.saveas(target)
+
+    monkeypatch.setattr(
+        "dwg_audit.ingest.dwg_converter._detect_odafc_exe",
+        lambda config: fake_exe,
+    )
+    monkeypatch.setattr(
+        "dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert
+    )
+    output_dir = tmp_path / "artifacts"
+    result = CliRunner().invoke(
+        app,
+        ["analyze-project", "--input", str(project), "--output", str(output_dir)],
+    )
+    assert result.exit_code == 0, result.output
+
+    run_summary = json.loads(
+        (output_dir / "run_summary.json").read_text(encoding="utf-8")
+    )
+    findings = Path(run_summary[0]["artifact_dir"]) / "findings"
+    proposals = json.loads(
+        (findings / "symbol_port_definition_proposals.json").read_text(
+            encoding="utf-8"
+        )
+    )["proposals"]
+    parent_rows = [
+        row for row in proposals if row["definition_name"] == "IGNORED_PARENT"
+    ]
+    child_rows = [
+        row
+        for row in proposals
+        if row["definition_name"] in {"DIRECT_CHILD", "DEEP_CHILD"}
+    ]
+    assert len(parent_rows) == 1
+    assert parent_rows[0]["behavior_mode"] == "IGNORE"
+    assert parent_rows[0]["suppressed_by_policy"] is True
+    assert len(child_rows) == 2
+    assert all(row["ports"] for row in child_rows)
+
+    candidates = json.loads(
+        (findings / "symbol_port_network_candidates.json").read_text(
+            encoding="utf-8"
+        )
+    )["candidates"]
+    assert not [
+        row
+        for row in candidates
+        if row["definition_name"] in {"DIRECT_CHILD", "DEEP_CHILD"}
+    ]
 
 
 def test_analyze_project_records_failures_and_reuses_cached_dxf(
