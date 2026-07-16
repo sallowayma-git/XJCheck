@@ -1,59 +1,50 @@
 # DWG Audit Desktop
 
-Tauri 2 + React + TypeScript desktop-shell scaffold for the local DWG audit workflow.
+Tauri 2 + React + TypeScript 本地离线校验客户端。
 
-## Included in this scaffold
+## 能力
 
-- Launch surface with recent projects, manual input, native folder picker, drag-and-drop folder import and start-analysis action.
-- Process surface with stage progress, streamed event log and live issue table.
-- Result surface with issue board, issue detail, evidence panel and preview area.
-- Sidecar adapter layer that now targets native calls for:
-  - `analyze-session`
-  - `list-recent-projects`
-  - `load-result`
-  - `render-preview`
-  - `set-issue-status`
-- `src-tauri/` command bridge that shells out to the existing Python CLI / sidecar and re-emits JSONL runtime events to the frontend.
+- 启动：最近项目、目录选择、拖放导入、开始校验
+- 过程：阶段进度、实时问题、引擎事件日志
+- 结果：问题清单、筛选、证据字段、预览定位、状态写回
+- 后端接入：Tauri command → Python sidecar（`analyze-session` / `list-recent-projects` / `load-result` / `render-preview` / `set-issue-status`）
 
-## Frontend commands
+## 前端
 
 ```bash
 npm install
-npm run dev
+npm run dev      # 浏览器 mock，不连 sidecar
 npm run build
 npm run check
 ```
 
-## Tauri note
+顶栏会显示运行态：
 
-The Tauri command bridge resolves the DWG audit runtime in this order:
+- `引擎：本地 sidecar` — 桌面壳已连接原生命令
+- `引擎：浏览器 mock` — 仅界面预览，数据为本地 mock
 
-1. `DWG_AUDIT_SIDECAR_EXE`, pointing at a packaged `dwg-audit-sidecar` executable.
-2. A bundled app resource named `dwg-audit-sidecar.exe`, `dwg-audit-sidecar`, `sidecar/dwg-audit-sidecar.exe`, or `sidecar/dwg-audit-sidecar`.
-3. Development-only source fallback through `python -m dwg_audit.cli`.
-
-Release builds must use a packaged sidecar executable or `DWG_AUDIT_SIDECAR_EXE`. The source checkout fallback is available in debug builds and can be forced with `DWG_AUDIT_ALLOW_SOURCE_FALLBACK=1` for local diagnostics.
-
-Useful native commands:
+## 原生运行
 
 ```bash
 npm run tauri:dev
 npm run tauri:build
 ```
 
-Build the release sidecar before packaging:
+Sidecar 解析顺序：
+
+1. `DWG_AUDIT_SIDECAR_EXE`
+2. 安装包资源 `sidecar/dwg-audit-sidecar(.exe)`
+3. 开发态源码回退 `python -m dwg_audit.cli`（debug 或 `DWG_AUDIT_ALLOW_SOURCE_FALLBACK=1`）
+
+打包前构建 sidecar：
 
 ```powershell
 .\scripts\build-sidecar.ps1 -Clean
 npm run tauri:build
 ```
 
-The script writes `src-tauri/resources/sidecar/dwg-audit-sidecar.exe`; Tauri
-bundles that directory into the app resource root as `sidecar/`. Debug builds
-may still use source fallback, but a release smoke should verify the bundled
-sidecar path or an explicit `DWG_AUDIT_SIDECAR_EXE`.
+## 注意
 
-## Current limitations
-
-- The shell now has an explicit sidecar runtime contract and a repeatable sidecar build hook; the release smoke still needs to run the packaged binary against a real sample before declaring the installer fully source-tree independent.
-- Result review already exposes evidence JSON, one-to-many triage and score breakdown, but richer evidence drawers, multi-reference preview switching and preview regeneration controls still need refinement.
+- 正式校验必须走桌面客户端 + sidecar，避免前端空转。
+- UI 只调度任务并展示 findings/结果，不在前端做 CAD 几何推理。
+- 设计语言：务实、高密度、灰黑白米黄工业工作台。

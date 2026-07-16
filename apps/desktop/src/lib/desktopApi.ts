@@ -18,7 +18,17 @@ const COMMANDS = {
 
 const mockIssueStatuses = new Map<string, IssueStatus>()
 
+export type DesktopRuntimeMode = "native" | "browser-mock"
+
 export const desktopApi = {
+  runtimeMode(): DesktopRuntimeMode {
+    return isTauri() ? "native" : "browser-mock"
+  },
+
+  isNative(): boolean {
+    return isTauri()
+  },
+
   async analyzeSession(request: AnalyzeSessionRequest, onEvent: (event: SidecarEvent) => void): Promise<AnalyzeSessionResult> {
     if (!isTauri()) {
       return emitMockAnalyzeSessionEvents(request.inputRoot, onEvent)
@@ -35,7 +45,7 @@ export const desktopApi = {
         projects: payload.projects.map(normalizeRecentProject),
       }
     } catch (error) {
-      throw toDesktopError("Failed to run native analyze-session.", error)
+      throw toDesktopError("审计任务启动失败。", error)
     } finally {
       unlisten?.()
     }
@@ -50,7 +60,7 @@ export const desktopApi = {
       const projects = await invoke<RecentProject[]>(COMMANDS.listRecentProjects)
       return projects.map(normalizeRecentProject)
     } catch (error) {
-      throw toDesktopError("Failed to load native recent projects.", error)
+      throw toDesktopError("读取最近项目失败。", error)
     }
   },
 
@@ -63,7 +73,7 @@ export const desktopApi = {
       const result = await invoke<ProjectResult>(COMMANDS.loadResult, { projectId })
       return normalizeProjectResult(result)
     } catch (error) {
-      throw toDesktopError(`Failed to load native result for project ${projectId}.`, error)
+      throw toDesktopError(`加载项目结果失败（${projectId}）。`, error)
     }
   },
 
@@ -86,7 +96,7 @@ export const desktopApi = {
       })
       return normalizePreviewPayload(payload)
     } catch (error) {
-      throw toDesktopError(`Failed to render native preview for project ${projectId}.`, error)
+      throw toDesktopError(`预览生成失败（${projectId}）。`, error)
     }
   },
 
@@ -104,7 +114,7 @@ export const desktopApi = {
       })
       return await this.loadResult(projectId)
     } catch (error) {
-      throw toDesktopError(`Failed to update native issue status for ${issueId}.`, error)
+      throw toDesktopError(`状态写回失败（${issueId}）。`, error)
     }
   },
 
@@ -115,7 +125,7 @@ export const desktopApi = {
 
     try {
       const selected = await open({
-        title: "Select DWG project directory",
+        title: "选择 DWG 项目目录",
         directory: true,
         multiple: false,
         defaultPath: defaultPath?.trim() || undefined,
@@ -125,7 +135,7 @@ export const desktopApi = {
       }
       return typeof selected === "string" ? selected : null
     } catch (error) {
-      throw toDesktopError("Failed to open native directory picker.", error)
+      throw toDesktopError("打开目录选择器失败。", error)
     }
   },
 }
