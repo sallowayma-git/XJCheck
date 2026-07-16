@@ -243,30 +243,55 @@ def _build_svg(
                 ),
                 f"<circle cx=\"{sx(start[0])}\" cy=\"{sy(start[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"#b02d20\" />",
                 f"<circle cx=\"{sx(end[0])}\" cy=\"{sy(end[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"#b02d20\" />",
-                "</g>",
             ]
         )
+        if issue_row is not None:
+            left_label = html.escape(str(issue_row.get("left_value") or "").strip())
+            right_label = html.escape(str(issue_row.get("right_value") or "").strip())
+            if left_label:
+                svg_lines.append(
+                    (
+                        f"<text x=\"{sx(start[0]) + 8}\" y=\"{sy(start[1]) - 8}\" "
+                        f"font-size=\"14\" fill=\"#8a1f16\" font-weight=\"700\" "
+                        f"font-family=\"Segoe UI, sans-serif\">{left_label}</text>"
+                    )
+                )
+            if right_label:
+                svg_lines.append(
+                    (
+                        f"<text x=\"{sx(end[0]) + 8}\" y=\"{sy(end[1]) - 8}\" "
+                        f"font-size=\"14\" fill=\"#8a1f16\" font-weight=\"700\" "
+                        f"font-family=\"Segoe UI, sans-serif\">{right_label}</text>"
+                    )
+                )
+        svg_lines.append("</g>")
 
-    title = html.escape(str(page_row.get("sheet_title") or page_row.get("filename") or ""))
-    subtitle_parts = [f"sheet={page_row.get('sheet_no') or page_row.get('sheet_id')}"]
+    title = html.escape(str(page_row.get("sheet_title") or page_row.get("filename") or "图纸预览"))
+    subtitle_parts: list[str] = []
+    sheet_no = str(page_row.get("sheet_no") or "").strip()
+    if sheet_no:
+        subtitle_parts.append(f"图号 {sheet_no}")
     if cropped:
-        subtitle_parts.append("view=issue-crop")
+        subtitle_parts.append("问题区域")
+    else:
+        subtitle_parts.append("整图预览")
     if issue_row is not None:
-        subtitle_parts.append(f"issue={issue_row.get('issue_id')}")
-        subtitle_parts.append(f"rule={issue_row.get('rule_id')}")
         left_value = issue_row.get("left_value")
         right_value = issue_row.get("right_value")
         if left_value not in (None, "") or right_value not in (None, ""):
-            subtitle_parts.append(f"pair={left_value or '?'}→{right_value or '?'}")
+            subtitle_parts.append(f"端子 {left_value or '?'} → {right_value or '?'}")
+        rule_label = _humanize_rule_id(str(issue_row.get("rule_id") or ""))
+        if rule_label:
+            subtitle_parts.append(rule_label)
     if line_semantics:
-        orientation = line_semantics.get("line_orientation")
+        orientation = _humanize_orientation(line_semantics.get("line_orientation"))
         if orientation:
-            subtitle_parts.append(f"orientation={orientation}")
+            subtitle_parts.append(f"方向 {orientation}")
         left_side = line_semantics.get("left_side_label")
         right_side = line_semantics.get("right_side_label")
         if left_side or right_side:
-            subtitle_parts.append(f"sides={left_side or '?'}->{right_side or '?'}")
-    subtitle = html.escape(" | ".join(subtitle_parts))
+            subtitle_parts.append(f"线端 {left_side or '?'} → {right_side or '?'}")
+    subtitle = html.escape(" · ".join(subtitle_parts) if subtitle_parts else "问题定位预览")
     svg_lines.extend(
         [
             "<g id=\"header\">",
@@ -689,3 +714,33 @@ def _json_bbox(value: object) -> tuple[float, float, float, float] | None:
         return tuple(float(item) for item in decoded)
     except (TypeError, ValueError):
         return None
+
+
+def _humanize_rule_id(rule_id: str) -> str:
+    mapping = {
+        "R-CROSS-PAGE-CONFLICT": "跨页端子冲突",
+        "R-ONE-TO-MANY": "一对多连接",
+        "R-MANY-TO-ONE": "多对一连接",
+        "R-MISSING-RECIPROCAL": "缺少对端回指",
+        "R-PAIR-MISSING-SIDE": "端子缺侧",
+        "R-PAIR-LOW-CONFIDENCE": "端子配对不确定",
+        "R-DUPLICATE-SAME-LINE": "同线重复端子",
+        "R-SHEET-PAGE-MISMATCH": "页码不一致",
+    }
+    text = str(rule_id or "").strip()
+    if not text:
+        return ""
+    return mapping.get(text, "")
+
+
+def _humanize_orientation(value: object) -> str:
+    mapping = {
+        "horizontal": "水平",
+        "vertical": "垂直",
+        "diagonal": "斜向",
+        "unknown": "未知",
+    }
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    return mapping.get(text, text)

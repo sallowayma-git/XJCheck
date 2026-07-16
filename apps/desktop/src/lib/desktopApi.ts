@@ -75,7 +75,7 @@ export const desktopApi = {
       const result = await invoke<ProjectResult>(COMMANDS.loadResult, { projectId })
       return normalizeProjectResult(result)
     } catch (error) {
-      throw toDesktopError(`加载项目结果失败（${projectId}）。`, error)
+      throw toDesktopError("加载校验结果失败。", error)
     }
   },
 
@@ -98,7 +98,7 @@ export const desktopApi = {
       })
       return normalizePreviewPayload(payload)
     } catch (error) {
-      throw toDesktopError(`预览生成失败（${projectId}）。`, error)
+      throw toDesktopError("无法生成图纸预览。", error)
     }
   },
 
@@ -116,7 +116,7 @@ export const desktopApi = {
       })
       return await this.loadResult(projectId)
     } catch (error) {
-      throw toDesktopError(`状态写回失败（${issueId}）。`, error)
+      throw toDesktopError("保存处理状态失败。", error)
     }
   },
 
@@ -127,7 +127,7 @@ export const desktopApi = {
     try {
       await invoke(COMMANDS.deleteProject, { projectId })
     } catch (error) {
-      throw toDesktopError(`删除项目记录失败（${projectId}）。`, error)
+      throw toDesktopError("删除项目记录失败。", error)
     }
   },
 
