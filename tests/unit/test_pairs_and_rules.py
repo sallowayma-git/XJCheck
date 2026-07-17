@@ -121,6 +121,281 @@ def test_rules_detect_cross_page_conflict() -> None:
     assert conflict.evidence_refs[0]["filename"] == "a.dwg"
 
 
+def test_rules_do_not_merge_same_xjdz_definition_pin_across_distinct_instances() -> None:
+    common = {
+        "filename": "25 元件接线图2.dwg",
+        "component_submode": "xjdz_structural_terminal",
+        "right_structural_role": "native_pin",
+        "electrical_union_eligible": False,
+        "internal_connectivity_inferred": False,
+    }
+    pairs = [
+        Pair(
+            "PX1", "GX1", "S1", "F1", "PCX1", "3-21CD6", "XJDZ9-02-2B4-001:8",
+            0.97, "pass", "xjdz", [], "high", {**common, "xjdz_instance_handles": ["B298"]},
+            pair_kind="component_mapping",
+        ),
+        Pair(
+            "PX2", "GX2", "S1", "F1", "PCX2", "2-21CD6", "XJDZ9-02-2B4-001:8",
+            0.97, "pass", "xjdz", [], "high", {**common, "xjdz_instance_handles": ["D270"]},
+            pair_kind="component_mapping",
+        ),
+    ]
+    groups = [
+        LineGroup("GX1", "S1", "F1", 0, 0, 0, 10, 10, 0.9, ["LX1"], ["BORDER"], "vertical"),
+        LineGroup("GX2", "S1", "F1", 20, 0, 20, 10, 10, 0.9, ["LX2"], ["BORDER"], "vertical"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "25 元件接线图2.dwg", 1, "25", "ACCESSORIES WIRING-2", "元件接线图", "primary", "filename", True)
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_same_xjdz_instance_pin_multiple_sources_as_review() -> None:
+    common = {
+        "filename": "25 元件接线图2.dwg",
+        "component_submode": "xjdz_structural_terminal",
+        "right_structural_role": "native_pin",
+        "electrical_union_eligible": False,
+        "xjdz_instance_handles": ["B298"],
+    }
+    pairs = [
+        Pair("PX1", "GX1", "S1", "F1", "PCX1", "3-21CD6", "XJDZ9-02-2B4-001:8", 0.97, "pass", "xjdz", [], "high", dict(common), pair_kind="component_mapping"),
+        Pair("PX2", "GX2", "S1", "F1", "PCX2", "3-21CD3", "XJDZ9-02-2B4-001:8", 0.97, "pass", "xjdz", [], "high", dict(common), pair_kind="component_mapping"),
+    ]
+    groups = [
+        LineGroup("GX1", "S1", "F1", 0, 0, 0, 10, 10, 0.9, ["LX1"], ["BORDER"], "vertical"),
+        LineGroup("GX2", "S1", "F1", 20, 0, 20, 10, 10, 0.9, ["LX2"], ["BORDER"], "vertical"),
+    ]
+    sheets = [SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "元件接线图", "primary", "filename", True)]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_skip_complete_backplate_shared_endpoint_across_distinct_scopes() -> None:
+    def mapping(sheet_id: str, block: str, header: str, logical: str) -> dict:
+        return {
+            "mapping_mode": "backplate_virtual_table",
+            "sheet_id": sheet_id,
+            "source_block_name": block,
+            "header_prefix": header,
+            "header_text_id": f"TH-{sheet_id}",
+            "middle_text_id": f"TM-{sheet_id}",
+            "right_text_id": f"TR-{sheet_id}",
+            "row_number": 18,
+            "row_number_sequence_valid": True,
+            "logical_endpoint": logical,
+            "right_value": "1-21QD75",
+            "column_roles": {
+                "left": "virtual_device_port",
+                "middle": "virtual_row_number",
+                "right": "external_terminal_endpoint",
+            },
+        }
+
+    pairs = [
+        Pair(
+            "PB1", None, "S20", "F20", None, "1-21n/BI2-18", "1-21QD75", 0.95,
+            "pass", "backplate", [], "high",
+            {"source": "table_mapping", "table_mapping": mapping("S20", "DEV-A", "BI2", "1-21n/BI2-18")},
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "PB2", None, "S21", "F21", None, "2-21n109", "1-21QD75", 0.95,
+            "pass", "backplate", [], "high",
+            {"source": "table_mapping", "table_mapping": mapping("S21", "DEV-B", "CPU", "2-21n109")},
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S20", "F20", "20.dwg", 20, "20", "BACKPLATE", "背板图", "primary", "filename", True),
+        SheetRecord("S21", "F21", "21.dwg", 21, "21", "BACKPLATE", "背板图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_do_not_cross_compare_page_local_numeric_three_column_rows() -> None:
+    def evidence(sheet_id: str, right: str) -> dict:
+        return {
+            "source": "table_mapping",
+            "table_mapping": {
+                "mapping_mode": "numeric_three_column",
+                "sheet_id": sheet_id,
+                "row_index": 4,
+                "middle_value": "2",
+                "middle_text_id": f"TM-{sheet_id}",
+                "right_value": right,
+                "right_text_id": f"TR-{sheet_id}",
+                "column_roles": {
+                    "left": "numeric_outer",
+                    "middle": "numeric_center",
+                    "right": "numeric_outer",
+                },
+            },
+        }
+
+    pairs = [
+        Pair("PN1", None, "S8", "F8", None, "2", "1", 0.95, "pass", "table", [], "high", evidence("S8", "1"), pair_kind="table_mapping"),
+        Pair("PN2", None, "S9", "F9", None, "2", "PWR1", 0.95, "pass", "table", [], "high", evidence("S9", "PWR1"), pair_kind="table_mapping"),
+    ]
+    sheets = [
+        SheetRecord("S8", "F8", "08.dwg", 8, "08", "A", "表格型图", "primary", "filename", True),
+        SheetRecord("S9", "F9", "09.dwg", 9, "09", "B", "表格型图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
+
+
+def test_rules_keep_scoped_numeric_three_column_endpoint_conflict_visible() -> None:
+    def evidence(sheet_id: str, right: str) -> dict:
+        return {
+            "source": "table_mapping",
+            "table_mapping": {
+                "mapping_mode": "numeric_three_column",
+                "sheet_id": sheet_id,
+                "row_index": 4,
+                "header_prefix": "DEVICE",
+                "logical_endpoint": "DEVICE-2",
+                "middle_value": "2",
+                "middle_text_id": f"TM-{sheet_id}",
+                "right_value": right,
+                "right_text_id": f"TR-{sheet_id}",
+                "column_roles": {
+                    "left": "numeric_outer",
+                    "middle": "numeric_center",
+                    "right": "numeric_outer",
+                },
+            },
+        }
+
+    pairs = [
+        Pair("PN1", None, "S8", "F8", None, "2", "1", 0.95, "pass", "table", [], "high", evidence("S8", "1"), pair_kind="table_mapping"),
+        Pair("PN2", None, "S9", "F9", None, "2", "PWR1", 0.95, "pass", "table", [], "high", evidence("S9", "PWR1"), pair_kind="table_mapping"),
+    ]
+    sheets = [
+        SheetRecord("S8", "F8", "08.dwg", 8, "08", "A", "表格型图", "primary", "filename", True),
+        SheetRecord("S9", "F9", "09.dwg", 9, "09", "B", "表格型图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
+
+
+def test_rules_do_not_many_to_one_merge_page_local_numeric_outer_values() -> None:
+    def evidence(sheet_id: str, middle: str) -> dict:
+        return {
+            "source": "table_mapping",
+            "table_mapping": {
+                "mapping_mode": "numeric_three_column",
+                "sheet_id": sheet_id,
+                "row_index": 4,
+                "middle_value": middle,
+                "middle_text_id": f"TM-{sheet_id}",
+                "right_value": "1",
+                "right_text_id": f"TR-{sheet_id}",
+                "column_roles": {
+                    "left": "numeric_outer",
+                    "middle": "numeric_center",
+                    "right": "numeric_outer",
+                },
+            },
+        }
+
+    pairs = [
+        Pair("PN1", None, "S8", "F8", None, "2", "1", 0.95, "pass", "table", [], "high", evidence("S8", "2"), pair_kind="table_mapping"),
+        Pair("PN2", None, "S9", "F9", None, "4", "1", 0.95, "pass", "table", [], "high", evidence("S9", "4"), pair_kind="table_mapping"),
+    ]
+    sheets = [
+        SheetRecord("S8", "F8", "08.dwg", 8, "08", "A", "表格型图", "primary", "filename", True),
+        SheetRecord("S9", "F9", "09.dwg", 9, "09", "B", "表格型图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_accept_complete_terminal_header_reciprocal_chain() -> None:
+    def mapping(header: str, row: int, *, side: str) -> dict:
+        result = {
+            "mapping_mode": "terminal_header_table",
+            "sheet_id": "S16",
+            "header_prefix": header,
+            "header_text_id": f"TH-{header}",
+            "middle_text_id": f"TM-{header}",
+            "row_number": row,
+            "row_number_sequence_valid": True,
+            "logical_endpoint": f"{header}-{row}",
+            "has_shuoming_column": True,
+            "shuoming_text_id": f"SH-{header}",
+            "column_roles": {
+                "left": "terminal_endpoint" if side == "left" else "empty",
+                "middle": "row_number",
+                "right": "terminal_endpoint" if side == "right" else "empty",
+            },
+        }
+        result[f"{side}_value"] = "1-25U2D2"
+        result[f"{side}_text_id"] = f"TE-{header}"
+        return result
+
+    pairs = [
+        Pair("PT1", None, "S16", "F16", None, "1-25U1D-2", "1-25U2D2", 0.95, "pass", "table", [], "high", {"source": "table_mapping", "table_mapping": mapping("1-25U1D", 2, side="left")}, pair_kind="table_mapping"),
+        Pair("PT2", None, "S16", "F16", None, "1-25U3D-2", "1-25U2D2", 0.95, "pass", "table", [], "high", {"source": "table_mapping", "table_mapping": mapping("1-25U3D", 2, side="left")}, pair_kind="table_mapping"),
+        Pair("PT3", None, "S16", "F16", None, "1-25U2D-2", "1-25U1D2", 0.95, "pass", "table", [], "high", {"source": "table_mapping", "table_mapping": mapping("1-25U2D", 2, side="right") | {"right_value": "1-25U1D2", "right_text_id": "TE-U1"}}, pair_kind="table_mapping"),
+        Pair("PT4", None, "S16", "F16", None, "1-25U2D-2", "1-25U3D2", 0.95, "pass", "table", [], "high", {"source": "table_mapping", "table_mapping": mapping("1-25U2D", 2, side="left") | {"left_value": "1-25U3D2", "left_text_id": "TE-U3"}}, pair_kind="table_mapping"),
+    ]
+    sheets = [SheetRecord("S16", "F16", "16.dwg", 16, "16", "TERMINAL", "屏端子图", "primary", "filename", True)]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_unrelated_terminal_header_many_to_one_visible_without_reciprocal_strip() -> None:
+    def mapping(header: str, *, side: str) -> dict:
+        result = {
+            "mapping_mode": "terminal_header_table",
+            "sheet_id": "S16",
+            "header_prefix": header,
+            "header_text_id": f"TH-{header}",
+            "middle_text_id": f"TM-{header}",
+            "row_number": 2,
+            "row_number_sequence_valid": True,
+            "logical_endpoint": f"{header}-2",
+            "has_shuoming_column": True,
+            "shuoming_text_id": f"SH-{header}",
+            "column_roles": {
+                "left": "terminal_endpoint" if side == "left" else "empty",
+                "middle": "row_number",
+                "right": "terminal_endpoint" if side == "right" else "empty",
+            },
+        }
+        result[f"{side}_value"] = "SHARED-X2"
+        result[f"{side}_text_id"] = f"TE-{header}"
+        return result
+
+    pairs = [
+        Pair("PT1", None, "S16", "F16", None, "DEV-A-2", "SHARED-X2", 0.95, "pass", "table", [], "high", {"source": "table_mapping", "table_mapping": mapping("DEV-A", side="left")}, pair_kind="table_mapping"),
+        Pair("PT2", None, "S16", "F16", None, "DEV-B-2", "SHARED-X2", 0.95, "pass", "table", [], "high", {"source": "table_mapping", "table_mapping": mapping("DEV-B", side="right")}, pair_kind="table_mapping"),
+    ]
+    sheets = [SheetRecord("S16", "F16", "16.dwg", 16, "16", "TERMINAL", "屏端子图", "primary", "filename", True)]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
 def test_build_pairs_keeps_selected_and_alternative_traceability() -> None:
     groups = [
         LineGroup(

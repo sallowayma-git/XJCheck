@@ -3096,6 +3096,92 @@ def test_numbered_round_contact_array_uses_native_pins_without_world_numeric_lab
     assert all(row["electrical_union_eligible"] is False for row in candidates)
 
 
+def test_numbered_round_contact_array_binds_outward_line_crossing_port_interior() -> None:
+    fingerprint = "3888263247353d6cae1d83660f34cc2ce4d0a0683caff489ad27d6a8c8dc8c9a"
+    proposal = apply_human_symbol_policy_to_proposal_row(
+        _numbered_round_contact_array_proposal(8, fingerprint=fingerprint)
+    )
+    proposal["file_id"] = "F-array-interior"
+    instance = {
+        "symbol_instance_id": "SI-array-interior",
+        "project_id": "P-array-interior",
+        "sheet_id": "S-array-interior",
+        "file_id": "F-array-interior",
+        "entity_handle": "B-array-interior",
+        "definition_name": proposal["definition_name"],
+        "definition_fingerprint": fingerprint,
+        "transform_json": {
+            "matrix44": [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        },
+    }
+    texts = [
+        {
+            "text_id": "T-array-interior-name",
+            "handle": "TH-array-interior-name",
+            "sheet_id": "S-array-interior",
+            "file_id": "F-array-interior",
+            "normalized_text": "3-21ZK",
+            "insert_x": 0.0,
+            "insert_y": 20.0,
+        },
+        {
+            "text_id": "T-array-interior-endpoint",
+            "handle": "TH-array-interior-endpoint",
+            "sheet_id": "S-array-interior",
+            "file_id": "F-array-interior",
+            "normalized_text": "3-21CD6",
+            "insert_x": 18.0,
+            "insert_y": -7.5,
+        },
+    ]
+    lines = [
+        {
+            "line_id": "L-array-interior",
+            "handle": "HL-array-interior",
+            "sheet_id": "S-array-interior",
+            "file_id": "F-array-interior",
+            "start_x": 5.0,
+            "start_y": -7.5,
+            "end_x": 20.0,
+            "end_y": -7.5,
+        },
+        {
+            "line_id": "L-array-crossing-negative",
+            "handle": "HL-array-crossing-negative",
+            "sheet_id": "S-array-interior",
+            "file_id": "F-array-interior",
+            "start_x": 7.5,
+            "start_y": -8.5,
+            "end_x": 7.5,
+            "end_y": -6.5,
+        },
+    ]
+    members = [
+        {
+            "member_type": "SOURCE_LINE",
+            "source_handle": "HL-array-interior",
+            "electrical_network_id": "NET-array-interior",
+        }
+    ]
+
+    candidates = build_instance_port_network_candidates(
+        [proposal], [instance], texts, lines, members
+    )
+    pin8 = next(row for row in candidates if row["component_pin"] == "8")
+
+    assert pin8["component_port_identity"] == "3-21ZK-8"
+    assert pin8["attached_line_handles"] == ["HL-array-interior"]
+    assert pin8["component_mapping_external_endpoints"] == ["3-21CD6"]
+    assert pin8["status"] == "MEASURED_COMPONENT_PORT_MAPPING"
+    assert pin8["internal_connectivity_inferred"] is False
+    assert pin8["electrical_union_eligible"] is False
+
+
 def _four_coil_proposal(*, rotation_deg: float, fingerprint: str) -> dict:
     document = ezdxf.new()
     block = document.blocks.new("RENAMED_FOUR_COIL")

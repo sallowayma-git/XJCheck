@@ -11526,7 +11526,7 @@ def build_instance_port_network_candidates(
             ) and (
                 terminal_designator.fullmatch(endpoint_value)
                 or (
-                    functional_round_contact_array_model
+                    numbered_round_contact_array_model
                     and hierarchical_endpoint_designator.fullmatch(endpoint_value)
                 )
                 or (
@@ -11884,6 +11884,8 @@ def build_instance_port_network_candidates(
                 continue
             attached_lines: list[dict[str, Any]] = []
             for line in sheet_lines:
+                if str(line.get("layer") or "").strip().upper() == "TEXT":
+                    continue
                 try:
                     start = (float(line.get("start_x")), float(line.get("start_y")))
                     end = (float(line.get("end_x")), float(line.get("end_y")))
@@ -11891,26 +11893,50 @@ def build_instance_port_network_candidates(
                     continue
                 start_distance = math.hypot(world[0] - start[0], world[1] - start[1])
                 end_distance = math.hypot(world[0] - end[0], world[1] - end[1])
-                if min(start_distance, end_distance) > effective_endpoint_tolerance:
-                    continue
+                endpoint_attached = min(start_distance, end_distance) <= effective_endpoint_tolerance
+                interior_numbered_attachment = False
+                if not endpoint_attached:
+                    interior_numbered_attachment = bool(
+                        numbered_round_contact_array_model
+                        and outward is not None
+                        and _point_segment_distance((world[0], world[1]), start, end) <= 1.0
+                    )
+                    if not interior_numbered_attachment:
+                        continue
                 if (
                     terminal_geometry
                     or four_contact_isolated_frame_model
                     or numbered_round_contact_array_model
                 ) and outward is not None:
-                    away = (
-                        (end[0] - start[0], end[1] - start[1])
-                        if start_distance <= end_distance
-                        else (start[0] - end[0], start[1] - end[1])
-                    )
-                    away_norm = math.hypot(away[0], away[1])
-                    if away_norm <= 1e-12:
-                        continue
-                    alignment = (
-                        outward[0] * away[0] + outward[1] * away[1]
-                    ) / away_norm
-                    if alignment < 0.5:
-                        continue
+                    if interior_numbered_attachment:
+                        segment = (end[0] - start[0], end[1] - start[1])
+                        segment_norm = math.hypot(segment[0], segment[1])
+                        if segment_norm <= 1e-12:
+                            continue
+                        axial_alignment = abs(
+                            (outward[0] * segment[0] + outward[1] * segment[1])
+                            / segment_norm
+                        )
+                        forward_reach = max(
+                            outward[0] * (start[0] - world[0]) + outward[1] * (start[1] - world[1]),
+                            outward[0] * (end[0] - world[0]) + outward[1] * (end[1] - world[1]),
+                        )
+                        if axial_alignment < 0.5 or forward_reach < 2.0:
+                            continue
+                    else:
+                        away = (
+                            (end[0] - start[0], end[1] - start[1])
+                            if start_distance <= end_distance
+                            else (start[0] - end[0], start[1] - end[1])
+                        )
+                        away_norm = math.hypot(away[0], away[1])
+                        if away_norm <= 1e-12:
+                            continue
+                        alignment = (
+                            outward[0] * away[0] + outward[1] * away[1]
+                        ) / away_norm
+                        if alignment < 0.5:
+                            continue
                 attached_lines.append(line)
 
             # A four-way terminal exposes independent directional contacts.
@@ -12011,7 +12037,7 @@ def build_instance_port_network_candidates(
                 ] = []
                 endpoint_reach = (
                     14.0
-                    if functional_round_contact_array_model
+                    if numbered_round_contact_array_model
                     else 4.0
                     if two_contact_actuator_model
                     else 8.0

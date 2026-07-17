@@ -275,6 +275,16 @@ def test_extract_output_contact_matrix_maps_only_full_cell_diagonals() -> None:
     assert all(mapping["column_strap"] == "1KLP7" for mapping in mappings)
     assert all(mapping["is_electrical_connectivity"] is False for mapping in mappings)
     assert len(mappings[0]["mark_line_ids"]) == 2
+    assert set(tables[0]["structural_text_ids"]) == {
+        "ROW1",
+        "OBJ1",
+        "CLP1",
+        "ROW2",
+        "CLP2",
+        "KLP",
+        "FUNC",
+        "SUB",
+    }
 
 
 def test_extract_output_contact_matrix_records_empty_matrix_without_fake_pairs() -> None:
@@ -301,6 +311,7 @@ def test_extract_output_contact_matrix_records_empty_matrix_without_fake_pairs()
     assert tables[0]["matrix_table"] is True
     assert tables[0]["marked_cell_count"] == 0
     assert tables[0]["mappings"] == []
+    assert tables[0]["structural_text_ids"] == []
 
 
 def test_extract_table_pairs_pair_has_no_line_group_id() -> None:
@@ -564,12 +575,23 @@ def test_extract_terminal_header_table_pairs_keeps_same_port_left_and_right_fano
     texts = [
         _make_text("H", 150.0, 220.0, "1UD"),
         _make_text("SH", 100.0, 220.0, "说明"),
+        _make_text("H2", 230.0, 220.0, "2UD"),
+        _make_text("SH2", 250.0, 220.0, "说明"),
         _make_text("L1", 130.0, 210.0, "1ZKK1-2"),
         _make_text("R1", 150.0, 210.0, "1", is_numeric_candidate=True),
         _make_text("E1", 170.0, 210.0, "1n2001"),
+        # Same-row endpoint from the next table must not be stolen by 1UD-1.
+        _make_text("NEXT1", 220.0, 210.0, "1n2123"),
         _make_text("L2", 130.0, 205.0, "1ZKK1-4"),
         _make_text("R2", 150.0, 205.0, "2", is_numeric_candidate=True),
         _make_text("E2", 170.0, 205.0, "1n2003"),
+        # A sparse far column is valid when it names a known terminal header.
+        _make_text("R3", 150.0, 200.0, "3", is_numeric_candidate=True),
+        _make_text("NEXT3", 220.0, 200.0, "2UD3"),
+        # A blank port must not borrow an unrelated endpoint from that column.
+        _make_text("R4", 150.0, 195.0, "4", is_numeric_candidate=True),
+        _make_text("PEER7", 230.0, 195.0, "7", is_numeric_candidate=True),
+        _make_text("NEXT4", 220.0, 195.0, "1n2124"),
     ]
 
     pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
@@ -579,6 +601,10 @@ def test_extract_terminal_header_table_pairs_keeps_same_port_left_and_right_fano
     assert ("1UD-1", "1n2001") in pair_values
     assert ("1UD-2", "1ZKK1-4") in pair_values
     assert ("1UD-2", "1n2003") in pair_values
+    assert ("1UD-1", "1n2123") not in pair_values
+    assert ("1UD-3", "2UD3") in pair_values
+    assert ("1UD-4", "1n2124") not in pair_values
+    assert len(pair_values) == 5
     assert all(pair.pair_kind == "table_mapping" for pair in pairs)
 
 
@@ -610,6 +636,62 @@ def test_extract_terminal_header_table_pairs_excludes_semantic_endpoint_labels()
     }
     assert "I0" not in mapping_endpoints
     assert "3U0" not in mapping_endpoints
+
+
+def test_extract_terminal_header_table_pairs_accepts_accessory_port_designators() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 260.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "right terminal accessories.dwg"
+    texts = [
+        _make_text("H", 190.0, 276.0, "JD"),
+        _make_text("DESC", 152.0, 276.25, "说明"),
+        _make_text("R1", 191.0, 268.5, "1", is_numeric_candidate=True),
+        _make_text("E1", 168.5, 268.5, "AK-1"),
+        _make_text("R2", 191.0, 263.5, "2", is_numeric_candidate=True),
+        _make_text("E2", 168.5, 263.5, "CZ-L"),
+        _make_text("R3", 191.0, 258.5, "3", is_numeric_candidate=True),
+        _make_text("E3", 168.5, 258.5, "KZKK-3"),
+        _make_text("G3", 198.5, 258.5, "GND"),
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("JD-1", "AK-1"),
+        ("JD-2", "CZ-L"),
+        ("JD-3", "KZKK-3"),
+        ("JD-3", "GND"),
+    }
+
+
+def test_adjacent_terminal_headers_do_not_claim_each_others_endpoint_columns() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "adjacent terminal strips.dwg"
+    texts = [
+        _make_text("HTD", 100.0, 276.0, "TD"),
+        _make_text("STD", 60.0, 276.25, "说明"),
+        _make_text("HJD", 190.0, 276.0, "JD"),
+        _make_text("SJD", 152.0, 276.25, "说明"),
+        _make_text("RT1", 100.0, 268.5, "1", is_numeric_candidate=True),
+        _make_text("ET1", 76.0, 268.5, "1n1412"),
+        _make_text("RJ1", 190.0, 268.5, "1", is_numeric_candidate=True),
+        _make_text("EJ1", 168.5, 268.5, "AK-1"),
+        _make_text("RT2", 100.0, 263.5, "2", is_numeric_candidate=True),
+        _make_text("ET2", 76.0, 263.5, "1n1413"),
+        _make_text("RJ2", 190.0, 263.5, "2", is_numeric_candidate=True),
+        _make_text("EJ2", 168.5, 263.5, "CZ-L"),
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+
+    assert pair_values == {
+        ("TD-1", "1n1412"),
+        ("TD-2", "1n1413"),
+        ("JD-1", "AK-1"),
+        ("JD-2", "CZ-L"),
+    }
 
 
 def test_extract_terminal_header_table_pairs_skips_sparse_header_like_group() -> None:
@@ -744,8 +826,8 @@ def test_extract_table_pairs_builds_backplate_virtual_table_mappings() -> None:
         _make_text("R2", x=233.75, y=238.75, value="02", is_numeric_candidate=True, source_block_name="WBH-814E-E1SA-101"),
         _make_text("R3", x=208.75, y=233.75, value="03", is_numeric_candidate=True, source_block_name="WBH-814E-E1SA-101"),
         _make_text("E1", x=199.0, y=238.5, value="5FD15"),
-        _make_text("E2", x=238.5, y=238.5, value="5FD16"),
-        _make_text("E3", x=199.0, y=233.5, value="5FD17"),
+        _make_text("E2", x=238.5, y=238.5, value="5FD16 *"),
+        _make_text("E3", x=199.0, y=233.5, value="1U2D17"),
         _make_text("N1", x=213.0, y=239.0, value="调压重瓦斯开入", source_block_name="WBH-814E-E1SA-101"),
     ]
 
@@ -760,7 +842,7 @@ def test_extract_table_pairs_builds_backplate_virtual_table_mappings() -> None:
     assert pair_values == {
         ("NKR308A-1", "5FD15"),
         ("NKR308A-2", "5FD16"),
-        ("NKR308A-3", "5FD17"),
+        ("NKR308A-3", "1U2D17"),
     }
     assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
     assert all(pair.evidence["pair_kind"] == "table_mapping" for pair in pairs)
@@ -817,6 +899,67 @@ def test_extract_table_pairs_skips_sparse_backplate_header_group() -> None:
 
     assert pairs == []
     assert mappings == []
+
+
+def test_sparse_backplate_header_does_not_reserve_rows_from_authoritative_header() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 300.0, 260.0))
+    sheet.filename = "rear wiring.dwg"
+    sheet.sheet_title = "REAR WIRING"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+    block = "UNSEEN-BACKPLATE"
+    texts = [
+        # This higher candidate can see only row 1 (90-unit boundary). It is
+        # too sparse and must not reserve that row/endpoint from NJL307.
+        _make_text("WEAK", x=120.0, y=250.0, value="LAN1", source_block_name=block),
+        _make_text("HEADER", x=120.0, y=170.0, value="NJL307", source_block_name=block),
+        _make_text("R1", x=116.0, y=160.0, value="01", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R2", x=116.0, y=155.0, value="02", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R3", x=116.0, y=150.0, value="03", is_numeric_candidate=True, source_block_name=block),
+        _make_text("E1", x=105.0, y=160.0, value="1U2D1"),
+        _make_text("E2", x=105.0, y=155.0, value="1U2D2"),
+        _make_text("E3", x=105.0, y=150.0, value="1U2D3"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("NJL307-1", "1U2D1"),
+        ("NJL307-2", "1U2D2"),
+        ("NJL307-3", "1U2D3"),
+    }
+    assert len(mappings) == 1
+
+
+def test_repeated_backplate_device_header_outranks_incidental_signal_label() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 260.0))
+    sheet.filename = "rear wiring.dwg"
+    sheet.sheet_title = "REAR WIRING"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+    block = "UNSEEN-BACKPLATE"
+    texts = [
+        # LAN2 can geometrically see all three rows, but it is an incidental
+        # signal label. Repeated NJL307 headers establish the device family.
+        _make_text("SIGNAL", x=120.0, y=240.0, value="LAN2", source_block_name=block),
+        _make_text("HEADER1", x=120.0, y=170.0, value="NJL307", source_block_name=block),
+        _make_text("HEADER2", x=220.0, y=170.0, value="NJL307", source_block_name=block),
+        _make_text("R1", x=116.0, y=160.0, value="01", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R2", x=116.0, y=155.0, value="02", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R3", x=116.0, y=150.0, value="03", is_numeric_candidate=True, source_block_name=block),
+        _make_text("E1", x=105.0, y=160.0, value="1U2D1"),
+        _make_text("E2", x=105.0, y=155.0, value="1U2D2"),
+        _make_text("E3", x=105.0, y=150.0, value="1U2D3"),
+    ]
+
+    pairs, _ = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("NJL307-1@c0", "1U2D1"),
+        ("NJL307-2@c0", "1U2D2"),
+        ("NJL307-3@c0", "1U2D3"),
+    }
+    assert not any(pair.left_value.startswith("LAN2-") for pair in pairs)
 
 
 def test_extract_table_pairs_builds_composite_pmu_instance_pin_mappings() -> None:

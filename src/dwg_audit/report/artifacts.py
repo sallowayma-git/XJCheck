@@ -972,6 +972,7 @@ def write_project_artifacts(
     text_assignments = build_text_assignment_frame(
         artifacts,
         page_classifications=page_classifications,
+        table_mappings=table_mappings,
     )
     entity_coverage_summary_frame, entity_coverage_summary = build_entity_coverage_summary(
         text_assignments,

@@ -4,6 +4,8 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
+Phase 176 B3 terminal-header fan-out and A2 backplate generalization is in progress. The current slice must preserve header+middle-port identity, emit both-side mappings for one logical terminal port, keep backplate pins electrically independent, and prove fail-closed behavior with negative tests plus fresh project replay.
+
 Phase 174 desktop UTF-8 and issue-preview repair is complete. Packaged synchronous sidecar JSON now emits UTF-8, compacted no-coordinate issues return an explicit SQLite-summary SVG, preview loading is bounded, and the rebuilt installed runtime passes real PAC-885G-H byte/preview checks.
 
 Phase 173 held-out evaluation of new heavyweight set `test/PAC-885G-H` (31 DWG + prj/xml). Goal: determine whether the current recognition engine fails to classify pages, errors out, fails extraction, or incorrectly ignores content. Report concrete fail modes; do not retune on held-out unless user authorizes.
@@ -11,6 +13,16 @@ Phase 173 held-out evaluation of new heavyweight set `test/PAC-885G-H` (31 DWG +
 Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapped to `oda/platforms/`, the rebuilt NSIS package was installed, and installed-runtime conversion succeeded. Phase 171 recognition loop continues in parallel for known corpus residuals.
 
 ## Phases
+
+### Phase 176: B3 Terminal Header Fan-out And A2 Backplate Generalization
+- [x] Recover active goal, planning state, dirty-worktree boundaries, and phase175 fresh corpus baseline
+- [x] Run six parallel read-only audits for B3, right-terminal fan-out, A2, rule safety, 35000 residuals, and replay commands
+- [x] Visually inspect the three user-supplied source crops and record authoritative semantics
+- [x] Tighten the unverified rule guards so unrelated tables and scoped endpoints still report true conflicts
+- [x] Verify and improve B3 header+middle-port extraction with both-side mappings and ordinary-pair shadowing
+- [x] Verify A2/BI/voltage/open-input/open-output backplate extraction remains independent multi-port without electrical union
+- [ ] Run focused positive/negative tests, affected-project fresh replay, 27-project rule replay, full test gate, documentation sync, and temp cleanup
+- **Status:** in_progress
 
 ### Phase 174: Desktop UTF-8 And Issue Preview Repair
 - [x] Inspect the supplied screenshot and record visible failure boundaries
@@ -2730,4 +2742,16 @@ Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapp
 - [x] Replace unsafe page/name/length shadows with fail-closed local evidence; scope component endpoint coverage by sheet
 - [x] Add HMC same-sheet real-endpoint and cross-sheet endpoint adversarial tests, then fresh replay affected projects
 - [x] Generalize header+middle-port three-column tables and table-like backplate plug-ins; replay 24000/25000/8000/20000/15000 clusters
+- **Status:** in_progress
+
+### Phase 175: Current-HEAD Structural Mapping And Fresh-Corpus Loop
+- [x] Recover repository/goal state and isolate the unknown root `package-lock.json`.
+- [x] Concurrently locate S0025 CD/XJDZ mapping root cause, replay commands, source evidence, regression gaps, S0026 negative evidence, and current residual clusters.
+- [x] Review and harden the existing uncommitted matrix/coverage changes; empty matrices no longer count as semantic coverage.
+- [x] Generalize XJDZ structural terminal extraction so full hierarchical endpoints and `definition:pin` identities do not fall back to bare-number pairs.
+- [x] Add positive/negative geometry, structure, distinct-instance cardinality, and fail-closed coverage tests.
+- [x] Fresh replay S0025 and the full 20000 project; six mappings restored, S0025=0 issue, genuine S0026 n425/n427 conflicts remain visible.
+- [x] Run current-HEAD focused/full tests and fresh extraction + audit for all 502 DWGs; 27/27 projects and 502/502 pages validate, corpus census VALID, extraction verification has 0 FAIL / 27 REVIEW.
+- [ ] Replay PAC-885G-H on the finalized rule set and continue the fresh 502 residual clusters (170 issues, including one critical).
+- [ ] Iterate remaining clusters without hiding true errors; clean regenerable artifacts and synchronize taskbook/findings/progress before commit/push.
 - **Status:** in_progress

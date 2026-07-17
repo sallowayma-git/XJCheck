@@ -213,6 +213,37 @@ def _pair_assignments(pairs: list[Any]) -> dict[str, list[dict[str, Any]]]:
     return assignments
 
 
+def _table_structure_assignments(
+    table_mappings: list[dict[str, Any]] | None,
+) -> dict[str, list[dict[str, Any]]]:
+    assignments: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for table in table_mappings or []:
+        is_matrix = bool(table.get("matrix_table") and table.get("mappings"))
+        is_component_backplate = bool(table.get("component_backplate"))
+        if not (is_matrix or is_component_backplate):
+            continue
+        sheet_id = str(table.get("sheet_id") or "")
+        mapping_mode = (
+            "output_contact_matrix"
+            if is_matrix
+            else "accessory_backplate_two_port"
+        )
+        for text_id in table.get("structural_text_ids", []) or []:
+            if not text_id:
+                continue
+            assignments[str(text_id)].append(
+                {
+                    "assignment_kind": "semantic_evidence",
+                    "explain_reason": "covered_by_output_contact_matrix_structure",
+                    "assignment_source": "table_mapping_structure",
+                    "mapping_id": f"{sheet_id}:{mapping_mode}",
+                    "mapping_mode": mapping_mode,
+                    "pair_kind": "table_mapping_structure",
+                }
+            )
+    return assignments
+
+
 def _best_pair_assignment(rows: list[dict[str, Any]]) -> dict[str, Any]:
     priority = {
         "pair_endpoint": 0,
@@ -305,10 +336,12 @@ def build_text_assignment_frame(
     artifacts: ProjectArtifacts,
     *,
     page_classifications: dict[str, PageClassification] | None = None,
+    table_mappings: list[dict[str, Any]] | None = None,
 ) -> pd.DataFrame:
     contexts = _sheet_contexts(artifacts.scan.pages, page_classifications)
     candidates_by_text_id = _candidate_lookup(artifacts.terminal_candidates)
     assignments_by_text_id = _pair_assignments(artifacts.pairs)
+    table_assignments_by_text_id = _table_structure_assignments(table_mappings)
 
     rows: list[dict[str, Any]] = []
     for text in artifacts.texts:
@@ -379,27 +412,39 @@ def build_text_assignment_frame(
                 }
             )
         else:
-            candidates = candidates_by_text_id.get(text.text_id, [])
-            if candidates:
-                chosen_candidate = _best_candidate(candidates)
-                candidate_row = _candidate_assignment(chosen_candidate)
-                row.update(candidate_row)
+            table_rows = table_assignments_by_text_id.get(text.text_id, [])
+            if table_rows:
                 row.update(
                     {
-                        "channel": chosen_candidate.channel,
-                        "consumed_by_candidate_ids": _json_list([item.candidate_id for item in candidates]),
-                        "consumed_by_line_group_ids": _json_list([item.line_group_id for item in candidates]),
+                        "assignment_kind": "semantic_evidence",
+                        "explain_reason": table_rows[0]["explain_reason"],
+                        "assignment_source": table_rows[0]["assignment_source"],
+                        "consumed_by_kinds": _json_list([item["pair_kind"] for item in table_rows]),
+                        "consumed_by_mapping_modes": _json_list([item["mapping_mode"] for item in table_rows]),
                     }
                 )
-            elif out_reason is not None:
-                row.update(
-                    {
-                        "assignment_kind": "out_of_scope",
-                        "explain_reason": out_reason,
-                        "assignment_source": "page_scope",
-                        "counts_toward_contract": False,
-                    }
-                )
+            else:
+                candidates = candidates_by_text_id.get(text.text_id, [])
+                if candidates:
+                    chosen_candidate = _best_candidate(candidates)
+                    candidate_row = _candidate_assignment(chosen_candidate)
+                    row.update(candidate_row)
+                    row.update(
+                        {
+                            "channel": chosen_candidate.channel,
+                            "consumed_by_candidate_ids": _json_list([item.candidate_id for item in candidates]),
+                            "consumed_by_line_group_ids": _json_list([item.line_group_id for item in candidates]),
+                        }
+                    )
+                elif out_reason is not None:
+                    row.update(
+                        {
+                            "assignment_kind": "out_of_scope",
+                            "explain_reason": out_reason,
+                            "assignment_source": "page_scope",
+                            "counts_toward_contract": False,
+                        }
+                    )
 
         rows.append(row)
 

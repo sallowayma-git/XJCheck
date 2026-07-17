@@ -195,6 +195,48 @@ def test_build_text_assignment_frame_prefers_semantic_candidate_evidence() -> No
     assert row["explain_reason"] == "terminal_ac_marker"
 
 
+def test_build_text_assignment_frame_does_not_count_empty_matrix_structure() -> None:
+    text = _text("T1", "出口1 Output 1", 50, 50)
+    frame = build_text_assignment_frame(
+        _artifacts(texts=[text]),
+        table_mappings=[
+            {
+                "sheet_id": "S1",
+                "matrix_table": True,
+                "structural_text_ids": ["T1"],
+                "mappings": [],
+            }
+        ],
+    )
+    row = frame.iloc[0]
+
+    assert row["assignment_kind"] == "unexplained"
+    assert row["assignment_source"] == "coverage_contract"
+    assert bool(row["counts_toward_contract"]) is True
+    assert row["consumed_by_mapping_modes"] == []
+
+
+def test_build_text_assignment_frame_counts_recovered_matrix_mapping_text() -> None:
+    text = _text("T1", "出口1 Output 1", 90, 10)
+    frame = build_text_assignment_frame(
+        _artifacts(texts=[text]),
+        table_mappings=[
+            {
+                "sheet_id": "S1",
+                "matrix_table": True,
+                "structural_text_ids": ["T1"],
+                "mappings": [{"row_text_id": "T1"}],
+            }
+        ],
+    )
+    row = frame.iloc[0]
+
+    assert row["assignment_kind"] == "semantic_evidence"
+    assert row["assignment_source"] == "table_mapping_structure"
+    assert bool(row["counts_toward_contract"]) is True
+    assert row["consumed_by_mapping_modes"] == ["output_contact_matrix"]
+
+
 def test_build_entity_coverage_summary_preserves_identity_and_metrics() -> None:
     texts = [
         _text("T1", "101", 10, 10),

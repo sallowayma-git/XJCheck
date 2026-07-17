@@ -317,3 +317,12 @@ connectivity and electrical union.
 - Human-confirmed example: `1-21KK-1 → 1-21ZK-2`. The same contract applies to every pin: `instance-pin → same-side external endpoint`; absent external wiring remains an unwired identity and must not create an internal bridge.
 - Geometry authority is the complete body/contact/text topology, not the fingerprint: the pure-number family is a regular `2×N` grid; the functional family is a five-row pair grid plus one extra `R-` row. Both require one repeated outer contact per circle and one much larger rounded body. Rotated/scaled/reflected complete members match; displaced same-census near-negatives remain review.
 - Full replay evidence: pure-number arrays cover 14 instances / 220 pins; XJDZ9-04 covers 3 DWGs / 7 instances / 77 pins. Every definition row is `MACHINE_GEOMETRY_RULE+HUMAN_EXACT_MEMBER`; internal connectivity and union are zero.
+- S0025 structural terminal clarification: definition-owned BORDER routes preserve the complete logical endpoint and native definition pin (for example `3-21CD6 -> XJDZ9-02-2B4-001:8` and `1-21CD6,1-21ZK-9 -> XJDZ9-02-2B4-001:7`). Full `CD11 -> CD8` identities are also preserved. These are mapping facts only; they never connect XJDZ pins internally.
+- Cardinality is physical-instance scoped: equal `XJDZ-definition:pin` strings from distinct INSERT handles are separate component instances. Multiple sources targeting the same pin on one INSERT remain review authority.
+## Phase 176 — B3 三列表端子与 A2 背板裁决（2026-07-17）
+
+- 三列表端子由“说明”锁定表结构；表头实例名与中间列端口号组合为完整逻辑端点，例如 `1UD-1`。
+- 同一逻辑端口可以分别映射左右两侧外部端点，例如 `1UD-1 -> 1ZKK1-2`、`1UD-1 -> 1n2001`；这些映射不表示组件内部端口互联。
+- 空白端口不建立映射；不得因同 y 或宽松 x 容差借用邻表端点。
+- 相邻端子表可共享同一 `n` 端点，但必须由同 y、同端口号或完整 reciprocal 中心端子表闭环证明。
+- BI/电压/开入/开出插件背板按独立多端口组件处理；各 pin 仅向外映射，内部不联通，不建立 electrical union。

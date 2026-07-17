@@ -5,10 +5,13 @@ from dwg_audit.audit.page_extractors import _mark_schematic_ground_covered_ordin
 from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
 from dwg_audit.audit.page_extractors import _promote_regular_terminal_row_array_pairs
+from dwg_audit.audit.page_extractors import _promote_xjdz_structural_component_pairs
 from dwg_audit.audit.rules import build_issues
+from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
+from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.config import DEFAULT_CONFIG
 
 
@@ -776,6 +779,139 @@ def test_signal_alarm_cues_do_not_shadow_real_ordinary_pairs() -> None:
 
     assert ordinary.evidence.get("ordinary_pair_eligible") is not False
     assert "ordinary_pair_shadow_reason" not in ordinary.evidence
+
+
+def test_promote_xjdz_structural_component_pairs_preserves_full_endpoint_and_pin() -> None:
+    pair = _pair(
+        {},
+        line_group_id="GX1",
+        left_text_id="TX_LEFT",
+        right_text_id="TX_PIN",
+        left_value="6",
+        right_value="8",
+    )
+    group = _line_group(
+        "GX1",
+        start_x=10.0,
+        end_x=10.0,
+        start_y=20.0,
+        end_y=0.0,
+        orientation="vertical",
+    )
+    group.member_line_ids = ["LX1", "LX2", "LX3"]
+
+    def text(text_id: str, value: str, *, block: str | None = None) -> TextItem:
+        return TextItem(
+            text_id=text_id,
+            sheet_id="S1",
+            file_id="F1",
+            handle=text_id,
+            entity_type="TEXT",
+            text=value,
+            normalized_text=value,
+            is_numeric_candidate=value.isdigit(),
+            layer="0",
+            rotation_deg=0.0,
+            height=2.5,
+            insert_x=10.0,
+            insert_y=10.0,
+            bbox_min_x=9.0,
+            bbox_min_y=9.0,
+            bbox_max_x=11.0,
+            bbox_max_y=11.0,
+            source_block_name=block,
+        )
+
+    line = LineEntity(
+        line_id="LX1",
+        sheet_id="S1",
+        file_id="F1",
+        handle="HX1:VIRTUAL:1",
+        source_entity_type="LINE",
+        layer="BORDER",
+        start_x=10.0,
+        start_y=20.0,
+        end_x=10.0,
+        end_y=0.0,
+        length=20.0,
+        angle_deg=90.0,
+        bbox_min_x=10.0,
+        bbox_min_y=0.0,
+        bbox_max_x=10.0,
+        bbox_max_y=20.0,
+        source_block_name="XJDZ9-02-2B4-001",
+    )
+    adjacent_definition_line = LineEntity(
+        line_id="LX2",
+        sheet_id="S1",
+        file_id="F1",
+        handle="HX2",
+        source_entity_type="LINE",
+        layer="BORDER",
+        start_x=10.0,
+        start_y=40.0,
+        end_x=10.0,
+        end_y=20.0,
+        length=20.0,
+        angle_deg=90.0,
+        bbox_min_x=10.0,
+        bbox_min_y=20.0,
+        bbox_max_x=10.0,
+        bbox_max_y=40.0,
+        source_block_name="XJDZ9-06-4B4-011",
+    )
+    same_instance_definition_line = LineEntity(
+        line_id="LX3",
+        sheet_id="S1",
+        file_id="F1",
+        handle="HX1:VIRTUAL:2",
+        source_entity_type="LINE",
+        layer="BORDER",
+        start_x=10.0,
+        start_y=0.0,
+        end_x=10.0,
+        end_y=-20.0,
+        length=20.0,
+        angle_deg=90.0,
+        bbox_min_x=10.0,
+        bbox_min_y=-20.0,
+        bbox_max_x=10.0,
+        bbox_max_y=0.0,
+        source_block_name="XJDZ9-02-2B4-001",
+    )
+
+    _promote_xjdz_structural_component_pairs(
+        [pair],
+        [group],
+        [text("TX_LEFT", "3-21CD6"), text("TX_PIN", "8", block="XJDZ9-02-2B4-001")],
+        [line, adjacent_definition_line, same_instance_definition_line],
+    )
+
+    assert pair.left_value == "3-21CD6"
+    assert pair.right_value == "XJDZ9-02-2B4-001:8"
+    assert pair.pair_kind == "component_mapping"
+    assert pair.status == "pass"
+    assert pair.evidence["internal_connectivity_inferred"] is False
+    assert pair.evidence["electrical_union_eligible"] is False
+
+
+def test_promote_xjdz_structural_component_pairs_requires_definition_owned_group() -> None:
+    pair = _pair(
+        {},
+        line_group_id="GX2",
+        left_text_id="TX_LEFT",
+        right_text_id="TX_RIGHT",
+        left_value="11",
+        right_value="8",
+    )
+    group = _line_group("GX2", start_x=10.0, end_x=10.0, orientation="vertical")
+
+    _promote_xjdz_structural_component_pairs([pair], [group], [], [])
+
+    assert pair.left_value == "11"
+    assert pair.right_value == "8"
+    assert pair.pair_kind == "ordinary_pair"
+    assert pair.status == "review"
 
 
 def test_repeated_panel_geometry_shadows_only_single_sided_dim_silkscreen() -> None:

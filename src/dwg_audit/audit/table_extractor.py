@@ -45,9 +45,13 @@ _OUTPUT_MATRIX_ROW_STRAP_PATTERN = re.compile(r"^[A-Z0-9-]*CLP\d+$", re.IGNORECA
 _OUTPUT_MATRIX_COLUMN_STRAP_PATTERN = re.compile(r"^[A-Z0-9-]*KLP\d+$", re.IGNORECASE)
 _HEADER_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9\-_/]*[A-Za-z][A-Za-z0-9\-_/]*$")
 _TERMINAL_ENDPOINT_PATTERN = re.compile(r"(?i).*(?:[a-z]\d+(?:-\d+)?)$")
+_TERMINAL_DEVICE_PORT_PATTERN = re.compile(
+    r"^(?=.*[A-Za-z])(?=.*(?:[0-9]|-[A-Za-z]))[A-Za-z0-9']+(?:-[A-Za-z0-9']+)*$",
+    re.IGNORECASE,
+)
 _BACKPLATE_HEADER_PATTERN = re.compile(r"^[A-Za-z]{2,}[0-9]+[A-Za-z]?(?:[（(].*[）)])?$")
 _BACKPLATE_ENDPOINT_PATTERN = re.compile(
-    r"^(?:[0-9](?:-[0-9]+)?[A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?|[A-Za-z]{1,5}[0-9]+(?:-[0-9]+)?)$",
+    r"^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
     re.IGNORECASE,
 )
 # Whole-device instance labels on composite PMU/测控 rear wiring sheets: "1-25n", "2-21n".
@@ -153,6 +157,7 @@ def extract_table_pairs(
                 profile,
                 sheet,
             )
+            structural_text_ids = _output_contact_matrix_structural_text_ids(mappings)
             table_mappings.append(
                 {
                     "sheet_id": sheet_id,
@@ -164,6 +169,7 @@ def extract_table_pairs(
                     "matrix_table": True,
                     "mapping_semantics": "non_conductive_contact_matrix",
                     "marked_cell_count": len(mappings),
+                    "structural_text_ids": structural_text_ids,
                     "mappings": mappings,
                 }
             )
@@ -384,6 +390,7 @@ def _build_output_contact_matrix_mappings(
                 "row_output": row_output,
                 "row_strap": row_strap_value,
                 "row_objects": row_object_values,
+                "row_object_text_ids": [text.text_id for text in row_objects],
                 "row_text_id": row_label.text_id,
                 "row_strap_text_id": row_strap.text_id if row_strap is not None else None,
                 "column_value": column_value,
@@ -404,6 +411,22 @@ def _build_output_contact_matrix_mappings(
             }
         )
     return mappings
+
+
+def _output_contact_matrix_structural_text_ids(
+    mappings: list[dict[str, Any]],
+) -> list[str]:
+    """Return only text identities cited by recovered matrix mappings."""
+
+    text_ids: set[str] = set()
+    for mapping in mappings:
+        for key in ("row_text_id", "row_strap_text_id"):
+            text_id = mapping.get(key)
+            if text_id:
+                text_ids.add(str(text_id))
+        for key in ("row_object_text_ids", "column_header_text_ids"):
+            text_ids.update(str(text_id) for text_id in mapping.get(key, []) or [] if text_id)
+    return sorted(text_ids)
 
 
 def _axis_interval_index(axes: list[float], value: float) -> int | None:
@@ -730,12 +753,26 @@ def _build_terminal_header_table_mappings(
         if not ordered_rows:
             continue
 
-        if not _terminal_header_group_has_structure(ordered_rows, endpoints, has_shuoming=shuoming is not None):
+        if not _terminal_header_group_has_structure(
+            ordered_rows,
+            endpoints,
+            has_shuoming=shuoming is not None,
+        ):
             continue
 
         for row in ordered_rows:
             row_number = int(row.normalized_text)
-            row_endpoints = _same_row_terminal_endpoints(row, endpoints, shuoming=shuoming)
+            row_endpoints = [
+                endpoint
+                for endpoint in _same_row_terminal_endpoints(row, endpoints, shuoming=shuoming)
+                if _terminal_header_endpoint_owned_by_row(
+                    endpoint,
+                    row,
+                    header,
+                    terminal_headers,
+                    row_numbers,
+                )
+            ]
             if not row_endpoints:
                 continue
             logical_endpoint = _compose_terminal_header_logical_endpoint(header_prefix, row_number)
@@ -768,6 +805,8 @@ def _build_terminal_header_table_mappings(
                         "row_number_sequence_valid": True,
                         "has_shuoming_column": shuoming is not None,
                         "shuoming_text_id": shuoming.text_id if shuoming is not None else None,
+                        "endpoint_column_x": endpoint.insert_x,
+                        "endpoint_column_authority": "nearest_header_or_named_row",
                         "column_roles": {
                             "left": "terminal_endpoint" if side_key == "left" else "empty",
                             "middle": "row_number",
@@ -1004,7 +1043,12 @@ def _build_backplate_virtual_mappings(
         if prefix:
             headers_by_prefix[prefix].append(header)
 
-    for header in sorted(headers, key=lambda item: (item.source_block_name or "", -item.insert_y, item.insert_x, item.text_id)):
+    def _header_priority(item: TextItem) -> tuple[str, int, float, float, str]:
+        prefix = _normalize_backplate_header_prefix(item.normalized_text)
+        peer_count = len(headers_by_prefix.get(prefix or "", []))
+        return (item.source_block_name or "", -peer_count, -item.insert_y, item.insert_x, item.text_id)
+
+    for header in sorted(headers, key=_header_priority):
         header_prefix = _normalize_backplate_header_prefix(header.normalized_text)
         if not header_prefix:
             continue
@@ -1024,10 +1068,18 @@ def _build_backplate_virtual_mappings(
         multi_bay_headers = headers_by_prefix.get(header_prefix) or [header]
         use_column_key = len(multi_bay_headers) > 1
         header_mappings: list[dict[str, Any]] = []
+        header_seen: set[tuple[str, str, str, str]] = set()
+        header_endpoint_ids: set[str] = set()
+        header_pin_ids: set[str] = set()
         for row in sorted(header_rows, key=lambda item: (-item.insert_y, item.insert_x, item.text_id)):
             endpoint = _nearest_backplate_endpoint(
                 row,
-                [item for item in endpoints if item.text_id not in used_endpoint_ids],
+                [
+                    item
+                    for item in endpoints
+                    if item.text_id not in used_endpoint_ids
+                    and item.text_id not in header_endpoint_ids
+                ],
             )
             if endpoint is None:
                 continue
@@ -1066,11 +1118,11 @@ def _build_backplate_virtual_mappings(
                 column_key=column_key,
             )
             dedupe_key = (header.text_id, row.text_id, endpoint.text_id, logical_endpoint)
-            if dedupe_key in seen:
+            if dedupe_key in seen or dedupe_key in header_seen:
                 continue
-            seen.add(dedupe_key)
-            used_endpoint_ids.add(endpoint.text_id)
-            used_pin_ids.add(row.text_id)
+            header_seen.add(dedupe_key)
+            header_endpoint_ids.add(endpoint.text_id)
+            header_pin_ids.add(row.text_id)
             header_mappings.append(
                 {
                     "mapping_mode": "backplate_virtual_table",
@@ -1109,6 +1161,9 @@ def _build_backplate_virtual_mappings(
             )
         if len(header_mappings) < _BACKPLATE_MIN_HEADER_ENDPOINT_HITS:
             continue
+        seen.update(header_seen)
+        used_endpoint_ids.update(header_endpoint_ids)
+        used_pin_ids.update(header_pin_ids)
         mappings.extend(header_mappings)
     return mappings
 
@@ -1598,7 +1653,11 @@ def _looks_like_table_endpoint(value: str | None) -> bool:
     text = str(value).strip().upper()
     if text in _TERMINAL_HEADER_SEMANTIC_ENDPOINTS:
         return False
-    return bool(_TERMINAL_ENDPOINT_PATTERN.fullmatch(text))
+    return bool(
+        _TERMINAL_ENDPOINT_PATTERN.fullmatch(text)
+        or _TERMINAL_DEVICE_PORT_PATTERN.fullmatch(text)
+        or text == "GND"
+    )
 
 
 def _looks_like_terminal_header_prefix(
@@ -1771,7 +1830,86 @@ def _same_row_terminal_endpoints(
         and 0.0 < abs(endpoint.insert_x - row.insert_x) <= _TERMINAL_HEADER_ENDPOINT_X_TOL
         and not _endpoint_beyond_shuoming_column(row, endpoint, shuoming)
     ]
-    return sorted(same_row, key=lambda item: (abs(item.insert_x - row.insert_x), item.insert_x, item.text_id))
+    # A terminal-header strip has one external endpoint column on each side.
+    # Dense terminal sheets place the next strip's outer endpoint on the same
+    # y-coordinate and still inside the broad x tolerance.  Keeping every
+    # same-side text lets the nearer table steal that adjacent strip endpoint
+    # (for example 1UD-1 incorrectly claiming 1n2123 beyond 1ZKK1-2).
+    # Preserve the nearest endpoint independently on the left and right; this
+    # retains the authoritative two-sided fan-out while enforcing three-column
+    # ownership.
+    nearest_by_side: dict[str, TextItem] = {}
+    for endpoint in sorted(
+        same_row,
+        key=lambda item: (abs(item.insert_x - row.insert_x), item.insert_x, item.text_id),
+    ):
+        side = "left" if endpoint.insert_x < row.insert_x else "right"
+        nearest_by_side.setdefault(side, endpoint)
+    return sorted(
+        nearest_by_side.values(),
+        key=lambda item: (abs(item.insert_x - row.insert_x), item.insert_x, item.text_id),
+    )
+
+
+def _endpoint_targets_terminal_header_row(
+    endpoint: TextItem,
+    row_number: int,
+    terminal_headers: list[TextItem],
+) -> bool:
+    """Keep a sparse column only when it names another known terminal port."""
+
+    endpoint_key = re.sub(r"[^0-9A-Z]", "", str(endpoint.normalized_text or "").upper())
+    if not endpoint_key:
+        return False
+    return any(
+        endpoint_key
+        == re.sub(r"[^0-9A-Z]", "", f"{header.normalized_text}{row_number}".upper())
+        for header in terminal_headers
+    )
+
+
+def _terminal_header_endpoint_owned_by_row(
+    endpoint: TextItem,
+    row: TextItem,
+    header: TextItem,
+    terminal_headers: list[TextItem],
+    row_numbers: list[TextItem],
+) -> bool:
+    """Own an endpoint without stealing a different-number neighboring row."""
+
+    current_distance = abs(endpoint.insert_x - header.insert_x)
+    closer_peers = [
+        peer
+        for peer in terminal_headers
+        if peer.text_id != header.text_id
+        and abs(peer.insert_x - header.insert_x) > 1.0
+        and abs(endpoint.insert_x - peer.insert_x) + 1e-6 < current_distance
+        and any(
+            abs(candidate.insert_x - peer.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+            and abs(candidate.insert_y - row.insert_y) <= _TERMINAL_HEADER_ENDPOINT_Y_TOL
+            for candidate in row_numbers
+        )
+    ]
+    if not closer_peers:
+        return True
+
+    row_number = int(row.normalized_text)
+    if _endpoint_targets_terminal_header_row(endpoint, row_number, terminal_headers):
+        return True
+
+    if not re.search(r"(?i)n\d+$", str(endpoint.normalized_text or "").strip()):
+        return False
+
+    nearest_peer = min(
+        closer_peers,
+        key=lambda peer: (abs(endpoint.insert_x - peer.insert_x), peer.text_id),
+    )
+    return any(
+        candidate.normalized_text == row.normalized_text
+        and abs(candidate.insert_x - nearest_peer.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+        and abs(candidate.insert_y - row.insert_y) <= _TERMINAL_HEADER_ENDPOINT_Y_TOL
+        for candidate in row_numbers
+    )
 
 
 def _endpoint_beyond_shuoming_column(
@@ -1804,7 +1942,8 @@ def _normalize_backplate_header_prefix(value: str | None) -> str | None:
 def _normalize_backplate_endpoint(value: str | None) -> str:
     if not value:
         return ""
-    return re.sub(r"^[^0-9A-Za-z]+", "", str(value).strip()).replace(" ", "")
+    compact = str(value).strip().replace(" ", "")
+    return re.sub(r"^[^0-9A-Za-z]+|[^0-9A-Za-z]+$", "", compact)
 
 
 def _looks_like_backplate_header(value: str | None) -> bool:

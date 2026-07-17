@@ -9,6 +9,7 @@ from dwg_audit.audit.page_extractors import extract_terminal_pairs
 from dwg_audit.audit.page_extractors import extract_wire_pairs
 from dwg_audit.audit.extraction_gate import evaluate_extraction_completeness
 from dwg_audit.audit.table_extractor import extract_table_pairs
+from dwg_audit.audit.backplate_components import extract_accessory_backplate_two_port_pairs
 from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.ingest import convert_source_files
 from dwg_audit.ingest import discover_project_roots
@@ -211,6 +212,37 @@ def analyze_input_root(
                 }
             )
         pairs.extend(table_pairs)
+
+        # Some accessory/backplate pages are primarily routed as Table or Wire
+        # even though they contain repeated component instances.  Recover only
+        # geometry-owned components outside the normal Component route.
+        accessory_pages = [
+            page for page in audit_pages
+            if page.route_target != "ComponentDiagramExtractor"
+        ]
+        accessory_sheet_ids = {page.sheet_id for page in accessory_pages}
+        accessory_pairs, accessory_mappings = extract_accessory_backplate_two_port_pairs(
+            accessory_pages,
+            [text for text in audit_texts if text.sheet_id in accessory_sheet_ids],
+            [line for line in audit_lines if line.sheet_id in accessory_sheet_ids],
+            [block for block in blocks if block.sheet_id in accessory_sheet_ids],
+        )
+        if accessory_mappings:
+            pairs.extend(accessory_pairs)
+            table_mappings.extend(accessory_mappings)
+            extractor_runs.append(
+                {
+                    "executed_extractor": "AccessoryBackplateExtractor",
+                    "route_target": "supplemental",
+                    "sheet_ids": [item["sheet_id"] for item in accessory_mappings],
+                    "page_count": len(accessory_mappings),
+                    "line_group_count": 0,
+                    "terminal_candidate_count": 0,
+                    "pair_candidate_count": 0,
+                    "pair_count": len(accessory_pairs),
+                    "table_mapping_count": sum(len(item.get("mappings", [])) for item in accessory_mappings),
+                }
+            )
 
         if event_sink is not None:
             event_sink.emit(

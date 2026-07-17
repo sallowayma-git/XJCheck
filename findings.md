@@ -1696,3 +1696,48 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Release build succeeded with a 52.2 MB sidecar and 72,002,609-byte NSIS installer. Silent install to `E:\TMPXJ` returned 0.
 - Final installed-binary proof: `E:\TMPXJ\sidecar\dwg-audit-sidecar.exe load-result` emits 231,279 strict UTF-8 bytes with zero U+FFFD and intact Chinese filename; installed `render-preview` for S0030/I0024 exits 0 with `source=sqlite_summary`, Chinese SVG content, and `focus_bbox=null`.
 - Final gates: full unit suite `953 passed, 1 skipped`; TypeScript check and production frontend/Tauri/NSIS builds pass; oxlint exits 0 with three existing `useEffectEvent` dependency warnings; `git diff --check` passes.
+
+## 2026-07-17 Phase 175: S0025 CD/XJDZ structural mapping recovery
+
+- Recovery found `master == origin/master == 4590b37`; root `package-lock.json` remains unknown and excluded. Four tracked files contain existing uncommitted work (`coverage.py`, `table_extractor.py`, `artifacts.py`, `test_coverage.py`) and must be reviewed/preserved before integration.
+- Six clean Luna probes were dispatched with `fork_context=false`, returned, and were immediately closed.
+- Highest-probability S0025 failure chain: `_EXTERNAL_ENDPOINT_PATTERN` rejects an otherwise structured endpoint carrying a terminal suffix such as `XJDZ9-02-2B4-001:8`; `_strip_external_endpoint_values()` then drops it, `extract_strip_two_port_component_pairs()` cannot cover the supporting line group, and generic pairing leaks bare-number review pairs such as `11 -> 8`.
+- Source evidence for S0025 is `test/.../20000 主变测控柜1/25 元件接线图2.dwg` (`S0025/F0025`). Representative CD texts include `3-21CD6`, `1-21CD6,1-21ZK-9`, `2-21CD6`, and `2-21CD11`; XJDZ instance text occurs near the corresponding terminal arrays.
+- Required structural examples remain: `3-21CD6 -> XJDZ9-02-2B4-001:8`, `1-21CD6,1-21ZK-9 -> XJDZ9-02-2B4-001:7`, `3-21CD11 -> 3-21CD8`, `1-21CD11 -> 1-21CD8`, `2-21CD6 -> XJDZ9-02-2B4-001:8`, and `2-21CD11 -> 2-21CD8`. Exact final separator normalization must be derived from current source text/geometry rather than fingerprint memorization.
+- S0026 is a required negative guard, not noise: backplate sheets S0020-S0022 state `1/2/3-21CLP9-2 -> 1/2/3-21n425`, while S0026 geometry extracts the same CLP9 port to `n427`. This is a real cross-page endpoint conflict and must remain review-visible even though each component mapping is individually high-confidence.
+- Current PAC held-out replay at `.tmp/side_pac_matrix_replay` has 70 issues: 63 missing-side on sheets20-22, 3 low-confidence on sheet29, 1 backplate scope conflict cluster, and 2 many-to-one issues on sheet30. It is current-HEAD evidence only; it does not cover the present uncommitted changes.
+
+### Phase 175 implementation and replay results
+
+- Review of the inherited matrix coverage patch found a high-severity false-clean defect: PAC S0007-S0010 had zero recovered mappings, yet 438 bounded texts would have been marked `semantic_evidence`. The accepted repair derives structural text IDs only from actual recovered mapping references and ignores empty mapping sets. Focused coverage/table tests pass `33 passed`.
+- The first XJDZ binder replay restored 32 measured candidates but incorrectly attached TEXT-layer stroke lines and produced false pin-to-CD mappings. TEXT lines are now excluded from symbol line attachment; this error was not hidden or accepted.
+- S0025's six residuals are definition-owned XJDZ structural routes, not generic outward wires. A strict ComponentDiagram postprocessor requires an XJDZ-owned line group and then preserves either full hierarchical endpoint text or `XJDZ-definition:pin`; it emits no-union `component_mapping` evidence.
+- Adjacent XJDZ definition lines can merge into one vertical line group. Native-pin `source_block_name` selects the owning definition; ambiguous groups without a unique pin owner remain review.
+- Repeated `XJDZ-definition:pin` values on different INSERT handles are scoped as distinct physical instances for cardinality rules. Same-instance duplicate sources still emit `R-MANY-TO-ONE`.
+- Fresh S0025 replay5 emits exactly six pass mappings and zero semantic issues: `3-21CD6 -> XJDZ9-02-2B4-001:8`, `1-21CD6,1-21ZK-9 -> XJDZ9-02-2B4-001:7`, three scoped `CD11 -> CD8` mappings, and `2-21CD6 -> XJDZ9-02-2B4-001:8`. The isolated page-number mismatch is an input-copy artifact.
+- Fresh full 20000 replay (`.tmp/phase175_20000_replay1/20000_1`) has 13 reviews: S0020=4, S0021=4, S0022=2, S0026=3. S0025 is zero. The three S0026 reviews retain values `CLP9-2`, `n425`, and `n427`, proving the true cross-page inconsistency remains visible.
+- Verification after these changes: related engine suites `312 passed`; complete repository `993 passed, 1 skipped`; diff whitespace gate clean.
+
+### Phase 175 fresh 502-corpus acceptance
+
+- Full repository after backplate authority generalization: `994 passed, 1 skipped`.
+- Fresh run used the frozen 27-project manifest (502 DWGs), three concurrent project workers, per-project manifest count validation, and separate analyze/audit processes. Runtime was 414.7s.
+- The first runner postcondition incorrectly required audit-v2/failure-queue files in the external `run-audit` root; those files are produced under each analyze project's internal `audit/` directory. Analyze and audit subprocesses themselves succeeded for every project. This was an acceptance-runner error, not an extraction failure.
+- Independent validation of the produced bundles confirms: 27/27 valid projects, 502/502 valid DWGs, every extraction `COMPLETE`, incomplete pages 0, all internal audit-v2/failure-queue artifacts present, and internal/external issue counts identical.
+- `evaluate-corpus-census` reports `VALID` and `all_projects_valid=true`. Extraction verification reports 27 REVIEW, 0 FAIL, 502 page rows; REVIEW is driven by known coverage/scale/unknown-symbol evidence rather than incomplete extraction.
+- Current fresh corpus has 170 issue instances: `R-MANY-TO-ONE=111`, `R-PAIR-MISSING-SIDE=46`, `R-CROSS-PAGE-CONFLICT=8`, `R-PAIR-LOW-CONFIDENCE=4`, `R-DUPLICATE-PAIR=1`; one issue is critical.
+- Highest-count projects: 35000_2=53, 110kV transformer protection set=19, 31000/32000=17, 26000=14, 10000=11, 23000=10, 8000/9000=10. These are the next fresh-loop priorities.
+# 2026-07-17 Phase 176 B3/A2 human-confirmed semantics
+
+- User crop 1 is a BI/voltage-style backplate plug-in. Odd/even numbered pins are independent external ports; the table body describes channels and must not imply pin-to-pin electrical union.
+- User crop 2 is an authoritative three-column terminal table headed `1UD`. The middle column `1..9` is the port number, so logical endpoints are `1UD-1` ... `1UD-9`. Each logical port may have two valid external mappings, e.g. `1UD-1 -> 1ZKK1-2` and `1UD-1 -> 1n2001`; the two external targets are not thereby unioned through the component.
+- User crop 3 is a normal open-input/open-output backplate. Numbered pins on both sides map independently to external `1-25QD*` endpoints; empty rows remain unmapped.
+- Six parallel read-only audits found that current fresh artifacts already produce 152 high-confidence `backplate_virtual_table` mappings on each of 15000 S0014/S0015 with zero page issues, but no electrical union eligibility. This is the desired A2 authority boundary.
+- Current B3 `terminal_header_table` extraction exists on 24000/25000/8000/20000, but old 24000 S0021/S0022 artifacts still contain residual bare-number ordinary pairs. The next fresh replay must prove those are shadowed by structured header mappings.
+- A probe reported that 24000 S0023 contains no `1UD`; visual evidence proves the semantic model but not that page identity. Treat the probe as a scope mismatch and locate the exact source page before changing page-specific behavior.
+- Independent safety review found the latest page-local `numeric_three_column` cross-page guard and opposite-side terminal-header many-to-one guard are too broad unless backed by explicit structural scope. Both require adversarial negative tests before acceptance.
+- The exact fresh 24000 S0023 evidence proves `1UD` extraction already existed, but the previous broad x tolerance stole neighboring-table endpoints. Final ownership combines nearest-per-side selection with competing-header same-y row identity: an endpoint closer to another table is shared only for a same-number `n` row or an explicit known `header+row` reference.
+- Final fresh 24000 replay preserves exactly 16 authoritative `1UD` mappings: rows 1-4 and 6-9 map to both outer sides; blank row 5 maps nowhere. It also preserves sparse reciprocal `UD-4 -> 1UD4`, `UD-9 -> 1UD9`, shared `1I4D-1/1I13D-1 -> 1n2401`, and `1I13D-1 -> 1n2507` from a vertically non-overlapping neighbor block.
+- Page-local `numeric_three_column` facts now require exact row_index/text-id/column-role evidence before bypassing cross-page cardinality. 30000 rules replay is 0 issues; scoped/header-bearing negative cases still report conflict.
+- Terminal-header many-to-one suppression now requires a closed reciprocal center-strip topology after separator-insensitive endpoint normalization. Same-row/same-name coincidences without the reciprocal strip remain review. Final fresh 35000_2 replay is 5 issues, all the pre-existing S0010 open-end `R-PAIR-MISSING-SIDE`; terminal-chain `R-MANY-TO-ONE` is 0.
+- A2 remains a non-union structured table authority: 15000 S0014/S0015 each retain 152 high-confidence backplate mappings and zero page issues, while `electrical_union_eligible_count` remains 0.

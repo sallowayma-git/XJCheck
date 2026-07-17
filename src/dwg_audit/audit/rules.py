@@ -335,6 +335,8 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
         sheet_ids = {pair.sheet_id for pair in linked_pairs}
         if len(rights) > 1 and len(sheet_ids) > 1:
             first = linked_pairs[0]
+            if _is_page_local_numeric_three_column_group(linked_pairs, left_value):
+                continue
             if _is_backplate_virtual_table_scope_review(linked_pairs):
                 table_mappings = [_table_mapping_evidence(pair) for pair in linked_pairs]
                 issues.append(
@@ -623,6 +625,8 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
 
         split_endpoint_info = _strip_two_port_component_split_endpoint_info(linked_pairs)
         if split_endpoint_info is not None:
+            if _is_geometry_owned_accessory_component_group(linked_pairs):
+                continue
             issues.append(
                 context.issue_factory.build(
                     "R-ONE-TO-MANY",
@@ -714,7 +718,20 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
             first = linked_pairs[0]
+            if _is_page_local_numeric_three_column_many_to_one_group(
+                linked_pairs,
+                right_value,
+            ):
+                continue
             if _is_authoritative_structured_cardinality_group(linked_pairs):
+                continue
+            if _is_authoritative_terminal_header_reciprocal_chain_group(
+                linked_pairs,
+                context.pairs,
+                right_value,
+            ):
+                continue
+            if _is_distinct_xjdz_instance_pin_group(linked_pairs):
                 continue
             terminal_header_info = _terminal_header_table_shared_endpoint_info(
                 linked_pairs,
@@ -754,6 +771,8 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 shared_value=right_value,
             )
             if split_endpoint_info is not None:
+                if _is_geometry_owned_accessory_component_group(linked_pairs):
+                    continue
                 sheet_ids = {pair.sheet_id for pair in linked_pairs}
                 issues.append(
                     context.issue_factory.build(
@@ -845,6 +864,26 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
     return issues
 
 
+def _is_distinct_xjdz_instance_pin_group(pairs: list[Pair]) -> bool:
+    """The same definition pin on distinct INSERT instances is not one terminal."""
+
+    instance_handles: list[str] = []
+    for pair in pairs:
+        evidence = pair.evidence or {}
+        if (
+            pair.pair_kind != "component_mapping"
+            or evidence.get("component_submode") != "xjdz_structural_terminal"
+            or evidence.get("right_structural_role") != "native_pin"
+            or evidence.get("electrical_union_eligible") is not False
+        ):
+            return False
+        handles = [str(value) for value in evidence.get("xjdz_instance_handles", []) if value]
+        if len(handles) != 1:
+            return False
+        instance_handles.append(handles[0])
+    return len(instance_handles) > 1 and len(set(instance_handles)) == len(instance_handles)
+
+
 def _run_missing_reciprocal(context: RuleContext) -> list[Issue]:
     if not context.reciprocal_required:
         return []
@@ -934,6 +973,7 @@ def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:
     if not linked_pairs:
         return False
     scope_keys: set[tuple[str, ...]] = set()
+    mapping_modes: set[str] = set()
     for pair in linked_pairs:
         if getattr(pair, "pair_kind", "ordinary_pair") != "table_mapping":
             return False
@@ -941,6 +981,7 @@ def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:
         mapping_mode = str(mapping.get("mapping_mode") or "")
         if mapping_mode not in {"backplate_virtual_table", "terminal_header_table"}:
             return False
+        mapping_modes.add(mapping_mode)
         row_sequence_valid = mapping.get("row_number_sequence_valid")
         if not (row_sequence_valid is True or row_sequence_valid == 1):
             return False
@@ -1006,6 +1047,8 @@ def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:
                     str(mapping.get("header_text_id") or ""),
                 )
             )
+    if mapping_modes == {"backplate_virtual_table"}:
+        return bool(scope_keys)
     return len(scope_keys) == 1
 
 
@@ -1015,6 +1058,145 @@ def _is_authoritative_structured_cardinality_group(linked_pairs: list[Pair]) -> 
     ) or _is_authoritative_terminal_backplate_bridge_group(
         linked_pairs
     ) or _is_authoritative_comma_component_mapping_group(linked_pairs)
+
+
+def _is_page_local_numeric_three_column_group(
+    linked_pairs: list[Pair],
+    left_value: str,
+) -> bool:
+    """Bare middle-row numbers in unrelated tables are not global endpoints."""
+
+    if not str(left_value or "").isdigit() or len(linked_pairs) < 2:
+        return False
+    sheet_ids: set[str] = set()
+    for pair in linked_pairs:
+        if str(pair.left_value or "") != str(left_value):
+            return False
+        sheet_ids.add(str(pair.sheet_id or ""))
+        if not _is_page_local_numeric_three_column_pair(pair):
+            return False
+    return len(sheet_ids) == len(linked_pairs)
+
+
+def _is_page_local_numeric_three_column_many_to_one_group(
+    linked_pairs: list[Pair],
+    right_value: str,
+) -> bool:
+    """Do not globally merge bare outer numbers from different table pages."""
+
+    if not str(right_value or "") or len(linked_pairs) < 2:
+        return False
+    sheet_ids = {str(pair.sheet_id or "") for pair in linked_pairs}
+    return (
+        len(sheet_ids) == len(linked_pairs)
+        and all(str(pair.right_value or "") == str(right_value) for pair in linked_pairs)
+        and all(_is_page_local_numeric_three_column_pair(pair) for pair in linked_pairs)
+    )
+
+
+def _is_page_local_numeric_three_column_pair(pair: Pair) -> bool:
+    if pair.pair_kind != "table_mapping":
+        return False
+    mapping = _table_mapping_evidence(pair)
+    if mapping.get("mapping_mode") != "numeric_three_column":
+        return False
+    if mapping.get("header_prefix") or mapping.get("logical_endpoint"):
+        return False
+    if str(mapping.get("middle_value") or "") != str(pair.left_value or ""):
+        return False
+    if str(mapping.get("right_value") or "") != str(pair.right_value or ""):
+        return False
+    if not mapping.get("middle_text_id") or not mapping.get("right_text_id"):
+        return False
+    try:
+        if int(mapping.get("row_index")) < 0:
+            return False
+    except (TypeError, ValueError):
+        return False
+    return mapping.get("column_roles") == {
+        "left": "numeric_outer",
+        "middle": "numeric_center",
+        "right": "numeric_outer",
+    }
+
+
+def _is_authoritative_terminal_header_reciprocal_chain_group(
+    linked_pairs: list[Pair],
+    all_pairs: list[Pair],
+    shared_value: str,
+) -> bool:
+    """Accept a reciprocal terminal-strip chain repeated on opposite sides."""
+
+    if len(linked_pairs) < 2 or len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return False
+    row_numbers: set[int] = set()
+    header_ids: set[str] = set()
+    endpoint_ids: set[str] = set()
+    source_endpoint_keys: set[str] = set()
+    for pair in linked_pairs:
+        if not _is_authoritative_table_mapping_group([pair]):
+            return False
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "terminal_header_table":
+            return False
+        if mapping.get("has_shuoming_column") is not True or not mapping.get("shuoming_text_id"):
+            return False
+        if _terminal_endpoint_identity(mapping.get("logical_endpoint")) != _terminal_endpoint_identity(pair.left_value):
+            return False
+        if _terminal_endpoint_identity(mapping.get("left_value") or mapping.get("right_value")) != _terminal_endpoint_identity(shared_value):
+            return False
+        left_text_id = str(mapping.get("left_text_id") or "")
+        right_text_id = str(mapping.get("right_text_id") or "")
+        if left_text_id and not right_text_id:
+            endpoint_ids.add(left_text_id)
+        elif right_text_id and not left_text_id:
+            endpoint_ids.add(right_text_id)
+        else:
+            return False
+        try:
+            row_numbers.add(int(mapping.get("row_number")))
+        except (TypeError, ValueError):
+            return False
+        header_id = str(mapping.get("header_text_id") or "")
+        if not header_id:
+            return False
+        header_ids.add(header_id)
+        source_endpoint_keys.add(_terminal_endpoint_identity(pair.left_value))
+    if not (
+        len(row_numbers) == 1
+        and len(header_ids) == len(linked_pairs)
+        and len(endpoint_ids) == len(linked_pairs)
+        and len(source_endpoint_keys) == len(linked_pairs)
+        and "" not in source_endpoint_keys
+    ):
+        return False
+
+    # The shared text must itself be an extracted terminal-header logical port
+    # on the same sheet, and that reciprocal strip must point back to both
+    # source ports.  This proves a closed U1D <-> U2D <-> U3D terminal chain
+    # instead of suppressing an unrelated same-row many-to-one coincidence.
+    shared_key = _terminal_endpoint_identity(shared_value)
+    reciprocal_targets: set[str] = set()
+    for pair in all_pairs:
+        if pair.sheet_id != linked_pairs[0].sheet_id or pair.pair_kind != "table_mapping":
+            continue
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "terminal_header_table":
+            continue
+        if mapping.get("has_shuoming_column") is not True or not mapping.get("shuoming_text_id"):
+            continue
+        if _terminal_endpoint_identity(mapping.get("logical_endpoint")) != shared_key:
+            continue
+        if not _is_authoritative_table_mapping_group([pair]):
+            continue
+        reciprocal_targets.add(_terminal_endpoint_identity(pair.right_value))
+    return reciprocal_targets == source_endpoint_keys
+
+
+def _terminal_endpoint_identity(value: object) -> str:
+    """Normalize display-only separators in terminal endpoint references."""
+
+    return re.sub(r"[^0-9A-Z]", "", str(value or "").upper())
 
 
 def _is_authoritative_terminal_backplate_bridge_group(linked_pairs: list[Pair]) -> bool:
@@ -1417,6 +1599,19 @@ def _is_same_sheet_strip_two_port_component_mapping(linked_pairs: list[Pair]) ->
     return all(
         pair.pair_kind == "component_mapping"
         and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
+        for pair in linked_pairs
+    )
+
+
+def _is_geometry_owned_accessory_component_group(linked_pairs: list[Pair]) -> bool:
+    """Machine-owned capsule geometry makes comma endpoint expansion authoritative."""
+
+    return bool(linked_pairs) and all(
+        pair.pair_kind == "component_mapping"
+        and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
+        and (pair.evidence or {}).get("recognition_mode") == "geometry_owned_two_port_capsule"
+        and (pair.evidence or {}).get("electrical_union_eligible") is False
+        and (pair.evidence or {}).get("internal_connectivity_inferred") is False
         for pair in linked_pairs
     )
 

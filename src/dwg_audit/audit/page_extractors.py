@@ -190,6 +190,12 @@ def _extract_pairs_for_route(
         _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)
     if executed_extractor == "ComponentDiagramExtractor":
+        _promote_xjdz_structural_component_pairs(
+            pairs,
+            line_groups,
+            texts,
+            lines,
+        )
         component_pairs, consumed_group_ids = extract_strip_two_port_component_pairs(
             pages,
             texts,
@@ -249,6 +255,16 @@ def _extract_pairs_for_route(
                 retry_pages,
                 pair_id_factory=IdFactory(f"P{id_stem}MR"),
             )
+            retry_sheet_ids = {page.sheet_id for page in retry_pages}
+            # The expanded retry has the complete neighboring-header context.
+            # Replace partial-bbox results for those sheets instead of unioning
+            # stale relations that the wider ownership corridors rejected.
+            table_pairs = [pair for pair in table_pairs if pair.sheet_id not in retry_sheet_ids]
+            table_mappings = [
+                mapping
+                for mapping in table_mappings
+                if mapping.get("sheet_id") not in retry_sheet_ids
+            ]
             _extend_unique_pairs(table_pairs, retry_pairs)
             table_mappings = _merge_table_mappings(table_mappings, retry_mappings)
         _mark_terminal_prefixed_endpoint_ordinary_pairs(pairs, table_mappings)
@@ -673,6 +689,126 @@ def _shadow_external_designator_derived_ordinary_pairs(
 ) -> None:
     """Compatibility no-op: CD/GD/ZK names are valid endpoint evidence."""
     _ = pairs, pages
+
+
+_XJDZ_DEFINITION_PATTERN = re.compile(r"^XJDZ[A-Za-z0-9._-]*$", re.IGNORECASE)
+_XJDZ_HIERARCHICAL_ENDPOINT_PATTERN = re.compile(
+    r"^\d+(?:-\d+)+[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*$",
+    re.IGNORECASE,
+)
+
+
+def _promote_xjdz_structural_component_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    texts: list[TextItem],
+    lines: list[LineEntity],
+) -> None:
+    """Preserve XJDZ block-terminal identity instead of bare pin digits.
+
+    XJDZ connector drawings place numeric native pins on definition-owned
+    BORDER routes.  The route is structural mapping evidence, never authority
+    for conductivity between different component pins.
+    """
+
+    text_by_id = {text.text_id: text for text in texts}
+    line_by_id = {line.line_id: line for line in lines}
+    groups_by_id = {group.line_group_id: group for group in line_groups}
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair" or pair.status != "review":
+            continue
+        group = groups_by_id.get(pair.line_group_id)
+        if group is None:
+            continue
+        definition_names = sorted(
+            {
+                str(line_by_id[line_id].source_block_name or "").strip()
+                for line_id in group.member_line_ids
+                if line_id in line_by_id
+                and _XJDZ_DEFINITION_PATTERN.fullmatch(
+                    str(line_by_id[line_id].source_block_name or "").strip()
+                )
+            }
+        )
+        if not definition_names:
+            continue
+        left_text = text_by_id.get(pair.left_text_id or "")
+        right_text = text_by_id.get(pair.right_text_id or "")
+        if left_text is None or right_text is None:
+            continue
+        pin_definitions = {
+            str(text.source_block_name or "").strip()
+            for text in (left_text, right_text)
+            if str(text.normalized_text or text.text or "").strip().strip("@&").strip().isdigit()
+            and str(text.source_block_name or "").strip() in definition_names
+        }
+        if len(pin_definitions) == 1:
+            definition_name = next(iter(pin_definitions))
+        elif len(definition_names) == 1:
+            definition_name = definition_names[0]
+        else:
+            continue
+        instance_handles = sorted(
+            {
+                str(line_by_id[line_id].handle or "").split(":VIRTUAL:", 1)[0]
+                for line_id in group.member_line_ids
+                if line_id in line_by_id
+                and str(line_by_id[line_id].source_block_name or "").strip().casefold()
+                == definition_name.casefold()
+                and str(line_by_id[line_id].handle or "").strip()
+            }
+        )
+        if len(instance_handles) != 1:
+            continue
+        left_value = _xjdz_structural_endpoint_value(left_text, definition_name)
+        right_value = _xjdz_structural_endpoint_value(right_text, definition_name)
+        if left_value is None or right_value is None:
+            continue
+        if left_value[1] == "native_pin" and right_value[1] == "native_pin":
+            continue
+
+        pair.left_value = left_value[0]
+        pair.right_value = right_value[0]
+        pair.pair_key = f"{pair.left_value}->{pair.right_value}"
+        pair.confidence = 0.97
+        pair.confidence_bucket = "high"
+        pair.status = "pass"
+        pair.rationale = (
+            "XJDZ structural terminal mapping: preserve full endpoint and "
+            "definition-owned native pin identity; no internal union."
+        )
+        pair.alternative_pair_candidate_ids = []
+        pair.pair_kind = "component_mapping"
+        pair.evidence.update(
+            {
+                "source": "component_mapping",
+                "pair_kind": "component_mapping",
+                "component_submode": "xjdz_structural_terminal",
+                "xjdz_definition_name": definition_name,
+                "xjdz_instance_handles": instance_handles,
+                "left_structural_role": left_value[1],
+                "right_structural_role": right_value[1],
+                "internal_connectivity_inferred": False,
+                "electrical_union_eligible": False,
+                "ordinary_pair_eligible": False,
+            }
+        )
+
+
+def _xjdz_structural_endpoint_value(
+    text: TextItem,
+    definition_name: str,
+) -> tuple[str, str] | None:
+    cleaned = str(text.normalized_text or text.text or "").strip().strip("@&").strip()
+    if (
+        str(text.source_block_name or "").strip().casefold() == definition_name.casefold()
+        and cleaned.isdigit()
+    ):
+        return (f"{definition_name}:{cleaned}", "native_pin")
+    pieces = [piece.strip() for piece in cleaned.split(",")]
+    if pieces and all(_XJDZ_HIERARCHICAL_ENDPOINT_PATTERN.fullmatch(piece) for piece in pieces):
+        return (",".join(pieces), "external_endpoint")
+    return None
 
 
 def _mark_input_matrix_covered_ordinary_pairs(
