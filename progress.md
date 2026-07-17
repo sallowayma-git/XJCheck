@@ -5324,3 +5324,6 @@
   - `tests/unit/test_desktop_packaging.py`
   - `tests/unit/test_readers.py`
 
+### CI trigger policy update
+- Windows packaging workflow now triggers only on `v*` tags, GitHub Release publish/edit, or manual workflow_dispatch (no branch push/PR).
+

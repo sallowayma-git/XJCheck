@@ -136,17 +136,48 @@ Recommended clean-machine smoke:
 
 Repository workflow: `.github/workflows/windows-package.yml`
 
-### What CI always does
+### Triggers (release-only)
 
-- checkout
+The packaging workflow does **not** run on ordinary branch pushes or pull requests.
+
+It starts only when:
+
+1. a version tag is pushed: `v*` (example: `v0.1.0`)
+2. a GitHub Release is published/edited
+3. a manual **workflow_dispatch** dry-run is requested
+
+Recommended release flow:
+
+```powershell
+# 1) local verification first
+cd apps\desktop
+npm run package:windows
+
+# 2) tag + push (CI starts)
+git tag v0.1.0
+git push origin v0.1.0
+
+# 3) optional: create/publish GitHub Release for that tag
+gh release create v0.1.0 --generate-notes
+```
+
+### What CI does on tag/release
+
+- checkout the tagged commit
 - set up Python / Node / Rust
 - install Python package + PyInstaller
 - install desktop npm deps
 - run packaging unit tests
-- build frontend
-- build sidecar when ODA cache is available
-- build Tauri NSIS installer when ODA cache is available
-- upload installer artifact
+- restore ODA from Actions cache key `oda-file-converter-windows-v1`
+- if ODA is available:
+  - build sidecar
+  - build frontend
+  - build Tauri NSIS installer
+  - upload workflow artifact
+  - attach installer to the GitHub Release for that tag
+- if ODA is missing:
+  - contract tests still run
+  - installer build is skipped with a clear summary note
 
 ### Why ODA is optional in CI
 
@@ -156,7 +187,7 @@ To seed the cache on a self-hosted or privileged runner:
 
 1. Install ODA File Converter on the runner, or place a prepared tree under a known path.
 2. Run `apps/desktop/scripts/stage-oda-resources.ps1`.
-3. Let the workflow cache `apps/desktop/src-tauri/resources/oda`.
+3. Manually run **Windows Offline Package** once so the ODA path is cached.
 
 If ODA is not cached:
 
@@ -172,6 +203,7 @@ Optional inputs:
 
 - `build_installer=true|false`
 - `force_skip_oda=true` (contract-only mode)
+- `upload_release_assets=true` (attach installer to an existing tag release during dry-run)
 
 ## Scripts reference
 

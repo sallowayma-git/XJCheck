@@ -1427,3 +1427,7 @@
 - Binary payloads stay gitignored; only README placeholders are tracked under resources.
 - Residual packaging risks: ODA redistribution rights must be confirmed for product distribution; clean-machine install smoke still recommended; code signing not yet configured.
 
+## 2026-07-17 packaging CI trigger policy
+- `windows-package.yml` is release-gated: tag `v*` / GitHub Release / manual dispatch only.
+- Ordinary master pushes no longer start the Windows packaging job.
+

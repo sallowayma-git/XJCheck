@@ -35,4 +35,4 @@ cd apps/desktop
 npm run package:windows
 ```
 
-CI 工作流：`.github/workflows/windows-package.yml`（Windows Offline Package）。
+CI 工作流：`.github/workflows/windows-package.yml`（仅在打 `v*` 标签 / 发布 GitHub Release 时触发；也可手动 workflow_dispatch）。
