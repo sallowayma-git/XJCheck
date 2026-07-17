@@ -778,6 +778,98 @@ def test_signal_alarm_cues_do_not_shadow_real_ordinary_pairs() -> None:
     assert "ordinary_pair_shadow_reason" not in ordinary.evidence
 
 
+def test_repeated_panel_geometry_shadows_only_single_sided_dim_silkscreen() -> None:
+    from dwg_audit.audit.page_extractors import (
+        _shadow_repeated_panel_silkscreen_ordinary_pairs,
+    )
+    from dwg_audit.domain.models import BlockRecord
+    from dwg_audit.domain.models import TextItem
+
+    sheet = _sheet(route_target="WireDiagramExtractor")
+    sheet.sheet_category = "二次原理图"
+    sheet.filename = "09 电度表通信回2.dwg"
+    sheet.sheet_title = "COMMUNICATION CIRCUIT 2"
+    blocks = [
+        BlockRecord(
+            block_id=f"B{row}",
+            sheet_id=sheet.sheet_id,
+            file_id="F1",
+            handle=f"H{row}",
+            name=f"PANEL_CELL_{row}",
+            layer="0",
+            insert_x=82.5,
+            insert_y=142.5 + 22.5 * row,
+            rotation_deg=0.0,
+            attributes_json="{}",
+        )
+        for row in range(4)
+    ]
+    texts = [
+        TextItem(
+            text_id="T16",
+            sheet_id=sheet.sheet_id,
+            file_id="F1",
+            handle="HT16",
+            entity_type="TEXT",
+            text="16",
+            normalized_text="16",
+            is_numeric_candidate=True,
+            layer="DIM",
+            rotation_deg=0.0,
+            height=2.5,
+            insert_x=83.6,
+            insert_y=143.75,
+            bbox_min_x=82.0,
+            bbox_min_y=142.0,
+            bbox_max_x=86.0,
+            bbox_max_y=145.0,
+        )
+    ]
+    silkscreen = _pair(
+        {"selected_right_raw_text": "16"},
+        pair_id="PSILK",
+        right_text_id="T16",
+    )
+    silkscreen.left_value = None
+    silkscreen.right_value = "16"
+    real_pair = _pair(
+        {"selected_left_raw_text": "16", "selected_right_raw_text": "35"},
+        pair_id="PREAL",
+        left_text_id="T16",
+        right_text_id="T35",
+    )
+    real_pair.left_value = "16"
+    real_pair.right_value = "35"
+
+    _shadow_repeated_panel_silkscreen_ordinary_pairs(
+        [silkscreen, real_pair],
+        [sheet],
+        texts,
+        blocks,
+    )
+
+    assert silkscreen.evidence["ordinary_pair_eligible"] is False
+    assert silkscreen.evidence["ordinary_pair_shadow_reason"] == "repeated_panel_numeric_silkscreen"
+    assert real_pair.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_panel_title_without_repeated_geometry_does_not_shadow_numeric_pair() -> None:
+    from dwg_audit.audit.page_extractors import (
+        _shadow_repeated_panel_silkscreen_ordinary_pairs,
+    )
+
+    sheet = _sheet(route_target="WireDiagramExtractor")
+    sheet.sheet_category = "二次原理图"
+    sheet.filename = "09 电度表通信回2.dwg"
+    ordinary = _pair({}, right_text_id="T16")
+    ordinary.left_value = None
+    ordinary.right_value = "16"
+
+    _shadow_repeated_panel_silkscreen_ordinary_pairs([ordinary], [sheet], [], [])
+
+    assert ordinary.evidence.get("ordinary_pair_eligible") is not False
+
+
 def test_shadow_hmc_silkscreen_ordinary_pairs_marks_hd_pin_stubs_ineligible() -> None:
     from dwg_audit.audit.page_extractors import _shadow_hmc_silkscreen_ordinary_pairs
     from dwg_audit.domain.models import TextItem

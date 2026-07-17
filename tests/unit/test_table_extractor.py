@@ -69,6 +69,34 @@ def _make_v_grid_line(line_id: str, x: float, y1: float = 10.0, y2: float = 190.
     )
 
 
+def _make_diagonal_line(
+    line_id: str,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+) -> LineEntity:
+    length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+    return LineEntity(
+        line_id=line_id,
+        sheet_id="S1",
+        file_id="F1",
+        handle=f"H{line_id}",
+        source_entity_type="LINE",
+        layer="TABLE",
+        start_x=x1,
+        start_y=y1,
+        end_x=x2,
+        end_y=y2,
+        length=length,
+        angle_deg=21.8,
+        bbox_min_x=min(x1, x2),
+        bbox_min_y=min(y1, y2),
+        bbox_max_x=max(x1, x2),
+        bbox_max_y=max(y1, y2),
+    )
+
+
 def _make_numeric_text(text_id: str, x: float, y: float, value: str) -> TextItem:
     return TextItem(
         text_id=text_id,
@@ -201,6 +229,78 @@ def test_extract_table_pairs_skips_non_three_column_tables() -> None:
     assert pairs == []
     if mappings:
         assert mappings[0]["three_column"] is False
+
+
+def test_extract_output_contact_matrix_maps_only_full_cell_diagonals() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 200.0, 160.0))
+    sheet.page_subtype = "output_contact_matrix_table"
+    rows = [10.0, 40.0, 70.0, 100.0]
+    cols = [10.0, 50.0, 90.0, 130.0, 170.0]
+    lines = [
+        _make_h_grid_line(f"MH{index}", y=value, x1=cols[0], x2=cols[-1])
+        for index, value in enumerate(rows)
+    ] + [
+        _make_v_grid_line(f"MV{index}", x=value, y1=rows[0], y2=rows[-1])
+        for index, value in enumerate(cols)
+    ]
+    lines += [
+        _make_diagonal_line("MARK1", 130.0, 70.0, 170.0, 100.0),
+        _make_diagonal_line("MARK1_DUP", 130.0, 70.0, 170.0, 100.0),
+        _make_diagonal_line("MARK2", 130.0, 40.0, 170.0, 70.0),
+        # Same geometry in an unlabeled row is not a resolved matrix fact.
+        _make_diagonal_line("UNLABELLED", 130.0, 10.0, 170.0, 40.0),
+        # A short decoration inside a labelled cell must not count as a mark.
+        _make_diagonal_line("SHORT", 140.0, 80.0, 150.0, 88.0),
+    ]
+    texts = [
+        _make_text("ROW1", 20.0, 85.0, "出口1 Output 1"),
+        _make_text("OBJ1", 60.0, 85.0, "跳GCB"),
+        _make_text("CLP1", 100.0, 85.0, "1CLP1"),
+        _make_text("ROW2", 20.0, 55.0, "出口2 Output 2"),
+        _make_text("CLP2", 100.0, 55.0, "1CLP2"),
+        _make_text("KLP", 145.0, 106.0, "1KLP7"),
+        _make_text("FUNC", 145.0, 118.0, "负序过负荷"),
+        _make_text("SUB", 145.0, 110.0, "信号 Signal"),
+    ]
+
+    pairs, tables = extract_table_pairs(texts, lines, [], [sheet], DEFAULT_CONFIG)
+
+    assert pairs == []
+    assert len(tables) == 1
+    assert tables[0]["matrix_table"] is True
+    assert tables[0]["mapping_semantics"] == "non_conductive_contact_matrix"
+    assert tables[0]["marked_cell_count"] == 2
+    mappings = tables[0]["mappings"]
+    assert {mapping["row_strap"] for mapping in mappings} == {"1CLP1", "1CLP2"}
+    assert all(mapping["column_strap"] == "1KLP7" for mapping in mappings)
+    assert all(mapping["is_electrical_connectivity"] is False for mapping in mappings)
+    assert len(mappings[0]["mark_line_ids"]) == 2
+
+
+def test_extract_output_contact_matrix_records_empty_matrix_without_fake_pairs() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 200.0, 160.0))
+    sheet.page_subtype = "output_contact_matrix_table"
+    rows = [10.0, 40.0, 70.0, 100.0]
+    cols = [10.0, 50.0, 90.0, 130.0, 170.0]
+    lines = [
+        _make_h_grid_line(f"EH{index}", y=value, x1=cols[0], x2=cols[-1])
+        for index, value in enumerate(rows)
+    ] + [
+        _make_v_grid_line(f"EV{index}", x=value, y1=rows[0], y2=rows[-1])
+        for index, value in enumerate(cols)
+    ]
+    texts = [
+        _make_text("ROW1", 20.0, 85.0, "出口1 Output 1"),
+        _make_text("KLP", 145.0, 106.0, "1KLP7"),
+    ]
+
+    pairs, tables = extract_table_pairs(texts, lines, [], [sheet], DEFAULT_CONFIG)
+
+    assert pairs == []
+    assert len(tables) == 1
+    assert tables[0]["matrix_table"] is True
+    assert tables[0]["marked_cell_count"] == 0
+    assert tables[0]["mappings"] == []
 
 
 def test_extract_table_pairs_pair_has_no_line_group_id() -> None:

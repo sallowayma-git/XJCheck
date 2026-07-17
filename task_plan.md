@@ -4,7 +4,7 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 174 desktop UTF-8 and issue-preview repair is active. The packaged PAC-885G-H issue view shows replacement-character mojibake in Chinese issue text/filenames and an issue-region preview stuck in generation. Trace sidecar output/file decoding and preview command/resource URL handling, apply narrow fixes, rebuild, and verify against the real installed workflow.
+Phase 174 desktop UTF-8 and issue-preview repair is complete. Packaged synchronous sidecar JSON now emits UTF-8, compacted no-coordinate issues return an explicit SQLite-summary SVG, preview loading is bounded, and the rebuilt installed runtime passes real PAC-885G-H byte/preview checks.
 
 Phase 173 held-out evaluation of new heavyweight set `test/PAC-885G-H` (31 DWG + prj/xml). Goal: determine whether the current recognition engine fails to classify pages, errors out, fails extraction, or incorrectly ignores content. Report concrete fail modes; do not retune on held-out unless user authorizes.
 
@@ -14,14 +14,17 @@ Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapp
 
 ### Phase 174: Desktop UTF-8 And Issue Preview Repair
 - [x] Inspect the supplied screenshot and record visible failure boundaries
-- [ ] Trace where valid Chinese becomes replacement characters across Python/Rust/React
-- [ ] Trace preview generation and image loading failure state
-- [ ] Implement narrow fixes with regression coverage
-- [ ] Rebuild/install and verify real PAC-885G-H issue text plus preview
-- **Status:** in_progress
+- [x] Trace where valid Chinese becomes replacement characters across Python/Rust/React
+- [x] Trace preview generation and image loading failure state
+- [x] Implement narrow fixes with regression coverage
+- [x] Rebuild/install and verify real PAC-885G-H issue text plus preview
+- **Status:** complete
 
 #### Errors encountered
 - `session-catchup.py` detected six unsynced messages but crashed while printing this request because the current GBK console could not encode U+FFFD. Preserve the partial catchup evidence, inspect git/planning state directly, and run subsequent Python processes under explicit UTF-8 mode.
+- The first inline SQLite inspection had a PowerShell/Python quote-escaping syntax error before opening the DB. Replace the one-liner with a read-only UTF-8 here-string script; do not retry the same quoting form.
+- First raw installed-sidecar probe used incorrect CLI argument ordering; argparse returned code 2 for both commands with no stdout. Read the parser/command construction and retry with the exact order rather than inferring it.
+- Local image inspection tool cannot rasterize SVG directly. The SVG exists and is valid text; use the installed browser's headless screenshot path for visual verification instead of retrying the same viewer input.
 
 ### Phase 173: PAC-885G-H Held-out Engine Probe
 - [x] Inventory sheets, project profile, and novel page-name families vs prior 27-project corpus

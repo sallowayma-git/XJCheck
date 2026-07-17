@@ -108,6 +108,10 @@ $StagedExe = Join-Path $OutputDir "ODAFileConverter.exe"
 if (-not (Test-Path $StagedExe)) {
     throw "Expected staged executable was not produced: $StagedExe"
 }
+$StagedQtPlatformPlugin = Join-Path $OutputDir "platforms\qwindows.dll"
+if (-not (Test-Path $StagedQtPlatformPlugin)) {
+    throw "Expected Qt Windows platform plugin was not produced: $StagedQtPlatformPlugin"
+}
 
 # Marker used by packaging tests / release scripts; never commit binary payloads.
 $Marker = Join-Path $OutputDir "PACKAGED_FROM.txt"

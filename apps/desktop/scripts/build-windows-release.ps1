@@ -38,8 +38,11 @@ try {
     } else {
         Write-Host "`n[1/4] Skip ODA staging"
         $odaExe = Join-Path $OdaDir "ODAFileConverter.exe"
+        $odaQtPlatformPlugin = Join-Path $OdaDir "platforms\qwindows.dll"
         if (-not (Test-Path $odaExe)) {
             Write-Warning "ODA executable not staged at $odaExe. Packaged installs will require a system ODA or ODAFC_PATH."
+        } elseif (-not (Test-Path $odaQtPlatformPlugin)) {
+            throw "ODA Qt Windows platform plugin missing at $odaQtPlatformPlugin. Re-run without -SkipOda."
         }
     }
 
@@ -92,9 +95,11 @@ try {
 
     $sidecarExe = Join-Path $SidecarDir "dwg-audit-sidecar.exe"
     $odaExe = Join-Path $OdaDir "ODAFileConverter.exe"
+    $odaQtPlatformPlugin = Join-Path $OdaDir "platforms\qwindows.dll"
     Write-Host "`nPackaged resource checklist:"
     Write-Host (" - sidecar: {0}" -f ($(if (Test-Path $sidecarExe) { "OK  $sidecarExe" } else { "MISSING" })))
     Write-Host (" - oda:     {0}" -f ($(if (Test-Path $odaExe) { "OK  $odaExe" } else { "MISSING (system ODA fallback only)" })))
+    Write-Host (" - oda Qt:  {0}" -f ($(if (Test-Path $odaQtPlatformPlugin) { "OK  $odaQtPlatformPlugin" } else { "MISSING" })))
     Write-Host "`nWindows release build finished."
 }
 finally {

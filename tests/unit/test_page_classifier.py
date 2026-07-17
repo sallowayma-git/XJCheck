@@ -214,6 +214,54 @@ def test_classify_pages_marks_table_like_page() -> None:
     assert classification.route_target == "TableExtractor"
 
 
+def test_classify_pages_routes_line_only_output_matrix_to_table_extractor() -> None:
+    """完整 LINE 网格 + 连续出口行语义应识别为矩阵，不依赖 polyline/文件名。"""
+    sheet = _make_sheet(filename="held-out.dwg", sheet_title="Generic", sheet_category="二次原理图")
+    row_axes = [10.0 + index * (70.0 / 17.0) for index in range(18)]
+    col_axes = [10.0 + index * 10.0 for index in range(8)]
+    lines = [
+        _make_horizontal_line(f"MH{index}", "S1", y=value, x1=col_axes[0], x2=col_axes[-1])
+        for index, value in enumerate(row_axes)
+    ] + [
+        _make_vertical_line(f"MV{index}", "S1", x=value, y1=row_axes[0], y2=row_axes[-1])
+        for index, value in enumerate(col_axes)
+    ]
+    texts = [
+        _make_text(f"R{index}", "S1", 12.0, row_axes[index] + 1.0, f"出口{index} Output {index}")
+        for index in range(1, 11)
+    ]
+    texts.append(_make_text("HEADER", "S1", 45.0, 76.0, "保护名称及功能压板"))
+
+    classification = classify_pages([sheet], texts, lines, [], [], DEFAULT_CONFIG)["S1"]
+
+    assert classification.page_type == "表格型图"
+    assert classification.page_subtype == "output_contact_matrix_table"
+    assert classification.table_like is True
+    assert classification.route_target == "TableExtractor"
+    assert classification.features["verified_table_row_axis_count"] == 18
+    assert classification.features["verified_table_column_axis_count"] == 8
+    assert classification.features["output_matrix_row_label_count"] == 10
+
+
+def test_classify_pages_does_not_route_unlabelled_dense_grid_as_output_matrix() -> None:
+    """仅有完整网格但无出口行语义时，不得激进误判为出口矩阵。"""
+    sheet = _make_sheet(filename="grid.dwg", sheet_title="Generic", sheet_category="二次原理图")
+    row_axes = [10.0 + index * (70.0 / 17.0) for index in range(18)]
+    col_axes = [10.0 + index * 10.0 for index in range(8)]
+    lines = [
+        _make_horizontal_line(f"GH{index}", "S1", y=value, x1=col_axes[0], x2=col_axes[-1])
+        for index, value in enumerate(row_axes)
+    ] + [
+        _make_vertical_line(f"GV{index}", "S1", x=value, y1=row_axes[0], y2=row_axes[-1])
+        for index, value in enumerate(col_axes)
+    ]
+
+    classification = classify_pages([sheet], [], lines, [], [], DEFAULT_CONFIG)["S1"]
+
+    assert classification.page_subtype != "output_contact_matrix_table"
+    assert classification.route_target == "WireDiagramExtractor"
+
+
 def test_classify_pages_routes_dense_contact_panel_without_sidecar_category() -> None:
     sheet = _make_sheet(
         filename="standalone-panel.dwg",

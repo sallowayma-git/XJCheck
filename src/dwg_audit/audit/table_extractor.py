@@ -17,8 +17,10 @@
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections import defaultdict
 import re
+from statistics import median
 from typing import Any
 
 from dwg_audit.domain.models import LineEntity
@@ -26,6 +28,7 @@ from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.audit.table_structure import build_table_structure_profiles
 from dwg_audit.utils.ids import IdFactory
 
 
@@ -34,6 +37,12 @@ _TABLE_MIN_ROWS = 2
 _TABLE_MIN_COLS = 2
 _TABLE_THREE_COLUMN_COUNT = 3
 _TABLE_PAIR_CONFIDENCE = 0.95
+_OUTPUT_MATRIX_SUBTYPE = "output_contact_matrix_table"
+_OUTPUT_MATRIX_MARK_MIN_SPAN_RATIO = 0.7
+_OUTPUT_MATRIX_MARK_MAX_SPAN_RATIO = 1.15
+_OUTPUT_MATRIX_ROW_PATTERN = re.compile(r"(?:出口\s*\d+|\bOUTPUT\s*\d+\b)", re.IGNORECASE)
+_OUTPUT_MATRIX_ROW_STRAP_PATTERN = re.compile(r"^[A-Z0-9-]*CLP\d+$", re.IGNORECASE)
+_OUTPUT_MATRIX_COLUMN_STRAP_PATTERN = re.compile(r"^[A-Z0-9-]*KLP\d+$", re.IGNORECASE)
 _HEADER_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9\-_/]*[A-Za-z][A-Za-z0-9\-_/]*$")
 _TERMINAL_ENDPOINT_PATTERN = re.compile(r"(?i).*(?:[a-z]\d+(?:-\d+)?)$")
 _BACKPLATE_HEADER_PATTERN = re.compile(r"^[A-Za-z]{2,}[0-9]+[A-Za-z]?(?:[（(].*[）)])?$")
@@ -107,7 +116,9 @@ def extract_table_pairs(
     texts_by_sheet = _group_by_sheet(texts)
     lines_by_sheet = _group_by_sheet(lines)
     polylines_by_sheet = _group_by_sheet(polylines)
-    sheet_map = {sheet.sheet_id: sheet for sheet in sheets}
+    verified_profiles_by_sheet: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for profile in build_table_structure_profiles(sheets, lines, config=config):
+        verified_profiles_by_sheet[str(profile["sheet_id"])].append(profile)
     pair_ids = IdFactory("P")
 
     table_pairs: list[Pair] = []
@@ -121,6 +132,43 @@ def extract_table_pairs(
         sheet_lines = lines_by_sheet.get(sheet_id, [])
         sheet_polylines = polylines_by_sheet.get(sheet_id, [])
         if not sheet_texts or not sheet.audit_area_bbox:
+            continue
+
+        if sheet.page_subtype == _OUTPUT_MATRIX_SUBTYPE:
+            profiles = verified_profiles_by_sheet.get(sheet_id, [])
+            profile = max(
+                profiles,
+                key=lambda item: (
+                    int(item.get("cell_count", 0)),
+                    len(item.get("row_axes", [])),
+                    len(item.get("column_axes", [])),
+                ),
+                default=None,
+            )
+            if profile is None:
+                continue
+            mappings = _build_output_contact_matrix_mappings(
+                sheet_texts,
+                sheet_lines,
+                profile,
+                sheet,
+            )
+            table_mappings.append(
+                {
+                    "sheet_id": sheet_id,
+                    "filename": sheet.filename,
+                    "sheet_no": sheet.sheet_no,
+                    "row_count": len(profile.get("row_axes", [])) - 1,
+                    "col_count": len(profile.get("column_axes", [])) - 1,
+                    "three_column": False,
+                    "matrix_table": True,
+                    "mapping_semantics": "non_conductive_contact_matrix",
+                    "marked_cell_count": len(mappings),
+                    "mappings": mappings,
+                }
+            )
+            # Matrix marks are logical configuration facts, not conductive wire
+            # joins.  Keep them structured and out of Pair/electrical-union rules.
             continue
 
         if sheet.sheet_category == "背板接线图":
@@ -184,6 +232,185 @@ def extract_table_pairs(
         )
 
     return table_pairs, table_mappings
+
+
+def _build_output_contact_matrix_mappings(
+    texts: list[TextItem],
+    lines: list[LineEntity],
+    profile: dict[str, Any],
+    sheet: SheetRecord,
+) -> list[dict[str, Any]]:
+    """Extract full-cell diagonal marks from an output/contact matrix.
+
+    The complete rectangular grid establishes the cells.  A mark is accepted
+    only when one non-axis-aligned LINE spans most of one cell in both axes.
+    CIRCLE entities used by CLP/KLP strap symbols are intentionally irrelevant.
+    """
+
+    rows = sorted(float(value) for value in profile.get("row_axes", []))
+    cols = sorted(float(value) for value in profile.get("column_axes", []))
+    if len(rows) < 2 or len(cols) < 2:
+        return []
+
+    row_texts: dict[int, list[TextItem]] = defaultdict(list)
+    for text in texts:
+        row_index = _axis_interval_index(rows, text.insert_y)
+        if row_index is not None and cols[0] <= text.insert_x <= cols[-1]:
+            row_texts[row_index].append(text)
+
+    row_labels: dict[int, TextItem] = {}
+    for row_index, candidates in row_texts.items():
+        labels = [
+            text
+            for text in candidates
+            if _OUTPUT_MATRIX_ROW_PATTERN.search(text.normalized_text or text.text or "")
+        ]
+        if labels:
+            row_labels[row_index] = min(labels, key=lambda item: (item.insert_x, item.text_id))
+
+    marked_cells: dict[tuple[int, int], list[LineEntity]] = defaultdict(list)
+    for line in lines:
+        dx = float(line.end_x) - float(line.start_x)
+        dy = float(line.end_y) - float(line.start_y)
+        if abs(dx) <= _TABLE_GRID_LINE_TOL or abs(dy) <= _TABLE_GRID_LINE_TOL:
+            continue
+        mid_x = (float(line.start_x) + float(line.end_x)) / 2.0
+        mid_y = (float(line.start_y) + float(line.end_y)) / 2.0
+        row_index = _axis_interval_index(rows, mid_y)
+        col_index = _axis_interval_index(cols, mid_x)
+        if row_index is None or col_index is None or row_index not in row_labels:
+            continue
+        cell_width = cols[col_index + 1] - cols[col_index]
+        cell_height = rows[row_index + 1] - rows[row_index]
+        if cell_width <= 0 or cell_height <= 0:
+            continue
+        width_ratio = abs(dx) / cell_width
+        height_ratio = abs(dy) / cell_height
+        if not (
+            _OUTPUT_MATRIX_MARK_MIN_SPAN_RATIO <= width_ratio <= _OUTPUT_MATRIX_MARK_MAX_SPAN_RATIO
+            and _OUTPUT_MATRIX_MARK_MIN_SPAN_RATIO <= height_ratio <= _OUTPUT_MATRIX_MARK_MAX_SPAN_RATIO
+        ):
+            continue
+        tolerance = max(_TABLE_GRID_LINE_TOL, min(cell_width, cell_height) * 0.08)
+        if not all(
+            cols[col_index] - tolerance <= x <= cols[col_index + 1] + tolerance
+            and rows[row_index] - tolerance <= y <= rows[row_index + 1] + tolerance
+            for x, y in ((line.start_x, line.start_y), (line.end_x, line.end_y))
+        ):
+            continue
+        marked_cells[(row_index, col_index)].append(line)
+
+    if not marked_cells:
+        return []
+
+    typical_row_height = median(
+        rows[index + 1] - rows[index] for index in range(len(rows) - 1)
+    )
+    header_max_y = rows[-1] + max(40.0, typical_row_height * 8.0)
+    header_texts_by_col: dict[int, list[TextItem]] = defaultdict(list)
+    for text in texts:
+        if not (rows[-1] < text.insert_y <= header_max_y):
+            continue
+        col_index = _axis_interval_index(cols, text.insert_x)
+        if col_index is not None:
+            header_texts_by_col[col_index].append(text)
+
+    mappings: list[dict[str, Any]] = []
+    for (row_index, col_index), mark_lines in sorted(
+        marked_cells.items(), key=lambda item: (-item[0][0], item[0][1])
+    ):
+        row_label = row_labels[row_index]
+        row_candidates = sorted(row_texts.get(row_index, []), key=lambda item: (item.insert_x, item.text_id))
+        row_strap = next(
+            (text for text in row_candidates if _OUTPUT_MATRIX_ROW_STRAP_PATTERN.fullmatch(text.normalized_text or "")),
+            None,
+        )
+        row_objects = [
+            text
+            for text in row_candidates
+            if text.text_id != row_label.text_id
+            and (row_strap is None or text.text_id != row_strap.text_id)
+            and text.insert_x < cols[col_index]
+        ]
+
+        header_candidates = sorted(
+            header_texts_by_col.get(col_index, []),
+            key=lambda item: (item.insert_y, item.insert_x, item.text_id),
+        )
+        if not header_candidates:
+            continue
+        column_strap = next(
+            (
+                text
+                for text in header_candidates
+                if _OUTPUT_MATRIX_COLUMN_STRAP_PATTERN.fullmatch(text.normalized_text or "")
+            ),
+            None,
+        )
+        ordered_headers = ([column_strap] if column_strap is not None else []) + [
+            text
+            for text in header_candidates
+            if column_strap is None or text.text_id != column_strap.text_id
+        ]
+        header_labels: list[str] = []
+        header_text_ids: list[str] = []
+        for text in ordered_headers:
+            value = text.normalized_text.strip()
+            if value and value not in header_labels:
+                header_labels.append(value)
+                header_text_ids.append(text.text_id)
+        if not header_labels:
+            continue
+
+        row_output = row_label.normalized_text.strip()
+        row_strap_value = row_strap.normalized_text.strip() if row_strap is not None else None
+        row_object_values = list(dict.fromkeys(text.normalized_text.strip() for text in row_objects if text.normalized_text.strip()))
+        column_value = " | ".join(header_labels)
+        row_value = row_strap_value or row_output
+        mark_line_ids = sorted({line.line_id for line in mark_lines})
+        mark_center = [
+            (cols[col_index] + cols[col_index + 1]) / 2.0,
+            (rows[row_index] + rows[row_index + 1]) / 2.0,
+        ]
+        mappings.append(
+            {
+                "mapping_mode": "output_contact_matrix",
+                "sheet_id": sheet.sheet_id,
+                "filename": sheet.filename,
+                "sheet_no": sheet.sheet_no,
+                "row_index": row_index,
+                "column_index": col_index,
+                "row_value": row_value,
+                "row_output": row_output,
+                "row_strap": row_strap_value,
+                "row_objects": row_object_values,
+                "row_text_id": row_label.text_id,
+                "row_strap_text_id": row_strap.text_id if row_strap is not None else None,
+                "column_value": column_value,
+                "column_strap": column_strap.normalized_text.strip() if column_strap is not None else None,
+                "column_header_labels": header_labels,
+                "column_header_text_ids": header_text_ids,
+                "mark_line_ids": mark_line_ids,
+                "mark_center": mark_center,
+                "is_electrical_connectivity": False,
+                "internal_connectivity": False,
+                "confidence": 0.97,
+                "reason_codes": [
+                    "VERIFIED_COMPLETE_GRID",
+                    "FULL_CELL_DIAGONAL_MARK",
+                    "ROW_AND_COLUMN_LABELS_RESOLVED",
+                    "NON_CONDUCTIVE_MATRIX_SEMANTICS",
+                ],
+            }
+        )
+    return mappings
+
+
+def _axis_interval_index(axes: list[float], value: float) -> int | None:
+    index = bisect_right(axes, float(value)) - 1
+    if index < 0 or index >= len(axes) - 1:
+        return None
+    return index
 
 
 def extract_terminal_header_table_pairs(

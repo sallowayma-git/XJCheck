@@ -10,6 +10,7 @@ import type { IssueSummary, ProjectResult, RecentProject, RunStageCard, SidecarE
 type Screen = "launch" | "process" | "result"
 
 const ISSUE_STATUS_OPTIONS = ["open", "ignored", "resolved", "false_positive"] as const
+const PREVIEW_REQUEST_TIMEOUT_MS = 20_000
 
 type ProcessState = {
   sessionId: string | null
@@ -100,15 +101,12 @@ function App() {
     }
     let unlisten: (() => void) | undefined
     void getCurrentWindow()
-      .onCloseRequested(async (event) => {
+      .onCloseRequested((event) => {
         event.preventDefault()
-        try {
-          await desktopApi.cleanupWorkspaces()
-        } catch {
-          // Best-effort cleanup on exit; never block close on cleanup failure.
-        } finally {
-          await getCurrentWindow().destroy()
-        }
+        // Closing must never wait for a disk-heavy sidecar. Rust also cancels
+        // the active preview process tree when the event loop exits.
+        void desktopApi.cancelPreview().catch(() => undefined)
+        void getCurrentWindow().destroy()
       })
       .then((fn) => {
         unlisten = fn
@@ -673,8 +671,11 @@ function App() {
     setPreviewError(null)
 
     const timer = window.setTimeout(() => {
-      void desktopApi
-        .renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId, selectedPreviewLineGroupId)
+      void withTimeout(
+        desktopApi.renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId, selectedPreviewLineGroupId),
+        PREVIEW_REQUEST_TIMEOUT_MS,
+        "Preview request timed out.",
+      )
         .then((preview) => {
           if (cancelled) {
             return
@@ -694,11 +695,12 @@ function App() {
           setPreviewSrc(null)
           setIsRefreshingPreview(false)
         })
-    }, 120)
+    }, 240)
 
     return () => {
       cancelled = true
       window.clearTimeout(timer)
+      void desktopApi.cancelPreview().catch(() => undefined)
     }
   }, [previewGeneration, result?.run.project_id, screen, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId, selectedProjectId])
 
@@ -2552,6 +2554,22 @@ function humanizePreviewError(message: string): string {
     .replace(/^预览生成失败（.*?）[。.]?\s*/u, "")
     .replace(/^Error:\s*/i, "")
     .trim() || "无法生成预览，请查看文字说明。"
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(message)), timeoutMs)
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeout)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
 }
 
 function formatAuditTime(value: string): string {

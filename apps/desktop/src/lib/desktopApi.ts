@@ -13,6 +13,7 @@ const COMMANDS = {
   listRecentProjects: "desktop_list_recent_projects",
   loadResult: "desktop_load_result",
   renderPreview: "desktop_render_preview",
+  cancelPreview: "desktop_cancel_preview",
   setIssueStatus: "desktop_set_issue_status",
   deleteProject: "desktop_delete_project",
   cleanupWorkspaces: "desktop_cleanup_workspaces",
@@ -100,6 +101,13 @@ export const desktopApi = {
     } catch (error) {
       throw toDesktopError("无法生成图纸预览。", error)
     }
+  },
+
+  async cancelPreview(): Promise<void> {
+    if (!isTauri()) {
+      return
+    }
+    await invoke(COMMANDS.cancelPreview)
   },
 
   async setIssueStatus(projectId: string, issueId: string, status: IssueStatus): Promise<ProjectResult> {

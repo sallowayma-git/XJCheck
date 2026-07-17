@@ -57,6 +57,7 @@ def extract_wire_pairs(
     lines: list[LineEntity],
     config: dict,
     *,
+    blocks: list[BlockRecord] | None = None,
     classifications: dict[str, PageClassification] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
@@ -65,6 +66,7 @@ def extract_wire_pairs(
         pages=pages,
         texts=texts,
         lines=lines,
+        blocks=blocks,
         config=config,
         classifications=classifications,
     )
@@ -255,6 +257,7 @@ def _extract_pairs_for_route(
     if executed_extractor == "WireDiagramExtractor":
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
         _shadow_communication_medium_ordinary_pairs(pairs, pages)
+        _shadow_repeated_panel_silkscreen_ordinary_pairs(pairs, pages, texts, blocks or [])
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -441,6 +444,100 @@ def _shadow_signal_alarm_ordinary_pairs(
 ) -> None:
     """Compatibility no-op: page-level alarm cues cannot prove a pair is noise."""
     _ = pairs, pages, texts
+
+
+_PANEL_SILKSCREEN_PAGE_CUE = re.compile(
+    r"通信|COMMUNICATION|告警|ALARM|电度表",
+    re.IGNORECASE,
+)
+_PANEL_SILKSCREEN_DIGIT = re.compile(r"^\d{1,2}$")
+
+
+def _shadow_repeated_panel_silkscreen_ordinary_pairs(
+    pairs: list[Pair],
+    pages: list[SheetRecord],
+    texts: list[TextItem],
+    blocks: list[BlockRecord],
+) -> None:
+    """Ignore numeric silkscreen anchored to a repeated communication-panel lattice.
+
+    A title cue is only routing context. Authority comes from repeated block columns
+    plus DIM numeric labels at the same insertion rows; real two-sided pairs and
+    block-owned endpoint text remain audit-visible.
+    """
+
+    page_map = {
+        page.sheet_id: page
+        for page in pages
+        if page.route_target == "WireDiagramExtractor"
+        and page.sheet_category == "二次原理图"
+        and _PANEL_SILKSCREEN_PAGE_CUE.search(
+            f"{page.sheet_title or ''} {page.filename or ''}"
+        )
+    }
+    if not page_map:
+        return
+
+    blocks_by_sheet: dict[str, list[BlockRecord]] = defaultdict(list)
+    for block in blocks:
+        if block.sheet_id in page_map:
+            blocks_by_sheet[block.sheet_id].append(block)
+
+    silkscreen_text_ids: set[tuple[str, str]] = set()
+    for sheet_id, sheet_blocks in blocks_by_sheet.items():
+        columns: dict[int, set[int]] = defaultdict(set)
+        for block in sheet_blocks:
+            name = str(block.name or "").lower()
+            if "title" in name or "signblock" in name:
+                continue
+            columns[round(block.insert_x / 2.5)].add(round(block.insert_y / 2.0))
+        frequent_columns = {column for column, rows in columns.items() if len(rows) >= 4}
+        if not frequent_columns:
+            continue
+        anchors = [
+            block
+            for block in sheet_blocks
+            if round(block.insert_x / 2.5) in frequent_columns
+        ]
+        anchor_rows = {round(block.insert_y / 2.0) for block in anchors}
+        if len(anchor_rows) < 4:
+            continue
+
+        for text in texts:
+            if text.sheet_id != sheet_id:
+                continue
+            token = str(text.normalized_text or text.text or "").strip()
+            if str(text.layer or "").upper() != "DIM":
+                continue
+            if text.source_block_name or not _PANEL_SILKSCREEN_DIGIT.fullmatch(token):
+                continue
+            if any(
+                abs(text.insert_x - block.insert_x) <= 4.0
+                and abs(text.insert_y - block.insert_y) <= 2.0
+                for block in anchors
+            ):
+                silkscreen_text_ids.add((sheet_id, text.text_id))
+
+    if not silkscreen_text_ids:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair" or pair.sheet_id not in page_map:
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        sides = [value for value in (pair.left_value, pair.right_value) if value]
+        if len(sides) != 1 or not _PANEL_SILKSCREEN_DIGIT.fullmatch(str(sides[0])):
+            continue
+        selected_ids = {
+            (pair.sheet_id, text_id)
+            for text_id in (pair.left_text_id, pair.right_text_id)
+            if text_id
+        }
+        if not selected_ids.intersection(silkscreen_text_ids):
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "repeated_panel_numeric_silkscreen"
 
 
 # Device front-panel silkscreen (human-adjudicated): HMC pin grids with HD*/BCD*

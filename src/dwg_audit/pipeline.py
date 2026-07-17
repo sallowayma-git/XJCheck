@@ -164,7 +164,7 @@ def analyze_input_root(
                 if sheet_id in classifications
             }
             extractor_kwargs = {"classifications": route_classifications}
-            if route_target == "ComponentDiagramExtractor":
+            if route_target in {"WireDiagramExtractor", "ComponentDiagramExtractor"}:
                 extractor_kwargs["blocks"] = [
                     block for block in blocks if block.sheet_id in sheet_ids
                 ]

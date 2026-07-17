@@ -22,6 +22,7 @@ from dwg_audit.domain.models import PageClassification
 from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.audit.table_structure import build_table_structure_profiles
 
 
 _TABLE_MIN_POLYLINE = 20
@@ -38,6 +39,10 @@ _DENSE_PANEL_TABLE_MIN_GRID_BANDS = 3
 _DENSE_PANEL_TABLE_MAX_GRID_BANDS = 6
 _DENSE_PANEL_TABLE_MIN_BLOCKS = 4
 _DENSE_PANEL_TABLE_MAX_BLOCKS = 8
+_OUTPUT_MATRIX_MIN_ROW_AXES = 16
+_OUTPUT_MATRIX_MIN_COLUMN_AXES = 6
+_OUTPUT_MATRIX_MIN_ROW_LABELS = 8
+_OUTPUT_MATRIX_MIN_HEADER_CUES = 1
 # Keep aligned with table_extractor._BACKPLATE_ENDPOINT_PATTERN so hierarchical
 # cabinet terminals such as `1-21QD1` / `& 3-21DK1-4` also upgrade 背板 pages.
 _BACKPLATE_ENDPOINT_PATTERN = re.compile(
@@ -45,6 +50,11 @@ _BACKPLATE_ENDPOINT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _BACKPLATE_HEADER_PATTERN = re.compile(r"^[A-Za-z]{2,}[0-9]+[A-Za-z]?(?:[（(].*[）)])?$")
+_OUTPUT_MATRIX_ROW_PATTERN = re.compile(r"(?:出口\s*\d+|\bOUTPUT\s*\d+\b)", re.IGNORECASE)
+_OUTPUT_MATRIX_HEADER_PATTERN = re.compile(
+    r"(?:出口对象|输出对象|保护名称|功能压板|OUTPUT\s+OBJECT|PROTECTION\s+NAME|FUNCTIONAL\s+STRAP)",
+    re.IGNORECASE,
+)
 _AUDIT_ROUTE_TARGETS = {
     "WireDiagramExtractor",
     "ComponentDiagramExtractor",
@@ -112,6 +122,9 @@ def classify_pages(
     lines_by_sheet = _group_by_sheet(lines)
     polylines_by_sheet = _group_by_sheet(polylines)
     blocks_by_sheet = _group_by_sheet(blocks)
+    profiles_by_sheet: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for profile in build_table_structure_profiles(pages, lines, config=config):
+        profiles_by_sheet[str(profile["sheet_id"])].append(profile)
 
     classifications: dict[str, PageClassification] = {}
     for page in pages:
@@ -127,6 +140,7 @@ def classify_pages(
             sheet_polylines,
             sheet_blocks,
             grid_band_tol,
+            profiles_by_sheet.get(sheet_id, []),
         )
         classification = _classify(
             page,
@@ -145,6 +159,7 @@ def _page_features(
     polylines: list[PolylineRecord],
     blocks: list[BlockRecord],
     grid_band_tol: float,
+    table_profiles: list[dict[str, Any]],
 ) -> dict[str, Any]:
     tol = 2.0
     horizontal_count = 0
@@ -180,6 +195,21 @@ def _page_features(
     )
     backplate_virtual_row_count = sum(1 for text in audit_texts if text.source_block_name and _looks_like_backplate_row_number(text.normalized_text))
     backplate_virtual_header_count = sum(1 for text in audit_texts if text.source_block_name and _looks_like_backplate_header(text.normalized_text))
+    matrix_row_label_count = sum(
+        1 for text in audit_texts if _OUTPUT_MATRIX_ROW_PATTERN.search(text.normalized_text or text.text or "")
+    )
+    matrix_header_cue_count = sum(
+        1 for text in texts if _OUTPUT_MATRIX_HEADER_PATTERN.search(text.normalized_text or text.text or "")
+    )
+    largest_table_profile = max(
+        table_profiles,
+        key=lambda item: (
+            int(item.get("cell_count", 0)),
+            len(item.get("row_axes", [])),
+            len(item.get("column_axes", [])),
+        ),
+        default=None,
+    )
 
 
     return {
@@ -198,6 +228,12 @@ def _page_features(
         "grid_band_count": grid_band_count,
         "polyline_density": round(len(polylines) / area, 6),
         "block_density": round(len(blocks) / area, 6),
+        "verified_table_profile_count": len(table_profiles),
+        "verified_table_row_axis_count": len(largest_table_profile.get("row_axes", [])) if largest_table_profile else 0,
+        "verified_table_column_axis_count": len(largest_table_profile.get("column_axes", [])) if largest_table_profile else 0,
+        "verified_table_cell_count": int(largest_table_profile.get("cell_count", 0)) if largest_table_profile else 0,
+        "output_matrix_row_label_count": matrix_row_label_count,
+        "output_matrix_header_cue_count": matrix_header_cue_count,
     }
 
 
@@ -229,6 +265,10 @@ def _classify(
     backplate_virtual_row_count = int(features.get("backplate_virtual_row_number_count", 0))
     backplate_virtual_header_count = int(features.get("backplate_virtual_header_count", 0))
     block_count = int(features.get("block_count", 0))
+    verified_table_row_axis_count = int(features.get("verified_table_row_axis_count", 0))
+    verified_table_column_axis_count = int(features.get("verified_table_column_axis_count", 0))
+    output_matrix_row_label_count = int(features.get("output_matrix_row_label_count", 0))
+    output_matrix_header_cue_count = int(features.get("output_matrix_header_cue_count", 0))
 
     grid_heavy = (
         grid_band_count >= grid_min_band
@@ -257,6 +297,12 @@ def _classify(
         and backplate_endpoint_count >= _BACKPLATE_TABLE_MIN_ENDPOINTS
         and _DENSE_PANEL_TABLE_MIN_BLOCKS <= block_count <= _DENSE_PANEL_TABLE_MAX_BLOCKS
     )
+    output_matrix_like = (
+        verified_table_row_axis_count >= _OUTPUT_MATRIX_MIN_ROW_AXES
+        and verified_table_column_axis_count >= _OUTPUT_MATRIX_MIN_COLUMN_AXES
+        and output_matrix_row_label_count >= _OUTPUT_MATRIX_MIN_ROW_LABELS
+        and output_matrix_header_cue_count >= _OUTPUT_MATRIX_MIN_HEADER_CUES
+    )
 
     if page.audit_role == "skip":
         page_type = category or "非审计页"
@@ -270,6 +316,13 @@ def _classify(
         subtype = "vertical_component" if vertical_ratio >= _VERTICAL_COMPONENT_MIN_VERTICAL_RATIO else "horizontal_component"
         confidence = 0.85 if subtype == "vertical_component" else 0.82
         route_target = "ComponentDiagramExtractor"
+    elif output_matrix_like:
+        # 出口/触点矩阵通常完全由 LINE 构成，没有 polyline。完整网格与连续
+        # 输出行标签共同定义页型；这避免用文件名或某个图纸 fingerprint 记忆。
+        page_type = "表格型图"
+        subtype = "output_contact_matrix_table"
+        confidence = 0.94
+        route_target = "TableExtractor"
     elif backplate_table_routed:
         page_type = "背板表格型图"
         subtype = "backplate_virtual_terminal_table" if backplate_table_like else "backplate_geometric_table"
@@ -327,7 +380,7 @@ def _classify(
         features,
         route_target=route_target,
         audit_disposition=audit_disposition,
-        table_like=table_like or backplate_table_routed or dense_panel_table_like,
+        table_like=table_like or backplate_table_routed or dense_panel_table_like or output_matrix_like,
         grid_heavy=grid_heavy,
         audit_texts=audit_texts,
     )
@@ -337,7 +390,7 @@ def _classify(
         page_type=page_type,
         page_subtype=subtype,
         page_type_confidence=round(confidence, 2),
-        table_like=table_like or backplate_table_routed or dense_panel_table_like,
+        table_like=table_like or backplate_table_routed or dense_panel_table_like or output_matrix_like,
         grid_heavy=grid_heavy,
         route_target=route_target,
         features=features,

@@ -89,8 +89,30 @@ def render_project_preview(
         or _extent_from_highlight(highlight)
         or _extent_from_issue_evidence(issue_row)
     )
+
+    preview_root = default_preview_cache_root() / project_id
+    target_dir = (output_dir or preview_root).expanduser().resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
     if page_extent is None:
-        raise ValueError(f"Page {sheet_id} does not have a usable extent bbox.")
+        target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}_summary.svg"
+        svg_text = _build_unlocated_svg(
+            page_row,
+            issue_row=issue_row,
+            line_semantics=line_semantics,
+        )
+        target_path.write_text(svg_text, encoding="utf-8")
+        return {
+            "project_id": project_id,
+            "sheet_id": sheet_id,
+            "issue_id": issue_id,
+            "preview_path": str(target_path),
+            "preview_svg": svg_text,
+            "artifact_dir": artifact_raw,
+            "focus_bbox": None,
+            "cropped_to_issue": False,
+            "source": "sqlite_summary",
+            "lightweight": True,
+        }
 
     sheet_lines = lines[lines["sheet_id"].astype(str) == sheet_id] if not lines.empty else pd.DataFrame()
     sheet_texts = texts[texts["sheet_id"].astype(str) == sheet_id] if not texts.empty else pd.DataFrame()
@@ -110,9 +132,6 @@ def render_project_preview(
     if visible_lines.empty and highlight is not None:
         visible_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
 
-    preview_root = default_preview_cache_root() / project_id
-    target_dir = (output_dir or preview_root).expanduser().resolve()
-    target_dir.mkdir(parents=True, exist_ok=True)
     crop_token = "issue" if highlight is not None else "sheet"
     target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}_{crop_token}.svg"
     if len(visible_lines) > _MAX_PREVIEW_LINES:
@@ -310,6 +329,63 @@ def _build_svg(
         ]
     )
     return "\n".join(svg_lines) + "\n"
+
+
+def _build_unlocated_svg(
+    page_row: pd.Series,
+    *,
+    issue_row: pd.Series | None,
+    line_semantics: dict[str, str] | None,
+) -> str:
+    title = html.escape(str(page_row.get("sheet_title") or page_row.get("filename") or "图纸预览"))
+    filename = html.escape(str(page_row.get("filename") or "").strip())
+    sheet_no = html.escape(str(page_row.get("sheet_no") or "").strip())
+    issue_title = "问题定位摘要"
+    pair_label = ""
+    summary = "该问题没有可用坐标，无法在图上精确框选。请结合下方问题说明复核。"
+    rule_label = ""
+    if issue_row is not None:
+        issue_title = html.escape(str(issue_row.get("title") or "问题定位摘要").strip())
+        left_value = str(issue_row.get("left_value") or "").strip()
+        right_value = str(issue_row.get("right_value") or "").strip()
+        if left_value or right_value:
+            pair_label = html.escape(f"端子 {left_value or '?'} → {right_value or '?'}")
+        issue_summary = str(issue_row.get("summary") or "").strip()
+        if issue_summary:
+            summary = html.escape(issue_summary[:140])
+        rule_label = html.escape(_humanize_rule_id(str(issue_row.get("rule_id") or "")))
+
+    orientation = ""
+    if line_semantics:
+        orientation = _humanize_orientation(line_semantics.get("line_orientation"))
+    subtitle_parts = [value for value in (f"图号 {sheet_no}" if sheet_no else "", filename, "无坐标定位") if value]
+    detail_parts = [value for value in (pair_label, rule_label, f"方向 {html.escape(orientation)}" if orientation else "") if value]
+    subtitle = " · ".join(subtitle_parts)
+    detail = " · ".join(detail_parts) or "已保留关联图纸与问题文字"
+
+    return "\n".join(
+        [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+            (
+                f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{_CANVAS_WIDTH}\" "
+                f"height=\"{_CANVAS_HEIGHT}\" viewBox=\"0 0 {_CANVAS_WIDTH} {_CANVAS_HEIGHT}\">"
+            ),
+            f"<metadata>view=unlocated-summary;sheet={sheet_no}</metadata>",
+            "<rect width=\"100%\" height=\"100%\" fill=\"#fffdf8\" />",
+            "<rect x=\"0\" y=\"0\" width=\"960\" height=\"58\" fill=\"#f7f4ee\" />",
+            f"<text x=\"18\" y=\"25\" font-size=\"16\" fill=\"#1a1814\" font-family=\"Microsoft YaHei, Segoe UI, sans-serif\">{title}</text>",
+            f"<text x=\"18\" y=\"46\" font-size=\"12\" fill=\"#6b6458\" font-family=\"Microsoft YaHei, Segoe UI, sans-serif\">{subtitle}</text>",
+            "<rect x=\"150\" y=\"120\" width=\"660\" height=\"300\" rx=\"14\" fill=\"#fbf5e7\" stroke=\"#d8c58f\" stroke-width=\"2\" />",
+            "<circle cx=\"210\" cy=\"180\" r=\"24\" fill=\"#f0d992\" />",
+            "<text x=\"202\" y=\"190\" font-size=\"28\" fill=\"#745716\" font-family=\"Segoe UI, sans-serif\">i</text>",
+            f"<text x=\"255\" y=\"178\" font-size=\"22\" font-weight=\"700\" fill=\"#2b261d\" font-family=\"Microsoft YaHei, Segoe UI, sans-serif\">{issue_title}</text>",
+            f"<text x=\"190\" y=\"245\" font-size=\"17\" fill=\"#433b2d\" font-family=\"Microsoft YaHei, Segoe UI, sans-serif\">{detail}</text>",
+            f"<text x=\"190\" y=\"302\" font-size=\"15\" fill=\"#6b6458\" font-family=\"Microsoft YaHei, Segoe UI, sans-serif\">{summary}</text>",
+            "<text x=\"190\" y=\"362\" font-size=\"14\" fill=\"#8a6b20\" font-family=\"Microsoft YaHei, Segoe UI, sans-serif\">无坐标定位：未在图中绘制虚构框选，请结合文字说明人工复核。</text>",
+            "</svg>",
+            "",
+        ]
+    )
 
 
 def _make_view_transform(extent: tuple[float, float, float, float]) -> dict[str, Any]:

@@ -193,3 +193,48 @@ def test_render_project_preview_uses_sqlite_evidence_without_artifacts(tmp_path:
     assert preview.get("source") == "sqlite_evidence"
     assert isinstance(preview.get("focus_bbox"), list)
     assert len(preview["focus_bbox"]) == 4
+
+
+def test_render_project_preview_uses_summary_when_sqlite_issue_has_no_coordinates(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    _record_demo_run(
+        store,
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        artifact_dir="",
+        issue=_issue_payload(
+            title="多对一配对",
+            summary="多个端子映射到同一个右值。",
+            filename="30 右侧端子图1.dwg",
+            sheet_no="30",
+            left_value="1U2D-13",
+            right_value="1ID13",
+            evidence={
+                "filename": "30 右侧端子图1.dwg",
+                "sheet_no": "30",
+                "sheet_title": "RIGHT TERMINAL 1",
+                "pair_evidence": {"line_orientation": "table"},
+            },
+        ),
+    )
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    preview_path = Path(preview["preview_path"])
+    assert preview_path.exists()
+    svg = preview_path.read_text(encoding="utf-8")
+    assert "view=unlocated-summary" in svg
+    assert "多对一配对" in svg
+    assert "30 右侧端子图1.dwg" in svg
+    assert "端子 1U2D-13 → 1ID13" in svg
+    assert "无坐标定位" in svg
+    assert preview["source"] == "sqlite_summary"
+    assert preview["focus_bbox"] is None
+    assert preview["cropped_to_issue"] is False
+    assert preview["lightweight"] is True

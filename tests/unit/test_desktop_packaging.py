@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
+
+from dwg_audit.desktop.sidecar_entry import _configure_text_stream_utf8
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +18,9 @@ def test_tauri_bundle_declares_sidecar_and_oda_resource_directories() -> None:
 
     assert resources["resources/sidecar/*"] == "sidecar/"
     assert resources["resources/oda/*"] == "oda/"
+    # Tauri flattens a recursive glob into its destination. Map the Qt plugin
+    # directory explicitly so qwindows.dll remains under oda/platforms/.
+    assert resources["resources/oda/platforms/*"] == "oda/platforms/"
     assert config["bundle"]["targets"] == "nsis"
 
 
@@ -43,6 +49,20 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     main_rs = (DESKTOP_ROOT / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
     assert 'windows_subsystem = "windows"' in main_rs
 
+    assert "PREVIEW_GATE" in main_rs
+    assert "PREVIEW_TIMEOUT" in main_rs
+    assert "Preview request superseded" in main_rs
+    assert "desktop_cancel_preview" in main_rs
+    assert "ExitRequested" in main_rs
+    assert "taskkill" in main_rs
+    assert "drain_preview_pipe" in main_rs
+
+    app_tsx = (DESKTOP_ROOT / "src" / "App.tsx").read_text(encoding="utf-8")
+    close_handler = app_tsx.split(".onCloseRequested", 1)[1].split(".then", 1)[0]
+    assert "cancelPreview" in close_handler
+    assert ".destroy()" in close_handler
+    assert "cleanupWorkspaces" not in close_handler
+
 
 def test_oda_staging_and_release_scripts_exist() -> None:
     stage = (DESKTOP_ROOT / "scripts" / "stage-oda-resources.ps1").read_text(encoding="utf-8")
@@ -52,8 +72,10 @@ def test_oda_staging_and_release_scripts_exist() -> None:
     )
 
     assert "ODAFileConverter.exe" in stage
+    assert "platforms\\qwindows.dll" in stage
     assert "resources\\oda" in stage
     assert "stage-oda-resources.ps1" in release
+    assert "platforms\\qwindows.dll" in release
     assert "build-sidecar.ps1" in release
     assert "tauri:build" in release
     assert "do not commit binaries" in oda_readme.lower() or "Binary ODA" in oda_readme
@@ -65,6 +87,18 @@ def test_python_sidecar_entrypoint_uses_existing_cli_contract() -> None:
 
     assert "from dwg_audit.cli import run" in content
     assert "run()" in content
+
+
+def test_python_sidecar_entrypoint_forces_utf8_output() -> None:
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="gb18030")
+
+    _configure_text_stream_utf8(stream)
+    stream.write("多对一配对")
+    stream.flush()
+
+    assert stream.encoding.lower().replace("-", "") == "utf8"
+    assert raw.getvalue().decode("utf-8") == "多对一配对"
 
 
 def test_default_config_does_not_hardcode_machine_oda_install() -> None:

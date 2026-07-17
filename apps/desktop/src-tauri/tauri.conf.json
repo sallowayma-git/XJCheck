@@ -36,7 +36,8 @@
     "targets": "nsis",
     "resources": {
       "resources/sidecar/*": "sidecar/",
-      "resources/oda/*": "oda/"
+      "resources/oda/*": "oda/",
+      "resources/oda/platforms/*": "oda/platforms/"
     },
     "icon": [
       "icons/icon.ico",

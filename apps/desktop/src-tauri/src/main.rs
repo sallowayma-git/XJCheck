@@ -9,8 +9,15 @@ use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
 use std::path::PathBuf;
+use std::process::Output;
 use std::process::Stdio;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+use std::sync::Mutex;
+use std::thread::JoinHandle;
 use std::time::Duration;
+use std::time::Instant;
 
 use serde_json::json;
 use serde_json::Value;
@@ -23,6 +30,11 @@ mod sidecar_runtime;
 use sidecar_runtime::build_sidecar_command;
 
 const DESKTOP_EVENT_NAME: &str = "dwg-audit://sidecar-event";
+const PREVIEW_TIMEOUT: Duration = Duration::from_secs(15);
+const PREVIEW_POLL_INTERVAL: Duration = Duration::from_millis(40);
+static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
+static ACTIVE_PREVIEW_PID: AtomicU32 = AtomicU32::new(0);
+static PREVIEW_GATE: Mutex<()> = Mutex::new(());
 
 #[tauri::command]
 async fn desktop_analyze_session(
@@ -30,9 +42,11 @@ async fn desktop_analyze_session(
     input_root: String,
     session_id: Option<String>,
 ) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || analyze_session_blocking(app, input_root, session_id))
-        .await
-        .map_err(|error| format!("Analyze session task failed: {error}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        analyze_session_blocking(app, input_root, session_id)
+    })
+    .await
+    .map_err(|error| format!("Analyze session task failed: {error}"))?
 }
 
 fn analyze_session_blocking(
@@ -179,7 +193,18 @@ async fn desktop_render_preview(
         args.push("--line-group-id".to_string());
         args.push(value);
     }
-    run_sidecar_json_async(app, args).await
+    let generation = begin_preview_request();
+    tauri::async_runtime::spawn_blocking(move || {
+        run_preview_sidecar_json_owned(&app, args, generation)
+    })
+    .await
+    .map_err(|error| format!("Preview sidecar task failed: {error}"))?
+}
+
+#[tauri::command]
+fn desktop_cancel_preview() -> Value {
+    cancel_preview_requests();
+    json!({ "cancelled": true })
 }
 
 #[tauri::command]
@@ -256,6 +281,10 @@ fn run_sidecar_json_owned(app: &AppHandle, args: Vec<String>) -> Result<Value, S
     let output = build_desktop_sidecar_command(app, &args)?
         .output()
         .map_err(|error| format!("Failed to execute DWG audit sidecar: {error}"))?;
+    parse_sidecar_json_output(output)
+}
+
+fn parse_sidecar_json_output(output: Output) -> Result<Value, String> {
     if !output.status.success() {
         let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if detail.is_empty() {
@@ -271,6 +300,151 @@ fn run_sidecar_json_owned(app: &AppHandle, args: Vec<String>) -> Result<Value, S
     serde_json::from_str(stdout.trim())
         .map_err(|error| format!("Failed to parse DWG audit sidecar JSON output: {error}"))
 }
+
+fn begin_preview_request() -> u64 {
+    PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+fn is_current_preview_request(generation: u64) -> bool {
+    PREVIEW_GENERATION.load(Ordering::SeqCst) == generation
+}
+
+fn cancel_preview_requests() {
+    PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst);
+    let pid = ACTIVE_PREVIEW_PID.load(Ordering::SeqCst);
+    if pid != 0 {
+        terminate_process_tree_by_pid(pid);
+    }
+}
+
+fn run_preview_sidecar_json_owned(
+    app: &AppHandle,
+    args: Vec<String>,
+    generation: u64,
+) -> Result<Value, String> {
+    let _gate = PREVIEW_GATE
+        .lock()
+        .map_err(|_| "Preview sidecar gate is unavailable.".to_string())?;
+    if !is_current_preview_request(generation) {
+        return Err("Preview request superseded.".to_string());
+    }
+
+    let mut child = build_desktop_sidecar_command(app, &args)?
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Failed to execute DWG audit preview sidecar: {error}"))?;
+    let _active_process = ActivePreviewProcess::new(child.id());
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "DWG audit preview sidecar stdout pipe is unavailable.".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "DWG audit preview sidecar stderr pipe is unavailable.".to_string())?;
+    let stdout_thread = drain_preview_pipe(stdout, "stdout");
+    let stderr_thread = drain_preview_pipe(stderr, "stderr");
+    let started = Instant::now();
+
+    loop {
+        if !is_current_preview_request(generation) {
+            terminate_preview_child(&mut child);
+            discard_preview_output(stdout_thread, stderr_thread);
+            return Err("Preview request superseded.".to_string());
+        }
+        if started.elapsed() >= PREVIEW_TIMEOUT {
+            terminate_preview_child(&mut child);
+            discard_preview_output(stdout_thread, stderr_thread);
+            return Err(format!(
+                "Preview generation timed out after {} seconds.",
+                PREVIEW_TIMEOUT.as_secs()
+            ));
+        }
+        match child
+            .try_wait()
+            .map_err(|error| format!("Failed to poll DWG audit preview sidecar: {error}"))?
+        {
+            Some(status) => {
+                let stdout = join_preview_pipe(stdout_thread)?;
+                let stderr = join_preview_pipe(stderr_thread)?;
+                let output = Output {
+                    status,
+                    stdout,
+                    stderr,
+                };
+                return parse_sidecar_json_output(output);
+            }
+            None => std::thread::sleep(PREVIEW_POLL_INTERVAL),
+        }
+    }
+}
+
+fn drain_preview_pipe<R>(mut pipe: R, label: &'static str) -> JoinHandle<Result<Vec<u8>, String>>
+where
+    R: Read + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        pipe.read_to_end(&mut bytes)
+            .map_err(|error| format!("Failed to read preview sidecar {label}: {error}"))?;
+        Ok(bytes)
+    })
+}
+
+fn join_preview_pipe(thread: JoinHandle<Result<Vec<u8>, String>>) -> Result<Vec<u8>, String> {
+    thread
+        .join()
+        .map_err(|_| "Preview sidecar output reader panicked.".to_string())?
+}
+
+fn discard_preview_output(
+    stdout_thread: JoinHandle<Result<Vec<u8>, String>>,
+    stderr_thread: JoinHandle<Result<Vec<u8>, String>>,
+) {
+    let _ = stdout_thread.join();
+    let _ = stderr_thread.join();
+}
+
+struct ActivePreviewProcess {
+    pid: u32,
+}
+
+impl ActivePreviewProcess {
+    fn new(pid: u32) -> Self {
+        ACTIVE_PREVIEW_PID.store(pid, Ordering::SeqCst);
+        Self { pid }
+    }
+}
+
+impl Drop for ActivePreviewProcess {
+    fn drop(&mut self) {
+        let _ =
+            ACTIVE_PREVIEW_PID.compare_exchange(self.pid, 0, Ordering::SeqCst, Ordering::SeqCst);
+    }
+}
+
+fn terminate_preview_child(child: &mut std::process::Child) {
+    terminate_process_tree_by_pid(child.id());
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+#[cfg(windows)]
+fn terminate_process_tree_by_pid(pid: u32) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let _ = std::process::Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+#[cfg(not(windows))]
+fn terminate_process_tree_by_pid(_pid: u32) {}
 
 fn build_desktop_sidecar_command(
     app: &AppHandle,
@@ -326,38 +500,44 @@ fn main() {
             desktop_list_recent_projects,
             desktop_load_result,
             desktop_render_preview,
+            desktop_cancel_preview,
             desktop_set_issue_status,
             desktop_delete_project,
             desktop_cleanup_workspaces
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::Exit = event {
-                // Best-effort: never block the UI/event loop on exit cleanup.
-                let app = app_handle.clone();
-                let _ = std::thread::Builder::new()
-                    .name("desktop-cleanup".into())
-                    .spawn(move || {
-                        let Ok(workspace_root) = default_workspace_root() else {
-                            return;
-                        };
-                        let Ok(state_db) = default_state_db_path() else {
-                            return;
-                        };
-                        let _ = run_sidecar_json_owned(
-                            &app,
-                            vec![
-                                "cleanup-workspaces".to_string(),
-                                "--workspace-root".to_string(),
-                                workspace_root.to_string_lossy().to_string(),
-                                "--state-db".to_string(),
-                                state_db.to_string_lossy().to_string(),
-                            ],
-                        );
-                    });
-                // Tiny yield so the cleanup thread can start before process teardown.
-                std::thread::sleep(Duration::from_millis(50));
+        .run(|_app_handle, event| {
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                cancel_preview_requests();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn newer_preview_request_supersedes_older_generation() {
+        let older = begin_preview_request();
+        assert!(is_current_preview_request(older));
+
+        let newer = begin_preview_request();
+        assert!(!is_current_preview_request(older));
+        assert!(is_current_preview_request(newer));
+    }
+
+    #[test]
+    fn preview_pipe_drain_handles_payload_larger_than_windows_pipe_buffer() {
+        let payload = vec![b'x'; 256 * 1024];
+        let reader = std::io::Cursor::new(payload.clone());
+
+        let drained = join_preview_pipe(drain_preview_pipe(reader, "test")).unwrap();
+
+        assert_eq!(drained, payload);
+    }
 }

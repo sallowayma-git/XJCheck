@@ -172,20 +172,14 @@ where
             env_vars.push(("ODAFC_PATH".to_string(), oda.to_string_lossy().to_string()));
             env_vars.push((
                 "DWG_AUDIT_BUNDLED_ODA_DIR".to_string(),
-                oda.parent()
-                    .unwrap_or(root)
-                    .to_string_lossy()
-                    .to_string(),
+                oda.parent().unwrap_or(root).to_string_lossy().to_string(),
             ));
         }
     }
     if let Some(exe) = sidecar_exe {
         env_vars.push((
             "DWG_AUDIT_SIDECAR_DIR".to_string(),
-            exe.parent()
-                .unwrap_or(exe)
-                .to_string_lossy()
-                .to_string(),
+            exe.parent().unwrap_or(exe).to_string_lossy().to_string(),
         ));
     }
     env_vars
@@ -307,9 +301,7 @@ mod tests {
     #[test]
     fn bundled_sidecar_exe_beats_development_python() {
         let resource_root = PathBuf::from("C:/app/resources");
-        let sidecar = resource_root
-            .join("sidecar")
-            .join("dwg-audit-sidecar.exe");
+        let sidecar = resource_root.join("sidecar").join("dwg-audit-sidecar.exe");
         let oda = resource_root.join("oda").join("ODAFileConverter.exe");
         let runtime = resolve_sidecar_runtime_with(
             Some(resource_root.clone()),

@@ -1601,6 +1601,7 @@
 - 20000 sheet25: six CD/XJDZ low-confidence pairs must become scoped structural mappings retaining complete endpoint identity (e.g. CD11->CD8 and XJDZ instance:port), not name-based shadows. Sheet26 CLP/backplate inconsistencies remain legitimate review and must not be auto-cleared.
 
 - Signal-sheet inline reconstruction is now validated: a 20-unit numeric bridge is used only on signal/alarm sheets, while the default remains 13 elsewhere. Fresh 8000 replay reduces 22 -> 10, clears all 12 sheet05 false missing-side rows, and leaves sheet04/14/15 counts unchanged.
+- Repeated panel silkscreen model validated on 29000 sheet09: it uses a communication/alarm routing cue only together with >=4 repeated block rows/columns, nearby DIM 1-2 digit text, no block-owned endpoint identity, and a single-sided ordinary pair. Fresh 29000 replay reduces 10 -> 0; exactly 10 pairs carry `repeated_panel_numeric_silkscreen`.
 
 # Phase 172 packaged ODA crash diagnosis (2026-07-17)
 
@@ -1691,3 +1692,7 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Frontend effect has no deadline around `desktopApi.renderPreview`; add a small reusable promise deadline (about 20 seconds) so state always leaves loading and maps the timeout through the existing Chinese error helper.
 - Source-level real PAC proof after the fix: packaged-entry module `load-result` emits 231,279 bytes of strict UTF-8 with zero U+FFFD and preserves Chinese filename `23 主保护箱背面接线图1.dwg`. `render-preview` for S0030/I0024 exits 0, returns `source=sqlite_summary`, contains Chinese `无坐标定位`, and reports `focus_bbox=null` rather than inventing geometry.
 - Targeted Python tests pass `18 passed`; desktop TypeScript check passes.
+- Browser-rasterized real S0030/I0024 SVG was visually checked: Chinese title, filename, issue title, terminal pair, rule label, table direction, and no-coordinate warning all render cleanly; the card does not draw a false CAD highlight.
+- Release build succeeded with a 52.2 MB sidecar and 72,002,609-byte NSIS installer. Silent install to `E:\TMPXJ` returned 0.
+- Final installed-binary proof: `E:\TMPXJ\sidecar\dwg-audit-sidecar.exe load-result` emits 231,279 strict UTF-8 bytes with zero U+FFFD and intact Chinese filename; installed `render-preview` for S0030/I0024 exits 0 with `source=sqlite_summary`, Chinese SVG content, and `focus_bbox=null`.
+- Final gates: full unit suite `953 passed, 1 skipped`; TypeScript check and production frontend/Tauri/NSIS builds pass; oxlint exits 0 with three existing `useEffectEvent` dependency warnings; `git diff --check` passes.

@@ -5445,6 +5445,7 @@
 - Unrelated concurrent packaging edits (`apps/desktop/...`, `tests/unit/test_desktop_packaging.py`) and root `package-lock.json` are not part of this recognition commit and must remain unstaged.
 
 - Phase173 signal inline bridge: kept global gap 13, applied gap 20 only to signal/alarm sheets with an inline numeric bbox spanning the split. Unit gate 91 passed; fresh 8000 total 22 -> 10, sheet05 12 -> 0, and non-signal sheet04 stayed at 4.
+- Phase173 repeated panel lattice: wire extraction now receives route-scoped blocks; geometry model shadows only single-sided DIM digits anchored to a repeated communication/alarm panel lattice. Focused gate 45 + 36 passed; fresh 29000 total 10 -> 0 with 10 exact geometry hits.
 
 # 2026-07-17 Phase 172 packaged ODA crash diagnosis
 
@@ -5527,3 +5528,7 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Located existing preview/packaging regression files so the fixes can extend current contracts rather than create parallel test scaffolding.
 - Read the exact preview renderer, lifecycle test, packaged entrypoint, and React preview effect. Implementation scope is now fixed: UTF-8 stdio helper, unlocated SQLite SVG renderer, lifecycle regression, and UI deadline.
 - Implemented all three fixes and regressions. Targeted Python tests pass `18 passed`; `npm run check` passes. Real PAC source-entry reproduction proves strict UTF-8/no U+FFFD and successful SQLite-summary SVG generation.
+- Located the generated real-PAC summary SVG. Direct image-tool inspection does not support SVG, so visual verification will use a browser-rendered PNG.
+- Rendered the SVG through headless Edge and visually verified the fallback card. Dynamic Chinese is legible and the no-coordinate limitation is explicit.
+- Rebuilt the PyInstaller sidecar, frontend, Tauri binary, and NSIS package; installed successfully. Raw-byte checks against the installed sidecar confirm the encoding and preview fixes in the actual packaged runtime.
+- Final verification complete: `953 passed, 1 skipped`, TypeScript check, oxlint (0 errors), production release build/install, real installed-sidecar byte/preview probes, browser visual review, and `git diff --check`.
