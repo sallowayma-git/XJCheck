@@ -94,6 +94,44 @@ def test_build_line_groups_bridges_gap_just_above_previous_threshold() -> None:
     assert groups[0].end_x == 145.0
 
 
+def test_build_line_groups_bridges_wide_gap_when_same_inline_number_spans_it() -> None:
+    lines = [
+        LineEntity("L1", "S1", "F1", "H1", "LINE", "CONNECT", 152.5, 130.0, 187.5, 130.0, 35.0, 0.0, 152.5, 130.0, 187.5, 130.0),
+        LineEntity("L2", "S1", "F1", "H2", "LINE", "CONNECT", 206.25, 130.0, 282.5, 130.0, 76.25, 0.0, 206.25, 130.0, 282.5, 130.0),
+    ]
+    sheets = [
+        SheetRecord(
+            sheet_id="S1",
+            file_id="F1",
+            filename="05 信号回路图.dwg",
+            sheet_order=5,
+            sheet_no="05",
+            sheet_title="信号回路图",
+            sheet_category="二次原理图",
+            audit_role="primary",
+            page_no_source="filename",
+            is_primary_audit_candidate=True,
+            audit_area_bbox=(0.0, 0.0, 320.0, 220.0),
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "TH1", "TEXT", "111", "111", True, "DIM", 0.0, 2.5, 186.25, 130.66, 184.0, 129.0, 190.0, 133.0)
+    ]
+
+    groups = build_line_groups(lines, sheets, DEFAULT_CONFIG, texts)
+
+    assert len(groups) == 1
+    assert groups[0].start_x == 152.5
+    assert groups[0].end_x == 282.5
+    assert groups[0].member_line_ids == ["L1", "L2"]
+
+    # The same 18.75-unit gap on a non-signal sheet stays split.
+    sheets[0].filename = "04 直流回路图.dwg"
+    sheets[0].sheet_title = "直流回路图"
+    strict_groups = build_line_groups(lines, sheets, DEFAULT_CONFIG, texts)
+    assert len(strict_groups) == 2
+
+
 def test_build_line_groups_uses_vertical_orientation_for_component_pages() -> None:
     lines = [
         LineEntity("L1", "S1", "F1", "H1", "LINE", "WIRE", 60.0, 80.0, 60.0, 40.0, 40.0, -90.0, 60.0, 40.0, 60.0, 80.0),

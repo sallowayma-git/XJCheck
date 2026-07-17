@@ -5444,6 +5444,8 @@
 - Full validation gate passed: `977 passed, 1 skipped`; `python -m compileall -q src/dwg_audit` and `git diff --check` clean.
 - Unrelated concurrent packaging edits (`apps/desktop/...`, `tests/unit/test_desktop_packaging.py`) and root `package-lock.json` are not part of this recognition commit and must remain unstaged.
 
+- Phase173 signal inline bridge: kept global gap 13, applied gap 20 only to signal/alarm sheets with an inline numeric bbox spanning the split. Unit gate 91 passed; fresh 8000 total 22 -> 10, sheet05 12 -> 0, and non-signal sheet04 stayed at 4.
+
 # 2026-07-17 Phase 172 packaged ODA crash diagnosis
 
 - Decoded repeated packaged return code as `0xC0000409` (`STATUS_STACK_BUFFER_OVERRUN`).
@@ -5518,3 +5520,10 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Started explicit UTF-8/data-boundary and preview-generation investigation. Planning catchup detected prior unsynced messages but crashed while printing U+FFFD through a GBK console; logged the error and continued from repository state.
 - Parallel read-only scans established that source PAC artifacts contain intact UTF-8 Chinese with zero U+FFFD, while the preview spinner corresponds to a Tauri invoke that never settles. Next work is actual installed-state reproduction and direct review of desktop normalization plus preview subprocess handling.
 - Located the installed SQLite state DB and packaged sidecar. Frontend search found no broad encoding decoder, narrowing the next comparison to SQLite row contents versus issue normalization/presentation helpers.
+- First SQLite read-only one-liner failed at Python parse time due nested quote escaping; no DB access or mutation occurred. Switched to a here-string script.
+- Read-only SQLite inspection succeeded and proves desktop persistence is UTF-8-clean. First installed-sidecar raw-byte probe used wrong CLI argument order and returned argparse code 2; logged and moved to exact parser review.
+- Exact raw-byte reproduction confirms the encoding defect: packaged `load-result` emits GB18030 stdout, invalid UTF-8, and Rust lossy decoding introduces 5,411 replacement characters. Exact preview reproduction returns an artifact/geometry availability error for sheet S0030.
+- Confirmed desktop analysis deliberately compacts artifacts immediately, making the existing non-geometry preview path structurally impossible. Chosen direction: global UTF-8 sidecar stdio, SQLite-only no-coordinate SVG fallback, and bounded frontend preview wait.
+- Located existing preview/packaging regression files so the fixes can extend current contracts rather than create parallel test scaffolding.
+- Read the exact preview renderer, lifecycle test, packaged entrypoint, and React preview effect. Implementation scope is now fixed: UTF-8 stdio helper, unlocated SQLite SVG renderer, lifecycle regression, and UI deadline.
+- Implemented all three fixes and regressions. Targeted Python tests pass `18 passed`; `npm run check` passes. Real PAC source-entry reproduction proves strict UTF-8/no U+FFFD and successful SQLite-summary SVG generation.

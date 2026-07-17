@@ -13,6 +13,7 @@ from dwg_audit.utils.ids import IdFactory
 _ORIENTATION_HORIZONTAL = "horizontal"
 _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
+_SIGNAL_INLINE_BRIDGE_GAP = 20.0
 
 
 def _point_in_bbox(x: float, y: float, bbox: tuple[float, float, float, float] | None) -> bool:
@@ -56,6 +57,7 @@ def build_line_groups(
         if sheet is None or not sheet.is_primary_audit_candidate or sheet.audit_area_bbox is None:
             continue
         sheet_texts = by_sheet_texts.get(sheet_id, [])
+        sheet_inline_bridge_gap = _inline_bridge_gap_for_sheet(sheet, inline_bridge_gap)
         classification = classifications.get(sheet_id) if classifications else None
         orientation = _resolve_orientation(
             sheet_lines,
@@ -81,7 +83,7 @@ def build_line_groups(
                 sheet_texts,
                 gap_tol,
                 y_tol,
-                inline_bridge_gap,
+                sheet_inline_bridge_gap,
                 inline_bridge_y_tol,
             )
             result.extend(grid_groups)
@@ -104,7 +106,7 @@ def build_line_groups(
                     cross_axis,
                     sheet_texts,
                     orientation=orientation,
-                    inline_bridge_gap=inline_bridge_gap,
+                    inline_bridge_gap=sheet_inline_bridge_gap,
                     inline_bridge_y_tol=inline_bridge_y_tol,
                 )
                 if abs(group["cross_axis"] - cross_axis) <= y_tol and (gap <= gap_tol or should_bridge):
@@ -416,6 +418,14 @@ def _wire_score(line: LineEntity) -> float:
     if line.layer == "0":
         score += 0.05
     return min(score, 1.0)
+
+
+def _inline_bridge_gap_for_sheet(sheet: SheetRecord, default_gap: float) -> float:
+    """Signal/alarm rows often leave a wider label gap; other sheets stay strict."""
+    blob = f"{sheet.sheet_title or ''} {sheet.filename or ''}".lower()
+    if any(token in blob for token in ("信号回路", "告警", "signal circuit", "alarm")):
+        return max(default_gap, _SIGNAL_INLINE_BRIDGE_GAP)
+    return default_gap
 
 
 def _has_inline_numeric_bridge(
