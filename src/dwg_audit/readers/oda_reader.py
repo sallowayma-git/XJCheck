@@ -65,12 +65,59 @@ def _windows_install_candidates(environ: Mapping[str, str]) -> list[Path]:
     return sorted(candidates, key=lambda item: str(item).casefold(), reverse=True)
 
 
+def _bundled_oda_candidates(
+    environ: Mapping[str, str],
+    *,
+    resource_dir: Path | None = None,
+) -> list[Path]:
+    """Return packaged-layout ODA executable candidates (install-dir free)."""
+    roots: list[Path] = []
+    if resource_dir is not None:
+        roots.append(resource_dir)
+    for variable in ("DWG_AUDIT_RESOURCE_DIR", "DWG_AUDIT_BUNDLED_ODA_DIR"):
+        raw = environ.get(variable)
+        if raw and raw.strip():
+            roots.append(Path(raw).expanduser())
+    # When the desktop sidecar is a one-file exe, its sibling `oda/` folder is
+    # the primary offline fallback for machines without a system ODA install.
+    for variable in ("DWG_AUDIT_SIDECAR_EXE", "DWG_AUDIT_SIDECAR_DIR"):
+        raw = environ.get(variable)
+        if not raw or not raw.strip():
+            continue
+        path = Path(raw).expanduser()
+        if path.is_file():
+            roots.append(path.parent)
+            roots.append(path.parent.parent)
+        else:
+            roots.append(path)
+
+    candidates: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        for relative in (
+            Path("oda") / "ODAFileConverter.exe",
+            Path("oda") / "ODAFileConverter",
+            Path("ODAFileConverter") / "ODAFileConverter.exe",
+            Path("ODAFileConverter") / "ODAFileConverter",
+            Path("ODAFileConverter.exe"),
+            Path("ODAFileConverter"),
+        ):
+            candidate = (root / relative).resolve()
+            key = str(candidate).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(candidate)
+    return candidates
+
+
 def discover_oda_file_converter(
     config: Mapping[str, object],
     *,
     environ: Mapping[str, str] | None = None,
     which: Callable[[str], str | None] = shutil.which,
     system: str | None = None,
+    resource_dir: Path | None = None,
 ) -> ReaderProbe:
     environment = os.environ if environ is None else environ
     ingest = config.get("ingest", {})
@@ -95,6 +142,16 @@ def discover_oda_file_converter(
                 capabilities=ODA_CAPABILITIES,
                 executable_path=candidate,
                 discovery_source=f"env:{variable}",
+            )
+
+    for candidate in _bundled_oda_candidates(environment, resource_dir=resource_dir):
+        if candidate.is_file():
+            return ReaderProbe(
+                backend_name="odafc",
+                available=True,
+                capabilities=ODA_CAPABILITIES,
+                executable_path=candidate,
+                discovery_source="bundled-resource",
             )
 
     for command in ("ODAFileConverter", "ODAFileConverter.exe"):

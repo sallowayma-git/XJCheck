@@ -13,6 +13,10 @@ dist-ssr
 *.local
 src-tauri/resources/sidecar/dwg-audit-sidecar*
 !src-tauri/resources/sidecar/README.md
+src-tauri/resources/sidecar/SIDECAR_BUILT_FROM.txt
+src-tauri/resources/oda/PACKAGED_FROM.txt
+src-tauri/resources/oda/**
+!src-tauri/resources/oda/README.md
 
 # Editor directories and files
 .vscode/*

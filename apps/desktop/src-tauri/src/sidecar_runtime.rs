@@ -17,6 +17,7 @@ pub struct SidecarRuntime {
     pub arg_prefix: Vec<String>,
     pub current_dir: PathBuf,
     pub pythonpath: Option<String>,
+    pub env_vars: Vec<(String, String)>,
 }
 
 impl SidecarRuntime {
@@ -27,6 +28,9 @@ impl SidecarRuntime {
         command.current_dir(&self.current_dir);
         if let Some(value) = &self.pythonpath {
             command.env("PYTHONPATH", value);
+        }
+        for (key, value) in &self.env_vars {
+            command.env(key, value);
         }
         command
     }
@@ -72,18 +76,37 @@ where
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| manifest_dir.clone());
+        let mut env_vars = packaging_env_vars(
+            resource_dir.as_deref().or(Some(current_dir.as_path())),
+            Some(executable.as_path()),
+            &path_exists,
+        );
+        env_vars.push((
+            "DWG_AUDIT_SIDECAR_EXE".to_string(),
+            executable.to_string_lossy().to_string(),
+        ));
         return Ok(SidecarRuntime {
             kind: SidecarRuntimeKind::ExternalExecutable,
             executable,
             arg_prefix: Vec::new(),
             current_dir,
             pythonpath: None,
+            env_vars,
         });
     }
 
-    if let Some(root) = resource_dir {
-        for candidate in bundled_sidecar_candidates(&root) {
+    if let Some(ref root) = resource_dir {
+        for candidate in bundled_sidecar_candidates(root) {
             if path_exists(&candidate) {
+                let mut env_vars = packaging_env_vars(
+                    Some(root.as_path()),
+                    Some(candidate.as_path()),
+                    &path_exists,
+                );
+                env_vars.push((
+                    "DWG_AUDIT_SIDECAR_EXE".to_string(),
+                    candidate.to_string_lossy().to_string(),
+                ));
                 return Ok(SidecarRuntime {
                     kind: SidecarRuntimeKind::BundledExecutable,
                     current_dir: candidate
@@ -93,6 +116,7 @@ where
                     executable: candidate,
                     arg_prefix: Vec::new(),
                     pythonpath: None,
+                    env_vars,
                 });
             }
         }
@@ -114,7 +138,60 @@ where
         arg_prefix: vec!["-m".to_string(), "dwg_audit.cli".to_string()],
         current_dir: repo_root.clone(),
         pythonpath: Some(pythonpath_value(&repo_root, env_var("PYTHONPATH"))),
+        env_vars: packaging_env_vars(resource_dir.as_deref(), None, &path_exists),
     })
+}
+
+fn packaging_env_vars<FExists>(
+    resource_dir: Option<&Path>,
+    sidecar_exe: Option<&Path>,
+    path_exists: &FExists,
+) -> Vec<(String, String)>
+where
+    FExists: Fn(&Path) -> bool,
+{
+    let mut env_vars = Vec::new();
+    if let Some(root) = resource_dir {
+        env_vars.push((
+            "DWG_AUDIT_RESOURCE_DIR".to_string(),
+            root.to_string_lossy().to_string(),
+        ));
+        if let Some(oda) = bundled_oda_executable(root, path_exists) {
+            env_vars.push(("ODAFC_PATH".to_string(), oda.to_string_lossy().to_string()));
+            env_vars.push((
+                "DWG_AUDIT_BUNDLED_ODA_DIR".to_string(),
+                oda.parent()
+                    .unwrap_or(root)
+                    .to_string_lossy()
+                    .to_string(),
+            ));
+        }
+    }
+    if let Some(exe) = sidecar_exe {
+        env_vars.push((
+            "DWG_AUDIT_SIDECAR_DIR".to_string(),
+            exe.parent()
+                .unwrap_or(exe)
+                .to_string_lossy()
+                .to_string(),
+        ));
+    }
+    env_vars
+}
+
+fn bundled_oda_executable<FExists>(resource_dir: &Path, path_exists: &FExists) -> Option<PathBuf>
+where
+    FExists: Fn(&Path) -> bool,
+{
+    let candidates = [
+        resource_dir.join("oda").join("ODAFileConverter.exe"),
+        resource_dir.join("oda").join("ODAFileConverter"),
+        resource_dir
+            .join("ODAFileConverter")
+            .join("ODAFileConverter.exe"),
+        resource_dir.join("ODAFileConverter.exe"),
+    ];
+    candidates.into_iter().find(|path| path_exists(path))
 }
 
 fn bundled_sidecar_candidates(resource_dir: &Path) -> Vec<PathBuf> {
@@ -208,25 +285,38 @@ mod tests {
         assert!(runtime.arg_prefix.is_empty());
         assert_eq!(runtime.current_dir, PathBuf::from("C:/runtime"));
         assert_eq!(runtime.pythonpath, None);
+        assert!(runtime
+            .env_vars
+            .iter()
+            .any(|(key, value)| key == "DWG_AUDIT_SIDECAR_EXE"
+                && value == "C:/runtime/dwg-audit-sidecar.exe"));
     }
 
     #[test]
     fn bundled_sidecar_exe_beats_development_python() {
+        let resource_root = PathBuf::from("C:/app/resources");
+        let sidecar = resource_root
+            .join("sidecar")
+            .join("dwg-audit-sidecar.exe");
+        let oda = resource_root.join("oda").join("ODAFileConverter.exe");
         let runtime = resolve_sidecar_runtime_with(
-            Some(PathBuf::from("C:/app/resources")),
+            Some(resource_root.clone()),
             PathBuf::from("C:/repo/apps/desktop/src-tauri"),
             |_| None,
-            |path| path == Path::new("C:/app/resources/sidecar/dwg-audit-sidecar.exe"),
+            |path| path == sidecar.as_path() || path == oda.as_path(),
         )
         .expect("runtime should resolve");
 
         assert_eq!(runtime.kind, SidecarRuntimeKind::BundledExecutable);
-        assert_eq!(
-            runtime.executable,
-            PathBuf::from("C:/app/resources/sidecar/dwg-audit-sidecar.exe")
-        );
+        assert_eq!(runtime.executable, sidecar);
         assert!(runtime.arg_prefix.is_empty());
         assert_eq!(runtime.pythonpath, None);
+        assert!(runtime.env_vars.iter().any(|(key, value)| {
+            key == "DWG_AUDIT_RESOURCE_DIR" && value.as_str() == resource_root.to_string_lossy()
+        }));
+        assert!(runtime.env_vars.iter().any(|(key, value)| {
+            key == "ODAFC_PATH" && value.as_str() == oda.to_string_lossy()
+        }));
     }
 
     #[test]

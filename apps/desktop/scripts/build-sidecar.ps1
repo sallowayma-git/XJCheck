@@ -55,6 +55,8 @@ if ($Clean) {
     --collect-all yaml `
     --hidden-import shapely `
     --hidden-import networkx `
+    --hidden-import ezdxf `
+    --hidden-import ezdxf.addons.odafc `
     $EntryPoint
 
 if ($LASTEXITCODE -ne 0) {
@@ -65,5 +67,13 @@ $ExePath = Join-Path $OutputDir "dwg-audit-sidecar.exe"
 if (-not (Test-Path $ExePath)) {
     throw "Expected sidecar executable was not produced: $ExePath"
 }
+
+# Lightweight packaging marker for release scripts / tests.
+$Marker = Join-Path $OutputDir "SIDECAR_BUILT_FROM.txt"
+@(
+    "entrypoint=$EntryPoint"
+    "built_at=$((Get-Date).ToString('o'))"
+    "python=$Python"
+) | Set-Content -Path $Marker -Encoding UTF8
 
 Write-Host "Built sidecar executable: $ExePath"

@@ -500,6 +500,59 @@ def test_extract_kk_multi_port_component_pairs_builds_kk2p_four_outputs() -> Non
     assert next(pair for pair in pairs if pair.left_value == "5DK-4").evidence["external_endpoint_text_id"] == "E4"
 
 
+def test_extract_kk_multi_port_component_pairs_supports_of_suffix_and_letter_first_body() -> None:
+    sheet = _make_sheet()
+    block_name = "KK2P+OF11-12"
+    block = _make_block("B_KK2P_OF", block_name, x=87.5, y=252.5)
+    texts = [
+        _make_text("BODY", "CJDK1", 85.0, 279.0, layer="MARK"),
+        _make_text("P1", "1", 79.0, 262.0, layer="0", source_block_name=block_name),
+        _make_text("P2", "2", 79.0, 240.0, layer="0", source_block_name=block_name),
+        _make_text("P3", "3", 94.0, 262.0, layer="0", source_block_name=block_name),
+        _make_text("P4", "4", 94.0, 240.0, layer="0", source_block_name=block_name),
+        _make_text("OF11", "11", 103.0, 255.0, layer="0", source_block_name=block_name),
+        _make_text("OF12", "12", 103.0, 245.0, layer="0", source_block_name=block_name),
+        _make_text("OF14", "14", 103.0, 235.0, layer="0", source_block_name=block_name),
+        _make_text("E1", "ZD18", 79.0, 269.0),
+        _make_text("E2", "CJnP4", 79.0, 233.5),
+        _make_text("E3", "ZD8", 98.0, 269.0),
+        _make_text("E4", "CJnP3", 98.0, 233.5),
+        _make_text("ENDPOINT_DISTRACTOR", "ZD17", 87.5, 272.0, layer="TEXT"),
+    ]
+    groups = [
+        _make_horizontal_group("G_TOP", 267.5, start_x=75.0, end_x=100.0),
+        _make_horizontal_group("G_BOTTOM", 237.5, start_x=75.0, end_x=100.0),
+    ]
+
+    pairs, consumed = extract_kk_multi_port_component_pairs([sheet], texts, groups, [block])
+
+    assert consumed == {"G_TOP", "G_BOTTOM"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("CJDK1-1", "ZD18"),
+        ("CJDK1-2", "CJnP4"),
+        ("CJDK1-3", "ZD8"),
+        ("CJDK1-4", "CJnP3"),
+    }
+    assert all(pair.evidence["component_block_name"] == block_name for pair in pairs)
+    assert not any(pair.evidence["component_port"] in {"11", "12", "14"} for pair in pairs)
+
+
+def test_extract_kk_multi_port_component_pairs_rejects_unreviewed_aux_suffix() -> None:
+    sheet = _make_sheet()
+    block_name = "KK2P+OF13-14"
+    block = _make_block("B_BAD_OF", block_name, x=87.5, y=252.5)
+    texts = [
+        _make_text("BODY", "1DK", 85.0, 279.0, layer="MARK"),
+        _make_text("P1", "1", 79.0, 262.0, layer="0", source_block_name=block_name),
+        _make_text("E1", "ZD8", 79.0, 269.0),
+    ]
+
+    pairs, consumed = extract_kk_multi_port_component_pairs([sheet], texts, [], [block])
+
+    assert pairs == []
+    assert consumed == set()
+
+
 def test_extract_kk_multi_port_component_pairs_builds_kk3p_six_outputs() -> None:
     sheet = _make_sheet()
     block = _make_block("B_KK3P", "KK3P", x=292.5, y=247.5)

@@ -4,6 +4,8 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
+Phase 169 Windows offline packaging pipeline is ready (NSIS installer produced with bundled Python sidecar + ODA). Phase 167 recognition loop remains the active audit-quality track.
+
 Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 502-DWG baseline is complete with no UNKNOWN/Fallback routes. Current-head fixes cover conductive-line coverage, context-free dense contact-panel tables, complete table authority, FJL/KK component mappings, comma component chains, and stable terminal arrays. Next gates are remaining-cluster inspection, fresh affected-project replay, full pytest, and a fresh 502-page rebuild/audit before cleanup.
 
 ## Phases
@@ -2615,8 +2617,12 @@ Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 50
 - `current3` next fresh-replay priorities: `24000_220kV_A/20 元件接线图2.dwg`, `29000/14 元件接线图.dwg`, residual `8000_9000_-` terminal pages other than already-fixed 17/18, then repeated terminal many-to-one scopes.
 - Do not treat the 677 persisted issue rows as current extraction truth; first remove clusters already proven fixed by fresh replay (terminal arrays, 20000 page 26, 23000 page 29, 25000 page 18).
 - HMC-3C panel semantics on `20000_1/27 元件接线图4.dwg` remain genuinely unadjudicated and must not be silently excluded.
+- Fresh resume status: `24000_220kV_A/20 元件接线图2.dwg` is resolved by current extraction (`18 -> 0` missing-side); do not spend another implementation loop on this stale current3 row.
 
 #### Phase 167 errors
+- Packaged `rg.exe` was again denied by Windows while locating the KK binding path. Switched to `Select-String` and found the exact binder/test ranges; no file changed by the failed search.
+- Phase168 first two 29000 evidence probes used report-layer column names (`filename`, then `raw_text`/`block_name`) against canonical `texts.parquet`/`blocks.parquet`; both stopped read-only. The printed schemas prove the stable keys are `sheet_id`, `text`, and `name`. Third probe must use those exact fields rather than another guessed alias.
+- 2026-07-17 transfer-resume five-way Luna audit failed before repository access: the local CC Switch proxy routed `gpt-5.6-luna` to a non-Codex provider and returned HTTP 403 for every lane. All five one-shot agents were closed. Main thread owns the same four issue clusters plus replay-input inspection; do not repeat this identical delegation until the proxy route changes.
 - Initial three-way read-only delegation (corpus runner, table engine, corpus inventory) failed before repository access: local CC Switch proxy returned HTTP 403 because it routed `gpt-5.6-luna` as a non-Codex provider. No files or processes were changed. Main thread took over discovery; do not repeat the identical delegation until the proxy/model route changes.
 - A later two-agent diagnostic attempt also returned no result because the workspace agent-credit pool was exhausted. Main thread continues directly and will retry delegation only after capacity returns.
 - A broad parallel diagnostic used packaged `rg.exe`, which Windows denied at process launch; the orchestration wrapper discarded the other parallel outputs. Retried with native PowerShell enumeration and `Select-String`; no files were changed by the failed attempt.
@@ -2634,3 +2640,18 @@ Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 50
 | Desktop UI palette = 灰黑白米黄 industrial workbench | Taskbook §10.12 enterprise dense audit tool; user rejected blue marketing look |
 | Show native vs browser-mock engine pill | Prevent frontend empty-spin; force real validation path via Tauri+sidecar |
 | Keep all CAD logic in Python sidecar | UI only orchestrates and displays findings/report surfaces |
+
+
+### Phase 169: Windows Offline Packaging (exe installer)
+- [x] Soften default ODA path so packaged installs do not require machine-specific Program Files config
+- [x] Discover bundled ODA under app resources / sidecar sibling before PATH and Windows installs
+- [x] Inject `DWG_AUDIT_RESOURCE_DIR` + `ODAFC_PATH` from Tauri resource dir into Python sidecar process
+- [x] Stage ODA File Converter tree into `apps/desktop/src-tauri/resources/oda` (binaries gitignored)
+- [x] Build PyInstaller one-file sidecar `dwg-audit-sidecar.exe` into resources
+- [x] Map both `sidecar/` and `oda/` through Tauri NSIS resources
+- [x] Add `stage-oda-resources.ps1` + `build-windows-release.ps1` + npm packaging scripts
+- [x] Produce real NSIS installer and verify release resource layout contains ODA + sidecar
+- [ ] Optional: clean-machine install smoke (no system Python/ODA) on a spare profile/VM
+- [ ] Optional: code signing / auto-update channel
+- **Status:** complete for packaging pipeline; remaining items are distribution hardening only
+

@@ -5285,4 +5285,42 @@
 - 2026-07-17: Re-audited all 27 persisted project bundles with current-head rules into `.tmp/phase167_full_corpus_audit_current3`; all commands completed successfully in 125.4s. This run reuses the 502-page extraction baseline, so it is valid for rule-cluster prioritization but not yet the final fresh-extraction acceptance run.
 - 2026-07-17: Aggregated current3 as 677 independent issue rows. Confirmed that several top counts are stale-extraction artifacts already fixed in fresh focused replays, so no new exemption will be based on current3 counts alone. Prioritized fresh investigation of 24000 component page 20, 29000 component page 14, residual 8000/9000 terminal pages outside 17/18, and repeated terminal many-to-one scopes.
 - 2026-07-17 transfer checkpoint: prepared repository handoff after local commit `b70fa78`. Active Phase167 goal, current3 caveat, fresh-replay priorities, retained full-corpus baseline, and the unresolved HMC-3C semantic boundary are recorded in `task_plan.md`. Untracked `task_plan.zip` is intentionally excluded because it is not part of the known engine/document changes.
+- 2026-07-17 transfer resume: clean worktree and retained Phase167 baseline/current3 were confirmed. A five-way read-only Luna cluster audit was attempted and all lanes failed before repository access with the same CC Switch HTTP 403 model-routing error; every agent was immediately closed. Main thread continues serially with fresh replay for the recorded 24000/29000/8000-9000 priorities.
+- 2026-07-17 Phase168 replay start: current-head analyzed the full 24-page `24000 220kV母线保护A柜` project with PRJ/XML context in 40s and produced a complete findings bundle; project-level `run-audit` also completed. Next comparison measures page 20 and project residuals against current3 before any code change.
+- 2026-07-17 Phase168 24000 result: project issues `62 -> 44`; page 20 missing-side `18 -> 0`, with 57 canonical component mappings and zero page issues. Classified this current3 priority as stale extraction already repaired; retained the fresh bundle for final comparison and moved to 29000 without modifying engine code.
+- 2026-07-17 Phase168 29000 replay/audit completed with no count change (`33 -> 33`). Located the page-14 gap after two read-only schema-probe errors were corrected: KK2P geometry and selective port semantics are already correct, but instance designators and authoritative external bindings are absent. Page-09 residuals are a separate repeated communication/alarm block cluster.
+- 2026-07-17 page-14 raw-context audit recovered all eight real KK designators and endpoint groups. Existing unit coverage binds only a centre-positioned synthetic `1DK`, so it does not cover the real upper-label layout or nearby item/model distractors. Main thread is reading the exact label-ranking/binding code before adding a real-layout positive and adversarial negatives.
+- 2026-07-17 implemented canonical KK `+OF11-12` suffix normalization plus MARK-only letter-first bodies, with reviewed-suffix and unreviewed-suffix tests (`27 passed`). Full 29000 replay produces 32/32 KK main-port mappings and reduces page 14 from 18 to 9 issues; no page-09 issue changed. Next change must consume only the eight OF internal-artwork groups, while the ninth long-line residual remains under inspection.
+
+
+### Phase 169: Windows Offline Packaging
+- **Status:** complete (pipeline + real NSIS artifact)
+- Actions taken:
+  - Softened `DEFAULT_CONFIG` / `configs/default.yml` ODA path defaults.
+  - Extended `discover_oda_file_converter` with bundled-resource / sidecar-sibling discovery (`bundled-resource`).
+  - Updated Tauri `sidecar_runtime` to inject packaging env vars including `ODAFC_PATH`.
+  - Added `stage-oda-resources.ps1`, upgraded `build-sidecar.ps1`, added `build-windows-release.ps1`.
+  - Mapped `resources/oda/*` in `tauri.conf.json`; expanded packaging unit tests.
+  - Staged local ODA 27.1.0 (~70MB), built sidecar (~92MB), frontend production build, and full `tauri build`.
+  - Produced NSIS installer `DWG Audit Desktop_0.1.0_x64-setup.exe` (~113MB) with both sidecar and ODA in release resources.
+- Verification:
+  - Python packaging/ODA tests: `41 passed`
+  - Rust `sidecar_runtime` tests: `5 passed`
+  - Sidecar smoke: `dwg-audit-sidecar.exe --help` lists desktop CLI commands
+  - Release resource layout contains `sidecar/dwg-audit-sidecar.exe` and `oda/ODAFileConverter.exe`
+- Files created/modified:
+  - `src/dwg_audit/readers/oda_reader.py`
+  - `src/dwg_audit/utils/config.py`
+  - `configs/default.yml`
+  - `apps/desktop/src-tauri/src/sidecar_runtime.rs`
+  - `apps/desktop/src-tauri/tauri.conf.json`
+  - `apps/desktop/scripts/stage-oda-resources.ps1`
+  - `apps/desktop/scripts/build-windows-release.ps1`
+  - `apps/desktop/scripts/build-sidecar.ps1`
+  - `apps/desktop/README.md`
+  - `apps/desktop/package.json`
+  - `apps/desktop/.gitignore`
+  - `apps/desktop/src-tauri/resources/oda/README.md`
+  - `tests/unit/test_desktop_packaging.py`
+  - `tests/unit/test_readers.py`
 

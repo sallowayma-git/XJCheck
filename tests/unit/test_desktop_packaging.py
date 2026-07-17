@@ -8,12 +8,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DESKTOP_ROOT = REPO_ROOT / "apps" / "desktop"
 
 
-def test_tauri_bundle_declares_sidecar_resource_directory() -> None:
+def test_tauri_bundle_declares_sidecar_and_oda_resource_directories() -> None:
     config = json.loads((DESKTOP_ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8"))
 
     resources = config["bundle"]["resources"]
 
     assert resources["resources/sidecar/*"] == "sidecar/"
+    assert resources["resources/oda/*"] == "oda/"
+    assert config["bundle"]["targets"] == "nsis"
 
 
 def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
@@ -22,8 +24,27 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
 
     assert "dwg-audit-sidecar" in script
     assert "src-tauri\\resources\\sidecar" in script
+    assert "ezdxf.addons.odafc" in script
     assert "sidecar" in runtime
     assert "dwg-audit-sidecar.exe" in runtime
+    assert "ODAFC_PATH" in runtime
+    assert "DWG_AUDIT_RESOURCE_DIR" in runtime
+    assert "oda" in runtime
+
+
+def test_oda_staging_and_release_scripts_exist() -> None:
+    stage = (DESKTOP_ROOT / "scripts" / "stage-oda-resources.ps1").read_text(encoding="utf-8")
+    release = (DESKTOP_ROOT / "scripts" / "build-windows-release.ps1").read_text(encoding="utf-8")
+    oda_readme = (DESKTOP_ROOT / "src-tauri" / "resources" / "oda" / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ODAFileConverter.exe" in stage
+    assert "resources\\oda" in stage
+    assert "stage-oda-resources.ps1" in release
+    assert "build-sidecar.ps1" in release
+    assert "tauri:build" in release
+    assert "do not commit binaries" in oda_readme.lower() or "Binary ODA" in oda_readme
 
 
 def test_python_sidecar_entrypoint_uses_existing_cli_contract() -> None:
@@ -32,3 +53,13 @@ def test_python_sidecar_entrypoint_uses_existing_cli_contract() -> None:
 
     assert "from dwg_audit.cli import run" in content
     assert "run()" in content
+
+
+def test_default_config_does_not_hardcode_machine_oda_install() -> None:
+    config_py = (REPO_ROOT / "src" / "dwg_audit" / "utils" / "config.py").read_text(encoding="utf-8")
+    default_yml = (REPO_ROOT / "configs" / "default.yml").read_text(encoding="utf-8")
+
+    assert '"odafc_path": ""' in config_py
+    assert 'odafc_path: ""' in default_yml
+    assert "Program Files\\ODA" not in config_py
+    assert "Program Files\\ODA" not in default_yml

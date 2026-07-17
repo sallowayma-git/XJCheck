@@ -35,11 +35,18 @@
     "active": true,
     "targets": "nsis",
     "resources": {
-      "resources/sidecar/*": "sidecar/"
+      "resources/sidecar/*": "sidecar/",
+      "resources/oda/*": "oda/"
     },
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
   }
 }

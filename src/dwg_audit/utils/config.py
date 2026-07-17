@@ -20,7 +20,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "ingest": {
         "dwg_reader": "odafc",
-        "odafc_path": r"C:\Program Files\ODA\ODAFileConverter 27.1.0\ODAFileConverter.exe",
+        # Empty by default so packaged installs discover a bundled ODA or env path
+        # instead of a machine-specific Program Files install.
+        "odafc_path": "",
         "convert_version": "R2018",
         "audit_before_load": True,
         "ascii_stage_dir": ".cache/odafc_stage",

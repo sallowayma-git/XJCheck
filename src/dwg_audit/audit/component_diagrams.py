@@ -15,6 +15,10 @@ _KK_MULTI_PORT_BLOCK_PORTS = {
     "KK2P": 4,
     "KK3P": 6,
 }
+_KK_MULTI_PORT_BLOCK_PATTERN = re.compile(
+    r"^(?P<base>KK[23]P)(?:\+OF11-12)?$",
+    re.IGNORECASE,
+)
 _SMALL_PORT_BOX_BLOCK_PORTS = {
     "KK1P": {"1", "2"},
     "KK2P": {"1", "2", "3", "4"},
@@ -25,7 +29,10 @@ _COMPONENT_BODY_PATTERN = re.compile(
     r"^\d+(?:-\d+)?(?:(?:KLP|CLP|ZLP)\d+|[A-Za-z]\d+LP\d+)$",
     re.IGNORECASE,
 )
-_KK_COMPONENT_BODY_PATTERN = re.compile(r"^\d+(?:-\d+)?[A-Za-z]{1,5}\d*$", re.IGNORECASE)
+_KK_COMPONENT_BODY_PATTERN = re.compile(
+    r"^(?:\d+(?:-\d+)?[A-Za-z]{1,5}\d*|[A-Za-z]{2,8}\d+)$",
+    re.IGNORECASE,
+)
 _SMALL_PORT_BOX_BODY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z']{0,4}$", re.IGNORECASE)
 _STRIP_ENDPOINT_BRIDGE_TOP_PATTERN = re.compile(r"^(?P<prefix>\d+-\d+)ZK-(?P<port>\d+)$", re.IGNORECASE)
 _STRIP_ENDPOINT_BRIDGE_BOTTOM_PATTERN = re.compile(r"^(?P<prefix>\d+-\d+)n(?P<number>\d{3,})$", re.IGNORECASE)
@@ -361,7 +368,10 @@ def _supports_strip_two_port_component(page: SheetRecord) -> bool:
 
 
 def _kk_multi_port_count(block: BlockRecord) -> int | None:
-    return _KK_MULTI_PORT_BLOCK_PORTS.get((block.name or "").upper())
+    match = _KK_MULTI_PORT_BLOCK_PATTERN.fullmatch((block.name or "").strip())
+    if match is None:
+        return None
+    return _KK_MULTI_PORT_BLOCK_PORTS.get(match.group("base").upper())
 
 
 def _small_port_box_allowed_ports(block: BlockRecord) -> set[str]:
@@ -452,6 +462,8 @@ def _nearest_kk_component_body(
     candidates = []
     for text in texts:
         if text.source_block_name:
+            continue
+        if text.layer.upper() != "MARK":
             continue
         value = str(text.normalized_text or "").strip()
         if not _KK_COMPONENT_BODY_PATTERN.fullmatch(value):

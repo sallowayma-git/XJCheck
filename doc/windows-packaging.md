@@ -1,0 +1,224 @@
+# Windows Offline Packaging Guide
+
+This document describes how to produce a Windows NSIS installer for **DWG Audit Desktop** that embeds:
+
+1. the Tauri desktop shell
+2. the Python audit engine as a one-file sidecar (`dwg-audit-sidecar.exe`)
+3. ODA File Converter runtime files (`oda/ODAFileConverter.exe` + DLLs)
+
+End-user machines do **not** need Python or ODA preinstalled when both resources are staged before `tauri build`.
+
+## Architecture
+
+```text
+Installed app
+├── dwg_audit_desktop.exe
+├── sidecar/
+│   └── dwg-audit-sidecar.exe      # PyInstaller engine
+└── oda/
+    ├── ODAFileConverter.exe       # DWG -> DXF converter
+    └── *.dll / *.tx / Qt runtime
+```
+
+### Runtime resolution
+
+**Sidecar**
+
+1. `DWG_AUDIT_SIDECAR_EXE`
+2. packaged `sidecar/dwg-audit-sidecar.exe`
+3. development fallback: `python -m dwg_audit.cli` (debug only, or `DWG_AUDIT_ALLOW_SOURCE_FALLBACK=1`)
+
+**ODA File Converter**
+
+1. config `ingest.odafc_path` (optional override)
+2. `ODAFC_PATH` / `ODA_FILE_CONVERTER` (desktop shell injects bundled path)
+3. packaged resource / sidecar sibling `oda/ODAFileConverter.exe`
+4. system `PATH`
+5. Windows `Program Files\ODA\ODAFileConverter *`
+
+## Build machine prerequisites
+
+| Dependency | Purpose |
+|---|---|
+| Windows 10/11 x64 | release host |
+| Python 3.12+ | engine + PyInstaller |
+| `pip install -e .` and `pip install pyinstaller` | package engine |
+| Node.js 20+ / npm | desktop frontend |
+| Rust stable + VS Build Tools (C++/MSVC) | Tauri native build |
+| ODA File Converter install | stage source for `resources/oda` |
+
+Notes:
+
+- ODA binaries are **not** committed to git. They are staged locally or restored from a private artifact cache in CI.
+- Confirm ODA redistribution rights before shipping a public installer.
+
+## One-command local release
+
+From repository root:
+
+```powershell
+cd apps\desktop
+npm run package:windows
+```
+
+Equivalent:
+
+```powershell
+cd apps\desktop
+.\scripts\build-windows-release.ps1 -Clean
+```
+
+This script:
+
+1. stages ODA into `src-tauri/resources/oda`
+2. builds `src-tauri/resources/sidecar/dwg-audit-sidecar.exe`
+3. builds the frontend
+4. runs `tauri build` (NSIS)
+
+## Step-by-step local release
+
+```powershell
+cd apps\desktop
+
+# 1) Stage ODA from a local install or ODAFC_PATH
+.\scripts\stage-oda-resources.ps1 -Clean
+# or:
+# .\scripts\stage-oda-resources.ps1 -SourceDir "C:\Program Files\ODA\ODAFileConverter 27.1.0" -Clean
+
+# 2) Build Python sidecar
+.\scripts\build-sidecar.ps1 -Clean
+
+# 3) Build installer
+npm run tauri:build
+```
+
+## Output artifacts
+
+| Artifact | Typical path |
+|---|---|
+| Portable/shell exe | `apps/desktop/src-tauri/target/release/dwg_audit_desktop.exe` |
+| NSIS installer | `apps/desktop/src-tauri/target/release/bundle/nsis/DWG Audit Desktop_*_x64-setup.exe` |
+| Staged sidecar | `apps/desktop/src-tauri/resources/sidecar/dwg-audit-sidecar.exe` |
+| Staged ODA | `apps/desktop/src-tauri/resources/oda/ODAFileConverter.exe` |
+
+Expected release resource layout after a successful build:
+
+```text
+apps/desktop/src-tauri/target/release/
+  dwg_audit_desktop.exe
+  sidecar/dwg-audit-sidecar.exe
+  oda/ODAFileConverter.exe
+  bundle/nsis/DWG Audit Desktop_*_x64-setup.exe
+```
+
+## Verification checklist
+
+```powershell
+# packaging contract tests
+python -m pytest -q tests/unit/test_desktop_packaging.py tests/unit/test_readers.py
+
+# sidecar CLI smoke
+.\apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe --help
+
+# resource presence
+Test-Path .\apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe
+Test-Path .\apps\desktop\src-tauri\resources\oda\ODAFileConverter.exe
+Test-Path .\apps\desktop\src-tauri\target\release\bundle\nsis\*.exe
+```
+
+Recommended clean-machine smoke:
+
+1. Install the NSIS package on a profile/VM without Python/ODA.
+2. Launch the app and import a small DWG project.
+3. Confirm conversion + analysis complete without missing-sidecar / missing-ODA errors.
+
+## CI model
+
+Repository workflow: `.github/workflows/windows-package.yml`
+
+### What CI always does
+
+- checkout
+- set up Python / Node / Rust
+- install Python package + PyInstaller
+- install desktop npm deps
+- run packaging unit tests
+- build frontend
+- build sidecar when ODA cache is available
+- build Tauri NSIS installer when ODA cache is available
+- upload installer artifact
+
+### Why ODA is optional in CI
+
+ODA is a third-party binary tree (~70MB) and is gitignored. CI restores it from the GitHub Actions cache key `oda-file-converter-windows-v1` when present.
+
+To seed the cache on a self-hosted or privileged runner:
+
+1. Install ODA File Converter on the runner, or place a prepared tree under a known path.
+2. Run `apps/desktop/scripts/stage-oda-resources.ps1`.
+3. Let the workflow cache `apps/desktop/src-tauri/resources/oda`.
+
+If ODA is not cached:
+
+- packaging unit tests still run
+- full installer build is skipped with a clear summary note
+- no incomplete public installer is published
+
+### Manual CI trigger
+
+GitHub Actions → **Windows Offline Package** → **Run workflow**.
+
+Optional inputs:
+
+- `build_installer=true|false`
+- `force_skip_oda=true` (contract-only mode)
+
+## Scripts reference
+
+| Script | Role |
+|---|---|
+| `apps/desktop/scripts/stage-oda-resources.ps1` | copy ODA install tree into `resources/oda` |
+| `apps/desktop/scripts/build-sidecar.ps1` | PyInstaller one-file engine build |
+| `apps/desktop/scripts/build-windows-release.ps1` | full local release orchestration |
+
+npm aliases in `apps/desktop/package.json`:
+
+- `npm run stage:oda`
+- `npm run build:sidecar`
+- `npm run package:windows`
+- `npm run tauri:build`
+
+## Git policy
+
+Tracked:
+
+- packaging scripts
+- `apps/desktop/src-tauri/resources/sidecar/README.md`
+- `apps/desktop/src-tauri/resources/oda/README.md`
+- Tauri config / Rust runtime resolver / Python discovery code
+- packaging unit tests
+
+Not tracked (gitignored):
+
+- `resources/sidecar/dwg-audit-sidecar*`
+- `resources/oda/**` binaries / markers
+- `src-tauri/target/**`
+- `node_modules/**`
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Installer build says sidecar missing | skipped PyInstaller step | run `build-sidecar.ps1` |
+| Runtime cannot convert DWG | ODA not staged / not injected | stage ODA; confirm `resources/oda/ODAFileConverter.exe` |
+| Dev mode falls back to source Python | expected in debug | release uses packaged sidecar only |
+| NSIS download timeout | bundler network | pre-warm Tauri NSIS cache, retry |
+| CI skips installer | ODA cache miss | seed ODA cache or build locally |
+
+## Related files
+
+- `apps/desktop/README.md` — desktop app overview
+- `apps/desktop/src-tauri/tauri.conf.json` — resource mapping
+- `apps/desktop/src-tauri/src/sidecar_runtime.rs` — runtime env injection
+- `src/dwg_audit/readers/oda_reader.py` — ODA discovery order
+- `tests/unit/test_desktop_packaging.py` — packaging contract tests

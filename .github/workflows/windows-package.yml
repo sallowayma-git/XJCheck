@@ -1,0 +1,175 @@
+name: Windows Offline Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_installer:
+        description: "Build NSIS installer when ODA resources are available"
+        type: boolean
+        default: true
+      force_skip_oda:
+        description: "Skip ODA-dependent packaging and only run contract tests"
+        type: boolean
+        default: false
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "apps/desktop/**"
+      - "src/dwg_audit/**"
+      - "configs/default.yml"
+      - "pyproject.toml"
+      - "tests/unit/test_desktop_packaging.py"
+      - "tests/unit/test_readers.py"
+      - "tests/unit/test_oda_health.py"
+      - "doc/windows-packaging.md"
+      - ".github/workflows/windows-package.yml"
+  pull_request:
+    branches:
+      - master
+      - main
+    paths:
+      - "apps/desktop/**"
+      - "src/dwg_audit/**"
+      - "configs/default.yml"
+      - "pyproject.toml"
+      - "tests/unit/test_desktop_packaging.py"
+      - "tests/unit/test_readers.py"
+      - "tests/unit/test_oda_health.py"
+      - "doc/windows-packaging.md"
+      - ".github/workflows/windows-package.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package-windows:
+    name: Package Windows Desktop
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: ${{ runner.os }}-cargo-desktop-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-desktop-
+
+      - name: Install Python package and packaging tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install pyinstaller
+
+      - name: Install desktop npm dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Packaging contract tests
+        run: |
+          python -m pytest -q `
+            tests/unit/test_desktop_packaging.py `
+            tests/unit/test_readers.py `
+            tests/unit/test_oda_health.py
+
+      - name: Restore staged ODA resources
+        if: ${{ inputs.force_skip_oda != true }}
+        id: oda_cache
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/src-tauri/resources/oda
+          key: oda-file-converter-windows-v1
+          restore-keys: |
+            oda-file-converter-windows-
+
+      - name: Detect ODA availability
+        id: oda
+        run: |
+          $odaExe = "apps/desktop/src-tauri/resources/oda/ODAFileConverter.exe"
+          $available = Test-Path $odaExe
+          if ($env:FORCE_SKIP -eq "true") {
+            $available = $false
+          }
+          "available=$([string]::Equals($available.ToString(), 'True', [System.StringComparison]::OrdinalIgnoreCase))" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if ($available) {
+            Write-Host "ODA resources available at $odaExe"
+          } else {
+            Write-Host "ODA resources missing. Installer build will be skipped unless cache is seeded."
+          }
+        env:
+          FORCE_SKIP: ${{ inputs.force_skip_oda }}
+
+      - name: Build Python sidecar
+        if: ${{ steps.oda.outputs.available == 'true' && (github.event_name == 'workflow_dispatch' && inputs.build_installer || github.event_name != 'workflow_dispatch') }}
+        working-directory: apps/desktop
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-sidecar.ps1 -Clean
+
+      - name: Build desktop frontend
+        if: ${{ steps.oda.outputs.available == 'true' && (github.event_name == 'workflow_dispatch' && inputs.build_installer || github.event_name != 'workflow_dispatch') }}
+        working-directory: apps/desktop
+        run: npm run build
+
+      - name: Build Tauri NSIS installer
+        if: ${{ steps.oda.outputs.available == 'true' && (github.event_name == 'workflow_dispatch' && inputs.build_installer || github.event_name != 'workflow_dispatch') }}
+        working-directory: apps/desktop
+        run: npm run tauri:build
+
+      - name: Upload NSIS installer
+        if: ${{ steps.oda.outputs.available == 'true' && (github.event_name == 'workflow_dispatch' && inputs.build_installer || github.event_name != 'workflow_dispatch') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dwg-audit-desktop-windows-nsis
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Summarize packaging outcome
+        if: always()
+        run: |
+          $lines = @()
+          $lines += "## Windows packaging"
+          $lines += ""
+          $lines += "- Contract tests: executed"
+          $lines += "- ODA resources available: ${{ steps.oda.outputs.available }}"
+          if ("${{ steps.oda.outputs.available }}" -eq "true") {
+            $installer = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($installer) {
+              $lines += "- Installer: `$($installer.FullName)` ($([math]::Round($installer.Length / 1MB, 1)) MB)"
+            } else {
+              $lines += "- Installer: not produced"
+            }
+          } else {
+            $lines += "- Installer build skipped (seed Actions cache key `oda-file-converter-windows-v1` or build locally)"
+            $lines += "- Local guide: `doc/windows-packaging.md`"
+          }
+          $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

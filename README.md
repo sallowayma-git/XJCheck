@@ -10,12 +10,29 @@
 - 候选连接线、端点数字候选、pair 构建
 - 项目级规则审计与 Markdown / HTML / Excel 报告
 - 最小可用 Streamlit 本地查看界面
+- Windows 桌面端（Tauri）可安装包，可捆绑 Python sidecar + ODA
 
 快速开始：
 
 ```powershell
 python -m pip install -e .
 dwg-audit init-config
-dwg-audit analyze-project --input .\test --output .\artifacts
-dwg-audit serve-ui --artifacts .\artifacts
+dwg-audit analyze-project --input ./test --output ./artifacts
+dwg-audit serve-ui --artifacts ./artifacts
 ```
+
+## Windows 桌面安装包
+
+离线安装包构建说明见：
+
+- [`doc/windows-packaging.md`](doc/windows-packaging.md)
+- [`apps/desktop/README.md`](apps/desktop/README.md)
+
+本地一键打包：
+
+```powershell
+cd apps/desktop
+npm run package:windows
+```
+
+CI 工作流：`.github/workflows/windows-package.yml`（Windows Offline Package）。

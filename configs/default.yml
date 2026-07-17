@@ -38,7 +38,9 @@ project:
 
 ingest:
   dwg_reader: "odafc"
-  odafc_path: "C:\\Program Files\\ODA\\ODAFileConverter 27.1.0\\ODAFileConverter.exe"
+  # Optional local override. Leave empty for packaged installs so discovery uses
+  # bundled resources / ODAFC_PATH / PATH / Windows install candidates.
+  odafc_path: ""
   convert_version: "R2018"
   audit_before_load: true
   ascii_stage_dir: ".cache/odafc_stage"

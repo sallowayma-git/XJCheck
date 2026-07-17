@@ -94,6 +94,55 @@ def test_oda_probe_reports_unavailable_without_silently_selecting_backend() -> N
     assert probe.detail == "ODA File Converter executable not found."
 
 
+def test_oda_probe_prefers_bundled_resource_before_path_or_windows_install(
+    tmp_path: Path,
+) -> None:
+    resource_root = tmp_path / "resources"
+    bundled = resource_root / "oda" / "ODAFileConverter.exe"
+    bundled.parent.mkdir(parents=True)
+    bundled.write_bytes(b"bundled-oda")
+    system_install = tmp_path / "Program Files" / "ODA" / "ODAFileConverter 27.1.0" / "ODAFileConverter.exe"
+    system_install.parent.mkdir(parents=True)
+    system_install.write_bytes(b"system-oda")
+    path_candidate = tmp_path / "path-oda" / "ODAFileConverter.exe"
+    path_candidate.parent.mkdir(parents=True)
+    path_candidate.write_bytes(b"path-oda")
+
+    probe = discover_oda_file_converter(
+        _config(),
+        environ={
+            "DWG_AUDIT_RESOURCE_DIR": str(resource_root),
+            "ProgramFiles": str(tmp_path / "Program Files"),
+        },
+        which=lambda command: str(path_candidate) if command == "ODAFileConverter.exe" else None,
+        system="Windows",
+    )
+
+    assert probe.available is True
+    assert probe.executable_path == bundled.resolve()
+    assert probe.discovery_source == "bundled-resource"
+
+
+def test_oda_probe_uses_sidecar_sibling_oda_layout(tmp_path: Path) -> None:
+    sidecar = tmp_path / "sidecar" / "dwg-audit-sidecar.exe"
+    sidecar.parent.mkdir(parents=True)
+    sidecar.write_bytes(b"sidecar")
+    bundled = tmp_path / "oda" / "ODAFileConverter.exe"
+    bundled.parent.mkdir(parents=True)
+    bundled.write_bytes(b"bundled-oda")
+
+    probe = discover_oda_file_converter(
+        _config(),
+        environ={"DWG_AUDIT_SIDECAR_EXE": str(sidecar)},
+        which=lambda _: None,
+        system="Linux",
+    )
+
+    assert probe.available is True
+    assert probe.executable_path == bundled.resolve()
+    assert probe.discovery_source == "bundled-resource"
+
+
 def test_oda_execution_environment_sets_and_restores_explicit_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
