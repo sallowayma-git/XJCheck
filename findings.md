@@ -1533,3 +1533,18 @@
 - Smoke: `--help`, `analyze-project --help`, `init-config`, `list-recent-projects` all OK.
 - Packaging unit tests: 7 passed.
 
+### Residual shadows (post HMC adjudication)
+- `component_long_bare_digit`: 元件接线图 ordinary single bare digit (1-99) on line length ≥60 → shadow (closes 29000 GC0013 class).
+- `external_designator_derived_ordinary`: CD/GD/ZK raw or derived-numeric ordinary stubs → shadow (closes 20000 page25 CD* class).
+- Fail-closed: dual-side non-digit values and real n###/KLP ordinary pairs stay eligible.
+
+### Phase 171 full 502 fresh rebuild (post residual shadows)
+- Output: `.tmp/phase171_full_corpus_fresh` + `.tmp/phase171_full_corpus_audit` (27/27 ok, ~283s, 3 workers)
+- **Total issues 327** (current3 stale reaudit was 677)
+- Routes: Wire 227, Skip 87, Terminal 76, Table 57, Component 52, LayoutOnly 3, UNKNOWN 0
+- Handling: error 65 / warning 13 / review 249 (确定性错误 / 可能有错误 / 须人工校验)
+- Rules: MANY-TO-ONE 125, LOW-CONF 76, CROSS-PAGE 65, MISSING-SIDE 55, DUPLICATE-PAIR 6
+- Key project deltas vs prior fresh: **20000 41→5**, **29000 2→1**, **8000 26→26**
+- Top residual projects: 24000(42), 35000(29), WBH(28), 31000(27), 22000(26), 25000(26), 8000(26)
+- Top pages: terminal strips (24000 left 21/22), PMU backplates (22000/35000 sheet13), 8000 signal page05
+

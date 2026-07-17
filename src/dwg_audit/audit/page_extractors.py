@@ -229,6 +229,7 @@ def _extract_pairs_for_route(
         if component_pairs:
             _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
             pairs.extend(component_pairs)
+            _mark_component_mapping_endpoint_covered_ordinary_pairs(pairs, component_pairs)
         # Device-panel silkscreen pin lattices (HMC HD/BCD grids) stay as graph
         # evidence but must not enter ordinary terminal / cross-page audit.
         _shadow_hmc_silkscreen_ordinary_pairs(pairs, pages, texts)
@@ -296,6 +297,82 @@ def _mark_consumed_component_ordinary_pairs(pairs: list[Pair], consumed_group_id
         pair.evidence["covered_by_component_mapping"] = True
 
 
+def _component_mapping_endpoint_keys(component_pairs: list[Pair]) -> set[str]:
+    """Text ids and normalized endpoint tokens already bound by component_mapping."""
+    keys: set[str] = set()
+    for pair in component_pairs:
+        if pair.pair_kind != "component_mapping":
+            continue
+        for text_id in (pair.left_text_id, pair.right_text_id):
+            if text_id:
+                keys.add(f"text:{text_id}")
+        evidence = pair.evidence or {}
+        for raw in (
+            pair.left_value,
+            pair.right_value,
+            evidence.get("selected_left_raw_text"),
+            evidence.get("selected_right_raw_text"),
+            evidence.get("external_endpoint"),
+            evidence.get("body_port"),
+        ):
+            token = str(raw or "").strip()
+            if not token:
+                continue
+            keys.add(f"raw:{token.lower()}")
+            # bare n### / trailing digits help cover ordinary derived halves
+            m = re.search(r"(n\d{2,}|\d{2,})$", token, re.IGNORECASE)
+            if m:
+                keys.add(f"tail:{m.group(1).lower()}")
+    return keys
+
+
+def _mark_component_mapping_endpoint_covered_ordinary_pairs(
+    pairs: list[Pair],
+    component_pairs: list[Pair],
+) -> None:
+    """Shadow ordinary stubs that only restate already-mapped component endpoints."""
+    keys = _component_mapping_endpoint_keys(component_pairs)
+    if not keys:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        evidence = pair.evidence or {}
+        hit = False
+        for text_id in (pair.left_text_id, pair.right_text_id):
+            if text_id and f"text:{text_id}" in keys:
+                hit = True
+                break
+        if not hit:
+            for raw in (
+                pair.left_value,
+                pair.right_value,
+                evidence.get("selected_left_raw_text"),
+                evidence.get("selected_right_raw_text"),
+            ):
+                token = str(raw or "").strip()
+                if not token:
+                    continue
+                if f"raw:{token.lower()}" in keys:
+                    hit = True
+                    break
+                m = re.search(r"(n\d{2,}|\d{2,})$", token, re.IGNORECASE)
+                if m and f"tail:{m.group(1).lower()}" in keys:
+                    # Only single-sided ordinary stubs — dual-side may be real conflicts.
+                    sides = [v for v in (pair.left_value, pair.right_value) if v]
+                    if len(sides) == 1:
+                        hit = True
+                        break
+        if not hit:
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "covered_by_component_mapping_endpoint"
+        pair.evidence["covered_by_component_mapping_endpoint"] = True
+
+
 def _shadow_grid_wire_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:
     sheet_map = {page.sheet_id: page for page in pages}
     for pair in pairs:
@@ -343,12 +420,13 @@ _SIGNAL_ALARM_SHADOW_PATTERNS = (
     re.compile(r"信号回路|Signal\s*circuit", re.IGNORECASE),
     re.compile(r"电度表告警|Watt-?hour\s*meter\s*alarm", re.IGNORECASE),
     re.compile(r"辅助电源失电|Air\s*switch\s*open\s*alarm|空开断开告警", re.IGNORECASE),
+    # Generic dry-contact / device alarm face labels on 信号回路图 sheets.
+    re.compile(r"失电告警|失步告警|异常告警|告警回路", re.IGNORECASE),
 )
 
 
 def _sheet_has_signal_alarm_cues(page: SheetRecord, texts: list[TextItem] | None = None) -> bool:
-    """True when in-page texts show meter alarm / signal-circuit role (not serial media)."""
-    # Prefer live texts when provided; fall back to title/filename only as weak assist.
+    """True when page texts/title show meter alarm / signal-circuit role (not serial media)."""
     if texts:
         for text in texts:
             if text.sheet_id != page.sheet_id:
@@ -356,7 +434,7 @@ def _sheet_has_signal_alarm_cues(page: SheetRecord, texts: list[TextItem] | None
             raw = f"{text.normalized_text or ''} {text.text or ''}"
             if any(pattern.search(raw) for pattern in _SIGNAL_ALARM_SHADOW_PATTERNS):
                 return True
-        return False
+    # Title/filename assist: e.g. "05 信号回路图.dwg" without in-body "信号回路" text.
     blob = f"{page.sheet_title or ''} {page.filename or ''}"
     return any(pattern.search(blob) for pattern in _SIGNAL_ALARM_SHADOW_PATTERNS)
 

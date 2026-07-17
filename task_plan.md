@@ -6,7 +6,7 @@
 ## Current Phase
 Phase 171 recognition/audit quality loop is active (continues Phase 167 full-corpus track). Packaging Phases 169-170 remain complete.
 
-Phase 171 wave2: user adjudicated HMC pin grids as device-panel silkscreen (no cross-page terminal audit). Landed signal-alarm ordinary-pair shadow, vertical same-block pin discard, HMC silkscreen shadow, and frontend certainty labels (确定性错误 / 可能有错误 / 须人工校验; fail-closed on real errors). Offline page27: 47/48 HMC stubs shadowed. Next: commit wave, clean .tmp process artifacts, full 502 fresh rebuild+audit, residual loops (page25 CD*, 29000 GC0013, LayoutOnly backplates).
+Phase 171 wave2: user adjudicated HMC pin grids as device-panel silkscreen (no cross-page terminal audit). Landed signal-alarm ordinary-pair shadow, vertical same-block pin discard, HMC silkscreen shadow, and frontend certainty labels (确定性错误 / 可能有错误 / 须人工校验; fail-closed on real errors). Offline page27: 47/48 HMC stubs shadowed. Full 502 fresh rebuild complete: 27/27 ok in ~283s; total issues **327** (was current3 677). Key: 20000 5, 29000 1, 8000 26. Handling: error 65 / warning 13 / review 249. Routes: 0 UNKNOWN, 3 LayoutOnly. Next loop: terminal many-to-one clusters (24000/22000/35000 backplates), 8000 signal residual, LayoutOnly backplates.
 
 ## Phases
 

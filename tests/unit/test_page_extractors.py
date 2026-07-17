@@ -975,3 +975,92 @@ def test_shadow_external_designator_derived_ordinary_pairs_marks_cd_stubs_inelig
     assert cd_stub.evidence["ordinary_pair_shadow_reason"] == "external_designator_derived_ordinary"
     assert real_terminal.evidence.get("ordinary_pair_eligible") is not False
 
+def test_signal_alarm_cues_match_filename_and_generic_alarm_labels() -> None:
+    from dwg_audit.audit.page_extractors import _sheet_has_signal_alarm_cues
+    from dwg_audit.domain.models import TextItem
+
+    sheet = _sheet(route_target="WireDiagramExtractor")
+    sheet.sheet_category = "二次原理图"
+    sheet.filename = "05 信号回路图.dwg"
+    sheet.sheet_title = "信号回路图"
+    assert _sheet_has_signal_alarm_cues(sheet, texts=[]) is True
+
+    sheet2 = _sheet(route_target="WireDiagramExtractor")
+    sheet2.sheet_category = "二次原理图"
+    sheet2.filename = "04 直流回路图.dwg"
+    texts = [
+        TextItem(
+            text_id="T1",
+            sheet_id=sheet2.sheet_id,
+            file_id="F1",
+            handle="H1",
+            entity_type="TEXT",
+            text="失电告警",
+            normalized_text="失电告警",
+            is_numeric_candidate=False,
+            layer="TEXT",
+            rotation_deg=0.0,
+            height=2.5,
+            insert_x=10.0,
+            insert_y=10.0,
+            bbox_min_x=9.0,
+            bbox_min_y=9.0,
+            bbox_max_x=20.0,
+            bbox_max_y=12.0,
+        )
+    ]
+    assert _sheet_has_signal_alarm_cues(sheet2, texts=texts) is True
+
+
+def test_mark_component_mapping_endpoint_covered_ordinary_pairs() -> None:
+    from dwg_audit.audit.page_extractors import (
+        _mark_component_mapping_endpoint_covered_ordinary_pairs,
+    )
+
+    mapping = _pair(
+        {
+            "source": "component_mapping",
+            "selected_left_raw_text": "2-21KLP2-2",
+            "selected_right_raw_text": "2-21n113",
+        },
+        pair_id="PCM",
+        pair_kind="component_mapping",
+        left_text_id="TL",
+        right_text_id="TR",
+    )
+    mapping.left_value = "2-21KLP2-2"
+    mapping.right_value = "2-21n113"
+    mapping.pair_kind = "component_mapping"
+
+    residual = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_right_raw_text": "2-21n113",
+        },
+        pair_id="PRES",
+        right_text_id="TR",
+    )
+    residual.left_value = None
+    residual.right_value = "113"
+    residual.status = "review"
+
+    other = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_right_raw_text": "n999",
+        },
+        pair_id="POTHER",
+        right_text_id="TX",
+    )
+    other.left_value = None
+    other.right_value = "999"
+    other.status = "review"
+
+    _mark_component_mapping_endpoint_covered_ordinary_pairs([residual, other], [mapping])
+    assert residual.evidence["ordinary_pair_eligible"] is False
+    assert (
+        residual.evidence["ordinary_pair_shadow_reason"]
+        == "covered_by_component_mapping_endpoint"
+    )
+    assert other.evidence.get("ordinary_pair_eligible") is not False
+

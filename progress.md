@@ -5391,3 +5391,17 @@
 - Offline page27: eligible ordinary 48→1, shadowed 47 with reason `hmc_panel_silkscreen`.
 - Next: commit recognition wave, clean `.tmp` conversion/cache/process artifacts, full 502 fresh rebuild+audit, residual generalization loop.
 
+## Session: 2026-07-17 (Phase 171 residual shadows + full rebuild)
+
+### Actions
+- Committed `d0a935c` HMC silkscreen + issue certainty labels; `53b9bfe` long bare-digit + CD-derived ordinary shadows.
+- Cleaned entire `.tmp` process tree (~8.7GB) plus pytest/__pycache__ caches.
+- Launched full 502-DWG threaded analyze+audit → `.tmp/phase171_full_corpus_fresh` / `_audit`.
+- Unit gate: 108 passed (page_extractors + pairs + issue_triage).
+
+### Full 502 rebuild result
+- 27/27 analyze+audit OK in 283s → total **327** issues.
+- 20000→5 (HMC+CD shadows), 29000→1 (long bare-digit), 8000 remains 26 (signal/wire residual).
+- Issue layering live: 65 确定性错误, 13 可能有错误, 249 须人工校验.
+- Next residual clusters: terminal many-to-one on left/right terminal pages; PMU/装置背板; 8000 page05 信号回路图.
+
