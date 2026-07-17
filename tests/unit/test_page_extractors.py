@@ -701,3 +701,168 @@ def test_shadow_communication_medium_ordinary_pairs_marks_serial_pages_ineligibl
     assert ordinary.evidence["ordinary_pair_shadow_reason"] == "communication_medium"
     assert ordinary.evidence["communication_media"] == ["serial"]
 
+
+def test_shadow_signal_alarm_ordinary_pairs_marks_meter_alarm_pages_ineligible() -> None:
+    from dwg_audit.audit.page_extractors import _shadow_signal_alarm_ordinary_pairs
+    from dwg_audit.domain.models import TextItem
+
+    ordinary = _pair({"line_orientation": "horizontal"})
+    ordinary.status = "review"
+    ordinary.confidence_bucket = "review"
+    sheet = _sheet(route_target="WireDiagramExtractor", page_subtype=None, grid_heavy=False)
+    sheet.sheet_category = "二次原理图"
+    texts = [
+        TextItem(
+            text_id="T1",
+            sheet_id=sheet.sheet_id,
+            file_id="F1",
+            handle="H1",
+            entity_type="TEXT",
+            text="电度表告警",
+            normalized_text="电度表告警",
+            is_numeric_candidate=False,
+            layer="TEXT",
+            rotation_deg=0.0,
+            height=2.5,
+            insert_x=40.0,
+            insert_y=40.0,
+            bbox_min_x=38.0,
+            bbox_min_y=38.0,
+            bbox_max_x=60.0,
+            bbox_max_y=42.0,
+        )
+    ]
+
+    _shadow_signal_alarm_ordinary_pairs([ordinary], [sheet], texts)
+
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["ordinary_pair_shadow_only"] is True
+    assert ordinary.evidence["ordinary_pair_shadow_reason"] == "signal_alarm_circuit"
+
+
+def test_shadow_hmc_silkscreen_ordinary_pairs_marks_hd_pin_stubs_ineligible() -> None:
+    from dwg_audit.audit.page_extractors import _shadow_hmc_silkscreen_ordinary_pairs
+    from dwg_audit.domain.models import TextItem
+
+    hd_stub = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_left_raw_text": "HD18",
+            "selected_right_raw_text": None,
+        },
+        pair_id="PHD",
+        left_text_id="T-HD",
+    )
+    hd_stub.left_value = "18"
+    hd_stub.right_value = None
+    hd_stub.status = "review"
+    hd_stub.confidence_bucket = "review"
+
+    bare_digit = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_left_raw_text": None,
+            "selected_right_raw_text": "3",
+        },
+        pair_id="PDIG",
+        right_text_id="T-3",
+    )
+    bare_digit.left_value = None
+    bare_digit.right_value = "3"
+    bare_digit.status = "review"
+
+    component_like = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_left_raw_text": "4-21KLP2-1",
+            "selected_right_raw_text": "4-21GD3",
+        },
+        pair_id="PCOMP",
+        left_text_id="T-L",
+        right_text_id="T-R",
+    )
+    component_like.left_value = "1"
+    component_like.right_value = "3"
+    component_like.status = "review"
+
+    sheet = _sheet(
+        category="元件接线图",
+        route_target="ComponentDiagramExtractor",
+        page_subtype="horizontal_component",
+    )
+    texts = [
+        TextItem(
+            text_id="T-HMC",
+            sheet_id=sheet.sheet_id,
+            file_id="F1",
+            handle="H1",
+            entity_type="TEXT",
+            text="HMC-3C wiring diagram",
+            normalized_text="HMC-3C wiring diagram",
+            is_numeric_candidate=False,
+            layer="TEXT",
+            rotation_deg=0.0,
+            height=2.5,
+            insert_x=100.0,
+            insert_y=180.0,
+            bbox_min_x=90.0,
+            bbox_min_y=178.0,
+            bbox_max_x=160.0,
+            bbox_max_y=182.0,
+        ),
+        TextItem(
+            text_id="T-BCD",
+            sheet_id=sheet.sheet_id,
+            file_id="F1",
+            handle="H2",
+            entity_type="TEXT",
+            text="BCD 1",
+            normalized_text="BCD 1",
+            is_numeric_candidate=False,
+            layer="TEXT",
+            rotation_deg=0.0,
+            height=2.0,
+            insert_x=140.0,
+            insert_y=147.0,
+            bbox_min_x=138.0,
+            bbox_min_y=145.0,
+            bbox_max_x=150.0,
+            bbox_max_y=149.0,
+        ),
+    ]
+
+    _shadow_hmc_silkscreen_ordinary_pairs(
+        [hd_stub, bare_digit, component_like],
+        [sheet],
+        texts,
+    )
+
+    assert hd_stub.evidence["ordinary_pair_eligible"] is False
+    assert hd_stub.evidence["ordinary_pair_shadow_reason"] == "hmc_panel_silkscreen"
+    assert bare_digit.evidence["ordinary_pair_eligible"] is False
+    assert bare_digit.evidence["ordinary_pair_shadow_reason"] == "hmc_panel_silkscreen"
+    # Real component endpoints on the same sheet must remain audit-eligible.
+    assert component_like.evidence.get("ordinary_pair_eligible") is not False
+    assert "ordinary_pair_shadow_reason" not in component_like.evidence
+
+
+def test_shadow_hmc_silkscreen_skips_pages_without_hmc_cues() -> None:
+    from dwg_audit.audit.page_extractors import _shadow_hmc_silkscreen_ordinary_pairs
+
+    ordinary = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_left_raw_text": "HD18",
+        },
+        left_text_id="T1",
+    )
+    ordinary.left_value = "18"
+    ordinary.status = "review"
+    sheet = _sheet(
+        category="元件接线图",
+        route_target="ComponentDiagramExtractor",
+    )
+    # No HMC/BCD lattice texts → do not shadow even if a lone HD-looking label appears.
+    _shadow_hmc_silkscreen_ordinary_pairs([ordinary], [sheet], texts=[])
+    assert ordinary.evidence.get("ordinary_pair_eligible") is not False
+

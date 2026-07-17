@@ -229,6 +229,9 @@ def _extract_pairs_for_route(
         if component_pairs:
             _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
             pairs.extend(component_pairs)
+        # Device-panel silkscreen pin lattices (HMC HD/BCD grids) stay as graph
+        # evidence but must not enter ordinary terminal / cross-page audit.
+        _shadow_hmc_silkscreen_ordinary_pairs(pairs, pages, texts)
     table_mappings = []
     if executed_extractor == "TerminalDiagramExtractor":
         table_pairs, table_mappings = extract_terminal_header_table_pairs(
@@ -251,6 +254,7 @@ def _extract_pairs_for_route(
     if executed_extractor == "WireDiagramExtractor":
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
         _shadow_communication_medium_ordinary_pairs(pairs, pages)
+        _shadow_signal_alarm_ordinary_pairs(pairs, pages, texts)
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -327,6 +331,179 @@ def _shadow_communication_medium_ordinary_pairs(pairs: list[Pair], pages: list[S
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "communication_medium"
         pair.evidence["communication_media"] = media
+
+
+_SIGNAL_ALARM_SHADOW_PATTERNS = (
+    re.compile(r"信号回路|Signal\s*circuit", re.IGNORECASE),
+    re.compile(r"电度表告警|Watt-?hour\s*meter\s*alarm", re.IGNORECASE),
+    re.compile(r"辅助电源失电|Air\s*switch\s*open\s*alarm|空开断开告警", re.IGNORECASE),
+)
+
+
+def _sheet_has_signal_alarm_cues(page: SheetRecord, texts: list[TextItem] | None = None) -> bool:
+    """True when in-page texts show meter alarm / signal-circuit role (not serial media)."""
+    # Prefer live texts when provided; fall back to title/filename only as weak assist.
+    if texts:
+        for text in texts:
+            if text.sheet_id != page.sheet_id:
+                continue
+            raw = f"{text.normalized_text or ''} {text.text or ''}"
+            if any(pattern.search(raw) for pattern in _SIGNAL_ALARM_SHADOW_PATTERNS):
+                return True
+        return False
+    blob = f"{page.sheet_title or ''} {page.filename or ''}"
+    return any(pattern.search(blob) for pattern in _SIGNAL_ALARM_SHADOW_PATTERNS)
+
+
+def _shadow_signal_alarm_ordinary_pairs(
+    pairs: list[Pair],
+    pages: list[SheetRecord],
+    texts: list[TextItem] | None = None,
+) -> None:
+    """Shadow ordinary pairs on meter alarm / dry-contact signal sheets.
+
+    These pages are often named 通信回 but content is DTSD face pins + alarm labels,
+    not RS485 media. Bare numeric missing-side noise must not flood ordinary audit.
+    """
+    sheet_map = {page.sheet_id: page for page in pages}
+    signal_sheets = {
+        page.sheet_id
+        for page in pages
+        if page.route_target == "WireDiagramExtractor"
+        and page.sheet_category == "二次原理图"
+        and _sheet_has_signal_alarm_cues(page, texts)
+    }
+    if not signal_sheets:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.sheet_id not in signal_sheets:
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "signal_alarm_circuit"
+
+
+# Device front-panel silkscreen (human-adjudicated): HMC pin grids with HD*/BCD*
+# labels are artwork, not cross-page terminal mappings.
+_HMC_SILKSCREEN_TITLE_PATTERN = re.compile(
+    r"HMC[-\s]?\w*\s*wiring\s*diagram",
+    re.IGNORECASE,
+)
+_HMC_HD_PIN_PATTERN = re.compile(r"^HD\d+$", re.IGNORECASE)
+_HMC_BCD_LABEL_PATTERN = re.compile(r"^BCD(\s+\d+|\s*COM)?$", re.IGNORECASE)
+_HMC_PIN_DIGIT_PATTERN = re.compile(r"^\d{1,3}$")
+_HMC_COMPONENT_ENDPOINT_PATTERN = re.compile(
+    r"(?:KLP|GD|n\d{2,}|\d+-\d+[A-Za-z])",
+    re.IGNORECASE,
+)
+
+
+def _sheet_has_hmc_silkscreen_cues(
+    page: SheetRecord,
+    texts: list[TextItem] | None = None,
+) -> bool:
+    """True when page texts show an HMC device-panel pin lattice (silkscreen)."""
+    title_hits = 0
+    hd_hits = 0
+    bcd_hits = 0
+    if texts:
+        for text in texts:
+            if text.sheet_id != page.sheet_id:
+                continue
+            raw = f"{text.normalized_text or ''} {text.text or ''}".strip()
+            token = (text.normalized_text or text.text or "").strip()
+            if _HMC_SILKSCREEN_TITLE_PATTERN.search(raw):
+                title_hits += 1
+            if _HMC_HD_PIN_PATTERN.fullmatch(token):
+                hd_hits += 1
+            if _HMC_BCD_LABEL_PATTERN.fullmatch(token) or re.search(
+                r"BCD\s*(?:code|COM|\d+)",
+                raw,
+                re.IGNORECASE,
+            ):
+                bcd_hits += 1
+    else:
+        blob = f"{page.sheet_title or ''} {page.filename or ''}"
+        if _HMC_SILKSCREEN_TITLE_PATTERN.search(blob):
+            title_hits = 1
+    # Title alone is enough (human-adjudicated HMC panels). Dense HD+BCD lattice
+    # without title also qualifies so unlabeled variants still shadow.
+    if title_hits:
+        return True
+    return hd_hits >= 6 and bcd_hits >= 2
+
+
+def _pair_is_hmc_silkscreen_pin_stub(pair: Pair) -> bool:
+    """Ordinary stub around HD/BCD/bare pin numbers — not a real terminal pair."""
+    evidence = pair.evidence or {}
+    left_raw = str(evidence.get("selected_left_raw_text") or "").strip()
+    right_raw = str(evidence.get("selected_right_raw_text") or "").strip()
+    left_value = str(pair.left_value or "").strip()
+    right_value = str(pair.right_value or "").strip()
+
+    for raw in (left_raw, right_raw):
+        if not raw:
+            continue
+        if _HMC_HD_PIN_PATTERN.fullmatch(raw):
+            return True
+        if _HMC_BCD_LABEL_PATTERN.fullmatch(raw) or raw.upper().startswith("BCD"):
+            return True
+
+    # Keep real component endpoints (KLP/GD/n###) out of the silkscreen mask.
+    for raw in (left_raw, right_raw, left_value, right_value):
+        if raw and _HMC_COMPONENT_ENDPOINT_PATTERN.search(raw):
+            return False
+
+    orientation = str(evidence.get("line_orientation") or "").lower()
+    if orientation not in {"vertical", "horizontal", "grid", ""}:
+        return False
+
+    # Empty both sides: pure pin-cell geometry with no terminal text.
+    if not left_value and not right_value:
+        return True
+
+    # Single-sided or dual bare pin digits (1..999) on silkscreen lattice stubs.
+    sides = [value for value in (left_value, right_value) if value]
+    if sides and all(_HMC_PIN_DIGIT_PATTERN.fullmatch(value) for value in sides):
+        return True
+    return False
+
+
+def _shadow_hmc_silkscreen_ordinary_pairs(
+    pairs: list[Pair],
+    pages: list[SheetRecord],
+    texts: list[TextItem] | None = None,
+) -> None:
+    """Shadow HMC device-panel pin-grid ordinary pairs (silkscreen, not terminals).
+
+    Human adjudication: HMC pin grids are front-panel artwork. Keep pairs for
+    graph/review assist, but exclude them from ordinary terminal audit and
+    cross-page reciprocal rules.
+    """
+    hmc_sheets = {
+        page.sheet_id
+        for page in pages
+        if page.route_target == "ComponentDiagramExtractor"
+        and _sheet_has_hmc_silkscreen_cues(page, texts)
+    }
+    if not hmc_sheets:
+        return
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.sheet_id not in hmc_sheets:
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        if not _pair_is_hmc_silkscreen_pin_stub(pair):
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "hmc_panel_silkscreen"
 
 
 def _mark_input_matrix_covered_ordinary_pairs(

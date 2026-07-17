@@ -542,9 +542,11 @@ def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:
         evidence = {
             **evidence,
             "handling_class": handling_class,
-            "handling_label": {"error": "错误", "warning": "警告", "review": "须复核"}.get(
-                handling_class, "须复核"
-            ),
+            "handling_label": {
+                "error": "确定性错误",
+                "warning": "可能有错误",
+                "review": "须人工校验",
+            }.get(handling_class, "须人工校验"),
         }
     return {
         "issue_id": row["issue_id"],
@@ -568,7 +570,11 @@ def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:
         "one_to_many_classification": row["one_to_many_classification"] or None,
         "handling_class": handling_class or evidence.get("handling_class") or "review",
         "handling_label": evidence.get("handling_label")
-        or {"error": "错误", "warning": "警告", "review": "须复核"}.get(handling_class, "须复核"),
+        or {
+            "error": "确定性错误",
+            "warning": "可能有错误",
+            "review": "须人工校验",
+        }.get(handling_class, "须人工校验"),
         "review_group_id": evidence.get("review_group_id") or row["issue_id"],
         "review_group_label": evidence.get("review_group_label") or row["title"],
         "review_group_size": int(evidence.get("review_group_size") or 1),

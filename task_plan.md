@@ -6,7 +6,7 @@
 ## Current Phase
 Phase 171 recognition/audit quality loop is active (continues Phase 167 full-corpus track). Packaging Phases 169-170 remain complete.
 
-Phase 171 diagnosed that the user-visible "~300 issues / table misrecognition" flood is not table-route failure: corpus has 0 UNKNOWN routes and only 3 LayoutOnly backplate residuals with zero issues. Real mass is ordinary_pair under-extraction on component/terminal pages plus stale current3 reaudit artifacts. Landed generalized fixes for KK OF aux, FJL pin reject, serial/signal-alarm pair shadowing, and vertical block-internal pins. Fresh replays: 29000 33->2, 8000 117->26, 20000 97->41 (HMC pin-grid residual needs human symbol authority). Next: optional full 502 rebuild, HMC-3C panel adjudication, residual page25 CD external binding.
+Phase 171 wave2: user adjudicated HMC pin grids as device-panel silkscreen (no cross-page terminal audit). Landed signal-alarm ordinary-pair shadow, vertical same-block pin discard, HMC silkscreen shadow, and frontend certainty labels (确定性错误 / 可能有错误 / 须人工校验; fail-closed on real errors). Offline page27: 47/48 HMC stubs shadowed. Next: commit wave, clean .tmp process artifacts, full 502 fresh rebuild+audit, residual loops (page25 CD*, 29000 GC0013, LayoutOnly backplates).
 
 ## Phases
 
@@ -2616,7 +2616,7 @@ Phase 171 diagnosed that the user-visible "~300 issues / table misrecognition" f
 - Preserve `.tmp/phase167_full_corpus_baseline` until the final fresh 502-DWG acceptance run is complete.
 - `current3` next fresh-replay priorities: `24000_220kV_A/20 元件接线图2.dwg`, `29000/14 元件接线图.dwg`, residual `8000_9000_-` terminal pages other than already-fixed 17/18, then repeated terminal many-to-one scopes.
 - Do not treat the 677 persisted issue rows as current extraction truth; first remove clusters already proven fixed by fresh replay (terminal arrays, 20000 page 26, 23000 page 29, 25000 page 18).
-- HMC-3C panel semantics on `20000_1/27 元件接线图4.dwg` remain genuinely unadjudicated and must not be silently excluded.
+- HMC-3C pin grids on `20000_1/27 元件接线图4.dwg` adjudicated as device-panel silkscreen; ordinary pairs shadowed, not deleted.
 - Fresh resume status: `24000_220kV_A/20 元件接线图2.dwg` is resolved by current extraction (`18 -> 0` missing-side); do not spend another implementation loop on this stale current3 row.
 
 #### Phase 167 errors
@@ -2688,5 +2688,5 @@ Phase 171 diagnosed that the user-visible "~300 issues / table misrecognition" f
 - [x] Fresh replay 29000 / 20000 / 8000_9000 and measure deltas
 - [x] Cleanup intermediate .tmp replay dirs; keep phase171_*_r2 and 8000 fresh artifacts
 - [ ] Full 502-page fresh rebuild/audit (pending; current3 stale for terminal array promotion)
-- [ ] HMC-3C front-panel symbol/port human authority for 20000 page 27 residual
+- [x] HMC-3C pin-grid adjudicated as silkscreen; ordinary pairs shadowed (hmc_panel_silkscreen)
 - **Status:** in_progress

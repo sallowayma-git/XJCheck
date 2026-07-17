@@ -1053,15 +1053,15 @@ function App() {
                 </div>
                 <div className="metric-card metric-error">
                   <strong>{issueStats.errorCount}</strong>
-                  <span>错误</span>
+                  <span>确定性错误</span>
                 </div>
                 <div className="metric-card metric-warning">
                   <strong>{issueStats.warningCount}</strong>
-                  <span>警告</span>
+                  <span>可能有错误</span>
                 </div>
                 <div className="metric-card metric-review">
                   <strong>{issueStats.reviewCount}</strong>
-                  <span>须复核</span>
+                  <span>须人工校验</span>
                 </div>
                 <div className="metric-card">
                   <strong>{issueStats.groupCount}</strong>
@@ -1084,21 +1084,21 @@ function App() {
                   className={handlingFilter === "error" ? "handling-chip active handling-error" : "handling-chip handling-error"}
                   onClick={() => setHandlingFilter("error")}
                 >
-                  错误优先 {issueStats.errorCount}
+                  确定性错误 {issueStats.errorCount}
                 </button>
                 <button
                   type="button"
                   className={handlingFilter === "warning" ? "handling-chip active handling-warning" : "handling-chip handling-warning"}
                   onClick={() => setHandlingFilter("warning")}
                 >
-                  警告关注 {issueStats.warningCount}
+                  可能有错误 {issueStats.warningCount}
                 </button>
                 <button
                   type="button"
                   className={handlingFilter === "review" ? "handling-chip active handling-review" : "handling-chip handling-review"}
                   onClick={() => setHandlingFilter("review")}
                 >
-                  须复核 {issueStats.reviewCount}
+                  须人工校验 {issueStats.reviewCount}
                 </button>
                 <button
                   type="button"
@@ -1109,7 +1109,7 @@ function App() {
                 </button>
               </div>
               <p className="result-guide muted">
-                建议顺序：先处理「错误」，再看「警告」，最后批量确认「须复核」。同类问题会归到同一处理组，避免 300+ 条逐条无从下手。
+                建议顺序：先处理「确定性错误」，再看「可能有错误」，最后批量确认「须人工校验」。原则：可以误报，但不能错过真实错误。同类问题归到同一处理组。
               </p>
               <div className="result-toolbar-filters">
                 <label className="field compact-field">
@@ -1710,13 +1710,13 @@ function resolveHandlingClass(issue: Pick<IssueSummary, "handling_class" | "rule
 
 function labelHandlingClass(value: string | null | undefined): string {
   const map: Record<string, string> = {
-    error: "错误",
-    warning: "警告",
-    review: "须复核",
+    error: "确定性错误",
+    warning: "可能有错误",
+    review: "须人工校验",
     all: "全部",
   }
   if (!value) {
-    return "须复核"
+    return "须人工校验"
   }
   return map[value] ?? value
 }

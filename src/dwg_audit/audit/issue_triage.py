@@ -1,10 +1,13 @@
 """User-facing issue triage: handling class + review groups.
 
-Electrical reviewers need three clear buckets, not raw rule IDs:
+Electrical reviewers need three clear certainty buckets, not raw rule IDs:
 
-- error:  明确冲突 / 必须优先处理
-- warning: 重要异常 / 建议关注
-- review:  识别不确定 / 须人工复核
+- error:   确定性错误 — hard conflicts the engine is confident about (fail-closed)
+- warning: 可能有错误 — important anomalies / topology that may still be wrong
+- review:  须人工校验 — machine-uncertain extraction; must not be auto-cleared
+
+Principle: 可以误报，但不能错过真实错误 (false positives allowed; false
+negatives on real conflicts are not).
 
 Also assigns review_group_* so the desktop can collapse hundreds of
 similar symptoms (e.g. low-confidence pairs on the same sheet) into
@@ -61,10 +64,18 @@ RULE_FAMILY_LABELS: dict[str, str] = {
     "R-DUPLICATE-SAME-LINE": "同线重复端子",
 }
 
+# Frontend-facing certainty labels (error / warning / review).
 HANDLING_LABELS = {
+    "error": "确定性错误",
+    "warning": "可能有错误",
+    "review": "须人工校验",
+}
+
+# Short chip labels for dense UI; full labels stay in HANDLING_LABELS.
+HANDLING_CHIP_LABELS = {
     "error": "错误",
-    "warning": "警告",
-    "review": "须复核",
+    "warning": "可能错",
+    "review": "待校验",
 }
 
 _SEVERITY_RANK = {
@@ -93,6 +104,9 @@ def classify_and_group_issues(issues: list[Issue]) -> list[Issue]:
         issue.evidence = dict(issue.evidence or {})
         issue.evidence["handling_class"] = handling
         issue.evidence["handling_label"] = HANDLING_LABELS.get(handling, handling)
+        issue.evidence["handling_chip_label"] = HANDLING_CHIP_LABELS.get(
+            handling, HANDLING_LABELS.get(handling, handling)
+        )
         family = RULE_FAMILY_LABELS.get(issue.rule_id) or (issue.title or issue.rule_id)
         issue.evidence["issue_family"] = family
         group_key = _review_group_key(issue, handling)
@@ -180,7 +194,7 @@ def _resolve_handling_class_from_fields(
         # Legitimate branch topology → softer bucket.
         return "warning"
     if triage in {"review"} or triage.endswith("_review") or "review" in triage:
-        # Structured review aggregates stay in 须复核 unless rule is a hard conflict.
+        # Structured review aggregates stay in 须人工校验 unless rule is a hard conflict.
         if rule_id in {"R-CROSS-PAGE-CONFLICT", "R-TABLE-MAPPING-SOURCE-CONFLICT"}:
             return "error"
         return "review"
@@ -250,7 +264,7 @@ def _review_group_label(issue: Issue, size: int) -> str:
     left = (issue.left_value or "").strip()
     right = (issue.right_value or "").strip()
     handling = str((issue.evidence or {}).get("handling_class") or "review")
-    bucket = HANDLING_LABELS.get(handling, "须复核")
+    bucket = HANDLING_LABELS.get(handling, "须人工校验")
 
     if issue.rule_id in {"R-CROSS-PAGE-CONFLICT", "R-ONE-TO-MANY", "R-MISSING-RECIPROCAL"} and left:
         core = f"端子 {left}"

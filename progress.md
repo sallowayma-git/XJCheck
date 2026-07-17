@@ -5380,3 +5380,14 @@
   - Dropped pyarrow C++/cython development data payloads.
   - Sidecar rebuilt to ~52MB; CLI smoke green; packaging tests pass.
 
+## Session: 2026-07-17 (Phase 171 wave2)
+
+### Actions
+- User adjudicated: HMC pin grids = device panel silkscreen; do not participate in cross-page terminal audit.
+- Implemented `_shadow_hmc_silkscreen_ordinary_pairs` (title `HMC* wiring diagram` or dense HD+BCD lattice; shadows HD/BCD/bare-digit stubs; keeps KLP/GD/n### eligible).
+- Wave2 also includes signal-alarm ordinary-pair shadow + vertical block-internal pin discard.
+- Issue frontend certainty labels: 确定性错误 / 可能有错误 / 须人工校验 (fail-closed principle documented).
+- Focused unit tests: 106 passed (page_extractors + pairs_and_rules + issue_triage).
+- Offline page27: eligible ordinary 48→1, shadowed 47 with reason `hmc_panel_silkscreen`.
+- Next: commit recognition wave, clean `.tmp` conversion/cache/process artifacts, full 502 fresh rebuild+audit, residual generalization loop.
+

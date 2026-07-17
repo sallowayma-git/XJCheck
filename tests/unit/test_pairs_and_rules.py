@@ -3261,6 +3261,45 @@ def test_build_pairs_discards_same_block_two_digit_of_aux_pin_pair_on_horizontal
     assert pair.evidence["selected_right_source_block_name"] == "KK2P+OF11-12"
 
 
+
+def test_build_pairs_discards_vertical_same_block_digit_internal_pin_pair_on_component_page() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=300.0,
+            start_y=180.0,
+            end_x=300.0,
+            end_y=120.0,
+            length=60.0,
+            wire_candidate_score=0.92,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "25 元件接线图2.dwg", 25, "25", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001", "G0001", "S0001", "F0001", "top", "T1", "1", "1", 0.96, "accepted", None, 300.0, 175.0, 1.0, 0.0,
+            300.0, 175.0, source_block_name="XJDZ9-10-7B4-002"
+        ),
+        TerminalCandidate(
+            "C0002", "G0001", "S0001", "F0001", "bottom", "T2", "28", "28", 0.95, "accepted", None, 300.0, 125.0, 1.0, 0.0,
+            300.0, 125.0, source_block_name="XJDZ9-10-7B4-002"
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    pair = pairs[0]
+    assert pair.status == "discard"
+    assert pair.rationale == "block_internal_pin_pair"
+
+
 def test_build_pairs_keeps_same_block_multi_digit_component_pair() -> None:
     groups = [
         LineGroup(

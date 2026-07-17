@@ -1490,7 +1490,7 @@
 
 ### Cluster diagnoses (parallel agents)
 1. **8000 terminal 16-19**: current3 low-confidence flood is **stale extraction**. Terminal row-array promotion only runs in `TerminalDiagramExtractor` extraction, not `run-audit`. Fresh extraction promotes 208->820 family to pass 0.92; project issues **117 -> 26**.
-2. **20000 page 26/27**: correctly routed ComponentDiagramExtractor. Upper FJL strip recovers 16 `component_mapping` after non-mirror FJL accept. Page 26 -> 0 issues. Page 27 residual **31** is lower **HMC-3C wiring diagram** pin-grid (HD*/BCD dense lattice) without human panel authority - do not silent-suppress by page type.
+2. **20000 page 26/27**: correctly routed ComponentDiagramExtractor. Upper FJL strip recovers 16 `component_mapping`. Page 26 -> 0 issues. Page 27 HMC-3C pin-grid **human-adjudicated as silkscreen** → `_shadow_hmc_silkscreen_ordinary_pairs` (reason `hmc_panel_silkscreen`); offline 47/48 stubs shadowed, real KLP/GD/n### endpoints kept eligible.
 3. **29000**: KK OF main ports already map 32; OF aux `2->12` groups consumed by `_kk_ignored_auxiliary_group_ids`. Serial media shadow clears page 08; signal-alarm shadow clears page 09 meter face pins. Project issues **33 -> 2** (1 long GC0013 residual + 1 terminal many-to-one).
 
 ### Engine generalizations landed
@@ -1508,10 +1508,15 @@
 | 20000 主变测控柜1 | 97 | **41** | page26=0; page27 HMC=31; page25 CD residual=6 |
 
 ### Residual requiring human / next loop
-- HMC-3C front-panel pin lattice: needs symbol/port human adjudication before any pin-grid mask.
+- HMC-3C silkscreen: **closed** by user adjudication + generalized shadow (not filename-only).
 - 20000 page25 residual external `CD*` ordinary pairs (not same-block).
 - 29000 page14 long GC0013 `?->3` mixed geometry line.
-- Full 502 fresh rebuild still required before accepting corpus-wide issue totals (current3 is rules-only reaudit on stale pairs).
+- Full 502 fresh rebuild required before accepting corpus-wide issue totals (current3 is rules-only reaudit on stale pairs).
+
+### Issue layering (frontend certainty)
+- `handling_class`: error / warning / review
+- Labels: 确定性错误 / 可能有错误 / 须人工校验
+- Principle: 可以误报，但不能错过真实错误 (hard conflicts stay error even at lower confidence)
 
 ## 2026-07-17 Phase 170 deep unused-module prune
 

@@ -74,7 +74,10 @@ def test_classify_and_group_issues_assigns_handling_buckets_and_sheet_groups() -
     )
     assert by_id[low_a.issue_id].evidence["review_group_size"] == 2
     assert "共 2 处" in by_id[low_a.issue_id].evidence["review_group_label"]
-    assert "须复核" in by_id[low_a.issue_id].evidence["review_group_label"]
+    assert "须人工校验" in by_id[low_a.issue_id].evidence["review_group_label"]
+    assert by_id[conflict.issue_id].evidence["handling_label"] == "确定性错误"
+    assert by_id[branch.issue_id].evidence["handling_label"] == "可能有错误"
+    assert by_id[low_a.issue_id].evidence["handling_label"] == "须人工校验"
 
     # Errors sort before warnings/reviews.
     assert classified[0].evidence["handling_class"] == "error"

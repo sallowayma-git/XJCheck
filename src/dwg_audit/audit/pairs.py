@@ -430,7 +430,7 @@ def _apply_component_pair_guards(
     selected: PairCandidate,
     candidate_map: dict[str, TerminalCandidate],
 ) -> tuple[str, str]:
-    if sheet is None or sheet.sheet_category != "元件接线图" or group.orientation != "horizontal":
+    if sheet is None or sheet.sheet_category != "元件接线图":
         return status, rationale
 
     left_candidate = candidate_map.get(selected.left_candidate_id or "")

@@ -368,12 +368,12 @@ function deriveHandlingClass(issue: {
 
 function labelHandlingClass(value: string | null | undefined): string {
   const map: Record<string, string> = {
-    error: "错误",
-    warning: "警告",
-    review: "须复核",
+    error: "确定性错误",
+    warning: "可能有错误",
+    review: "须人工校验",
   }
   if (!value) {
-    return "须复核"
+    return "须人工校验"
   }
   return map[value] ?? value
 }
