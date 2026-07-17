@@ -1476,3 +1476,55 @@
   - pruned ODA convert smoke via ezdxf odafc: 封面 / 交流回路 / 元件接线图 samples OK
 - Residual headroom: arrow.dll + OpenBLAS + arrow_compute dominate remaining sidecar weight; further gains need engine dependency redesign, not more packaging filters.
 
+## 2026-07-17 Phase 171 recognition flood diagnosis
+
+### User symptom vs corpus evidence
+- Claim: table-type misrecognition / unrecognizable pages still produce ~300 issues per set on test/ 502 DWGs.
+- Evidence from `.tmp/phase167_full_corpus_baseline` + `phase167_full_corpus_audit_current3`:
+  - 502 pages: **0** unknown page_type, **0** Fallback routes
+  - page_type mass: 二次原理图 227, 屏端子图 76, 背板表格型图 55, 封面/目录 54, 元件接线图 52, 屏面布置图 33, 背板接线图 3, 表格型图 2
+  - current3 total issues **677** (review 670); max single project **117** (`8000_9000_-`), not 300
+  - top-3 projects sum **276** approx user "~300" if multi-cabinet raw rows are treated as one set
+  - `root_cause=page_misclassified` **0**; issue mass is 元件接线图 288 + 屏端子图 259 ordinary_pair symptoms
+  - real LayoutOnly residual only 3 backplate pages (0 issues): `21000/10 PMU集中器背板`, `28000/12 电能质量监测装置背板`, `30000/10 防火墙接线图`
+
+### Cluster diagnoses (parallel agents)
+1. **8000 terminal 16-19**: current3 low-confidence flood is **stale extraction**. Terminal row-array promotion only runs in `TerminalDiagramExtractor` extraction, not `run-audit`. Fresh extraction promotes 208->820 family to pass 0.92; project issues **117 -> 26**.
+2. **20000 page 26/27**: correctly routed ComponentDiagramExtractor. Upper FJL strip recovers 16 `component_mapping` after non-mirror FJL accept. Page 26 -> 0 issues. Page 27 residual **31** is lower **HMC-3C wiring diagram** pin-grid (HD*/BCD dense lattice) without human panel authority - do not silent-suppress by page type.
+3. **29000**: KK OF main ports already map 32; OF aux `2->12` groups consumed by `_kk_ignored_auxiliary_group_ids`. Serial media shadow clears page 08; signal-alarm shadow clears page 09 meter face pins. Project issues **33 -> 2** (1 long GC0013 residual + 1 terminal many-to-one).
+
+### Engine generalizations landed
+- `component_diagrams._kk_ignored_auxiliary_group_ids`: complete KK2P+OF11-12 consumes short OF aux horizontals (ports 11/12/14) without mapping them.
+- `virtual_single_char_reject_blocks`: `FJL-25-2A` + `_Mirror` (+ basename mirror-tolerant match in candidates).
+- `pairs._apply_component_pair_guards`: same-block digit<->digit (1-99) discard on **all orientations** (was horizontal-only; vertical covers XJDZ pin columns).
+- `page_classifier` serial cues: bare `485` + `TXD\\d*` / `RXD\\d*`.
+- `page_extractors`: shadow ordinary pairs on communication media pages; shadow ordinary pairs on signal/alarm sheets (`信号回路` / `电度表告警` / `空开断开告警`) without claiming serial media.
+
+### Fresh replay deltas (head + uncommitted second wave)
+| Project | current3 / pre | fresh | Notes |
+|---|---:|---:|---|
+| 29000 电度表柜 | 33 | **2** | page14 OF cleared; 08/09 shadowed |
+| 8000_9000 时钟同步柜 | 117 | **26** | terminal arrays promoted; residual wire/component |
+| 20000 主变测控柜1 | 97 | **41** | page26=0; page27 HMC=31; page25 CD residual=6 |
+
+### Residual requiring human / next loop
+- HMC-3C front-panel pin lattice: needs symbol/port human adjudication before any pin-grid mask.
+- 20000 page25 residual external `CD*` ordinary pairs (not same-block).
+- 29000 page14 long GC0013 `?->3` mixed geometry line.
+- Full 502 fresh rebuild still required before accepting corpus-wide issue totals (current3 is rules-only reaudit on stale pairs).
+
+## 2026-07-17 Phase 170 deep unused-module prune
+
+- Call-site / reachability audit of the desktop sidecar graph:
+  - `networkx` is in pyproject but never imported by engine source (only forced previously as a hidden import).
+  - `PIL` only required by optional `ezdxf.addons.drawing` (not used for DWG→DXF audit).
+  - `jinja2`/`lxml`/`xlsxwriter`/`setuptools`/`requests` are optional/transitive and not needed for desktop artifact I/O.
+  - Must keep: `fontTools` (ezdxf fonts import-time), `rich`+`pygments` (typer help/errors), `pandas.testing` (pandas init).
+- Builder changes in `build_sidecar_pyinstaller.py`:
+  - expanded excludes + pure-module drop list
+  - strip pyarrow development DATA (`include/`, `.lib`, `.pyx`, `src/`)
+  - force `pandas._config.localization` + keep pandas.testing
+- Measured sidecar: **~52 MB** (was ~69 MB after first slim loop, ~92 MB baseline).
+- Smoke: `--help`, `analyze-project --help`, `init-config`, `list-recent-projects` all OK.
+- Packaging unit tests: 7 passed.
+

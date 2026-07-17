@@ -221,8 +221,8 @@ Current measured (local rebuild after slim scripts):
 
 | Component | Size |
 |---|---|
-| NSIS installer | ~85 MB |
-| Sidecar one-file | ~69 MB |
+| NSIS installer | ~85 MB → **~68 MB** (after unused-module prune) |
+| Sidecar one-file | ~69 MB → **~52 MB** |
 | ODA staged tree | ~51 MB |
 | Desktop shell | ~9.4 MB |
 
@@ -246,6 +246,24 @@ viewer libs, unused `.tx` modules, etc.). Conversion-critical modules such as
 
 Validate any further ODA removals with real DWG conversion via `ezdxf.addons.odafc`
 before shipping.
+
+
+### Unused / never-called dependency pruning
+
+Static reachability from `dwg_audit.desktop.sidecar_entry` plus call-site audit showed:
+
+| Package | Why it was in the bundle | Action |
+|---|---|---|
+| `networkx` | declared in `pyproject.toml` but **zero imports** in `src/` | exclude |
+| `PIL` / `Pillow` | optional `ezdxf.addons.drawing` image export | exclude |
+| `jinja2` / `lxml` / `xlsxwriter` | optional pandas Styler / openpyxl backends | exclude |
+| `setuptools` / `requests` | transitive tooling | exclude |
+| `streamlit` | only `serve-ui` | exclude |
+| `fontTools` | required by `ezdxf.fonts` at import time | **keep** |
+| `rich` + `pygments` | required by Typer help/error formatting | **keep** |
+| pyarrow `include/` / `.lib` / `.pyx` / `src/` | C++ headers & cython sources not needed at runtime | drop as DATA |
+
+Do **not** exclude `pandas.testing` (pandas `__init__` imports it eagerly) or `unittest` (pyparsing.testing).
 
 ### Remaining size headroom
 

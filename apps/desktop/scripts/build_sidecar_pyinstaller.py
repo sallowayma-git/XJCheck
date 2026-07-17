@@ -1,10 +1,15 @@
 # Generate and run a size-filtered PyInstaller spec for the desktop sidecar.
 # Called by apps/desktop/scripts/build-sidecar.ps1
+#
+# Size strategy (Phase 170+):
+# - never use --collect-all (pulls full optional stacks)
+# - exclude third-party packages that desktop audit never imports
+# - strip leftover pyarrow include/.lib/.pyx development data and test modules
+# - keep parquet/core pyarrow + openpyxl for desktop artifact I/O
 
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 import textwrap
@@ -19,7 +24,12 @@ def _spec_source(
     mode: str,
 ) -> str:
     pathex_repr = repr(pathex)
+
+    # Packages with zero call sites in src/dwg_audit for the desktop path, or only
+    # pulled as optional/transitive tooling (ezdxf drawing addons, typer pretty CLI,
+    # pandas Styler, openpyxl optional backends, declared-but-unused networkx).
     excludes = [
+        # Desktop does not ship Streamlit UI.
         "streamlit",
         "matplotlib",
         "tkinter",
@@ -29,7 +39,39 @@ def _spec_source(
         "IPython",
         "notebook",
         "pytest",
-        # Do NOT exclude unittest: pyparsing.testing imports it at module import time.
+        # Declared in pyproject but never imported by engine source.
+        "networkx",
+        # Optional ezdxf drawing stack (image/PDF export). Keep fontTools:
+        # ezdxf.fonts.font_manager imports it at module load time.
+        "PIL",
+        "Pillow",
+        "ezdxf.addons.drawing",
+        "ezdxf.addons.xqt",
+        # Typer help/error formatting requires rich + pygments. Keep both.
+        # openpyxl optional backends / extras not required for issues.xlsx write.
+        "lxml",
+        "xlsxwriter",
+        "defusedxml",
+        # pandas Styler / HTML template stack (to_html works without jinja2).
+        "jinja2",
+        "markupsafe",
+        # Unused HTTP client stack that can ride along via optional imports.
+        "requests",
+        "urllib3",
+        "charset_normalizer",
+        "certifi",
+        "idna",
+        "httpx",
+        "aiohttp",
+        # Heavy optional scientific stacks if present in env.
+        "scipy",
+        "sklearn",
+        "numba",
+        "llvmlite",
+        "sympy",
+        "torch",
+        "cv2",
+        # PyArrow optional extension modules (natives also filtered below).
         "pyarrow.flight",
         "pyarrow.substrait",
         "pyarrow.dataset",
@@ -40,21 +82,47 @@ def _spec_source(
         "pyarrow.csv",
         "pyarrow.feather",
         "pyarrow.json",
+        "pyarrow.benchmark",
+        "pyarrow.conftest",
+        "pyarrow.jvm",
+        "pyarrow.interchange",
         "pandas.tests",
+        # Keep pandas.testing / pandas._testing: pandas/__init__.py imports testing eagerly.
         "numpy.tests",
+        "numpy.testing",
         "networkx.tests",
+        # setuptools is large and not needed at runtime for frozen apps.
+        "setuptools",
+        "pkg_resources",
+        "distutils",
     ]
+
+    # Only force packages that desktop audit actually imports.
+    # Do NOT force networkx (unused). shapely is used by candidates STRtree.
     hidden = [
         "pandas",
+        "pandas._config",
+        "pandas._config.config",
+        "pandas._config.dates",
+        "pandas._config.display",
+        "pandas._config.localization",
         "pyarrow",
+        "pyarrow.parquet",
         "openpyxl",
         "yaml",
         "shapely",
-        "networkx",
+        "shapely.geometry",
+        "shapely.strtree",
         "ezdxf",
         "ezdxf.addons.odafc",
+        "fontTools",
+        "fontTools.ttLib",
+        "rich",
+        "pygments",
         "pyparsing",
+        "typer",
     ]
+
     return textwrap.dedent(
         f"""
         # -*- mode: python ; coding: utf-8 -*-
@@ -109,10 +177,27 @@ def _spec_source(
             for tok in (
                 "matplotlib",
                 "streamlit",
+                "networkx",
+                "pillow",
+                "/pil/",
+                "\\\\pil\\\\",
+                "jinja2",
+                "lxml",
+                "xlsxwriter",
+                "requests",
+                "urllib3",
+                "setuptools",
                 "pyarrow/tests",
                 "pandas/tests",
                 "numpy/tests",
+                # pyarrow ships large C++ headers, import libs, and cython sources
+                # that are not needed to run parquet I/O in a frozen app.
                 "include/pyarrow",
+                "include\\\\pyarrow",
+                "pyarrow/include",
+                "pyarrow\\\\include",
+                "pyarrow/src",
+                "pyarrow\\\\src",
                 "share/doc",
                 "tzdata/zoneinfo/africa",
                 "tzdata/zoneinfo/america",
@@ -127,6 +212,9 @@ def _spec_source(
             ):
                 if tok in blob:
                     return True
+            # Drop C/C++ development artifacts that are not runtime payload.
+            if blob.endswith((".lib", ".pyx", ".pxd", ".pxi", ".h", ".hpp", ".cc", ".cpp", ".c")):
+                return True
             return False
 
         a = Analysis(
@@ -147,10 +235,58 @@ def _spec_source(
 
         before_b = len(a.binaries)
         before_d = len(a.datas)
+        before_p = len(a.pure)
         a.binaries = [b for b in a.binaries if not should_drop_binary(b)]
         a.datas = [d for d in a.datas if not should_drop_data(d)]
-        print("[slim] binaries %s -> %s; datas %s -> %s" % (
-            before_b, len(a.binaries), before_d, len(a.datas)
+
+        # Drop pure modules that snuck in via optional import graphs.
+        PURE_DROP_PREFIXES = (
+            "networkx",
+            "PIL",
+            "Pillow",
+            "jinja2",
+            "markupsafe",
+            "lxml",
+            "xlsxwriter",
+            "requests",
+            "urllib3",
+            "charset_normalizer",
+            "certifi",
+            "idna",
+            "setuptools",
+            "pkg_resources",
+            "streamlit",
+            "matplotlib",
+            "IPython",
+            "notebook",
+            "pytest",
+            "scipy",
+            "sklearn",
+            "numba",
+            "pyarrow.flight",
+            "pyarrow.substrait",
+            "pyarrow.dataset",
+            "pyarrow.cuda",
+            "pyarrow.gandiva",
+            "pyarrow.orc",
+            "pyarrow.acero",
+            "pyarrow.benchmark",
+            "pyarrow.conftest",
+            "pyarrow.jvm",
+            "pyarrow.interchange",
+            "numpy.testing",
+            "numpy.tests",
+            "ezdxf.addons.drawing",
+            "ezdxf.addons.xqt",
+        )
+
+        def should_drop_pure(item):
+            name = str(item[0]) if item else ""
+            return any(name == p or name.startswith(p + ".") for p in PURE_DROP_PREFIXES)
+
+        a.pure = [p for p in a.pure if not should_drop_pure(p)]
+        print("[slim] binaries %s -> %s; datas %s -> %s; pure %s -> %s" % (
+            before_b, len(a.binaries), before_d, len(a.datas), before_p, len(a.pure)
         ))
 
         pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)

@@ -4,9 +4,9 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 169 packaging pipeline is ready; Phase 170 first size-reduction loop cut the installer ~113MB→~85MB (sidecar ~69MB, ODA ~51MB). Phase 167 recognition loop remains the active audit-quality track.
+Phase 171 recognition/audit quality loop is active (continues Phase 167 full-corpus track). Packaging Phases 169-170 remain complete.
 
-Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 502-DWG baseline is complete with no UNKNOWN/Fallback routes. Current-head fixes cover conductive-line coverage, context-free dense contact-panel tables, complete table authority, FJL/KK component mappings, comma component chains, and stable terminal arrays. Next gates are remaining-cluster inspection, fresh affected-project replay, full pytest, and a fresh 502-page rebuild/audit before cleanup.
+Phase 171 diagnosed that the user-visible "~300 issues / table misrecognition" flood is not table-route failure: corpus has 0 UNKNOWN routes and only 3 LayoutOnly backplate residuals with zero issues. Real mass is ordinary_pair under-extraction on component/terminal pages plus stale current3 reaudit artifacts. Landed generalized fixes for KK OF aux, FJL pin reject, serial/signal-alarm pair shadowing, and vertical block-internal pins. Fresh replays: 29000 33->2, 8000 117->26, 20000 97->41 (HMC pin-grid residual needs human symbol authority). Next: optional full 502 rebuild, HMC-3C panel adjudication, residual page25 CD external binding.
 
 ## Phases
 
@@ -2677,5 +2677,16 @@ Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 50
   - Sidecar <= 45MB (stretch <= 35MB) — **not yet met** (69MB after first safe loop)
   - ODA staged <= 45MB — **near** (51MB)
   - Installer <= 70MB (stretch <= 50MB) — **not yet met** (85MB)
-- Status: complete for first safe reduction loop; stretch targets deferred
+- Deep unused-module prune: sidecar ~69MB → **~52MB** (exclude networkx/PIL/jinja2/lxml/…; keep fontTools/rich/pygments)
+- Status: complete for packaging-script reduction loops; stretch targets still need engine dependency redesign (arrow/OpenBLAS)
 
+### Phase 171: Recognition Flood Diagnosis And Generalized Noise Closure
+- [x] Full-corpus current3 issue matrix + concurrent page audits (20000/8000/29000/table-route)
+- [x] Prove table-type recognition is not the flood source (0 unknown routes; max project 117 raw issues)
+- [x] Land KK OF aux group consume + FJL non-mirror pin reject + serial media shadow (commit 50cc65e)
+- [x] Land signal-alarm ordinary-pair shadow + vertical same-block digit pin discard
+- [x] Fresh replay 29000 / 20000 / 8000_9000 and measure deltas
+- [x] Cleanup intermediate .tmp replay dirs; keep phase171_*_r2 and 8000 fresh artifacts
+- [ ] Full 502-page fresh rebuild/audit (pending; current3 stale for terminal array promotion)
+- [ ] HMC-3C front-panel symbol/port human authority for 20000 page 27 residual
+- **Status:** in_progress

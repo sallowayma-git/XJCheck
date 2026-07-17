@@ -5348,3 +5348,35 @@
   - `doc/windows-packaging.md`
   - `task_plan.md` / `findings.md` / `progress.md`
 
+## Session: 2026-07-17 Phase 171 recognition loop
+
+### Phase 171: Recognition Flood Diagnosis And Generalized Noise Closure
+- **Status:** in_progress
+- Actions taken:
+  - Session catchup + inventory of corpus baseline/current3 (677 issues, max project 117).
+  - Four parallel diagnostic agents: table-route inventory, 20000 page27, 8000 terminal arrays, 29000 KK/comm residual.
+  - Implemented/landed wave1 (commit `50cc65e`): OF aux consume, FJL reject, serial media detect+shadow, two-digit same-block pin discard.
+  - Implemented wave2 (working tree): signal-alarm ordinary-pair shadow; vertical same-block digit pin discard.
+  - Fresh analyze+audit: 29000->2, 8000->26, 20000->41.
+  - Removed intermediate `.tmp` replay dirs; retained `phase171_*_r2` and `phase171_8000_fresh*`.
+- Verification:
+  - Focused unit suites: `193 passed` (component/page_extractors/page_classifier/pairs/terminal_candidates).
+  - `compileall` clean on `src/dwg_audit`.
+- Files modified (wave2 uncommitted):
+  - `src/dwg_audit/audit/page_extractors.py`
+  - `src/dwg_audit/audit/pairs.py`
+  - `tests/unit/test_page_extractors.py`
+  - `tests/unit/test_pairs_and_rules.py`
+- Next:
+  - Commit wave2 if desired.
+  - Full 502 rebuild when ready for corpus acceptance.
+  - Escalate HMC-3C panel authority to user before suppressing page27 pin-grid.
+
+### Phase 170 deep prune (unused modules)
+- Actions:
+  - Audited never-called deps via AST reachability + import call sites.
+  - Excluded networkx/PIL/jinja2/lxml/xlsxwriter/setuptools/requests/streamlit from sidecar.
+  - Kept fontTools + rich/pygments (hard runtime needs).
+  - Dropped pyarrow C++/cython development data payloads.
+  - Sidecar rebuilt to ~52MB; CLI smoke green; packaging tests pass.
+

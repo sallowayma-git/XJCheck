@@ -81,6 +81,12 @@ def test_sidecar_build_avoids_collect_all_bloat() -> None:
     assert "streamlit" in builder
     assert "ezdxf.addons.odafc" in builder
     assert "pyarrow.flight" in builder
+    # Unused / optional dependency pruning
+    assert '"networkx"' in builder or "'networkx'" in builder
+    assert "PIL" in builder  # excluded optional drawing stack
+    assert "fontTools" in builder  # kept: ezdxf fonts require it
+    assert "pygments" in builder
+    assert "include/pyarrow" in builder
 
 
 def test_oda_stage_prunes_optional_payloads() -> None:
