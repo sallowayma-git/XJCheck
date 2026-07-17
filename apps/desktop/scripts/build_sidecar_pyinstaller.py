@@ -306,7 +306,9 @@ def _spec_source(
                 upx=False,
                 upx_exclude=[],
                 runtime_tmpdir=None,
-                console=True,
+                # Windowed PE: no black console when spawned by the desktop shell.
+                # Parent still captures stdout/stderr JSON via pipes.
+                console=False,
                 disable_windowed_traceback=False,
                 argv_emulation=False,
                 target_arch=None,
@@ -324,7 +326,8 @@ def _spec_source(
                 bootloader_ignore_signals=False,
                 strip=False,
                 upx=False,
-                console=True,
+                # Windowed PE: no black console when spawned by the desktop shell.
+                console=False,
                 disable_windowed_traceback=False,
                 argv_emulation=False,
                 target_arch=None,

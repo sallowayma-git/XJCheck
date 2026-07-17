@@ -5413,3 +5413,22 @@
 - Full corpus baseline remains `.tmp/phase171_full_corpus_*` at 327 issues (pre-r3 shadows on non-rerun projects).
 - Unit gate 110 passed. Commits: d0a935c, 53b9bfe, 04f2744.
 
+## Session: 2026-07-17 (HMC authority + fail-closed review)
+
+- User confirmed HMC panel artwork is whole-panel IGNORE: no ports, mapping, connectivity, or union; real same-sheet KLP/GD/n### endpoints must remain visible.
+- Ran four independent read-only reviews of HMC scoping, broad ordinary-pair shadows, component endpoint coverage, and vertical same-block digit guards.
+- Confirmed four correctness risks requiring code changes before accepting lower issue counts: page-wide signal/alarm shadow, long bare-digit shadow, CD/GD/ZK derived shadow, and cross-sheet component endpoint coverage.
+- Confirmed HMC metadata-title fallback gap and insufficient adversarial tests for same-sheet real endpoints.
+- Current goal remains incomplete pending fail-closed corrections, focused tests, and fresh replay.
+
+- Added human adjudication for B3/A2: three-column terminal tables must form `header-port` logical endpoints and may map one port to both left/right cells; BI/voltage/open-input/open-output plug-in backplates use the same independent multi-port model.
+
+- Six parallel audits completed. A2 15000 sheets 14/15 passed a fresh replay with 152 mappings/page and zero page issues. B3 residual counts came from pre-`0feefcf` phase171 artifacts and are retained only as baseline.
+- Full pytest on HEAD: 969 passed, 1 skipped, 1 failed; sole failure is the old `1-21QD1` expectation versus new human-confirmed `1-21QD-1` logical endpoint format.
+- Next action: current-HEAD fresh replay 24000/25000/8000/20000, then patch only residual extractor/rule defects and re-run affected projects.
+
+# 2026-07-17 Phase 172 packaged ODA crash diagnosis
+
+- Decoded repeated packaged return code as `0xC0000409` (`STATUS_STACK_BUFFER_OVERRUN`).
+- Read-only parallel scans located runtime concurrency, packaged path injection, staging/pruning behavior, and ezdxf's return-code wrapper.
+- Leading hypothesis is ODA native-process instability under the application's default four-way conversion concurrency; staged dependency pruning is retained as a fallback hypothesis pending controlled reproduction.

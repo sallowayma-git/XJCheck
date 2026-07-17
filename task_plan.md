@@ -4,11 +4,20 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
+Phase 172 packaged ODA crash diagnosis is active. The installed app reports ODA exit code `3221226505` (`0xC0000409`) on many DWGs while conversions run concurrently. Determine whether the failure is concurrency-triggered or caused by staged runtime pruning, implement the narrow fix, and verify source plus packaged workflows.
+
 Phase 171 recognition/audit quality loop is active (continues Phase 167 full-corpus track). Packaging Phases 169-170 remain complete.
 
 Phase 171 wave2: user adjudicated HMC pin grids as device-panel silkscreen (no cross-page terminal audit). Landed signal-alarm ordinary-pair shadow, vertical same-block pin discard, HMC silkscreen shadow, and frontend certainty labels (确定性错误 / 可能有错误 / 须人工校验; fail-closed on real errors). Offline page27: 47/48 HMC stubs shadowed. Full 502 fresh rebuild complete: 27/27 ok in ~283s; total issues **327** (was current3 677). Key: 20000 5, 29000 1, 8000 26. Handling: error 65 / warning 13 / review 249. Routes: 0 UNKNOWN, 3 LayoutOnly. Next loop: terminal many-to-one clusters (24000/22000/35000 backplates), 8000 signal residual, LayoutOnly backplates.
 
 ## Phases
+
+### Phase 172: Packaged ODA Crash Diagnosis
+- [x] Decode the Windows process exit status and locate ODA runtime/packaging paths
+- [ ] Reproduce with controlled single-worker versus multi-worker conversion
+- [ ] Implement the narrow runtime or staging fix with regression coverage
+- [ ] Verify targeted tests and packaged-resource behavior
+- **Status:** in_progress
 
 ### Phase 1: Requirements & Discovery
 - [x] 对齐用户连续要求与当前 goal
@@ -2689,4 +2698,7 @@ Phase 171 wave2: user adjudicated HMC pin grids as device-panel silkscreen (no c
 - [x] Cleanup intermediate .tmp replay dirs; keep phase171_*_r2 and 8000 fresh artifacts
 - [ ] Full 502-page fresh rebuild/audit (pending; current3 stale for terminal array promotion)
 - [x] HMC-3C pin-grid adjudicated as silkscreen; ordinary pairs shadowed (hmc_panel_silkscreen)
+- [ ] Replace unsafe page/name/length shadows with fail-closed local evidence; scope component endpoint coverage by sheet
+- [ ] Add HMC same-sheet real-endpoint and cross-sheet endpoint adversarial tests, then fresh replay affected projects
+- [ ] Generalize header+middle-port three-column tables and table-like backplate plug-ins; replay 24000/25000/8000/20000/15000 clusters
 - **Status:** in_progress

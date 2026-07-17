@@ -1555,3 +1555,35 @@
 - 29000: **1** unchanged (terminal many-to-one on sheet16, likely real/review)
 - Remaining 8000 mass: page04 直流回路 missing-side, component pages 14/15, terminal low-conf page16
 
+### 2026-07-17 HMC / shadow safety review
+
+- Human authority: HMC panel artwork is IGNORE; it creates no ports, mappings, connectivity, or union. Suppression must stay local to HMC evidence and must not hide real same-sheet KLP/GD/n### connections.
+- `_shadow_signal_alarm_ordinary_pairs` is unsafe because a page-level alarm cue currently shadows every ordinary pair, including real two-sided conflicts.
+- `_shadow_component_long_bare_digit_ordinary_pairs` is unsafe because line length plus a lone 1-2 digit endpoint is not proof of artwork; the known 29000 GC0013 missing-side case must remain reviewable.
+- `_shadow_external_designator_derived_ordinary_pairs` is unsafe because CD/GD/ZK are valid external endpoint families; missing-side instances must not be silenced by name.
+- `_mark_component_mapping_endpoint_covered_ordinary_pairs` is not sheet-scoped: endpoint keys can shadow a same-named endpoint on a different sheet.
+- Component-page same-block 1..99 digit-pair discard also applies vertically; existing tests prove the guard executes but do not prove that all vertical same-block digit pairs are internal artwork.
+- HMC cue detection currently checks sheet title/filename only when `texts` is empty, so metadata-only HMC titles can be missed whenever unrelated text entities exist.
+
+### 2026-07-17 human adjudication: terminal tables and backplate plug-ins
+
+- Three-column terminal table rule: locate the instance header near the Chinese `说明` heading; combine the header with the middle numeric column (`1C5D` + `10` => `1C5D-10`), then map that logical endpoint independently to each populated side cell (for example `1C5D-10 -> 1n519`). Bare residual `10 -> 519` is not an independent connection.
+- Header rows may span multiple port rows. A logical endpoint can validly map to both sides: `1UD-1 -> 1ZKK1-2` and `1UD-1 -> 1n2001`; similarly for `1UD-2`, etc. This is normal fan-out, not many-to-one/internal connectivity.
+- BI/voltage plug-in backplates are table-like multi-port components. The upper instance label plus each numbered port forms the endpoint; each port maps outward to the same-side external terminal. Interior labels such as Power/BI/input descriptions are annotations and do not imply internal connectivity.
+- The pictured `开入插件/开出插件` blocks follow the same table-like model: numbered ports map to adjacent external designators; empty rows remain unmapped.
+
+### B3/A2 parallel audit results
+
+- Existing `.tmp/phase171_full_corpus_fresh` predates HEAD `0feefcf`; its 24000/25000/8000/20000 residuals are a pre-change baseline, not proof that the current extractor still fails. Current-HEAD fresh replay is required.
+- Pre-change B3 residuals: 24000 sheets 21/22 had bare `10 -> 519`-style low-confidence ordinary pairs; 25000 sheet19 had 14 `1 -> n###`-derived ordinary pairs; 8000 sheet16 had four `10..13 -> 106..113` ordinary pairs; 20000 sheet28 had `13 -> 412`.
+- Pre-change 24000 sheet23 had seven `R-MANY-TO-ONE` rows over `terminal_header_table` mappings. The repeated endpoint evidence is table-scoped and often reuses the same physical side-cell across multiple logical header rows; human adjudication says this is valid table mapping and must not imply union.
+- HEAD `0feefcf` focused tests pass, but the full suite has one stale endpoint-format assertion: extractor now produces `1-21QD-1` while the integration test expects `1-21QD1`. Latest human rule explicitly requires `instance-port`, so the hyphenated logical endpoint is the intended form unless fresh source evidence proves otherwise.
+- Fresh 15000 replay confirms A2 is already correct: sheets 14/15 route to `TableExtractor`, each emits 152 plugin-port mappings, Power/BI/Output/AC descriptions do not connect, empty rows do not map, and both pages produce zero issues. The same cluster spans 18 backplate pages.
+
+# Phase 172 packaged ODA crash diagnosis (2026-07-17)
+
+- User logs show repeated ODA File Converter exit `3221226505`, which is hexadecimal `0xC0000409` (`STATUS_STACK_BUFFER_OVERRUN` / Windows fail-fast), not an executable-not-found error.
+- `src/dwg_audit/ingest/dwg_converter.py` defaults `convert_workers <= 0` to up to four threads and submits one `odafc.convert` call per DWG, so the packaged run shown can have several native ODA processes active simultaneously.
+- Packaged path propagation exists: Tauri sets `ODAFC_PATH` and `DWG_AUDIT_BUNDLED_ODA_DIR`; resources are expected under `resources/oda/ODAFileConverter.exe`.
+- Staging copies the full ODA tree and then prunes optional payload, including `imageformats` and selected DLL/TX files. This remains a secondary hypothesis because a missing core runtime normally fails at process load (`0xC0000135`) rather than `0xC0000409` after several seconds.
+- Required next experiment: same known DWG set with `convert_workers=1` and `2/4`, using clean output/cache. If only multi-worker mode fails, serialize ODA execution while retaining downstream parallelism where safe.

@@ -1,3 +1,8 @@
+// Release builds must be a Windows GUI process. A CUI (console) desktop binary
+// allocates a black terminal on launch; closing that console delivers
+// CTRL_CLOSE_EVENT and tears down the entire app.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::env;
 use std::fs;
 use std::io::BufRead;

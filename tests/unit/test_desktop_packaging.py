@@ -29,11 +29,19 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "src-tauri\\resources\\sidecar" in script
     assert "build_sidecar_pyinstaller.py" in script
     assert "ezdxf.addons.odafc" in builder
+    # Windowed sidecar PE + CREATE_NO_WINDOW spawn: no console flash/kill-on-close.
+    assert "console=False" in builder
+    assert "console=True" not in builder
     assert "sidecar" in runtime
     assert "dwg-audit-sidecar.exe" in runtime
+    assert "CREATE_NO_WINDOW" in runtime
+    assert "Stdio::null()" in runtime
     assert "ODAFC_PATH" in runtime
     assert "DWG_AUDIT_RESOURCE_DIR" in runtime
     assert "oda" in runtime
+
+    main_rs = (DESKTOP_ROOT / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
+    assert 'windows_subsystem = "windows"' in main_rs
 
 
 def test_oda_staging_and_release_scripts_exist() -> None:

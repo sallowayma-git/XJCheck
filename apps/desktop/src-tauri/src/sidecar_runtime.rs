@@ -2,6 +2,7 @@ use std::env;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SidecarRuntimeKind {
@@ -26,11 +27,22 @@ impl SidecarRuntime {
         command.args(&self.arg_prefix);
         command.args(args);
         command.current_dir(&self.current_dir);
+        // Never inherit the parent console/stdin. A CUI child (console
+        // PyInstaller / python.exe) would otherwise flash a terminal window
+        // and share CTRL_CLOSE_EVENT with the desktop process.
+        command.stdin(Stdio::null());
         if let Some(value) = &self.pythonpath {
             command.env("PYTHONPATH", value);
         }
         for (key, value) in &self.env_vars {
             command.env(key, value);
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // CREATE_NO_WINDOW: no console for the child; stdio pipes still work.
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
         }
         command
     }
