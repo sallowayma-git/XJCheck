@@ -459,6 +459,15 @@ def _apply_component_pair_guards(
     ):
         return "discard", "block_internal_pin_pair"
 
+    # KK OF auxiliary contacts (11/12/14) and other short internal port numbers on
+    # the same block are artwork, not external terminal pairs. Values may be 1-2
+    # digits (e.g. 2↔12), so do not require single-character sides only.
+    if left_block and left_block == right_block and left_value.isdigit() and right_value.isdigit():
+        left_number = int(left_value)
+        right_number = int(right_value)
+        if 1 <= left_number <= 99 and 1 <= right_number <= 99:
+            return "discard", "block_internal_pin_pair"
+
     return status, rationale
 
 

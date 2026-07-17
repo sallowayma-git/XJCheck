@@ -522,11 +522,13 @@ def test_extract_kk_multi_port_component_pairs_supports_of_suffix_and_letter_fir
     groups = [
         _make_horizontal_group("G_TOP", 267.5, start_x=75.0, end_x=100.0),
         _make_horizontal_group("G_BOTTOM", 237.5, start_x=75.0, end_x=100.0),
+        _make_horizontal_group("G_AUX", 245.0, start_x=75.0, end_x=105.0),
+        _make_horizontal_group("G_LONG", 255.0, start_x=20.0, end_x=105.0),
     ]
 
     pairs, consumed = extract_kk_multi_port_component_pairs([sheet], texts, groups, [block])
 
-    assert consumed == {"G_TOP", "G_BOTTOM"}
+    assert consumed == {"G_TOP", "G_BOTTOM", "G_AUX"}
     assert {(pair.left_value, pair.right_value) for pair in pairs} == {
         ("CJDK1-1", "ZD18"),
         ("CJDK1-2", "CJnP4"),

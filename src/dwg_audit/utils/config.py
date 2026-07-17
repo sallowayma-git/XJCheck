@@ -121,7 +121,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
                     r"(?i)HD(?P<value>\d{1,3})$",
                 ],
                 "derived_numeric_penalty": -0.18,
-                "virtual_single_char_reject_blocks": ["FJL-25-2A_Mirror"],
+                "virtual_single_char_reject_blocks": ["FJL-25-2A", "FJL-25-2A_Mirror"],
             },
         },
         "屏端子图": {

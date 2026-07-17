@@ -1509,6 +1509,44 @@ def test_build_terminal_candidates_rejects_virtual_fjl_internal_pin_numbers() ->
     assert bottom_pin.rejection_reason == "block_internal_pin_number"
 
 
+
+def test_build_terminal_candidates_rejects_virtual_fjl_non_mirror_internal_pin_numbers() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=90.0,
+            start_y=255.0,
+            end_x=90.0,
+            end_y=240.0,
+            length=15.0,
+            wire_candidate_score=0.9,
+            member_line_ids=["L1"],
+            layer_hints=["WIRE"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "27 元件接线图4.dwg", 27, "27", "元件接线图4", "元件接线图", "supplemental", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "8603:VIRTUAL:1", "TEXT", "1", "1", True, "0", 0.0, 2.5, 94.4, 254.2, 93.4, 253.2, 95.4, 255.2, "FJL-25-2A"),
+        TextItem("T2", "S1", "F1", "8603:VIRTUAL:0", "TEXT", "2", "2", True, "0", 0.0, 2.5, 94.4, 239.2, 93.4, 238.2, 95.4, 240.2, "FJL-25-2A"),
+        TextItem("T3", "S1", "F1", "T3", "TEXT", "4-21KLP2", "4-21KLP2", False, "MARK", 0.0, 3.0, 89.9, 269.4, 88.0, 267.0, 98.0, 271.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    top_pin = next(item for item in candidates if item.text_id == "T1")
+    bottom_pin = next(item for item in candidates if item.text_id == "T2")
+
+    assert top_pin.status == "rejected"
+    assert top_pin.rejection_reason == "block_internal_pin_number"
+    assert bottom_pin.status == "rejected"
+    assert bottom_pin.rejection_reason == "block_internal_pin_number"
+
+
 def test_build_terminal_candidates_extracts_hd_suffix_on_vertical_component_page() -> None:
     line_groups = [
         LineGroup(

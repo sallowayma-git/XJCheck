@@ -1444,8 +1444,16 @@ def _is_virtual_block_internal_pin_candidate(
         return False
     if len(value.strip()) != 1:
         return False
-    source_block_name = (text.source_block_name or "").upper()
-    return source_block_name in reject_blocks
+    source_block_name = (text.source_block_name or "").strip().upper()
+    if not source_block_name:
+        return False
+    if source_block_name in reject_blocks:
+        return True
+    # Accept strip-family variants such as FJL-25-2A / FJL-25-2A_Mirror without
+    # requiring every mirror/case form to be enumerated in config.
+    mirror_suffix = "_MIRROR"
+    basename = source_block_name[: -len(mirror_suffix)] if source_block_name.endswith(mirror_suffix) else source_block_name
+    return basename in reject_blocks or f"{basename}_MIRROR" in reject_blocks
 
 
 def _candidate_channel_hint(

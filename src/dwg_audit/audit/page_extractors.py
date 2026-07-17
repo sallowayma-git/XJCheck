@@ -250,6 +250,7 @@ def _extract_pairs_for_route(
         pairs.extend(table_pairs)
     if executed_extractor == "WireDiagramExtractor":
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
+        _shadow_communication_medium_ordinary_pairs(pairs, pages)
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -302,6 +303,30 @@ def _shadow_grid_wire_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "wire_grid_primary"
+
+
+def _shadow_communication_medium_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:
+    """Keep ordinary wire pairs off critical audit when page is a communication medium sheet.
+
+    Communication drawings (serial/fiber/network) still extract pairs for review assist, but
+    bare numeric missing-side noise must not surface as ordinary terminal-pair issues.
+    """
+    sheet_map = {page.sheet_id: page for page in pages}
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        sheet = sheet_map.get(pair.sheet_id)
+        if sheet is None or sheet.route_target != "WireDiagramExtractor":
+            continue
+        media = list(getattr(sheet, "communication_media", None) or [])
+        if not media:
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "communication_medium"
+        pair.evidence["communication_media"] = media
 
 
 def _mark_input_matrix_covered_ordinary_pairs(

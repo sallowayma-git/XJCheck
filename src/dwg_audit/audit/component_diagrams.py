@@ -19,6 +19,7 @@ _KK_MULTI_PORT_BLOCK_PATTERN = re.compile(
     r"^(?P<base>KK[23]P)(?:\+OF11-12)?$",
     re.IGNORECASE,
 )
+_KK_IGNORED_AUXILIARY_PORTS = {"11", "12", "14"}
 _SMALL_PORT_BOX_BLOCK_PORTS = {
     "KK1P": {"1", "2"},
     "KK2P": {"1", "2", "3", "4"},
@@ -242,6 +243,15 @@ def extract_kk_multi_port_component_pairs(
             body = _nearest_kk_component_body(block, list(ports_by_number.values()), sheet_texts)
             if body is None:
                 continue
+            if len(ports_by_number) == port_count:
+                consumed_group_ids.update(
+                    _kk_ignored_auxiliary_group_ids(
+                        block,
+                        sheet_texts,
+                        sheet_blocks,
+                        sheet_groups,
+                    )
+                )
             excluded_text_ids = {body.text_id, *(port.text_id for port in ports_by_number.values())}
             used_endpoint_text_ids: set[str] = set()
             for port_number in sorted(ports_by_number, key=int):
@@ -484,6 +494,48 @@ def _nearest_kk_component_body(
             item.text_id,
         ),
     )[0]
+
+
+def _kk_ignored_auxiliary_group_ids(
+    block: BlockRecord,
+    texts: list[TextItem],
+    blocks: list[BlockRecord],
+    line_groups: list[LineGroup],
+) -> set[str]:
+    block_name = (block.name or "").strip()
+    if not block_name.upper().endswith("+OF11-12"):
+        return set()
+    matching_blocks = [
+        other
+        for other in blocks
+        if other.sheet_id == block.sheet_id
+        and (other.name or "").strip().upper() == block_name.upper()
+    ]
+    auxiliary_texts = [
+        text
+        for text in texts
+        if (text.source_block_name or "").strip().upper() == block_name.upper()
+        and str(text.normalized_text or "").strip() in _KK_IGNORED_AUXILIARY_PORTS
+        and _nearest_block_to_text(text, matching_blocks) == block
+    ]
+    consumed: set[str] = set()
+    for text in auxiliary_texts:
+        text_x, text_y = _text_center(text)
+        for group in line_groups:
+            if group.orientation != "horizontal":
+                continue
+            group_y = (group.start_y + group.end_y) / 2.0
+            if abs(group_y - text_y) > _KK_HORIZONTAL_LINE_Y_TOL:
+                continue
+            min_x = min(group.start_x, group.end_x)
+            max_x = max(group.start_x, group.end_x)
+            x_gap = 0.0 if min_x <= text_x <= max_x else min(abs(text_x - min_x), abs(text_x - max_x))
+            if x_gap > _KK_HORIZONTAL_LINE_X_TOL:
+                continue
+            if max(abs(group.start_x - block.insert_x), abs(group.end_x - block.insert_x)) > _KK_PORT_BLOCK_X_TOL:
+                continue
+            consumed.add(group.line_group_id)
+    return consumed
 
 
 def _nearest_small_port_box_body(

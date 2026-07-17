@@ -683,3 +683,21 @@ def test_shadow_grid_wire_ordinary_pairs_marks_wire_grid_pairs_ineligible() -> N
     assert ordinary.evidence["ordinary_pair_eligible"] is False
     assert ordinary.evidence["ordinary_pair_shadow_only"] is True
     assert ordinary.evidence["ordinary_pair_shadow_reason"] == "wire_grid_primary"
+
+
+def test_shadow_communication_medium_ordinary_pairs_marks_serial_pages_ineligible() -> None:
+    from dwg_audit.audit.page_extractors import _shadow_communication_medium_ordinary_pairs
+
+    ordinary = _pair({"line_orientation": "horizontal"})
+    ordinary.status = "review"
+    ordinary.confidence_bucket = "review"
+    sheet = _sheet(route_target="WireDiagramExtractor", page_subtype=None, grid_heavy=False)
+    sheet.communication_media = ["serial"]
+
+    _shadow_communication_medium_ordinary_pairs([ordinary], [sheet])
+
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence["ordinary_pair_shadow_only"] is True
+    assert ordinary.evidence["ordinary_pair_shadow_reason"] == "communication_medium"
+    assert ordinary.evidence["communication_media"] == ["serial"]
+

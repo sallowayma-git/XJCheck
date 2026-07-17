@@ -487,3 +487,18 @@ def test_classify_pages_does_not_emit_medium_from_one_cue_or_title_block_text() 
 
     assert classification.communication_media == ()
     assert classification.capabilities == ("MetadataOnly",)
+
+
+def test_classify_pages_emits_serial_medium_from_chinese_485_and_txd_cues() -> None:
+    sheet = _make_sheet(sheet_category="二次原理图", sheet_title="电度表通信回路", filename="08 电度表通信回1.dwg")
+    texts = [
+        _make_text("M1", "S1", 30.0, 40.0, "电度表485A1"),
+        _make_text("M2", "S1", 50.0, 40.0, "TXD1"),
+        _make_text("M3", "S1", 40.0, 30.0, "网络回路"),
+    ]
+
+    classification = classify_pages([sheet], texts, [], [], [], DEFAULT_CONFIG)["S1"]
+
+    assert "serial" in classification.communication_media
+    assert "CommunicationMedium" in classification.capabilities
+

@@ -67,8 +67,15 @@ _MEDIUM_CUE_PATTERNS = {
         "fiber_rx_tx": re.compile(r"(?<![A-Z0-9])(?:RX|TX)(?![A-Z0-9])", re.IGNORECASE),
     },
     "serial": {
-        "serial_protocol": re.compile(r"RS\s*[-－]?\s*(?:232|485)", re.IGNORECASE),
-        "serial_port": re.compile(r"(?<![A-Z0-9])(?:TX|RX|GND|DATA\s*[+-])(?![A-Z0-9])", re.IGNORECASE),
+        # Chinese cabinet sheets often label ports as 电度表485A1 / 485B1 without RS- prefix.
+        "serial_protocol": re.compile(
+            r"(?:RS\s*[-－]?\s*(?:232|485)|(?<![A-Za-z0-9])485(?![0-9]))",
+            re.IGNORECASE,
+        ),
+        "serial_port": re.compile(
+            r"(?<![A-Za-z0-9])(?:TXD\d*|RXD\d*|TX|RX|GND|DATA\s*[+-])(?![A-Za-z])",
+            re.IGNORECASE,
+        ),
     },
     "ethernet": {
         "ethernet_eth": re.compile(r"(?<![A-Z0-9])(?:ETH|ETHERNET)(?![A-Z0-9])", re.IGNORECASE),
