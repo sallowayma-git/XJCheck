@@ -1580,6 +1580,26 @@
 - HEAD `0feefcf` focused tests pass, but the full suite has one stale endpoint-format assertion: extractor now produces `1-21QD-1` while the integration test expects `1-21QD1`. Latest human rule explicitly requires `instance-port`, so the hyphenated logical endpoint is the intended form unless fresh source evidence proves otherwise.
 - Fresh 15000 replay confirms A2 is already correct: sheets 14/15 route to `TableExtractor`, each emits 152 plugin-port mappings, Power/BI/Output/AC descriptions do not connect, empty rows do not map, and both pages produce zero issues. The same cluster spans 18 backplate pages.
 
+### Current-HEAD B3 fresh replay
+
+- Fresh extraction on HEAD `0feefcf`: 24000 target sheets 21/22/23 now have 2/0/0 issues; 25000 sheet19 has 0; 20000 sheet28 has 0. 24000 sheet23 explicitly emits `1UD-1 -> 1ZKK1-2` and `1UD-1 -> 1n2001` with no issue.
+- 8000 sheet16 retains four low-confidence ordinary residuals (`11->106`, `10->113`, `13->113`, `12->110`). They are table rows under header `1-26TD`; the header and adjacent `说明` are at y≈128.5 while rows 1..13 are above it at y≈201..141. Current `_collect_terminal_header_rows` only accepts rows below the header in coordinate space, so it misses this inverted/header-below layout.
+- Safe generalization: when a nearby `说明` anchors the terminal strip, allow consecutive 1..N middle rows on either side of the header, bounded by the nearest same-column header. Do not derive an instance name from external endpoint text and do not globally ignore numeric pairs.
+- 24000 sheet21 remaining two issues are cross-page structured table sharing (`1QD-32 -> 1n114`, `1QD-33 -> 1n832`) between terminal-header and backplate virtual mappings. Geometry is valid; a later rule-level closure should require authoritative structured mapping scope rather than name-based suppression.
+
+### B3 closure results
+
+- Plain `YD` is a valid terminal-table instance name only when adjacent `说明` and a consecutive numbered strip provide authority. Fresh 8000 replay emits `YD-10 -> 1-26n113`, `YD-11 -> 2-26n106`, etc.; sheet16 issues 4 -> 0 while independent 100..112 terminal arrays remain active.
+- A mixed `terminal_header_table` + `backplate_virtual_table` shared external endpoint is accepted only when every pair independently satisfies the strict authoritative table contract. This closes 24000 `1n114/1n832` redundant cross-diagram reviews without allowing ordinary pairs or incomplete mappings through.
+- Rules-only 24000 replay after the bridge guard: total 5 -> 3 and sheets 21/22/23 all have zero issues.
+
+### Fail-closed replay after removing broad shadows
+
+- Fresh totals: 8000=22 (sheet16 B3 remains 0), 20000=19 (HMC sheet27 remains 0), 29000=10. Restored findings are now visible for structural modeling instead of being page/name/length-shadowed.
+- 8000 sheet05: 12 missing-side rows are not IGNORE. They are repeated horizontal wire chains with numeric anchors (`105/106`, `108/110`, `111/113`) split into complementary halves; the correct next model is wire-chain/inline-number reconstruction.
+- 29000 sheet09: 10 findings are communication/alarm panel silkscreen. Safe IGNORE requires combined evidence: repeated panel-symbol array, DIM numeric labels, matching relative geometry/layers, and no independent port/cross-page evidence. Text values 16/35 and page title alone are not authority.
+- 20000 sheet25: six CD/XJDZ low-confidence pairs must become scoped structural mappings retaining complete endpoint identity (e.g. CD11->CD8 and XJDZ instance:port), not name-based shadows. Sheet26 CLP/backplate inconsistencies remain legitimate review and must not be auto-cleared.
+
 # Phase 172 packaged ODA crash diagnosis (2026-07-17)
 
 - User logs show repeated ODA File Converter exit `3221226505`, which is hexadecimal `0xC0000409` (`STATUS_STACK_BUFFER_OVERRUN` / Windows fail-fast), not an executable-not-found error.
@@ -1587,3 +1607,73 @@
 - Packaged path propagation exists: Tauri sets `ODAFC_PATH` and `DWG_AUDIT_BUNDLED_ODA_DIR`; resources are expected under `resources/oda/ODAFileConverter.exe`.
 - Staging copies the full ODA tree and then prunes optional payload, including `imageformats` and selected DLL/TX files. This remains a secondary hypothesis because a missing core runtime normally fails at process load (`0xC0000135`) rather than `0xC0000409` after several seconds.
 - Required next experiment: same known DWG set with `convert_workers=1` and `2/4`, using clean output/cache. If only multi-worker mode fails, serialize ODA execution while retaining downstream parallelism where safe.
+- Controlled staged-runtime probe used the exact eight filenames visible in the user log. All 8 succeeded sequentially and all 8 succeeded when eight ODA processes were launched together; every process returned `0`, and every output directory contained one DXF. Therefore neither the current staged resource pruning nor concurrency alone reproduces the installed-app crash on this machine.
+- The next comparison must inspect the actually installed app's ODA resource tree/path or run the packaged sidecar environment. The installed artifact may differ from the freshly staged repository resources used by the successful probe.
+- Root cause isolated by hash/tree comparison: `E:\TMPXJ\oda` is byte-identical to the repository staged ODA tree for every installed file, but the installed tree has 35 files versus 36 and specifically omits `platforms/qwindows.dll` (SHA-256 `FB641C...19828`). The ODA executable itself is identical.
+- This missing Qt Windows platform plugin explains the fail-fast `0xC0000409`: ODA starts, Qt cannot initialize the `windows` platform plugin, and the GUI runtime aborts before producing stdout/stderr. The repository-stage direct probe succeeded because it still had `platforms/qwindows.dll`.
+- Packaging uses a shallow ODA resource glob, so top-level DLLs are installed while the nested `platforms/` payload is omitted. The fix must make the Tauri resource inclusion recursive and add a packaging regression that asserts the nested Qt plugin is covered.
+- Tauri's recursive glob includes nested files but flattens them into the mapped destination; `resources/oda/**/* -> oda/` installed the plugin incorrectly as `oda/qwindows.dll`. The accepted mapping is explicit: `resources/oda/* -> oda/` plus `resources/oda/platforms/* -> oda/platforms/`.
+- Final clean proof: packaging tests `7 passed`; Tauri/NSIS build succeeded; silent installation returned `0`; installed `oda/platforms/qwindows.dll` matches the staged plugin hash; installed ODA converted the logged `12 交流电流回路2.dwg` with exit `0` and one DXF output; `git diff --check` passed.
+
+
+## 2026-07-17 Phase 173: PAC-885G-H held-out evaluation
+
+Artifacts: `.tmp/phase173_pac885g_h/findings/PAC-885G-H` + audit under same tree and `.tmp/phase173_pac885g_h/audit`.
+
+### Does it crash / fail hard?
+- **No process crash.** 31 headers valid; ODA converted 27; 4 skip-stable covers; analysis COMPLETE; audit produced 20 review issues.
+- **Not false-clean free:** project `clean_conclusion_allowed=True` and `incomplete_page_count=0` despite three backplate/accessory pages with **zero mappings and coverage_ratio 0.0**, and matrix pages with zero recovered semantics.
+
+### Recognition / route table (31 sheets)
+| Sheets | Family | Route | Outcome |
+|--------|--------|-------|---------|
+| 01–04 | 封面/目录/屏面 | SkipExtractor | Expected skip |
+| 05,11–22 | 二次原理/信号/通讯 | WireDiagramExtractor | Non-zero pairs; residual missing-side/review noise |
+| 06 | 主接线图 | Wire | Near-empty (title only) |
+| 07–10 | 出口矩阵图 | Wire (misroute) | Table geometry known; wire pairs all discard |
+| 23–24 | 主保护箱背面 | TableExtractor | Good table_mapping |
+| 25–26 | 空开/压板背板1 | TableExtractor | **Extract empty** |
+| 27 | 压板背板2 | Wire (misroute) | **Extract empty** |
+| 28–31 | 左右端子 | TerminalDiagramExtractor | Strong table_mapping; some review issues |
+
+### Error / ignore modes
+1. **认不出 / 错路由:** 出口矩阵当导线页；压板背板2 被 grid_heavy 拉成导线页。
+2. **抽不出:** 空开按钮/压板背板1 虽进 TableExtractor 但 0 mapping；主接线几乎无几何文本。
+3. **错误忽略 / 假覆盖:** 空页全部文本标 `out_of_scope`，项目级 coverage 仍 1.0 且允许 clean conclusion。
+4. **误报倾向（review）:** 端子 many-to-one / bare-digit low-conf / 少量 missing-side；未见 severity=error。
+5. **符号/尺度未闭环:** 53 unknown symbols, scale UNRESOLVED everywhere — 不阻断但限制跨页几何归一。
+
+
+## 2026-07-17 Phase 173b: concurrent page drop lists (原图对照)
+
+Three parallel read-only agents produced page-by-page dropped-instance inventories for PAC-885G-H:
+
+| File | Scope |
+|------|--------|
+| `.tmp/phase173_pac885g_h/page_drop_list_backplates.md` | S0025–27 empty extract: 157 designators |
+| `.tmp/phase173_pac885g_h/page_drop_list_matrix_sld.md` | S0006 SLD empty source; S0007–10 matrices CIRCLE marks |
+| `.tmp/phase173_pac885g_h/page_drop_list_terminals_backplates.md` | S0023–24, S0028–31 recovered vs dropped + issues |
+| `.tmp/phase173_pac885g_h/page_drop_list_MERGED.md` | Chinese executive index |
+
+### Whole-page drops (instances never become pairs on that page)
+- **S0025:** 1ZKK*/KZKK/1DK + 1U2D/1VD side tags + 13×1n### all unpaired
+- **S0026:** 1CLP1–20, 1KLP1–16, 1KD1–20, 36×1n### all unpaired (0 mappings despite Table route)
+- **S0027:** 1KLP17–30, 1VLP1, LP1–3, 15×1n###; Wire misroute
+- **S0007–10:** entire trip-matrix connectivity (outlet×function + CIRCLE dots)
+- **S0006:** source model title-only (not extractor leak)
+
+### Partial drops on otherwise working pages
+- **S0024:** worst residual (92 dropped): NTX310/NZL304 headers, many 1ID/1U2D, ~50 signal ports
+- **S0031:** 20 accessory-strip drops
+- **S0030:** 8 many-to-one review + CT/VT + 1n2508–2512
+- **S0023/S0028/S0029:** near-complete; minor power labels / 1BD / bare-digit review
+# Phase 174 desktop UTF-8 and issue preview repair (2026-07-17)
+
+- Screenshot confirms selective corruption rather than a missing CJK font: static Chinese UI labels render correctly, while dynamic issue text, filenames, titles, rationale/details, and some extracted drawing text contain U+FFFD replacement glyphs. English dynamic fields and numeric endpoints remain intact.
+- The right preview area remains on `正在生成问题区域预览...`, so generation or response completion is failing independently of the lower details pane rendering.
+- `session-catchup.py` itself failed when the Windows console attempted to encode the request's existing U+FFFD characters as GBK. This is supporting evidence that packaged subprocess/stdout decoding and Windows code-page handling deserve direct inspection; it is not yet proof of the application root cause.
+- Read-only artifact proof at `.tmp/phase173_pac885g_h/findings/PAC-885G-H/audit/issues.json`: valid UTF-8, 115,150 bytes, 3,356 Chinese characters, zero U+FFFD. Representative raw bytes for `可能有错误` are correct UTF-8 (`E5 8F AF ... E8 AF AF`). Filenames, issue titles/families, handling labels, JSON/MD/HTML outputs are intact. Corruption therefore occurs after artifact generation, in desktop state loading/normalization or a packaged-only bridge path.
+- Preview state proof: React clears `isRefreshingPreview` only when the Tauri invoke promise settles; `<img>` load failure has a separate explicit error UI. The screenshot's permanent `正在生成...` means `desktop_render_preview` never returned. Rust `run_sidecar_json_owned` currently uses blocking `Command::output()` with no timeout. Geometry-less issues enter Python's heavier `load_report_frames` path.
+- PAC reader provenance reports `capabilities.preview=false`, and the normal audit artifact tree contains no pre-rendered image. This does not by itself preclude generated SVG preview, but it means the desktop must rely on the synchronous render-preview path.
+- Actual installed desktop state is `C:\Users\25788\AppData\Local\dwg-audit\desktop_state.db`; the webview directory contains only browser internals. The installed sidecar is `E:\TMPXJ\sidecar\dwg-audit-sidecar.exe`.
+- Frontend search found no generic TextDecoder/mojibake decoder. Dynamic payload normalization is concentrated in `App.tsx` issue presentation helpers and `desktopApi.ts`; these exact functions require direct review against the persisted SQLite payload.

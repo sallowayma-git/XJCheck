@@ -1333,6 +1333,7 @@ def test_analyze_project_emits_terminal_header_table_mappings(
         msp = doc.modelspace()
         msp.add_line((40.0, 48.5), (115.0, 48.5), dxfattribs={"layer": "CONNECT"})
         msp.add_text("1-21QD", dxfattribs={"insert": (175.5, 276.0), "height": 2.5, "layer": "TEXT"})
+        msp.add_text("说明", dxfattribs={"insert": (125.0, 276.0), "height": 2.5, "layer": "TEXT"})
         msp.add_text("1-21n116", dxfattribs={"insert": (156.0, 268.5), "height": 2.5, "layer": "TEXT"})
         msp.add_text("1", dxfattribs={"insert": (179.25, 268.5), "height": 2.5, "layer": "TEXT"})
         msp.add_text("1-21n117", dxfattribs={"insert": (156.0, 263.5), "height": 2.5, "layer": "TEXT"})
@@ -1358,8 +1359,8 @@ def test_analyze_project_emits_terminal_header_table_mappings(
         (row["left_value"], row["right_value"])
         for _, row in table_pairs.iterrows()
     } == {
-        ("1-21QD1", "1-21n116"),
-        ("1-21QD2", "1-21n117"),
+        ("1-21QD-1", "1-21n116"),
+        ("1-21QD-2", "1-21n117"),
     }
     first_evidence = json.loads(table_pairs.iloc[0]["evidence"])
     assert first_evidence["source"] == "table_mapping"

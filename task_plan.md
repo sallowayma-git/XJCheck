@@ -4,20 +4,46 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 172 packaged ODA crash diagnosis is active. The installed app reports ODA exit code `3221226505` (`0xC0000409`) on many DWGs while conversions run concurrently. Determine whether the failure is concurrency-triggered or caused by staged runtime pruning, implement the narrow fix, and verify source plus packaged workflows.
+Phase 174 desktop UTF-8 and issue-preview repair is active. The packaged PAC-885G-H issue view shows replacement-character mojibake in Chinese issue text/filenames and an issue-region preview stuck in generation. Trace sidecar output/file decoding and preview command/resource URL handling, apply narrow fixes, rebuild, and verify against the real installed workflow.
 
-Phase 171 recognition/audit quality loop is active (continues Phase 167 full-corpus track). Packaging Phases 169-170 remain complete.
+Phase 173 held-out evaluation of new heavyweight set `test/PAC-885G-H` (31 DWG + prj/xml). Goal: determine whether the current recognition engine fails to classify pages, errors out, fails extraction, or incorrectly ignores content. Report concrete fail modes; do not retune on held-out unless user authorizes.
 
-Phase 171 wave2: user adjudicated HMC pin grids as device-panel silkscreen (no cross-page terminal audit). Landed signal-alarm ordinary-pair shadow, vertical same-block pin discard, HMC silkscreen shadow, and frontend certainty labels (确定性错误 / 可能有错误 / 须人工校验; fail-closed on real errors). Offline page27: 47/48 HMC stubs shadowed. Full 502 fresh rebuild complete: 27/27 ok in ~283s; total issues **327** (was current3 677). Key: 20000 5, 29000 1, 8000 26. Handling: error 65 / warning 13 / review 249. Routes: 0 UNKNOWN, 3 LayoutOnly. Next loop: terminal many-to-one clusters (24000/22000/35000 backplates), 8000 signal residual, LayoutOnly backplates.
+Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapped to `oda/platforms/`, the rebuilt NSIS package was installed, and installed-runtime conversion succeeded. Phase 171 recognition loop continues in parallel for known corpus residuals.
 
 ## Phases
 
+### Phase 174: Desktop UTF-8 And Issue Preview Repair
+- [x] Inspect the supplied screenshot and record visible failure boundaries
+- [ ] Trace where valid Chinese becomes replacement characters across Python/Rust/React
+- [ ] Trace preview generation and image loading failure state
+- [ ] Implement narrow fixes with regression coverage
+- [ ] Rebuild/install and verify real PAC-885G-H issue text plus preview
+- **Status:** in_progress
+
+#### Errors encountered
+- `session-catchup.py` detected six unsynced messages but crashed while printing this request because the current GBK console could not encode U+FFFD. Preserve the partial catchup evidence, inspect git/planning state directly, and run subsequent Python processes under explicit UTF-8 mode.
+
+### Phase 173: PAC-885G-H Held-out Engine Probe
+- [x] Inventory sheets, project profile, and novel page-name families vs prior 27-project corpus
+- [x] Run clean `analyze-project` + `run-audit` on `test/PAC-885G-H`
+- [x] Summarize routes, pairs/mappings, incomplete extraction, UNKNOWN/LayoutOnly, crashes, false-clean risk
+- [x] Spot-check high-risk page families (出口矩阵 / 端子 / 背板 / 通讯 / 信号) for miss/wrong-ignore
+- [x] Write findings + user-facing risk report
+- **Status:** complete
+
 ### Phase 172: Packaged ODA Crash Diagnosis
 - [x] Decode the Windows process exit status and locate ODA runtime/packaging paths
-- [ ] Reproduce with controlled single-worker versus multi-worker conversion
-- [ ] Implement the narrow runtime or staging fix with regression coverage
-- [ ] Verify targeted tests and packaged-resource behavior
-- **Status:** in_progress
+- [x] Reproduce with controlled single-worker versus multi-worker conversion (current staged runtime passes both; installed-artifact drift remains)
+- [x] Implement the narrow runtime or staging fix with regression coverage
+- [x] Verify targeted tests and packaged-resource behavior
+- **Status:** complete
+
+#### Errors encountered
+- Repository `rg` search could not start because the bundled `rg.exe` was denied by Windows. Use native PowerShell `Get-ChildItem | Select-String` for subsequent searches rather than retrying the same command.
+- A combined verification command launched pytest from `apps/desktop`, so the repository-relative test path was not found. The subsequent Tauri build still succeeded, but the compound command's final exit code masked pytest's failure; rerun pytest separately from repository root.
+- The first recursive resource mapping `resources/oda/**/* -> oda/` built and installed successfully but still did not place `oda/platforms/qwindows.dll` at the expected path. Inspect the actual installed path and Tauri glob destination semantics; do not treat build success as packaging proof.
+- A generalized recursive cleanup command was rejected before execution. Cleanup is non-critical; only retry with exact verified paths.
+- Exact cleanup attempts were also blocked by command policy. The remaining probe output is harmless and ignored; no further cleanup retry is warranted.
 
 ### Phase 1: Requirements & Discovery
 - [x] 对齐用户连续要求与当前 goal
@@ -2698,7 +2724,7 @@ Phase 171 wave2: user adjudicated HMC pin grids as device-panel silkscreen (no c
 - [x] Cleanup intermediate .tmp replay dirs; keep phase171_*_r2 and 8000 fresh artifacts
 - [ ] Full 502-page fresh rebuild/audit (pending; current3 stale for terminal array promotion)
 - [x] HMC-3C pin-grid adjudicated as silkscreen; ordinary pairs shadowed (hmc_panel_silkscreen)
-- [ ] Replace unsafe page/name/length shadows with fail-closed local evidence; scope component endpoint coverage by sheet
-- [ ] Add HMC same-sheet real-endpoint and cross-sheet endpoint adversarial tests, then fresh replay affected projects
-- [ ] Generalize header+middle-port three-column tables and table-like backplate plug-ins; replay 24000/25000/8000/20000/15000 clusters
+- [x] Replace unsafe page/name/length shadows with fail-closed local evidence; scope component endpoint coverage by sheet
+- [x] Add HMC same-sheet real-endpoint and cross-sheet endpoint adversarial tests, then fresh replay affected projects
+- [x] Generalize header+middle-port three-column tables and table-like backplate plug-ins; replay 24000/25000/8000/20000/15000 clusters
 - **Status:** in_progress

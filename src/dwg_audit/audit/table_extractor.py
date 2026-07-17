@@ -473,27 +473,36 @@ def _build_terminal_header_table_mappings(
     if not headers or not row_numbers or not endpoints:
         return []
 
-    terminal_headers = [
-        text for text in headers if _looks_like_terminal_header_prefix(text.normalized_text)
-    ]
-    if not terminal_headers:
-        return []
-
     shuoming_labels = [
         text
         for text in audit_texts
         if str(text.normalized_text).strip() == _TERMINAL_HEADER_DESCRIPTION_LABEL
     ]
+    terminal_headers = [
+        text
+        for text in headers
+        if _looks_like_terminal_header_prefix(
+            text.normalized_text,
+            allow_plain=_find_terminal_header_shuoming(text, shuoming_labels) is not None,
+        )
+    ]
+    if not terminal_headers:
+        return []
 
     mappings: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     for header in sorted(terminal_headers, key=lambda item: (-item.insert_y, item.insert_x, item.text_id)):
         header_prefix = header.normalized_text
-        ordered_rows = _collect_terminal_header_rows(header, row_numbers, terminal_headers)
+        shuoming = _find_terminal_header_shuoming(header, shuoming_labels)
+        ordered_rows = _collect_terminal_header_rows(
+            header,
+            row_numbers,
+            terminal_headers,
+            allow_rows_above=shuoming is not None,
+        )
         if not ordered_rows:
             continue
 
-        shuoming = _find_terminal_header_shuoming(header, shuoming_labels)
         if not _terminal_header_group_has_structure(ordered_rows, endpoints, has_shuoming=shuoming is not None):
             continue
 
@@ -1365,11 +1374,25 @@ def _looks_like_table_endpoint(value: str | None) -> bool:
     return bool(_TERMINAL_ENDPOINT_PATTERN.fullmatch(text))
 
 
-def _looks_like_terminal_header_prefix(value: str | None) -> bool:
+def _looks_like_terminal_header_prefix(
+    value: str | None,
+    *,
+    allow_plain: bool = False,
+) -> bool:
     if not _looks_like_header_prefix(value):
         return False
-    text = str(value)
-    return bool(re.search(r"(?i)[A-Z]+$", text)) and any(char.isdigit() for char in text)
+    text = str(value).strip()
+    if not re.search(r"(?i)[A-Z]+$", text):
+        return False
+    if any(char.isdigit() for char in text):
+        return True
+    # Plain instance names such as YD are authoritative only when the caller
+    # has already found an adjacent 说明 header. Semantic labels remain excluded.
+    return (
+        allow_plain
+        and bool(re.fullmatch(r"[A-Za-z]{2,6}", text))
+        and text.upper() not in _TERMINAL_HEADER_SEMANTIC_ENDPOINTS
+    )
 
 
 def _compose_terminal_header_logical_endpoint(header_prefix: str, row_number: int) -> str:
@@ -1381,6 +1404,8 @@ def _collect_terminal_header_rows(
     header: TextItem,
     row_numbers: list[TextItem],
     terminal_headers: list[TextItem],
+    *,
+    allow_rows_above: bool = False,
 ) -> list[TextItem]:
     """Collect consecutive middle-column rows owned by one header strip.
 
@@ -1389,25 +1414,50 @@ def _collect_terminal_header_rows(
     absorbed into the upper group, otherwise 1..13 + 1..13 fails sequence checks.
     """
     next_header_y: float | None = None
+    previous_header_y: float | None = None
     for other in terminal_headers:
         if other.text_id == header.text_id:
             continue
-        if other.insert_y >= header.insert_y:
-            continue
         if abs(other.insert_x - header.insert_x) > _TERMINAL_HEADER_ROW_X_TOL:
             continue
-        if next_header_y is None or other.insert_y > next_header_y:
-            next_header_y = other.insert_y
+        if other.insert_y < header.insert_y:
+            if next_header_y is None or other.insert_y > next_header_y:
+                next_header_y = other.insert_y
+        elif other.insert_y > header.insert_y:
+            if previous_header_y is None or other.insert_y < previous_header_y:
+                previous_header_y = other.insert_y
 
-    header_rows = [
+    rows_below = [
         row
         for row in row_numbers
         if 0.0 < header.insert_y - row.insert_y <= _TERMINAL_HEADER_ROW_Y_SPAN
         and abs(row.insert_x - header.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
         and (next_header_y is None or row.insert_y > next_header_y)
     ]
-    ordered_rows = sorted(header_rows, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
-    return _take_leading_consecutive_terminal_rows(ordered_rows)
+    candidates = [
+        _take_leading_consecutive_terminal_rows(
+            sorted(rows_below, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
+        )
+    ]
+
+    # Some terminal strips place the instance header and 说明 footer below rows
+    # 1..N in world coordinates. Only the explicit 说明 anchor authorizes this
+    # reverse ownership, so unrelated numeric columns are not promoted.
+    if allow_rows_above and not candidates[0]:
+        rows_above = [
+            row
+            for row in row_numbers
+            if 0.0 < row.insert_y - header.insert_y <= _TERMINAL_HEADER_ROW_Y_SPAN
+            and abs(row.insert_x - header.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+            and (previous_header_y is None or row.insert_y < previous_header_y)
+        ]
+        candidates.append(
+            _take_leading_consecutive_terminal_rows(
+                sorted(rows_above, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
+            )
+        )
+
+    return max(candidates, key=len)
 
 
 def _take_leading_consecutive_terminal_rows(rows: list[TextItem]) -> list[TextItem]:

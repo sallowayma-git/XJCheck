@@ -16,6 +16,7 @@ from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.utils.ids import IdFactory
 
 _CONTINUATION_SUFFIX_PATTERN = re.compile(r"(?i)n\d{3,}$")
+_VERTICAL_INTERNAL_PIN_BLOCK_PATTERN = re.compile(r"(?i)^XJDZ")
 
 
 def build_pairs(
@@ -442,6 +443,17 @@ def _apply_component_pair_guards(
     right_value = (selected.right_value or "").strip()
     left_block = (left_candidate.source_block_name or "").strip()
     right_block = (right_candidate.source_block_name or "").strip()
+    same_block_internal_geometry = bool(
+        left_block
+        and left_block == right_block
+        and (
+            group.orientation == "horizontal"
+            or (
+                group.orientation == "vertical"
+                and _VERTICAL_INTERNAL_PIN_BLOCK_PATTERN.match(left_block)
+            )
+        )
+    )
 
     if (
         selected.left_text_id
@@ -452,8 +464,7 @@ def _apply_component_pair_guards(
         return "discard", "self_pair_from_same_virtual_text"
 
     if (
-        left_block
-        and left_block == right_block
+        same_block_internal_geometry
         and len(left_value) == 1
         and len(right_value) == 1
     ):
@@ -462,7 +473,7 @@ def _apply_component_pair_guards(
     # KK OF auxiliary contacts (11/12/14) and other short internal port numbers on
     # the same block are artwork, not external terminal pairs. Values may be 1-2
     # digits (e.g. 2↔12), so do not require single-character sides only.
-    if left_block and left_block == right_block and left_value.isdigit() and right_value.isdigit():
+    if same_block_internal_geometry and left_value.isdigit() and right_value.isdigit():
         left_number = int(left_value)
         right_number = int(right_value)
         if 1 <= left_number <= 99 and 1 <= right_number <= 99:

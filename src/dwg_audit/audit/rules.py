@@ -1012,7 +1012,28 @@ def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:
 def _is_authoritative_structured_cardinality_group(linked_pairs: list[Pair]) -> bool:
     return _is_authoritative_table_mapping_group(
         linked_pairs
+    ) or _is_authoritative_terminal_backplate_bridge_group(
+        linked_pairs
     ) or _is_authoritative_comma_component_mapping_group(linked_pairs)
+
+
+def _is_authoritative_terminal_backplate_bridge_group(linked_pairs: list[Pair]) -> bool:
+    """Accept redundant terminal-strip/backplate descriptions of one endpoint.
+
+    Each pair must independently satisfy the strict authoritative table contract;
+    the mixed group is then a cross-diagram bridge, not an electrical union or a
+    generic many-to-one conflict.
+    """
+
+    if len(linked_pairs) < 2:
+        return False
+    modes: set[str] = set()
+    for pair in linked_pairs:
+        if not _is_authoritative_table_mapping_group([pair]):
+            return False
+        mapping = _table_mapping_evidence(pair)
+        modes.add(str(mapping.get("mapping_mode") or ""))
+    return modes == {"terminal_header_table", "backplate_virtual_table"}
 
 
 def _is_authoritative_comma_component_mapping_group(linked_pairs: list[Pair]) -> bool:

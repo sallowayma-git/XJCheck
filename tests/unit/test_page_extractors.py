@@ -741,7 +741,7 @@ def test_shadow_communication_medium_ordinary_pairs_marks_serial_pages_ineligibl
     assert ordinary.evidence["communication_media"] == ["serial"]
 
 
-def test_shadow_signal_alarm_ordinary_pairs_marks_meter_alarm_pages_ineligible() -> None:
+def test_signal_alarm_cues_do_not_shadow_real_ordinary_pairs() -> None:
     from dwg_audit.audit.page_extractors import _shadow_signal_alarm_ordinary_pairs
     from dwg_audit.domain.models import TextItem
 
@@ -774,9 +774,8 @@ def test_shadow_signal_alarm_ordinary_pairs_marks_meter_alarm_pages_ineligible()
 
     _shadow_signal_alarm_ordinary_pairs([ordinary], [sheet], texts)
 
-    assert ordinary.evidence["ordinary_pair_eligible"] is False
-    assert ordinary.evidence["ordinary_pair_shadow_only"] is True
-    assert ordinary.evidence["ordinary_pair_shadow_reason"] == "signal_alarm_circuit"
+    assert ordinary.evidence.get("ordinary_pair_eligible") is not False
+    assert "ordinary_pair_shadow_reason" not in ordinary.evidence
 
 
 def test_shadow_hmc_silkscreen_ordinary_pairs_marks_hd_pin_stubs_ineligible() -> None:
@@ -905,7 +904,49 @@ def test_shadow_hmc_silkscreen_skips_pages_without_hmc_cues() -> None:
     _shadow_hmc_silkscreen_ordinary_pairs([ordinary], [sheet], texts=[])
     assert ordinary.evidence.get("ordinary_pair_eligible") is not False
 
-def test_shadow_component_long_bare_digit_ordinary_pairs_marks_long_stub_ineligible() -> None:
+
+def test_shadow_hmc_silkscreen_uses_metadata_title_when_other_texts_exist() -> None:
+    from dwg_audit.audit.page_extractors import _shadow_hmc_silkscreen_ordinary_pairs
+    from dwg_audit.domain.models import TextItem
+
+    pin_stub = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_left_raw_text": "HD18",
+        },
+        left_text_id="T-HD",
+    )
+    pin_stub.left_value = "18"
+    sheet = _sheet(category="元件接线图", route_target="ComponentDiagramExtractor")
+    sheet.sheet_title = "HMC panel"
+    texts = [
+        TextItem(
+            text_id="T-OTHER",
+            sheet_id=sheet.sheet_id,
+            file_id="F1",
+            handle="H1",
+            entity_type="TEXT",
+            text="unrelated note",
+            normalized_text="unrelated note",
+            is_numeric_candidate=False,
+            layer="TEXT",
+            rotation_deg=0.0,
+            height=2.5,
+            insert_x=10.0,
+            insert_y=10.0,
+            bbox_min_x=9.0,
+            bbox_min_y=9.0,
+            bbox_max_x=20.0,
+            bbox_max_y=12.0,
+        )
+    ]
+
+    _shadow_hmc_silkscreen_ordinary_pairs([pin_stub], [sheet], texts)
+
+    assert pin_stub.evidence["ordinary_pair_eligible"] is False
+    assert pin_stub.evidence["ordinary_pair_shadow_reason"] == "hmc_panel_silkscreen"
+
+def test_long_bare_digit_geometry_does_not_shadow_missing_side_pairs() -> None:
     from dwg_audit.audit.page_extractors import _shadow_component_long_bare_digit_ordinary_pairs
 
     long_stub = _pair(
@@ -968,13 +1009,12 @@ def test_shadow_component_long_bare_digit_ordinary_pairs_marks_long_stub_ineligi
         groups,
         [sheet],
     )
-    assert long_stub.evidence["ordinary_pair_eligible"] is False
-    assert long_stub.evidence["ordinary_pair_shadow_reason"] == "component_long_bare_digit"
+    assert long_stub.evidence.get("ordinary_pair_eligible") is not False
     assert short_stub.evidence.get("ordinary_pair_eligible") is not False
     assert designator.evidence.get("ordinary_pair_eligible") is not False
 
 
-def test_shadow_external_designator_derived_ordinary_pairs_marks_cd_stubs_ineligible() -> None:
+def test_external_designator_derived_pairs_remain_audit_eligible() -> None:
     from dwg_audit.audit.page_extractors import _shadow_external_designator_derived_ordinary_pairs
 
     cd_stub = _pair(
@@ -1010,8 +1050,7 @@ def test_shadow_external_designator_derived_ordinary_pairs_marks_cd_stubs_inelig
         page_subtype="horizontal_component",
     )
     _shadow_external_designator_derived_ordinary_pairs([cd_stub, real_terminal], [sheet])
-    assert cd_stub.evidence["ordinary_pair_eligible"] is False
-    assert cd_stub.evidence["ordinary_pair_shadow_reason"] == "external_designator_derived_ordinary"
+    assert cd_stub.evidence.get("ordinary_pair_eligible") is not False
     assert real_terminal.evidence.get("ordinary_pair_eligible") is not False
 
 def test_signal_alarm_cues_match_filename_and_generic_alarm_labels() -> None:
@@ -1102,4 +1141,45 @@ def test_mark_component_mapping_endpoint_covered_ordinary_pairs() -> None:
         == "covered_by_component_mapping_endpoint"
     )
     assert other.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_component_mapping_endpoint_coverage_is_scoped_to_sheet() -> None:
+    from dwg_audit.audit.page_extractors import (
+        _mark_component_mapping_endpoint_covered_ordinary_pairs,
+    )
+
+    mapping = _pair(
+        {"selected_right_raw_text": "n113"},
+        pair_id="PCM",
+        pair_kind="component_mapping",
+        right_text_id="MAP-TR",
+    )
+    mapping.sheet_id = "S1"
+    mapping.right_value = "n113"
+
+    same_sheet = _pair(
+        {"selected_right_raw_text": "n113"},
+        pair_id="SAME",
+        right_text_id="ORD-S1",
+    )
+    same_sheet.sheet_id = "S1"
+    same_sheet.left_value = None
+    same_sheet.right_value = "113"
+
+    other_sheet = _pair(
+        {"selected_right_raw_text": "n113"},
+        pair_id="OTHER",
+        right_text_id="ORD-S2",
+    )
+    other_sheet.sheet_id = "S2"
+    other_sheet.left_value = None
+    other_sheet.right_value = "113"
+
+    _mark_component_mapping_endpoint_covered_ordinary_pairs(
+        [same_sheet, other_sheet],
+        [mapping],
+    )
+
+    assert same_sheet.evidence["ordinary_pair_eligible"] is False
+    assert other_sheet.evidence.get("ordinary_pair_eligible") is not False
 

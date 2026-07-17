@@ -5427,8 +5427,94 @@
 - Full pytest on HEAD: 969 passed, 1 skipped, 1 failed; sole failure is the old `1-21QD1` expectation versus new human-confirmed `1-21QD-1` logical endpoint format.
 - Next action: current-HEAD fresh replay 24000/25000/8000/20000, then patch only residual extractor/rule defects and re-run affected projects.
 
+- Current-HEAD fresh replay completed: 24000 total 5 (target sheets 2/0/0), 25000 total 1 (target sheet 0), 8000 total 14 (target sheet 4), 20000 total 13 (target sheet 0).
+- Root cause for the last B3 target residual is an inverted terminal strip: `1-26TD` + `说明` sit below rows 1..13. Planned fix is bidirectional header ownership only when `说明` provides table authority.
+
+- Implemented terminal-header improvements: 说明-authorized reverse row ownership, 说明-authorized plain instance names (e.g. YD), explicit 1UD left/right fan-out test, and hyphenated integration contract.
+- Focused extraction/rule gate: 134 passed.
+- Fresh 8000 replay: total 14 -> 10; sheet16 4 -> 0 with YD structured mappings and covered bare ordinary rows.
+- Added strict authoritative terminal/backplate bridge guard; rules-only 24000 replay total 5 -> 3, target sheets 21/22/23 all zero.
+
+- Removed production calls for unsafe page-wide signal/alarm, long-bare-digit, and CD/GD/ZK shadows; compatibility helpers are fail-closed no-ops.
+- Scoped component-mapping endpoint coverage by `(sheet_id, endpoint-key)` and added cross-sheet regression coverage.
+- HMC cue detection now always includes metadata title/filename and supports HMC panel/中文 variants while preserving real same-sheet KLP/GD/n### mappings.
+- Restricted vertical same-block numeric pin discard to the XJDZ internal-pin family; generic vertical same-block numeric pairs remain audit-visible.
+- Focused safety gate: 137 passed. Fresh fail-closed replays completed for 8000/20000/29000; residuals assigned to wire-chain, panel-silkscreen, and scoped component-mapping follow-up models.
+
+- Full validation gate passed: `977 passed, 1 skipped`; `python -m compileall -q src/dwg_audit` and `git diff --check` clean.
+- Unrelated concurrent packaging edits (`apps/desktop/...`, `tests/unit/test_desktop_packaging.py`) and root `package-lock.json` are not part of this recognition commit and must remain unstaged.
+
 # 2026-07-17 Phase 172 packaged ODA crash diagnosis
 
 - Decoded repeated packaged return code as `0xC0000409` (`STATUS_STACK_BUFFER_OVERRUN`).
 - Read-only parallel scans located runtime concurrency, packaged path injection, staging/pruning behavior, and ezdxf's return-code wrapper.
 - Leading hypothesis is ODA native-process instability under the application's default four-way conversion concurrency; staged dependency pruning is retained as a fallback hypothesis pending controlled reproduction.
+- A repository `rg` search failed because the bundled executable was denied by Windows; switched to PowerShell-native search without repeating the failed invocation.
+- The first inline PowerShell reproduction command was rejected by command policy before execution (it contained a recursive cleanup and a long embedded script). No files or processes were changed; replaced it with an `apply_patch`-created probe that uses a fresh unique directory and performs no cleanup.
+- Ran the exact 8 logged DWG filenames through the current staged ODA runtime: sequential `8/8` succeeded and eight-way parallel `8/8` succeeded, all return code `0`. This falsifies the leading concurrency-only hypothesis for the current resource tree and shifts focus to installed-artifact/runtime-environment drift.
+- Compared the real `E:\TMPXJ\oda` installation against staged resources by relative path, size, and SHA-256. The installer omitted only `platforms/qwindows.dll`; all 35 installed files and `ODAFileConverter.exe` match the staged tree. Root cause is now the shallow resource packaging pattern, not ODA process concurrency.
+- Changed the Tauri ODA resource pattern from shallow `resources/oda/*` to recursive `resources/oda/**/*`, added a staging hard check for `platforms/qwindows.dll`, and updated the packaging regression. Targeted packaging tests pass `7 passed`.
+- Rebuilt the Tauri application and NSIS installer successfully; new installer is `71,991,407` bytes. A pytest invocation in the same compound command used the wrong working directory and found no tests, so it is not counted and will be rerun correctly from repository root.
+- Correct-root packaging tests pass `7 passed`. Silent reinstall returned `0`, but `E:\TMPXJ\oda\platforms\qwindows.dll` was still absent, so the first recursive resource mapping is not yet accepted; actual Tauri destination layout is under investigation.
+- Confirmed Tauri flattened the recursive glob to `oda/qwindows.dll`. Replaced it with explicit `resources/oda/platforms/* -> oda/platforms/`, rebuilt, silently reinstalled, and verified `E:\TMPXJ\oda\platforms\qwindows.dll` at the expected path with the staged SHA-256. Installed ODA converted `12 交流电流回路2.dwg` successfully (`exit 0`, one DXF).
+- A generalized recursive temp-cleanup command was rejected by policy before execution despite in-script containment checks. No cleanup occurred; use exact, already-resolved probe paths or leave harmless generated probe outputs rather than retrying the generalized pattern.
+- Exact cleanup retries were also policy-blocked, so no more destructive cleanup was attempted. Final verification passes: packaging tests `7 passed`, Tauri/NSIS build, silent install, installed plugin hash/path check, installed ODA real-DWG conversion, and `git diff --check`.
+
+
+## Session: 2026-07-17 (Phase 173 PAC-885G-H held-out probe)
+
+### Actions
+- Inventory: `test/PAC-885G-H` has 31 DWG + prj/xml (not in prior 27×502 corpus).
+- Clean run: `analyze-project` → `.tmp/phase173_pac885g_h/findings/PAC-885G-H`, then `run-audit` → `.tmp/phase173_pac885g_h/audit` (also nested under findings).
+- No conversion crash: 27 converted / 4 skip-stable (cover/layout). analysis_status=COMPLETE, incomplete_page_count=0, clean_conclusion_allowed=True.
+
+### Headline metrics
+- Pairs 1872 (ordinary 863 / table_mapping 576 / continuation 209 / wire_component 118 / semantic 106)
+- Pair status: pass 694 / review 392 / discard 786
+- Issues after audit: **20** all severity=review (R-MANY-TO-ONE 8, R-PAIR-MISSING-SIDE 8, R-PAIR-LOW-CONFIDENCE 3, R-CROSS-PAGE-CONFLICT 1)
+- Routes: Skip 4, Wire 19, Table 4, Terminal 4; 0 UNKNOWN, 0 LayoutOnly
+- Symbols: 53 unknown definitions (0 registered); CIRCLE/ARC unsupported semantic entities widespread
+- Scale: all 27 UNRESOLVED (shadow-only; not hard fail)
+
+### Hard fail / empty-extraction hotspots
+1. **S0025 空开按钮接线图 / S0026 压板背板接线图1**: routed TableExtractor + 背板表格型图, but **0 pairs / 0 mappings**; all texts `out_of_scope`; coverage_ratio 0.0; still project clean_conclusion_allowed.
+2. **S0027 压板背板接线图2**: misclassified as 二次原理图/grid_heavy_wire → WireDiagramExtractor; **0 pairs**; all texts out_of_scope.
+3. **S0007–S0010 出口矩阵图1–4**: strong table_structure_profiles (512–640 cells) but routed Wire; 31 empty ordinary pairs each all discarded (`missing numeric candidates on both sides`); matrix semantics not recovered.
+4. **S0006 主接线图**: only title-block texts (7), 0 lines, 0 pairs; model_space≈9 (mostly CIRCLE/ARC); near-empty schematic extraction.
+5. Terminal pages mostly work (table_mapping on 28–31); residual review: many-to-one on 右侧端子图1, low-conf bare digits on 左侧端子图2.
+6. 主保护箱背面 23/24 TableExtractor OK (219+58 mappings).
+
+### Next
+- Report to user without retuning on held-out unless authorized.
+- Candidate engine gaps (for later authorized work): exit-matrix page type, accessory/pressure-plate backplate extractor, false-clean when table route yields 0 mappings, SLD sparse-content gate.
+
+
+## 2026-07-17 Phase 173b: concurrent page drop lists (原图对照)
+
+Three parallel read-only agents produced page-by-page dropped-instance inventories for PAC-885G-H:
+
+| File | Scope |
+|------|--------|
+| `.tmp/phase173_pac885g_h/page_drop_list_backplates.md` | S0025–27 empty extract: 157 designators |
+| `.tmp/phase173_pac885g_h/page_drop_list_matrix_sld.md` | S0006 SLD empty source; S0007–10 matrices CIRCLE marks |
+| `.tmp/phase173_pac885g_h/page_drop_list_terminals_backplates.md` | S0023–24, S0028–31 recovered vs dropped + issues |
+| `.tmp/phase173_pac885g_h/page_drop_list_MERGED.md` | Chinese executive index |
+
+### Whole-page drops (instances never become pairs on that page)
+- **S0025:** 1ZKK*/KZKK/1DK + 1U2D/1VD side tags + 13×1n### all unpaired
+- **S0026:** 1CLP1–20, 1KLP1–16, 1KD1–20, 36×1n### all unpaired (0 mappings despite Table route)
+- **S0027:** 1KLP17–30, 1VLP1, LP1–3, 15×1n###; Wire misroute
+- **S0007–10:** entire trip-matrix connectivity (outlet×function + CIRCLE dots)
+- **S0006:** source model title-only (not extractor leak)
+
+### Partial drops on otherwise working pages
+- **S0024:** worst residual (92 dropped): NTX310/NZL304 headers, many 1ID/1U2D, ~50 signal ports
+- **S0031:** 20 accessory-strip drops
+- **S0030:** 8 many-to-one review + CT/VT + 1n2508–2512
+- **S0023/S0028/S0029:** near-complete; minor power labels / 1BD / bare-digit review
+# 2026-07-17 Phase 174 desktop UTF-8 and issue preview repair
+
+- Inspected the supplied full-resolution screenshot. Static UI Chinese is healthy; dynamic issue payload Chinese and filenames are corrupted, and the issue preview remains indefinitely in its generating state.
+- Started explicit UTF-8/data-boundary and preview-generation investigation. Planning catchup detected prior unsynced messages but crashed while printing U+FFFD through a GBK console; logged the error and continued from repository state.
+- Parallel read-only scans established that source PAC artifacts contain intact UTF-8 Chinese with zero U+FFFD, while the preview spinner corresponds to a Tauri invoke that never settles. Next work is actual installed-state reproduction and direct review of desktop normalization plus preview subprocess handling.
+- Located the installed SQLite state DB and packaged sidecar. Frontend search found no broad encoding decoder, narrowing the next comparison to SQLite row contents versus issue normalization/presentation helpers.

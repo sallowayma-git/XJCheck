@@ -3204,6 +3204,43 @@ def test_build_pairs_discards_vertical_same_block_digit_internal_pin_pair_on_com
     assert pair.rationale == "block_internal_pin_pair"
 
 
+def test_build_pairs_keeps_vertical_same_block_digits_without_internal_pin_family() -> None:
+    groups = [
+        LineGroup(
+            line_group_id="G0001",
+            sheet_id="S0001",
+            file_id="F0001",
+            start_x=300.0,
+            start_y=180.0,
+            end_x=300.0,
+            end_y=120.0,
+            length=60.0,
+            wire_candidate_score=0.92,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="vertical",
+        )
+    ]
+    sheets = [
+        SheetRecord("S0001", "F0001", "25 元件接线图2.dwg", 25, "25", "元件接线图2", "元件接线图", "supplemental", "filename", True)
+    ]
+    candidates = [
+        TerminalCandidate(
+            "C0001", "G0001", "S0001", "F0001", "top", "T1", "1", "1", 0.96, "accepted", None, 300.0, 175.0, 1.0, 0.0,
+            300.0, 175.0, source_block_name="GENERIC-PORT-BOX"
+        ),
+        TerminalCandidate(
+            "C0002", "G0001", "S0001", "F0001", "bottom", "T2", "28", "28", 0.95, "accepted", None, 300.0, 125.0, 1.0, 0.0,
+            300.0, 125.0, source_block_name="GENERIC-PORT-BOX"
+        ),
+    ]
+
+    _, pairs = build_pairs(groups, candidates, sheets, DEFAULT_CONFIG)
+
+    assert pairs[0].status != "discard"
+    assert pairs[0].rationale != "block_internal_pin_pair"
+
+
 def test_build_pairs_keeps_same_block_multi_digit_component_pair() -> None:
     groups = [
         LineGroup(
@@ -4137,6 +4174,91 @@ def test_build_issues_labels_table_only_structured_shared_endpoint_scope_review(
     assert issue.evidence["pair_kinds"] == ["table_mapping"]
     assert issue.evidence["table_mapping_modes"] == ["backplate_virtual_table"]
     assert "component_submodes" not in issue.evidence
+
+
+def test_build_issues_skips_authoritative_terminal_backplate_bridge() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+    pairs = [
+        Pair(
+            "PTM0025",
+            "nan",
+            "S0021",
+            "F0021",
+            None,
+            "1QD-32",
+            "1n114",
+            0.95,
+            "pass",
+            "terminal header table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "terminal_header_table",
+                    "sheet_id": "S0021",
+                    "header_prefix": "1QD",
+                    "header_text_id": "TH",
+                    "middle_text_id": "TM",
+                    "row_number": 32,
+                    "row_number_sequence_valid": True,
+                    "logical_endpoint": "1QD-32",
+                    "right_value": "1n114",
+                    "right_text_id": "TE",
+                    "column_roles": {
+                        "left": "empty",
+                        "middle": "row_number",
+                        "right": "terminal_endpoint",
+                    },
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+        Pair(
+            "P0022",
+            "nan",
+            "S0017",
+            "F0017",
+            None,
+            "NKR302-32@c1",
+            "1n114",
+            0.95,
+            "pass",
+            "backplate virtual table",
+            [],
+            "high",
+            {
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "sheet_id": "S0017",
+                    "source_block_name": "WMH-800-D1C-01-1",
+                    "header_prefix": "NKR302",
+                    "header_text_id": "BH",
+                    "middle_text_id": "BM",
+                    "row_number": 32,
+                    "row_number_sequence_valid": True,
+                    "logical_endpoint": "NKR302-32@c1",
+                    "right_value": "1n114",
+                    "right_text_id": "BE",
+                    "column_roles": {
+                        "left": "header_prefix",
+                        "middle": "virtual_row_number",
+                        "right": "external_terminal_endpoint",
+                    },
+                },
+            },
+            pair_kind="table_mapping",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S0017", "F0017", "17 主保护箱背面接线图1.dwg", 17, "17", "BACKPLATE", "背板表格型图", "primary", "filename", True),
+        SheetRecord("S0021", "F0021", "21 左侧端子图1.dwg", 21, "21", "TERMINAL", "屏端子图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, config)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
 
 
 def test_build_issues_clusters_backplate_structured_shared_endpoint_component_scope() -> None:
