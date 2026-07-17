@@ -205,12 +205,62 @@ Optional inputs:
 - `force_skip_oda=true` (contract-only mode)
 - `upload_release_assets=true` (attach installer to an existing tag release during dry-run)
 
+
+## Installer size reduction (Phase 170)
+
+Baseline (pre-slim):
+
+| Component | Size |
+|---|---|
+| NSIS installer | ~113 MB |
+| Sidecar one-file | ~92 MB |
+| ODA staged tree | ~70 MB |
+| Desktop shell | ~9.5 MB |
+
+Current measured (local rebuild after slim scripts):
+
+| Component | Size |
+|---|---|
+| NSIS installer | ~85 MB |
+| Sidecar one-file | ~69 MB |
+| ODA staged tree | ~51 MB |
+| Desktop shell | ~9.4 MB |
+
+### Sidecar slim strategy
+
+`apps/desktop/scripts/build-sidecar.ps1` delegates to
+`apps/desktop/scripts/build_sidecar_pyinstaller.py`, which:
+
+- does **not** use `--collect-all` (that previously pulled full PyArrow stacks)
+- excludes Streamlit / matplotlib / notebook tooling
+- drops optional PyArrow natives: flight, substrait, dataset, orc, acero, cloud FS helpers
+- keeps core `arrow.dll` + `parquet.dll` + OpenBLAS for pandas artifact I/O
+- prunes most `tzdata` zoneinfo continents from the bundle
+
+### ODA slim strategy
+
+`apps/desktop/scripts/stage-oda-resources.ps1` stages the ODA install tree, then
+removes a validated optional set (BREP/ACIS helpers, Qt `imageformats`, W3D/Whip
+viewer libs, unused `.tx` modules, etc.). Conversion-critical modules such as
+`RecomputeDimBlock_27.1_16.tx` are **not** pruned.
+
+Validate any further ODA removals with real DWG conversion via `ezdxf.addons.odafc`
+before shipping.
+
+### Remaining size headroom
+
+Largest remaining sidecar natives: `arrow.dll` (~21 MB), OpenBLAS (~19 MB),
+`arrow_compute.dll` (~9 MB), `parquet.dll` (~7 MB). Further cuts need engine-level
+dependency changes (e.g. optional parquet backend or lighter numeric stack) and
+are outside the packaging-script loop.
+
 ## Scripts reference
 
 | Script | Role |
 |---|---|
-| `apps/desktop/scripts/stage-oda-resources.ps1` | copy ODA install tree into `resources/oda` |
-| `apps/desktop/scripts/build-sidecar.ps1` | PyInstaller one-file engine build |
+| `apps/desktop/scripts/stage-oda-resources.ps1` | stage ODA install tree + prune optional payloads |
+| `apps/desktop/scripts/build-sidecar.ps1` | orchestrates slim PyInstaller sidecar build |
+| `apps/desktop/scripts/build_sidecar_pyinstaller.py` | filtered Analysis (drop flight/streamlit/tzdata bloat) |
 | `apps/desktop/scripts/build-windows-release.ps1` | full local release orchestration |
 
 npm aliases in `apps/desktop/package.json`:

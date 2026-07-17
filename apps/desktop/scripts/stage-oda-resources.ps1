@@ -117,4 +117,43 @@ $Marker = Join-Path $OutputDir "PACKAGED_FROM.txt"
     "machine=$env:COMPUTERNAME"
 ) | Set-Content -Path $Marker -Encoding UTF8
 
+
+# Optional payload prune: keep DWG->DXF conversion working while dropping
+# BREP/ACIS/viewer extras that are not required by ezdxf odafc conversion.
+$OptionalRemovals = @(
+    "imageformats",
+    "Icon-ODA.ico",
+    "W3Dtk.dll",
+    "WhipTk.dll",
+    "OdBrepModeler_27.1_16.dll",
+    "OdHlrAlgoBrep_27.1_16.dll",
+    "TD_BrepRenderer_27.1_16.dll",
+    "TD_BrepBuilder_27.1_16.dll",
+    "TD_BrepBuilderFiller_27.1_16.dll",
+    "TD_AcisBuilder_27.1_16.dll",
+    "ModelerGeometry_27.1_16.tx",
+    "DbProperties_27.1_16.tx",
+    "AcTrace_27.1_16.tx",
+    "AcSynergyObjDPW_27.1_16.tx",
+    "AcModelDocObj_27.1_16.tx",
+    "ExFieldEvaluator_27.1_16.tx",
+    "RxCommonDataAccess_27.1_16.tx",
+    "RxProperties_27.1_16.tx",
+    "libcrypto_27.1_16.dll"
+)
+
+$removed = @()
+foreach ($name in $OptionalRemovals) {
+    $target = Join-Path $OutputDir $name
+    if (Test-Path $target) {
+        Remove-Item -Recurse -Force $target
+        $removed += $name
+    }
+}
+
+$stagedBytes = (Get-ChildItem -Path $OutputDir -Recurse -File | Measure-Object -Property Length -Sum).Sum
+$stagedMb = [math]::Round(($stagedBytes / 1MB), 1)
+Write-Host ("Pruned optional ODA payloads: {0}" -f ($(if ($removed.Count) { ($removed -join ', ') } else { '(none)' })))
+Write-Host ("Staged ODA size: {0} MB" -f $stagedMb)
+
 Write-Host "Staged ODA File Converter: $StagedExe"

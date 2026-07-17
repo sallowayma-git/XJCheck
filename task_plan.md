@@ -4,7 +4,7 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 169 Windows offline packaging pipeline is ready (NSIS installer produced with bundled Python sidecar + ODA). Phase 167 recognition loop remains the active audit-quality track.
+Phase 169 packaging pipeline is ready; Phase 170 first size-reduction loop cut the installer ~113MB→~85MB (sidecar ~69MB, ODA ~51MB). Phase 167 recognition loop remains the active audit-quality track.
 
 Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 502-DWG baseline is complete with no UNKNOWN/Fallback routes. Current-head fixes cover conductive-line coverage, context-free dense contact-panel tables, complete table authority, FJL/KK component mappings, comma component chains, and stable terminal arrays. Next gates are remaining-cluster inspection, fresh affected-project replay, full pytest, and a fresh 502-page rebuild/audit before cleanup.
 
@@ -2620,6 +2620,7 @@ Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 50
 - Fresh resume status: `24000_220kV_A/20 元件接线图2.dwg` is resolved by current extraction (`18 -> 0` missing-side); do not spend another implementation loop on this stale current3 row.
 
 #### Phase 167 errors
+- First OF auxiliary-group unit patch matched the earlier plain-KK fixture and incorrectly expected `G_AUX` there. The failing test proved plain `KK2P` remained unaffected. Moved `G_AUX/G_LONG` to the suffixed fixture so the positive and long-line negative test the intended reviewed family only.
 - Packaged `rg.exe` was again denied by Windows while locating the KK binding path. Switched to `Select-String` and found the exact binder/test ranges; no file changed by the failed search.
 - Phase168 first two 29000 evidence probes used report-layer column names (`filename`, then `raw_text`/`block_name`) against canonical `texts.parquet`/`blocks.parquet`; both stopped read-only. The printed schemas prove the stable keys are `sheet_id`, `text`, and `name`. Third probe must use those exact fields rather than another guessed alias.
 - 2026-07-17 transfer-resume five-way Luna audit failed before repository access: the local CC Switch proxy routed `gpt-5.6-luna` to a non-Codex provider and returned HTTP 403 for every lane. All five one-shot agents were closed. Main thread owns the same four issue clusters plus replay-input inspection; do not repeat this identical delegation until the proxy route changes.
@@ -2654,4 +2655,27 @@ Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 50
 - [ ] Optional: clean-machine install smoke (no system Python/ODA) on a spare profile/VM
 - [ ] Optional: code signing / auto-update channel
 - **Status:** complete for packaging pipeline; remaining items are distribution hardening only
+
+
+### Phase 170: Installer Size Reduction Loop
+- Goal: shrink Windows NSIS installer without losing desktop audit functionality/UX
+- Baseline: installer ~113MB = sidecar ~92MB + ODA ~70MB staged (compressed) + shell ~9.5MB
+- First-loop result (measured rebuild):
+  - Installer ~113MB → **~85MB**
+  - Sidecar ~92MB → **~69MB** (filtered Analysis; no collect-all; drop flight/substrait/dataset/tzdata bloat)
+  - ODA ~70MB → **~51MB** (validated optional prune; keep RecomputeDimBlock + core convert path)
+  - Shell ~9.4MB unchanged
+- Implemented:
+  - [x] Slim sidecar via `build_sidecar_pyinstaller.py` filtered Analysis
+  - [x] Slim ODA stage optional removals with real DWG conversion smoke
+  - [x] Rebuild NSIS + packaging unit tests + sidecar/ODA smokes
+  - [x] Document sizes in `doc/windows-packaging.md` / findings / progress
+- Remaining headroom (next loops, optional):
+  - arrow.dll / OpenBLAS / arrow_compute still dominate sidecar; needs engine dependency redesign for <=45MB target
+  - further ODA cuts only with one-by-one real-DWG validation
+- Targets:
+  - Sidecar <= 45MB (stretch <= 35MB) — **not yet met** (69MB after first safe loop)
+  - ODA staged <= 45MB — **near** (51MB)
+  - Installer <= 70MB (stretch <= 50MB) — **not yet met** (85MB)
+- Status: complete for first safe reduction loop; stretch targets deferred
 

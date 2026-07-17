@@ -20,11 +20,15 @@ def test_tauri_bundle_declares_sidecar_and_oda_resource_directories() -> None:
 
 def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     script = (DESKTOP_ROOT / "scripts" / "build-sidecar.ps1").read_text(encoding="utf-8")
+    builder = (DESKTOP_ROOT / "scripts" / "build_sidecar_pyinstaller.py").read_text(
+        encoding="utf-8"
+    )
     runtime = (DESKTOP_ROOT / "src-tauri" / "src" / "sidecar_runtime.rs").read_text(encoding="utf-8")
 
     assert "dwg-audit-sidecar" in script
     assert "src-tauri\\resources\\sidecar" in script
-    assert "ezdxf.addons.odafc" in script
+    assert "build_sidecar_pyinstaller.py" in script
+    assert "ezdxf.addons.odafc" in builder
     assert "sidecar" in runtime
     assert "dwg-audit-sidecar.exe" in runtime
     assert "ODAFC_PATH" in runtime
@@ -63,3 +67,30 @@ def test_default_config_does_not_hardcode_machine_oda_install() -> None:
     assert 'odafc_path: ""' in default_yml
     assert "Program Files\\ODA" not in config_py
     assert "Program Files\\ODA" not in default_yml
+
+
+def test_sidecar_build_avoids_collect_all_bloat() -> None:
+    script = (DESKTOP_ROOT / "scripts" / "build-sidecar.ps1").read_text(encoding="utf-8")
+    builder = (DESKTOP_ROOT / "scripts" / "build_sidecar_pyinstaller.py").read_text(encoding="utf-8")
+
+    # Size-first path uses the filtered builder, not CLI collect-all flags.
+    assert "build_sidecar_pyinstaller.py" in script
+    code_lines = [line for line in script.splitlines() if not line.lstrip().startswith("#")]
+    assert all("--collect-all" not in line for line in code_lines)
+    assert "arrow_flight" in builder
+    assert "streamlit" in builder
+    assert "ezdxf.addons.odafc" in builder
+    assert "pyarrow.flight" in builder
+
+
+def test_oda_stage_prunes_optional_payloads() -> None:
+    stage = (DESKTOP_ROOT / "scripts" / "stage-oda-resources.ps1").read_text(encoding="utf-8")
+
+    assert "Optional payload prune" in stage
+    assert "ModelerGeometry_27.1_16.tx" in stage
+    assert "imageformats" in stage
+    assert "W3Dtk.dll" in stage
+    # Conversion-critical dim-block module must not be pruned.
+    removals = stage.split("OptionalRemovals")[1] if "OptionalRemovals" in stage else stage
+    assert "RecomputeDimBlock" not in removals
+

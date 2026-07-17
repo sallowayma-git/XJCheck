@@ -5327,3 +5327,24 @@
 ### CI trigger policy update
 - Windows packaging workflow now triggers only on `v*` tags, GitHub Release publish/edit, or manual workflow_dispatch (no branch push/PR).
 
+### Phase 170: Installer Size Reduction
+- **Status:** complete for first slim loop (scripts + measured rebuild)
+- Actions taken:
+  - Replaced collect-all sidecar packaging with filtered PyInstaller Analysis builder.
+  - Added validated ODA optional-payload prune to stage script.
+  - Rebuilt sidecar (~69MB), restaged ODA (~51MB), rebuilt NSIS installer (~85MB).
+  - Smoke-tested sidecar CLI and multi-DWG ODA conversion on pruned tree.
+  - Extended packaging unit tests for slim contracts.
+- Verification:
+  - `python -m pytest -q tests/unit/test_desktop_packaging.py tests/unit/test_readers.py tests/unit/test_oda_health.py` → `43 passed`
+  - sidecar `--help` / `analyze-project --help` OK
+  - ezdxf odafc convert on pruned ODA: cover/AC/component samples OK
+  - installer: `apps/desktop/src-tauri/target/release/bundle/nsis/DWG Audit Desktop_0.1.0_x64-setup.exe` (~85MB)
+- Files created/modified:
+  - `apps/desktop/scripts/build-sidecar.ps1`
+  - `apps/desktop/scripts/build_sidecar_pyinstaller.py`
+  - `apps/desktop/scripts/stage-oda-resources.ps1`
+  - `tests/unit/test_desktop_packaging.py`
+  - `doc/windows-packaging.md`
+  - `task_plan.md` / `findings.md` / `progress.md`
+

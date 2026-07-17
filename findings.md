@@ -1431,3 +1431,48 @@
 - `windows-package.yml` is release-gated: tag `v*` / GitHub Release / manual dispatch only.
 - Ordinary master pushes no longer start the Windows packaging job.
 
+
+## 2026-07-17 installer size baseline
+
+- NSIS installer: ~113MB
+- Sidecar one-file: ~92MB
+- ODA staged tree: ~70MB
+- Desktop shell: ~9.5MB
+- PyInstaller Analysis binary inventory shows ~270MB raw embedded binaries before one-file packing; top contributors:
+  - pyarrow/arrow.dll 66MB
+  - pyarrow/arrow_flight.dll 41MB
+  - pyarrow/arrow_compute.dll 29MB
+  - pyarrow/parquet.dll 21MB
+  - numpy OpenBLAS 20MB
+  - pyarrow/arrow_substrait.dll 8MB
+- Root cause of sidecar bloat: `build-sidecar.ps1` uses `--collect-all pyarrow/pandas/openpyxl/yaml`, which over-includes optional PyArrow modules unused by desktop audit path.
+- Streamlit is only for `serve-ui` and should be excluded from desktop sidecar.
+- ODA stage currently mirrors full Program Files tree including Qt imageformats and many optional modules; conversion may not need all of them.
+
+## 2026-07-17 Phase 170 installer size reduction
+
+- Implemented slim packaging scripts and rebuilt the Windows NSIS installer.
+- Sidecar build path:
+  - `build-sidecar.ps1` → `build_sidecar_pyinstaller.py` filtered Analysis
+  - removed `--collect-all pyarrow/pandas/...`
+  - drops optional PyArrow natives (flight/substrait/dataset/orc/acero/cloud FS)
+  - excludes Streamlit/matplotlib; keeps parquet/core for pandas artifacts
+  - do **not** exclude `unittest` (pyparsing.testing imports it at import time)
+- ODA stage path:
+  - after robocopy, prune validated optional set (imageformats, BREP/ACIS DLLs, W3D/Whip, optional `.tx`, libcrypto)
+  - keep conversion-critical modules including `RecomputeDimBlock_27.1_16.tx`
+- Measured results (local):
+
+  | Metric | Baseline | After slim |
+  |---|---:|---:|
+  | NSIS installer | ~113 MB | ~85 MB |
+  | Sidecar | ~92 MB | ~69 MB |
+  | ODA staged | ~70 MB | ~51 MB |
+  | Shell | ~9.5 MB | ~9.4 MB |
+
+- Verification:
+  - packaging unit tests: `43 passed` (`test_desktop_packaging` + readers + oda_health)
+  - sidecar smoke: `--help` and `analyze-project --help` OK
+  - pruned ODA convert smoke via ezdxf odafc: 封面 / 交流回路 / 元件接线图 samples OK
+- Residual headroom: arrow.dll + OpenBLAS + arrow_compute dominate remaining sidecar weight; further gains need engine dependency redesign, not more packaging filters.
+
