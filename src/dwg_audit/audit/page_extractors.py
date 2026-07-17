@@ -232,6 +232,12 @@ def _extract_pairs_for_route(
         # Device-panel silkscreen pin lattices (HMC HD/BCD grids) stay as graph
         # evidence but must not enter ordinary terminal / cross-page audit.
         _shadow_hmc_silkscreen_ordinary_pairs(pairs, pages, texts)
+        # Long mixed-geometry lines with a single bare pin digit are not real
+        # terminal pairs on component sheets (e.g. KK-adjacent bus stubs).
+        _shadow_component_long_bare_digit_ordinary_pairs(pairs, line_groups, pages)
+        # External CD/GD/ZK designators reduced to bare digits must not flood
+        # ordinary missing-side audit when they are panel-side endpoint tags.
+        _shadow_external_designator_derived_ordinary_pairs(pairs, pages)
     table_mappings = []
     if executed_extractor == "TerminalDiagramExtractor":
         table_pairs, table_mappings = extract_terminal_header_table_pairs(
@@ -504,6 +510,146 @@ def _shadow_hmc_silkscreen_ordinary_pairs(
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "hmc_panel_silkscreen"
+
+
+_BARE_PIN_DIGIT_PATTERN = re.compile(r"^\d{1,2}$")
+_EXTERNAL_DESIGNATOR_RAW_PATTERN = re.compile(
+    r"^\d+(?:-\d+)?(?:CD|GD|ZK-?)\d+$",
+    re.IGNORECASE,
+)
+_EXTERNAL_DESIGNATOR_FAMILY_PATTERN = re.compile(
+    r"(?:CD|GD|ZK-?)\d+$",
+    re.IGNORECASE,
+)
+
+
+def _shadow_component_long_bare_digit_ordinary_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    pages: list[SheetRecord],
+) -> None:
+    """Shadow long single bare-digit ordinary pairs on component sheets.
+
+    Long mixed-geometry horizontals that only capture a lone pin digit (1-99)
+    are not real terminal mappings; keep them as shadow graph evidence only.
+    """
+    group_map = {group.line_group_id: group for group in line_groups}
+    component_sheets = {
+        page.sheet_id
+        for page in pages
+        if page.sheet_category == "元件接线图"
+        and page.route_target == "ComponentDiagramExtractor"
+    }
+    if not component_sheets:
+        return
+
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.sheet_id not in component_sheets:
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        left = str(pair.left_value or "").strip()
+        right = str(pair.right_value or "").strip()
+        sides = [value for value in (left, right) if value]
+        if len(sides) != 1:
+            continue
+        if not _BARE_PIN_DIGIT_PATTERN.fullmatch(sides[0]):
+            continue
+        group = group_map.get(pair.line_group_id)
+        length = float(getattr(group, "length", 0.0) or 0.0) if group is not None else 0.0
+        if length < 60.0:
+            start = pair.evidence.get("line_start")
+            end = pair.evidence.get("line_end")
+            if (
+                isinstance(start, (list, tuple))
+                and isinstance(end, (list, tuple))
+                and len(start) >= 2
+                and len(end) >= 2
+            ):
+                try:
+                    length = (
+                        (float(end[0]) - float(start[0])) ** 2
+                        + (float(end[1]) - float(start[1])) ** 2
+                    ) ** 0.5
+                except (TypeError, ValueError):
+                    length = 0.0
+        if length < 60.0:
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "component_long_bare_digit"
+        pair.evidence["component_long_bare_digit_length"] = length
+
+
+def _shadow_external_designator_derived_ordinary_pairs(
+    pairs: list[Pair],
+    pages: list[SheetRecord],
+) -> None:
+    """Shadow ordinary pairs whose endpoints are CD/GD/ZK external designators.
+
+    On vertical component pages these labels are reduced to bare digits for
+    ordinary pairing, producing missing-side noise that is not a terminal pair.
+    Real structured component_mapping rows are unaffected.
+    """
+    component_sheets = {
+        page.sheet_id
+        for page in pages
+        if page.sheet_category == "元件接线图"
+        and page.route_target == "ComponentDiagramExtractor"
+    }
+    if not component_sheets:
+        return
+
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.sheet_id not in component_sheets:
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+
+        evidence = pair.evidence or {}
+        left_raw = str(evidence.get("selected_left_raw_text") or "").strip()
+        right_raw = str(evidence.get("selected_right_raw_text") or "").strip()
+        left = str(pair.left_value or "").strip()
+        right = str(pair.right_value or "").strip()
+
+        designator_raws = [
+            raw
+            for raw in (left_raw, right_raw)
+            if raw
+            and (
+                _EXTERNAL_DESIGNATOR_RAW_PATTERN.fullmatch(raw)
+                or _EXTERNAL_DESIGNATOR_FAMILY_PATTERN.search(raw)
+            )
+        ]
+        if not designator_raws:
+            derived_hits = 0
+            for value, is_derived_key in (
+                (left, "selected_left_is_derived_numeric"),
+                (right, "selected_right_is_derived_numeric"),
+            ):
+                if not value or not _BARE_PIN_DIGIT_PATTERN.fullmatch(value):
+                    continue
+                if evidence.get(is_derived_key) is True:
+                    derived_hits += 1
+            if derived_hits == 0:
+                continue
+
+        sides = [value for value in (left, right) if value]
+        if not sides:
+            continue
+        if len(sides) == 2 and not all(_BARE_PIN_DIGIT_PATTERN.fullmatch(v) for v in sides):
+            # Dual-side with a non-digit value may be a real mapping candidate.
+            continue
+
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "external_designator_derived_ordinary"
+        if designator_raws:
+            pair.evidence["external_designator_raws"] = designator_raws
 
 
 def _mark_input_matrix_covered_ordinary_pairs(

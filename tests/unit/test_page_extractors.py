@@ -866,3 +866,112 @@ def test_shadow_hmc_silkscreen_skips_pages_without_hmc_cues() -> None:
     _shadow_hmc_silkscreen_ordinary_pairs([ordinary], [sheet], texts=[])
     assert ordinary.evidence.get("ordinary_pair_eligible") is not False
 
+def test_shadow_component_long_bare_digit_ordinary_pairs_marks_long_stub_ineligible() -> None:
+    from dwg_audit.audit.page_extractors import _shadow_component_long_bare_digit_ordinary_pairs
+
+    long_stub = _pair(
+        {
+            "line_orientation": "horizontal",
+            "line_start": [20.0, 50.0],
+            "line_end": [105.0, 50.0],
+            "selected_right_raw_text": "3",
+        },
+        pair_id="PLONG",
+        line_group_id="G_LONG",
+        right_text_id="T3",
+    )
+    long_stub.left_value = None
+    long_stub.right_value = "3"
+    long_stub.status = "review"
+
+    short_stub = _pair(
+        {
+            "line_orientation": "horizontal",
+            "line_start": [20.0, 40.0],
+            "line_end": [40.0, 40.0],
+            "selected_right_raw_text": "2",
+        },
+        pair_id="PSHORT",
+        line_group_id="G_SHORT",
+        right_text_id="T2",
+    )
+    short_stub.left_value = None
+    short_stub.right_value = "2"
+    short_stub.status = "review"
+
+    designator = _pair(
+        {
+            "line_orientation": "horizontal",
+            "line_start": [20.0, 30.0],
+            "line_end": [120.0, 30.0],
+            "selected_right_raw_text": "ZD11",
+        },
+        pair_id="PTERM",
+        line_group_id="G_TERM",
+        right_text_id="TZ",
+    )
+    designator.left_value = None
+    designator.right_value = "ZD11"
+    designator.status = "review"
+
+    sheet = _sheet(
+        category="元件接线图",
+        route_target="ComponentDiagramExtractor",
+        page_subtype="horizontal_component",
+    )
+    groups = [
+        LineGroup("G_LONG", "S1", "F1", 20, 50, 105, 50, 85.0, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G_SHORT", "S1", "F1", 20, 40, 40, 40, 20.0, 0.9, ["L2"], ["CONNECT"]),
+        LineGroup("G_TERM", "S1", "F1", 20, 30, 120, 30, 100.0, 0.9, ["L3"], ["CONNECT"]),
+    ]
+    _shadow_component_long_bare_digit_ordinary_pairs(
+        [long_stub, short_stub, designator],
+        groups,
+        [sheet],
+    )
+    assert long_stub.evidence["ordinary_pair_eligible"] is False
+    assert long_stub.evidence["ordinary_pair_shadow_reason"] == "component_long_bare_digit"
+    assert short_stub.evidence.get("ordinary_pair_eligible") is not False
+    assert designator.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_shadow_external_designator_derived_ordinary_pairs_marks_cd_stubs_ineligible() -> None:
+    from dwg_audit.audit.page_extractors import _shadow_external_designator_derived_ordinary_pairs
+
+    cd_stub = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_left_raw_text": "3-21CD43",
+            "selected_left_is_derived_numeric": True,
+        },
+        pair_id="PCD",
+        left_text_id="TCD",
+    )
+    cd_stub.left_value = "43"
+    cd_stub.right_value = None
+    cd_stub.status = "review"
+
+    real_terminal = _pair(
+        {
+            "line_orientation": "vertical",
+            "selected_left_raw_text": "n113",
+            "selected_right_raw_text": "2-21KLP2-2",
+        },
+        pair_id="PREAL",
+        left_text_id="TN",
+        right_text_id="TK",
+    )
+    real_terminal.left_value = "113"
+    real_terminal.right_value = "2"
+    real_terminal.status = "review"
+
+    sheet = _sheet(
+        category="元件接线图",
+        route_target="ComponentDiagramExtractor",
+        page_subtype="horizontal_component",
+    )
+    _shadow_external_designator_derived_ordinary_pairs([cd_stub, real_terminal], [sheet])
+    assert cd_stub.evidence["ordinary_pair_eligible"] is False
+    assert cd_stub.evidence["ordinary_pair_shadow_reason"] == "external_designator_derived_ordinary"
+    assert real_terminal.evidence.get("ordinary_pair_eligible") is not False
+
