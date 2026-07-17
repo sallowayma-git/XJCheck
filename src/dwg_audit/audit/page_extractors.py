@@ -237,7 +237,7 @@ def _extract_pairs_for_route(
         if component_pairs:
             _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
             pairs.extend(component_pairs)
-            _mark_component_mapping_endpoint_covered_ordinary_pairs(pairs, component_pairs)
+            mark_component_mapping_endpoint_covered_ordinary_pairs(pairs, component_pairs)
         # Device-panel silkscreen pin lattices (HMC HD/BCD grids) stay as graph
         # evidence but must not enter ordinary terminal / cross-page audit.
         _shadow_hmc_silkscreen_ordinary_pairs(pairs, pages, texts)
@@ -332,14 +332,20 @@ def _component_mapping_endpoint_keys(component_pairs: list[Pair]) -> set[tuple[s
             if not token:
                 continue
             keys.add((sheet_id, f"raw:{token.lower()}"))
-            # bare n### / trailing digits help cover ordinary derived halves
-            m = re.search(r"(n\d{2,}|\d{2,})$", token, re.IGNORECASE)
-            if m:
-                keys.add((sheet_id, f"tail:{m.group(1).lower()}"))
+            alias = _component_endpoint_display_alias(token)
+            if alias:
+                keys.add((sheet_id, f"alias:{alias}"))
     return keys
 
 
-def _mark_component_mapping_endpoint_covered_ordinary_pairs(
+def _component_endpoint_display_alias(token: str) -> str | None:
+    """Normalize only an optional numeric scope before an n-terminal value."""
+
+    match = re.fullmatch(r"(?:\d+(?:-\d+)*)?(n\d{2,})", token.strip(), re.IGNORECASE)
+    return match.group(1).lower() if match else None
+
+
+def mark_component_mapping_endpoint_covered_ordinary_pairs(
     pairs: list[Pair],
     component_pairs: list[Pair],
 ) -> None:
@@ -351,6 +357,8 @@ def _mark_component_mapping_endpoint_covered_ordinary_pairs(
         if pair.pair_kind != "ordinary_pair":
             continue
         if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        if len([value for value in (pair.left_value, pair.right_value) if value]) != 1:
             continue
         evidence = pair.evidence or {}
         sheet_id = str(pair.sheet_id or "")
@@ -372,19 +380,25 @@ def _mark_component_mapping_endpoint_covered_ordinary_pairs(
                 if (sheet_id, f"raw:{token.lower()}") in keys:
                     hit = True
                     break
-                m = re.search(r"(n\d{2,}|\d{2,})$", token, re.IGNORECASE)
-                if m and (sheet_id, f"tail:{m.group(1).lower()}") in keys:
-                    # Only single-sided ordinary stubs — dual-side may be real conflicts.
-                    sides = [v for v in (pair.left_value, pair.right_value) if v]
-                    if len(sides) == 1:
-                        hit = True
-                        break
+                alias = _component_endpoint_display_alias(token)
+                if alias and (sheet_id, f"alias:{alias}") in keys:
+                    hit = True
+                    break
         if not hit:
             continue
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "covered_by_component_mapping_endpoint"
         pair.evidence["covered_by_component_mapping_endpoint"] = True
+
+
+def _mark_component_mapping_endpoint_covered_ordinary_pairs(
+    pairs: list[Pair],
+    component_pairs: list[Pair],
+) -> None:
+    """Backward-compatible private alias for older callers and focused tests."""
+
+    mark_component_mapping_endpoint_covered_ordinary_pairs(pairs, component_pairs)
 
 
 def _shadow_grid_wire_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:

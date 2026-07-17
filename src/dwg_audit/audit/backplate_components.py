@@ -63,6 +63,18 @@ _CONTACT_BODY_Y_MAX_GAP = 28.0
 _CONTACT_ENDPOINT_Y_TOL = 3.0
 _CONTACT_ENDPOINT_X_MIN_GAP = 1.0
 _CONTACT_ENDPOINT_X_MAX_GAP = 18.0
+_SCHEMATIC_INLINE_LEAD_Y_TOL = 1.0
+_SCHEMATIC_INLINE_LEAD_MIN_LENGTH = 8.0
+_SCHEMATIC_INLINE_GAP_MIN = 5.0
+_SCHEMATIC_INLINE_GAP_MAX = 24.0
+_SCHEMATIC_INLINE_BLOCK_ANCHOR_X_TOL = 1.5
+_SCHEMATIC_INLINE_PORT_X_TOL = 2.0
+_SCHEMATIC_INLINE_PORT_Y_TOL = 2.5
+_SCHEMATIC_INLINE_BODY_X_TOL = 6.0
+_SCHEMATIC_INLINE_BODY_Y_MIN_GAP = 1.0
+_SCHEMATIC_INLINE_BODY_Y_MAX_GAP = 8.0
+_SCHEMATIC_INLINE_ENDPOINT_X_TOL = 6.0
+_SCHEMATIC_INLINE_ENDPOINT_Y_TOL = 4.0
 
 
 def extract_accessory_backplate_two_port_pairs(
@@ -93,16 +105,22 @@ def extract_accessory_backplate_two_port_pairs(
         sheet_texts = texts_by_sheet.get(sheet_id, [])
         sheet_lines = lines_by_sheet.get(sheet_id, [])
         for block in blocks_by_sheet.get(sheet_id, []):
-            component = None
-            for recognizer in (
-                _recognize_two_port_component,
-                _recognize_vertical_panel_component,
-                _recognize_inline_two_port_component,
-                _recognize_four_port_contact_component,
-            ):
-                component = recognizer(block, sheet_texts, sheet_lines)
-                if component is not None:
-                    break
+            component = _recognize_insert_backed_schematic_inline_two_port_component(
+                page,
+                block,
+                sheet_texts,
+                sheet_lines,
+            )
+            if component is None:
+                for recognizer in (
+                    _recognize_two_port_component,
+                    _recognize_vertical_panel_component,
+                    _recognize_inline_two_port_component,
+                    _recognize_four_port_contact_component,
+                ):
+                    component = recognizer(block, sheet_texts, sheet_lines)
+                    if component is not None:
+                        break
             if component is None:
                 continue
             page_observations[sheet_id].append(component)
@@ -155,6 +173,209 @@ def extract_accessory_backplate_two_port_pairs(
             }
         )
     return pairs, records
+
+
+def _recognize_insert_backed_schematic_inline_two_port_component(
+    page: SheetRecord,
+    block: BlockRecord,
+    texts: list[TextItem],
+    lines: list[LineEntity],
+) -> dict[str, Any] | None:
+    """Recognize a two-lead schematic component whose port labels are free text.
+
+    Some schematic symbols keep the rectangular body in an INSERT while the
+    instance name and port labels are ordinary page text.  The INSERT must sit
+    inside a real break between two outward horizontal leads; names alone are
+    never enough to promote a component mapping.
+    """
+
+    if page.sheet_category != "二次原理图" or page.route_target != "WireDiagramExtractor":
+        return None
+    lead_pair = _insert_backed_inline_leads(block, lines)
+    if lead_pair is None:
+        return None
+    left_lead, right_lead, row_y, left_inner_x, right_inner_x, left_outer_x, right_outer_x = lead_pair
+
+    left_ports = [
+        text
+        for text in texts
+        if str(text.normalized_text).strip() == "1"
+        and not text.source_block_name
+        and abs(text.insert_x - left_inner_x) <= _SCHEMATIC_INLINE_PORT_X_TOL
+        and abs(text.insert_y - row_y) <= _SCHEMATIC_INLINE_PORT_Y_TOL
+    ]
+    right_ports = [
+        text
+        for text in texts
+        if str(text.normalized_text).strip() == "2"
+        and not text.source_block_name
+        and abs(text.insert_x - right_inner_x) <= _SCHEMATIC_INLINE_PORT_X_TOL
+        and abs(text.insert_y - row_y) <= _SCHEMATIC_INLINE_PORT_Y_TOL
+    ]
+    if len(left_ports) != 1 or len(right_ports) != 1:
+        return None
+    left_port = left_ports[0]
+    right_port = right_ports[0]
+    if left_port.text_id == right_port.text_id:
+        return None
+
+    body = _nearest_inline_gap_instance(
+        texts,
+        center_x=(left_inner_x + right_inner_x) / 2.0,
+        port_y=max(left_port.insert_y, right_port.insert_y),
+        excluded={left_port.text_id, right_port.text_id},
+    )
+    if body is None:
+        return None
+    excluded = {body.text_id, left_port.text_id, right_port.text_id}
+    left_endpoint = _nearest_outward_line_endpoint(
+        texts,
+        endpoint_x=left_outer_x,
+        row_y=row_y,
+        side="left",
+        excluded=excluded,
+    )
+    right_endpoint = _nearest_outward_line_endpoint(
+        texts,
+        endpoint_x=right_outer_x,
+        row_y=row_y,
+        side="right",
+        excluded=excluded,
+    )
+    if left_endpoint is None or right_endpoint is None:
+        return None
+
+    ports = [
+        _port_observation("1", "left", left_port, left_endpoint),
+        _port_observation("2", "right", right_port, right_endpoint),
+    ]
+    observation = _component_observation(
+        block,
+        body,
+        ports,
+        recognition_mode="geometry_insert_backed_inline_two_port",
+        mapping_mode="schematic_inline_two_port",
+        component_submode="inline_two_port_component",
+        reason_codes=[
+            "INSERT_INSIDE_TWO_HORIZONTAL_LEAD_GAP",
+            "FREE_PORT_LABELS_1_2_AT_INNER_LEAD_ENDPOINTS",
+            "INSTANCE_LABEL_ABOVE_GAP",
+            "OUTER_ENDPOINTS_ATTACHED_TO_DISTINCT_LEADS",
+            "INDEPENDENT_OUTWARD_PORTS",
+        ],
+    )
+    observation["supporting_line_ids"] = [left_lead.line_id, right_lead.line_id]
+    observation["component_gap"] = [left_inner_x, right_inner_x]
+    return observation
+
+
+def _insert_backed_inline_leads(
+    block: BlockRecord,
+    lines: list[LineEntity],
+) -> tuple[LineEntity, LineEntity, float, float, float, float, float] | None:
+    horizontal = []
+    for line in lines:
+        if abs(line.end_y - line.start_y) > 0.6 or line.length < _SCHEMATIC_INLINE_LEAD_MIN_LENGTH:
+            continue
+        row_y = (line.start_y + line.end_y) / 2.0
+        if abs(row_y - block.insert_y) > _SCHEMATIC_INLINE_LEAD_Y_TOL:
+            continue
+        horizontal.append((line, min(line.start_x, line.end_x), max(line.start_x, line.end_x), row_y))
+
+    candidates = []
+    for left, left_outer_x, left_inner_x, left_y in horizontal:
+        for right, right_inner_x, right_outer_x, right_y in horizontal:
+            if left.line_id == right.line_id or left_inner_x >= right_inner_x:
+                continue
+            gap = right_inner_x - left_inner_x
+            if not (_SCHEMATIC_INLINE_GAP_MIN <= gap <= _SCHEMATIC_INLINE_GAP_MAX):
+                continue
+            if abs(left_y - right_y) > _SCHEMATIC_INLINE_LEAD_Y_TOL:
+                continue
+            if abs(block.insert_x - left_inner_x) > _SCHEMATIC_INLINE_BLOCK_ANCHOR_X_TOL:
+                continue
+            score = (
+                abs(block.insert_x - left_inner_x),
+                abs(left_y - block.insert_y) + abs(right_y - block.insert_y),
+                gap,
+                left.line_id,
+                right.line_id,
+            )
+            candidates.append(
+                (
+                    score,
+                    left,
+                    right,
+                    (left_y + right_y) / 2.0,
+                    left_inner_x,
+                    right_inner_x,
+                    left_outer_x,
+                    right_outer_x,
+                )
+            )
+    if not candidates:
+        return None
+    _, left, right, row_y, left_inner_x, right_inner_x, left_outer_x, right_outer_x = min(
+        candidates,
+        key=lambda item: item[0],
+    )
+    return left, right, row_y, left_inner_x, right_inner_x, left_outer_x, right_outer_x
+
+
+def _nearest_inline_gap_instance(
+    texts: list[TextItem],
+    *,
+    center_x: float,
+    port_y: float,
+    excluded: set[str],
+) -> TextItem | None:
+    candidates = []
+    for text in texts:
+        if text.text_id in excluded or text.source_block_name:
+            continue
+        value = str(text.normalized_text or text.text or "").strip().strip("@&").strip()
+        if not _INSTANCE_PATTERN.fullmatch(value):
+            continue
+        x_gap = abs(text.insert_x - center_x)
+        y_gap = text.insert_y - port_y
+        if x_gap > _SCHEMATIC_INLINE_BODY_X_TOL:
+            continue
+        if not (_SCHEMATIC_INLINE_BODY_Y_MIN_GAP <= y_gap <= _SCHEMATIC_INLINE_BODY_Y_MAX_GAP):
+            continue
+        candidates.append((text, x_gap, y_gap))
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: (item[1], item[2], item[0].text_id))[0]
+
+
+def _nearest_outward_line_endpoint(
+    texts: list[TextItem],
+    *,
+    endpoint_x: float,
+    row_y: float,
+    side: str,
+    excluded: set[str],
+) -> TextItem | None:
+    candidates = []
+    for text in texts:
+        if (
+            text.text_id in excluded
+            or text.source_block_name
+            or not _split_external_endpoints(text.normalized_text)
+        ):
+            continue
+        x_gap = abs(text.insert_x - endpoint_x)
+        y_gap = abs(text.insert_y - row_y)
+        if x_gap > _SCHEMATIC_INLINE_ENDPOINT_X_TOL or y_gap > _SCHEMATIC_INLINE_ENDPOINT_Y_TOL:
+            continue
+        if side == "left" and text.insert_x > endpoint_x + 1.0:
+            continue
+        if side == "right" and text.insert_x < endpoint_x - 1.0:
+            continue
+        candidates.append((text, x_gap, y_gap))
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: (item[1], item[2], item[0].text_id))[0]
 
 
 def _recognize_two_port_component(

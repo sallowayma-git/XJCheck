@@ -335,6 +335,8 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
         sheet_ids = {pair.sheet_id for pair in linked_pairs}
         if len(rights) > 1 and len(sheet_ids) > 1:
             first = linked_pairs[0]
+            if _is_authoritative_inline_component_cross_diagram_correspondence(linked_pairs):
+                continue
             if _is_page_local_numeric_three_column_group(linked_pairs, left_value):
                 continue
             if _is_backplate_virtual_table_scope_review(linked_pairs):
@@ -1057,7 +1059,231 @@ def _is_authoritative_structured_cardinality_group(linked_pairs: list[Pair]) -> 
         linked_pairs
     ) or _is_authoritative_terminal_backplate_bridge_group(
         linked_pairs
-    ) or _is_authoritative_comma_component_mapping_group(linked_pairs)
+    ) or _is_authoritative_comma_component_mapping_group(
+        linked_pairs
+    ) or _is_authoritative_inline_component_cross_diagram_correspondence(
+        linked_pairs
+    ) or _is_authoritative_schematic_kk_component_duplicate(
+        linked_pairs
+    ) or _is_authoritative_schematic_inline_backplate_endpoint_group(linked_pairs)
+
+
+def _is_authoritative_inline_component_cross_diagram_correspondence(
+    linked_pairs: list[Pair],
+) -> bool:
+    """Accept one schematic/backplate description of the same independent port.
+
+    This is comparison-only corroboration.  It does not make either component
+    electrically union-eligible and does not erase genuine endpoint changes.
+    """
+
+    if len(linked_pairs) != 2 or len({str(pair.sheet_id or "") for pair in linked_pairs}) != 2:
+        return False
+    modes: set[str] = set()
+    endpoint_keys: set[str] = set()
+    logical_endpoints: set[str] = set()
+    for pair in linked_pairs:
+        if pair.pair_kind != "component_mapping" or pair.status != "pass":
+            return False
+        if float(pair.confidence or 0.0) < 0.95:
+            return False
+        evidence = pair.evidence or {}
+        if evidence.get("source") != "component_mapping":
+            return False
+        if evidence.get("component_submode") != "inline_two_port_component":
+            return False
+        mode = str(evidence.get("mapping_mode") or "")
+        if mode not in {"schematic_inline_two_port", "accessory_backplate_inline_two_port"}:
+            return False
+        if evidence.get("electrical_union_eligible") is not False:
+            return False
+        if evidence.get("internal_connectivity_inferred") is not False:
+            return False
+        body = str(evidence.get("component_body") or "")
+        port = str(evidence.get("component_port") or "")
+        logical_endpoint = str(evidence.get("logical_endpoint") or "")
+        if not body or not port or logical_endpoint != f"{body}-{port}":
+            return False
+        if logical_endpoint != str(pair.left_value or ""):
+            return False
+        if str(evidence.get("external_endpoint") or "") != str(pair.right_value or ""):
+            return False
+        if not all(
+            evidence.get(key)
+            for key in (
+                "component_body_text_id",
+                "component_port_text_id",
+                "component_block_handle",
+                "external_endpoint_text_id",
+            )
+        ):
+            return False
+        endpoint_key = _inline_component_correspondence_endpoint_key(pair, mode)
+        if endpoint_key is None:
+            return False
+        modes.add(mode)
+        logical_endpoints.add(logical_endpoint.upper())
+        endpoint_keys.add(endpoint_key)
+    return (
+        modes == {"schematic_inline_two_port", "accessory_backplate_inline_two_port"}
+        and len(logical_endpoints) == 1
+        and len(endpoint_keys) == 1
+    )
+
+
+def _inline_component_correspondence_endpoint_key(pair: Pair, mapping_mode: str) -> str | None:
+    value = str(pair.right_value or "").strip().upper()
+    if not value:
+        return None
+    if mapping_mode == "accessory_backplate_inline_two_port":
+        match = re.fullmatch(r"\d+N(\d{3,})", value)
+        if match:
+            return match.group(1)
+    return value
+
+
+def _is_authoritative_schematic_kk_component_duplicate(linked_pairs: list[Pair]) -> bool:
+    """Accept exact schematic/KK descriptions of one independent component port."""
+
+    if len(linked_pairs) != 2 or len({str(pair.sheet_id or "") for pair in linked_pairs}) != 2:
+        return False
+    schematic_identities = [
+        identity
+        for pair in linked_pairs
+        if (identity := _authoritative_schematic_inline_component_identity(pair)) is not None
+    ]
+    kk_identities = [
+        identity
+        for pair in linked_pairs
+        if (identity := _authoritative_kk_component_identity(pair)) is not None
+    ]
+    return (
+        len(schematic_identities) == 1
+        and len(kk_identities) == 1
+        and schematic_identities[0] == kk_identities[0]
+    )
+
+
+def _is_authoritative_schematic_inline_backplate_endpoint_group(
+    linked_pairs: list[Pair],
+) -> bool:
+    """Accept one schematic port joining one authoritative backplate endpoint.
+
+    An optional KK component mapping may corroborate the same exact component
+    port.  Existing KK/table reviews without schematic geometry deliberately do
+    not satisfy this contract.
+    """
+
+    if len(linked_pairs) not in {2, 3}:
+        return False
+    if len({str(pair.sheet_id or "") for pair in linked_pairs}) != len(linked_pairs):
+        return False
+    right_values = {str(pair.right_value or "").upper() for pair in linked_pairs}
+    if "" in right_values or len(right_values) != 1:
+        return False
+
+    schematic_identities: list[tuple[str, str, str]] = []
+    kk_identities: list[tuple[str, str, str]] = []
+    table_pairs: list[Pair] = []
+    for pair in linked_pairs:
+        schematic_identity = _authoritative_schematic_inline_component_identity(pair)
+        if schematic_identity is not None:
+            schematic_identities.append(schematic_identity)
+            continue
+        kk_identity = _authoritative_kk_component_identity(pair)
+        if kk_identity is not None:
+            kk_identities.append(kk_identity)
+            continue
+        if (
+            pair.pair_kind == "table_mapping"
+            and _is_authoritative_table_mapping_group([pair])
+            and _table_mapping_evidence(pair).get("mapping_mode") == "backplate_virtual_table"
+        ):
+            table_pairs.append(pair)
+            continue
+        return False
+
+    if len(schematic_identities) != 1 or len(table_pairs) != 1 or len(kk_identities) > 1:
+        return False
+    return not kk_identities or kk_identities[0] == schematic_identities[0]
+
+
+def _authoritative_schematic_inline_component_identity(
+    pair: Pair,
+) -> tuple[str, str, str] | None:
+    evidence = pair.evidence or {}
+    if (
+        pair.pair_kind != "component_mapping"
+        or pair.status != "pass"
+        or float(pair.confidence or 0.0) < 0.95
+        or evidence.get("source") != "component_mapping"
+        or evidence.get("component_submode") != "inline_two_port_component"
+        or evidence.get("mapping_mode") != "schematic_inline_two_port"
+        or evidence.get("recognition_mode") != "geometry_insert_backed_inline_two_port"
+        or evidence.get("internal_connectivity_inferred") is not False
+        or evidence.get("electrical_union_eligible") is not False
+        or evidence.get("ordinary_pair_eligible") is not False
+    ):
+        return None
+    return _authoritative_component_port_identity(
+        pair,
+        required_evidence=(
+            "component_body_text_id",
+            "component_port_text_id",
+            "component_block_handle",
+            "external_endpoint_text_id",
+        ),
+    )
+
+
+def _authoritative_kk_component_identity(pair: Pair) -> tuple[str, str, str] | None:
+    evidence = pair.evidence or {}
+    if (
+        pair.pair_kind != "component_mapping"
+        or pair.status != "pass"
+        or float(pair.confidence or 0.0) < 0.95
+        or evidence.get("source") != "component_mapping"
+        or evidence.get("component_submode") != "kk_multi_port_component"
+    ):
+        return None
+    return _authoritative_component_port_identity(
+        pair,
+        required_evidence=(
+            "component_body_text_id",
+            "component_port_text_id",
+            "component_block_id",
+            "component_block_name",
+            "external_endpoint_text_id",
+            "line_group_id",
+            "supporting_line_ids",
+        ),
+    )
+
+
+def _authoritative_component_port_identity(
+    pair: Pair,
+    *,
+    required_evidence: tuple[str, ...],
+) -> tuple[str, str, str] | None:
+    evidence = pair.evidence or {}
+    body = str(evidence.get("component_body") or "").strip()
+    port = str(evidence.get("component_port") or "").strip()
+    logical_endpoint = str(evidence.get("logical_endpoint") or "").strip()
+    external_endpoint = str(evidence.get("external_endpoint") or "").strip()
+    if (
+        not body
+        or not port
+        or logical_endpoint != f"{body}-{port}"
+        or logical_endpoint != str(pair.left_value or "").strip()
+        or external_endpoint != str(pair.right_value or "").strip()
+        or not all(evidence.get(key) for key in required_evidence)
+    ):
+        return None
+    return (
+        body.upper(),
+        port.upper(),
+        external_endpoint.upper(),
+    )
 
 
 def _is_page_local_numeric_three_column_group(

@@ -1411,3 +1411,85 @@ def test_component_mapping_endpoint_coverage_is_scoped_to_sheet() -> None:
     assert same_sheet.evidence["ordinary_pair_eligible"] is False
     assert other_sheet.evidence.get("ordinary_pair_eligible") is not False
 
+
+def test_component_mapping_endpoint_coverage_does_not_shadow_complete_ordinary_pair() -> None:
+    from dwg_audit.audit.page_extractors import (
+        mark_component_mapping_endpoint_covered_ordinary_pairs,
+    )
+
+    mapping = _pair(
+        {"source": "component_mapping", "external_endpoint": "1701"},
+        pair_id="PCM",
+        pair_kind="component_mapping",
+        right_text_id="TR",
+    )
+    mapping.left_value = "1F1-2"
+    mapping.right_value = "1701"
+    mapping.status = "pass"
+
+    complete = _pair(
+        {"selected_right_raw_text": "1701"},
+        pair_id="PORD",
+        right_text_id="TR",
+    )
+    complete.left_value = "OTHER"
+    complete.right_value = "1701"
+
+    mark_component_mapping_endpoint_covered_ordinary_pairs([complete], [mapping])
+
+    assert complete.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_component_mapping_endpoint_coverage_does_not_alias_device_suffix_to_bare_number() -> None:
+    from dwg_audit.audit.page_extractors import (
+        mark_component_mapping_endpoint_covered_ordinary_pairs,
+    )
+
+    mapping = _pair(
+        {"source": "component_mapping", "external_endpoint": "1XD28"},
+        pair_id="PCM",
+        pair_kind="component_mapping",
+        right_text_id="TMAP",
+    )
+    mapping.left_value = "1F1-2"
+    mapping.right_value = "1XD28"
+    mapping.status = "pass"
+    ordinary = _pair(
+        {"selected_left_raw_text": "28"},
+        pair_id="PORD",
+        left_text_id="TORD",
+    )
+    ordinary.left_value = "28"
+    ordinary.right_value = None
+
+    mark_component_mapping_endpoint_covered_ordinary_pairs([ordinary], [mapping])
+
+    assert ordinary.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_component_mapping_endpoint_coverage_keeps_strict_n_terminal_display_alias() -> None:
+    from dwg_audit.audit.page_extractors import (
+        mark_component_mapping_endpoint_covered_ordinary_pairs,
+    )
+
+    mapping = _pair(
+        {"source": "component_mapping", "external_endpoint": "1-2n414"},
+        pair_id="PCM",
+        pair_kind="component_mapping",
+        right_text_id="TMAP",
+    )
+    mapping.left_value = "1F1-2"
+    mapping.right_value = "1-2n414"
+    mapping.status = "pass"
+    ordinary = _pair(
+        {"selected_left_raw_text": "n414"},
+        pair_id="PORD",
+        left_text_id="TORD",
+    )
+    ordinary.left_value = "n414"
+    ordinary.right_value = None
+
+    mark_component_mapping_endpoint_covered_ordinary_pairs([ordinary], [mapping])
+
+    assert ordinary.evidence["ordinary_pair_eligible"] is False
+

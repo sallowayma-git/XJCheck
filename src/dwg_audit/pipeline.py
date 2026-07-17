@@ -10,6 +10,7 @@ from dwg_audit.audit.page_extractors import extract_wire_pairs
 from dwg_audit.audit.extraction_gate import evaluate_extraction_completeness
 from dwg_audit.audit.table_extractor import extract_table_pairs
 from dwg_audit.audit.backplate_components import extract_accessory_backplate_two_port_pairs
+from dwg_audit.audit.page_extractors import mark_component_mapping_endpoint_covered_ordinary_pairs
 from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.ingest import convert_source_files
 from dwg_audit.ingest import discover_project_roots
@@ -243,6 +244,20 @@ def analyze_input_root(
                     "table_mapping_count": sum(len(item.get("mappings", [])) for item in accessory_mappings),
                 }
             )
+
+        authoritative_component_pairs = [
+            pair
+            for pair in pairs
+            if pair.pair_kind == "component_mapping"
+            and pair.status == "pass"
+            and float(pair.confidence or 0.0) >= 0.95
+            and (pair.evidence or {}).get("source") == "component_mapping"
+            and (pair.evidence or {}).get("ordinary_pair_eligible") is False
+        ]
+        mark_component_mapping_endpoint_covered_ordinary_pairs(
+            pairs,
+            authoritative_component_pairs,
+        )
 
         if event_sink is not None:
             event_sink.emit(

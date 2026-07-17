@@ -24,6 +24,15 @@ def _page() -> SheetRecord:
     )
 
 
+def _schematic_page() -> SheetRecord:
+    page = _page()
+    page.filename = "14 交流电压回路2.dwg"
+    page.sheet_title = "VT INPUT 2"
+    page.sheet_category = "二次原理图"
+    page.route_target = "WireDiagramExtractor"
+    return page
+
+
 def _text(text_id: str, value: str, x: float, y: float, *, handle: str | None = None, block: str | None = None) -> TextItem:
     return TextItem(
         text_id=text_id,
@@ -117,6 +126,28 @@ def _owned_line(
         bbox_max_x=max(x1, x2),
         bbox_max_y=max(y1, y2),
         source_block_name=block,
+    )
+
+
+def _free_horizontal_line(line_id: str, x1: float, x2: float, y: float = 80.0) -> LineEntity:
+    return LineEntity(
+        line_id=line_id,
+        sheet_id="S1",
+        file_id="F1",
+        handle=line_id,
+        source_entity_type="LINE",
+        layer="CONNECT",
+        start_x=x1,
+        start_y=y,
+        end_x=x2,
+        end_y=y,
+        length=abs(x2 - x1),
+        angle_deg=0.0,
+        bbox_min_x=min(x1, x2),
+        bbox_min_y=y,
+        bbox_max_x=max(x1, x2),
+        bbox_max_y=y,
+        source_block_name=None,
     )
 
 
@@ -256,6 +287,105 @@ def test_extracts_unknown_inline_two_port_component_by_geometry() -> None:
         ("1F1-2", "1n1701"),
     }
     assert records[0]["component_observations"][0]["recognition_mode"] == "geometry_owned_inline_two_port"
+
+
+def test_extracts_insert_backed_schematic_inline_two_port_component() -> None:
+    block = _custom_block()
+    block.insert_x = 40.0
+    block.insert_y = 80.0
+    texts = [
+        _text("P1", "1", 39.4, 80.5),
+        _text("P2", "2", 49.4, 80.5),
+        _text("BODY", "1F1", 45.0, 82.5),
+        _text("LEFT", "1VD1", 29.0, 82.0),
+        _text("RIGHT", "1701", 80.0, 81.0),
+    ]
+    lines = [
+        _free_horizontal_line("LEFT_LEAD", 30.0, 40.0),
+        _free_horizontal_line("RIGHT_LEAD", 50.0, 80.0),
+    ]
+
+    pairs, records = extract_accessory_backplate_two_port_pairs([_schematic_page()], texts, lines, [block])
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1F1-1", "1VD1"),
+        ("1F1-2", "1701"),
+    }
+    observation = records[0]["component_observations"][0]
+    assert observation["recognition_mode"] == "geometry_insert_backed_inline_two_port"
+    assert observation["supporting_line_ids"] == ["LEFT_LEAD", "RIGHT_LEAD"]
+    assert observation["internal_connectivity"] is False
+    assert observation["electrical_union_eligible"] is False
+    assert all(pair.evidence["ordinary_pair_eligible"] is False for pair in pairs)
+
+
+def test_rejects_free_inline_labels_without_two_outward_leads() -> None:
+    block = _custom_block()
+    block.insert_x = 40.0
+    block.insert_y = 80.0
+    texts = [
+        _text("P1", "1", 39.4, 80.5),
+        _text("P2", "2", 49.4, 80.5),
+        _text("BODY", "1F1", 45.0, 82.5),
+        _text("LEFT", "1VD1", 29.0, 82.0),
+        _text("RIGHT", "1701", 80.0, 81.0),
+    ]
+
+    pairs, records = extract_accessory_backplate_two_port_pairs(
+        [_schematic_page()],
+        texts,
+        [_free_horizontal_line("LEFT_LEAD", 30.0, 40.0)],
+        [block],
+    )
+
+    assert pairs == []
+    assert records == []
+
+
+def test_rejects_insert_merely_centered_between_unowned_inline_leads() -> None:
+    block = _custom_block()
+    block.insert_x = 45.0
+    block.insert_y = 80.0
+    texts = [
+        _text("P1", "1", 39.4, 80.5),
+        _text("P2", "2", 49.4, 80.5),
+        _text("BODY", "1F1", 45.0, 82.5),
+        _text("LEFT", "1VD1", 29.0, 82.0),
+        _text("RIGHT", "1701", 80.0, 81.0),
+    ]
+    lines = [
+        _free_horizontal_line("LEFT_LEAD", 30.0, 40.0),
+        _free_horizontal_line("RIGHT_LEAD", 50.0, 80.0),
+    ]
+
+    pairs, records = extract_accessory_backplate_two_port_pairs(
+        [_schematic_page()], texts, lines, [block]
+    )
+
+    assert pairs == []
+    assert records == []
+
+
+def test_does_not_apply_free_inline_schematic_model_to_backplate_page() -> None:
+    block = _custom_block()
+    block.insert_x = 40.0
+    block.insert_y = 80.0
+    texts = [
+        _text("P1", "1", 39.4, 80.5),
+        _text("P2", "2", 49.4, 80.5),
+        _text("BODY", "1F1", 45.0, 82.5),
+        _text("LEFT", "1VD1", 29.0, 82.0),
+        _text("RIGHT", "1701", 80.0, 81.0),
+    ]
+    lines = [
+        _free_horizontal_line("LEFT_LEAD", 30.0, 40.0),
+        _free_horizontal_line("RIGHT_LEAD", 50.0, 80.0),
+    ]
+
+    pairs, records = extract_accessory_backplate_two_port_pairs([_page()], texts, lines, [block])
+
+    assert pairs == []
+    assert records == []
 
 
 def test_extracts_only_externally_labelled_contact_ports() -> None:

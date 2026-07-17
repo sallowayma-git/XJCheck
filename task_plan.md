@@ -16,6 +16,35 @@ Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapp
 
 ## Phases
 
+### Phase 177: PAC Signal-output Logical Endpoint Recovery
+- [x] Recover Phase176 baseline, planning state, and clean-worktree boundary
+- [x] Run parallel geometry/candidate/template audits for PAC sheets 20–22
+- [x] Add strict schematic logical-endpoint candidates for device endpoints such as `1XDxx`
+- [x] Recover human-confirmed independent two-port mappings for PAC S0014 fuse-like components (`instance-1/2 -> outward endpoint`)
+- [x] Preserve genuine textless/open bus endpoints without relabeling them as complete pairs
+- [x] Add positive and adversarial extraction tests, then fresh-replay PAC and inspect sheets 20–22
+- [x] Integrate strict schematic-inline / KK / backplate cross-diagram corroboration without hiding pre-existing structured reviews
+- [x] Run the full repository and 533-DWG fresh extraction regression
+- [x] Re-audit all 28 fresh projects with the finalized rules, sync docs, and clean temporary artifacts
+- [x] Prepare and verify the accepted Phase177 batch for commit and push
+- **Status:** complete
+
+#### Errors encountered
+- The first replay-comparison probe used the Phase176 flat findings path shape for the new CLI output and failed only when opening the new `pairs.parquet`; the audit comparison had already completed. Inspect the actual Phase177 output tree and rerun with its nested findings path instead of repeating the wrong path.
+- The S0014 replay inspection successfully verified all eight new component pairs, then failed only while opening a nonexistent standalone `table_mappings.parquet`; this project stores the mapping evidence through pairs/page records. Continue from the verified pair evidence and inspect audit issue rows directly.
+- The first expanded rule gate ran `190 passed / 1 failed` because new tests were inserted before the final assertions of the pre-existing cross-page test, leaving `conflict` out of scope in the negative test. Move the original assertions back to their source test, then rerun; engine code did not fail.
+- The packaged `rg.exe` was denied by Windows while locating Phase177 rule paths. Native PowerShell `Select-String` and exact `Get-Content` slices were used instead; no repository file was changed by the failed search.
+- The first final 533 verification script guessed nonexistent `files/pages` and per-row `analysis_status` fields, producing a false 0-page/533-incomplete report. Reading the real manifest/completeness schema and rerunning proved 533 pages and 0 incomplete projects.
+- A release-hygiene probe invoked bare `pytest` and exposed that `tests.support` was unavailable when the repository root was absent from pytest's configured path. Added `.` beside `src` in `pyproject.toml`; bare and module entrypoints now both pass.
+- Native PowerShell recursive cleanup was rejected before execution despite exact resolved-parent checks. A single Python process repeated the same exact-name and parent-containment checks and removed only the six superseded Phase177 directories.
+
+### Phase 178: Final-533 Residual Evidence Loop
+- [ ] Re-cluster the final 178 issues by page family, structured source, and evidence strength
+- [ ] Run parallel read-only audits for the highest-volume residual clusters, starting with PAC S0021/S0022 and corpus-wide missing-side/many-to-one families
+- [ ] Implement only geometry/semantic fixes with positive and adversarial tests; retain genuine open ends and endpoint changes
+- [ ] Fresh-replay every affected project, then rerun the complete 533-DWG acceptance gate
+- **Status:** in progress
+
 ### Phase 176: B3 Terminal Header Fan-out And A2 Backplate Generalization
 - [x] Recover active goal, planning state, dirty-worktree boundaries, and phase175 fresh corpus baseline
 - [x] Run six parallel read-only audits for B3, right-terminal fan-out, A2, rule safety, 35000 residuals, and replay commands

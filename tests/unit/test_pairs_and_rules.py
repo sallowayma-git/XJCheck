@@ -121,6 +121,251 @@ def test_rules_detect_cross_page_conflict() -> None:
     assert conflict.evidence_refs[0]["filename"] == "a.dwg"
 
 
+def test_rules_accept_schematic_backplate_inline_component_correspondence() -> None:
+    def component_pair(
+        pair_id: str,
+        sheet_id: str,
+        file_id: str,
+        logical_endpoint: str,
+        endpoint: str,
+        *,
+        mapping_mode: str,
+        recognition_mode: str,
+    ) -> Pair:
+        body, port = logical_endpoint.rsplit("-", 1)
+        return Pair(
+            pair_id,
+            None,
+            sheet_id,
+            file_id,
+            None,
+            logical_endpoint,
+            endpoint,
+            0.97,
+            "pass",
+            "component mapping",
+            [],
+            "high",
+            {
+                "source": "component_mapping",
+                "component_submode": "inline_two_port_component",
+                "mapping_mode": mapping_mode,
+                "recognition_mode": recognition_mode,
+                "component_body": body,
+                "component_body_text_id": f"BODY-{pair_id}",
+                "component_port": port,
+                "component_port_text_id": f"PORT-{pair_id}",
+                "component_block_handle": f"BLOCK-{pair_id}",
+                "external_endpoint": endpoint,
+                "external_endpoint_text_id": f"END-{pair_id}",
+                "logical_endpoint": logical_endpoint,
+                "internal_connectivity_inferred": False,
+                "electrical_union_eligible": False,
+                "ordinary_pair_eligible": False,
+            },
+            pair_kind="component_mapping",
+        )
+
+    pairs = [
+        component_pair("P1", "S1", "F1", "1F1-1", "1VD1", mapping_mode="schematic_inline_two_port", recognition_mode="geometry_insert_backed_inline_two_port"),
+        component_pair("P2", "S2", "F2", "1F1-1", "1VD1", mapping_mode="accessory_backplate_inline_two_port", recognition_mode="geometry_owned_inline_two_port"),
+        component_pair("P3", "S1", "F1", "1F1-2", "1701", mapping_mode="schematic_inline_two_port", recognition_mode="geometry_insert_backed_inline_two_port"),
+        component_pair("P4", "S2", "F2", "1F1-2", "1n1701", mapping_mode="accessory_backplate_inline_two_port", recognition_mode="geometry_owned_inline_two_port"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "14 交流电压回路2.dwg", 14, "14", "VT INPUT 2", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "25 空开按钮接线图.dwg", 25, "25", "ACCESSORIES WIRING", "背板接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(
+        issue.rule_id in {"R-CROSS-PAGE-CONFLICT", "R-DUPLICATE-PAIR"}
+        for issue in issues
+    )
+
+
+def test_rules_keep_real_inline_component_cross_page_endpoint_change_visible() -> None:
+    def pair(pair_id: str, sheet_id: str, endpoint: str, mode: str) -> Pair:
+        return Pair(
+            pair_id, None, sheet_id, sheet_id, None, "1F1-2", endpoint, 0.97, "pass", "component mapping", [], "high",
+            {
+                "source": "component_mapping",
+                "component_submode": "inline_two_port_component",
+                "mapping_mode": mode,
+                "recognition_mode": "geometry_insert_backed_inline_two_port" if mode == "schematic_inline_two_port" else "geometry_owned_inline_two_port",
+                "component_body": "1F1",
+                "component_body_text_id": f"BODY-{pair_id}",
+                "component_port": "2",
+                "component_port_text_id": f"PORT-{pair_id}",
+                "component_block_handle": f"BLOCK-{pair_id}",
+                "external_endpoint": endpoint,
+                "external_endpoint_text_id": f"END-{pair_id}",
+                "logical_endpoint": "1F1-2",
+                "internal_connectivity_inferred": False,
+                "electrical_union_eligible": False,
+                "ordinary_pair_eligible": False,
+            },
+            pair_kind="component_mapping",
+        )
+
+    pairs = [
+        pair("P1", "S1", "1701", "schematic_inline_two_port"),
+        pair("P2", "S2", "1n1702", "accessory_backplate_inline_two_port"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "14 原理图.dwg", 14, "14", "VT", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "25 背板图.dwg", 25, "25", "BACKPLATE", "背板接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-CROSS-PAGE-CONFLICT" for issue in issues)
+
+
+def _phase177_schematic_inline_pair(
+    pair_id: str,
+    sheet_id: str,
+    logical_endpoint: str,
+    endpoint: str,
+) -> Pair:
+    body, port = logical_endpoint.rsplit("-", 1)
+    return Pair(
+        pair_id, None, sheet_id, sheet_id, None, logical_endpoint, endpoint,
+        0.97, "pass", "schematic inline component", [], "high",
+        {
+            "source": "component_mapping",
+            "component_submode": "inline_two_port_component",
+            "mapping_mode": "schematic_inline_two_port",
+            "recognition_mode": "geometry_insert_backed_inline_two_port",
+            "component_body": body,
+            "component_body_text_id": f"BODY-{pair_id}",
+            "component_port": port,
+            "component_port_text_id": f"PORT-{pair_id}",
+            "component_block_handle": f"BLOCK-{pair_id}",
+            "external_endpoint": endpoint,
+            "external_endpoint_text_id": f"END-{pair_id}",
+            "logical_endpoint": logical_endpoint,
+            "internal_connectivity_inferred": False,
+            "electrical_union_eligible": False,
+            "ordinary_pair_eligible": False,
+        },
+        pair_kind="component_mapping",
+    )
+
+
+def _phase177_kk_component_pair(
+    pair_id: str,
+    sheet_id: str,
+    logical_endpoint: str,
+    endpoint: str,
+) -> Pair:
+    body, port = logical_endpoint.rsplit("-", 1)
+    return Pair(
+        pair_id, f"G-{pair_id}", sheet_id, sheet_id, None,
+        logical_endpoint, endpoint, 0.95, "pass", "KK component", [], "high",
+        {
+            "source": "component_mapping",
+            "component_submode": "kk_multi_port_component",
+            "component_body": body,
+            "component_body_text_id": f"BODY-{pair_id}",
+            "component_port": port,
+            "component_port_text_id": f"PORT-{pair_id}",
+            "component_block_id": f"B-{pair_id}",
+            "component_block_name": "KK3P+OF11-12",
+            "external_endpoint": endpoint,
+            "external_endpoint_text_id": f"END-{pair_id}",
+            "logical_endpoint": logical_endpoint,
+            "line_group_id": f"G-{pair_id}",
+            "supporting_line_ids": [f"L-{pair_id}"],
+        },
+        pair_kind="component_mapping",
+    )
+
+
+def _phase177_backplate_table_pair(
+    pair_id: str,
+    sheet_id: str,
+    logical_endpoint: str,
+    endpoint: str,
+) -> Pair:
+    header, raw_row = logical_endpoint.split("-", 1)
+    row = int(raw_row.split("@", 1)[0])
+    return Pair(
+        pair_id, None, sheet_id, sheet_id, None, logical_endpoint, endpoint,
+        0.95, "pass", "backplate virtual table", [], "high",
+        {
+            "source": "table_mapping",
+            "table_mapping": {
+                "mapping_mode": "backplate_virtual_table",
+                "sheet_id": sheet_id,
+                "source_block_name": "WMH-800-D1C-01-2",
+                "header_prefix": header,
+                "header_text_id": f"HEADER-{pair_id}",
+                "row_number": row,
+                "middle_text_id": f"MIDDLE-{pair_id}",
+                "logical_endpoint": logical_endpoint,
+                "right_value": endpoint,
+                "right_text_id": f"RIGHT-{pair_id}",
+                "row_number_sequence_valid": True,
+                "column_roles": {
+                    "left": "virtual_row_number",
+                    "middle": "virtual_row_number",
+                    "right": "external_terminal_endpoint",
+                },
+            },
+        },
+        pair_kind="table_mapping",
+    )
+
+
+def test_rules_accept_exact_schematic_kk_component_cross_diagram_duplicate() -> None:
+    pairs = [
+        _phase177_schematic_inline_pair("PS", "S1", "1ZKK1-1", "UD1"),
+        _phase177_kk_component_pair("PK", "S2", "1ZKK1-1", "UD1"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "09 交流电压回路.dwg", 9, "09", "VT", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "19 元件接线图.dwg", 19, "19", "ACCESSORIES", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+
+def test_rules_accept_schematic_inline_backplate_table_endpoint_join() -> None:
+    pairs = [
+        _phase177_schematic_inline_pair("PS", "S1", "1ZKK1-2", "1UD1"),
+        _phase177_backplate_table_pair("PT", "S2", "NJL307-1@c0", "1UD1"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "09 交流电压回路.dwg", 9, "09", "VT", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "16 背板图.dwg", 16, "16", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_mismatched_kk_identity_in_structured_endpoint_join_visible() -> None:
+    pairs = [
+        _phase177_schematic_inline_pair("PS", "S1", "1ZKK1-2", "1UD1"),
+        _phase177_kk_component_pair("PK", "S2", "1ZKK2-2", "1UD1"),
+        _phase177_backplate_table_pair("PT", "S3", "NJL307-1@c0", "1UD1"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "09 原理图.dwg", 9, "09", "VT", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "19 元件图.dwg", 19, "19", "ACCESSORIES", "元件接线图", "supplemental", "filename", True),
+        SheetRecord("S3", "S3", "16 背板图.dwg", 16, "16", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
 def test_rules_do_not_merge_same_xjdz_definition_pin_across_distinct_instances() -> None:
     common = {
         "filename": "25 元件接线图2.dwg",

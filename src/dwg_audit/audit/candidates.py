@@ -21,13 +21,17 @@ _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT = "schematic_semantic_endpoint_channel"
 _CHANNEL_CONTINUATION = "continuation_channel"
 _CHANNEL_SEMANTIC = "semantic_channel"
 _CHANNEL_NOISE = "noise_channel"
+_SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN = re.compile(r"^\d+XD\d+$", re.IGNORECASE)
 _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
     r"^(?:"
-    r"[13]-21[A-Z]{2,4}\d{1,3}"
+    r"\d+XD\d+"
+    r"|[13]-21[A-Z]{2,4}\d{1,3}"
     r"|\d+-\d+(?:[A-Z]\d+[A-Z]\d+|[A-Z]{2,4}\d+)(?:~\d+(?:[A-Z]\d+)?)?"
     r")$",
     re.IGNORECASE,
 )
+_SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_X = 4.0
+_SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_Y = 4.0
 _SCHEMATIC_WIRE_LOGIC_SEARCH_RADIUS_X = 28.0
 _SCHEMATIC_DEVICE_ENDPOINT_SEARCH_RADIUS_X = 35.0
 _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS = (
@@ -174,6 +178,15 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "not_numeric"
                     score = 0.0
+                elif (
+                    channel == _CHANNEL_WIRE_LOGIC_ENDPOINT
+                    and _compact_device_endpoint_out_of_row(value, dx, dy)
+                ):
+                    status = "rejected"
+                    reason = "schematic_logic_endpoint_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
                 elif not within_height:
                     status = "rejected"
                     reason = "height_out_of_range"
@@ -534,6 +547,8 @@ def _add_schematic_wire_logic_near_endpoint_candidates(
         dx = text.insert_x - endpoint[0]
         dy = text.insert_y - endpoint[1]
         if abs(dx) > radius_x or abs(dy) > radius_y:
+            continue
+        if _compact_device_endpoint_out_of_row(value, dx, dy):
             continue
         score = _candidate_score(
             dx,
@@ -1100,6 +1115,15 @@ def _candidate_wire_logic_endpoint_value(
     if not _WIRE_LOGIC_ENDPOINT_PATTERN.fullmatch(normalized):
         return None
     return normalized
+
+
+def _compact_device_endpoint_out_of_row(value: str, dx: float, dy: float) -> bool:
+    if not _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN.fullmatch(value.strip()):
+        return False
+    return (
+        abs(dx) > _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_X
+        or abs(dy) > _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_Y
+    )
 
 
 def _candidate_schematic_semantic_endpoint_value(
