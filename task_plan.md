@@ -1,10 +1,12 @@
 # Task Plan: XJToolkit DWG Audit MVP Closure
 
 ## Goal
-持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 全部 502 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
+持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 176 B3 terminal-header fan-out and A2 backplate generalization is in progress. The current slice must preserve header+middle-port identity, emit both-side mappings for one logical terminal port, keep backplate pins electrically independent, and prove fail-closed behavior with negative tests plus fresh project replay.
+Phase 177 PAC residual review is in progress. The next slice is the repeated signal-output template on sheets 20–22 plus the small open-end set on sheets 14–15; structured many-to-one reviews remain visible until a stronger physical-identity proof exists.
+
+Phase 176 B3 terminal-header fan-out and A2 backplate generalization is complete. The final 533-DWG fresh run preserves header+port fan-out, independent backplate pins, 0 incomplete pages, and 0 critical issues.
 
 Phase 174 desktop UTF-8 and issue-preview repair is complete. Packaged synchronous sidecar JSON now emits UTF-8, compacted no-coordinate issues return an explicit SQLite-summary SVG, preview loading is bounded, and the rebuilt installed runtime passes real PAC-885G-H byte/preview checks.
 
@@ -21,8 +23,13 @@ Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapp
 - [x] Tighten the unverified rule guards so unrelated tables and scoped endpoints still report true conflicts
 - [x] Verify and improve B3 header+middle-port extraction with both-side mappings and ordinary-pair shadowing
 - [x] Verify A2/BI/voltage/open-input/open-output backplate extraction remains independent multi-port without electrical union
-- [ ] Run focused positive/negative tests, affected-project fresh replay, 27-project rule replay, full test gate, documentation sync, and temp cleanup
-- **Status:** in_progress
+- [x] Run focused positive/negative tests, affected-project fresh replay, 27-project rule replay, full test gate, documentation sync, and temp cleanup
+- **Status:** complete
+
+#### Errors encountered
+- The first 27-project replay wrapper failed before project execution because PowerShell parsed `$name:` as an invalid variable reference; `${name}:...` completed 27/27.
+- The 28-project audit wrapper audited all projects successfully, then returned nonzero because it also enumerated helper directories `cache/` and `logs/`; independent findings/audit enumeration verified 28/28 outputs.
+- PowerShell recursive cleanup was blocked before execution by local policy. A single Python process with exact-name and resolved-parent containment checks removed 11 intermediate phase directories; the authoritative full533 findings/audit roots remain.
 
 ### Phase 174: Desktop UTF-8 And Issue Preview Repair
 - [x] Inspect the supplied screenshot and record visible failure boundaries

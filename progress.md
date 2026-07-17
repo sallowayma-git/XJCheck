@@ -5562,3 +5562,13 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Final fresh 24000 replay4: S0021/S0022/S0023 each have 0 audit issues and 0 ordinary review; `1UD` has 16 confirmed mappings and no row-5 mapping; sparse and shared neighbor mappings remain intact.
 - Final fresh 35000_2 replay2: `5 R-PAIR-MISSING-SIDE`, `0 R-MANY-TO-ONE`; all five retained issues are the previously inspected S0010 open/split lines.
 - 30000 rules replay: 0 issues. Next: full pytest, 27-project rules replay, 502-DWG current-HEAD fresh rebuild, documentation finalization, and temp cleanup.
+- Full repository gate passed: `1011 passed, 1 skipped`.
+- The first 27-project replay script failed before work because PowerShell parsed `$name:` as an invalid variable reference; corrected to `${name}:...`. The corrected replay completed 27/27 and produced 138 issues, 0 critical.
+- Fresh corpus discovery found 28 projects / 533 DWG after including PAC-885G-H. Full current-HEAD extraction completed in 865.8s: 28/28 projects, 533/533 pages, all `analysis_status=COMPLETE`, incomplete=0.
+- The first audit wrapper returned nonzero only after successfully auditing all 28 projects because it also enumerated root helper directories `cache/` and `logs/` as projects. Independent manifest/findings/audit enumeration confirms 28/28 audits exist; no project audit failed.
+- Fresh 533 audit: 202 issues (201 review, 1 minor), 0 critical. Non-PAC total is 127 versus the previous 502 baseline of 170. PAC contributes 75 reviews and is the next residual loop.
+- Full-corpus contract checks: 24000 B3 S0021/S0022/S0023 ordinary review=0; 15000 A2 S0014/S0015 each have 158 pass table mappings and the whole project has 0 issues; 35000_2 retains exactly five missing-side reviews.
+- Five clean-context residual probes audited PAC missing-side, S0025–S0027, many-to-one, low/cross, and 24000 residuals; all were closed after one read-only round.
+- PAC S0025/S0026/S0027 now recover 164 component mappings with full scoped coverage and zero issues. PAC's next real engine target is the repeated wire template on sheets 20–22; sheets 14–15 retain a small open-end set that may need human arbitration after geometry replay.
+- Cleaned 11 obsolete phase175/phase176 replay/rules directories using exact resolved-parent containment; retained only `.tmp/phase176_full_533_fresh` and `.tmp/phase176_full_533_audit` as authoritative evidence.
+- Final post-cleanup verification remains `1011 passed, 1 skipped`; compileall and `git diff --check` pass.
