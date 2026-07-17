@@ -1403,6 +1403,7 @@
 - Canonical promotion does not consume symbol candidates: `extract_kk_multi_port_component_pairs()` independently reconstructs KK2P/KK3P mappings from `BlockRecord + TextItem + LineGroup`. Therefore fixing only shadow label binding would improve diagnostics but not remove audit errors. This extractor already has digit-first body support and a 36-unit upper-body window, so the next exact read is its block-port/body/endpoint geometry helpers to find why all eight real blocks produce zero canonical pairs.
 - Canonical root cause is now concrete: `_kk_multi_port_count()` performs an exact lookup against `KK2P/KK3P`, so real names `KK2P+OF11-12` never enter the extractor at all. Once the optional suffix is normalized, numeric bodies `1DK..6DK` fit the existing body window; `CJDK1/CJDK2` additionally require a guarded letter-first body grammar. Geometry/port/endpoint helpers already enforce main pins `1..4`, per-instance nearest-block ownership, same slot, valid external endpoint, and a supporting horizontal line, so the fix can remain narrow without fingerprint memory or auxiliary-port promotion.
 - First KK canonical fix replay succeeds partially and safely: page 14 now emits all 32 expected KK mappings (`1DK..6DK/CJDK1/CJDK2 × pins 1..4`) plus the four existing AK/A' mappings; project issues fall `33 -> 24`, page 14 `18 -> 9`. The remaining eight low-confidence rows are exactly internal auxiliary artwork `2 -> 12` (one per KK block) and must be discarded without emitting OF mappings. One separate `missing -> 3` long line remains and requires source-line inspection before classification.
+- Concurrent-agent review found multiple unsafe blanket shadows in commits `d0a935c..04f2744`: every ordinary pair on a broadly named signal/alarm page is excluded; any long component line with one bare digit is excluded; and CD/GD/ZK-derived ordinary rows are broadly excluded despite those being valid external endpoint families. These rules optimize issue counts without proving local geometry/structured coverage and can hide real errors. HMC panel IGNORE is now explicitly human-confirmed and may remain, provided its implementation stays limited to HMC title/HD+BCD panel evidence and does not suppress real KLP/GD/n### external mappings.
 
 
 ## 2026-07-17 Windows offline packaging
@@ -1547,4 +1548,10 @@
 - Key project deltas vs prior fresh: **20000 41→5**, **29000 2→1**, **8000 26→26**
 - Top residual projects: 24000(42), 35000(29), WBH(28), 31000(27), 22000(26), 25000(26), 8000(26)
 - Top pages: terminal strips (24000 left 21/22), PMU backplates (22000/35000 sheet13), 8000 signal page05
+
+### Residual r3 after endpoint coverage + signal cue broaden
+- 8000: **26 → 14** (page05 信号回路图 cleared by filename/title + 失电/失步/异常告警 cues)
+- 20000: **5 → 4** (page27 n113 ordinary stub covered by component_mapping endpoint)
+- 29000: **1** unchanged (terminal many-to-one on sheet16, likely real/review)
+- Remaining 8000 mass: page04 直流回路 missing-side, component pages 14/15, terminal low-conf page16
 

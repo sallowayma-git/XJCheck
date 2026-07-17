@@ -20,6 +20,8 @@ def _pair(
     pair_kind: str = "ordinary_pair",
     left_text_id: str | None = None,
     right_text_id: str | None = None,
+    left_value: str = "21",
+    right_value: str = "211",
 ) -> Pair:
     return Pair(
         pair_id=pair_id,
@@ -27,11 +29,11 @@ def _pair(
         sheet_id="S1",
         file_id="F1",
         selected_pair_candidate_id="PC1",
-        left_value="21",
-        right_value="211",
+        left_value=left_value,
+        right_value=right_value,
         confidence=0.81,
         status="review",
-        rationale="left=21 right=211 score=0.81",
+        rationale=f"left={left_value} right={right_value} score=0.81",
         alternative_pair_candidate_ids=[],
         confidence_bucket="review",
         evidence=evidence,
@@ -186,6 +188,43 @@ def test_mark_terminal_prefixed_endpoint_ordinary_pairs_discards_bare_suffix_pai
                     "mapping_mode": "terminal_header_table",
                     "middle_text_id": "T1",
                     "right_text_id": "T2",
+                }
+            ],
+        }
+    ]
+
+    _mark_terminal_prefixed_endpoint_ordinary_pairs([pair], table_mappings)
+
+    assert pair.status == "discard"
+    assert pair.confidence_bucket == "low"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["covered_by_terminal_structured_endpoint"] is True
+
+
+def test_mark_terminal_prefixed_endpoint_ordinary_pairs_shadows_bare_middle_row_restatement() -> None:
+    """Ordinary 10→519 restates terminal_header_table middle-row geometry."""
+    pair = _pair(
+        {
+            "selected_left_text_id": "T4000",
+            "selected_right_text_id": "T4001",
+            "selected_left_raw_text": "10",
+            "selected_right_raw_text": "1n519",
+            "selected_left_is_derived_numeric": False,
+            "selected_right_is_derived_numeric": True,
+        },
+        left_value="10",
+        right_value="519",
+    )
+    table_mappings = [
+        {
+            "sheet_id": "S1",
+            "mappings": [
+                {
+                    "mapping_mode": "terminal_header_table",
+                    "logical_endpoint": "1C5D-10",
+                    "middle_text_id": "T4000",
+                    "right_text_id": "T4001",
+                    "right_value": "1n519",
                 }
             ],
         }

@@ -293,15 +293,64 @@ def test_extract_terminal_header_table_pairs_builds_supplemental_mappings() -> N
     assert len(mappings) == 1
     assert mappings[0]["three_column"] is True
     assert mappings[0]["mappings"][0]["mapping_mode"] == "terminal_header_table"
-    assert mappings[0]["mappings"][0]["logical_endpoint"] == "1-21QD1"
+    assert mappings[0]["mappings"][0]["logical_endpoint"] == "1-21QD-1"
     assert mappings[0]["mappings"][0]["left_value"] == "1-21n116"
     assert {(pair.left_value, pair.right_value) for pair in pairs} == {
-        ("1-21QD1", "1-21n116"),
-        ("1-21QD2", "1-21n117"),
+        ("1-21QD-1", "1-21n116"),
+        ("1-21QD-2", "1-21n117"),
     }
     assert all(pair.status == "pass" for pair in pairs)
     assert all(pair.evidence["source"] == "table_mapping" for pair in pairs)
     assert pairs[0].evidence["table_mapping"]["mapping_mode"] == "terminal_header_table"
+
+
+def test_extract_terminal_header_table_pairs_composes_header_hyphen_row() -> None:
+    """Left-terminal three-column strip: header 1C5D + middle 10 + side 1n519 → 1C5D-10."""
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 220.0))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "21 左侧端子图1.dwg"
+    texts = [
+        _make_text("H", 252.0, 193.5, "1C5D"),
+        _make_text("SH", 290.0, 193.75, "说明"),
+        _make_text("R1", 254.25, 186.0, "1", is_numeric_candidate=True),
+        _make_text("E1", 261.0, 186.0, "1n917"),
+        _make_text("R2", 254.25, 181.0, "2", is_numeric_candidate=True),
+        _make_text("E2", 261.0, 181.0, "1n918"),
+        # stacked lower strip must not steal upper rows / break sequence
+        _make_text("H2", 252.0, 113.5, "1C6D"),
+        _make_text("SH2", 290.0, 113.75, "说明"),
+        _make_text("R10", 253.5, 141.0, "10", is_numeric_candidate=True),
+        _make_text("E10", 261.0, 141.0, "1n519"),
+        _make_text("R11", 253.5, 136.0, "11", is_numeric_candidate=True),
+        _make_text("E11", 261.0, 136.0, "1n516"),
+        _make_text("R12", 253.5, 131.0, "12", is_numeric_candidate=True),
+        _make_text("E12", 261.0, 131.0, "1n517"),
+        _make_text("R13", 253.5, 126.0, "13", is_numeric_candidate=True),
+        _make_text("E13", 261.0, 126.0, "1n518"),
+        # fill remaining middle rows 3-9 so sequence is complete 1..13
+        *[_make_text(f"R{n}", 254.25, 186.0 - 5.0 * (n - 1), str(n), is_numeric_candidate=True) for n in range(3, 10)],
+        # lower strip rows
+        _make_text("L1", 254.25, 106.0, "1", is_numeric_candidate=True),
+        _make_text("LE1", 261.0, 106.0, "1n921"),
+        _make_text("L2", 254.25, 101.0, "2", is_numeric_candidate=True),
+        _make_text("LE2", 261.0, 101.0, "1n922"),
+    ]
+
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert ("1C5D-10", "1n519") in pair_values
+    assert ("1C5D-1", "1n917") in pair_values
+    assert ("1C6D-1", "1n921") in pair_values
+    assert all(pair.left_value and "-" in pair.left_value for pair in pairs if pair.left_value.startswith("1C5D"))
+    mapping_modes = {
+        row["mapping_mode"]
+        for table in mappings
+        for row in table["mappings"]
+    }
+    assert mapping_modes == {"terminal_header_table"}
+    # upper strip must not absorb lower-strip row numbers into 1C5D-14+
+    assert not any(pair.left_value == "1C5D-14" for pair in pairs)
 
 
 def test_extract_terminal_header_table_pairs_excludes_semantic_endpoint_labels() -> None:
@@ -321,8 +370,8 @@ def test_extract_terminal_header_table_pairs_excludes_semantic_endpoint_labels()
     pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
 
     assert {(pair.left_value, pair.right_value) for pair in pairs} == {
-        ("3-21ID1", "3-21n701"),
-        ("3-21ID2", "3-21n702"),
+        ("3-21ID-1", "3-21n701"),
+        ("3-21ID-2", "3-21n702"),
     }
     assert all(pair.right_value not in {"I0", "3U0"} for pair in pairs)
     mapping_endpoints = {
@@ -539,3 +588,211 @@ def test_extract_table_pairs_skips_sparse_backplate_header_group() -> None:
 
     assert pairs == []
     assert mappings == []
+
+
+def test_extract_table_pairs_builds_composite_pmu_instance_pin_mappings() -> None:
+    """Composite PMU backplate: instance 1-25n + plugin bay + pin → external designator."""
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 400.0, 280.0))
+    sheet.filename = "13 PMU采集器背板接线图1.dwg"
+    sheet.sheet_title = "REAR WIRING 1-25n"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+    block = "SPMU-857G-CG"
+
+    texts = [
+        _make_text("INST", x=200.0, y=250.0, value="1-25n"),
+        # Plugin bay 2 开入插件
+        _make_text("P2", x=130.0, y=230.0, value="2", source_block_name=block),
+        _make_text("T2", x=142.0, y=230.0, value="开入插件", source_block_name=block),
+        # Dual pin columns under bay 2
+        _make_text("R01", x=120.0, y=220.0, value="01", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R02", x=150.0, y=220.0, value="02", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R03", x=120.0, y=215.0, value="03", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R04", x=150.0, y=215.0, value="04", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R05", x=120.0, y=210.0, value="05", is_numeric_candidate=True, source_block_name=block),
+        # External designators beside pins
+        _make_text("E1", x=105.0, y=220.0, value="1-25KLP1-2"),
+        _make_text("E2", x=165.0, y=220.0, value="1-25QD1"),
+        _make_text("E3", x=105.0, y=215.0, value="1-25QD2"),
+        _make_text("E4", x=165.0, y=215.0, value="1-25QD3"),
+        _make_text("E5", x=105.0, y=210.0, value="1-25QD4"),
+        # Template signal headers (must not flood Ia1-13 style conflicts)
+        _make_text("HIA", x=125.0, y=200.0, value="Ia1", source_block_name=block),
+        _make_text("RIA", x=120.0, y=190.0, value="13", is_numeric_candidate=True, source_block_name=block),
+        _make_text("EIA", x=100.0, y=190.0, value="1-25ZKK7-2"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert mappings
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert ("1-25n201", "1-25KLP1-2") in pair_values
+    assert ("1-25n202", "1-25QD1") in pair_values
+    assert ("1-25n203", "1-25QD2") in pair_values
+    assert ("1-25n204", "1-25QD3") in pair_values
+    assert ("1-25n205", "1-25QD4") in pair_values
+    # Template Ia1-13 must not appear as bare cross-page collision key.
+    assert not any(left == "Ia1-13" for left, _ in pair_values)
+    first = next(pair for pair in pairs if pair.left_value == "1-25n201")
+    assert first.evidence["table_mapping"]["composite_device_instance"] == "1-25n"
+    assert first.evidence["table_mapping"]["plugin_slot"] == 2
+
+
+def test_extract_table_pairs_scopes_classic_backplate_headers_with_device_instance() -> None:
+    """Classic NDY header still works; when instance present logical keys stay device-scoped."""
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 300.0, 260.0))
+    sheet.filename = "18 高后备保护背板图.dwg"
+    sheet.sheet_title = "REAR WIRING 1-2n"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+
+    texts = [
+        _make_text("INST", x=50.0, y=250.0, value="1-2n"),
+        _make_text("H1", x=120.0, y=230.0, value="NDY306A", source_block_name="WBH-813E-E1SH-201"),
+        _make_text("R1", x=116.0, y=220.0, value="01", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-201"),
+        _make_text("R2", x=116.0, y=215.0, value="02", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-201"),
+        _make_text("R3", x=116.0, y=210.0, value="03", is_numeric_candidate=True, source_block_name="WBH-813E-E1SH-201"),
+        _make_text("E1", x=111.0, y=220.2, value="& 1-2QD1"),
+        _make_text("E2", x=111.0, y=215.2, value="CD2"),
+        _make_text("E3", x=111.0, y=210.2, value="YD3"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert len(mappings) == 1
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    # No plugin bay number → instance-scoped header-row keys, not bare NDY306A-1 collisions.
+    assert pair_values == {
+        ("1-2n/NDY306A-1", "1-2QD1"),
+        ("1-2n/NDY306A-2", "CD2"),
+        ("1-2n/NDY306A-3", "YD3"),
+    }
+    assert pairs[0].evidence["table_mapping"]["composite_device_instance"] == "1-2n"
+
+
+def test_extract_table_pairs_power_dual_column_and_bi_instance_scope() -> None:
+    """测控 Power dual-column pins map left/right without stealing BI bay endpoints."""
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 420.0, 280.0))
+    sheet.filename = "14 测控1装置背板.dwg"
+    sheet.sheet_title = "1-21n REAR WIRING"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+    block = "FCK-851C-G-4"
+
+    texts = [
+        _make_text("INST", x=200.0, y=265.0, value="1-21n"),
+        # Bay titles: 1 Power | 2 BI1
+        _make_text("N1", x=56.0, y=243.0, value="1", source_block_name=block),
+        _make_text("T1", x=69.0, y=243.0, value="Power", source_block_name=block),
+        _make_text("N2", x=131.0, y=243.0, value="2", source_block_name=block),
+        _make_text("T2", x=145.0, y=243.0, value="BI1", source_block_name=block),
+        # Power dual pin columns (left x=56, right x=81)
+        _make_text("P01", x=56.0, y=233.0, value="03", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P02", x=81.0, y=233.0, value="04", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P03", x=56.0, y=223.0, value="07", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P04", x=81.0, y=223.0, value="08", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P05", x=56.0, y=213.0, value="11", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P06", x=81.0, y=213.0, value="12", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P07", x=56.0, y=203.0, value="15", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P08", x=81.0, y=203.0, value="16", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P09", x=56.0, y=163.0, value="31", is_numeric_candidate=True, source_block_name=block),
+        _make_text("P10", x=81.0, y=163.0, value="32", is_numeric_candidate=True, source_block_name=block),
+        # Power external designators (left / right of dual columns)
+        _make_text("E1", x=37.0, y=233.0, value="& 1-21DK1-4"),
+        _make_text("E2", x=86.0, y=223.0, value="1-21YD1"),
+        _make_text("E3", x=86.0, y=213.0, value="1-21KLP1-2"),
+        _make_text("E4", x=43.0, y=203.0, value="1-21QD1"),
+        _make_text("E5", x=86.0, y=163.0, value="1-21GD20"),
+        # BI1 dual pin columns + externals (must not be stolen by Power)
+        _make_text("B01", x=131.0, y=238.0, value="01", is_numeric_candidate=True, source_block_name=block),
+        _make_text("B02", x=156.0, y=238.0, value="02", is_numeric_candidate=True, source_block_name=block),
+        _make_text("B03", x=131.0, y=233.0, value="03", is_numeric_candidate=True, source_block_name=block),
+        _make_text("B04", x=156.0, y=233.0, value="04", is_numeric_candidate=True, source_block_name=block),
+        _make_text("B05", x=131.0, y=228.0, value="05", is_numeric_candidate=True, source_block_name=block),
+        _make_text("BE1", x=117.0, y=238.0, value="1-21QD18"),
+        _make_text("BE2", x=161.0, y=238.0, value="1-21QD19"),
+        _make_text("BE3", x=117.0, y=233.0, value="1-21QD20"),
+        _make_text("BE4", x=161.0, y=233.0, value="1-21QD21"),
+        _make_text("BE5", x=117.0, y=228.0, value="1-21QD22"),
+    ]
+
+    pairs, mappings = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert mappings
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+
+    # Power bay 1 dual-column → instance+bay+pin keys
+    assert ("1-21n103", "1-21DK1-4") in pair_values
+    assert ("1-21n108", "1-21YD1") in pair_values
+    assert ("1-21n112", "1-21KLP1-2") in pair_values
+    assert ("1-21n115", "1-21QD1") in pair_values
+    assert ("1-21n132", "1-21GD20") in pair_values
+
+    # BI template rows stay device-scoped; never bare BI1-1 across 1-21n/2-21n pages.
+    assert any(left.startswith("1-21n/BI1-") for left, _ in pair_values)
+    assert any(right == "1-21QD18" and left.startswith("1-21n") for left, right in pair_values)
+    assert not any(left == "BI1-1" for left, _ in pair_values)
+
+    # Power must not steal BI bay endpoints.
+    power_rights = {right for left, right in pair_values if left.startswith("1-21n1")}
+    assert "1-21QD18" not in power_rights
+    assert "1-21QD19" not in power_rights
+
+    power_pair = next(pair for pair in pairs if pair.left_value == "1-21n108")
+    assert power_pair.evidence["table_mapping"]["composite_device_instance"] == "1-21n"
+    assert power_pair.evidence["table_mapping"]["plugin_slot"] == 1
+    assert power_pair.evidence["table_mapping"]["plugin_title"] == "Power"
+
+
+def test_extract_table_pairs_bi_scope_differs_across_device_instances() -> None:
+    """Same template BI1 rows on 1-21n vs 2-21n must produce distinct logical keys."""
+    block = "FCK-851C-G-1"
+
+    def _sheet_bundle(instance: str, sheet_id: str, qd_prefix: str):
+        sheet = _make_sheet(sheet_id=sheet_id, audit_area_bbox=(0.0, 0.0, 300.0, 280.0))
+        sheet.filename = f"{sheet_id} 测控装置背板.dwg"
+        sheet.sheet_title = f"{instance} REAR WIRING"
+        sheet.sheet_category = "背板接线图"
+        sheet.audit_role = "secondary"
+        texts = [
+            _make_text(f"{sheet_id}I", x=150.0, y=260.0, value=instance),
+            _make_text(f"{sheet_id}H", x=145.0, y=243.0, value="BI1", source_block_name=block),
+            _make_text(
+                f"{sheet_id}R1",
+                x=131.0,
+                y=238.0,
+                value="01",
+                is_numeric_candidate=True,
+                source_block_name=block,
+            ),
+            _make_text(
+                f"{sheet_id}R2",
+                x=156.0,
+                y=238.0,
+                value="02",
+                is_numeric_candidate=True,
+                source_block_name=block,
+            ),
+            _make_text(
+                f"{sheet_id}R3",
+                x=131.0,
+                y=233.0,
+                value="03",
+                is_numeric_candidate=True,
+                source_block_name=block,
+            ),
+            _make_text(f"{sheet_id}E1", x=117.0, y=238.0, value=f"{qd_prefix}QD18"),
+            _make_text(f"{sheet_id}E2", x=161.0, y=238.0, value=f"{qd_prefix}QD19"),
+            _make_text(f"{sheet_id}E3", x=117.0, y=233.0, value=f"{qd_prefix}QD20"),
+        ]
+        for text in texts:
+            text.sheet_id = sheet_id
+        return sheet, texts
+
+    sheet_a, texts_a = _sheet_bundle("1-21n", "S14", "1-21")
+    sheet_b, texts_b = _sheet_bundle("2-21n", "S15", "2-21")
+    pairs, _ = extract_table_pairs(texts_a + texts_b, [], [], [sheet_a, sheet_b], DEFAULT_CONFIG)
+    lefts = {pair.left_value for pair in pairs}
+    assert any(left.startswith("1-21n/BI1-") for left in lefts)
+    assert any(left.startswith("2-21n/BI1-") for left in lefts)
+    assert "BI1-1" not in lefts

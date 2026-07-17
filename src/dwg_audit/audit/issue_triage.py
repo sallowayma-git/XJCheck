@@ -194,9 +194,16 @@ def _resolve_handling_class_from_fields(
         # Legitimate branch topology → softer bucket.
         return "warning"
     if triage in {"review"} or triage.endswith("_review") or "review" in triage:
-        # Structured review aggregates stay in 须人工校验 unless rule is a hard conflict.
-        if rule_id in {"R-CROSS-PAGE-CONFLICT", "R-TABLE-MAPPING-SOURCE-CONFLICT"}:
+        # Structured scope/template reviews are intentional demotions, not hard errors.
+        # Only bare "conflict" (handled above) or table-vs-ordinary source fights stay error.
+        # terminal_header_table dual/shared endpoint reviews must never flood as 确定性错误.
+        if "terminal_header_table" in triage:
+            return "review"
+        if rule_id == "R-TABLE-MAPPING-SOURCE-CONFLICT" and "scope" not in triage:
             return "error"
+        if rule_id == "R-CROSS-PAGE-CONFLICT" and triage in {"conflict"}:
+            return "error"
+        # backplate_table_scope_review / same_sheet_scope_review / terminal multi-endpoint → 须人工校验
         return "review"
 
     severity_norm = (severity or "").strip().lower()

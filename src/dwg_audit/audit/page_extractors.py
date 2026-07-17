@@ -1093,6 +1093,12 @@ def _mark_terminal_prefixed_endpoint_ordinary_pairs(
     pairs: list[Pair],
     table_mappings: list[dict[str, object]],
 ) -> None:
+    """Shadow ordinary pairs restating terminal_header_table middle/side geometry.
+
+    High-confidence table_mapping pairs own header+row composite keys. Bare
+    ordinary digit pairs (e.g. 10→519 from middle 10 + derived 1n519) must not
+    flood R-PAIR-LOW-CONFIDENCE once those texts are covered.
+    """
     covered_text_ids = _terminal_header_table_text_ids(table_mappings)
     if not covered_text_ids:
         return
@@ -1101,15 +1107,35 @@ def _mark_terminal_prefixed_endpoint_ordinary_pairs(
             continue
         if pair.status == "discard":
             continue
-        if not _uses_derived_prefixed_terminal_endpoint(pair):
-            continue
         if not _pair_uses_any_selected_text_id(pair, covered_text_ids):
             continue
+
+        uses_prefixed = _uses_derived_prefixed_terminal_endpoint(pair)
+        restates_middle_row = _is_terminal_header_middle_row_restatement(pair)
+        if not uses_prefixed and not restates_middle_row:
+            continue
+
         pair.status = "discard"
         pair.confidence_bucket = "low"
-        pair.rationale = "Covered by terminal structured endpoint; prefixed terminal text must not be reduced to a bare ordinary pair."
+        if uses_prefixed:
+            pair.rationale = (
+                "Covered by terminal structured endpoint; prefixed terminal text "
+                "must not be reduced to a bare ordinary pair."
+            )
+            pair.evidence["covered_by_terminal_structured_endpoint"] = True
+        else:
+            pair.rationale = (
+                "Covered by terminal_header_table mapping; bare middle-row ordinary "
+                "pair is shadowed by header+row composite keys."
+            )
+            pair.evidence["covered_by_terminal_header_table_row"] = True
         pair.evidence["ordinary_pair_eligible"] = False
-        pair.evidence["covered_by_terminal_structured_endpoint"] = True
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = (
+            "covered_by_terminal_structured_endpoint"
+            if uses_prefixed
+            else "covered_by_terminal_header_table_row"
+        )
 
 
 def _promote_regular_terminal_row_array_pairs(
@@ -1276,6 +1302,25 @@ def _uses_derived_prefixed_terminal_endpoint(pair: Pair) -> bool:
     ) or (
         right_derived
         and _looks_like_prefixed_terminal_endpoint(right_raw)
+    )
+
+
+def _is_terminal_header_middle_row_restatement(pair: Pair) -> bool:
+    """True when ordinary pair is bare-digit middle-row geometry (e.g. 10→519)."""
+    left = str(pair.left_value or "").strip()
+    right = str(pair.right_value or "").strip()
+    if not left or not right:
+        return False
+    if not left.isdigit():
+        return False
+    # Right may already be the derived bare suffix (519 from 1n519).
+    if right.isdigit():
+        return True
+    evidence = pair.evidence or {}
+    right_raw = str(evidence.get("selected_right_raw_text") or right)
+    left_raw = str(evidence.get("selected_left_raw_text") or left)
+    return left_raw.isdigit() and (
+        right_raw.isdigit() or _looks_like_prefixed_terminal_endpoint(right_raw)
     )
 
 

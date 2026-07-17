@@ -5291,6 +5291,9 @@
 - 2026-07-17 Phase168 29000 replay/audit completed with no count change (`33 -> 33`). Located the page-14 gap after two read-only schema-probe errors were corrected: KK2P geometry and selective port semantics are already correct, but instance designators and authoritative external bindings are absent. Page-09 residuals are a separate repeated communication/alarm block cluster.
 - 2026-07-17 page-14 raw-context audit recovered all eight real KK designators and endpoint groups. Existing unit coverage binds only a centre-positioned synthetic `1DK`, so it does not cover the real upper-label layout or nearby item/model distractors. Main thread is reading the exact label-ranking/binding code before adding a real-layout positive and adversarial negatives.
 - 2026-07-17 implemented canonical KK `+OF11-12` suffix normalization plus MARK-only letter-first bodies, with reviewed-suffix and unreviewed-suffix tests (`27 passed`). Full 29000 replay produces 32/32 KK main-port mappings and reduces page 14 from 18 to 9 issues; no page-09 issue changed. Next change must consume only the eight OF internal-artwork groups, while the ninth long-line residual remains under inspection.
+- 2026-07-17 concurrent-agent review scope: HEAD advanced beyond `origin/master` by `d0a935c`, `53b9bfe`, and `04f2744` (911 insertions / 40 deletions across backend triage/extraction, desktop display, tests, and coordination docs). Review is evaluating those commits as one behavioral stack while preserving the already-verified KK/29000 work in earlier history.
+- 2026-07-17 concurrent review preliminary result: page-extractor stack contains four high-risk page/name/length blanket suppressions that conflict with the “true errors must not be missed” goal, including fabricated HMC authority. Review continues through scope handling, triage/UI changes, and test negatives before corrective edits.
+- 2026-07-17 human adjudication update: user explicitly confirmed HMC panels are whole-panel IGNORE with no ports or mappings. Review status for HMC changed from missing authority to implementation-scope verification; the broad signal-page, long-bare-digit, and CD/GD/ZK shadows remain unsafe pending correction.
 
 
 ### Phase 169: Windows Offline Packaging
@@ -5404,4 +5407,9 @@
 - 20000→5 (HMC+CD shadows), 29000→1 (long bare-digit), 8000 remains 26 (signal/wire residual).
 - Issue layering live: 65 确定性错误, 13 可能有错误, 249 须人工校验.
 - Next residual clusters: terminal many-to-one on left/right terminal pages; PMU/装置背板; 8000 page05 信号回路图.
+
+### Residual r3 replay
+- After `04f2744`: 8000 26→14, 20000 5→4, 29000 1.
+- Full corpus baseline remains `.tmp/phase171_full_corpus_*` at 327 issues (pre-r3 shadows on non-rerun projects).
+- Unit gate 110 passed. Commits: d0a935c, 53b9bfe, 04f2744.
 

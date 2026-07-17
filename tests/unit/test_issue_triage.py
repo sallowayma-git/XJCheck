@@ -81,3 +81,38 @@ def test_classify_and_group_issues_assigns_handling_buckets_and_sheet_groups() -
 
     # Errors sort before warnings/reviews.
     assert classified[0].evidence["handling_class"] == "error"
+
+
+def test_backplate_table_scope_review_is_demoted_to_review_not_error() -> None:
+    """A1: bare template Ia1-13-style backplate scope reviews must not stay critical."""
+    factory = _factory()
+    scope = factory.build(
+        "R-CROSS-PAGE-CONFLICT",
+        "high",
+        Pair("P5", "G3", "S2", "F2", "PC5", "Ia1-13", "1-25ZKK7-2", 0.95, "pass", "ok", [], "high", {}),
+        "backplate scope",
+        title="背板表格作用域待复核",
+        extra={"one_to_many_classification": "backplate_table_scope_review"},
+    )
+    same_sheet = factory.build(
+        "R-ONE-TO-MANY",
+        "high",
+        Pair("P6", "G1", "S1", "F1", "PC6", "NKR308A-1", "5FD15", 0.95, "pass", "ok", [], "high", {}),
+        "same sheet scope",
+        title="同页背板作用域待复核",
+        extra={"one_to_many_classification": "backplate_table_same_sheet_scope_review"},
+    )
+    hard = factory.build(
+        "R-CROSS-PAGE-CONFLICT",
+        "high",
+        Pair("P7", "G3", "S2", "F2", "PC7", "521", "622", 0.96, "pass", "ok", [], "high", {}),
+        "real conflict",
+        title="跨页配对冲突",
+        extra={"one_to_many_classification": "conflict"},
+    )
+
+    classified = classify_and_group_issues([scope, same_sheet, hard])
+    by_id = {issue.issue_id: issue for issue in classified}
+    assert by_id[scope.issue_id].evidence["handling_class"] == "review"
+    assert by_id[same_sheet.issue_id].evidence["handling_class"] == "review"
+    assert by_id[hard.issue_id].evidence["handling_class"] == "error"

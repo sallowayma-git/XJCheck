@@ -595,6 +595,12 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
 
         terminal_header_info = _terminal_header_table_multi_endpoint_info(linked_pairs)
         if terminal_header_info is not None:
+            # Same-row left+right dual endpoints are normal terminal-sheet facts
+            # (e.g. 1UD-1 → 1n2001 and 1UD-1 → 1ZKK1-2). Keep both table_mapping
+            # pairs; do not raise cardinality issues for that pattern.
+            if _is_terminal_header_dual_endpoint_normal(terminal_header_info):
+                continue
+            # Same-side multi-endpoint remains soft review only (geometry ambiguous).
             issues.append(
                 context.issue_factory.build(
                     "R-ONE-TO-MANY",
@@ -602,7 +608,7 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
                     pair=first,
                     message=f"Terminal header table logical endpoint {left_value} maps to multiple terminal endpoints on the same row.",
                     title="端子表多端点行映射待复核",
-                    explanation="同页 terminal_header_table 表格映射中，同一表头逻辑端在同一行关联多个端子文本，更可能是端子表同一行的多端点语义，需要按表格行复核。",
+                    explanation="同页 terminal_header_table 表格映射中，同一表头逻辑端在同一侧列关联多个端子文本，几何位置不够明确，需要按表格行复核。",
                     recommended_action="核对端子表表头、行号、端子列和端子文本坐标，确认这些端点是否属于同一表格行的多端映射。",
                     related_pairs=linked_pairs,
                     extra={
@@ -715,6 +721,12 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 right_value,
             )
             if terminal_header_info is not None:
+                # Same physical terminal text (shared text_id/coords) claimed by
+                # neighboring header rows is normal adjacent-column bridging on
+                # terminal sheets (e.g. right of 1I16D3 and left of 1XD14 both
+                # bind 1n102). Keep both table_mapping facts; not a conflict.
+                if _is_terminal_header_shared_endpoint_normal(terminal_header_info):
+                    continue
                 sheet_ids = {pair.sheet_id for pair in linked_pairs}
                 issues.append(
                     context.issue_factory.build(
@@ -1474,6 +1486,35 @@ def _strip_two_port_component_split_endpoint_info(
     if shared_value is not None:
         result["shared_endpoint"] = shared_value
     return result
+
+
+def _is_terminal_header_dual_endpoint_normal(info: dict[str, object]) -> bool:
+    """Same-row left+right dual endpoints are structured terminal-sheet facts."""
+
+    endpoint_columns = {
+        str(value)
+        for value in (info.get("endpoint_columns") or [])
+        if value is not None and str(value)
+    }
+    return "left_endpoint" in endpoint_columns and "right_endpoint" in endpoint_columns
+
+
+def _is_terminal_header_shared_endpoint_normal(info: dict[str, object]) -> bool:
+    """Same physical text shared across header rows is adjacent-column bridging."""
+
+    text_ids = [
+        value
+        for value in (info.get("shared_endpoint_text_ids") or [])
+        if value is not None and str(value)
+    ]
+    coords = [
+        value
+        for value in (info.get("shared_endpoint_coords") or [])
+        if value is not None
+    ]
+    # Detector already requires a single text_id or coordinate; treat that as
+    # authoritative shared-label geometry, not many-to-one conflict.
+    return bool(text_ids) or bool(coords)
 
 
 def _terminal_header_table_multi_endpoint_info(
