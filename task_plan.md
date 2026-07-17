@@ -2601,11 +2601,20 @@ Phase 167 full-corpus recognition/audit loop is in progress. The 27-project / 50
 - [x] Run the current engine over every DWG under `test/` and build a per-page baseline of page type, extractor, issue count, and table-specific failure evidence.
 - [x] Cluster the highest-impact failures, separating table-authority noise, component shadow/cardinality noise, terminal-array confidence, and conductive-line coverage from genuine unknown semantics.
 - [x] Implement and focus-test the first six generalized repairs: conductive coverage, dense contact-panel routing, complete table authority, FJL hierarchy, comma component chains, and stable terminal arrays.
+- [x] Commit the accepted intermediate engine batch as `b70fa78`; full repository gate is `943 passed, 1 skipped`.
+- [x] Re-audit all 27 persisted project bundles with current-head rules (`current3`: 677 independent issue rows), explicitly treating it as prioritization evidence because the persisted extraction predates several accepted fresh-replay fixes.
 - [ ] For each independent cluster, inspect source DWG/converted DXF/visual context, derive a geometry/semantic rule from the existing recognition specification, and add focused positive/negative tests.
 - [ ] Replay every affected source page after each engine change; accept only measured issue reduction without regressions in previously supported table/page families.
 - [ ] Rebuild the complete `test/` corpus, run the full repository test suite and compile/diff gates, and report remaining items that genuinely require human arbitration.
 - [ ] Remove verified replay/census/screenshots and other regenerable process artifacts while preserving final evidence and human arbitration records.
 - **Status:** in_progress
+
+#### Phase 167 transfer checkpoint (2026-07-17)
+- Active goal remains unchanged; Phase167 is not complete.
+- Preserve `.tmp/phase167_full_corpus_baseline` until the final fresh 502-DWG acceptance run is complete.
+- `current3` next fresh-replay priorities: `24000_220kV_A/20 元件接线图2.dwg`, `29000/14 元件接线图.dwg`, residual `8000_9000_-` terminal pages other than already-fixed 17/18, then repeated terminal many-to-one scopes.
+- Do not treat the 677 persisted issue rows as current extraction truth; first remove clusters already proven fixed by fresh replay (terminal arrays, 20000 page 26, 23000 page 29, 25000 page 18).
+- HMC-3C panel semantics on `20000_1/27 元件接线图4.dwg` remain genuinely unadjudicated and must not be silently excluded.
 
 #### Phase 167 errors
 - Initial three-way read-only delegation (corpus runner, table engine, corpus inventory) failed before repository access: local CC Switch proxy returned HTTP 403 because it routed `gpt-5.6-luna` as a non-Codex provider. No files or processes were changed. Main thread took over discovery; do not repeat the identical delegation until the proxy/model route changes.
