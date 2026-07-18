@@ -4663,6 +4663,95 @@ def test_build_issues_keeps_cross_table_complete_duplicate_visible() -> None:
     assert duplicate.evidence["occurrences"] == 2
 
 
+def test_build_issues_accepts_equal_values_on_distinct_numeric_table_rows() -> None:
+    def numeric_pair(pair_id: str, row_index: int, middle_id: str, right_id: str) -> Pair:
+        mapping = {
+            "mapping_mode": "numeric_three_column",
+            "sheet_id": "S0012",
+            "row_index": row_index,
+            "middle_value": "1",
+            "right_value": "1",
+            "middle_text_id": middle_id,
+            "right_text_id": right_id,
+            "column_roles": {
+                "left": "numeric_outer",
+                "middle": "numeric_center",
+                "right": "numeric_outer",
+            },
+        }
+        return Pair(
+            pair_id,
+            None,
+            "S0012",
+            "F0012",
+            None,
+            "1",
+            "1",
+            0.95,
+            "pass",
+            "numeric table",
+            [],
+            "high",
+            {"source": "table_mapping", "table_mapping": mapping},
+            pair_kind="table_mapping",
+        )
+
+    pairs = [
+        numeric_pair("P1", 1, "M1", "R1"),
+        numeric_pair("P2", 2, "M2", "R2"),
+    ]
+    sheets = [
+        SheetRecord("S0012", "F0012", "12 通信管理机接线图.dwg", 12, "12", "TABLE", "背板表格型图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+
+def test_build_issues_keeps_same_numeric_table_row_duplicate_visible() -> None:
+    def numeric_pair(pair_id: str) -> Pair:
+        mapping = {
+            "mapping_mode": "numeric_three_column",
+            "sheet_id": "S0012",
+            "row_index": 1,
+            "middle_value": "1",
+            "right_value": "1",
+            "middle_text_id": "M1",
+            "right_text_id": "R1",
+            "column_roles": {
+                "left": "numeric_outer",
+                "middle": "numeric_center",
+                "right": "numeric_outer",
+            },
+        }
+        return Pair(
+            pair_id,
+            None,
+            "S0012",
+            "F0012",
+            None,
+            "1",
+            "1",
+            0.95,
+            "pass",
+            "numeric table",
+            [],
+            "high",
+            {"source": "table_mapping", "table_mapping": mapping},
+            pair_kind="table_mapping",
+        )
+
+    pairs = [numeric_pair("P1"), numeric_pair("P2")]
+    sheets = [
+        SheetRecord("S0012", "F0012", "12 通信管理机接线图.dwg", 12, "12", "TABLE", "背板表格型图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+
 def test_build_issues_accepts_complete_comma_component_chain_cardinality() -> None:
     config = deepcopy(DEFAULT_CONFIG)
 

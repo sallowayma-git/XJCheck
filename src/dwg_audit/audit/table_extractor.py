@@ -55,10 +55,12 @@ _BACKPLATE_ENDPOINT_PATTERN = re.compile(
     r"^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
     re.IGNORECASE,
 )
-# Whole-device instance labels on composite PMU/测控 rear wiring sheets: "1-25n", "2-21n".
+# Free-text whole-device labels require the established compound form. Short
+# forms such as "1n" / "5n" are authoritative only in explicit rear-wiring titles.
 _DEVICE_INSTANCE_PATTERN = re.compile(r"^\d+-\d+[A-Za-z]$", re.IGNORECASE)
 _DEVICE_INSTANCE_TITLE_PATTERN = re.compile(
-    r"(?i)(?:REAR\s*WIRING|背板)[^\n]{0,24}?(\d+-\d+[A-Za-z])\b|(\d+-\d+[A-Za-z])\b[^\n]{0,16}(?:REAR\s*WIRING|背板)"
+    r"(?i)(?:REAR\s*WIRING|背板)[^\n]{0,24}?(\d+(?:-\d+)*[A-Za-z])\b|"
+    r"(\d+(?:-\d+)*[A-Za-z])\b[^\n]{0,16}(?:REAR\s*WIRING|背板)"
 )
 _PLUGIN_TITLE_PATTERN = re.compile(r"插件")
 # Short English/Chinese bay titles used as plugin headers on 测控 rear wiring.
@@ -1657,6 +1659,18 @@ def _resolve_backplate_device_instance(
     sheet: SheetRecord,
 ) -> str | None:
     """Whole-device instance above plugin tables, e.g. 1-25n / 2-21n."""
+    # The extracted rear-wiring title identifies the local device. Whole-page
+    # free text can also contain cabinet/title-block references to other devices.
+    for blob in (sheet.sheet_title or "", sheet.filename or ""):
+        match = _DEVICE_INSTANCE_TITLE_PATTERN.search(blob)
+        if match:
+            return next(group for group in match.groups() if group)
+        # Without an explicit rear-wiring marker, retain the historical
+        # compound-instance fallback; a bare value such as "5n" is too weak.
+        bare = re.search(r"(\d+-\d+[A-Za-z])\b", blob)
+        if bare and _DEVICE_INSTANCE_PATTERN.fullmatch(bare.group(1)):
+            return bare.group(1)
+
     candidates: list[tuple[float, float, str]] = []
     for text in free_texts:
         value = str(text.normalized_text or "").strip()
@@ -1665,14 +1679,6 @@ def _resolve_backplate_device_instance(
     if candidates:
         candidates.sort()
         return candidates[0][2]
-
-    for blob in (sheet.sheet_title or "", sheet.filename or ""):
-        match = _DEVICE_INSTANCE_TITLE_PATTERN.search(blob)
-        if match:
-            return next(group for group in match.groups() if group)
-        bare = re.search(r"(\d+-\d+[A-Za-z])\b", blob)
-        if bare and _DEVICE_INSTANCE_PATTERN.fullmatch(bare.group(1)):
-            return bare.group(1)
     return None
 
 

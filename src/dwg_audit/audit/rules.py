@@ -1043,6 +1043,8 @@ def _run_duplicate_pair(context: RuleContext) -> list[Issue]:
     for key, occurrences in graph.ordered_pair_counts.items():
         if occurrences > 1:
             linked_pairs = ordered_pairs[key]
+            if _is_authoritative_numeric_table_duplicate(linked_pairs):
+                continue
             if _is_authoritative_structured_cardinality_group(linked_pairs):
                 continue
             first = linked_pairs[0]
@@ -1059,6 +1061,54 @@ def _run_duplicate_pair(context: RuleContext) -> list[Issue]:
                 )
             )
     return issues
+
+
+def _is_authoritative_numeric_table_duplicate(linked_pairs: list[Pair]) -> bool:
+    """Treat equal values on distinct rows as separate table facts.
+
+    Numeric three-column tables can legitimately repeat a value pair on different
+    physical rows.  A duplicate-pair warning is still useful when the same row or
+    text identity is emitted twice, so this guard requires unique row and text IDs.
+    """
+
+    if len(linked_pairs) < 2 or len({pair.sheet_id for pair in linked_pairs}) != 1:
+        return False
+    row_indices: set[int] = set()
+    middle_text_ids: set[str] = set()
+    right_text_ids: set[str] = set()
+    for pair in linked_pairs:
+        if pair.pair_kind != "table_mapping" or pair.status != "pass" or pair.confidence < 0.95:
+            return False
+        mapping = _table_mapping_evidence(pair)
+        if mapping.get("mapping_mode") != "numeric_three_column":
+            return False
+        if mapping.get("sheet_id") != pair.sheet_id:
+            return False
+        if str(mapping.get("middle_value") or "") != str(pair.left_value or ""):
+            return False
+        if str(mapping.get("right_value") or "") != str(pair.right_value or ""):
+            return False
+        if mapping.get("column_roles") != {
+            "left": "numeric_outer",
+            "middle": "numeric_center",
+            "right": "numeric_outer",
+        }:
+            return False
+        try:
+            row_indices.add(int(mapping["row_index"]))
+        except (KeyError, TypeError, ValueError):
+            return False
+        middle_text_id = str(mapping.get("middle_text_id") or "")
+        right_text_id = str(mapping.get("right_text_id") or "")
+        if not middle_text_id or not right_text_id:
+            return False
+        middle_text_ids.add(middle_text_id)
+        right_text_ids.add(right_text_id)
+    return (
+        len(row_indices) == len(linked_pairs)
+        and len(middle_text_ids) == len(linked_pairs)
+        and len(right_text_ids) == len(linked_pairs)
+    )
 
 
 def _high_confidence_pairs(context: RuleContext) -> list[Pair]:

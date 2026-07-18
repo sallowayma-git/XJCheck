@@ -1366,6 +1366,72 @@ def test_extract_table_pairs_scopes_classic_backplate_headers_with_device_instan
     assert pairs[0].evidence["table_mapping"]["composite_device_instance"] == "1-2n"
 
 
+def test_extract_table_pairs_prefers_explicit_rear_wiring_title_instance() -> None:
+    """Local rear-wiring titles outrank unrelated device labels in the page frame."""
+
+    for sheet_title, expected_instance in (
+        ("1-2n REAR WIRING", "1-2n"),
+        ("5n REAR WIRING", "5n"),
+    ):
+        sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 300.0, 300.0))
+        sheet.filename = "18 保护背板图.dwg"
+        sheet.sheet_title = sheet_title
+        sheet.sheet_category = "背板接线图"
+        sheet.audit_role = "secondary"
+        block = "WBH-813E-E1SH-101"
+        texts = [
+            _make_text("FRAME", x=210.0, y=285.0, value="1-20n"),
+            _make_text("LOCAL", x=210.0, y=266.0, value=expected_instance),
+            _make_text("H1", x=120.0, y=240.0, value="NDY306A", source_block_name=block),
+            _make_text("R1", x=116.0, y=230.0, value="01", is_numeric_candidate=True, source_block_name=block),
+            _make_text("R2", x=116.0, y=225.0, value="02", is_numeric_candidate=True, source_block_name=block),
+            _make_text("R3", x=116.0, y=220.0, value="03", is_numeric_candidate=True, source_block_name=block),
+            _make_text("E1", x=105.0, y=230.0, value="1QD1"),
+            _make_text("E2", x=105.0, y=225.0, value="CD2"),
+            _make_text("E3", x=105.0, y=220.0, value="YD3"),
+        ]
+
+        pairs, _ = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+        assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+            (f"{expected_instance}/NDY306A-1", "1QD1"),
+            (f"{expected_instance}/NDY306A-2", "CD2"),
+            (f"{expected_instance}/NDY306A-3", "YD3"),
+        }
+        assert all(
+            pair.evidence["table_mapping"]["composite_device_instance"] == expected_instance
+            for pair in pairs
+        )
+
+
+def test_extract_table_pairs_does_not_promote_bare_short_title_without_rear_wiring() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 300.0, 300.0))
+    sheet.filename = "18 保护装置5n.dwg"
+    sheet.sheet_title = "保护装置5n"
+    sheet.sheet_category = "背板接线图"
+    sheet.audit_role = "secondary"
+    block = "WBH-813E-E1SH-101"
+    texts = [
+        _make_text("NOISE", x=210.0, y=290.0, value="5n"),
+        _make_text("FRAME", x=210.0, y=285.0, value="1-20n"),
+        _make_text("H1", x=120.0, y=240.0, value="NDY306A", source_block_name=block),
+        _make_text("R1", x=116.0, y=230.0, value="01", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R2", x=116.0, y=225.0, value="02", is_numeric_candidate=True, source_block_name=block),
+        _make_text("R3", x=116.0, y=220.0, value="03", is_numeric_candidate=True, source_block_name=block),
+        _make_text("E1", x=105.0, y=230.0, value="1QD1"),
+        _make_text("E2", x=105.0, y=225.0, value="CD2"),
+        _make_text("E3", x=105.0, y=220.0, value="YD3"),
+    ]
+
+    pairs, _ = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+
+    assert {pair.left_value for pair in pairs} == {
+        "1-20n/NDY306A-1",
+        "1-20n/NDY306A-2",
+        "1-20n/NDY306A-3",
+    }
+
+
 def test_extract_table_pairs_power_dual_column_and_bi_instance_scope() -> None:
     """测控 Power dual-column pins map left/right without stealing BI bay endpoints."""
     sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 420.0, 280.0))

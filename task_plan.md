@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 179 residual geometry feedback is complete. Complete communication-equipment panel IGNORE proposals now suppress only panel-owned ordinary pairs and strictly evidenced nearby MARK callouts; fresh 10000/21000 replay reduced the targeted panel issues from 10 to 0.
+Phase 180 is active. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, and rear-wiring title instance authority are implemented with focused and full-corpus evidence.
 
-The former `TS3000-Z01` extraction defect on 8000/9000 S0014/S0015 is closed. The accepted model is `instance-name + port -> same-row outward TD endpoint`, with no internal port union; ports 27–32, metadata negatives, and genuine S0004 open ends were replayed successfully.
+The current authoritative extraction is `.tmp/phase180_full_533_fresh5`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh3, only PAC 316 and WBH 254 logical left identities are re-scoped from explicit rear-wiring titles; Pair counts and physical endpoint/text identities are unchanged, and the other 26 projects are exact.
 
-Phase 178 remains the authoritative full-corpus audit baseline: `.tmp/phase177_full_533_fresh` plus `.tmp/phase178_full_533_audit4`, covering 28 projects / 533 pages, 0 incomplete, 133 issues, and 0 critical. Residual rows remain reviewable until geometry or cross-diagram evidence resolves them.
+The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (many-to-one 31, missing-side 36, cross-page 6, low-confidence 3). Only five false WBH cross-page scope reviews were removed from audit3. Three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized yet. Final cleanup, scoped commit, and push remain open.
 
 ## Phases
 
@@ -44,6 +44,23 @@ Phase 178 remains the authoritative full-corpus audit baseline: `.tmp/phase177_f
 - Root `package-lock.json` is untracked user state and must not be staged, deleted, or included in cleanup.
 - `TS3000-Z01` is not an equipment panel and must not be solved by whole-block IGNORE. Its populated port rows are electrical mappings; textless S0004 `1201/1204` open lines remain fail-closed.
 - TS3000 bank 1's `1/MGM` top and bottom horizontal members are a 40-by-5 slot-header frame. They may be shadowed only after the same source block has produced authoritative structured port mappings; a bare `1` or a dense panel name is never sufficient.
+
+### Phase 180: Endpoint, Terminal Continuation, And Backplate Scope Loop
+- [x] Generalize compact signal endpoints from XD to the geometry-equivalent XD/YD/LD family while preserving VD and merged-line negatives
+- [x] Add explicit `上接<prefix><N> + 说明` terminal continuation extraction and isolate continuation ownership from regular headers
+- [x] Treat equal numeric-three-column values on different physical rows as distinct facts while preserving same-row duplicates
+- [x] Diagnose and fix rear-wiring device-instance precedence from explicit page titles, including strict short-title / compound-free-text boundaries
+- [x] Reject the over-broad fresh4 semantic drift, run a seven-project correction probe, and complete final fresh5/audit5
+- [x] Verify 28 projects / 533 valid DWG / zero incomplete and audit `81 -> 76` with only five WBH scope removals
+- [ ] Obtain human ruling for structured textual `GND` shared endpoints; add a strict positive/negative rule only if authorized
+- [ ] Re-run final rules audit/tests after GND disposition, clean rejected/intermediate replay artifacts, stage only recognition/docs changes, commit, and push
+- **Status:** in_progress
+
+#### Phase 180 guardrails
+- Short device instances such as `1n/5n` are authoritative only in explicit `REAR WIRING/背板` titles. Whole-page free text retains the historical compound grammar; fresh4 proves broader free-text matching is unsafe.
+- Rear-wiring scope rekeys preserve every physical row and external endpoint. They never imply internal connectivity or electrical union and do not suppress PAC's retained cardinality/cross-page reviews.
+- Full-corpus execution uses one Python process per project. A long single process exited after cumulative project work, while isolated fresh4/fresh5 completed all 28 projects; top-level run summaries are not authoritative across isolated invocations.
+- Root `package-lock.json` and concurrent desktop lifecycle/packaging changes are user/other-agent state and must not be staged or reverted by the recognition commit.
 
 ### Phase 177: PAC Signal-output Logical Endpoint Recovery
 - [x] Recover Phase176 baseline, planning state, and clean-worktree boundary
@@ -2758,6 +2775,7 @@ Phase 178 remains the authoritative full-corpus audit baseline: `.tmp/phase177_f
 - One parallel focused-test command referenced nonexistent `tests/unit/test_pairs.py`, causing the orchestration wrapper to report no tests. Re-ran the actual page-extractor/rules/terminal-candidate files successfully (`143 passed`), then extended the short-sequence proof to `144 passed`.
 - Restart recovery exposed two stale subagent IDs as `not_found`; the follow-up close call therefore also returned `not_found`. No live agent or repository state was affected; future Phase167 delegation starts clean one-shot agents.
 - Packaged `rg.exe` was denied again during restart-state search. Continued with native PowerShell `Select-String`/`Get-Content`; no files were changed by the failed search.
+- 2026-07-18 Phase180 resumed delegation attempt: six clean-context read-only `gpt-5.6-sol` agents with an explicit `explorer` role were rejected before creation with `agent type is currently not available`. No agent ran or modified files; retry only with a distinct spawn form (no role override), never with another model.
 
 
 ## Decision log — 2026-07-16 15:55
@@ -2856,3 +2874,4 @@ Phase 178 remains the authoritative full-corpus audit baseline: `.tmp/phase177_f
 - The retry wrapper then hit local command policy rejection on `Remove-Item` while deleting the verified empty replay root; no analysis ran and no source changed. Avoid repeating that PowerShell deletion form, use a new replay root, and defer the empty-root cleanup to the established containment-safe Python cleanup step.
 - The first current-code 533-DWG audit exposed two unintended table-mapping losses: continuation headers were admitted as ordinary peer headers and stole endpoints from regular `1QD` / `3-2QD` tables. The full replay was rejected despite a lower issue total. Separate regular-header ownership from continuation-header ownership and require real replay to preserve both historical conflicts.
 - Three resumed subagent spawn attempts explicitly selected `gpt-5.6-sol` with clean context, but the service rejected each before agent creation with `agent type is currently not available` (with explicit `explorer`, explicit `default`, and omitted role). No alternate model may be substituted; continue main-thread validation while Sol roles are unavailable.
+- The first final full-root fresh3 process exited after four COMPLETE projects and a partially written 12000 project. Isolated 12000 replay passed and disk space was not constrained. Recovered the same output root by running every missing project in an independent Python process; this produced the authoritative 28-project / 533-DWG / zero-incomplete fresh3 corpus.
