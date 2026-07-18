@@ -25,6 +25,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "odafc_path": "",
         "convert_version": "R2018",
         "audit_before_load": True,
+        # 0 selects a memory-aware default (1 on low-memory systems, otherwise 2).
+        "convert_workers": 0,
         "ascii_stage_dir": ".cache/odafc_stage",
     },
     "layout": {

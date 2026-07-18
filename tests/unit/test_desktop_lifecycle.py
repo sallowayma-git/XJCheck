@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
+import time
 from pathlib import Path
 
+from dwg_audit.desktop.lifecycle import cleanup_stale_workspaces
 from dwg_audit.desktop.preview import render_project_preview
 from dwg_audit.desktop.sidecar import cleanup_transient_workspaces
 from dwg_audit.desktop.sidecar import compact_session_workspace
@@ -131,6 +134,33 @@ def test_cleanup_transient_workspaces_clears_sessions_and_preview_cache(tmp_path
     assert loaded is not None
     assert loaded["issues"][0]["issue_id"] == "I1"
     assert str(loaded["run"].get("artifact_dir") or "") == ""
+
+
+def test_cleanup_stale_workspaces_preserves_recent_session(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace_root = tmp_path / "workspace"
+    old_session = workspace_root / "old-session"
+    recent_session = workspace_root / "recent-session"
+    old_session.mkdir(parents=True)
+    recent_session.mkdir(parents=True)
+    old_file = old_session / "temporary.dxf"
+    recent_file = recent_session / "temporary.dxf"
+    old_file.write_text("old", encoding="utf-8")
+    recent_file.write_text("recent", encoding="utf-8")
+    old_timestamp = time.time() - 7200
+    os.utime(old_file, (old_timestamp, old_timestamp))
+    os.utime(old_session, (old_timestamp, old_timestamp))
+
+    payload = cleanup_stale_workspaces(
+        workspace_root=workspace_root,
+        state_db_path=state_db,
+        older_than_seconds=3600,
+    )
+
+    assert payload["removed_sessions"] == 1
+    assert payload["skipped_recent_sessions"] == 1
+    assert not old_session.exists()
+    assert recent_session.exists()
 
 
 def test_delete_project_record_removes_sqlite_and_local_artifacts(tmp_path: Path) -> None:

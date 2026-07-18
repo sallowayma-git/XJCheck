@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from dwg_audit.desktop.sidecar import default_preview_cache_root
+from dwg_audit.desktop.lifecycle import default_preview_cache_root
 from dwg_audit.desktop.state_store import DesktopStateStore
 from dwg_audit.desktop.state_store import default_state_db_path
 from dwg_audit.report import load_report_frames

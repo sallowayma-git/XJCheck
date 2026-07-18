@@ -76,6 +76,7 @@ function App() {
   })
   const processEventQueueRef = useRef<SidecarEvent[]>([])
   const processFlushTimerRef = useRef<number | null>(null)
+  const analysisInFlightRef = useRef(false)
 
 
   const refreshRecentProjects = useEffectEvent(async () => {
@@ -93,7 +94,7 @@ function App() {
 
   useEffect(() => {
     void refreshRecentProjects()
-  }, [refreshRecentProjects])
+  }, [])
 
   const applyImportedInputRoot = useEffectEvent((nextPath: string, source: "picker" | "drop") => {
     setInputRoot(nextPath)
@@ -161,7 +162,7 @@ function App() {
       disposed = true
       unlisten?.()
     }
-  }, [handleDroppedPaths, screen])
+  }, [screen])
 
   const loadProjectResult = useEffectEvent(async (projectId: string) => {
     setLoadError(null)
@@ -328,9 +329,12 @@ function App() {
         processEventQueueRef.current = []
       }
     }
-  }, [applyProcessEvents])
+  }, [])
 
   async function handleAnalyzeClick() {
+    if (analysisInFlightRef.current) {
+      return
+    }
     const normalizedInputRoot = inputRoot.trim()
     if (!normalizedInputRoot) {
       setLoadError("请先选择项目目录。")
@@ -344,6 +348,7 @@ function App() {
       })
       return
     }
+    analysisInFlightRef.current = true
     setLoadError(null)
     setIsAnalyzing(true)
     setScreen("process")
@@ -371,7 +376,18 @@ function App() {
         applyProcessEvents(processEventQueueRef.current)
         processEventQueueRef.current = []
       }
-      await refreshRecentProjects()
+      setRecentProjects((current) => {
+        const seen = new Set<string>()
+        return [...payload.projects, ...current]
+          .filter((project) => {
+            if (seen.has(project.project_id)) {
+              return false
+            }
+            seen.add(project.project_id)
+            return true
+          })
+          .slice(0, 20)
+      })
       if (payload.projects[0]) {
         setSelectedProjectId(payload.projects[0].project_id)
         await loadProjectResult(payload.projects[0].project_id)
@@ -381,6 +397,7 @@ function App() {
       setLoadError(message)
       setScreen("launch")
     } finally {
+      analysisInFlightRef.current = false
       setIsAnalyzing(false)
     }
   }
@@ -690,8 +707,17 @@ function App() {
     }
     setIsSavingIssueStatus(true)
     try {
-      const updated = await desktopApi.setIssueStatus(projectId, selectedIssue.issue_id, issueStatusDraft)
-      setResult(updated)
+      await desktopApi.setIssueStatus(projectId, selectedIssue.issue_id, issueStatusDraft)
+      setResult((current) =>
+        current
+          ? {
+              ...current,
+              issues: current.issues.map((issue) =>
+                issue.issue_id === selectedIssue.issue_id ? { ...issue, status: issueStatusDraft } : issue,
+              ),
+            }
+          : current,
+      )
       setLoadError(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : "保存处理状态失败，请稍后重试。"

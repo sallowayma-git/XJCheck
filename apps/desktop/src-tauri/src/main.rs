@@ -3,6 +3,7 @@
 // CTRL_CLOSE_EVENT and tears down the entire app.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io::BufRead;
@@ -19,6 +20,8 @@ use std::sync::Mutex;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::time::Instant;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use serde_json::json;
 use serde_json::Value;
@@ -38,6 +41,9 @@ static ACTIVE_PREVIEW_PID: AtomicU32 = AtomicU32::new(0);
 static PREVIEW_GATE: Mutex<()> = Mutex::new(());
 static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 static ACTIVE_SIDECAR_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static PROTECTED_CLEANUP_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static DESKTOP_RESOURCE_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+static SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
 async fn desktop_analyze_session(
@@ -45,6 +51,7 @@ async fn desktop_analyze_session(
     input_root: String,
     session_id: Option<String>,
 ) -> Result<Value, String> {
+    let session_id = session_id.unwrap_or_else(new_session_id);
     tauri::async_runtime::spawn_blocking(move || {
         analyze_session_blocking(app, input_root, session_id)
     })
@@ -55,11 +62,11 @@ async fn desktop_analyze_session(
 fn analyze_session_blocking(
     app: AppHandle,
     input_root: String,
-    session_id: Option<String>,
+    session_id: String,
 ) -> Result<Value, String> {
     let workspace_root = default_workspace_root()?;
     let state_db = default_state_db_path()?;
-    let mut args = vec![
+    let args = vec![
         "analyze-session".to_string(),
         "--input".to_string(),
         input_root,
@@ -67,11 +74,10 @@ fn analyze_session_blocking(
         workspace_root.to_string_lossy().to_string(),
         "--state-db".to_string(),
         state_db.to_string_lossy().to_string(),
+        "--session-id".to_string(),
+        session_id.clone(),
+        "--defer-cleanup".to_string(),
     ];
-    if let Some(value) = session_id {
-        args.push("--session-id".to_string());
-        args.push(value);
-    }
 
     let mut child = build_desktop_sidecar_command(&app, &args)?
         .stdout(Stdio::piped())
@@ -119,6 +125,18 @@ fn analyze_session_blocking(
         .join()
         .unwrap_or_else(|_| String::from("Failed to join sidecar stderr thread."));
 
+    if let Err(error) = spawn_session_cleanup(&session_id, &workspace_root, &state_db) {
+        let _ = app.emit(
+            DESKTOP_EVENT_NAME,
+            &json!({
+                "event": "warning",
+                "stage": "cleanup",
+                "session_id": session_id,
+                "message": error,
+            }),
+        );
+    }
+
     if !status.success() {
         let detail = stderr_text.trim();
         return Err(if detail.is_empty() {
@@ -137,12 +155,17 @@ fn analyze_session_blocking(
 
 #[tauri::command]
 async fn desktop_list_recent_projects(app: AppHandle) -> Result<Value, String> {
+    let workspace_root = default_workspace_root()?;
     run_sidecar_json_async(
         app,
         vec![
             "list-recent-projects".to_string(),
             "--state-db".to_string(),
             default_state_db_path()?.to_string_lossy().to_string(),
+            "--workspace-root".to_string(),
+            workspace_root.to_string_lossy().to_string(),
+            "--older-than-seconds".to_string(),
+            "3600".to_string(),
         ],
     )
     .await
@@ -292,6 +315,81 @@ fn run_sidecar_json_owned(app: &AppHandle, args: Vec<String>) -> Result<Value, S
         .wait_with_output()
         .map_err(|error| format!("Failed to wait for DWG audit sidecar: {error}"))?;
     parse_sidecar_json_output(output)
+}
+
+fn spawn_session_cleanup(
+    session_id: &str,
+    workspace_root: &std::path::Path,
+    state_db: &std::path::Path,
+) -> Result<u32, String> {
+    spawn_cleanup_sidecar(vec![
+        "compact-session-workspace".to_string(),
+        "--session-id".to_string(),
+        session_id.to_string(),
+        "--workspace-root".to_string(),
+        workspace_root.to_string_lossy().to_string(),
+        "--state-db".to_string(),
+        state_db.to_string_lossy().to_string(),
+    ])
+}
+
+fn spawn_global_cleanup() -> Result<u32, String> {
+    spawn_cleanup_sidecar(vec![
+        "cleanup-workspaces".to_string(),
+        "--workspace-root".to_string(),
+        default_workspace_root()?.to_string_lossy().to_string(),
+        "--state-db".to_string(),
+        default_state_db_path()?.to_string_lossy().to_string(),
+    ])
+}
+
+fn spawn_cleanup_sidecar(args: Vec<String>) -> Result<u32, String> {
+    let resource_dir = DESKTOP_RESOURCE_DIR
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
+    let mut command = build_sidecar_command(&args, resource_dir)?;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS);
+    }
+
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Failed to start cleanup sidecar: {error}"))?;
+    let pid = child.id();
+    PROTECTED_CLEANUP_PIDS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(pid);
+    std::thread::spawn(move || {
+        let _ = child.wait();
+        PROTECTED_CLEANUP_PIDS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .retain(|active_pid| *active_pid != pid);
+    });
+    Ok(pid)
+}
+
+fn new_session_id() -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let sequence = SESSION_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
+    format!(
+        "desktop-{timestamp:x}-{:x}-{sequence:x}",
+        std::process::id()
+    )
 }
 
 fn parse_sidecar_json_output(output: Output) -> Result<Value, String> {
@@ -470,15 +568,16 @@ fn terminate_all_active_sidecars() {
 }
 
 fn force_shutdown() -> ! {
-    SHUTTING_DOWN.store(true, Ordering::SeqCst);
+    if SHUTTING_DOWN.swap(true, Ordering::SeqCst) {
+        std::process::exit(0);
+    }
+    let _ = spawn_global_cleanup();
     terminate_descendant_processes();
     std::process::exit(0);
 }
 
 #[cfg(windows)]
 fn terminate_descendant_processes() {
-    use std::collections::HashMap;
-
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
     use windows_sys::Win32::System::Diagnostics::ToolHelp::CreateToolhelp32Snapshot;
@@ -510,25 +609,11 @@ fn terminate_descendant_processes() {
         }
         let _ = CloseHandle(snapshot);
 
-        let mut descendants = parents
-            .keys()
-            .filter_map(|pid| {
-                let mut ancestor = *pid;
-                let mut depth = 0usize;
-                while let Some(parent) = parents.get(&ancestor) {
-                    depth += 1;
-                    if *parent == current_pid {
-                        return Some((*pid, depth));
-                    }
-                    if *parent == 0 || *parent == ancestor || depth > parents.len() {
-                        break;
-                    }
-                    ancestor = *parent;
-                }
-                None
-            })
-            .collect::<Vec<_>>();
-        descendants.sort_unstable_by(|left, right| right.1.cmp(&left.1));
+        let protected = PROTECTED_CLEANUP_PIDS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let descendants = descendant_processes_to_terminate(&parents, current_pid, &protected);
 
         for (pid, _) in descendants {
             let process = OpenProcess(PROCESS_TERMINATE, 0, pid);
@@ -542,6 +627,39 @@ fn terminate_descendant_processes() {
 
 #[cfg(not(windows))]
 fn terminate_descendant_processes() {}
+
+fn descendant_processes_to_terminate(
+    parents: &HashMap<u32, u32>,
+    current_pid: u32,
+    protected_roots: &[u32],
+) -> Vec<(u32, usize)> {
+    let mut descendants = parents
+        .keys()
+        .filter_map(|pid| {
+            if protected_roots.contains(pid) {
+                return None;
+            }
+            let mut ancestor = *pid;
+            let mut depth = 0usize;
+            while let Some(parent) = parents.get(&ancestor) {
+                depth += 1;
+                if protected_roots.contains(parent) {
+                    return None;
+                }
+                if *parent == current_pid {
+                    return Some((*pid, depth));
+                }
+                if *parent == 0 || *parent == ancestor || depth > parents.len() {
+                    break;
+                }
+                ancestor = *parent;
+            }
+            None
+        })
+        .collect::<Vec<_>>();
+    descendants.sort_unstable_by(|left, right| right.1.cmp(&left.1));
+    descendants
+}
 
 impl ActivePreviewProcess {
     fn new(pid: u32) -> Self {
@@ -628,6 +746,12 @@ fn default_local_app_data_dir() -> Result<PathBuf, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            *DESKTOP_RESOURCE_DIR
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = app.path().resource_dir().ok();
+            Ok(())
+        })
         .on_window_event(|_window, event| {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
                 force_shutdown();
@@ -690,5 +814,14 @@ mod tests {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .contains(&pid));
+    }
+
+    #[test]
+    fn shutdown_process_selection_preserves_cleanup_tree() {
+        let parents = HashMap::from([(10, 1), (11, 10), (20, 1), (21, 20)]);
+
+        let selected = descendant_processes_to_terminate(&parents, 1, &[20]);
+
+        assert_eq!(selected, vec![(11, 2), (10, 1)]);
     }
 }

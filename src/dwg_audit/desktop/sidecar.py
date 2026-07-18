@@ -10,22 +10,16 @@ from typing import Any
 
 import pandas as pd
 
+from dwg_audit.desktop.lifecycle import cleanup_transient_workspaces
+from dwg_audit.desktop.lifecycle import compact_session_workspace
+from dwg_audit.desktop.lifecycle import default_preview_cache_root
+from dwg_audit.desktop.lifecycle import default_workspace_root
 from dwg_audit.desktop.state_store import DesktopStateStore
 from dwg_audit.desktop.state_store import default_state_db_path
 from dwg_audit.report.artifacts import load_report_frames
 from dwg_audit.services import run_analysis_workflow
 
 DESKTOP_ISSUE_STATUSES = {"open", "ignored", "resolved", "false_positive"}
-
-
-def default_workspace_root() -> Path:
-    local_app_data = Path.home() / "AppData" / "Local"
-    return local_app_data / "dwg-audit" / "sessions"
-
-
-def default_preview_cache_root() -> Path:
-    local_app_data = Path.home() / "AppData" / "Local"
-    return local_app_data / "dwg-audit" / "preview-cache"
 
 
 class DesktopEventWriter:
@@ -71,29 +65,37 @@ def analyze_session(
         workspace_root=str(session_workspace),
         include_audit=include_audit,
     )
-    result = run_analysis_workflow(
-        input_root=resolved_input,
-        output_root=session_workspace,
-        config_path=resolved_config,
-        include_audit=include_audit,
-        log_path=session_workspace / "logs" / "desktop_session.log",
-        event_sink=writer,
-        on_project_artifacts_ready=lambda project_dir: writer.emit(
-            "project_artifacts_ready",
-            session_id=run_session_id,
-            project_dir=str(project_dir),
-        ),
-    )
+    try:
+        result = run_analysis_workflow(
+            input_root=resolved_input,
+            output_root=session_workspace,
+            config_path=resolved_config,
+            include_audit=include_audit,
+            log_path=session_workspace / "logs" / "desktop_session.log",
+            event_sink=writer,
+            on_project_artifacts_ready=lambda project_dir: writer.emit(
+                "project_artifacts_ready",
+                session_id=run_session_id,
+                project_dir=str(project_dir),
+            ),
+        )
+    except BaseException:
+        shutil.rmtree(session_workspace, ignore_errors=True)
+        raise
 
     stored_runs: list[dict[str, Any]] = []
     for project_dir in result.project_dirs:
-        summary = _store_project_run(
-            state_store,
-            session_id=run_session_id,
-            project_dir=project_dir,
-            input_root=resolved_input,
-            include_audit=include_audit,
-        )
+        try:
+            summary = _store_project_run(
+                state_store,
+                session_id=run_session_id,
+                project_dir=project_dir,
+                input_root=resolved_input,
+                include_audit=include_audit,
+            )
+        except BaseException:
+            shutil.rmtree(session_workspace, ignore_errors=True)
+            raise
         stored_runs.append(summary)
         writer.emit("project_stored", session_id=run_session_id, **summary)
 
@@ -181,82 +183,6 @@ def purge_session(
         "deleted_runs": deleted_runs,
         "removed_workspace": removed_workspace,
         "workspace_path": str(session_workspace),
-    }
-
-
-def compact_session_workspace(
-    *,
-    session_id: str,
-    workspace_root: Path,
-    state_db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Drop conversion/DXF/cache workspaces after issues are persisted to SQLite."""
-    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
-    session_workspace = workspace_root.expanduser().resolve() / session_id
-    updated_runs = 0
-    for run in store.list_all_runs():
-        if str(run.get("session_id") or "") != session_id:
-            continue
-        store.update_run_artifact_dir(run_id=str(run["run_id"]), artifact_dir="")
-        updated_runs += 1
-
-    removed_workspace = False
-    removed_bytes_estimate = 0
-    if session_workspace.exists():
-        removed_bytes_estimate = _dir_size_bytes(session_workspace)
-        shutil.rmtree(session_workspace, ignore_errors=True)
-        removed_workspace = not session_workspace.exists()
-
-    return {
-        "session_id": session_id,
-        "updated_runs": updated_runs,
-        "removed_workspace": removed_workspace,
-        "removed_bytes_estimate": removed_bytes_estimate,
-        "workspace_path": str(session_workspace),
-    }
-
-
-def cleanup_transient_workspaces(
-    *,
-    workspace_root: Path | None = None,
-    state_db_path: Path | None = None,
-    preview_cache_root: Path | None = None,
-) -> dict[str, Any]:
-    """Remove conversion sessions and regenerated preview cache; keep SQLite issue records."""
-    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
-    resolved_workspace = (workspace_root or default_workspace_root()).expanduser().resolve()
-    resolved_preview_cache = (preview_cache_root or default_preview_cache_root()).expanduser().resolve()
-
-    cleared_artifact_dirs = 0
-    for run in store.list_all_runs():
-        artifact_dir = str(run.get("artifact_dir") or "").strip()
-        if not artifact_dir:
-            continue
-        path = Path(artifact_dir)
-        if path.exists():
-            shutil.rmtree(path, ignore_errors=True)
-            cleared_artifact_dirs += 1
-        store.update_run_artifact_dir(run_id=str(run["run_id"]), artifact_dir="")
-
-    removed_sessions = 0
-    if resolved_workspace.exists():
-        for child in list(resolved_workspace.iterdir()):
-            if child.is_dir():
-                shutil.rmtree(child, ignore_errors=True)
-                if not child.exists():
-                    removed_sessions += 1
-
-    removed_preview_cache = False
-    if resolved_preview_cache.exists():
-        shutil.rmtree(resolved_preview_cache, ignore_errors=True)
-        removed_preview_cache = not resolved_preview_cache.exists()
-
-    return {
-        "cleared_artifact_dirs": cleared_artifact_dirs,
-        "removed_sessions": removed_sessions,
-        "removed_preview_cache": removed_preview_cache,
-        "workspace_root": str(resolved_workspace),
-        "kept_issue_records": True,
     }
 
 
@@ -466,17 +392,3 @@ def _persist_issue_status_to_artifacts(project_dir: Path, *, issue_id: str, stat
     frame.loc[mask, "status"] = status
     frame.to_parquet(parquet_path, index=False)
     frame.to_json(json_path, orient="records", force_ascii=False, indent=2)
-
-
-def _dir_size_bytes(path: Path) -> int:
-    total = 0
-    try:
-        for child in path.rglob("*"):
-            if child.is_file():
-                try:
-                    total += child.stat().st_size
-                except OSError:
-                    continue
-    except OSError:
-        return total
-    return total

@@ -532,6 +532,33 @@ def test_analyze_session_cli_emits_final_result_line(monkeypatch, tmp_path: Path
     assert lines[-1]["projects"][0]["project_id"] == "demo-project"
 
 
+def test_analyze_session_cli_can_defer_workspace_cleanup(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_analyze_session(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr("dwg_audit.cli.run_desktop_session", fake_analyze_session)
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "analyze-session",
+            "--input",
+            str(input_root),
+            "--workspace-root",
+            str(tmp_path / "workspace"),
+            "--defer-cleanup",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["compact_after_store"] is False
+
+
 def test_render_preview_cli_returns_preview_payload(monkeypatch, tmp_path: Path) -> None:
     runner = CliRunner()
     preview_path = tmp_path / "preview.svg"

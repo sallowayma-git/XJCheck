@@ -5,6 +5,7 @@ from io import StringIO
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from dwg_audit.desktop.sidecar import DesktopEventWriter
 from dwg_audit.desktop.sidecar import analyze_session
@@ -74,6 +75,28 @@ def test_analyze_session_emits_events_and_stores_project_result(monkeypatch, tmp
     assert lines[0]["event"] == "run_started"
     assert any(line["event"] == "project_stored" for line in lines)
     assert lines[-1]["event"] == "run_finished"
+
+
+def test_analyze_session_discards_workspace_when_workflow_fails(monkeypatch, tmp_path: Path) -> None:
+    input_root = tmp_path / "input"
+    workspace_root = tmp_path / "workspace"
+    input_root.mkdir()
+
+    def fail_workflow(**_kwargs):
+        raise RuntimeError("conversion failed")
+
+    monkeypatch.setattr("dwg_audit.desktop.sidecar.run_analysis_workflow", fail_workflow)
+
+    with pytest.raises(RuntimeError, match="conversion failed"):
+        analyze_session(
+            input_root=input_root,
+            workspace_root=workspace_root,
+            session_id="failed-session",
+            state_db_path=tmp_path / "desktop_state.db",
+            event_writer=DesktopEventWriter(StringIO()),
+        )
+
+    assert not (workspace_root / "failed-session").exists()
 
 
 def test_purge_session_removes_workspace_and_state_rows(tmp_path: Path) -> None:

@@ -31,6 +31,38 @@ def _detect_odafc_exe(config: dict) -> Path | None:
     return reader.probe().executable_path
 
 
+def _available_memory_bytes() -> int | None:
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            status = MemoryStatus()
+            status.dwLength = ctypes.sizeof(status)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return int(status.ullAvailPhys)
+        except (AttributeError, OSError, ValueError):
+            return None
+        return None
+
+    try:
+        return int(os.sysconf("SC_AVPHYS_PAGES")) * int(os.sysconf("SC_PAGE_SIZE"))
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
 def _resolve_convert_workers(config: dict, *, file_count: int) -> int:
     raw = config.get("ingest", {}).get("convert_workers", 0)
     try:
@@ -38,8 +70,9 @@ def _resolve_convert_workers(config: dict, *, file_count: int) -> int:
     except (TypeError, ValueError):
         configured = 0
     if configured <= 0:
-        # ODA is an external process; modest concurrency keeps disk/CPU balanced.
-        configured = min(4, max(1, (os.cpu_count() or 2) // 1))
+        available_memory = _available_memory_bytes()
+        low_memory = available_memory is not None and available_memory < 4 * 1024**3
+        configured = 1 if low_memory else min(2, max(1, os.cpu_count() or 1))
     return max(1, min(configured, max(1, file_count)))
 
 

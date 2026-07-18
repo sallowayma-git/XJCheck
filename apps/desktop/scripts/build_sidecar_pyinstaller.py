@@ -121,6 +121,13 @@ def _spec_source(
         "pygments",
         "pyparsing",
         "typer",
+        # desktop.__init__ uses lazy exports so light SQLite commands do not
+        # import the analysis stack at runtime. Frozen fallback commands still
+        # need those dynamic modules included in the archive.
+        "dwg_audit.desktop.lifecycle",
+        "dwg_audit.desktop.preview",
+        "dwg_audit.desktop.sidecar",
+        "dwg_audit.desktop.state_store",
     ]
 
     return textwrap.dedent(

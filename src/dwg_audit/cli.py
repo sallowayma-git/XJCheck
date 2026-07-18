@@ -516,6 +516,7 @@ def analyze_session(
     config_path: Path | None = typer.Option(None, "--config", "-c", exists=True, resolve_path=True),
     state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
     include_audit: bool = typer.Option(True, "--include-audit/--skip-audit"),
+    defer_cleanup: bool = typer.Option(False, "--defer-cleanup"),
 ) -> None:
     runs = run_desktop_session(
         input_root=input_path,
@@ -525,6 +526,7 @@ def analyze_session(
         include_audit=include_audit,
         state_db_path=state_db,
         event_writer=DesktopEventWriter(),
+        compact_after_store=not defer_cleanup,
     )
     typer.echo(json.dumps({"event": "run_result", "projects": runs}, ensure_ascii=False))
 

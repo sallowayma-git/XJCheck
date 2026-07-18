@@ -110,10 +110,10 @@ export const desktopApi = {
     await invoke(COMMANDS.cancelPreview)
   },
 
-  async setIssueStatus(projectId: string, issueId: string, status: IssueStatus): Promise<ProjectResult> {
+  async setIssueStatus(projectId: string, issueId: string, status: IssueStatus): Promise<void> {
     if (!isTauri()) {
       mockIssueStatuses.set(`${projectId}:${issueId}`, status)
-      return applyMockStatusOverrides(getMockProjectResult(projectId))
+      return
     }
 
     try {
@@ -122,7 +122,6 @@ export const desktopApi = {
         issueId,
         status,
       })
-      return await this.loadResult(projectId)
     } catch (error) {
       throw toDesktopError("保存处理状态失败。", error)
     }

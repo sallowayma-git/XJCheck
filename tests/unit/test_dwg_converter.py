@@ -40,6 +40,28 @@ def _source(
     )
 
 
+def test_default_convert_workers_are_memory_bounded(monkeypatch) -> None:
+    monkeypatch.setattr(dwg_converter, "_available_memory_bytes", lambda: 16 * 1024**3)
+    monkeypatch.setattr(dwg_converter.os, "cpu_count", lambda: 16)
+
+    assert dwg_converter._resolve_convert_workers({}, file_count=40) == 2
+
+
+def test_default_convert_workers_drop_to_one_on_low_memory(monkeypatch) -> None:
+    monkeypatch.setattr(dwg_converter, "_available_memory_bytes", lambda: 3 * 1024**3)
+
+    assert dwg_converter._resolve_convert_workers({}, file_count=40) == 1
+
+
+def test_explicit_convert_workers_override_memory_default(monkeypatch) -> None:
+    monkeypatch.setattr(dwg_converter, "_available_memory_bytes", lambda: 3 * 1024**3)
+
+    assert dwg_converter._resolve_convert_workers(
+        {"ingest": {"convert_workers": 3}},
+        file_count=40,
+    ) == 3
+
+
 def test_missing_converter_returns_reader_run(tmp_path: Path, monkeypatch) -> None:
     source_path = tmp_path / "missing.dwg"
     source_path.write_bytes(b"AC1032")

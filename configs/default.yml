@@ -43,9 +43,9 @@ ingest:
   odafc_path: ""
   convert_version: "R2018"
   audit_before_load: true
-  ascii_stage_dir: ".cache/odafc_stage"
-  # External ODA processes; 0 = auto (min(4, CPU count)).
+  # 0 = memory-aware default: 1 worker below 4 GiB available, otherwise 2.
   convert_workers: 0
+  ascii_stage_dir: ".cache/odafc_stage"
 
 layout:
   page_no_source_priority:

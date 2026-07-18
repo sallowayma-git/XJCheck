@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 from dwg_audit.desktop.sidecar_entry import _configure_text_stream_utf8
+from dwg_audit.desktop.sidecar_entry import _run_lightweight_command
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +40,8 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "src-tauri\\resources\\sidecar" in script
     assert "build_sidecar_pyinstaller.py" in script
     assert "ezdxf.addons.odafc" in builder
+    assert '"dwg_audit.desktop.sidecar"' in builder
+    assert '"dwg_audit.desktop.lifecycle"' in builder
     # Console-subsystem sidecar preserves JSON pipes; CREATE_NO_WINDOW prevents flashes.
     assert "console=True" in builder
     assert "console=False" not in builder
@@ -92,6 +99,22 @@ def test_python_sidecar_entrypoint_uses_existing_cli_contract() -> None:
     assert "run()" in content
 
 
+def test_recent_projects_effect_runs_once_per_app_mount() -> None:
+    app_tsx = (DESKTOP_ROOT / "src" / "App.tsx").read_text(encoding="utf-8")
+    desktop_api = (DESKTOP_ROOT / "src" / "lib" / "desktopApi.ts").read_text(encoding="utf-8")
+
+    assert re.search(
+        r"useEffect\(\(\) => \{\s*void refreshRecentProjects\(\)\s*\}, \[\]\)",
+        app_tsx,
+    )
+    assert "[refreshRecentProjects]" not in app_tsx
+    assert "[handleDroppedPaths, screen]" not in app_tsx
+    assert "[applyProcessEvents]" not in app_tsx
+    assert "await refreshRecentProjects()" not in app_tsx
+    assert "analysisInFlightRef.current" in app_tsx
+    assert "return await this.loadResult(projectId)" not in desktop_api
+
+
 def test_python_sidecar_entrypoint_forces_utf8_output() -> None:
     raw = io.BytesIO()
     stream = io.TextIOWrapper(raw, encoding="gb18030")
@@ -102,6 +125,110 @@ def test_python_sidecar_entrypoint_forces_utf8_output() -> None:
 
     assert stream.encoding.lower().replace("-", "") == "utf8"
     assert raw.getvalue().decode("utf-8") == "多对一配对"
+
+
+def test_python_sidecar_entrypoint_lists_projects_without_full_cli(tmp_path: Path, capsys) -> None:
+    state_db = tmp_path / "desktop_state.db"
+
+    handled = _run_lightweight_command(
+        ["list-recent-projects", "--state-db", str(state_db)]
+    )
+
+    assert handled is True
+    assert json.loads(capsys.readouterr().out) == {"projects": []}
+
+
+def test_python_sidecar_entrypoint_cleans_workspace_without_full_cli(tmp_path: Path, capsys) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace = tmp_path / "sessions"
+    session = workspace / "abandoned-session"
+    session.mkdir(parents=True)
+    (session / "temporary.dxf").write_text("0\nEOF\n", encoding="utf-8")
+
+    handled = _run_lightweight_command(
+        [
+            "cleanup-workspaces",
+            "--workspace-root",
+            str(workspace),
+            "--state-db",
+            str(state_db),
+        ]
+    )
+
+    assert handled is True
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["removed_sessions"] == 1
+    assert payload["kept_issue_records"] is True
+    assert not session.exists()
+
+
+def test_python_sidecar_entrypoint_updates_compact_issue_without_full_cli(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    updated: dict[str, str] = {}
+
+    class FakeStore:
+        def __init__(self, _db_path: Path) -> None:
+            pass
+
+        def list_runs_for_project(self, project_id: str):
+            assert project_id == "demo-project"
+            return [{"run_id": "session-a:demo-project", "artifact_dir": ""}]
+
+        def update_issue_status(self, *, run_id: str, issue_id: str, status: str):
+            updated.update(run_id=run_id, issue_id=issue_id, status=status)
+            return {"issue_id": issue_id, "status": status}
+
+    monkeypatch.setattr("dwg_audit.desktop.state_store.DesktopStateStore", FakeStore)
+
+    handled = _run_lightweight_command(
+        [
+            "set-issue-status",
+            "--project-id",
+            "demo-project",
+            "--issue-id",
+            "I1",
+            "--status",
+            "resolved",
+            "--state-db",
+            str(tmp_path / "desktop_state.db"),
+        ]
+    )
+
+    assert handled is True
+    assert updated == {
+        "run_id": "session-a:demo-project",
+        "issue_id": "I1",
+        "status": "resolved",
+    }
+    assert json.loads(capsys.readouterr().out)["status"] == "resolved"
+
+
+def test_desktop_state_store_import_does_not_load_analysis_stack() -> None:
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(REPO_ROOT / "src"), env.get("PYTHONPATH", "")]
+    ).rstrip(os.pathsep)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "import dwg_audit.desktop.state_store; "
+                "assert 'pandas' not in sys.modules; "
+                "assert 'dwg_audit.cli' not in sys.modules"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_default_config_does_not_hardcode_machine_oda_install() -> None:
