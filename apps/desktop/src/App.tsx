@@ -95,27 +95,6 @@ function App() {
     void refreshRecentProjects()
   }, [refreshRecentProjects])
 
-  useEffect(() => {
-    if (!isTauri()) {
-      return
-    }
-    let unlisten: (() => void) | undefined
-    void getCurrentWindow()
-      .onCloseRequested((event) => {
-        event.preventDefault()
-        // Closing must never wait for a disk-heavy sidecar. Rust also cancels
-        // the active preview process tree when the event loop exits.
-        void desktopApi.cancelPreview().catch(() => undefined)
-        void getCurrentWindow().destroy()
-      })
-      .then((fn) => {
-        unlisten = fn
-      })
-    return () => {
-      unlisten?.()
-    }
-  }, [])
-
   const applyImportedInputRoot = useEffectEvent((nextPath: string, source: "picker" | "drop") => {
     setInputRoot(nextPath)
     setLoadError(null)

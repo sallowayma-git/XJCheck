@@ -35,9 +35,9 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "src-tauri\\resources\\sidecar" in script
     assert "build_sidecar_pyinstaller.py" in script
     assert "ezdxf.addons.odafc" in builder
-    # Windowed sidecar PE + CREATE_NO_WINDOW spawn: no console flash/kill-on-close.
-    assert "console=False" in builder
-    assert "console=True" not in builder
+    # Console-subsystem sidecar preserves JSON pipes; CREATE_NO_WINDOW prevents flashes.
+    assert "console=True" in builder
+    assert "console=False" not in builder
     assert "sidecar" in runtime
     assert "dwg-audit-sidecar.exe" in runtime
     assert "CREATE_NO_WINDOW" in runtime
@@ -56,12 +56,15 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "ExitRequested" in main_rs
     assert "taskkill" in main_rs
     assert "drain_preview_pipe" in main_rs
+    assert "ACTIVE_SIDECAR_PIDS" in main_rs
+    assert "force_shutdown" in main_rs
+    assert "CreateToolhelp32Snapshot" in main_rs
+    assert "terminate_descendant_processes" in main_rs
+    assert "TerminateProcess" in main_rs
+    assert "std::process::exit(0)" in main_rs
 
     app_tsx = (DESKTOP_ROOT / "src" / "App.tsx").read_text(encoding="utf-8")
-    close_handler = app_tsx.split(".onCloseRequested", 1)[1].split(".then", 1)[0]
-    assert "cancelPreview" in close_handler
-    assert ".destroy()" in close_handler
-    assert "cleanupWorkspaces" not in close_handler
+    assert ".onCloseRequested" not in app_tsx
 
 
 def test_oda_staging_and_release_scripts_exist() -> None:

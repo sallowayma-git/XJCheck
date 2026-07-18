@@ -306,9 +306,9 @@ def _spec_source(
                 upx=False,
                 upx_exclude=[],
                 runtime_tmpdir=None,
-                # Windowed PE: no black console when spawned by the desktop shell.
-                # Parent still captures stdout/stderr JSON via pipes.
-                console=False,
+                # Console-subsystem PE keeps stdout/stderr pipes valid. The Rust
+                # parent uses CREATE_NO_WINDOW, so users still see no console.
+                console=True,
                 disable_windowed_traceback=False,
                 argv_emulation=False,
                 target_arch=None,
@@ -326,8 +326,9 @@ def _spec_source(
                 bootloader_ignore_signals=False,
                 strip=False,
                 upx=False,
-                # Windowed PE: no black console when spawned by the desktop shell.
-                console=False,
+                # Console-subsystem PE keeps stdout/stderr pipes valid. The Rust
+                # parent uses CREATE_NO_WINDOW, so users still see no console.
+                console=True,
                 disable_windowed_traceback=False,
                 argv_emulation=False,
                 target_arch=None,

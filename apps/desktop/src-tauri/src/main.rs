@@ -11,6 +11,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::process::Output;
 use std::process::Stdio;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -35,6 +36,8 @@ const PREVIEW_POLL_INTERVAL: Duration = Duration::from_millis(40);
 static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_PREVIEW_PID: AtomicU32 = AtomicU32::new(0);
 static PREVIEW_GATE: Mutex<()> = Mutex::new(());
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
+static ACTIVE_SIDECAR_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 
 #[tauri::command]
 async fn desktop_analyze_session(
@@ -75,6 +78,7 @@ fn analyze_session_blocking(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("Failed to start DWG audit sidecar: {error}"))?;
+    let _active_process = ActiveSidecarProcess::new(child.id());
 
     let stdout = child
         .stdout
@@ -278,9 +282,15 @@ async fn run_sidecar_json_async(app: AppHandle, args: Vec<String>) -> Result<Val
 }
 
 fn run_sidecar_json_owned(app: &AppHandle, args: Vec<String>) -> Result<Value, String> {
-    let output = build_desktop_sidecar_command(app, &args)?
-        .output()
+    let child = build_desktop_sidecar_command(app, &args)?
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|error| format!("Failed to execute DWG audit sidecar: {error}"))?;
+    let _active_process = ActiveSidecarProcess::new(child.id());
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Failed to wait for DWG audit sidecar: {error}"))?;
     parse_sidecar_json_output(output)
 }
 
@@ -334,6 +344,7 @@ fn run_preview_sidecar_json_owned(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("Failed to execute DWG audit preview sidecar: {error}"))?;
+    let _active_sidecar = ActiveSidecarProcess::new(child.id());
     let _active_process = ActivePreviewProcess::new(child.id());
     let stdout = child
         .stdout
@@ -409,6 +420,128 @@ fn discard_preview_output(
 struct ActivePreviewProcess {
     pid: u32,
 }
+
+struct ActiveSidecarProcess {
+    pid: u32,
+}
+
+impl ActiveSidecarProcess {
+    fn new(pid: u32) -> Self {
+        let terminate_now = {
+            let mut active = ACTIVE_SIDECAR_PIDS
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if SHUTTING_DOWN.load(Ordering::SeqCst) {
+                true
+            } else {
+                if !active.contains(&pid) {
+                    active.push(pid);
+                }
+                false
+            }
+        };
+        if terminate_now {
+            terminate_process_tree_by_pid(pid);
+        }
+        Self { pid }
+    }
+}
+
+impl Drop for ActiveSidecarProcess {
+    fn drop(&mut self) {
+        ACTIVE_SIDECAR_PIDS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .retain(|pid| *pid != self.pid);
+    }
+}
+
+fn terminate_all_active_sidecars() {
+    SHUTTING_DOWN.store(true, Ordering::SeqCst);
+    let active = {
+        let mut pids = ACTIVE_SIDECAR_PIDS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        pids.drain(..).collect::<Vec<_>>()
+    };
+    for pid in active {
+        terminate_process_tree_by_pid(pid);
+    }
+}
+
+fn force_shutdown() -> ! {
+    SHUTTING_DOWN.store(true, Ordering::SeqCst);
+    terminate_descendant_processes();
+    std::process::exit(0);
+}
+
+#[cfg(windows)]
+fn terminate_descendant_processes() {
+    use std::collections::HashMap;
+
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::CreateToolhelp32Snapshot;
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::Process32FirstW;
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::Process32NextW;
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::PROCESSENTRY32W;
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::TH32CS_SNAPPROCESS;
+    use windows_sys::Win32::System::Threading::OpenProcess;
+    use windows_sys::Win32::System::Threading::TerminateProcess;
+    use windows_sys::Win32::System::Threading::PROCESS_TERMINATE;
+
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return;
+        }
+
+        let current_pid = std::process::id();
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut parents = HashMap::new();
+        if Process32FirstW(snapshot, &mut entry) != 0 {
+            loop {
+                parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
+                if Process32NextW(snapshot, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(snapshot);
+
+        let mut descendants = parents
+            .keys()
+            .filter_map(|pid| {
+                let mut ancestor = *pid;
+                let mut depth = 0usize;
+                while let Some(parent) = parents.get(&ancestor) {
+                    depth += 1;
+                    if *parent == current_pid {
+                        return Some((*pid, depth));
+                    }
+                    if *parent == 0 || *parent == ancestor || depth > parents.len() {
+                        break;
+                    }
+                    ancestor = *parent;
+                }
+                None
+            })
+            .collect::<Vec<_>>();
+        descendants.sort_unstable_by(|left, right| right.1.cmp(&left.1));
+
+        for (pid, _) in descendants {
+            let process = OpenProcess(PROCESS_TERMINATE, 0, pid);
+            if !process.is_null() {
+                let _ = TerminateProcess(process, 0);
+                let _ = CloseHandle(process);
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn terminate_descendant_processes() {}
 
 impl ActivePreviewProcess {
     fn new(pid: u32) -> Self {
@@ -495,6 +628,11 @@ fn default_local_app_data_dir() -> Result<PathBuf, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|_window, event| {
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                force_shutdown();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             desktop_analyze_session,
             desktop_list_recent_projects,
@@ -507,13 +645,10 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
-            if matches!(
-                event,
-                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
-            ) {
-                cancel_preview_requests();
-            }
+        .run(|_app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { .. } => force_shutdown(),
+            tauri::RunEvent::Exit => terminate_all_active_sidecars(),
+            _ => {}
         });
 }
 
@@ -539,5 +674,21 @@ mod tests {
         let drained = join_preview_pipe(drain_preview_pipe(reader, "test")).unwrap();
 
         assert_eq!(drained, payload);
+    }
+
+    #[test]
+    fn active_sidecar_registration_is_removed_on_drop() {
+        let pid = u32::MAX - 1;
+        {
+            let _active = ActiveSidecarProcess::new(pid);
+            assert!(ACTIVE_SIDECAR_PIDS
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .contains(&pid));
+        }
+        assert!(!ACTIVE_SIDECAR_PIDS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains(&pid));
     }
 }
