@@ -11,6 +11,7 @@ from dwg_audit.audit.extraction_gate import evaluate_extraction_completeness
 from dwg_audit.audit.table_extractor import extract_table_pairs
 from dwg_audit.audit.backplate_components import extract_accessory_backplate_two_port_pairs
 from dwg_audit.audit.page_extractors import mark_component_mapping_endpoint_covered_ordinary_pairs
+from dwg_audit.audit.page_extractors import mark_ignored_equipment_panel_ordinary_pairs
 from dwg_audit.domain.models import ProjectArtifacts
 from dwg_audit.ingest import convert_source_files
 from dwg_audit.ingest import discover_project_roots
@@ -244,6 +245,14 @@ def analyze_input_root(
                     "table_mapping_count": sum(len(item.get("mappings", [])) for item in accessory_mappings),
                 }
             )
+
+        mark_ignored_equipment_panel_ordinary_pairs(
+            pairs,
+            line_groups,
+            audit_texts,
+            audit_lines,
+            symbol_port_definition_proposals,
+        )
 
         authoritative_component_pairs = [
             pair

@@ -63,7 +63,12 @@ GEOMETRY_IGNORE_FAMILIES = frozenset(
         "electrical.nonconnective_narrow_frame_ignored.v1",
     }
 )
-TABLE_CONTAINER_FAMILIES = frozenset({"structural.backplate_table_container.v1"})
+TABLE_CONTAINER_FAMILIES = frozenset(
+    {
+        "structural.backplate_table_container.v1",
+        "structural.component_port_table_container.v1",
+    }
+)
 WIRE_PRIMITIVE_FAMILIES = frozenset({"wire.crossover_jump.v1"})
 
 # Human adjudications are keyed exclusively by observed geometry fingerprint.
@@ -2799,6 +2804,66 @@ def _is_backplate_table_container_geometry(
     )
 
 
+def _is_component_port_table_container_geometry(
+    shape: Mapping[str, Any], *, port_count: int
+) -> bool:
+    """Recognize a dense slotted device face whose populated rows stay active."""
+
+    histogram = shape.get("entity_histogram") or shape.get("primitive_histogram") or {}
+    if not isinstance(histogram, Mapping):
+        return False
+    try:
+        text_count = int(histogram.get("TEXT", 0)) + int(histogram.get("MTEXT", 0))
+        line_count = int(histogram.get("LINE", 0))
+        polyline_count = int(histogram.get("LWPOLYLINE", 0)) + int(
+            histogram.get("POLYLINE", 0)
+        )
+        hatch_count = int(histogram.get("HATCH", 0))
+        parallel_max = int(shape.get("parallel_line_group_max", 0))
+        width = float(shape.get("oriented_width") or shape.get("width") or 0.0)
+        height = float(shape.get("oriented_height") or shape.get("height") or 0.0)
+    except (TypeError, ValueError):
+        return False
+    values = [
+        str(value or "").strip().upper()
+        for value in shape.get("text_values") or []
+        if str(value or "").strip()
+    ]
+    value_counts = Counter(values)
+    complete_pin_cycles = min(
+        (value_counts[f"{number:02d}"] + value_counts[str(number)])
+        for number in range(1, 33)
+    )
+    protocol_headers = {
+        value
+        for value in values
+        if re.fullmatch(
+            r"(?:RS-?\d{3,4}|TTL|FIBER|POWER|NTP|MGM|GNSS|BI\d*)",
+            value,
+        )
+    }
+    slot_numbers = {
+        int(value)
+        for value in values
+        if re.fullmatch(r"(?:[1-9]|1[0-6])", value)
+    }
+    short_side = min(width, height)
+    aspect = max(width, height) / short_side if short_side > 1e-9 else 0.0
+    return bool(
+        4 <= port_count <= 8
+        and text_count >= 250
+        and line_count >= 100
+        and polyline_count >= 120
+        and hatch_count <= 32
+        and parallel_max >= 80
+        and min(width, height) >= 120.0
+        and 1.4 <= aspect <= 2.8
+        and complete_pin_cycles >= 3
+        and len(protocol_headers) >= 3
+        and len(slot_numbers) >= 4
+    )
+
+
 def classify_definition_family(
     proposal: Mapping[str, Any],
     *,
@@ -2831,12 +2896,15 @@ def classify_definition_family(
     table_container_match = _is_backplate_table_container_geometry(
         shape, port_count=len(ports)
     )
+    component_table_container_match = _is_component_port_table_container_geometry(
+        shape, port_count=len(ports)
+    )
     panel_match = _is_communication_multiport_panel_geometry(
         shape, port_count=len(ports)
     )
     ignore_match = (
         None
-        if table_container_match or panel_match
+        if table_container_match or component_table_container_match or panel_match
         else _match_confirmed_ignore_geometry_family(
             shape, port_count=len(ports), aspect_ratio=aspect_ratio
         )
@@ -2844,6 +2912,8 @@ def classify_definition_family(
     machine_family: str | None = (
         "structural.backplate_table_container.v1"
         if table_container_match
+        else "structural.component_port_table_container.v1"
+        if component_table_container_match
         else "component.external_communication_panel.v1"
         if panel_match
         else ignore_match[0]
@@ -2853,14 +2923,31 @@ def classify_definition_family(
     matched_rule_id: str | None = (
         "dense-multi-plugin-backplate-table-v1"
         if table_container_match
+        else "dense-slotted-component-port-table-v1"
+        if component_table_container_match
         else "repeated-labelled-communication-pin-cells-v1"
         if panel_match
         else ignore_match[1]
         if ignore_match
         else None
     )
-    classifier_status = "MATCHED" if table_container_match or panel_match or ignore_match else "UNKNOWN"
-    confidence = 0.99 if table_container_match else 0.98 if panel_match else ignore_match[2] if ignore_match else 0.0
+    classifier_status = (
+        "MATCHED"
+        if table_container_match
+        or component_table_container_match
+        or panel_match
+        or ignore_match
+        else "UNKNOWN"
+    )
+    confidence = (
+        0.99
+        if table_container_match or component_table_container_match
+        else 0.98
+        if panel_match
+        else ignore_match[2]
+        if ignore_match
+        else 0.0
+    )
     if machine_family is None and _is_wfs_polarity_two_port_geometry(
         shape, port_count=len(ports)
     ):

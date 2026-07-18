@@ -326,3 +326,12 @@ connectivity and electrical union.
 - 空白端口不建立映射；不得因同 y 或宽松 x 容差借用邻表端点。
 - 相邻端子表可共享同一 `n` 端点，但必须由同 y、同端口号或完整 reciprocal 中心端子表闭环证明。
 - BI/电压/开入/开出插件背板按独立多端口组件处理；各 pin 仅向外映射，内部不联通，不建立 electrical union。
+
+## Phase 179：设备面板 IGNORE 回灌与 TS3000 结构化端口表（2026-07-18）
+
+- 完整通信设备面板属于已确认的整体 IGNORE。普通 Pair 只有在同一页、同一定义、已批准实例 handle 且完整几何行为权威成立时，才可被面板拥有的几何或严格 MARK callout 阴影；不从面板丝印、HD/BCD 引脚格或内部图形建立通信/电气映射、端口、内部联通或 union。
+- MARK callout 不是名称记忆规则。必须同时具备水平 MARK 线、裸数字侧、与面板 bbox 的 x 重叠、受控设备型号文字、作用域内 `1-40n` 类标签和限定距离；缺任一证据继续保留 Pair review。Proposal fingerprint 只作 provenance，不能单独授权 IGNORE。
+- `TS3000-Z01` 不是设备面板 IGNORE，而是结构化多端口组件表 `structural.component_port_table_container.v1`。在同一 source block 中，作用域实例前缀、bank 槽号和两位原生端口号组合成完整逻辑端点，再映射同一行外部 TD 端子，例如 `1-26n432 -> 1-26TD46`、`2-26n432 -> 2-26TD46`。
+- TS3000 每个端口独立向外映射，端口之间始终不连通、不建立 electrical union；有表格单元但无外部 TD 文本的行保持无映射，不得伪造端点。模型名 `TS3000-Z01` 仅作容器 provenance，不作为端口身份。
+- 真实 fresh replay：`.tmp/phase179_full_533_fresh2` 覆盖 28 个项目、533 张有效 DWG、0 incomplete；`.tmp/phase179_full_533_audit2` 共 118 条（117 review、1 minor、0 critical）。TS3000 S0014/S0015 共 288 条独立映射，两个项目页各 144 条；8000/9000 仅保留四条真实 S0004 `1201/1204` 开端审核。
+- 设备面板回放共阴影 221 条普通 Pair（214 条完整面板几何、7 条严格 MARK callout），fingerprint 与最终 proposal inventory 全部存在且一致；较 Phase178 移除 15 条、无新增 issue。上述结果只证明本轮合同闭环，剩余 review 行仍须后续几何/跨页证据循环，不得整体静默。

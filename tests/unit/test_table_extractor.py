@@ -1,6 +1,8 @@
 from dwg_audit.audit.table_extractor import extract_table_pairs
+from dwg_audit.audit.table_extractor import extract_component_panel_port_table_pairs
 from dwg_audit.audit.table_extractor import extract_terminal_header_table_pairs
 from dwg_audit.domain.models import LineEntity
+from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
@@ -148,6 +150,207 @@ def _make_text(
         bbox_max_y=y + 2,
         source_block_name=source_block_name,
     )
+
+
+def _make_component_panel_fixture(
+    *,
+    missing_slot4_port: int | None = None,
+    include_instance: bool = True,
+) -> tuple[SheetRecord, list[TextItem], list[LineEntity], list[LineGroup]]:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 260.0, 220.0))
+    sheet.filename = "14 元件接线图2.dwg"
+    sheet.sheet_title = "COMPONENT WIRING"
+    sheet.sheet_category = "元件接线图"
+    source = "RENAMED-PORT-TABLE"
+    texts = [
+        _make_text("MODEL", x=125.0, y=200.0, value=source),
+    ]
+    if include_instance:
+        texts.append(_make_text("INSTANCE", x=95.0, y=200.0, value="1-26n"))
+    lines: list[LineEntity] = []
+    groups: list[LineGroup] = []
+    for slot, title, x, td_start in (
+        (4, "RS485", 60.0, 39),
+        (5, "TTL", 120.0, 87),
+        (6, "RS232", 180.0, 135),
+    ):
+        texts.extend(
+            [
+                _make_text(
+                    f"SLOT-{slot}",
+                    x=x,
+                    y=185.0,
+                    value=str(slot),
+                    is_numeric_candidate=True,
+                    source_block_name=source,
+                ),
+                _make_text(
+                    f"TITLE-{slot}",
+                    x=x + 7.0,
+                    y=185.0,
+                    value=title,
+                    source_block_name=source,
+                ),
+            ]
+        )
+        for offset, port in enumerate(range(27, 33)):
+            if slot == 4 and port == missing_slot4_port:
+                continue
+            y = 160.0 - offset * 5.0
+            endpoint_x = x + 20.0
+            row_id = f"ROW-{slot}-{port}"
+            endpoint_id = f"END-{slot}-{port}"
+            line_id = f"LINE-{slot}-{port}"
+            group_id = f"GROUP-{slot}-{port}"
+            texts.extend(
+                [
+                    _make_text(
+                        row_id,
+                        x=x,
+                        y=y,
+                        value=f"{port:02d}",
+                        is_numeric_candidate=True,
+                        source_block_name=source,
+                    ),
+                    _make_text(
+                        endpoint_id,
+                        x=endpoint_x,
+                        y=y,
+                        value=f"1-26TD{td_start + offset}",
+                    ),
+                ]
+            )
+            line_y = y - 1.0
+            lines.append(
+                LineEntity(
+                    line_id=line_id,
+                    sheet_id="S1",
+                    file_id="F1",
+                    handle=f"HPANEL:{slot}:{port}",
+                    source_entity_type="LINE",
+                    layer="0",
+                    start_x=x,
+                    start_y=line_y,
+                    end_x=endpoint_x - 1.0,
+                    end_y=line_y,
+                    length=endpoint_x - x - 1.0,
+                    angle_deg=0.0,
+                    bbox_min_x=x,
+                    bbox_min_y=line_y,
+                    bbox_max_x=endpoint_x - 1.0,
+                    bbox_max_y=line_y,
+                    source_block_name=source,
+                )
+            )
+            groups.append(
+                LineGroup(
+                    line_group_id=group_id,
+                    sheet_id="S1",
+                    file_id="F1",
+                    start_x=x,
+                    start_y=line_y,
+                    end_x=endpoint_x - 1.0,
+                    end_y=line_y,
+                    length=endpoint_x - x - 1.0,
+                    wire_candidate_score=0.85,
+                    member_line_ids=[line_id],
+                    layer_hints=["0"],
+                    orientation="horizontal",
+                    row_band_id=None,
+                )
+            )
+    for suffix, y in (("LOW", 184.0), ("HIGH", 189.0)):
+        line_id = f"HEADER-{suffix}"
+        group_id = f"HEADER-GROUP-{suffix}"
+        lines.append(
+            LineEntity(
+                line_id=line_id,
+                sheet_id="S1",
+                file_id="F1",
+                handle=f"HPANEL:HEADER:{suffix}",
+                source_entity_type="LINE",
+                layer="0",
+                start_x=50.0,
+                start_y=y,
+                end_x=90.0,
+                end_y=y,
+                length=40.0,
+                angle_deg=0.0,
+                bbox_min_x=50.0,
+                bbox_min_y=y,
+                bbox_max_x=90.0,
+                bbox_max_y=y,
+                source_block_name=source,
+            )
+        )
+        groups.append(
+            LineGroup(
+                line_group_id=group_id,
+                sheet_id="S1",
+                file_id="F1",
+                start_x=50.0,
+                start_y=y,
+                end_x=90.0,
+                end_y=y,
+                length=40.0,
+                wire_candidate_score=0.55,
+                member_line_ids=[line_id],
+                layer_hints=["0"],
+                orientation="horizontal",
+                row_band_id=None,
+            )
+        )
+    return sheet, texts, lines, groups
+
+
+def test_component_panel_port_table_emits_scoped_independent_mappings() -> None:
+    sheet, texts, lines, groups = _make_component_panel_fixture()
+
+    pairs, tables, consumed = extract_component_panel_port_table_pairs(
+        texts, lines, groups, [sheet]
+    )
+
+    assert len(pairs) == 18
+    assert len(consumed) == 20
+    assert {"HEADER-GROUP-LOW", "HEADER-GROUP-HIGH"} <= consumed
+    assert tables[0]["mapping_semantics"] == (
+        "independent_external_ports_no_internal_connectivity"
+    )
+    values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert ("1-26n432", "1-26TD44") in values
+    assert ("1-26n532", "1-26TD92") in values
+    assert ("1-26n632", "1-26TD140") in values
+    assert {pair.pair_kind for pair in pairs} == {"component_mapping"}
+    assert all(pair.evidence["ordinary_pair_eligible"] is False for pair in pairs)
+    assert all(pair.evidence["electrical_union_eligible"] is False for pair in pairs)
+
+
+def test_component_panel_port_table_rejects_a_sparse_slot() -> None:
+    sheet, texts, lines, groups = _make_component_panel_fixture(
+        missing_slot4_port=30
+    )
+
+    pairs, _, consumed = extract_component_panel_port_table_pairs(
+        texts, lines, groups, [sheet]
+    )
+
+    assert len(pairs) == 12
+    assert not any(str(pair.left_value).startswith("1-26n4") for pair in pairs)
+    assert not any(group_id.startswith("GROUP-4-") for group_id in consumed)
+
+
+def test_component_panel_port_table_requires_scoped_instance_beside_model() -> None:
+    sheet, texts, lines, groups = _make_component_panel_fixture(
+        include_instance=False
+    )
+
+    pairs, tables, consumed = extract_component_panel_port_table_pairs(
+        texts, lines, groups, [sheet]
+    )
+
+    assert pairs == []
+    assert tables == []
+    assert consumed == set()
 
 
 def test_extract_table_pairs_builds_three_column_mappings() -> None:

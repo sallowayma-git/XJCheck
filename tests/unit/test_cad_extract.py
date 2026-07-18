@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,6 +10,7 @@ import pytest
 from dwg_audit.domain.models import ProjectScanResult
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SourceFileRecord
+from dwg_audit.audit.symbol_registry import definition_fingerprint_from_children
 from dwg_audit.extract.cad_extract import extract_cad_artifacts
 from dwg_audit.readers import EzdxfReader
 from dwg_audit.readers import ReaderError
@@ -140,6 +142,15 @@ def test_extract_cad_artifacts_emits_shadow_definition_port_proposals(
     proposal = result.symbol_port_definition_proposals[0]
     assert proposal["definition_name"] == "FOUR_PORT"
     assert proposal["sheet_id"] == "S0001"
+    expected_fingerprint = definition_fingerprint_from_children(
+        [
+            asdict(segment)
+            for segment in result.primitive_segments
+            if segment.definition_name == "FOUR_PORT"
+            and segment.primitive_kind != "INSERT"
+        ]
+    )
+    assert proposal["definition_fingerprint"] == expected_fingerprint
     assert len(proposal["ports"]) == 4
     assert all(
         port["annotation_status"] == "MACHINE_PROPOSED"

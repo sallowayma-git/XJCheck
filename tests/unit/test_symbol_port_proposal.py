@@ -1553,6 +1553,71 @@ def test_large_text_dense_drawing_metadata_is_not_a_multi_port_component() -> No
     assert applied["ports"] == []
 
 
+def _component_port_table_container_proposal(*, omit_header: str | None = None) -> dict:
+    headers = ["RS485", "TTL", "RS232", "FIBER", "POWER"]
+    if omit_header is not None:
+        headers = [value for value in headers if value != omit_header]
+    values = headers + [str(slot) for slot in range(4, 10)]
+    values += [f"{number:02d}" for number in range(1, 33)] * 3
+    return {
+        "definition_name": "RENAMED_COMPONENT_PORT_TABLE",
+        "definition_fingerprint": "unseen-component-port-table",
+        "ports": [
+            {"port_id": f"MP{index}", "local_position": [float(index), 0.0, 0.0]}
+            for index in range(1, 7)
+        ],
+        "geometry_summary": {
+            "shape_features": {
+                "width": 355.0,
+                "height": 165.0,
+                "oriented_width": 380.0,
+                "oriented_height": 190.0,
+                "oriented_aspect_ratio": 2.0,
+                "primitive_count": 467,
+                "primitive_histogram": {"LINE": 190, "LWPOLYLINE": 277},
+                "entity_histogram": {
+                    "HATCH": 20,
+                    "INSERT": 4,
+                    "LINE": 190,
+                    "LWPOLYLINE": 277,
+                    "TEXT": 320,
+                },
+                "text_count": 320,
+                "text_values": values,
+                "parallel_line_group_max": 160,
+            }
+        },
+    }
+
+
+def test_component_port_table_container_preserves_rows_instead_of_metadata_ignore() -> None:
+    applied = apply_human_symbol_policy_to_proposal_row(
+        _component_port_table_container_proposal()
+    )
+
+    assert applied["family_id"] == "structural.component_port_table_container.v1"
+    assert applied["matched_family_rule_id"] == "dense-slotted-component-port-table-v1"
+    assert applied["behavior_mode"] == "TABLE_CONTAINER"
+    assert applied["status"] == "GEOMETRY_FAMILY_TABLE_CONTAINER"
+    assert applied["ports"] == []
+    assert applied["table_mapping_preserved"] is True
+    assert applied["allow_internal_connectivity"] is False
+    assert applied["allow_electrical_union"] is False
+
+
+def test_dense_component_panel_without_protocol_diversity_is_not_a_port_table() -> None:
+    proposal = _component_port_table_container_proposal()
+    proposal["geometry_summary"]["shape_features"]["text_values"] = (
+        ["RS485", "RS232"]
+        + [str(slot) for slot in range(4, 10)]
+        + [f"{number:02d}" for number in range(1, 33)] * 3
+    )
+
+    applied = apply_human_symbol_policy_to_proposal_row(proposal)
+
+    assert applied["family_id"] != "structural.component_port_table_container.v1"
+
+
 def _three_contact_selector_shape(*, shifted_third: bool = False) -> dict:
     third = (0.9, 0.7) if shifted_third else (1.0, 0.5)
     return {

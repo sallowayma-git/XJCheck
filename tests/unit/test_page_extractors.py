@@ -6,6 +6,8 @@ from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
 from dwg_audit.audit.page_extractors import _promote_regular_terminal_row_array_pairs
 from dwg_audit.audit.page_extractors import _promote_xjdz_structural_component_pairs
+from dwg_audit.audit.page_extractors import _panel_model_label_matches
+from dwg_audit.audit.page_extractors import mark_ignored_equipment_panel_ordinary_pairs
 from dwg_audit.audit.rules import build_issues
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
@@ -95,6 +97,505 @@ def _line_group(
         layer_hints=[],
         orientation=orientation,
         row_band_id=row_band_id,
+    )
+
+
+def _panel_line(
+    line_id: str,
+    *,
+    handle: str,
+    start_x: float,
+    start_y: float,
+    end_x: float,
+    end_y: float,
+    layer: str = "0",
+    source_block_name: str | None = None,
+) -> LineEntity:
+    return LineEntity(
+        line_id=line_id,
+        sheet_id="S1",
+        file_id="F1",
+        handle=handle,
+        source_entity_type="LINE",
+        layer=layer,
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        length=((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5,
+        angle_deg=0.0,
+        bbox_min_x=min(start_x, end_x),
+        bbox_min_y=min(start_y, end_y),
+        bbox_max_x=max(start_x, end_x),
+        bbox_max_y=max(start_y, end_y),
+        source_block_name=source_block_name,
+    )
+
+
+def _panel_text(
+    text_id: str,
+    value: str,
+    *,
+    x: float,
+    y: float,
+    layer: str = "0",
+    source_block_name: str | None = None,
+    handle: str | None = None,
+) -> TextItem:
+    return TextItem(
+        text_id=text_id,
+        sheet_id="S1",
+        file_id="F1",
+        handle=handle or f"H-{text_id}",
+        entity_type="TEXT",
+        text=value,
+        normalized_text=value,
+        is_numeric_candidate=value.isdigit(),
+        layer=layer,
+        rotation_deg=0.0,
+        height=2.5,
+        insert_x=x,
+        insert_y=y,
+        bbox_min_x=x,
+        bbox_min_y=y - 1.0,
+        bbox_max_x=x + max(1.0, len(value) * 1.5),
+        bbox_max_y=y + 1.0,
+        source_block_name=source_block_name,
+    )
+
+
+def _ignored_panel_proposal(*, family_id: str = "communication.equipment_panel_ignored.v1") -> dict[str, object]:
+    return {
+        "sheet_id": "S1",
+        "definition_name": "RENAMED-EQUIPMENT-PANEL",
+        "definition_fingerprint": "geometry-proven-panel",
+        "instance_handles": ["HPANEL"],
+        "family_id": family_id,
+        "matched_family_rule_id": "complete-equipment-panel-v1",
+        "behavior_mode": "IGNORE",
+        "allow_port_emission": False,
+        "allow_external_attachment": False,
+    }
+
+
+def test_geometry_proven_equipment_panel_shadows_internal_ordinary_pairs() -> None:
+    text_owned = _pair(
+        {"selected_left_text_id": "TPIN"},
+        pair_id="P-TEXT",
+        line_group_id="G-TEXT",
+        left_text_id="TPIN",
+        left_value="4",
+        right_value=None,
+    )
+    line_owned = _pair(
+        {"selected_left_text_id": "TFREE"},
+        pair_id="P-LINE",
+        line_group_id="G-LINE",
+        left_text_id="TFREE",
+        left_value="5",
+        right_value=None,
+    )
+    unrelated = _pair(
+        {"selected_left_text_id": "TFREE"},
+        pair_id="P-OTHER",
+        line_group_id="G-OTHER",
+        left_text_id="TFREE",
+        left_value="6",
+        right_value=None,
+    )
+    groups = [
+        _line_group("G-TEXT", start_x=100.0, end_x=140.0, orientation="horizontal"),
+        _line_group("G-LINE", start_x=100.0, end_x=140.0, orientation="horizontal"),
+        _line_group("G-OTHER", start_x=220.0, end_x=260.0, orientation="horizontal"),
+    ]
+    groups[0].member_line_ids = ["L-TEXT"]
+    groups[1].member_line_ids = ["L-LINE"]
+    groups[2].member_line_ids = ["L-OTHER"]
+    lines = [
+        _panel_line(
+            "L-TEXT", handle="HPANEL:VIRTUAL:1", start_x=100.0, start_y=135.0,
+            end_x=140.0, end_y=135.0, source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+        _panel_line(
+            "L-LINE", handle="HPANEL:VIRTUAL:2", start_x=100.0, start_y=130.0,
+            end_x=140.0, end_y=130.0, source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+        _panel_line(
+            "L-OTHER", handle="FREE-LINE", start_x=220.0, start_y=135.0,
+            end_x=260.0, end_y=135.0,
+        ),
+    ]
+    texts = [
+        _panel_text(
+            "TPIN",
+            "4",
+            x=100.0,
+            y=135.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+            handle="HPANEL:TEXT:1",
+        ),
+        _panel_text("TFREE", "5", x=100.0, y=130.0),
+    ]
+
+    mark_ignored_equipment_panel_ordinary_pairs(
+        [text_owned, line_owned, unrelated],
+        groups,
+        texts,
+        lines,
+        [_ignored_panel_proposal()],
+    )
+
+    for pair in (text_owned, line_owned):
+        assert pair.evidence["ordinary_pair_eligible"] is False
+        assert pair.evidence["ordinary_pair_shadow_reason"] == "ignored_equipment_panel_geometry"
+        assert pair.evidence["ignored_panel_definition_fingerprint"] == "geometry-proven-panel"
+    assert unrelated.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_geometry_proven_equipment_panel_shadows_strict_mark_callout() -> None:
+    callout = _pair(
+        {
+            "selected_left_text_id": "T5",
+            "selected_left_raw_text": "5",
+            "line_orientation": "horizontal",
+        },
+        pair_id="P-CALLOUT",
+        line_group_id="G-CALLOUT",
+        left_text_id="T5",
+        left_value="5",
+        right_value=None,
+    )
+    group = _line_group(
+        "G-CALLOUT",
+        start_x=120.0,
+        end_x=170.0,
+        start_y=160.0,
+        end_y=160.0,
+        orientation="horizontal",
+    )
+    group.member_line_ids = ["L-CALLOUT"]
+    group.layer_hints = ["MARK"]
+    lines = [
+        _panel_line(
+            "L-PANEL-BOTTOM", handle="HPANEL:VIRTUAL:1", start_x=100.0, start_y=50.0,
+            end_x=200.0, end_y=50.0, source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+        _panel_line(
+            "L-PANEL-TOP", handle="HPANEL:VIRTUAL:2", start_x=100.0, start_y=150.0,
+            end_x=200.0, end_y=150.0, source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+        _panel_line(
+            "L-CALLOUT", handle="FREE-MARK", start_x=120.0, start_y=160.0,
+            end_x=170.0, end_y=160.0, layer="MARK",
+        ),
+    ]
+    texts = [
+        _panel_text("T5", "5", x=120.0, y=160.0, layer="MARK"),
+        _panel_text("TSCOPE", "1-40n", x=132.0, y=160.4, layer="MARK"),
+        _panel_text(
+            "TMODEL",
+            "RENAMED-EQUIPMENT-PANEL",
+            x=120.0,
+            y=156.7,
+            layer="MARK",
+        ),
+    ]
+
+    mark_ignored_equipment_panel_ordinary_pairs(
+        [callout], [group], texts, lines, [_ignored_panel_proposal()]
+    )
+
+    assert callout.evidence["ordinary_pair_eligible"] is False
+    assert callout.evidence["ordinary_pair_shadow_reason"] == "ignored_equipment_panel_mark_callout"
+
+
+def test_equipment_panel_shadow_requires_authority_and_complete_mark_evidence() -> None:
+    no_scope = _pair(
+        {"selected_left_text_id": "T5", "selected_left_raw_text": "5"},
+        pair_id="P-NO-SCOPE",
+        line_group_id="G-CALLOUT",
+        left_text_id="T5",
+        left_value="5",
+        right_value=None,
+    )
+    metadata_owned = _pair(
+        {"selected_left_text_id": "TPIN"},
+        pair_id="P-METADATA",
+        line_group_id="G-PANEL",
+        left_text_id="TPIN",
+        left_value="32",
+        right_value=None,
+    )
+    callout_group = _line_group(
+        "G-CALLOUT", start_x=120.0, end_x=170.0, start_y=160.0, end_y=160.0,
+        orientation="horizontal",
+    )
+    callout_group.member_line_ids = ["L-CALLOUT"]
+    callout_group.layer_hints = ["MARK"]
+    panel_group = _line_group("G-PANEL", start_x=100.0, end_x=140.0, orientation="horizontal")
+    panel_group.member_line_ids = ["L-PANEL-TOP"]
+    lines = [
+        _panel_line(
+            "L-PANEL-TOP", handle="HPANEL:VIRTUAL:2", start_x=100.0, start_y=150.0,
+            end_x=200.0, end_y=150.0, source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+        _panel_line(
+            "L-CALLOUT", handle="FREE-MARK", start_x=120.0, start_y=160.0,
+            end_x=170.0, end_y=160.0, layer="MARK",
+        ),
+    ]
+    texts = [
+        _panel_text("T5", "5", x=120.0, y=160.0, layer="MARK"),
+        _panel_text(
+            "TMODEL",
+            "RENAMED-EQUIPMENT-PANEL",
+            x=120.0,
+            y=156.7,
+            layer="MARK",
+        ),
+        _panel_text(
+            "TPIN",
+            "32",
+            x=100.0,
+            y=135.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+            handle="HPANEL:TEXT:2",
+        ),
+    ]
+
+    mark_ignored_equipment_panel_ordinary_pairs(
+        [no_scope], [callout_group], texts, lines, [_ignored_panel_proposal()]
+    )
+    mark_ignored_equipment_panel_ordinary_pairs(
+        [metadata_owned],
+        [panel_group],
+        texts,
+        lines,
+        [_ignored_panel_proposal(family_id="non_electrical.drawing_metadata.v1")],
+    )
+
+    assert no_scope.evidence.get("ordinary_pair_eligible") is not False
+    assert metadata_owned.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_equipment_panel_shadow_requires_an_approved_instance_handle() -> None:
+    unapproved = _pair(
+        {"selected_left_text_id": "TPIN"},
+        pair_id="P-UNAPPROVED",
+        line_group_id="G-UNAPPROVED",
+        left_text_id="TPIN",
+        left_value="8",
+        right_value=None,
+    )
+    group = _line_group(
+        "G-UNAPPROVED", start_x=220.0, end_x=260.0, orientation="horizontal"
+    )
+    group.member_line_ids = ["L-UNAPPROVED"]
+    lines = [
+        _panel_line(
+            "L-APPROVED",
+            handle="HPANEL:VIRTUAL:1",
+            start_x=100.0,
+            start_y=150.0,
+            end_x=200.0,
+            end_y=150.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+        _panel_line(
+            "L-UNAPPROVED",
+            handle="HOTHER:VIRTUAL:1",
+            start_x=220.0,
+            start_y=130.0,
+            end_x=260.0,
+            end_y=130.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+    ]
+    texts = [
+        _panel_text(
+            "TPIN",
+            "8",
+            x=220.0,
+            y=130.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+            handle="HOTHER:TEXT:1",
+        )
+    ]
+
+    mark_ignored_equipment_panel_ordinary_pairs(
+        [unapproved], [group], texts, lines, [_ignored_panel_proposal()]
+    )
+
+    assert unapproved.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_equipment_panel_mark_callout_requires_the_actual_model_label() -> None:
+    callout = _pair(
+        {"selected_left_text_id": "T5", "selected_left_raw_text": "5"},
+        pair_id="P-NOTE",
+        line_group_id="G-CALLOUT",
+        left_text_id="T5",
+        left_value="5",
+        right_value=None,
+    )
+    group = _line_group(
+        "G-CALLOUT",
+        start_x=120.0,
+        end_x=170.0,
+        start_y=160.0,
+        end_y=160.0,
+        orientation="horizontal",
+    )
+    group.member_line_ids = ["L-CALLOUT"]
+    group.layer_hints = ["MARK"]
+    lines = [
+        _panel_line(
+            "L-PANEL-TOP",
+            handle="HPANEL:VIRTUAL:2",
+            start_x=100.0,
+            start_y=150.0,
+            end_x=200.0,
+            end_y=150.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+        ),
+        _panel_line(
+            "L-CALLOUT",
+            handle="FREE-MARK",
+            start_x=120.0,
+            start_y=160.0,
+            end_x=170.0,
+            end_y=160.0,
+            layer="MARK",
+        ),
+    ]
+    texts = [
+        _panel_text("T5", "5", x=120.0, y=160.0, layer="MARK"),
+        _panel_text("TSCOPE", "1-40n", x=132.0, y=160.4, layer="MARK"),
+        _panel_text("TNOTE", "NOTE", x=120.0, y=156.7, layer="MARK"),
+    ]
+
+    mark_ignored_equipment_panel_ordinary_pairs(
+        [callout], [group], texts, lines, [_ignored_panel_proposal()]
+    )
+
+    assert callout.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_firewall_panel_accepts_only_a_scoped_product_model_alias() -> None:
+    row = {
+        "definition_name": "NGFW4000-UFTG-3100-GW",
+        "matched_family_rule_id": "firewall-eth-usb-optical-power-panel-v1",
+    }
+
+    assert _panel_model_label_matches(row, "HX-SFW-NF4203-E")
+    assert _panel_model_label_matches(row, "NGFW4000-UFTG-3100-GW")
+    assert not _panel_model_label_matches(row, "NOTE")
+    assert not _panel_model_label_matches(row, "1-40n")
+    assert not _panel_model_label_matches(
+        {**row, "matched_family_rule_id": "compact-ge-gx-power-switch-panel-v1"},
+        "HX-SFW-NF4203-E",
+    )
+
+
+def test_equipment_panel_shadow_evaluates_a_raw_human_proposal() -> None:
+    raw = _ignored_panel_proposal()
+    raw["definition_fingerprint"] = (
+        "324c61d3d720cd06224bf81112169aa8a8cfdb5197a715181e376ea2cedfb2a5"
+    )
+    for key in (
+        "family_id",
+        "matched_family_rule_id",
+        "behavior_mode",
+        "allow_port_emission",
+        "allow_external_attachment",
+    ):
+        raw.pop(key, None)
+    pair = _pair(
+        {"selected_left_text_id": "TPIN"},
+        pair_id="P-RAW",
+        line_group_id="G-RAW",
+        left_text_id="TPIN",
+        left_value="4",
+        right_value=None,
+    )
+    group = _line_group("G-RAW", start_x=100.0, end_x=140.0, orientation="horizontal")
+    group.member_line_ids = ["L-RAW"]
+    lines = [
+        _panel_line(
+            "L-RAW",
+            handle="HPANEL:VIRTUAL:1",
+            start_x=100.0,
+            start_y=135.0,
+            end_x=140.0,
+            end_y=135.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+        )
+    ]
+    texts = [
+        _panel_text(
+            "TPIN",
+            "4",
+            x=100.0,
+            y=135.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+            handle="HPANEL:TEXT:1",
+        )
+    ]
+
+    mark_ignored_equipment_panel_ordinary_pairs([pair], [group], texts, lines, [raw])
+
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["ignored_panel_instance_handle"] == "HPANEL"
+
+
+def test_equipment_panel_shadow_preserves_legacy_fingerprint_evidence() -> None:
+    proposal = _ignored_panel_proposal()
+    proposal["fingerprint"] = proposal.pop("definition_fingerprint")
+    pair = _pair(
+        {"selected_left_text_id": "TPIN"},
+        pair_id="P-LEGACY-FINGERPRINT",
+        line_group_id="G-LEGACY-FINGERPRINT",
+        left_text_id="TPIN",
+        left_value="4",
+        right_value=None,
+    )
+    group = _line_group(
+        "G-LEGACY-FINGERPRINT",
+        start_x=100.0,
+        end_x=140.0,
+        orientation="horizontal",
+    )
+    group.member_line_ids = ["L-LEGACY-FINGERPRINT"]
+    lines = [
+        _panel_line(
+            "L-LEGACY-FINGERPRINT",
+            handle="HPANEL:VIRTUAL:1",
+            start_x=100.0,
+            start_y=135.0,
+            end_x=140.0,
+            end_y=135.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+        )
+    ]
+    texts = [
+        _panel_text(
+            "TPIN",
+            "4",
+            x=100.0,
+            y=135.0,
+            source_block_name="RENAMED-EQUIPMENT-PANEL",
+            handle="HPANEL:TEXT:1",
+        )
+    ]
+
+    mark_ignored_equipment_panel_ordinary_pairs(
+        [pair], [group], texts, lines, [proposal]
+    )
+
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert (
+        pair.evidence["ignored_panel_definition_fingerprint"]
+        == "geometry-proven-panel"
     )
 
 

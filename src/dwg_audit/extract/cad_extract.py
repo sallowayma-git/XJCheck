@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from dwg_audit.domain.models import BlockRecord
@@ -15,6 +15,7 @@ from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.domain.models import TextItem
 from dwg_audit.audit.symbol_port_proposal import propose_ports_from_block
+from dwg_audit.audit.symbol_registry import definition_fingerprint_from_children
 from dwg_audit.readers import EzdxfReader
 from dwg_audit.readers import ReaderError
 from dwg_audit.readers import ReaderOptions
@@ -74,6 +75,32 @@ def _line_bbox(start_x: float, start_y: float, end_x: float, end_y: float) -> tu
 
 def _angle_deg(start_x: float, start_y: float, end_x: float, end_y: float) -> float:
     return math.degrees(math.atan2(end_y - start_y, end_x - start_x))
+
+
+def _bind_symbol_proposal_fingerprints(
+    proposals: list[dict[str, object]],
+    primitive_segments: list[PrimitiveSegment],
+) -> None:
+    proposal_names = {
+        str(row.get("definition_name") or "").strip()
+        for row in proposals
+        if str(row.get("definition_name") or "").strip()
+    }
+    children_by_definition: dict[str, list[dict[str, object]]] = {
+        name: [] for name in proposal_names
+    }
+    for segment in primitive_segments:
+        name = str(segment.definition_name or "").strip()
+        if name in children_by_definition and segment.primitive_kind != "INSERT":
+            children_by_definition[name].append(asdict(segment))
+    fingerprints = {
+        name: definition_fingerprint_from_children(children)
+        for name, children in children_by_definition.items()
+    }
+    for row in proposals:
+        name = str(row.get("definition_name") or "").strip()
+        if name in fingerprints:
+            row["definition_fingerprint"] = fingerprints[name]
 
 
 def _extent_bbox(
@@ -873,6 +900,10 @@ def extract_cad_artifacts(
         all_blocks.extend(sheet_blocks)
         all_polylines.extend(sheet_polylines)
 
+    _bind_symbol_proposal_fingerprints(
+        symbol_port_definition_proposals,
+        primitive_segments,
+    )
     return CadExtractionResult(
         texts=all_texts,
         lines=all_lines,

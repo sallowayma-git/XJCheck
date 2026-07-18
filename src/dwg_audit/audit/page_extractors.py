@@ -13,6 +13,7 @@ from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_
 from dwg_audit.audit.line_groups import build_line_groups
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.table_extractor import extract_terminal_header_table_pairs
+from dwg_audit.audit.table_extractor import extract_component_panel_port_table_pairs
 from dwg_audit.audit.wire_components import extract_component_prefixed_signal_pairs
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineEntity
@@ -189,6 +190,7 @@ def _extract_pairs_for_route(
         )
         _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)
+    table_mappings = []
     if executed_extractor == "ComponentDiagramExtractor":
         _promote_xjdz_structural_component_pairs(
             pairs,
@@ -234,6 +236,18 @@ def _extract_pairs_for_route(
             )
             component_pairs.extend(small_port_pairs)
             consumed_group_ids.update(small_port_consumed_group_ids)
+        panel_table_pairs, panel_table_mappings, panel_consumed_group_ids = (
+            extract_component_panel_port_table_pairs(
+                texts,
+                lines,
+                line_groups,
+                pages,
+                pair_id_factory=IdFactory(f"P{id_stem}V"),
+            )
+        )
+        component_pairs.extend(panel_table_pairs)
+        consumed_group_ids.update(panel_consumed_group_ids)
+        table_mappings.extend(panel_table_mappings)
         if component_pairs:
             _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
             pairs.extend(component_pairs)
@@ -241,7 +255,6 @@ def _extract_pairs_for_route(
         # Device-panel silkscreen pin lattices (HMC HD/BCD grids) stay as graph
         # evidence but must not enter ordinary terminal / cross-page audit.
         _shadow_hmc_silkscreen_ordinary_pairs(pairs, pages, texts)
-    table_mappings = []
     if executed_extractor == "TerminalDiagramExtractor":
         table_pairs, table_mappings = extract_terminal_header_table_pairs(
             texts,
@@ -568,6 +581,293 @@ def _shadow_repeated_panel_silkscreen_ordinary_pairs(
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "repeated_panel_numeric_silkscreen"
+
+
+_EQUIPMENT_PANEL_IGNORE_FAMILY = "communication.equipment_panel_ignored.v1"
+_PANEL_MARK_SCOPE_PATTERN = re.compile(r"^\d+(?:-\d+)+n$", re.IGNORECASE)
+_PANEL_MARK_BARE_DIGIT_PATTERN = re.compile(r"^\d{1,3}$")
+_FIREWALL_PANEL_MODEL_PATTERN = re.compile(
+    r"^(?:NGFW[A-Z0-9-]*|HX-SFW-[A-Z0-9-]+)$",
+    re.IGNORECASE,
+)
+
+
+def _panel_model_label_matches(row: dict[str, object], value: object) -> bool:
+    raw = str(value or "").strip()
+    canonical_value = re.sub(r"[\W_]+", "", raw.casefold())
+    canonical_definition = re.sub(
+        r"[\W_]+", "", str(row.get("definition_name") or "").casefold()
+    )
+    if canonical_definition and canonical_value == canonical_definition:
+        return True
+    if row.get("matched_family_rule_id") != "firewall-eth-usb-optical-power-panel-v1":
+        return False
+    return bool(
+        _FIREWALL_PANEL_MODEL_PATTERN.fullmatch(raw)
+        and re.search(r"\d", raw)
+    )
+
+
+def mark_ignored_equipment_panel_ordinary_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    texts: list[TextItem],
+    lines: list[LineEntity],
+    symbol_port_definition_proposals: list[dict[str, object]],
+) -> None:
+    """Consume geometry-proven whole-panel IGNORE decisions at pair level.
+
+    Symbol proposals are produced before route extraction, but historically their
+    ``communication.equipment_panel_ignored.v1`` decision was only persisted as
+    an artifact.  That left panel-owned virtual lines and the short MARK callout
+    above a panel in the ordinary terminal graph.  This pass binds only complete
+    geometry proposals back to those pairs; it does not infer IGNORE from a block
+    name or from a bare numeric value.
+    """
+
+    from dwg_audit.audit.symbol_port_proposal import apply_human_symbol_policy_to_proposal_row
+
+    evaluated_rows: list[dict[str, object]] = []
+    for source_row in symbol_port_definition_proposals:
+        row = dict(source_row)
+        if not row.get("family_id") or not row.get("behavior_mode"):
+            row = apply_human_symbol_policy_to_proposal_row(row)
+        evaluated_rows.append(row)
+    panel_rows = [
+        row
+        for row in evaluated_rows
+        if row.get("family_id") == _EQUIPMENT_PANEL_IGNORE_FAMILY
+        and row.get("behavior_mode") == "IGNORE"
+        and row.get("allow_port_emission") is False
+        and row.get("allow_external_attachment") is False
+    ]
+    if not panel_rows:
+        return
+
+    def normalized(value: object) -> str:
+        return str(value or "").strip().casefold()
+
+    line_by_id = {line.line_id: line for line in lines}
+    group_by_id = {group.line_group_id: group for group in line_groups}
+    text_by_id = {text.text_id: text for text in texts}
+    lines_by_sheet_and_definition: dict[tuple[str, str], list[LineEntity]] = defaultdict(list)
+    mark_texts_by_sheet: dict[str, list[TextItem]] = defaultdict(list)
+    for line in lines:
+        definition_name = normalized(line.source_block_name)
+        if definition_name:
+            lines_by_sheet_and_definition[(line.sheet_id, definition_name)].append(line)
+    for text_item in texts:
+        if (
+            not text_item.source_block_name
+            and str(text_item.layer or "").strip().upper() == "MARK"
+        ):
+            mark_texts_by_sheet[text_item.sheet_id].append(text_item)
+
+    panel_instances_by_key: dict[
+        tuple[str, str], list[tuple[str, dict[str, object]]]
+    ] = defaultdict(list)
+    panel_bboxes_by_sheet: dict[
+        str,
+        list[tuple[float, float, float, float, str, dict[str, object]]],
+    ] = defaultdict(list)
+
+    for row in panel_rows:
+        sheet_id = str(row.get("sheet_id") or "")
+        definition_name = normalized(row.get("definition_name"))
+        if not sheet_id or not definition_name:
+            continue
+        handles = row.get("instance_handles")
+        if not isinstance(handles, list):
+            continue
+        for raw_handle in handles:
+            instance_handle = str(raw_handle or "").strip()
+            if not instance_handle:
+                continue
+            panel_instances_by_key[(sheet_id, definition_name)].append((instance_handle, row))
+            instance_lines = [
+                line
+                for line in lines_by_sheet_and_definition.get(
+                    (sheet_id, definition_name), []
+                )
+                if (
+                    line.handle == instance_handle
+                    or line.handle.startswith(f"{instance_handle}:")
+                )
+            ]
+            if not instance_lines:
+                continue
+            panel_bboxes_by_sheet[sheet_id].append(
+                (
+                    min(line.bbox_min_x for line in instance_lines),
+                    min(line.bbox_min_y for line in instance_lines),
+                    max(line.bbox_max_x for line in instance_lines),
+                    max(line.bbox_max_y for line in instance_lines),
+                    instance_handle,
+                    row,
+                )
+            )
+
+    panel_sheets = {sheet_id for sheet_id, _ in panel_instances_by_key}
+
+    def selected_texts(pair: Pair) -> list[TextItem]:
+        evidence = pair.evidence or {}
+        ids = {
+            pair.left_text_id,
+            pair.right_text_id,
+            evidence.get("selected_left_text_id"),
+            evidence.get("selected_right_text_id"),
+        }
+        return [text_by_id[text_id] for text_id in ids if text_id in text_by_id]
+
+    def approved_owner(
+        *, sheet_id: str, definition_name: object, entity_handle: object
+    ) -> tuple[dict[str, object], str] | None:
+        normalized_name = normalized(definition_name)
+        handle = str(entity_handle or "").strip()
+        if not normalized_name or not handle:
+            return None
+        for instance_handle, row in panel_instances_by_key.get(
+            (sheet_id, normalized_name), []
+        ):
+            if handle == instance_handle or handle.startswith(f"{instance_handle}:"):
+                return row, instance_handle
+        return None
+
+    def mark(
+        pair: Pair,
+        row: dict[str, object],
+        instance_handle: str,
+        reason: str,
+    ) -> None:
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = reason
+        pair.evidence["ignored_panel_family_id"] = _EQUIPMENT_PANEL_IGNORE_FAMILY
+        pair.evidence["ignored_panel_definition_name"] = row.get("definition_name")
+        pair.evidence["ignored_panel_definition_fingerprint"] = (
+            row.get("definition_fingerprint") or row.get("fingerprint")
+        )
+        pair.evidence["ignored_panel_instance_handle"] = instance_handle
+        pair.evidence["ignored_panel_family_rule_id"] = row.get("matched_family_rule_id")
+
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        sheet_id = str(pair.sheet_id or "")
+        if sheet_id not in panel_sheets:
+            continue
+
+        # A pair is panel-owned when either its selected text or one of its
+        # member line entities belongs to an explicitly approved instance.
+        selected_owner = next(
+            (
+                owner
+                for text_item in selected_texts(pair)
+                if (
+                    owner := approved_owner(
+                        sheet_id=sheet_id,
+                        definition_name=text_item.source_block_name,
+                        entity_handle=text_item.handle,
+                    )
+                )
+            ),
+            None,
+        )
+        if selected_owner is not None:
+            row, instance_handle = selected_owner
+            mark(
+                pair,
+                row,
+                instance_handle,
+                "ignored_equipment_panel_geometry",
+            )
+            continue
+        group = group_by_id.get(pair.line_group_id)
+        if group is None:
+            continue
+        members = [line_by_id[line_id] for line_id in group.member_line_ids if line_id in line_by_id]
+        member_owner = next(
+            (
+                owner
+                for line in members
+                if (
+                    owner := approved_owner(
+                        sheet_id=sheet_id,
+                        definition_name=line.source_block_name,
+                        entity_handle=line.handle,
+                    )
+                )
+            ),
+            None,
+        )
+        if member_owner is not None:
+            row, instance_handle = member_owner
+            mark(
+                pair,
+                row,
+                instance_handle,
+                "ignored_equipment_panel_geometry",
+            )
+            continue
+
+        # Panel placement callouts are free MARK geometry immediately above the
+        # actual panel.  Require both a model label and a scoped n-reference so
+        # a normal MARK-layer terminal or wire cannot inherit panel IGNORE.
+        layers = {str(layer or "").strip().upper() for layer in group.layer_hints}
+        if layers != {"MARK"} or group.orientation != "horizontal":
+            continue
+        values = [value for value in (pair.left_value, pair.right_value) if value]
+        raw_values = [
+            value
+            for value in (
+                pair.left_value,
+                pair.right_value,
+                pair.evidence.get("selected_left_raw_text"),
+                pair.evidence.get("selected_right_raw_text"),
+            )
+            if value
+        ]
+        if len(values) != 1 or not any(
+            _PANEL_MARK_BARE_DIGIT_PATTERN.fullmatch(str(value).strip()) for value in raw_values
+        ):
+            continue
+        group_min_x, group_max_x = sorted((group.start_x, group.end_x))
+        group_y = (group.start_y + group.end_y) / 2.0
+        for min_x, min_y, max_x, max_y, instance_handle, row in panel_bboxes_by_sheet.get(sheet_id, []):
+            if group_y < max_y or group_y - max_y > 30.0:
+                continue
+            if group_max_x < min_x or group_min_x > max_x:
+                continue
+            nearby = [
+                text
+                for text in mark_texts_by_sheet.get(sheet_id, [])
+                if text.insert_y >= group_y - 6.0
+                and text.insert_y <= group_y + 2.0
+                and text.bbox_max_x >= group_min_x - 2.0
+                and text.bbox_min_x <= group_max_x + 8.0
+            ]
+            scope_texts = [
+                text
+                for text in nearby
+                if _PANEL_MARK_SCOPE_PATTERN.fullmatch(str(text.normalized_text or text.text or "").strip())
+            ]
+            model_texts = [
+                text
+                for text in nearby
+                if _panel_model_label_matches(
+                    row, text.normalized_text or text.text
+                )
+            ]
+            if scope_texts and model_texts:
+                mark(
+                    pair,
+                    row,
+                    instance_handle,
+                    "ignored_equipment_panel_mark_callout",
+                )
+                break
 
 
 # Device front-panel silkscreen (human-adjudicated): HMC pin grids with HD*/BCD*

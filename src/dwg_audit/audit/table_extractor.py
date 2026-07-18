@@ -24,6 +24,7 @@ from statistics import median
 from typing import Any
 
 from dwg_audit.domain.models import LineEntity
+from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import SheetRecord
@@ -101,6 +102,19 @@ _TERMINAL_HEADER_SEMANTIC_ENDPOINTS = {
     "3U0",
     "3U0'",
 }
+_COMPONENT_PANEL_PROTOCOL_TITLE_PATTERN = re.compile(
+    r"^(?:RS-?\d{3,4}|TTL|FIBER|POWER|NTP|MGM|GNSS|BI\d*)$",
+    re.IGNORECASE,
+)
+_COMPONENT_PANEL_PIN_PATTERN = re.compile(r"^(?:0?[1-9]|[12][0-9]|3[0-2])$")
+_COMPONENT_PANEL_MIN_SLOT_COUNT = 3
+_COMPONENT_PANEL_MIN_CONTIGUOUS_ROWS = 6
+_COMPONENT_PANEL_HEADER_Y_TOL = 3.0
+_COMPONENT_PANEL_PIN_X_TOL = 8.0
+_COMPONENT_PANEL_PIN_Y_SPAN = 175.0
+_COMPONENT_PANEL_ENDPOINT_X_TOL = 30.0
+_COMPONENT_PANEL_ROW_Y_TOL = 1.25
+_COMPONENT_PANEL_PAIR_CONFIDENCE = 0.97
 
 
 def extract_table_pairs(
@@ -238,6 +252,448 @@ def extract_table_pairs(
         )
 
     return table_pairs, table_mappings
+
+
+def extract_component_panel_port_table_pairs(
+    texts: list[TextItem],
+    lines: list[LineEntity],
+    line_groups: list[LineGroup],
+    sheets: list[SheetRecord],
+    *,
+    pair_id_factory: IdFactory | None = None,
+) -> tuple[list[Pair], list[dict[str, Any]], set[str]]:
+    """Extract independent rows from dense slotted component-face tables."""
+
+    pair_ids = pair_id_factory or IdFactory("PCM")
+    texts_by_sheet = _group_by_sheet(texts)
+    lines_by_sheet = _group_by_sheet(lines)
+    groups_by_sheet = _group_by_sheet(line_groups)
+    pairs: list[Pair] = []
+    tables: list[dict[str, Any]] = []
+    consumed_group_ids: set[str] = set()
+
+    for sheet in sheets:
+        if sheet.audit_role == "skip" or sheet.sheet_category != "元件接线图":
+            continue
+        mappings, consumed = _build_component_panel_port_mappings(
+            texts_by_sheet.get(sheet.sheet_id, []),
+            lines_by_sheet.get(sheet.sheet_id, []),
+            groups_by_sheet.get(sheet.sheet_id, []),
+            sheet,
+        )
+        if not mappings:
+            continue
+        for mapping in mappings:
+            pairs.append(_build_component_panel_port_pair(mapping, sheet, pair_ids))
+        consumed_group_ids.update(consumed)
+        tables.append(
+            {
+                "sheet_id": sheet.sheet_id,
+                "filename": sheet.filename,
+                "sheet_no": sheet.sheet_no,
+                "row_count": len(mappings),
+                "col_count": len({mapping["plugin_slot"] for mapping in mappings}),
+                "three_column": False,
+                "mapping_semantics": "independent_external_ports_no_internal_connectivity",
+                "mappings": mappings,
+            }
+        )
+    return pairs, tables, consumed_group_ids
+
+
+def _build_component_panel_port_mappings(
+    texts: list[TextItem],
+    lines: list[LineEntity],
+    line_groups: list[LineGroup],
+    sheet: SheetRecord,
+) -> tuple[list[dict[str, Any]], set[str]]:
+    audit_texts = [text for text in texts if _text_in_audit_area(text, sheet)]
+    virtual_by_source: dict[str, list[TextItem]] = defaultdict(list)
+    for text in audit_texts:
+        if text.source_block_name:
+            virtual_by_source[str(text.source_block_name)].append(text)
+    free_texts = [text for text in audit_texts if not text.source_block_name]
+    endpoints = [
+        text
+        for text in free_texts
+        if _looks_like_backplate_endpoint(
+            _normalize_backplate_endpoint(text.normalized_text)
+        )
+    ]
+    line_by_id = {line.line_id: line for line in lines}
+    mappings: list[dict[str, Any]] = []
+    consumed_group_ids: set[str] = set()
+    used_endpoint_ids: set[str] = set()
+
+    for source_block_name, virtual_texts in virtual_by_source.items():
+        instance = _resolve_component_panel_instance(
+            free_texts, source_block_name
+        )
+        if instance is None:
+            continue
+        instance_prefix, instance_text, model_text = instance
+        slots = _collect_component_panel_slots(virtual_texts)
+        if len(slots) < _COMPONENT_PANEL_MIN_SLOT_COUNT:
+            continue
+        _annotate_component_panel_slot_bounds(slots)
+        source_mapping_start = len(mappings)
+        for slot in slots:
+            candidates: list[dict[str, Any]] = []
+            for row in virtual_texts:
+                raw_pin = str(row.normalized_text or "").strip()
+                if not _COMPONENT_PANEL_PIN_PATTERN.fullmatch(raw_pin):
+                    continue
+                if not (
+                    float(slot["x_min"]) <= row.insert_x <= float(slot["x_max"])
+                    and abs(row.insert_x - float(slot["x"]))
+                    <= _COMPONENT_PANEL_PIN_X_TOL
+                    and 0.0 < float(slot["y"]) - row.insert_y
+                    <= _COMPONENT_PANEL_PIN_Y_SPAN
+                ):
+                    continue
+                available_endpoints = [
+                    endpoint
+                    for endpoint in endpoints
+                    if endpoint.text_id not in used_endpoint_ids
+                    and abs(endpoint.insert_y - row.insert_y)
+                    <= _COMPONENT_PANEL_ROW_Y_TOL
+                    and 0.0
+                    < abs(endpoint.insert_x - row.insert_x)
+                    <= _COMPONENT_PANEL_ENDPOINT_X_TOL
+                ]
+                row_matches: list[tuple[float, TextItem, str]] = []
+                for endpoint in available_endpoints:
+                    group_id = _component_panel_row_group(
+                        row,
+                        endpoint,
+                        source_block_name=source_block_name,
+                        line_groups=line_groups,
+                        line_by_id=line_by_id,
+                    )
+                    if group_id is None:
+                        continue
+                    row_matches.append(
+                        (abs(endpoint.insert_x - row.insert_x), endpoint, group_id)
+                    )
+                if not row_matches:
+                    continue
+                _, endpoint, group_id = min(
+                    row_matches,
+                    key=lambda item: (item[0], item[1].text_id, item[2]),
+                )
+                port_number = int(raw_pin)
+                logical_endpoint = f"{instance_prefix}{slot['slot']}{port_number:02d}"
+                candidates.append(
+                    {
+                        "mapping_mode": "component_panel_port_table",
+                        "sheet_id": sheet.sheet_id,
+                        "filename": sheet.filename,
+                        "sheet_no": sheet.sheet_no,
+                        "source_block_name": source_block_name,
+                        "component_instance": instance_prefix,
+                        "component_instance_text_id": instance_text.text_id,
+                        "component_model_text_id": model_text.text_id,
+                        "plugin_slot": int(slot["slot"]),
+                        "plugin_title": slot["title"],
+                        "plugin_title_text_id": slot["title_text_id"],
+                        "plugin_slot_text_id": slot["slot_text_id"],
+                        "row_number": port_number,
+                        "raw_row_number": raw_pin,
+                        "middle_value": raw_pin,
+                        "middle_text_id": row.text_id,
+                        "middle_coord": [row.insert_x, row.insert_y],
+                        "logical_endpoint": logical_endpoint,
+                        "right_value": _normalize_backplate_endpoint(
+                            endpoint.normalized_text
+                        ),
+                        "right_text_id": endpoint.text_id,
+                        "right_coord": [endpoint.insert_x, endpoint.insert_y],
+                        "line_group_id": group_id,
+                        "row_number_sequence_valid": True,
+                        "allow_internal_connectivity": False,
+                        "allow_electrical_union": False,
+                        "column_roles": {
+                            "instance": "scoped_component_instance",
+                            "header": "plugin_slot",
+                            "middle": "port_number",
+                            "outer": "external_terminal_endpoint",
+                        },
+                    }
+                )
+
+            for run in _contiguous_component_panel_runs(candidates):
+                if len(run) < _COMPONENT_PANEL_MIN_CONTIGUOUS_ROWS:
+                    continue
+                for mapping in run:
+                    used_endpoint_ids.add(str(mapping["right_text_id"]))
+                    consumed_group_ids.add(str(mapping["line_group_id"]))
+                    mappings.append(mapping)
+        if len(mappings) > source_mapping_start:
+            consumed_group_ids.update(
+                _component_panel_header_group_ids(
+                    slots,
+                    source_block_name=source_block_name,
+                    line_groups=line_groups,
+                    line_by_id=line_by_id,
+                )
+            )
+    return mappings, consumed_group_ids
+
+
+def _resolve_component_panel_instance(
+    free_texts: list[TextItem], source_block_name: str
+) -> tuple[str, TextItem, TextItem] | None:
+    canonical_source = re.sub(r"[\W_]+", "", source_block_name.casefold())
+    model_texts = [
+        text
+        for text in free_texts
+        if re.sub(
+            r"[\W_]+",
+            "",
+            str(text.normalized_text or text.text or "").casefold(),
+        )
+        == canonical_source
+    ]
+    instances = [
+        text
+        for text in free_texts
+        if _DEVICE_INSTANCE_PATTERN.fullmatch(
+            str(text.normalized_text or text.text or "").strip()
+        )
+    ]
+    matches = [
+        (
+            abs(instance.insert_y - model.insert_y),
+            abs(instance.insert_x - model.insert_x),
+            instance,
+            model,
+        )
+        for model in model_texts
+        for instance in instances
+        if abs(instance.insert_y - model.insert_y) <= 4.0
+        and abs(instance.insert_x - model.insert_x) <= 90.0
+    ]
+    if not matches:
+        return None
+    _, _, instance, model = min(
+        matches, key=lambda item: (item[0], item[1], item[2].text_id, item[3].text_id)
+    )
+    return str(instance.normalized_text).strip(), instance, model
+
+
+def _collect_component_panel_slots(
+    virtual_texts: list[TextItem],
+) -> list[dict[str, Any]]:
+    slots: list[dict[str, Any]] = []
+    seen: set[tuple[str, int]] = set()
+    for title in virtual_texts:
+        raw_title = str(title.normalized_text or "").strip()
+        if not _COMPONENT_PANEL_PROTOCOL_TITLE_PATTERN.fullmatch(raw_title):
+            continue
+        numbers = [
+            text
+            for text in virtual_texts
+            if text.source_block_name == title.source_block_name
+            and _is_plugin_bay_number(str(text.normalized_text or "").strip())
+            and abs(text.insert_y - title.insert_y)
+            <= _COMPONENT_PANEL_HEADER_Y_TOL
+            and text.insert_x <= title.insert_x + 1.0
+            and abs(text.insert_x - title.insert_x) <= 20.0
+        ]
+        if not numbers:
+            continue
+        slot_text = min(
+            numbers,
+            key=lambda text: (abs(text.insert_x - title.insert_x), text.text_id),
+        )
+        slot_number = int(str(slot_text.normalized_text).strip())
+        key = (str(title.source_block_name), slot_number)
+        if key in seen:
+            continue
+        seen.add(key)
+        slots.append(
+            {
+                "slot": slot_number,
+                "title": raw_title,
+                "title_text_id": title.text_id,
+                "slot_text_id": slot_text.text_id,
+                "x": slot_text.insert_x,
+                "y": title.insert_y,
+                "title_x": title.insert_x,
+            }
+        )
+    return slots
+
+
+def _annotate_component_panel_slot_bounds(slots: list[dict[str, Any]]) -> None:
+    ordered = sorted(slots, key=lambda item: float(item["x"]))
+    for index, slot in enumerate(ordered):
+        x = float(slot["x"])
+        slot["x_min"] = (
+            x - 20.0
+            if index == 0
+            else (float(ordered[index - 1]["x"]) + x) / 2.0
+        )
+        slot["x_max"] = (
+            x + 20.0
+            if index + 1 == len(ordered)
+            else (x + float(ordered[index + 1]["x"])) / 2.0
+        )
+
+
+def _component_panel_row_group(
+    row: TextItem,
+    endpoint: TextItem,
+    *,
+    source_block_name: str,
+    line_groups: list[LineGroup],
+    line_by_id: dict[str, LineEntity],
+) -> str | None:
+    endpoint_right = endpoint.insert_x > row.insert_x
+    matches: list[tuple[float, str]] = []
+    for group in line_groups:
+        if group.sheet_id != row.sheet_id or group.orientation != "horizontal":
+            continue
+        group_y = (group.start_y + group.end_y) / 2.0
+        if not (
+            row.bbox_min_y - 0.2 <= group_y <= row.bbox_max_y + 0.2
+            and endpoint.bbox_min_y - 0.2 <= group_y <= endpoint.bbox_max_y + 0.2
+        ):
+            continue
+        members = [
+            line_by_id[line_id]
+            for line_id in group.member_line_ids
+            if line_id in line_by_id
+        ]
+        if not any(line.source_block_name == source_block_name for line in members):
+            continue
+        group_min_x, group_max_x = sorted((group.start_x, group.end_x))
+        if endpoint_right:
+            reaches = (
+                group_min_x <= row.bbox_max_x
+                and group_max_x >= endpoint.bbox_min_x - 2.0
+                and group_max_x <= endpoint.insert_x + 2.0
+            )
+        else:
+            reaches = (
+                group_max_x >= row.bbox_min_x
+                and group_min_x <= endpoint.bbox_max_x + 2.0
+                and group_min_x >= endpoint.insert_x - 2.0
+            )
+        if reaches:
+            matches.append((abs(group_y - row.insert_y), group.line_group_id))
+    return min(matches, default=(0.0, None), key=lambda item: (item[0], item[1]))[1]
+
+
+def _component_panel_header_group_ids(
+    slots: list[dict[str, Any]],
+    *,
+    source_block_name: str,
+    line_groups: list[LineGroup],
+    line_by_id: dict[str, LineEntity],
+) -> set[str]:
+    """Return only the short top/bottom borders enclosing proven slot headers."""
+
+    consumed: set[str] = set()
+    for slot in slots:
+        slot_x = float(slot["x"])
+        title_x = float(slot.get("title_x", slot_x))
+        title_y = float(slot["y"])
+        for group in line_groups:
+            if group.orientation != "horizontal" or not (20.0 <= group.length <= 60.0):
+                continue
+            group_y = (group.start_y + group.end_y) / 2.0
+            if not (title_y - 2.0 <= group_y <= title_y + 5.0):
+                continue
+            group_min_x, group_max_x = sorted((group.start_x, group.end_x))
+            if not (
+                group_min_x - 1.0 <= slot_x <= group_max_x + 1.0
+                and group_min_x - 1.0 <= title_x <= group_max_x + 1.0
+            ):
+                continue
+            members = [
+                line_by_id[line_id]
+                for line_id in group.member_line_ids
+                if line_id in line_by_id
+            ]
+            if any(line.source_block_name == source_block_name for line in members):
+                consumed.add(group.line_group_id)
+    return consumed
+
+
+def _contiguous_component_panel_runs(
+    candidates: list[dict[str, Any]],
+) -> list[list[dict[str, Any]]]:
+    ordered = sorted(candidates, key=lambda item: int(item["row_number"]))
+    runs: list[list[dict[str, Any]]] = []
+    for mapping in ordered:
+        if not runs or int(mapping["row_number"]) != int(runs[-1][-1]["row_number"]) + 1:
+            runs.append([mapping])
+        else:
+            runs[-1].append(mapping)
+    return runs
+
+
+def _build_component_panel_port_pair(
+    mapping: dict[str, Any],
+    sheet: SheetRecord,
+    pair_ids: IdFactory,
+) -> Pair:
+    logical_endpoint = str(mapping["logical_endpoint"])
+    external_endpoint = str(mapping["right_value"])
+    middle_coord = mapping.get("middle_coord") or [None, None]
+    right_coord = mapping.get("right_coord") or [None, None]
+    evidence = {
+        "source": "component_mapping",
+        "pair_kind": "component_mapping",
+        "component_submode": "structured_component_port_table",
+        "ordinary_pair_eligible": False,
+        "internal_connectivity_inferred": False,
+        "electrical_union_eligible": False,
+        "filename": sheet.filename,
+        "sheet_no": sheet.sheet_no,
+        "sheet_order": sheet.sheet_order,
+        "sheet_title": sheet.sheet_title,
+        "line_group_id": mapping.get("line_group_id"),
+        "line_orientation": "table_row",
+        "table_mapping": mapping,
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_ids.next(),
+        line_group_id=str(mapping["line_group_id"]),
+        sheet_id=sheet.sheet_id,
+        file_id=sheet.file_id,
+        selected_pair_candidate_id=None,
+        left_value=logical_endpoint,
+        right_value=external_endpoint,
+        confidence=_COMPONENT_PANEL_PAIR_CONFIDENCE,
+        status="pass",
+        rationale=(
+            "Structured component port table: scoped instance plus plugin slot "
+            "and port maps to the same-row outward terminal; ports remain independent."
+        ),
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=str(mapping["middle_text_id"]),
+        right_text_id=str(mapping["right_text_id"]),
+        left_coord_x=middle_coord[0],
+        left_coord_y=middle_coord[1],
+        right_coord_x=right_coord[0],
+        right_coord_y=right_coord[1],
+        pair_key=f"{logical_endpoint}->{external_endpoint}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="component_mapping",
+    )
 
 
 def _build_output_contact_matrix_mappings(

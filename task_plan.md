@@ -4,17 +4,46 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 177 PAC residual review is in progress. The next slice is the repeated signal-output template on sheets 20–22 plus the small open-end set on sheets 14–15; structured many-to-one reviews remain visible until a stronger physical-identity proof exists.
+Phase 179 residual geometry feedback is complete. Complete communication-equipment panel IGNORE proposals now suppress only panel-owned ordinary pairs and strictly evidenced nearby MARK callouts; fresh 10000/21000 replay reduced the targeted panel issues from 10 to 0.
 
-Phase 176 B3 terminal-header fan-out and A2 backplate generalization is complete. The final 533-DWG fresh run preserves header+port fan-out, independent backplate pins, 0 incomplete pages, and 0 critical issues.
+The former `TS3000-Z01` extraction defect on 8000/9000 S0014/S0015 is closed. The accepted model is `instance-name + port -> same-row outward TD endpoint`, with no internal port union; ports 27–32, metadata negatives, and genuine S0004 open ends were replayed successfully.
 
-Phase 174 desktop UTF-8 and issue-preview repair is complete. Packaged synchronous sidecar JSON now emits UTF-8, compacted no-coordinate issues return an explicit SQLite-summary SVG, preview loading is bounded, and the rebuilt installed runtime passes real PAC-885G-H byte/preview checks.
-
-Phase 173 held-out evaluation of new heavyweight set `test/PAC-885G-H` (31 DWG + prj/xml). Goal: determine whether the current recognition engine fails to classify pages, errors out, fails extraction, or incorrectly ignores content. Report concrete fail modes; do not retune on held-out unless user authorizes.
-
-Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapped to `oda/platforms/`, the rebuilt NSIS package was installed, and installed-runtime conversion succeeded. Phase 171 recognition loop continues in parallel for known corpus residuals.
+Phase 178 remains the authoritative full-corpus audit baseline: `.tmp/phase177_full_533_fresh` plus `.tmp/phase178_full_533_audit4`, covering 28 projects / 533 pages, 0 incomplete, 133 issues, and 0 critical. Residual rows remain reviewable until geometry or cross-diagram evidence resolves them.
 
 ## Phases
+
+### Phase 179: Equipment-panel Feedback And TS3000 Structured Ports
+- [x] Recover the Phase178 authoritative baseline and dirty-worktree boundary
+- [x] Feed complete equipment-panel geometry IGNORE decisions back into ordinary Pair eligibility
+- [x] Fresh-replay 10000/21000 and verify all ten targeted panel issues are removed without name-only suppression
+- [x] Add direct regression coverage for raw, unevaluated equipment-panel proposals
+- [x] Prevent structured TS3000 port tables from inheriting drawing-metadata IGNORE
+- [x] Extract independent TS3000 `instance-port -> outward TD endpoint` mappings for ports 27–32
+- [x] Fresh-replay 8000/9000, retain genuine S0004 open endpoints, and run focused gates
+- [x] Re-run affected projects and the full 28-project / 533-page audit, clean superseded artifacts, sync adjudication/progress docs, commit, and push
+- **Status:** complete
+
+#### Phase 179 acceptance
+- Final extraction evidence: `.tmp/phase179_full_533_fresh2`; 28/28 projects, 533/533 valid DWG, 0 invalid, 0 incomplete.
+- Final audit evidence: `.tmp/phase179_full_533_audit2`; 118 issues (117 review, 1 minor, 0 critical), zero issue additions versus Phase178 and 15 authority-backed removals.
+- TS3000 emits 288 independent `instance-port -> outward TD` mappings, 144 on each of S0014/S0015. Banks 4/5/6 expose ports 27-32; banks 7/8 retain only populated rows. Port 32 resolves to `1-26n432 -> 1-26TD46` and `2-26n432 -> 2-26TD46`.
+- Equipment-panel IGNORE evidence is instance-scoped and geometry-backed: 221 ordinary pairs are shadowed (214 panel geometry and 7 strict MARK callouts), with zero missing or mismatched proposal fingerprints.
+- All port-table mappings explicitly prohibit internal connectivity and electrical union. The four S0004 `1201/1204` open endpoints remain visible as review findings.
+
+#### Phase 179 errors and guardrails
+- A first combined documentation patch reused the task-book tail as the human-arbitration anchor, so `apply_patch` rejected the whole batch before changing any file. Subsequent documentation updates use each file's exact final line.
+- Four explicitly requested `gpt-5.6-sol` subagents were internally routed to `gpt-5.6-luna` and failed with HTTP 503. All sessions were closed immediately. Do not substitute another model; continue on the main thread until Sol routing is actually available.
+- A resumed three-agent read-only audit again specified `agent_type=default`, `model=gpt-5.6-sol`, and clean context, but the service rewrote all three requests to `gpt-5.6-luna` and returned HTTP 503. All three sessions were closed without using their output; do not retry this routing path or substitute another model in Phase179.
+- The packaged Windows `rg.exe` again failed to start with access denied. Use `Select-String` / exact `Get-Content` slices for the remaining source review instead of repeating the same command.
+- The first findings append used the shortened heading `# Phase 179`, so `apply_patch` rejected it without changing the file. The exact heading is `## Phase 179: equipment-panel proposal feedback and TS3000 boundary`; use that context for subsequent updates.
+- The first resumed Pair artifact probe guessed an `evidence_json` Parquet column. The actual schema uses `evidence`; the read-only probe failed before selecting rows. Parse the real column rather than repeating the stale schema assumption.
+- The first CLI/discovery batch guessed `src/dwg_audit/ingest.py`; ingest is a package and the real discovery function is `src/dwg_audit/ingest/project_scanner.py:52`. The read-only batch stopped on the missing path; read the actual module and CLI help separately.
+- A Phase178 audit probe guessed `<audit-root>/<project>/audit_v2_summary.json`, but the authoritative rules-replay root stores report files and `issues.json/parquet` directly under each project directory. Use extraction `run_summary.json` plus real manifest/completeness schemas and per-project `issues.json` for final validation.
+- The first Phase179 manifest aggregator correctly proved 28 projects and 533 file/sheet counts, then treated integer `valid_dwg_files` as a list. Aggregate that field as an integer; do not repeat `len(...)` on it.
+- The first focused panel test rerun failed six cases at one shared entry because the index refactor left one obsolete `panel_names_by_sheet` write. Remove the stale reference, retain the new instance-scoped indexes, and rerun the same focused gate.
+- Root `package-lock.json` is untracked user state and must not be staged, deleted, or included in cleanup.
+- `TS3000-Z01` is not an equipment panel and must not be solved by whole-block IGNORE. Its populated port rows are electrical mappings; textless S0004 `1201/1204` open lines remain fail-closed.
+- TS3000 bank 1's `1/MGM` top and bottom horizontal members are a 40-by-5 slot-header frame. They may be shadowed only after the same source block has produced authoritative structured port mappings; a bare `1` or a dense panel name is never sufficient.
 
 ### Phase 177: PAC Signal-output Logical Endpoint Recovery
 - [x] Recover Phase176 baseline, planning state, and clean-worktree boundary
