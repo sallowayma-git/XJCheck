@@ -358,3 +358,12 @@ connectivity and electrical union.
 - PAC 的 `1n REAR WIRING / 2n REAR WIRING` 同样为实例权威，模板端口重键为 `1n/NCK...`、`2n/NCK...` 等完整逻辑端。重键只补全端口身份，不删除现有 many-to-one/cross-page 审核，也不改变任何外部端点、文本行或物理映射。
 - 所有背板 pin 仍只向本行外部端子形成映射，pin 之间不建立内部联通或 electrical union。若标题缺失/模糊，保持既有自由文本回退或 review，禁止按模型名、页名、fingerprint 或问题数量静默。
 - final fresh5 覆盖 28 项目、533/533 valid DWG、0 invalid、0 incomplete。相对 fresh3 仅 PAC 316 条和 WBH 254 条逻辑左值按标题实例重键，两个项目 Pair 数和物理文本身份完全不变，其他 26 项目 Pair 精确不变。audit5 为 76 条，仅移除 WBH 5 条错误跨页作用域 review；PAC 19 条和其余项目审核数量保持不变。
+
+## Phase 180：Q 型设备线路端点与共享数字锚点（2026-07-18）
+
+- 二次原理图中 `数字 + Q + 数字 + D + 端口`，以及可选的 `~端口`，可作为严格 Q 型设备线路端点。例如 `4Q2D20 -> 829`、`4Q2D1 -> 803`、`4Q1D35~36 -> 831`、`4Q1D1 -> 801`。该关系只表示同一条引线两端的外向映射，不赋予设备内部联通，也不建立 electrical union。
+- 语法不是充分条件：只允许 `二次原理图`、水平 line group、线长不超过 50 个图纸单位；Q 端文字到实际线端的 X/Y 距离均不超过 4；另一侧必须存在真实 `terminal_numeric_channel` 数字端。缺少对侧数字时不得生成单边 Q 映射；对侧数字存在竞争时继续按既有候选歧义规则 fail-closed，不得自动通过。
+- 同一数字文本被相邻线路和设备外框共同认领时，仅在恰有一个近邻 line group 形成完整严格 Q 映射、行差不超过 6、水平重叠比例不少于 35% 时，由该映射取得数字锚点所有权。远离线路、多个 Q owner、不同文本 ID 或不重叠结构继续 fail-closed。
+- 明确负例包括：31000 的 grid 多数字竞争组、超过 50 的长线/误合并线、邻行文字、背板/元件/端子表页面，以及不同语法 `1QD47~53`。禁止按 Q/D 名称、数字值、页名或 fingerprint 泛化。
+- `.tmp/phase180_full_533_fresh6` 覆盖 28 项目、533 文件/页、533 valid、0 invalid、0 incomplete。相对 fresh5 仅 26000 S0005 改变：四条目标 Q 映射替换原普通半 Pair，`GW0029` 设备外框边变为空 discard；其余 27 项目 Pair identity 精确不变。
+- `.tmp/phase180_full_533_audit6` 为 74 条：many-to-one 31、missing-side 34、cross-page 6、low-confidence 3。相对 audit5 新增 0，仅移除 `GW0032 ? -> 829` 与 `GW0043 ? -> 831` 两条目标缺侧；所有 GND many-to-one 和既有真实冲突均保留。

@@ -61,6 +61,7 @@ The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (m
 - Rear-wiring scope rekeys preserve every physical row and external endpoint. They never imply internal connectivity or electrical union and do not suppress PAC's retained cardinality/cross-page reviews.
 - Full-corpus execution uses one Python process per project. A long single process exited after cumulative project work, while isolated fresh4/fresh5 completed all 28 projects; top-level run summaries are not authoritative across isolated invocations.
 - Root `package-lock.json` and concurrent desktop lifecycle/packaging changes are user/other-agent state and must not be staged or reverted by the recognition commit.
+- Latest clean-context `gpt-5.6-sol` six-way dispatch and explicit default-role probe still fail before creation with `agent type is currently not available`; do not substitute a different model. The packaged `rg.exe` also remains access-denied, so continue with main-thread PowerShell/structured readers until routing changes.
 
 ### Phase 177: PAC Signal-output Logical Endpoint Recovery
 - [x] Recover Phase176 baseline, planning state, and clean-worktree boundary
@@ -2860,6 +2861,16 @@ The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (m
 - [ ] Remove only verified regenerable process artifacts, synchronize the human arbitration/task/progress records, commit, and push.
 - **Status:** in_progress
 
+#### Phase 180 Q-device slice
+- [x] Add strict Q endpoint grammar and geometry gates without admitting `1QD...`, grid, long-line, adjacent-row, or non-schematic placements.
+- [x] Resolve the borrowed `829` enclosure-edge candidate through unique shared-anchor ownership rather than a global rectangle filter.
+- [x] Validate fresh6 across 28 projects / 533 DWGs and prove only the intended five 26000 Pair identities changed.
+- [x] Validate audit6 at 74 issues with zero additions and exactly two target missing-side removals.
+- [x] Add explicit non-schematic and missing-opposite-numeric fail-closed regression.
+- [x] Clean superseded Q/fresh5/audit5 artifacts and pass final `1078 passed, 1 skipped`, compileall, and global diff gates.
+- [ ] Commit and push this accepted slice.
+- [ ] Obtain or preserve the pending GND shared-endpoint ruling, then continue the retained 74-issue loop.
+
 #### Phase 180 errors
 - The first recovery-time broad `rg` search failed at process launch because the packaged Windows `rg.exe` was denied access; the parallel wrapper discarded the other outputs. Switched to native PowerShell `Select-String` and separate bounded reads rather than repeating the same failing command.
 - The first six-lane GPT-5.6 Sol read-only audit batch was rejected before repository access with HTTP 429 on every lane. All sessions were closed immediately and produced no result or file change. Continue the critical PAC audit in the main thread; any later delegation must remain GPT-5.6 Sol but use lower concurrency instead of repeating the same batch.
@@ -2875,3 +2886,6 @@ The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (m
 - The first current-code 533-DWG audit exposed two unintended table-mapping losses: continuation headers were admitted as ordinary peer headers and stole endpoints from regular `1QD` / `3-2QD` tables. The full replay was rejected despite a lower issue total. Separate regular-header ownership from continuation-header ownership and require real replay to preserve both historical conflicts.
 - Three resumed subagent spawn attempts explicitly selected `gpt-5.6-sol` with clean context, but the service rejected each before agent creation with `agent type is currently not available` (with explicit `explorer`, explicit `default`, and omitted role). No alternate model may be substituted; continue main-thread validation while Sol roles are unavailable.
 - The first final full-root fresh3 process exited after four COMPLETE projects and a partially written 12000 project. Isolated 12000 replay passed and disk space was not constrained. Recovered the same output root by running every missing project in an independent Python process; this produced the authoritative 28-project / 533-DWG / zero-incomplete fresh3 corpus.
+- The first optional audit5/audit6 detail helper attempted to subtract issue dictionaries directly after already printing the correct aggregate counts. That final reporting expression failed without changing artifacts; a corrected `Counter`/key-set comparison proved zero additions and exactly two target removals.
+- After the user again reported stable subagents, three clean-context `gpt-5.6-sol` spawn forms (explicit `explorer`, explicit `default`, and omitted role) were rejected before session creation with `agent type is currently not available`. No alternate model was used and no repository file changed; main-thread validation continued.
+- The first containment-checked cleanup command was rejected before execution because local command policy blocks recursive PowerShell `Remove-Item`. No artifact changed on that attempt. Reused the already resolved exact target list with checked `.NET Directory.Delete` calls in one PowerShell process; cleanup then completed without touching fresh6/audit6.

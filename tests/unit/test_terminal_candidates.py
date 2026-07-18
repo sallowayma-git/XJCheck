@@ -408,6 +408,139 @@ def test_build_terminal_candidates_does_not_attach_ld_label_inside_merged_long_g
     assert pairs[0].right_value is None
 
 
+def test_build_terminal_candidates_maps_q_device_endpoints_on_short_horizontal_leads() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 295.0, 215.0, 342.5, 215.0, 47.5, 0.625, ["L1", "L2"], ["CONNECT", "0"], orientation="horizontal"),
+        LineGroup("G2", "S1", "F1", 295.0, 240.0, 342.5, 240.0, 47.5, 0.625, ["L3", "L4"], ["CONNECT", "0"], orientation="horizontal"),
+        LineGroup("G3", "S1", "F1", 325.0, 210.0, 365.0, 210.0, 40.0, 0.55, ["L5"], ["0"], orientation="horizontal"),
+        LineGroup("G4", "S1", "F1", 325.0, 221.5, 365.0, 221.5, 40.0, 0.55, ["L6"], ["0"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "05 交直流回路图.dwg", 5, "05", "AC&DC POWER SUPPLY", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "4Q2D20", "4Q2D20", False, "TEXT", 0.0, 2.5, 292.5, 217.4, 290.0, 215.0, 304.0, 219.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "829", "829", True, "TEXT", 0.0, 2.5, 325.6, 215.7, 324.0, 214.0, 332.0, 218.0),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "4Q1D35~36", "4Q1D35~36", False, "TEXT", 0.0, 2.5, 292.5, 242.4, 290.0, 240.0, 310.0, 244.0),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "831", "831", True, "TEXT", 0.0, 2.5, 325.6, 240.7, 324.0, 239.0, 332.0, 243.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    logic = {item.text_id: item for item in candidates if item.text_id in {"T1", "T3"} and item.status == "accepted"}
+    assert logic["T1"].channel == "wire_logic_endpoint_channel"
+    assert logic["T3"].channel == "wire_logic_endpoint_channel"
+    by_group = {pair.line_group_id: pair for pair in pairs}
+    assert (by_group["G1"].left_value, by_group["G1"].right_value) == ("4Q2D20", "829")
+    assert (by_group["G2"].left_value, by_group["G2"].right_value) == ("4Q1D35~36", "831")
+    assert by_group["G1"].pair_kind == "wire_component_mapping"
+    assert by_group["G2"].pair_kind == "wire_component_mapping"
+    assert by_group["G1"].evidence["ordinary_pair_eligible"] is False
+    assert by_group["G2"].evidence["ordinary_pair_eligible"] is False
+    duplicate_outline = next(
+        item
+        for item in candidates
+        if item.line_group_id == "G3" and item.text_id == "T2" and item.side == "left"
+    )
+    farther_line = next(
+        item
+        for item in candidates
+        if item.line_group_id == "G4" and item.text_id == "T2" and item.side == "left"
+    )
+    assert duplicate_outline.rejection_reason == "shared_numeric_anchor_owned_by_q_device_mapping"
+    assert duplicate_outline.channel == "noise_channel"
+    assert farther_line.status == "accepted"
+    assert farther_line.value == "829"
+
+
+def test_build_terminal_candidates_keeps_shared_numeric_anchor_when_q_owner_is_ambiguous() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S1", "F1", 10.0, 24.0, 50.0, 24.0, 40.0, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G3", "S1", "F1", 30.0, 22.0, 70.0, 22.0, 40.0, 0.55, ["L3"], ["0"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "05 交直流回路图.dwg", 5, "05", "AC&DC POWER SUPPLY", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "4Q1D1", "4Q1D1", False, "TEXT", 0.0, 2.5, 9.0, 21.0, 7.0, 19.0, 20.0, 23.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "4Q2D1", "4Q2D1", False, "TEXT", 0.0, 2.5, 9.0, 25.0, 7.0, 23.0, 20.0, 27.0),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "801", "801", True, "TEXT", 0.0, 2.5, 49.0, 22.0, 47.0, 20.0, 55.0, 24.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    shared_numeric = [item for item in candidates if item.text_id == "T3" and item.status == "accepted"]
+    assert {item.line_group_id for item in shared_numeric} == {"G1", "G2", "G3"}
+    assert all(item.value == "801" for item in shared_numeric)
+
+
+def test_build_terminal_candidates_rejects_q_device_endpoint_outside_strict_geometry() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 42.5, 20.0, 32.5, 0.85, ["L1"], ["CONNECT"], orientation="grid"),
+        LineGroup("G2", "S1", "F1", 10.0, 40.0, 90.0, 40.0, 80.0, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G3", "S1", "F1", 10.0, 60.0, 50.0, 60.0, 40.0, 0.85, ["L3"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "06 交直流回路图.dwg", 6, "06", "AC&DC POWER SUPPLY", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "4Q2D31", "4Q2D31", False, "TEXT", 0.0, 2.5, 7.5, 22.4, 5.0, 20.0, 19.0, 24.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "929", "929", True, "TEXT", 0.0, 2.5, 40.0, 20.7, 38.0, 19.0, 46.0, 23.0),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "4Q1D38", "4Q1D38", False, "TEXT", 0.0, 2.5, 7.5, 42.4, 5.0, 40.0, 19.0, 44.0),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "1731", "1731", True, "TEXT", 0.0, 2.5, 87.0, 40.7, 85.0, 39.0, 95.0, 43.0),
+        TextItem("T5", "S1", "F1", "H5", "TEXT", "4Q1D1", "4Q1D1", False, "TEXT", 0.0, 2.5, 7.5, 67.0, 5.0, 65.0, 19.0, 69.0),
+        TextItem("T6", "S1", "F1", "H6", "TEXT", "801", "801", True, "TEXT", 0.0, 2.5, 47.0, 60.7, 45.0, 59.0, 55.0, 63.0),
+        TextItem("T7", "S1", "F1", "H7", "TEXT", "1QD47~53", "1QD47~53", False, "TEXT", 0.0, 2.5, 7.5, 62.4, 5.0, 60.0, 21.0, 64.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    grid_qd = next(item for item in candidates if item.line_group_id == "G1" and item.text_id == "T1" and item.side == "left")
+    long_qd = next(item for item in candidates if item.line_group_id == "G2" and item.text_id == "T3" and item.side == "left")
+    adjacent_qd = next(item for item in candidates if item.line_group_id == "G3" and item.text_id == "T5" and item.side == "left")
+    different_grammar = next(item for item in candidates if item.line_group_id == "G3" and item.text_id == "T7" and item.side == "left")
+    assert grid_qd.rejection_reason == "schematic_q_device_endpoint_out_of_scope"
+    assert long_qd.rejection_reason == "schematic_q_device_endpoint_out_of_scope"
+    assert adjacent_qd.rejection_reason == "schematic_logic_endpoint_out_of_row"
+    assert different_grammar.rejection_reason == "not_numeric"
+    assert all(
+        item.channel == "noise_channel"
+        for item in (grid_qd, long_qd, adjacent_qd, different_grammar)
+    )
+
+
+def test_build_terminal_candidates_scopes_q_device_to_secondary_schematic_and_numeric_peer() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 42.5, 20.0, 32.5, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S2", "F2", 10.0, 40.0, 42.5, 40.0, 32.5, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "16 元件接线图.dwg", 16, "16", "ACCESSORIES WIRING", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "05 交流回路图.dwg", 5, "05", "AC CIRCUIT", "二次原理图", "primary", "filename", True),
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "4Q2D20", "4Q2D20", False, "TEXT", 0.0, 2.5, 7.5, 22.4, 5.0, 20.0, 19.0, 24.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "829", "829", True, "TEXT", 0.0, 2.5, 40.0, 20.7, 38.0, 19.0, 46.0, 23.0),
+        TextItem("T3", "S2", "F2", "H3", "TEXT", "4Q2D20", "4Q2D20", False, "TEXT", 0.0, 2.5, 7.5, 42.4, 5.0, 40.0, 19.0, 44.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    component_q = next(item for item in candidates if item.line_group_id == "G1" and item.text_id == "T1" and item.side == "left")
+    schematic_q = next(item for item in candidates if item.line_group_id == "G2" and item.text_id == "T3" and item.side == "left")
+    assert component_q.status == "rejected"
+    assert component_q.rejection_reason == "not_numeric"
+    assert schematic_q.status == "accepted"
+    assert schematic_q.channel == "wire_logic_endpoint_channel"
+    schematic_pair = next(pair for pair in pairs if pair.line_group_id == "G2")
+    assert schematic_pair.left_value is None
+    assert schematic_pair.right_value is None
+    assert schematic_pair.pair_kind == "ordinary_pair"
+
+
 def test_build_terminal_candidates_keeps_malformed_or_out_of_scope_xd_text_out_of_logic_channel() -> None:
     line_groups = [
         LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),

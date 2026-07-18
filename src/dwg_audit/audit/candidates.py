@@ -28,9 +28,14 @@ _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN = re.compile(
     r"^\d+(?:XD|YD|LD)\d+$",
     re.IGNORECASE,
 )
+_SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN = re.compile(
+    r"^\d+Q\d+D\d+(?:~\d+)?$",
+    re.IGNORECASE,
+)
 _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
     r"^(?:"
     r"\d+(?:XD|YD|LD)\d+"
+    r"|\d+Q\d+D\d+(?:~\d+)?"
     r"|[13]-21[A-Z]{2,4}\d{1,3}"
     r"|\d+-\d+(?:[A-Z]\d+[A-Z]\d+|[A-Z]{2,4}\d+)(?:~\d+(?:[A-Z]\d+)?)?"
     r")$",
@@ -38,6 +43,9 @@ _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
 )
 _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_X = 4.0
 _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_Y = 4.0
+_SCHEMATIC_Q_DEVICE_ENDPOINT_MAX_LINE_LENGTH = 50.0
+_SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MAX_ROW_DELTA = 6.0
+_SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MIN_OVERLAP_RATIO = 0.35
 _SCHEMATIC_WIRE_LOGIC_SEARCH_RADIUS_X = 28.0
 _SCHEMATIC_DEVICE_ENDPOINT_SEARCH_RADIUS_X = 35.0
 _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS = (
@@ -190,6 +198,15 @@ def build_terminal_candidates(
                 ):
                     status = "rejected"
                     reason = "schematic_logic_endpoint_out_of_row"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
+                elif (
+                    channel == _CHANNEL_WIRE_LOGIC_ENDPOINT
+                    and _q_device_endpoint_out_of_scope(value, group)
+                ):
+                    status = "rejected"
+                    reason = "schematic_q_device_endpoint_out_of_scope"
                     score = 0.0
                     channel = _CHANNEL_NOISE
                     channel_detail = reason
@@ -354,6 +371,7 @@ def build_terminal_candidates(
             profile=profile,
             candidate_ids=candidate_ids,
         )
+    _prefer_q_device_mapping_numeric_anchor(results, group_map, sheet_map)
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
     _apply_terminal_strip_row_lock(results, group_map, sheet_map)
     _apply_terminal_short_bridge_roles(results, group_map, sheet_map)
@@ -555,6 +573,8 @@ def _add_schematic_wire_logic_near_endpoint_candidates(
         if abs(dx) > radius_x or abs(dy) > radius_y:
             continue
         if _compact_device_endpoint_out_of_row(value, dx, dy):
+            continue
+        if _q_device_endpoint_out_of_scope(value, group):
             continue
         score = _candidate_score(
             dx,
@@ -844,6 +864,84 @@ def _assign_candidate_ranks(candidates: list[TerminalCandidate]) -> None:
             candidate.rank = index
 
 
+def _prefer_q_device_mapping_numeric_anchor(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+) -> None:
+    by_group: dict[str, list[TerminalCandidate]] = defaultdict(list)
+    numeric_by_anchor: dict[tuple[str, str, str], list[TerminalCandidate]] = defaultdict(list)
+    for candidate in candidates:
+        if candidate.status != "accepted" or not candidate.value:
+            continue
+        by_group[candidate.line_group_id].append(candidate)
+        if candidate.channel != _CHANNEL_TERMINAL_NUMERIC:
+            continue
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        if (
+            group is None
+            or sheet is None
+            or sheet.sheet_category != "二次原理图"
+            or group.orientation != "horizontal"
+        ):
+            continue
+        numeric_by_anchor[(candidate.sheet_id, candidate.text_id, candidate.value)].append(candidate)
+
+    for shared_candidates in numeric_by_anchor.values():
+        if len(shared_candidates) < 2:
+            continue
+        owners = [
+            candidate
+            for candidate in shared_candidates
+            if any(
+                peer.status == "accepted"
+                and peer.side != candidate.side
+                and peer.channel == _CHANNEL_WIRE_LOGIC_ENDPOINT
+                and bool(_SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN.fullmatch((peer.value or "").strip()))
+                for peer in by_group[candidate.line_group_id]
+            )
+        ]
+        owner_group_ids = {candidate.line_group_id for candidate in owners}
+        if len(owner_group_ids) != 1:
+            continue
+        owner_group = group_map[next(iter(owner_group_ids))]
+        for candidate in shared_candidates:
+            if candidate.line_group_id in owner_group_ids:
+                continue
+            candidate_group = group_map.get(candidate.line_group_id)
+            if candidate_group is None or not _near_overlapping_horizontal_groups(
+                owner_group,
+                candidate_group,
+            ):
+                continue
+            reason = "shared_numeric_anchor_owned_by_q_device_mapping"
+            candidate.status = "rejected"
+            candidate.rejection_reason = reason
+            candidate.value = None
+            candidate.score = 0.0
+            candidate.rank = None
+            candidate.channel = _CHANNEL_NOISE
+            candidate.channel_detail = reason
+
+
+def _near_overlapping_horizontal_groups(first: LineGroup, second: LineGroup) -> bool:
+    if first.orientation != "horizontal" or second.orientation != "horizontal":
+        return False
+    first_y = (first.start_y + first.end_y) / 2.0
+    second_y = (second.start_y + second.end_y) / 2.0
+    if abs(first_y - second_y) > _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MAX_ROW_DELTA:
+        return False
+    first_min_x, first_max_x = sorted((first.start_x, first.end_x))
+    second_min_x, second_max_x = sorted((second.start_x, second.end_x))
+    overlap = max(0.0, min(first_max_x, second_max_x) - max(first_min_x, second_min_x))
+    shortest = min(first_max_x - first_min_x, second_max_x - second_min_x)
+    return (
+        shortest > 0.0
+        and overlap / shortest >= _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MIN_OVERLAP_RATIO
+    )
+
+
 def _dedupe_shared_text_anchors(
     candidates: list[TerminalCandidate],
     group_map: dict[str, LineGroup],
@@ -1124,11 +1222,24 @@ def _candidate_wire_logic_endpoint_value(
 
 
 def _compact_device_endpoint_out_of_row(value: str, dx: float, dy: float) -> bool:
-    if not _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN.fullmatch(value.strip()):
+    normalized = value.strip()
+    if not (
+        _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN.fullmatch(normalized)
+        or _SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN.fullmatch(normalized)
+    ):
         return False
     return (
         abs(dx) > _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_X
         or abs(dy) > _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_Y
+    )
+
+
+def _q_device_endpoint_out_of_scope(value: str, group: LineGroup) -> bool:
+    if not _SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN.fullmatch(value.strip()):
+        return False
+    return (
+        group.orientation != "horizontal"
+        or group.length > _SCHEMATIC_Q_DEVICE_ENDPOINT_MAX_LINE_LENGTH
     )
 
 
