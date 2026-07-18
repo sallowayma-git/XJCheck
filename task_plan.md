@@ -2868,8 +2868,20 @@ The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (m
 - [x] Validate audit6 at 74 issues with zero additions and exactly two target missing-side removals.
 - [x] Add explicit non-schematic and missing-opposite-numeric fail-closed regression.
 - [x] Clean superseded Q/fresh5/audit5 artifacts and pass final `1078 passed, 1 skipped`, compileall, and global diff gates.
-- [ ] Commit and push this accepted slice.
+- [x] Commit and push this accepted slice as `ae9c9f4`.
 - [ ] Obtain or preserve the pending GND shared-endpoint ruling, then continue the retained 74-issue loop.
+
+#### Phase 180 SPMU signal-panel row slice
+- [x] Prove 22000/35000 S0010 are identical SPMU panel rows and apply the existing TD-to-instance-qualified-port human ruling.
+- [x] Add a geometry/label-scoped `spmu_signal_panel_row_mapping` with explicit no-internal-union evidence.
+- [x] Add complete positive and missing-authority negative unit coverage (`24 passed`).
+- [x] Direct-replay all fresh6 SPMU pages and prove only the two target pages produce eight mappings.
+- [x] Fresh-replay and audit 22000/35000; remove 10 target issues with zero additions and no unrelated Pair drift.
+- [x] Run full-corpus fresh7 extraction and prove 28/533 complete with only the two target projects changed.
+- [x] Run full-corpus audit7: `74 -> 64`, zero additions, exactly 10 target removals, all GND/cross-page/low-confidence retained.
+- [x] Run final repository gates (`1080 passed, 1 skipped`, compileall, global diff-check).
+- [x] Clean superseded process artifacts; retain only authoritative fresh7/audit7.
+- [ ] Commit/push the accepted SPMU slice.
 
 #### Phase 180 errors
 - The first recovery-time broad `rg` search failed at process launch because the packaged Windows `rg.exe` was denied access; the parallel wrapper discarded the other outputs. Switched to native PowerShell `Select-String` and separate bounded reads rather than repeating the same failing command.
@@ -2889,3 +2901,5 @@ The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (m
 - The first optional audit5/audit6 detail helper attempted to subtract issue dictionaries directly after already printing the correct aggregate counts. That final reporting expression failed without changing artifacts; a corrected `Counter`/key-set comparison proved zero additions and exactly two target removals.
 - After the user again reported stable subagents, three clean-context `gpt-5.6-sol` spawn forms (explicit `explorer`, explicit `default`, and omitted role) were rejected before session creation with `agent type is currently not available`. No alternate model was used and no repository file changed; main-thread validation continued.
 - The first containment-checked cleanup command was rejected before execution because local command policy blocks recursive PowerShell `Remove-Item`. No artifact changed on that attempt. Reused the already resolved exact target list with checked `.NET Directory.Delete` calls in one PowerShell process; cleanup then completed without touching fresh6/audit6.
+- The first 22000/35000 signal-page neighborhood query used the obsolete `line_groups.parquet.line_ids` field and stopped read-only with `KeyError`; current schema uses `member_line_ids`. The corrected schema-driven query completed without changing artifacts.
+- The first SPMU replay-help probe called nonexistent CLI subcommand `audit`; Typer returned the correct `run-audit` command before any analysis or write. Subsequent commands use separately verified `analyze-project` and `run-audit` options.

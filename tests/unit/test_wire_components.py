@@ -43,14 +43,24 @@ def _make_text(text_id: str, value: str, x: float, y: float) -> TextItem:
     )
 
 
-def _make_line(line_id: str, start_x: float, start_y: float, end_x: float, end_y: float) -> LineEntity:
+def _make_line(
+    line_id: str,
+    start_x: float,
+    start_y: float,
+    end_x: float,
+    end_y: float,
+    *,
+    handle: str | None = None,
+    source_entity_type: str = "LINE",
+    layer: str = "CONNECT",
+) -> LineEntity:
     return LineEntity(
         line_id=line_id,
         sheet_id="S1",
         file_id="F1",
-        handle=f"H{line_id}",
-        source_entity_type="LINE",
-        layer="CONNECT",
+        handle=handle or f"H{line_id}",
+        source_entity_type=source_entity_type,
+        layer=layer,
         start_x=start_x,
         start_y=start_y,
         end_x=end_x,
@@ -62,6 +72,85 @@ def _make_line(line_id: str, start_x: float, start_y: float, end_x: float, end_y
         length=((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5,
         angle_deg=0.0,
     )
+
+
+def _spmu_panel_fixture() -> tuple[list[TextItem], list[LineEntity]]:
+    texts = [
+        _make_text("MODEL", "SPMU-857G-CG", 151.0, 253.2),
+        _make_text("PREFIX", "1-25n", 160.0, 257.0),
+        _make_text("LOCAL605", "605", 140.6, 248.2),
+        _make_text("LOCAL606", "606", 140.6, 238.2),
+        _make_text("TD1", "TD1", 51.3, 249.5),
+        _make_text("TD3", "TD3", 61.3, 239.5),
+        _make_text("BPLUS", "B+", 152.9, 246.2),
+        _make_text("BMINUS", "B-", 152.9, 236.2),
+        _make_text("SHIELD", "Shielding layer", 152.9, 228.2),
+    ]
+    lines = [
+        _make_line("TOP", 140.0, 252.5, 180.0, 252.5, handle="PANEL:0", source_entity_type="LWPOLYLINE", layer="0"),
+        _make_line("RIGHT", 180.0, 252.5, 180.0, 222.5, handle="PANEL:1", source_entity_type="LWPOLYLINE", layer="0"),
+        _make_line("BOTTOM", 180.0, 222.5, 140.0, 222.5, handle="PANEL:2", source_entity_type="LWPOLYLINE", layer="0"),
+        _make_line("LEFT", 140.0, 222.5, 140.0, 252.5, handle="PANEL:3", source_entity_type="LWPOLYLINE", layer="0"),
+        _make_line("ROW605", 52.5, 247.5, 142.5, 247.5),
+        _make_line("ROW606", 62.5, 237.5, 142.5, 237.5),
+    ]
+    return texts, lines
+
+
+def test_extract_component_prefixed_signal_pairs_builds_spmu_panel_row_mappings() -> None:
+    texts, lines = _spmu_panel_fixture()
+
+    pairs = extract_component_prefixed_signal_pairs([_make_sheet()], texts, lines)
+
+    spmu_pairs = [
+        pair for pair in pairs if pair.evidence.get("component_submode") == "spmu_signal_panel_row_mapping"
+    ]
+    assert {(pair.left_value, pair.right_value) for pair in spmu_pairs} == {
+        ("TD1", "1-25n605"),
+        ("TD3", "1-25n606"),
+    }
+    first = next(pair for pair in spmu_pairs if pair.left_value == "TD1")
+    assert first.status == "pass"
+    assert first.pair_kind == "wire_component_mapping"
+    assert first.evidence["component_model"] == "SPMU-857G-CG"
+    assert first.evidence["component_prefix"] == "1-25n"
+    assert first.evidence["local_number"] == "605"
+    assert first.evidence["local_number_text_id"] == "LOCAL605"
+    assert first.evidence["supporting_line_ids"] == ["ROW605"]
+    assert set(first.evidence["panel_cue_text_ids"]) == {"B+", "B-", "SHIELDING LAYER"}
+    assert first.evidence["internal_connectivity_inferred"] is False
+    assert first.evidence["electrical_union_eligible"] is False
+
+
+def test_extract_component_prefixed_signal_pairs_requires_complete_spmu_panel_authority() -> None:
+    texts, lines = _spmu_panel_fixture()
+    text_ids = {text.text_id for text in texts}
+    line_ids = {line.line_id for line in lines}
+    cases = [
+        ({"MODEL"}, set()),
+        ({"PREFIX"}, set()),
+        ({"BPLUS"}, set()),
+        ({"SHIELD"}, set()),
+        ({"LOCAL606"}, set()),
+        ({"TD3"}, set()),
+        (set(), {"LEFT"}),
+        (set(), {"ROW606"}),
+    ]
+    for removed_text_ids, removed_line_ids in cases:
+        case_texts = [text for text in texts if text.text_id in text_ids - removed_text_ids]
+        case_lines = [line for line in lines if line.line_id in line_ids - removed_line_ids]
+        pairs = extract_component_prefixed_signal_pairs([_make_sheet()], case_texts, case_lines)
+        assert not any(
+            pair.evidence.get("component_submode") == "spmu_signal_panel_row_mapping"
+            for pair in pairs
+        )
+
+    non_schematic_pairs = extract_component_prefixed_signal_pairs(
+        [_make_sheet(sheet_category="元件接线图")],
+        texts,
+        lines,
+    )
+    assert non_schematic_pairs == []
 
 
 def test_extract_component_prefixed_signal_pairs_builds_logical_endpoint_mapping() -> None:

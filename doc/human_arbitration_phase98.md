@@ -367,3 +367,12 @@ connectivity and electrical union.
 - 明确负例包括：31000 的 grid 多数字竞争组、超过 50 的长线/误合并线、邻行文字、背板/元件/端子表页面，以及不同语法 `1QD47~53`。禁止按 Q/D 名称、数字值、页名或 fingerprint 泛化。
 - `.tmp/phase180_full_533_fresh6` 覆盖 28 项目、533 文件/页、533 valid、0 invalid、0 incomplete。相对 fresh5 仅 26000 S0005 改变：四条目标 Q 映射替换原普通半 Pair，`GW0029` 设备外框边变为空 discard；其余 27 项目 Pair identity 精确不变。
 - `.tmp/phase180_full_533_audit6` 为 74 条：many-to-one 31、missing-side 34、cross-page 6、low-confidence 3。相对 audit5 新增 0，仅移除 `GW0032 ? -> 829` 与 `GW0043 ? -> 831` 两条目标缺侧；所有 GND many-to-one 和既有真实冲突均保留。
+
+## Phase 180：SPMU 信号面板行映射（2026-07-18）
+
+- 历史人工裁决继续有效：SPMU 面板中的 B+、B- 各自延续但彼此不连接；二者均不与 Shielding layer 建立映射。面板套管/外框本身整体忽略，不建立端口、内部 connectivity 或 electrical union；真实外部线路仍由 TD 端子映射到“面板实例前缀 + 本地行号”。
+- 22000/35000 `10 信号回路图.dwg` 的权威映射为 `TD1 -> 1-25n605`、`TD3 -> 1-25n606`、`TD2 -> 2-25n605`、`TD4 -> 2-25n606`。裸 `605/606` 不是跨页端点，不能单独进入审核。
+- 自动识别必须同时满足：`SPMU-*` 模型文字；面板上方唯一 scoped `n` 前缀；由同一 LWPOLYLINE 四段构成的完整矩形边界；边界侧恰有两个不同三位行号；B+/B-/Shielding layer 在面板内按上下关系完整出现；每行存在唯一同侧 `TD#` 和跨到面板边界的水平 CONNECT 支撑线。缺一项保持原审核，禁止按模型名、项目名、文件名、数字值或 fingerprint 命中。
+- 结构化 Pair 使用 `spmu_signal_panel_row_mapping / wire_component_mapping / 0.95 pass`，记录模型、实例前缀、行号、TD、四条边界线和支撑线的文本/图元 provenance，并明确 `internal_connectivity_inferred=false`、`electrical_union_eligible=false`、`ordinary_pair_eligible=false`。
+- fresh6 全语料有 76 条 SPMU 相关文字，覆盖 `SPMU-858G` 与 `SPMU-857G-CG`；只有上述两个 S0010 页面满足完整联合结构。fresh7 全量为 28 项目、533/533 valid、0 invalid/incomplete；仅 22000/35000 各新增四条映射并按精确文本身份覆盖六条普通残留，其他 26 项目 Pair 精确不变。
+- audit7 为 64 条：many-to-one 31、missing-side 24、cross-page 6、low-confidence 3。相对 audit6 新增 0，仅移除两个目标页共 10 条 SPMU 缺侧；三组 GND 与全部既有真实冲突继续保留。

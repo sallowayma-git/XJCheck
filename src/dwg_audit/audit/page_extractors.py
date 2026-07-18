@@ -1425,6 +1425,7 @@ def _wire_component_local_number_text_reasons(wire_component_pairs: list[Pair]) 
             "component_prefixed_signal_circuit",
             "first_prefixed_external_endpoint_mapping",
             "scoped_visible_prefix_external_endpoint_mapping",
+            "spmu_signal_panel_row_mapping",
             "inline_klp_component_port_mapping",
             "inline_body_port_mapping",
         }:
@@ -1471,6 +1472,11 @@ def _wire_component_coverage_rationale(covered_reasons: set[str]) -> str:
     if "scoped_visible_prefix_external_endpoint_mapping" in covered_reasons:
         return (
             "Covered by scoped_visible_prefix_external_endpoint_mapping; scoped local number "
+            "must not be emitted as a bare ordinary pair."
+        )
+    if "spmu_signal_panel_row_mapping" in covered_reasons:
+        return (
+            "Covered by spmu_signal_panel_row_mapping; instance-qualified SPMU row number "
             "must not be emitted as a bare ordinary pair."
         )
     if {

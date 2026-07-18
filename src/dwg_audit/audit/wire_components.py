@@ -29,6 +29,9 @@ _FIRST_PREFIXED_EXTERNAL_ENDPOINT_PATTERN = re.compile(
     r"^(?P<prefix>\d+(?:-\d+)?)(?:QD|FD)\d+$",
     re.IGNORECASE,
 )
+_SPMU_MODEL_PATTERN = re.compile(r"^SPMU(?:-[A-Z0-9]+)+$", re.IGNORECASE)
+_SPMU_EXTERNAL_ENDPOINT_PATTERN = re.compile(r"^TD\d+$", re.IGNORECASE)
+_SPMU_REQUIRED_CUES = frozenset({"B+", "B-", "SHIELDING LAYER"})
 _ROW_Y_TOL = 1.5
 _PREFIX_X_TOL = 36.0
 _PREFIX_Y_SPAN = 130.0
@@ -49,6 +52,16 @@ _INLINE_COMPONENT_ENDPOINT_ROW_Y_TOL = 4.0
 _INLINE_COMPONENT_AMBIGUITY_GAP = 3.0
 _INLINE_COMPONENT_LINE_Y_TOL = 2.0
 _INLINE_COMPONENT_LINE_PORT_Y_OFFSET = 8.0
+_SPMU_PANEL_WIDTH_RANGE = (30.0, 50.0)
+_SPMU_PANEL_HEIGHT_RANGE = (20.0, 40.0)
+_SPMU_PANEL_EDGE_TOL = 0.75
+_SPMU_MODEL_TOP_GAP_RANGE = (0.0, 3.0)
+_SPMU_PREFIX_TOP_GAP_RANGE = (2.0, 10.0)
+_SPMU_LOCAL_EDGE_X_TOL = 4.0
+_SPMU_ROW_Y_TOL = 3.0
+_SPMU_EXTERNAL_X_GAP_RANGE = (20.0, 120.0)
+_SPMU_CUE_ROW_Y_TOL = 4.0
+_SPMU_SHIELDING_ROW_GAP_MIN = 3.0
 
 
 def _normalize_inline_body_families(families) -> frozenset[str]:
@@ -124,6 +137,14 @@ def extract_component_prefixed_signal_pairs(
         if page.sheet_category != "二次原理图":
             continue
         sheet_texts = texts_by_sheet.get(page.sheet_id, [])
+        pairs.extend(
+            _extract_spmu_signal_panel_row_pairs(
+                page,
+                sheet_texts,
+                lines_by_sheet.get(page.sheet_id, []),
+                pair_ids,
+            )
+        )
         prefixes = [text for text in sheet_texts if _looks_like_component_prefix(text.normalized_text)]
         if prefixes:
             locals_ = [text for text in sheet_texts if _looks_like_local_number(text.normalized_text)]
@@ -182,6 +203,60 @@ def extract_component_prefixed_signal_pairs(
                 inline_body_families=inline_body_families,
             )
         )
+    return pairs
+
+
+def _extract_spmu_signal_panel_row_pairs(
+    page: SheetRecord,
+    sheet_texts: list[TextItem],
+    sheet_lines: list[LineEntity],
+    pair_ids: IdFactory,
+) -> list[Pair]:
+    models = [text for text in sheet_texts if _SPMU_MODEL_PATTERN.fullmatch(text.normalized_text.strip())]
+    prefixes = [text for text in sheet_texts if _looks_like_scoped_prefix(text.normalized_text)]
+    local_numbers = [text for text in sheet_texts if _looks_like_local_number(text.normalized_text)]
+    external_endpoints = [
+        text for text in sheet_texts if _SPMU_EXTERNAL_ENDPOINT_PATTERN.fullmatch(text.normalized_text.strip())
+    ]
+    if not models or not prefixes or len(local_numbers) < 2 or len(external_endpoints) < 2:
+        return []
+
+    pairs: list[Pair] = []
+    seen: set[tuple[str, str, str]] = set()
+    for enclosure in _spmu_panel_enclosures(sheet_lines):
+        panel = _spmu_panel_authority(
+            enclosure=enclosure,
+            models=models,
+            prefixes=prefixes,
+            local_numbers=local_numbers,
+            external_endpoints=external_endpoints,
+            sheet_texts=sheet_texts,
+            sheet_lines=sheet_lines,
+        )
+        if panel is None:
+            continue
+        for row in panel["rows"]:
+            local = row["local_number"]
+            external_endpoint = row["external_endpoint"]
+            logical_endpoint = f"{panel['prefix'].normalized_text}{local.normalized_text}"
+            dedupe_key = (panel["prefix"].text_id, local.text_id, external_endpoint.text_id)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            pairs.append(
+                _build_spmu_signal_panel_row_pair(
+                    page=page,
+                    model=panel["model"],
+                    prefix=panel["prefix"],
+                    local=local,
+                    external_endpoint=external_endpoint,
+                    logical_endpoint=logical_endpoint,
+                    enclosure=enclosure,
+                    cue_texts=panel["cue_texts"],
+                    support_lines=row["support_lines"],
+                    pair_ids=pair_ids,
+                )
+            )
     return pairs
 
 
@@ -501,6 +576,88 @@ def _extract_scoped_wire_logic_body_port_pairs(
                 )
             )
     return pairs
+
+
+def _build_spmu_signal_panel_row_pair(
+    *,
+    page: SheetRecord,
+    model: TextItem,
+    prefix: TextItem,
+    local: TextItem,
+    external_endpoint: TextItem,
+    logical_endpoint: str,
+    enclosure: dict[str, object],
+    cue_texts: dict[str, TextItem],
+    support_lines: list[LineEntity],
+    pair_ids: IdFactory,
+) -> Pair:
+    component_bbox = list(enclosure["bbox"])
+    evidence = {
+        "source": "wire_component_mapping",
+        "filename": page.filename,
+        "sheet_no": page.sheet_no,
+        "sheet_order": page.sheet_order,
+        "sheet_title": page.sheet_title,
+        "pair_kind": "wire_component_mapping",
+        "component_submode": "spmu_signal_panel_row_mapping",
+        "component_model": model.normalized_text,
+        "component_model_text_id": model.text_id,
+        "component_model_coord": [model.insert_x, model.insert_y],
+        "component_prefix": prefix.normalized_text,
+        "component_prefix_text_id": prefix.text_id,
+        "component_prefix_coord": [prefix.insert_x, prefix.insert_y],
+        "local_number": local.normalized_text,
+        "local_number_text_id": local.text_id,
+        "local_number_coord": [local.insert_x, local.insert_y],
+        "external_endpoint": external_endpoint.normalized_text,
+        "external_endpoint_text_id": external_endpoint.text_id,
+        "external_endpoint_coord": [external_endpoint.insert_x, external_endpoint.insert_y],
+        "logical_endpoint": logical_endpoint,
+        "component_bbox": component_bbox,
+        "enclosure_line_ids": [line.line_id for line in enclosure["lines"]],
+        "supporting_line_ids": [line.line_id for line in support_lines],
+        "panel_cue_text_ids": {key: text.text_id for key, text in sorted(cue_texts.items())},
+        "line_orientation": "spmu_panel_row_horizontal",
+        "row_band_id": f"row:{round((local.insert_y + external_endpoint.insert_y) / 2.0, 1)}",
+        "left_side_label": "external_endpoint",
+        "right_side_label": "logical_endpoint",
+        "internal_connectivity_inferred": False,
+        "electrical_union_eligible": False,
+        "ordinary_pair_eligible": False,
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_ids.next(),
+        line_group_id=None,
+        sheet_id=page.sheet_id,
+        file_id=page.file_id,
+        selected_pair_candidate_id=None,
+        left_value=external_endpoint.normalized_text,
+        right_value=logical_endpoint,
+        confidence=_COMPONENT_PAIR_CONFIDENCE,
+        status="pass",
+        rationale="SPMU signal panel row mapping: external TD terminal associated with an instance-qualified local row through complete panel geometry.",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=external_endpoint.text_id,
+        right_text_id=local.text_id,
+        left_coord_x=external_endpoint.insert_x,
+        left_coord_y=external_endpoint.insert_y,
+        right_coord_x=local.insert_x,
+        right_coord_y=local.insert_y,
+        pair_key=f"{external_endpoint.normalized_text}->{logical_endpoint}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="wire_component_mapping",
+    )
 
 
 def _build_component_pair(
@@ -884,6 +1041,199 @@ def _local_numbers_for_prefix(prefix: TextItem, locals_: list[TextItem]) -> list
         if 0.0 < prefix.insert_y - local.insert_y <= _PREFIX_Y_SPAN
         and abs(local.insert_x - prefix.insert_x) <= _PREFIX_X_TOL
     ]
+
+
+def _spmu_panel_enclosures(lines: list[LineEntity]) -> list[dict[str, object]]:
+    by_parent: dict[str, list[LineEntity]] = defaultdict(list)
+    for line in lines:
+        parent = _spmu_polyline_parent_handle(line)
+        if parent is not None:
+            by_parent[parent].append(line)
+
+    enclosures: list[dict[str, object]] = []
+    for parent, members in sorted(by_parent.items()):
+        if len(members) != 4:
+            continue
+        min_x = min(line.bbox_min_x for line in members)
+        min_y = min(line.bbox_min_y for line in members)
+        max_x = max(line.bbox_max_x for line in members)
+        max_y = max(line.bbox_max_y for line in members)
+        width = max_x - min_x
+        height = max_y - min_y
+        if not (_SPMU_PANEL_WIDTH_RANGE[0] <= width <= _SPMU_PANEL_WIDTH_RANGE[1]):
+            continue
+        if not (_SPMU_PANEL_HEIGHT_RANGE[0] <= height <= _SPMU_PANEL_HEIGHT_RANGE[1]):
+            continue
+        expected_edges = (
+            ((min_x, min_y), (max_x, min_y)),
+            ((min_x, max_y), (max_x, max_y)),
+            ((min_x, min_y), (min_x, max_y)),
+            ((max_x, min_y), (max_x, max_y)),
+        )
+        unmatched = list(members)
+        matched: list[LineEntity] = []
+        for start, end in expected_edges:
+            candidates = [line for line in unmatched if _spmu_line_matches_edge(line, start, end)]
+            if len(candidates) != 1:
+                matched = []
+                break
+            edge = candidates[0]
+            unmatched.remove(edge)
+            matched.append(edge)
+        if len(matched) != 4 or unmatched:
+            continue
+        enclosures.append({"parent_handle": parent, "bbox": [min_x, min_y, max_x, max_y], "lines": matched})
+    return enclosures
+
+
+def _spmu_panel_authority(
+    *,
+    enclosure: dict[str, object],
+    models: list[TextItem],
+    prefixes: list[TextItem],
+    local_numbers: list[TextItem],
+    external_endpoints: list[TextItem],
+    sheet_texts: list[TextItem],
+    sheet_lines: list[LineEntity],
+) -> dict[str, object] | None:
+    min_x, min_y, max_x, max_y = enclosure["bbox"]
+    panel_models = [
+        text
+        for text in models
+        if min_x <= _text_mid_x(text) <= max_x
+        and _SPMU_MODEL_TOP_GAP_RANGE[0] <= text.insert_y - max_y <= _SPMU_MODEL_TOP_GAP_RANGE[1]
+    ]
+    panel_prefixes = [
+        text
+        for text in prefixes
+        if min_x <= _text_mid_x(text) <= max_x
+        and _SPMU_PREFIX_TOP_GAP_RANGE[0] <= text.insert_y - max_y <= _SPMU_PREFIX_TOP_GAP_RANGE[1]
+    ]
+    if len(panel_models) != 1 or len(panel_prefixes) != 1:
+        return None
+
+    cue_texts: dict[str, TextItem] = {}
+    for cue in _SPMU_REQUIRED_CUES:
+        matches = [
+            text
+            for text in sheet_texts
+            if text.normalized_text.strip().upper() == cue
+            and min_x <= text.insert_x <= max_x
+            and min_y <= text.insert_y <= max_y
+        ]
+        if len(matches) != 1:
+            return None
+        cue_texts[cue] = matches[0]
+
+    panel_locals = [
+        text
+        for text in local_numbers
+        if abs(text.insert_x - min_x) <= _SPMU_LOCAL_EDGE_X_TOL
+        and min_y < text.insert_y < max_y
+    ]
+    if len(panel_locals) != 2 or len({text.normalized_text for text in panel_locals}) != 2:
+        return None
+    ordered_locals = sorted(panel_locals, key=lambda item: item.insert_y, reverse=True)
+    if abs(cue_texts["B+"].insert_y - ordered_locals[0].insert_y) > _SPMU_CUE_ROW_Y_TOL:
+        return None
+    if abs(cue_texts["B-"].insert_y - ordered_locals[1].insert_y) > _SPMU_CUE_ROW_Y_TOL:
+        return None
+    if ordered_locals[1].insert_y - cue_texts["SHIELDING LAYER"].insert_y < _SPMU_SHIELDING_ROW_GAP_MIN:
+        return None
+
+    rows: list[dict[str, object]] = []
+    used_external_ids: set[str] = set()
+    for local in ordered_locals:
+        candidates: list[tuple[TextItem, list[LineEntity]]] = []
+        for external in external_endpoints:
+            if external.text_id in used_external_ids:
+                continue
+            if abs(external.insert_y - local.insert_y) > _SPMU_ROW_Y_TOL:
+                continue
+            x_gap = local.insert_x - external.insert_x
+            if not (_SPMU_EXTERNAL_X_GAP_RANGE[0] <= x_gap <= _SPMU_EXTERNAL_X_GAP_RANGE[1]):
+                continue
+            support_lines = _spmu_row_support_lines(
+                sheet_lines,
+                external=external,
+                local=local,
+                panel_left_x=min_x,
+            )
+            if support_lines:
+                candidates.append((external, support_lines))
+        if len(candidates) != 1:
+            return None
+        external, support_lines = candidates[0]
+        used_external_ids.add(external.text_id)
+        rows.append({"local_number": local, "external_endpoint": external, "support_lines": support_lines})
+
+    return {
+        "model": panel_models[0],
+        "prefix": panel_prefixes[0],
+        "cue_texts": cue_texts,
+        "rows": rows,
+    }
+
+
+def _spmu_polyline_parent_handle(line: LineEntity) -> str | None:
+    if str(line.source_entity_type or "").upper() not in {"LWPOLYLINE", "POLYLINE"}:
+        return None
+    handle = str(line.handle or "").strip()
+    parent, separator, segment = handle.rpartition(":")
+    if not separator or not parent or not segment.isdigit():
+        return None
+    return parent
+
+
+def _spmu_line_matches_edge(
+    line: LineEntity,
+    expected_start: tuple[float, float],
+    expected_end: tuple[float, float],
+) -> bool:
+    actual_start = (line.start_x, line.start_y)
+    actual_end = (line.end_x, line.end_y)
+    return (
+        _spmu_points_close(actual_start, expected_start)
+        and _spmu_points_close(actual_end, expected_end)
+    ) or (
+        _spmu_points_close(actual_start, expected_end)
+        and _spmu_points_close(actual_end, expected_start)
+    )
+
+
+def _spmu_points_close(first: tuple[float, float], second: tuple[float, float]) -> bool:
+    return (
+        abs(first[0] - second[0]) <= _SPMU_PANEL_EDGE_TOL
+        and abs(first[1] - second[1]) <= _SPMU_PANEL_EDGE_TOL
+    )
+
+
+def _spmu_row_support_lines(
+    lines: list[LineEntity],
+    *,
+    external: TextItem,
+    local: TextItem,
+    panel_left_x: float,
+) -> list[LineEntity]:
+    support: list[LineEntity] = []
+    for line in lines:
+        if str(line.layer or "").upper() != "CONNECT":
+            continue
+        if abs(line.start_y - line.end_y) > _SPMU_PANEL_EDGE_TOL:
+            continue
+        line_y = (line.start_y + line.end_y) / 2.0
+        if abs(line_y - external.insert_y) > _SPMU_ROW_Y_TOL:
+            continue
+        if abs(line_y - local.insert_y) > _SPMU_ROW_Y_TOL:
+            continue
+        if line.bbox_min_x > external.insert_x + _SPMU_LOCAL_EDGE_X_TOL:
+            continue
+        if line.bbox_max_x < local.insert_x - _SPMU_LOCAL_EDGE_X_TOL:
+            continue
+        if line.bbox_max_x < panel_left_x - _SPMU_LOCAL_EDGE_X_TOL:
+            continue
+        support.append(line)
+    return sorted(support, key=lambda item: (item.bbox_min_x, item.bbox_max_x, item.line_id))
 
 
 def _nearest_external_endpoint(
