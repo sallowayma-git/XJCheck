@@ -91,6 +91,7 @@ _TERMINAL_HEADER_MIN_ENDPOINT_ROW_RATIO = 0.5
 _TERMINAL_HEADER_SHUOMING_Y_TOL = 4.0
 _TERMINAL_HEADER_SHUOMING_X_TOL = 90.0
 _TERMINAL_HEADER_DESCRIPTION_LABEL = "说明"
+_TERMINAL_HEADER_OUTSIDE_AUDIT_MARGIN = 4.0
 _TERMINAL_HEADER_SEMANTIC_ENDPOINTS = {
     "I0",
     "I0'",
@@ -1173,39 +1174,63 @@ def _build_terminal_header_table_mappings(
     sheet: SheetRecord,
 ) -> list[dict[str, Any]]:
     audit_texts = [text for text in texts if _text_in_audit_area(text, sheet)]
-    headers = [text for text in audit_texts if _looks_like_header_prefix(text.normalized_text)]
+    header_band_texts = [
+        text
+        for text in texts
+        if _text_in_audit_area(text, sheet) or _text_in_terminal_header_band(text, sheet)
+    ]
     row_numbers = [text for text in audit_texts if _looks_like_numeric_value(text.normalized_text)]
     endpoints = [text for text in audit_texts if _looks_like_table_endpoint(text.normalized_text)]
-    if not headers or not row_numbers or not endpoints:
+    if not row_numbers or not endpoints:
         return []
 
     shuoming_labels = [
         text
-        for text in audit_texts
+        for text in header_band_texts
         if str(text.normalized_text).strip() == _TERMINAL_HEADER_DESCRIPTION_LABEL
     ]
-    terminal_headers = [
-        text
-        for text in headers
-        if _looks_like_terminal_header_prefix(
+    terminal_header_identities: dict[str, tuple[str, int | None]] = {}
+    terminal_headers: list[TextItem] = []
+    for text in header_band_texts:
+        has_shuoming = _find_terminal_header_shuoming(text, shuoming_labels) is not None
+        identity = _terminal_header_identity(
             text.normalized_text,
-            allow_plain=_find_terminal_header_shuoming(text, shuoming_labels) is not None,
+            allow_plain=has_shuoming,
+            allow_continuation=has_shuoming,
         )
-    ]
+        if identity is None:
+            continue
+        terminal_headers.append(text)
+        terminal_header_identities[text.text_id] = identity
     if not terminal_headers:
         return []
 
+    regular_terminal_headers = [
+        header
+        for header in terminal_headers
+        if terminal_header_identities[header.text_id][1] is None
+    ]
     mappings: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     for header in sorted(terminal_headers, key=lambda item: (-item.insert_y, item.insert_x, item.text_id)):
-        header_prefix = header.normalized_text
+        header_prefix, continuation_from_row = terminal_header_identities[header.text_id]
         shuoming = _find_terminal_header_shuoming(header, shuoming_labels)
-        ordered_rows = _collect_terminal_header_rows(
-            header,
-            row_numbers,
-            terminal_headers,
-            allow_rows_above=shuoming is not None,
-        )
+        if continuation_from_row is None:
+            ownership_headers = regular_terminal_headers
+            ordered_rows = _collect_terminal_header_rows(
+                header,
+                row_numbers,
+                ownership_headers,
+                allow_rows_above=shuoming is not None,
+            )
+        else:
+            ownership_headers = terminal_headers
+            ordered_rows = _collect_terminal_header_continuation_rows(
+                header,
+                row_numbers,
+                ownership_headers,
+                continuation_from_row=continuation_from_row,
+            )
         if not ordered_rows:
             continue
 
@@ -1213,6 +1238,7 @@ def _build_terminal_header_table_mappings(
             ordered_rows,
             endpoints,
             has_shuoming=shuoming is not None,
+            has_explicit_continuation=continuation_from_row is not None,
         ):
             continue
 
@@ -1225,7 +1251,7 @@ def _build_terminal_header_table_mappings(
                     endpoint,
                     row,
                     header,
-                    terminal_headers,
+                    ownership_headers,
                     row_numbers,
                 )
             ]
@@ -1247,6 +1273,8 @@ def _build_terminal_header_table_mappings(
                         "header_prefix": header_prefix,
                         "header_text_id": header.text_id,
                         "header_coord": [header.insert_x, header.insert_y],
+                        "header_outside_audit_area": not _text_in_audit_area(header, sheet),
+                        "continuation_from_row": continuation_from_row,
                         "row_number": row_number,
                         "middle_value": row.normalized_text,
                         "middle_text_id": row.text_id,
@@ -2137,6 +2165,35 @@ def _looks_like_terminal_header_prefix(
     )
 
 
+def _terminal_header_identity(
+    value: str | None,
+    *,
+    allow_plain: bool = False,
+    allow_continuation: bool = False,
+) -> tuple[str, int | None] | None:
+    text = re.sub(r"\s+", "", str(value or "").strip())
+    if allow_continuation:
+        match = re.fullmatch(r"上接(?P<prefix>.+[A-Za-z])(?P<last_row>\d+)", text)
+        if match is not None:
+            prefix = match.group("prefix")
+            if _looks_like_terminal_header_prefix(prefix):
+                return prefix, int(match.group("last_row"))
+    if _looks_like_terminal_header_prefix(text, allow_plain=allow_plain):
+        return text, None
+    return None
+
+
+def _text_in_terminal_header_band(text: TextItem, sheet: SheetRecord) -> bool:
+    bbox = sheet.audit_area_bbox
+    if not bbox:
+        return False
+    min_x, _, max_x, max_y = bbox
+    return (
+        min_x <= text.insert_x <= max_x
+        and max_y < text.insert_y <= max_y + _TERMINAL_HEADER_OUTSIDE_AUDIT_MARGIN
+    )
+
+
 def _compose_terminal_header_logical_endpoint(header_prefix: str, row_number: int) -> str:
     """Compose panel terminal logical keys as header + '-' + row (e.g. 1C5D-10)."""
     return f"{header_prefix}-{row_number}"
@@ -2217,6 +2274,47 @@ def _take_leading_consecutive_terminal_rows(rows: list[TextItem]) -> list[TextIt
     return taken if expected > 2 else []
 
 
+def _collect_terminal_header_continuation_rows(
+    header: TextItem,
+    row_numbers: list[TextItem],
+    terminal_headers: list[TextItem],
+    *,
+    continuation_from_row: int,
+) -> list[TextItem]:
+    """Collect `上接<prefix><N>` rows beginning exactly at N+1."""
+
+    next_header_y: float | None = None
+    for other in terminal_headers:
+        if other.text_id == header.text_id:
+            continue
+        if abs(other.insert_x - header.insert_x) > _TERMINAL_HEADER_ROW_X_TOL:
+            continue
+        if other.insert_y < header.insert_y and (
+            next_header_y is None or other.insert_y > next_header_y
+        ):
+            next_header_y = other.insert_y
+
+    rows_below = [
+        row
+        for row in row_numbers
+        if 0.0 < header.insert_y - row.insert_y <= _TERMINAL_HEADER_ROW_Y_SPAN
+        and abs(row.insert_x - header.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+        and (next_header_y is None or row.insert_y > next_header_y)
+    ]
+    ordered = sorted(rows_below, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
+    expected = continuation_from_row + 1
+    taken: list[TextItem] = []
+    for row in ordered:
+        if not str(row.normalized_text).isdigit():
+            break
+        value = int(row.normalized_text)
+        if value != expected:
+            break
+        taken.append(row)
+        expected += 1
+    return taken if len(taken) >= 2 else []
+
+
 def _terminal_rows_start_at_one(rows: list[TextItem]) -> bool:
     expected = 1
     for row in rows:
@@ -2253,6 +2351,7 @@ def _terminal_header_group_has_structure(
     endpoints: list[TextItem],
     *,
     has_shuoming: bool = False,
+    has_explicit_continuation: bool = False,
 ) -> bool:
     endpoint_counts = [len(_same_row_terminal_endpoints(row, endpoints)) for row in rows]
     endpoint_hit_count = sum(endpoint_counts)
@@ -2262,6 +2361,8 @@ def _terminal_header_group_has_structure(
         min_hits = max(1, _TERMINAL_HEADER_MIN_ENDPOINT_HITS - 1)
     if endpoint_hit_count < min_hits:
         return False
+    if has_explicit_continuation:
+        return len(rows) >= 2 and endpoint_hit_count >= 1
 
     rows_with_endpoint = sum(1 for count in endpoint_counts if count > 0)
     if any(count >= _TERMINAL_HEADER_MIN_ENDPOINT_HITS for count in endpoint_counts):

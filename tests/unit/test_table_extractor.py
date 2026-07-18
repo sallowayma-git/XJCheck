@@ -723,6 +723,127 @@ def test_extract_terminal_header_table_pairs_accepts_shuoming_anchored_header_be
     assert mappings[0]["mappings"][0]["has_shuoming_column"] is True
 
 
+def test_extract_terminal_header_table_pairs_accepts_shangjie_continuation() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 274.2))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "29 左侧端子图2.dwg"
+    texts = [
+        _make_text("H", 155.75, 276.0, "上接1YD48"),
+        _make_text("SH", 197.5, 276.25, "说明"),
+        _make_text("R49", 161.0, 268.5, "49", is_numeric_candidate=True),
+        _make_text("E49", 168.5, 268.5, "1n520"),
+        _make_text("R50", 161.0, 263.5, "50", is_numeric_candidate=True),
+        _make_text("E50", 168.5, 263.5, "1n108"),
+        _make_text("R51", 161.0, 258.5, "51", is_numeric_candidate=True),
+        _make_text("E51", 168.5, 258.5, "1n104"),
+    ]
+
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1YD-49", "1n520"),
+        ("1YD-50", "1n108"),
+        ("1YD-51", "1n104"),
+    }
+    mapping_rows = mappings[0]["mappings"]
+    assert {row["continuation_from_row"] for row in mapping_rows} == {48}
+    assert {row["header_prefix"] for row in mapping_rows} == {"1YD"}
+    assert all(row["header_outside_audit_area"] is True for row in mapping_rows)
+
+
+def test_extract_terminal_header_table_pairs_accepts_hyphenated_shangjie_continuation() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 271.7))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "20 右侧端子图1.dwg"
+    texts = [
+        _make_text("H", 176.0, 273.5, "上接1-21GD18"),
+        _make_text("SH", 145.0, 273.75, "说明"),
+        _make_text("R19", 183.5, 266.0, "19", is_numeric_candidate=True),
+        _make_text("E19", 161.0, 266.0, "1-21DK2-2"),
+        _make_text("R20", 183.5, 261.0, "20", is_numeric_candidate=True),
+        _make_text("E20", 161.0, 261.0, "1-21n132"),
+        _make_text("R21", 183.5, 256.0, "21", is_numeric_candidate=True),
+        _make_text("E21", 161.0, 256.0, "1-21n231"),
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("1-21GD-19", "1-21DK2-2"),
+        ("1-21GD-20", "1-21n132"),
+        ("1-21GD-21", "1-21n231"),
+    }
+
+
+def test_extract_terminal_header_table_pairs_keeps_blank_continuation_row_unmapped() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 271.7))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "17 左侧端子表1.dwg"
+    texts = [
+        _make_text("H", 152.5, 273.5, "上接4Q1D37"),
+        _make_text("SH", 195.0, 273.75, "说明"),
+        _make_text("R38", 158.5, 266.0, "38", is_numeric_candidate=True),
+        _make_text("E38", 166.0, 266.0, "4n431"),
+        _make_text("R39", 158.5, 261.0, "39", is_numeric_candidate=True),
+    ]
+
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {
+        ("4Q1D-38", "4n431"),
+    }
+    assert {row["logical_endpoint"] for row in mappings[0]["mappings"]} == {"4Q1D-38"}
+
+
+def test_extract_terminal_header_table_pairs_rejects_unanchored_or_broken_continuation() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 274.2))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "continuation negative.dwg"
+    texts = [
+        _make_text("H", 155.75, 276.0, "上接1YD48"),
+        _make_text("R49", 161.0, 268.5, "49", is_numeric_candidate=True),
+        _make_text("E49", 168.5, 268.5, "1n520"),
+        _make_text("R50", 161.0, 263.5, "50", is_numeric_candidate=True),
+        _make_text("E50", 168.5, 263.5, "1n108"),
+        _make_text("H2", 255.75, 276.0, "上接1LD48"),
+        _make_text("SH2", 297.5, 276.25, "说明"),
+        _make_text("R249", 261.0, 268.5, "49", is_numeric_candidate=True),
+        _make_text("E249", 268.5, 268.5, "1n520"),
+        _make_text("R251", 261.0, 258.5, "51", is_numeric_candidate=True),
+        _make_text("E251", 268.5, 258.5, "1n104"),
+    ]
+
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert pairs == []
+    assert mappings == []
+
+
+def test_continuation_header_does_not_steal_regular_header_endpoint() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    sheet.filename = "32 右侧端子图1.dwg"
+    texts = [
+        _make_text("CH", 272.5, 273.5, "上接1I3D19"),
+        _make_text("CSH", 240.0, 273.75, "说明"),
+        _make_text("CR20", 279.0, 266.0, "20", is_numeric_candidate=True),
+        _make_text("CE20", 286.5, 266.0, "1n908"),
+        _make_text("CR21", 279.0, 261.0, "21", is_numeric_candidate=True),
+        _make_text("RH", 277.75, 208.5, "1QD"),
+        _make_text("RSH", 240.0, 208.75, "说明"),
+        _make_text("RR1", 279.25, 201.0, "1", is_numeric_candidate=True),
+        _make_text("RE1", 286.5, 201.0, "1n112"),
+        _make_text("RR2", 279.25, 196.0, "2", is_numeric_candidate=True),
+        _make_text("RE2", 256.0, 196.0, "1KLP1-1"),
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+
+    assert ("1QD-2", "1KLP1-1") in {
+        (pair.left_value, pair.right_value) for pair in pairs
+    }
+
+
 def test_extract_terminal_header_table_pairs_accepts_plain_instance_name_with_shuoming() -> None:
     """YD is an instance header when 说明 and a complete numbered strip anchor it."""
     sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 180.0, 240.0))
