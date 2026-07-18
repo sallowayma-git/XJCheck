@@ -319,6 +319,72 @@ def _phase177_backplate_table_pair(
     )
 
 
+def _phase178_strip_component_pair(
+    pair_id: str,
+    sheet_id: str,
+    logical_endpoint: str,
+    endpoint: str,
+) -> Pair:
+    body, port = logical_endpoint.rsplit("-", 1)
+    return Pair(
+        pair_id, f"G-{pair_id}", sheet_id, sheet_id, None,
+        logical_endpoint, endpoint, 0.95, "pass", "strip component", [], "high",
+        {
+            "source": "component_mapping",
+            "component_submode": "strip_two_port_component",
+            "component_body": body,
+            "component_body_text_id": f"BODY-{pair_id}",
+            "component_port": port,
+            "component_port_text_id": f"PORT-{pair_id}",
+            "component_block_name": "FJL-25-2A_Mirror",
+            "external_endpoint": endpoint,
+            "external_endpoint_raw": endpoint,
+            "external_endpoint_split": endpoint,
+            "external_endpoint_text_id": f"END-{pair_id}",
+            "logical_endpoint": logical_endpoint,
+            "endpoint_side": "top",
+            "line_group_id": f"G-{pair_id}",
+            "supporting_line_ids": [f"L-{pair_id}"],
+        },
+        pair_kind="component_mapping",
+    )
+
+
+def _phase178_terminal_header_pair(
+    pair_id: str,
+    sheet_id: str,
+    logical_endpoint: str,
+    endpoint: str,
+) -> Pair:
+    header, raw_row = logical_endpoint.rsplit("-", 1)
+    row = int(raw_row)
+    return Pair(
+        pair_id, None, sheet_id, sheet_id, None, logical_endpoint, endpoint,
+        0.95, "pass", "terminal header table", [], "high",
+        {
+            "source": "table_mapping",
+            "table_mapping": {
+                "mapping_mode": "terminal_header_table",
+                "sheet_id": sheet_id,
+                "header_prefix": header,
+                "header_text_id": f"HEADER-{pair_id}",
+                "row_number": row,
+                "middle_text_id": f"MIDDLE-{pair_id}",
+                "logical_endpoint": logical_endpoint,
+                "right_value": endpoint,
+                "right_text_id": f"RIGHT-{pair_id}",
+                "row_number_sequence_valid": True,
+                "column_roles": {
+                    "left": "empty",
+                    "middle": "row_number",
+                    "right": "terminal_endpoint",
+                },
+            },
+        },
+        pair_kind="table_mapping",
+    )
+
+
 def test_rules_accept_exact_schematic_kk_component_cross_diagram_duplicate() -> None:
     pairs = [
         _phase177_schematic_inline_pair("PS", "S1", "1ZKK1-1", "UD1"),
@@ -359,6 +425,143 @@ def test_rules_keep_mismatched_kk_identity_in_structured_endpoint_join_visible()
         SheetRecord("S1", "S1", "09 原理图.dwg", 9, "09", "VT", "二次原理图", "primary", "filename", True),
         SheetRecord("S2", "S2", "19 元件图.dwg", 19, "19", "ACCESSORIES", "元件接线图", "supplemental", "filename", True),
         SheetRecord("S3", "S3", "16 背板图.dwg", 16, "16", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_accept_authoritative_component_table_cross_diagram_endpoint() -> None:
+    pairs = [
+        _phase178_strip_component_pair("PC", "S1", "1CLP1-1", "1KD1"),
+        _phase177_backplate_table_pair("PT", "S2", "NJL307-1@c0", "1KD1"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "21 元件图.dwg", 21, "21", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "18 背板图.dwg", 18, "18", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_accept_authoritative_component_terminal_header_endpoint() -> None:
+    pairs = [
+        _phase178_strip_component_pair("PC", "S1", "1CLP1-1", "1KD1"),
+        _phase178_terminal_header_pair("PT", "S2", "4Q1D-20", "1KD1"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "21 元件图.dwg", 21, "21", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "24 端子图.dwg", 24, "24", "TERMINALS", "端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_review_table_component_endpoint_visible() -> None:
+    table_pair = _phase177_backplate_table_pair("PT", "S2", "NJL307-1@c0", "1KD1")
+    table_pair.status = "review"
+    pairs = [
+        _phase178_strip_component_pair("PC", "S1", "1CLP1-1", "1KD1"),
+        table_pair,
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "21 元件图.dwg", 21, "21", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "18 背板图.dwg", 18, "18", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_low_confidence_table_component_endpoint_visible() -> None:
+    table_pair = _phase178_terminal_header_pair("PT", "S2", "4Q1D-20", "1KD1")
+    table_pair.confidence = 0.90
+    pairs = [
+        _phase178_strip_component_pair("PC", "S1", "1CLP1-1", "1KD1"),
+        table_pair,
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "21 元件图.dwg", 21, "21", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "24 端子图.dwg", 24, "24", "TERMINALS", "端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_component_table_endpoint_with_same_sheet_component_chain_visible() -> None:
+    pairs = [
+        _phase178_strip_component_pair("PC1", "S1", "1KLP2-1", "1KLP1-1"),
+        _phase177_backplate_table_pair("PT", "S2", "NJL307-1@c0", "1KLP1-1"),
+        _phase178_strip_component_pair("PC2", "S1", "1KLP1-1", "1QD2"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "21 元件图.dwg", 21, "21", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "18 背板图.dwg", 18, "18", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_normalized_same_sheet_component_chain_visible() -> None:
+    pairs = [
+        _phase178_strip_component_pair("PC1", "S1", "1KLP2-1", "1-21n427"),
+        _phase177_backplate_table_pair("PT", "S2", "NJL307-1@c0", "1-21n427"),
+        _phase178_strip_component_pair("PC2", "S1", "1-21N427", "1QD2"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "21 元件图.dwg", 21, "21", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "18 背板图.dwg", 18, "18", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_same_scoped_n_terminal_transition_visible() -> None:
+    table_pair = Pair(
+        "PT", None, "S2", "S2", None, "1-21n425", "1-21n427",
+        0.95, "pass", "backplate virtual table", [], "high",
+        {
+            "source": "table_mapping",
+            "table_mapping": {
+                "mapping_mode": "backplate_virtual_table",
+                "sheet_id": "S2",
+                "source_block_name": "FCK-851C-G-1",
+                "header_prefix": "1-21n4",
+                "header_text_id": "HEADER-PT",
+                "row_number": 25,
+                "middle_text_id": "MIDDLE-PT",
+                "logical_endpoint": "1-21n425",
+                "right_value": "1-21n427",
+                "right_text_id": "RIGHT-PT",
+                "row_number_sequence_valid": True,
+                "column_roles": {
+                    "left": "virtual_row_number",
+                    "middle": "virtual_row_number",
+                    "right": "external_terminal_endpoint",
+                },
+            },
+        },
+        pair_kind="table_mapping",
+    )
+    pairs = [
+        _phase178_strip_component_pair("PC", "S1", "1-21CLP9-2", "1-21n427"),
+        table_pair,
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "26 元件图.dwg", 26, "26", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "20 背板图.dwg", 20, "20", "REAR WIRING", "背板图", "supplemental", "filename", True),
     ]
 
     issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
@@ -2825,6 +3028,98 @@ def test_rules_only_emit_low_confidence_for_complete_pairs() -> None:
     assert any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P1" for issue in issues)
     assert any(issue.rule_id == "R-PAIR-MISSING-SIDE" and issue.pair_id == "P2" for issue in issues)
     assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE" and issue.pair_id == "P2" for issue in issues)
+
+
+def test_rules_group_near_duplicate_line_claims_for_one_missing_side_text() -> None:
+    pairs = [
+        Pair(
+            "P1", "G1", "S1", "F1", "PC1", "431", None, 0.82, "review",
+            "missing right candidate", [], "review", {},
+            left_text_id="T431", left_coord_x=62.5, left_coord_y=2.4,
+        ),
+        Pair(
+            "P2", "G2", "S1", "F1", "PC2", "431", None, 0.83, "review",
+            "missing right candidate", [], "review", {},
+            left_text_id="T431", left_coord_x=62.5, left_coord_y=2.4,
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 60, 0, 380, 0, 320, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 57.5, 2.5, 392.5, 2.5, 335, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "10 信号回路图.dwg", 10, "10", "SIGNAL", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    missing_side = [issue for issue in issues if issue.rule_id == "R-PAIR-MISSING-SIDE"]
+    assert len(missing_side) == 1
+    assert missing_side[0].primary_pair_id == "P2"
+    assert missing_side[0].related_pair_ids == ["P1"]
+    assert missing_side[0].evidence["missing_side_classification"] == "duplicate_text_line_claim"
+    assert missing_side[0].evidence["duplicate_line_group_ids"] == ["G1", "G2"]
+
+
+def test_rules_keep_far_apart_claims_for_same_text_as_separate_missing_sides() -> None:
+    pairs = [
+        Pair(
+            "P1", "G1", "S1", "F1", "PC1", "606", None, 0.82, "review",
+            "missing right candidate", [], "review", {},
+            left_text_id="T606", left_coord_x=62.5, left_coord_y=0.0,
+        ),
+        Pair(
+            "P2", "G2", "S1", "F1", "PC2", "606", None, 0.83, "review",
+            "missing right candidate", [], "review", {},
+            left_text_id="T606", left_coord_x=62.5, left_coord_y=20.0,
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 60, 0, 140, 0, 80, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 60, 20, 140, 20, 80, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "10 信号回路图.dwg", 10, "10", "SIGNAL", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    missing_side = [issue for issue in issues if issue.rule_id == "R-PAIR-MISSING-SIDE"]
+    assert len(missing_side) == 2
+
+
+def test_rules_do_not_transitively_merge_duplicate_line_claims() -> None:
+    pairs = [
+        Pair(
+            "P1", "G1", "S1", "F1", "PC1", "431", None, 0.82, "review",
+            "missing right candidate", [], "review", {},
+            left_text_id="T431", left_coord_x=80.0, left_coord_y=0.0,
+        ),
+        Pair(
+            "P2", "G2", "S1", "F1", "PC2", "431", None, 0.82, "review",
+            "missing right candidate", [], "review", {},
+            left_text_id="T431", left_coord_x=80.0, left_coord_y=0.0,
+        ),
+        Pair(
+            "P3", "G3", "S1", "F1", "PC3", "431", None, 0.82, "review",
+            "missing right candidate", [], "review", {},
+            left_text_id="T431", left_coord_x=80.0, left_coord_y=0.0,
+        ),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 100, 0, 100, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 60, 0, 160, 0, 100, 0.9, ["L2"], ["CONNECT"]),
+        LineGroup("G3", "S1", "F1", 120, 0, 220, 0, 100, 0.9, ["L3"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "10 信号回路图.dwg", 10, "10", "SIGNAL", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    missing_side = [issue for issue in issues if issue.rule_id == "R-PAIR-MISSING-SIDE"]
+    assert len(missing_side) == 2
+    assert sorted(len(issue.related_pair_ids) for issue in missing_side) == [0, 1]
 
 
 def test_rules_aggregate_complementary_missing_side_pairs() -> None:

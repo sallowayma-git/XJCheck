@@ -39,11 +39,21 @@ Phase 172 packaging fix is complete: ODA's Qt platform plugin is explicitly mapp
 - Native PowerShell recursive cleanup was rejected before execution despite exact resolved-parent checks. A single Python process repeated the same exact-name and parent-containment checks and removed only the six superseded Phase177 directories.
 
 ### Phase 178: Final-533 Residual Evidence Loop
-- [ ] Re-cluster the final 178 issues by page family, structured source, and evidence strength
-- [ ] Run parallel read-only audits for the highest-volume residual clusters, starting with PAC S0021/S0022 and corpus-wide missing-side/many-to-one families
-- [ ] Implement only geometry/semantic fixes with positive and adversarial tests; retain genuine open ends and endpoint changes
-- [ ] Fresh-replay every affected project, then rerun the complete 533-DWG acceptance gate
-- **Status:** in progress
+- [x] Re-cluster the final 178 issues by page family, structured source, and evidence strength
+- [x] Run parallel read-only audits for PAC S0021/S0022 and corpus-wide missing-side/many-to-one families; keep textless open ends fail-closed
+- [x] Implement strict component/table cross-diagram corroboration without suppressing same-sheet chains or scoped `n` transitions
+- [x] Aggregate only complete-linkage duplicate-line text claims; preserve independent missing-side findings
+- [x] Require table corroboration to be `pass` with confidence `>= 0.95`; add low-confidence/status negative tests
+- [x] Fresh-replay all 28 projects / 533 pages with the finalized rules; audit4 matches audit3 at 133 issues and 0 critical
+- [x] Run focused/full tests, compileall, and diff checks; final gate `1037 passed, 1 skipped`
+- [ ] Continue the remaining 133 evidence-backed review rows through the next geometry/extraction loop; do not treat this phase as corpus completion
+- **Status:** complete for this rule slice; residual review loop remains active
+
+#### Phase 178 errors and guardrails
+- A first generic component/table suppression draft was rejected after it hid the known `CLP9-2` same-scoped `n425 -> n427` conflict. The accepted guard keeps same-scope terminal transitions and same-sheet component competitors visible.
+- A first duplicate-line aggregation used transitive connectivity. The accepted implementation requires every member of a duplicate claim group to overlap every other member, with a regression for the `A-B/B-C` but not `A-C` bridge case.
+- A parallel review found that structured table pairs are admitted to the high-confidence graph regardless of status. The cross-diagram exemption now independently requires `status=pass` and `confidence>=0.95`; negative tests cover review and low-confidence table rows.
+- The subagent service returned 429/503 before two audit rounds could run; failed sessions were closed. The successful independent rule audit used explicit `gpt-5.6-sol` routing, and the main thread verified all findings against source and replay artifacts.
 
 ### Phase 176: B3 Terminal Header Fan-out And A2 Backplate Generalization
 - [x] Recover active goal, planning state, dirty-worktree boundaries, and phase175 fresh corpus baseline

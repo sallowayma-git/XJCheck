@@ -80,6 +80,11 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
             )
         )
 
+    duplicate_claims, duplicate_related_ids = _duplicate_missing_side_text_claim_groups(
+        context,
+        excluded_pair_ids=aggregated_pair_ids,
+    )
+
     for pair in context.pairs:
         if pair.status == "discard":
             continue
@@ -87,9 +92,36 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
             continue
         if pair.pair_id in aggregated_pair_ids:
             continue
+        if pair.pair_id in duplicate_related_ids:
+            continue
         if pair.left_value and pair.right_value:
             continue
         if not _missing_side_line_group_candidate(pair, context.group_map):
+            continue
+        related_pairs = duplicate_claims.get(pair.pair_id, [])
+        if related_pairs:
+            shared_text_id = pair.left_text_id or pair.right_text_id
+            issues.append(
+                context.issue_factory.build(
+                    "R-PAIR-MISSING-SIDE",
+                    "review",
+                    pair,
+                    "Near-duplicate line groups claim the same one-sided text anchor.",
+                    title="重复线文本归属待复核",
+                    explanation="同一数字文本被同页近邻且重叠的线组重复认领；保留一个缺侧问题并关联全部线组，避免把同一文字误报为多个独立缺失。",
+                    recommended_action="核对共享文本所在的实际导线，并检查近邻重叠线是否为重复图元、并行辅助线或同一连接的分段表示。",
+                    related_pairs=[pair, *related_pairs],
+                    extra={
+                        "missing_side_classification": "duplicate_text_line_claim",
+                        "shared_text_id": shared_text_id,
+                        "duplicate_line_group_ids": sorted(
+                            str(item.line_group_id)
+                            for item in [pair, *related_pairs]
+                            if item.line_group_id
+                        ),
+                    },
+                )
+            )
             continue
         issues.append(
             context.issue_factory.build(
@@ -103,6 +135,92 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
             )
         )
     return issues
+
+
+def _duplicate_missing_side_text_claim_groups(
+    context: RuleContext,
+    *,
+    excluded_pair_ids: set[str],
+) -> tuple[dict[str, list[Pair]], set[str]]:
+    claims: dict[tuple[str, str, str], list[Pair]] = defaultdict(list)
+    for pair in context.pairs:
+        if pair.pair_id in excluded_pair_ids or pair.status == "discard":
+            continue
+        if not _ordinary_pair_eligible(pair) or not _missing_side_line_group_candidate(
+            pair,
+            context.group_map,
+        ):
+            continue
+        if pair.left_value and not pair.right_value and pair.left_text_id:
+            claims[(pair.sheet_id, pair.left_text_id, pair.left_value)].append(pair)
+        elif pair.right_value and not pair.left_value and pair.right_text_id:
+            claims[(pair.sheet_id, pair.right_text_id, pair.right_value)].append(pair)
+
+    primary_to_related: dict[str, list[Pair]] = {}
+    related_ids: set[str] = set()
+    for grouped_pairs in claims.values():
+        remaining = list(grouped_pairs)
+        while remaining:
+            component = [remaining.pop(0)]
+            changed = True
+            while changed:
+                changed = False
+                for candidate in list(remaining):
+                    if all(
+                        _near_duplicate_missing_side_line_groups(
+                            candidate,
+                            member,
+                            context.group_map,
+                        )
+                        for member in component
+                    ):
+                        component.append(candidate)
+                        remaining.remove(candidate)
+                        changed = True
+            if len(component) < 2:
+                continue
+            component.sort(key=lambda pair: _missing_side_text_claim_rank(pair, context.group_map))
+            primary, *related = component
+            primary_to_related[primary.pair_id] = related
+            related_ids.update(pair.pair_id for pair in related)
+    return primary_to_related, related_ids
+
+
+def _near_duplicate_missing_side_line_groups(
+    first: Pair,
+    second: Pair,
+    group_map: dict[str, LineGroup],
+) -> bool:
+    first_group = group_map.get(first.line_group_id)
+    second_group = group_map.get(second.line_group_id)
+    if first_group is None or second_group is None:
+        return False
+    if first_group.orientation not in {"horizontal", "grid"}:
+        return False
+    if second_group.orientation not in {"horizontal", "grid"}:
+        return False
+    first_y = (first_group.start_y + first_group.end_y) / 2.0
+    second_y = (second_group.start_y + second_group.end_y) / 2.0
+    if abs(first_y - second_y) > 6.0:
+        return False
+    first_min_x, first_max_x = sorted((first_group.start_x, first_group.end_x))
+    second_min_x, second_max_x = sorted((second_group.start_x, second_group.end_x))
+    overlap = max(0.0, min(first_max_x, second_max_x) - max(first_min_x, second_min_x))
+    shortest = min(first_max_x - first_min_x, second_max_x - second_min_x)
+    return shortest > 0.0 and overlap / shortest >= 0.35
+
+
+def _missing_side_text_claim_rank(
+    pair: Pair,
+    group_map: dict[str, LineGroup],
+) -> tuple[float, float, float, str]:
+    group = group_map.get(pair.line_group_id)
+    if group is None:
+        return (float("inf"), 0.0, 0.0, pair.pair_id)
+    text_y = pair.left_coord_y if pair.left_value else pair.right_coord_y
+    group_y = (group.start_y + group.end_y) / 2.0
+    text_gap = abs(float(text_y) - group_y) if text_y is not None else float("inf")
+    return (text_gap, -float(group.wire_candidate_score), -float(group.length), pair.pair_id)
 
 
 def _complementary_half_pair_matches(
@@ -727,6 +845,12 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 continue
             if _is_authoritative_structured_cardinality_group(linked_pairs):
                 continue
+            if _is_authoritative_component_table_cross_diagram_endpoint_group(
+                linked_pairs,
+                context.pairs,
+                shared_value=right_value,
+            ):
+                continue
             if _is_authoritative_terminal_header_reciprocal_chain_group(
                 linked_pairs,
                 context.pairs,
@@ -1260,6 +1384,34 @@ def _authoritative_kk_component_identity(pair: Pair) -> tuple[str, str, str] | N
     )
 
 
+def _authoritative_strip_component_identity(pair: Pair) -> tuple[str, str, str] | None:
+    evidence = pair.evidence or {}
+    if (
+        pair.pair_kind != "component_mapping"
+        or pair.status != "pass"
+        or float(pair.confidence or 0.0) < 0.95
+        or evidence.get("source") != "component_mapping"
+        or evidence.get("component_submode") != "strip_two_port_component"
+        or evidence.get("endpoint_side") not in {"top", "bottom", "left", "right"}
+    ):
+        return None
+    raw_endpoint = str(evidence.get("external_endpoint_raw") or "").strip()
+    split_endpoint = str(evidence.get("external_endpoint_split") or "").strip()
+    if not raw_endpoint or split_endpoint != str(pair.right_value or "").strip():
+        return None
+    return _authoritative_component_port_identity(
+        pair,
+        required_evidence=(
+            "component_body_text_id",
+            "component_port_text_id",
+            "component_block_name",
+            "external_endpoint_text_id",
+            "line_group_id",
+            "supporting_line_ids",
+        ),
+    )
+
+
 def _authoritative_component_port_identity(
     pair: Pair,
     *,
@@ -1283,6 +1435,75 @@ def _authoritative_component_port_identity(
         body.upper(),
         port.upper(),
         external_endpoint.upper(),
+    )
+
+
+def _is_authoritative_component_table_cross_diagram_endpoint_group(
+    linked_pairs: list[Pair],
+    all_pairs: list[Pair],
+    *,
+    shared_value: str,
+) -> bool:
+    """Accept two independent structured descriptions of one external endpoint.
+
+    A component chain that starts from the shared endpoint on the component page
+    remains visible because it may represent a real same-sheet branch.
+    """
+
+    if len(linked_pairs) != 2:
+        return False
+    component_pairs = [pair for pair in linked_pairs if pair.pair_kind == "component_mapping"]
+    table_pairs = [pair for pair in linked_pairs if pair.pair_kind == "table_mapping"]
+    if len(component_pairs) != 1 or len(table_pairs) != 1:
+        return False
+    component_pair = component_pairs[0]
+    table_pair = table_pairs[0]
+    if component_pair.sheet_id == table_pair.sheet_id:
+        return False
+    if table_pair.status != "pass" or float(table_pair.confidence or 0.0) < 0.95:
+        return False
+    if any(str(pair.right_value or "") != str(shared_value or "") for pair in linked_pairs):
+        return False
+    component_identity = _authoritative_kk_component_identity(
+        component_pair
+    ) or _authoritative_strip_component_identity(component_pair)
+    if component_identity is None:
+        return False
+    if not _is_authoritative_table_mapping_group([table_pair]):
+        return False
+    table_mode = _table_mapping_evidence(table_pair).get("mapping_mode")
+    if table_mode not in {"backplate_virtual_table", "terminal_header_table"}:
+        return False
+    if table_mode == "backplate_virtual_table" and _is_same_scoped_n_terminal_transition(
+        table_pair.left_value,
+        table_pair.right_value,
+    ):
+        return False
+    for pair in all_pairs:
+        if pair.pair_id == component_pair.pair_id or pair.sheet_id != component_pair.sheet_id:
+            continue
+        if (
+            pair.pair_kind == "component_mapping"
+            and pair.status == "pass"
+            and float(pair.confidence or 0.0) >= 0.95
+            and (pair.evidence or {}).get("source") == "component_mapping"
+            and _terminal_endpoint_identity(pair.left_value)
+            == _terminal_endpoint_identity(shared_value)
+        ):
+            return False
+    return True
+
+
+def _is_same_scoped_n_terminal_transition(left_value: object, right_value: object) -> bool:
+    """Keep same-device n-terminal transitions visible for contradiction review."""
+
+    left_match = re.fullmatch(r"(?P<scope>.+N)(?P<number>\d+)", str(left_value or "").upper())
+    right_match = re.fullmatch(r"(?P<scope>.+N)(?P<number>\d+)", str(right_value or "").upper())
+    return bool(
+        left_match
+        and right_match
+        and left_match.group("scope") == right_match.group("scope")
+        and left_match.group("number") != right_match.group("number")
     )
 
 

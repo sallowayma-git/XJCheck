@@ -1777,3 +1777,22 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Final authoritative evidence roots are `.tmp/phase177_full_533_fresh` and `.tmp/phase177_full_533_audit2`. They cover 28 projects / 533 pages, every project `COMPLETE`, 0 incomplete, 178 issues, and 0 critical. Relative to Phase176, PAC alone changes `75 -> 51`; every other project retains its exact issue count.
 - Final rule counts are `R-CROSS-PAGE-CONFLICT=11`, `R-DUPLICATE-PAIR=1`, `R-MANY-TO-ONE=69`, `R-PAIR-LOW-CONFIDENCE=11`, and `R-PAIR-MISSING-SIDE=86`. PAC contributes 51; the non-PAC corpus remains 127.
 - Both repository test entrypoints now work because pytest explicitly includes the repository root for `tests.support` imports. Final gate: `1027 passed, 1 skipped`; compileall and diff whitespace checks pass.
+
+# 2026-07-18 Phase 178 final-533 residual evidence loop
+
+- Six clean-context read-only audits covered the highest-volume residual families and were closed after one round.
+- PAC S0021/S0022 contain 36 textless one-sided horizontal routes. Every known side has a numeric text, every missing side has no candidate text, and canonical/network evidence marks the geometry as open. These must not be fabricated into complete mappings; a future open-continuation classification needs stronger evidence than open degree alone so genuine omitted labels remain visible.
+- 22000/35000 S0010 each contain two duplicate `605` component/dimension continuations plus real independent `TD1..TD4` routes. Suppression must prove shared text plus component/DIM continuation ownership; value-only `605/606` suppression would hide valid routes.
+- 26000/31000 contain four duplicate-line/text-ownership clusters (eight ordinary pairs) and six genuine or unresolved open ends. The repair belongs in same-sheet candidate ownership, not cross-page value completion.
+- Component-page bare digits in 10000, 8000/9000, and 21000 are not confirmed opens or ignore symbols; they are missing component-terminal mappings and require a separate geometry model before removal.
+- In 23000/26000/31000, 25 of 29 component/table many-to-one reviews are cross-diagram shared-endpoint corroborations; four have same-sheet component-chain competition and must remain review. WBH contributes 13 more structured many-to-one corroborations plus five table-template scope conflicts.
+- Safe next rule slice: exactly one complete high-confidence component mapping plus exactly one authoritative table mapping on a different sheet, sharing the exact external endpoint, with no same-sheet component mapping whose logical endpoint starts a component chain at that shared value. Keep groups with multiple table rows, same-sheet competitors, incomplete evidence, or raw string-only coincidence.
+
+## Phase 178 rule-safety verification (2026-07-18)
+
+- The first component/table bypass draft was too permissive at the rule boundary: `_high_confidence_pairs()` intentionally admits all `table_mapping` sources for graph inspection, so the bypass itself must enforce authority. It now requires the table pair to be `pass` and at least `0.95` confidence. Tests prove both `review` and `0.90` table rows retain `R-MANY-TO-ONE`.
+- Same-sheet component-chain protection now uses `_terminal_endpoint_identity()` for the competing component's logical endpoint. This catches case/separator variants such as `1-21n427` versus `1-21N427`; the new regression retains the conflict.
+- Duplicate missing-side ownership was changed from “adjacent to any existing member” to complete-linkage. Synthetic intervals `[0,100]`, `[60,160]`, `[120,220]` now produce one grouped duplicate issue plus one independent missing-side issue, rather than erasing the third line's review.
+- Fresh rules-only replay output: `.tmp/phase178_full_533_audit4`. It contains 28 project outputs and exactly 133 issues, with no critical rows. Comparing issue identity tuples against `.tmp/phase178_full_533_audit3` yields zero additions or removals; this proves the new guards only affect adversarial/unit cases and do not alter current corpus semantics.
+- The remaining 133 rows are still evidence-backed review work. In particular, PAC S0021/S0022's textless open routes remain unresolved by design, and real `605/606` continuation rows are not suppressed by value alone.
+- Final local gates are `1037 passed, 1 skipped`, `104 passed` for the rule unit module, `python -m compileall -q src`, and `git diff --check`.
