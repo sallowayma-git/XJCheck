@@ -21,10 +21,16 @@ _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT = "schematic_semantic_endpoint_channel"
 _CHANNEL_CONTINUATION = "continuation_channel"
 _CHANNEL_SEMANTIC = "semantic_channel"
 _CHANNEL_NOISE = "noise_channel"
-_SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN = re.compile(r"^\d+XD\d+$", re.IGNORECASE)
+# Central, telecontrol, and recorder signal-output terminals share the same
+# compact line-end geometry. Other *D device families remain on their dedicated
+# component paths so a nearby label cannot create an ordinary wire mapping.
+_SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN = re.compile(
+    r"^\d+(?:XD|YD|LD)\d+$",
+    re.IGNORECASE,
+)
 _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
     r"^(?:"
-    r"\d+XD\d+"
+    r"\d+(?:XD|YD|LD)\d+"
     r"|[13]-21[A-Z]{2,4}\d{1,3}"
     r"|\d+-\d+(?:[A-Z]\d+[A-Z]\d+|[A-Z]{2,4}\d+)(?:~\d+(?:[A-Z]\d+)?)?"
     r")$",

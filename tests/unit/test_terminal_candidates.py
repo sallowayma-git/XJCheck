@@ -277,6 +277,39 @@ def test_build_terminal_candidates_maps_compact_xd_endpoints_in_both_directions(
     assert by_group["G2"].evidence["ordinary_pair_eligible"] is False
 
 
+def test_build_terminal_candidates_maps_compact_yd_and_ld_signal_endpoints() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 115.0, 50.0, 145.0, 50.0, 30.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S1", "F1", 315.0, 65.0, 345.0, 65.0, 30.0, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G3", "S1", "F1", 115.0, 80.0, 145.0, 80.0, 30.0, 0.85, ["L3"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G4", "S1", "F1", 315.0, 95.0, 345.0, 95.0, 30.0, 0.85, ["L4"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 信号输出回路图.dwg", 21, "21", "SIGNAL OUTPUT", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "718", "718", True, "DIM", 0.0, 2.5, 110.7, 51.3, 109.0, 49.5, 116.0, 53.5),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "1YD28", "1YD28", False, "DIM", 0.0, 2.5, 144.8, 52.0, 143.0, 50.0, 155.0, 54.0),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "519", "519", True, "DIM", 0.0, 2.5, 310.7, 66.3, 309.0, 64.5, 316.0, 68.5),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "1YD48", "1YD48", False, "DIM", 0.0, 2.5, 344.8, 67.0, 343.0, 65.0, 355.0, 69.0),
+        TextItem("T5", "S1", "F1", "H5", "TEXT", "704", "704", True, "DIM", 0.0, 2.5, 110.7, 81.3, 109.0, 79.5, 116.0, 83.5),
+        TextItem("T6", "S1", "F1", "H6", "TEXT", "1LD27", "1LD27", False, "DIM", 0.0, 2.5, 144.5, 82.0, 143.0, 80.0, 155.0, 84.0),
+        TextItem("T7", "S1", "F1", "H7", "TEXT", "505", "505", True, "DIM", 0.0, 2.5, 310.7, 96.3, 309.0, 94.5, 316.0, 98.5),
+        TextItem("T8", "S1", "F1", "H8", "TEXT", "1LD46", "1LD46", False, "DIM", 0.0, 2.5, 344.0, 97.0, 342.0, 95.0, 354.0, 99.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    by_group = {pair.line_group_id: pair for pair in pairs}
+    assert (by_group["G1"].left_value, by_group["G1"].right_value) == ("718", "1YD28")
+    assert (by_group["G2"].left_value, by_group["G2"].right_value) == ("519", "1YD48")
+    assert (by_group["G3"].left_value, by_group["G3"].right_value) == ("704", "1LD27")
+    assert (by_group["G4"].left_value, by_group["G4"].right_value) == ("505", "1LD46")
+    assert all(pair.pair_kind == "wire_component_mapping" for pair in by_group.values())
+    assert all(pair.evidence["ordinary_pair_eligible"] is False for pair in by_group.values())
+
+
 def test_build_terminal_candidates_rejects_compact_xd_endpoint_from_adjacent_row() -> None:
     line_groups = [
         LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
@@ -304,6 +337,75 @@ def test_build_terminal_candidates_rejects_compact_xd_endpoint_from_adjacent_row
     by_group = {pair.line_group_id: pair for pair in pairs}
     assert (by_group["G1"].left_value, by_group["G1"].right_value) == ("924", "1XD8")
     assert by_group["G2"].right_value is None
+
+
+def test_build_terminal_candidates_rejects_yd_endpoint_from_adjacent_row() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S1", "F1", 10.0, 30.0, 50.0, 30.0, 40.0, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "21 远动信号输出回路图.dwg", 21, "21", "REMOTE SIGNAL OUTPUT", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "718", "718", True, "DIM", 0.0, 2.5, 9.0, 22.0, 7.0, 20.0, 13.0, 24.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "719", "719", True, "DIM", 0.0, 2.5, 9.0, 32.0, 7.0, 30.0, 13.0, 34.0),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "1YD28", "1YD28", False, "DIM", 0.0, 2.5, 50.2, 22.0, 48.0, 20.0, 60.0, 24.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    same_row = next(item for item in candidates if item.line_group_id == "G1" and item.text_id == "T3")
+    adjacent_row = next(item for item in candidates if item.line_group_id == "G2" and item.text_id == "T3")
+    assert same_row.status == "accepted"
+    assert adjacent_row.status == "rejected"
+    assert adjacent_row.rejection_reason == "schematic_logic_endpoint_out_of_row"
+    by_group = {pair.line_group_id: pair for pair in pairs}
+    assert (by_group["G1"].left_value, by_group["G1"].right_value) == ("718", "1YD28")
+    assert by_group["G2"].right_value is None
+
+
+def test_build_terminal_candidates_does_not_promote_vd_component_endpoint() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 30.0, 80.0, 80.0, 80.0, 50.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal")
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "14 交流电压回路2.dwg", 14, "14", "VT INPUT 2", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1VD1", "1VD1", False, "DIM", 0.0, 2.5, 29.0, 82.0, 27.0, 80.0, 38.0, 84.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "1701", "1701", True, "DIM", 0.0, 2.5, 80.0, 81.0, 78.0, 79.0, 88.0, 83.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    vd = next(item for item in candidates if item.text_id == "T1")
+    assert vd.status == "rejected"
+    assert vd.channel != "wire_logic_endpoint_channel"
+    assert pairs[0].left_value is None
+    assert pairs[0].right_value == "1701"
+
+
+def test_build_terminal_candidates_does_not_attach_ld_label_inside_merged_long_group() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 114.7, 80.0, 392.5, 80.0, 277.8, 0.85, ["L1"], ["CONNECT"], orientation="horizontal")
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "22 录波信号输出回路图.dwg", 22, "22", "RECORDER SIGNAL OUTPUT", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "704", "704", True, "DIM", 0.0, 2.5, 110.7, 81.3, 109.0, 79.5, 116.0, 83.5),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "1LD27", "1LD27", False, "DIM", 0.0, 2.5, 144.5, 82.0, 143.0, 80.0, 155.0, 84.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    assert all(item.text_id != "T2" or item.status == "rejected" for item in candidates)
+    assert pairs[0].left_value == "704"
+    assert pairs[0].right_value is None
 
 
 def test_build_terminal_candidates_keeps_malformed_or_out_of_scope_xd_text_out_of_logic_channel() -> None:

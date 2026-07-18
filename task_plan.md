@@ -2830,3 +2830,23 @@ Phase 178 remains the authoritative full-corpus audit baseline: `.tmp/phase177_f
 - [ ] Replay PAC-885G-H on the finalized rule set and continue the fresh 502 residual clusters (170 issues, including one critical).
 - [ ] Iterate remaining clusters without hiding true errors; clean regenerable artifacts and synchronize taskbook/findings/progress before commit/push.
 - **Status:** in_progress
+
+### Phase 180: Post-c43bd0f PAC Component And Residual Audit Loop
+- [x] Recover the post-Phase179 repository, goal, retained 533-DWG artifacts, and preserve the user-owned untracked `package-lock.json`.
+- [ ] Audit commit `c43bd0f` against the human-confirmed PAC S0014 contract: generic independent two-port component mappings such as `1F1-1 -> 1VD1` and `1F1-2 -> 1701`, generalized to sibling instances by geometry rather than names/fingerprints.
+- [x] Audit commit `c43bd0f` against the human-confirmed PAC S0014 contract: generic independent two-port component mappings such as `1F1-1 -> 1VD1` and `1F1-2 -> 1701`, generalized to sibling instances by geometry rather than names/fingerprints.
+- [x] Add or harden compact signal-endpoint positive/negative tests while preserving S0014's dedicated VD component ownership and no-internal-union behavior.
+- [x] Replay the complete PAC project including `14 交流电压回路2.dwg`, then measure exact S0014/S0021/S0022 mappings and the audit delta.
+- [ ] Cluster the retained 118 full-corpus reviews, iterate only authority-backed generalized fixes, and preserve genuine open-end/cardinality/cross-page conflicts.
+- [ ] Run focused tests, full repository tests, compile/diff gates, and a fresh complete 28-project/533-DWG extraction plus audit before closure.
+- [ ] Remove only verified regenerable process artifacts, synchronize the human arbitration/task/progress records, commit, and push.
+- **Status:** in_progress
+
+#### Phase 180 errors
+- The first recovery-time broad `rg` search failed at process launch because the packaged Windows `rg.exe` was denied access; the parallel wrapper discarded the other outputs. Switched to native PowerShell `Select-String` and separate bounded reads rather than repeating the same failing command.
+- The first six-lane GPT-5.6 Sol read-only audit batch was rejected before repository access with HTTP 429 on every lane. All sessions were closed immediately and produced no result or file change. Continue the critical PAC audit in the main thread; any later delegation must remain GPT-5.6 Sol but use lower concurrency instead of repeating the same batch.
+- The first compact-device source lookup guessed nonexistent `audit/terminal_candidates.py`, causing the parallel wrapper to discard its sibling search output. The actual module is `audit/candidates.py`; continue from that exact path and do not repeat the guessed filename.
+- The first multi-file compact-endpoint patch was rejected by `apply_patch` validation because its hunk boundary was malformed; no source or test file changed. Split the edit into small source, positive-test, and negative-test patches rather than retrying the same oversized patch.
+- A one-lane subagent was explicitly requested as `gpt-5.6-sol` with clean context, but after four minutes the service returned a 503 identifying an internal route to `gpt-5.6-luna`. The agent produced no review result and was closed. Because the user forbids all non-Sol models, do not create more subagents until the service can guarantee the requested model; use main-thread review and executable gates meanwhile.
+- The first Phase180 full-corpus manifest validator assumed obsolete top-level `files`/`sheets` arrays and therefore printed 0/0 despite 28 COMPLETE project bundles. No artifact changed. Inspect one current manifest schema and recompute from its actual fields rather than repeating guessed keys.
+- The first full-corpus signal-pair delta script correctly completed the 118 -> 89 issue comparison, then failed only in its optional pair census because `pairs.parquet` has no `filename` column. Preserve the valid issue result; recompute pair additions by joining `pages.parquet` on `sheet_id` instead of retrying the missing column.

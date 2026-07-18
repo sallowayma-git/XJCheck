@@ -5655,3 +5655,31 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Phase179 documentation is now synchronized across `doc/human_arbitration_phase98.md`, `doc/任务书.md`, `task_plan.md`, `findings.md`, and this progress log. The human history and task book were appended only; no prior arbitration was rewritten.
 - Removed 18 superseded Phase179 intermediate directories after exact `.tmp` parent-containment checks. Retained only `.tmp/phase179_full_533_fresh2` and `.tmp/phase179_full_533_audit2`; user-owned root `package-lock.json` remains untouched and untracked.
 - Final Phase179 code/test gate passes: `python -m pytest -q` -> `1050 passed, 1 skipped`; `python -m compileall -q src tests` and `git diff --check` pass. Main-thread source review found no release blocker in the panel instance scope, TS3000 structural gates, runtime fingerprint lifecycle, or Pair-shadow ordering.
+
+## 2026-07-18 Phase 180 resume
+
+- Re-established the explicit long-running Goal after restart and recovered the root planning files with `planning-with-files` session catchup.
+- Verified `HEAD == origin/master == c43bd0f`; preserved the user-owned untracked `package-lock.json` unchanged.
+- Recovered Phase179's accepted baseline: 28 projects / 533 valid DWGs, zero incomplete pages, 118 residual reviews, and full gate `1050 passed, 1 skipped`.
+- Logged the packaged `rg.exe` access-denied recovery error and switched repository searches to bounded PowerShell `Select-String`/file enumeration.
+- Started Phase180 with PAC S0014 independent two-port mapping and post-`c43bd0f` residual review as the first code-and-replay loop.
+- Six disjoint read-only audits were dispatched explicitly to `gpt-5.6-sol` with clean context; all six failed before repository access with the same HTTP 429 retry exhaustion. Closed every session and continued in the main thread without repeating the failed six-way pattern.
+- Located the current PAC inline-component implementation and tests in `backplate_components.py` / `test_backplate_components.py`. Commit `c43bd0f` does not directly modify that recognizer; its 1,823-line batch affects downstream page/table/policy/fingerprint integration and therefore still requires end-to-end artifact proof.
+- Confirmed the retained Phase179 533-DWG extraction/audit trees and all 31 PAC drawings are available for direct S0014 inspection and fresh replay.
+- Queried the final PAC Parquet artifacts with structured readers. S0014 has all eight independent 1F1..1F4 mappings, including the exact human examples, and zero audit issues; component evidence explicitly forbids internal connectivity and electrical union.
+- Identified the next engine-level improvement candidate in the same path: repeated full-page text/line scans per block and quadratic horizontal lead pairing. Continuing with source/test boundary review before changing the algorithm.
+- Clustered all 118 retained reviews. The largest actionable family is PAC S0021/S0022 (36 missing-side rows); coordinate-level inspection shows repeated bare-number-to-`1YDxx`/`1LDxx` compact endpoint geometry plus a smaller set of merged-line anomalies that must remain guarded.
+- Logged and corrected a read-only source-path mistake (`terminal_candidates.py` does not exist; the implementation is `audit/candidates.py`).
+- Traced the compact endpoint implementation and its positive/adjacent-row/malformed/backplate negatives. The current spatial contract is reusable; only the endpoint grammar is XD-specific. Preparing a corpus census before selecting the generalized designator family.
+- Generalized the engine's compact signal endpoint grammar from XD-only to `XD|YD|LD` while retaining the exact secondary-schematic, horizontal/grid, and 4-by-4 endpoint-distance gates.
+- Added four regression groups: real-shaped YD/LD positive mappings, YD adjacent-row rejection, S0014 VD non-promotion, and merged-long-line LD rejection. Focused tests pass `55 passed in 0.42s`.
+- Fresh PAC extraction completed in 63.9s for all 31 drawings; analysis status is COMPLETE with zero incomplete pages. Fresh audit completed in 8.5s.
+- PAC issue delta is 51 -> 22, added=0, removed=29. S0021 is now zero-issue; S0022 retains exactly seven long merged-line missing-side reviews. S0014 still emits the same eight independent non-union mappings.
+- Attempted a lower-concurrency independent review with an explicit `gpt-5.6-sol` override. The service later reported it had internally routed to Luna and failed with 503; discarded the result, closed the session, and disabled further delegation until Sol routing is reliable.
+- Main-thread review of the complete source/test diff found no unintended path expansion beyond XD/YD/LD grammar. Broader candidate/pair/page/integration tests pass `231 passed in 8.74s`; compileall and `git diff --check` pass.
+- Full fresh `test/` extraction completed with exit 0 in 1036.5s and emitted 28 project bundles. Completeness records already show 28 COMPLETE / 0 incomplete; exact 533 manifest census is pending schema-correct validation after a read-only validator used stale field names.
+- Corrected full-corpus validation proves 28 projects / 533 pages / 533 source files, all COMPLETE and zero incomplete. Sequential audit of all 28 projects completed in 119.2s.
+- Full issue delta is 118 -> 89, additions=0, removals=29. Only PAC changed (S0021 -19, S0022 -10); all other project/rule identities remain unchanged.
+- Corrected pair census shows 149 new YD/LD wire-component mappings across 12 structurally similar output pages and zero removed mappings. No non-PAC audit issue changed.
+- Recorded the slower full extraction wall time (1036.5s vs 723.3s Phase179) for later performance attribution; the current endpoint path remains STRtree-backed and the audit phase stayed comparable at 119.2s.
+- Synchronized the accepted Phase180 compact signal endpoint contract and full-corpus evidence into `doc/任务书.md` and `doc/human_arbitration_phase98.md` by appending only. Final compileall and `git diff --check` pass; the full test gate remains `1054 passed, 1 skipped`.

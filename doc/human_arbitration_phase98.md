@@ -335,3 +335,10 @@ connectivity and electrical union.
 - TS3000 每个端口独立向外映射，端口之间始终不连通、不建立 electrical union；有表格单元但无外部 TD 文本的行保持无映射，不得伪造端点。模型名 `TS3000-Z01` 仅作容器 provenance，不作为端口身份。
 - 真实 fresh replay：`.tmp/phase179_full_533_fresh2` 覆盖 28 个项目、533 张有效 DWG、0 incomplete；`.tmp/phase179_full_533_audit2` 共 118 条（117 review、1 minor、0 critical）。TS3000 S0014/S0015 共 288 条独立映射，两个项目页各 144 条；8000/9000 仅保留四条真实 S0004 `1201/1204` 开端审核。
 - 设备面板回放共阴影 221 条普通 Pair（214 条完整面板几何、7 条严格 MARK callout），fingerprint 与最终 proposal inventory 全部存在且一致；较 Phase178 移除 15 条、无新增 issue。上述结果只证明本轮合同闭环，剩余 review 行仍须后续几何/跨页证据循环，不得整体静默。
+
+## Phase 180：既有端点裁决在 XD/YD/LD 信号页的泛化回放（2026-07-18）
+
+- 本阶段没有新增器件内部联通裁决；沿用既有规则：端点只与实际同侧外延线路建立映射，组件端口之间不因图形或共享文字建立内部联通/electrical union。
+- `XD / YD / LD` 在中央、远动、录波信号输出页表现为同一紧凑线路端点族。机器规则必须同时验证二次原理图路由、水平/网格线路、完整端点语法和 X/Y 均不超过 4 的端点贴合；不能按页名、单独文字或 fingerprint 记忆。
+- `VD` 等非目标器件端点不属于这一通用线路候选。PAC S0014 仍由独立双端组件模型输出 `1F1-1 -> 1VD1`、`1F1-2 -> 1701` 等 8 条映射，全部 non-union。
+- 全量回放新增 149 条结构同构的 YD/LD 线路映射，移除 29 条 PAC 单边误报且新增 issue 为 0；S0022 的 7 条超长误合并线路仍保留 review。该结果证明几何泛化生效，不授权静默其他 missing-side 或 many-to-one。
