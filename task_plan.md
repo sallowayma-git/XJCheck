@@ -6,9 +6,9 @@
 ## Current Phase
 Phase 180 is active. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, and rear-wiring title instance authority are implemented with focused and full-corpus evidence.
 
-The current authoritative extraction is `.tmp/phase180_full_533_fresh5`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh3, only PAC 316 and WBH 254 logical left identities are re-scoped from explicit rear-wiring titles; Pair counts and physical endpoint/text identities are unchanged, and the other 26 projects are exact.
+The current authoritative extraction is `.tmp/phase180_full_533_fresh8`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh7, the symmetric interval invariant changes only the 16 projects containing previously measured disconnected-island groups; 12 projects remain exact. Fresh8 removes all internal line-group gaps over 20 drawing units while preserving the existing near-gap/inline-bridge contract.
 
-The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (many-to-one 31, missing-side 36, cross-page 6, low-confidence 3). Only five false WBH cross-page scope reviews were removed from audit3. Three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized yet. Final cleanup, scoped commit, and push remain open.
+The current authoritative audit is `.tmp/phase180_full_533_audit8`: 60 issues (many-to-one 31, missing-side 20, cross-page 6, low-confidence 3). Compared with audit7, nine identities are removed and five true geometry-backed missing-side/duplicate-line reviews are newly exposed; no many-to-one, cross-page, or low-confidence issue changes. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Final cleanup, scoped commit, and push remain open.
 
 ## Phases
 
@@ -2881,9 +2881,25 @@ The current authoritative audit is `.tmp/phase180_full_533_audit5`: 76 issues (m
 - [x] Run full-corpus audit7: `74 -> 64`, zero additions, exactly 10 target removals, all GND/cross-page/low-confidence retained.
 - [x] Run final repository gates (`1080 passed, 1 skipped`, compileall, global diff-check).
 - [x] Clean superseded process artifacts; retain only authoritative fresh7/audit7.
-- [ ] Commit/push the accepted SPMU slice.
+- [x] Commit/push the accepted SPMU slice as `2ca2486`.
+
+#### Phase 180 PAC S0022 disconnected LD rows
+- [x] Prove the seven 277.756-unit groups are three disconnected 30-unit islands and locate `1LD20..27` at the real CONNECT segment endpoint.
+- [x] Locate the root cause in line grouping: cross-axis sorting can present the right island first, and the one-way `start_axis - end_axis <= gap_tol` check accepts arbitrarily negative gaps.
+- [x] Replace one-way gap admission with symmetric axis-interval distance in every affected grouping path without widening compact endpoint distance or length gates.
+- [x] Add reversed-order, distant-collinear-island, overlap, numeric-inline bridge, and grid-grouping regression coverage (`15 passed`).
+- [x] Replay PAC S0022 and full PAC; recover all seven LD mappings, keep all other sheets Pair-identical, and reduce PAC audit `19 -> 12` with zero additions.
+- [x] Fresh-replay and audit all 28 projects / 533 DWGs, prove 28/533 complete, zero disconnected gaps over 20 units, the 16-project Pair blast radius, and audit `64 -> 60` with five geometry-backed true additions.
+- [x] Clean superseded artifacts; retain only authoritative fresh8/audit8.
+- [x] Run final gates (`1086 passed, 1 skipped`, compileall, global diff-check, 28/533 artifact validation).
+- [x] Commit and push the scoped recognition slice.
 
 #### Phase 180 errors
+- The first `1105` local-evidence probe guessed a `raw_text` column; the actual `texts.parquet` schema uses `text`. The read-only script stopped before data inspection and changed no artifacts; use the actual schema rather than repeating the guessed field.
+- The first audit8 residual evidence probe hit a NumPy `ndarray` inside Parquet evidence and failed during JSON serialization; the parallel wrapper discarded the sibling Pair output. No artifact changed. Normalize arrays or use a serialization fallback and run issue/Pair probes separately.
+- The first PAC replay-contract read correctly recovered the 31-file input root from `manifest.json`, then failed only because it guessed a project-local `run_summary.json` that does not exist. No artifact changed, and the parallel wrapper discarded CLI help output; enumerate the actual PAC artifact files and query each help command separately.
+- The post-recovery subagent audit exhausted three distinct Sol-only creation forms: explicit `explorer`, explicit `default` with individually observable results, and omitted role with platform selection. Every lane failed before ID allocation with `agent type is currently not available`; no subagent accessed the repository and no alternate model was used. Stop retrying this condition during the current slice and continue the exact source/test critical path locally.
+- The first post-recovery six-lane `gpt-5.6-sol` explorer dispatch was rejected atomically at creation with `agent type is currently not available`, so no agent ID or repository result was returned. Keep Sol and clean context, but use individually observable default-role creations rather than repeating the opaque aggregate failure.
 - The first recovery-time broad `rg` search failed at process launch because the packaged Windows `rg.exe` was denied access; the parallel wrapper discarded the other outputs. Switched to native PowerShell `Select-String` and separate bounded reads rather than repeating the same failing command.
 - The first six-lane GPT-5.6 Sol read-only audit batch was rejected before repository access with HTTP 429 on every lane. All sessions were closed immediately and produced no result or file change. Continue the critical PAC audit in the main thread; any later delegation must remain GPT-5.6 Sol but use lower concurrency instead of repeating the same batch.
 - The first compact-device source lookup guessed nonexistent `audit/terminal_candidates.py`, causing the parallel wrapper to discard its sibling search output. The actual module is `audit/candidates.py`; continue from that exact path and do not repeat the guessed filename.

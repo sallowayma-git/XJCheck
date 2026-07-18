@@ -1,5 +1,6 @@
 from dwg_audit.audit.line_groups import build_line_groups
 from dwg_audit.domain.models import LineEntity
+from dwg_audit.domain.models import PageClassification
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.config import DEFAULT_CONFIG
@@ -382,3 +383,118 @@ def test_build_line_groups_keeps_component_page_out_of_grid_mode() -> None:
 
     assert len(groups) > 0
     assert all(group.orientation == "horizontal" for group in groups)
+
+
+def _phase180_sheet(*, category: str = "二次原理图", filename: str = "22 录波信号输出回路图.dwg") -> SheetRecord:
+    return SheetRecord(
+        sheet_id="S1",
+        file_id="F1",
+        filename=filename,
+        sheet_order=22,
+        sheet_no="22",
+        sheet_title=filename.removesuffix(".dwg"),
+        sheet_category=category,
+        audit_role="primary",
+        page_no_source="filename",
+        is_primary_audit_candidate=True,
+        audit_area_bbox=(0.0, 0.0, 450.0, 450.0),
+    )
+
+
+def _phase180_grid_classification() -> PageClassification:
+    return PageClassification(
+        sheet_id="S1",
+        page_type="二次原理图",
+        page_subtype="grid_heavy_wire_diagram",
+        page_type_confidence=0.95,
+        table_like=False,
+        grid_heavy=True,
+        route_target="WireDiagramExtractor",
+        features={"grid_band_count": 10},
+    )
+
+
+def test_build_line_groups_keeps_reversed_distant_collinear_islands_split() -> None:
+    lines = [
+        LineEntity("R1", "S1", "F1", "HR1", "LINE", "0", 362.5, 80.0, 392.5, 80.0, 30.0, 0.0, 362.5, 80.0, 392.5, 80.0),
+        LineEntity("R2", "S1", "F1", "HR2", "LINE", "0", 362.5, 80.0, 392.5, 80.0, 30.0, 0.0, 362.5, 80.0, 392.5, 80.0),
+        LineEntity("L1", "S1", "F1", "HL1", "LINE", "CONNECT", 114.744, 80.0015, 144.744, 80.0015, 30.0, 0.0, 114.744, 80.0015, 144.744, 80.0015),
+    ]
+
+    groups = sorted(build_line_groups(lines, [_phase180_sheet()], DEFAULT_CONFIG, []), key=lambda group: group.start_x)
+
+    assert len(groups) == 2
+    assert groups[0].member_line_ids == ["L1"]
+    assert groups[0].length == 30.0
+    assert groups[1].member_line_ids == ["R1", "R2"]
+    assert groups[1].length == 30.0
+
+
+def test_build_line_groups_merges_reversed_overlap_and_nearby_gap() -> None:
+    for left_end_axis in (44.0, 60.0):
+        lines = [
+            LineEntity("R1", "S1", "F1", "HR1", "LINE", "WIRE", 48.0, 20.0, 90.0, 20.0, 42.0, 0.0, 48.0, 20.0, 90.0, 20.0),
+            LineEntity("L1", "S1", "F1", "HL1", "LINE", "WIRE", 10.0, 20.0015, left_end_axis, 20.0015, left_end_axis - 10.0, 0.0, 10.0, 20.0015, left_end_axis, 20.0015),
+        ]
+
+        groups = build_line_groups(lines, [_phase180_sheet()], DEFAULT_CONFIG, [])
+
+        assert len(groups) == 1
+        assert groups[0].start_x == 10.0
+        assert groups[0].end_x == 90.0
+
+
+def test_build_line_groups_bridges_reversed_gap_with_inline_numeric_text() -> None:
+    lines = [
+        LineEntity("R1", "S1", "F1", "HR1", "LINE", "WIRE", 48.0, 20.0, 90.0, 20.0, 42.0, 0.0, 48.0, 20.0, 90.0, 20.0),
+        LineEntity("L1", "S1", "F1", "HL1", "LINE", "WIRE", 10.0, 20.0015, 40.0, 20.0015, 30.0, 0.0, 10.0, 20.0015, 40.0, 20.0015),
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "TH1", "TEXT", "723", "723", True, "DIM", 0.0, 2.5, 44.0, 20.0, 43.0, 19.0, 47.0, 22.0)
+    ]
+
+    groups = build_line_groups(lines, [_phase180_sheet()], DEFAULT_CONFIG, texts)
+
+    assert len(groups) == 1
+    assert groups[0].start_x == 10.0
+    assert groups[0].end_x == 90.0
+    assert set(groups[0].member_line_ids) == {"L1", "R1"}
+
+
+def test_build_line_groups_keeps_reversed_vertical_islands_split() -> None:
+    lines = [
+        LineEntity("T1", "S1", "F1", "HT1", "LINE", "0", 60.0, 392.5, 60.0, 362.5, 30.0, -90.0, 60.0, 362.5, 60.0, 392.5),
+        LineEntity("T2", "S1", "F1", "HT2", "LINE", "0", 60.0, 392.5, 60.0, 362.5, 30.0, -90.0, 60.0, 362.5, 60.0, 392.5),
+        LineEntity("B1", "S1", "F1", "HB1", "LINE", "CONNECT", 60.0015, 144.744, 60.0015, 114.744, 30.0, -90.0, 60.0015, 114.744, 60.0015, 144.744),
+    ]
+    sheet = _phase180_sheet(category="元件接线图", filename="20 元件接线图2.dwg")
+
+    groups = sorted(build_line_groups(lines, [sheet], DEFAULT_CONFIG, []), key=lambda group: group.end_y)
+
+    assert len(groups) == 2
+    assert groups[0].member_line_ids == ["B1"]
+    assert groups[1].member_line_ids == ["T1", "T2"]
+
+
+def test_build_line_groups_grid_keeps_distant_collinear_islands_split() -> None:
+    lines = [
+        LineEntity("R1", "S1", "F1", "HR1", "LINE", "0", 362.5, 80.0, 392.5, 80.0, 30.0, 0.0, 362.5, 80.0, 392.5, 80.0),
+        LineEntity("R2", "S1", "F1", "HR2", "LINE", "0", 362.5, 80.0, 392.5, 80.0, 30.0, 0.0, 362.5, 80.0, 392.5, 80.0),
+        LineEntity("L1", "S1", "F1", "HL1", "LINE", "CONNECT", 114.744, 80.0015, 144.744, 80.0015, 30.0, 0.0, 114.744, 80.0015, 144.744, 80.0015),
+    ]
+
+    groups = sorted(
+        build_line_groups(
+            lines,
+            [_phase180_sheet()],
+            DEFAULT_CONFIG,
+            [],
+            classifications={"S1": _phase180_grid_classification()},
+        ),
+        key=lambda group: group.start_x,
+    )
+
+    assert len(groups) == 2
+    assert all(group.orientation == "grid" for group in groups)
+    assert groups[0].member_line_ids == ["L1"]
+    assert groups[1].member_line_ids == ["R1", "R2"]

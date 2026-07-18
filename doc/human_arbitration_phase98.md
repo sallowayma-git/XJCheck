@@ -376,3 +376,11 @@ connectivity and electrical union.
 - 结构化 Pair 使用 `spmu_signal_panel_row_mapping / wire_component_mapping / 0.95 pass`，记录模型、实例前缀、行号、TD、四条边界线和支撑线的文本/图元 provenance，并明确 `internal_connectivity_inferred=false`、`electrical_union_eligible=false`、`ordinary_pair_eligible=false`。
 - fresh6 全语料有 76 条 SPMU 相关文字，覆盖 `SPMU-858G` 与 `SPMU-857G-CG`；只有上述两个 S0010 页面满足完整联合结构。fresh7 全量为 28 项目、533/533 valid、0 invalid/incomplete；仅 22000/35000 各新增四条映射并按精确文本身份覆盖六条普通残留，其他 26 项目 Pair 精确不变。
 - audit7 为 64 条：many-to-one 31、missing-side 24、cross-page 6、low-confidence 3。相对 audit6 新增 0，仅移除两个目标页共 10 条 SPMU 缺侧；三组 GND 与全部既有真实冲突继续保留。
+
+## Phase 180：断裂轴区间分组与真实缺侧保留（2026-07-19）
+
+- 同一行/列的候选线段只有在轴向区间重叠、真实间距不超过配置阈值，或间隙被同一 numeric text bbox 明确横跨时才允许进入同一 line group。候选处理顺序不能改变结论；位于现有组左侧的后到线段必须用两个区间的对称距离判定，禁止把任意负 `start - end` 当作可合并。
+- inline 数字桥接必须先按空间位置确定左/右（vertical 时为下/上）边界，再将相应 cross-axis 一并交给桥接证据判断。重叠与 4-unit 近邻 gap 保持既有行为；远端共线岛、无数字桥接的宽 gap、horizontal/vertical/grid 状态都必须保持分离。
+- PAC `22 录波信号输出回路图.dwg` 中七条审核可见行的真实 CONNECT 线均为 x=114.744..144.744、长度 30；x=362.5..392.5 的重复线是相距约 217.8 的独立远端岛。不得合成 277.756-unit 长组。权威映射为 `704 -> 1LD27`、`703 -> 1LD26`、`810 -> 1LD24`、`809 -> 1LD23`、`808 -> 1LD22`、`807 -> 1LD21`、`806 -> 1LD20`。
+- 修复按通用区间几何实现，不依赖 PAC、文件名、端点值、handle、fingerprint 或问题数量。fresh7 全语料存在 100 个内部轴 gap 大于 20 的误合并组，跨 16 项目；fresh8 在 13,253 个多成员组中该数量为 0，12 个无此缺陷项目 Pair 精确不变。
+- `.tmp/phase180_full_533_fresh8` 为 28 项目、533/533 valid、0 invalid、0 incomplete。`.tmp/phase180_full_533_audit8` 为 60 条：many-to-one 31、missing-side 20、cross-page 6、low-confidence 3。相对 audit7 移除 9、增加 5；七个 PAC 缺侧按预期移除，新增项均为拆分后真实暴露的独立缺侧/重复线锚点，必须继续 review，禁止为了“零新增”而静默。

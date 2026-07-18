@@ -98,18 +98,20 @@ def build_line_groups(
             line = candidate["line"]
             placed = False
             for group in active:
-                gap = start_axis - group["end_axis"]
-                should_bridge = gap > gap_tol and _has_inline_numeric_bridge(
+                if _can_merge_axis_intervals(
+                    group["start_axis"],
                     group["end_axis"],
-                    start_axis,
                     group["cross_axis"],
+                    start_axis,
+                    end_axis,
                     cross_axis,
                     sheet_texts,
                     orientation=orientation,
+                    gap_tol=gap_tol,
+                    cross_axis_tol=y_tol,
                     inline_bridge_gap=sheet_inline_bridge_gap,
                     inline_bridge_y_tol=inline_bridge_y_tol,
-                )
-                if abs(group["cross_axis"] - cross_axis) <= y_tol and (gap <= gap_tol or should_bridge):
+                ):
                     group["start_axis"] = min(group["start_axis"], start_axis)
                     group["end_axis"] = max(group["end_axis"], end_axis)
                     group["members"].append(line)
@@ -249,18 +251,20 @@ def _build_grid_row_bands(
             line = candidate["line"]
             placed = False
             for group in active:
-                gap = start_axis - group["end_axis"]
-                should_bridge = gap > gap_tol and _has_inline_numeric_bridge(
+                if _can_merge_axis_intervals(
+                    group["start_axis"],
                     group["end_axis"],
-                    start_axis,
                     group["cross_axis"],
+                    start_axis,
+                    end_axis,
                     cross_axis,
                     sheet_texts,
                     orientation=_ORIENTATION_HORIZONTAL,
+                    gap_tol=gap_tol,
+                    cross_axis_tol=y_tol,
                     inline_bridge_gap=inline_bridge_gap,
                     inline_bridge_y_tol=inline_bridge_y_tol,
-                )
-                if abs(group["cross_axis"] - cross_axis) <= y_tol and (gap <= gap_tol or should_bridge):
+                ):
                     group["start_axis"] = min(group["start_axis"], start_axis)
                     group["end_axis"] = max(group["end_axis"], end_axis)
                     group["members"].append(line)
@@ -402,6 +406,53 @@ def _line_group_endpoints(
         return cross_axis, end_axis, cross_axis, start_axis
     # horizontal 和 grid 都走水平端点语义
     return start_axis, cross_axis, end_axis, cross_axis
+
+
+def _can_merge_axis_intervals(
+    first_start_axis: float,
+    first_end_axis: float,
+    first_cross_axis: float,
+    second_start_axis: float,
+    second_end_axis: float,
+    second_cross_axis: float,
+    texts: list[TextItem],
+    *,
+    orientation: str,
+    gap_tol: float,
+    cross_axis_tol: float,
+    inline_bridge_gap: float,
+    inline_bridge_y_tol: float,
+) -> bool:
+    if abs(first_cross_axis - second_cross_axis) > cross_axis_tol:
+        return False
+
+    if first_end_axis < second_start_axis:
+        gap = second_start_axis - first_end_axis
+        previous_end_axis = first_end_axis
+        next_start_axis = second_start_axis
+        previous_cross_axis = first_cross_axis
+        next_cross_axis = second_cross_axis
+    elif second_end_axis < first_start_axis:
+        gap = first_start_axis - second_end_axis
+        previous_end_axis = second_end_axis
+        next_start_axis = first_start_axis
+        previous_cross_axis = second_cross_axis
+        next_cross_axis = first_cross_axis
+    else:
+        return True
+
+    if gap <= gap_tol:
+        return True
+    return _has_inline_numeric_bridge(
+        previous_end_axis,
+        next_start_axis,
+        previous_cross_axis,
+        next_cross_axis,
+        texts,
+        orientation=orientation,
+        inline_bridge_gap=inline_bridge_gap,
+        inline_bridge_y_tol=inline_bridge_y_tol,
+    )
 
 
 def _sheet_geometry_value_for_grid(sheet: SheetRecord, key: str, default: object) -> object:
