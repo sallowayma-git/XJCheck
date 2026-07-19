@@ -74,7 +74,7 @@ fn analyze_session_blocking(
 ) -> Result<Value, String> {
     let workspace_root = default_workspace_root()?;
     let state_db = default_state_db_path()?;
-    let args = vec![
+    let mut args = vec![
         "analyze-session".to_string(),
         "--input".to_string(),
         input_root,
@@ -86,6 +86,12 @@ fn analyze_session_blocking(
         session_id.clone(),
         "--defer-cleanup".to_string(),
     ];
+    // Only append `--config` when the user has actually written an override.
+    // Absence reproduces the pre-settings spawn exactly (DEFAULT_CONFIG only).
+    if let Some(path) = settings_override_path() {
+        args.push("--config".to_string());
+        args.push(path.to_string_lossy().to_string());
+    }
 
     let mut child = build_desktop_sidecar_command(&app, &args)?
         .stdout(Stdio::piped())
@@ -1131,6 +1137,151 @@ fn default_state_db_path() -> Result<PathBuf, String> {
     Ok(db_path)
 }
 
+/// Persisted settings override path. The file is written as JSON (which YAML 1.2
+/// accepts), so the Python side can read it via `yaml.safe_load` and deep-merge
+/// against `DEFAULT_CONFIG` without adding a YAML serializer dependency to the
+/// desktop crate.
+fn default_settings_path() -> Result<PathBuf, String> {
+    let path = default_local_app_data_dir()?
+        .join("dwg-audit")
+        .join("desktop_settings.yml");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!(
+                "Failed to create settings directory {}: {error}",
+                parent.display()
+            )
+        })?;
+    }
+    Ok(path)
+}
+
+/// Return the settings override path only when the file actually exists with
+/// content. This keeps the analyze sidecar spawn identical to the pre-settings
+/// flow (no `--config`) when no override has ever been written.
+fn settings_override_path() -> Option<PathBuf> {
+    let path = default_settings_path().ok()?;
+    match fs::metadata(&path) {
+        Ok(meta) if meta.len() > 0 => Some(path),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+async fn desktop_read_settings(_app: AppHandle) -> Result<Value, String> {
+    let path = default_settings_path()?;
+    if !path.exists() {
+        return Ok(json!({}));
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|error| format!("Failed to read settings {}: {error}", path.display()))?;
+    serde_json::from_str::<Value>(&raw)
+        .map_err(|error| format!("Failed to parse settings {}: {error}", path.display()))
+}
+
+#[tauri::command]
+async fn desktop_write_settings(_app: AppHandle, settings: Value) -> Result<Value, String> {
+    // The frontend always sends the full normalized object; validate the shape
+    // we actually persist so a stray client cannot write arbitrary YAML into the
+    // directory.
+    let payload = normalize_settings_payload(&settings)?;
+    let path = default_settings_path()?;
+    if is_default_settings_payload(&payload) {
+        // Removing the file restores the exact pre-settings spawn shape; the
+        // analyze sidecar will receive no `--config` arg.
+        let _ = fs::remove_file(&path);
+        return Ok(json!({}));
+    }
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&payload).unwrap_or_else(|_| Value::Null.to_string()),
+    )
+    .map_err(|error| format!("Failed to write settings {}: {error}", path.display()))?;
+    Ok(payload)
+}
+
+fn normalize_settings_payload(input: &Value) -> Result<Value, String> {
+    let convert_workers = pick_u64(input, "convertWorkers", 0);
+    let oda_timeout_seconds = pick_u64(input, "odaTimeoutSeconds", 300);
+    let cache_cap_bytes = match input.get("cacheCapBytes") {
+        Some(Value::Null) => None,
+        Some(value) => {
+            Some(as_u64(value).ok_or("cacheCapBytes must be a non-negative integer or null")?)
+        }
+        None => None,
+    };
+    let stage_telemetry_enabled = match input.get("stageTelemetryEnabled") {
+        Some(Value::Bool(value)) => *value,
+        Some(_) => return Err("stageTelemetryEnabled must be a boolean".to_string()),
+        None => false,
+    };
+    if oda_timeout_seconds < 1 || oda_timeout_seconds > 86400 {
+        return Err("oda_timeout_seconds must be between 1 and 86400".to_string());
+    }
+    if convert_workers > 16 {
+        return Err("convert_workers must be between 0 and 16".to_string());
+    }
+    // Translate the flat frontend shape into the YAML fragment the Python side
+    // already deep-merges against DEFAULT_CONFIG.
+    let mut payload = json!({
+        "ingest": {
+            "convert_workers": convert_workers,
+            "oda_timeout_seconds": oda_timeout_seconds,
+        },
+        "runtime": {
+            "stage_telemetry": stage_telemetry_enabled,
+        },
+    });
+    if let Some(cap) = cache_cap_bytes {
+        payload["runtime"]["cache_cap_bytes"] = json!(cap);
+    }
+    Ok(payload)
+}
+
+fn pick_u64(input: &Value, key: &str, default: u64) -> u64 {
+    match input.get(key) {
+        Some(value) => as_u64(value).unwrap_or(default),
+        None => default,
+    }
+}
+
+fn as_u64(value: &Value) -> Option<u64> {
+    if let Some(number) = value.as_u64() {
+        return Some(number);
+    }
+    if let Some(number) = value.as_i64() {
+        return Some(u64::try_from(number.max(0)).unwrap_or(0));
+    }
+    if let Some(number) = value.as_f64() {
+        if number.is_finite() && number >= 0.0 {
+            return Some(number as u64);
+        }
+    }
+    None
+}
+
+fn is_default_settings_payload(payload: &Value) -> bool {
+    let convert_workers = payload
+        .get("ingest")
+        .and_then(|v| v.get("convert_workers"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let oda_timeout_seconds = payload
+        .get("ingest")
+        .and_then(|v| v.get("oda_timeout_seconds"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let stage_telemetry = payload
+        .get("runtime")
+        .and_then(|v| v.get("stage_telemetry"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let cache_cap = payload
+        .get("runtime")
+        .and_then(|v| v.get("cache_cap_bytes"));
+    convert_workers == 0 && oda_timeout_seconds == 300 && !stage_telemetry && cache_cap.is_none()
+}
+
 fn default_local_app_data_dir() -> Result<PathBuf, String> {
     if let Ok(value) = env::var("LOCALAPPDATA") {
         let path = PathBuf::from(value);
@@ -1164,7 +1315,9 @@ fn main() {
             desktop_cancel_preview,
             desktop_set_issue_status,
             desktop_delete_project,
-            desktop_cleanup_workspaces
+            desktop_cleanup_workspaces,
+            desktop_read_settings,
+            desktop_write_settings
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -1516,5 +1669,75 @@ mod tests {
         let selected = descendant_processes_to_terminate(&parents, 1, &[20]);
 
         assert_eq!(selected, vec![(11, 2), (10, 1)]);
+    }
+
+    #[test]
+    fn settings_payload_translates_flat_frontend_shape_to_yaml_fragment() {
+        let input = json!({
+            "convertWorkers": 3,
+            "odaTimeoutSeconds": 120,
+            "cacheCapBytes": 2147483648u64,
+            "stageTelemetryEnabled": true,
+        });
+        let payload = normalize_settings_payload(&input).expect("payload should normalize");
+        assert_eq!(payload["ingest"]["convert_workers"], json!(3));
+        assert_eq!(payload["ingest"]["oda_timeout_seconds"], json!(120));
+        assert_eq!(payload["runtime"]["stage_telemetry"], json!(true));
+        assert_eq!(
+            payload["runtime"]["cache_cap_bytes"],
+            json!(2_147_483_648u64)
+        );
+    }
+
+    #[test]
+    fn settings_default_payload_is_recognized_as_default() {
+        let defaults = json!({
+            "ingest": {
+                "convert_workers": 0,
+                "oda_timeout_seconds": 300,
+            },
+            "runtime": {
+                "stage_telemetry": false,
+            },
+        });
+        assert!(is_default_settings_payload(&defaults));
+    }
+
+    #[test]
+    fn settings_non_default_payload_is_not_default() {
+        let mut payload = json!({
+            "ingest": {
+                "convert_workers": 0,
+                "oda_timeout_seconds": 300,
+            },
+            "runtime": {
+                "stage_telemetry": false,
+            },
+        });
+        payload["ingest"]["convert_workers"] = json!(1);
+        assert!(!is_default_settings_payload(&payload));
+    }
+
+    #[test]
+    fn settings_reject_out_of_range_timeout() {
+        let oversized = json!({"odaTimeoutSeconds": 86401u64});
+        let err = normalize_settings_payload(&oversized).expect_err("timeout should be rejected");
+        assert!(err.contains("oda_timeout_seconds"));
+    }
+
+    #[test]
+    fn settings_null_cache_cap_is_preserved() {
+        let input = json!({
+            "convertWorkers": 0,
+            "odaTimeoutSeconds": 300,
+            "cacheCapBytes": null,
+            "stageTelemetryEnabled": false,
+        });
+        let payload = normalize_settings_payload(&input).expect("payload should normalize");
+        assert!(payload
+            .get("runtime")
+            .and_then(|v| v.get("cache_cap_bytes"))
+            .is_none());
+        assert!(is_default_settings_payload(&payload));
     }
 }

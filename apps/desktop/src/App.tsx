@@ -20,10 +20,17 @@ import {
   isCurrentRequest,
   shouldInvalidateScreenIntent,
 } from "./lib/requestGeneration"
+import {
+  defaultSettings,
+  loadSettings,
+  normalizeSettings,
+  persistSettings,
+  type DesktopSettings,
+} from "./lib/settings"
 import type { PreviewMode } from "./lib/previewPolicy"
 import type { IssueSummary, ProjectResult, RecentProject, RunStageCard, SidecarEvent } from "./types"
 
-type Screen = "launch" | "process" | "result"
+type Screen = "launch" | "process" | "result" | "settings"
 
 const ISSUE_STATUS_OPTIONS = ["open", "ignored", "resolved", "false_positive"] as const
 const PREVIEW_REQUEST_TIMEOUT_MS = 20_000
@@ -105,6 +112,10 @@ function App() {
   const previewRequestGenerationRef = useRef(createRequestGeneration())
   const handledPreviewGenerationRef = useRef(0)
   const screenIntentGenerationRef = useRef(createRequestGeneration())
+  const [settings, setSettings] = useState<DesktopSettings>(loadSettings)
+  const [settingsSnapshot, setSettingsSnapshot] = useState<DesktopSettings | null>(null)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
   const previewRequestSequenceRef = useRef(0)
   const selectedProjectIdRef = useRef<string | null>(null)
 
@@ -123,6 +134,38 @@ function App() {
       selectProject(result?.run.project_id ?? null)
     }
     setScreen(nextScreen)
+  }
+
+  function updateSettingsField(patch: Partial<DesktopSettings>): void {
+    setSettings((prev) => {
+      const merged = normalizeSettings({ ...prev, ...patch })
+      persistSettings(merged)
+      return merged
+    })
+  }
+
+  async function saveSettings(next: DesktopSettings): Promise<void> {
+    setSettingsSaving(true)
+    setSettingsError(null)
+    try {
+      persistSettings(next)
+      const confirmed = await desktopApi.writeSettings(next)
+      setSettings(confirmed)
+      setSettingsSnapshot(confirmed)
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "保存设置失败。")
+      throw error
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
+  function resetSettings(): void {
+    const fallback = defaultSettings()
+    setSettings(fallback)
+    persistSettings(fallback)
+    setSettingsSnapshot(fallback)
+    setSettingsError(null)
   }
 
 
@@ -150,6 +193,29 @@ function App() {
       // Keep the in-memory preference when storage is unavailable.
     }
   }, [previewMode])
+
+  // On mount, ask the Rust side whether an override file already exists. If
+  // yes, its normalized values win over the localStorage defaults so the
+  // Settings screen never drifts from what the sidecar actually sees. If the
+  // file is missing (the common case) the localStorage defaults stay in effect,
+  // which equals the pre-settings behavior exactly.
+  useEffect(() => {
+    let disposed = false
+    void desktopApi
+      .readSettings()
+      .then((next) => {
+        if (!disposed) {
+          setSettings(next)
+          setSettingsSnapshot(next)
+        }
+      })
+      .catch(() => {
+        // Browser-mock mode has nothing to read; leave defaults in place.
+      })
+    return () => {
+      disposed = true
+    }
+  }, [])
 
   useEffect(() => {
     let disposed = false
@@ -947,7 +1013,7 @@ function App() {
     setPreviewGeneration((current) => current + 1)
   }
 
-  const screenTitle = screen === "launch" ? "项目" : screen === "process" ? "校验中" : "问题"
+  const screenTitle = screen === "launch" ? "项目" : screen === "process" ? "校验中" : screen === "result" ? "问题" : "设置"
   const isNativeRuntime = desktopApi.isNative()
   const sessionLabel = isAnalyzing
     ? `正在校验 ${Math.round(processState.progressRatio * 100)}%`
@@ -973,6 +1039,9 @@ function App() {
           </button>
           <button type="button" className={screen === "result" ? "nav-chip active" : "nav-chip"} onClick={() => navigateToScreen("result")}>
             问题
+          </button>
+          <button type="button" className={screen === "settings" ? "nav-chip active" : "nav-chip"} onClick={() => navigateToScreen("settings")}>
+            设置
           </button>
         </nav>
         <div className="session-meta">
@@ -1770,6 +1839,137 @@ function App() {
                 )}
               </div>
             </article>
+          </section>
+        )}
+
+        {screen === "settings" && (
+          <section className="settings-screen">
+            <div className="panel panel-pad">
+              <div className="section-heading">
+                <h3>性能与运行设置</h3>
+                <span>
+                  {settingsSnapshot && JSON.stringify(settings) === JSON.stringify(settingsSnapshot)
+                    ? "已保存"
+                    : "未保存更改"}
+                </span>
+              </div>
+              <p className="muted">
+                所有设置默认值与本机表现一致；逐项修改并保存后才会作为后端运行参数写入配置文件。
+              </p>
+
+              <div className="settings-grid">
+                <div className="field">
+                  <label htmlFor="settings-convert-workers">ODA 并发上限</label>
+                  <select
+                    id="settings-convert-workers"
+                    value={String(settings.convertWorkers)}
+                    onChange={(event) => {
+                      const parsed = Number.parseInt(event.target.value, 10)
+                      updateSettingsField({ convertWorkers: Number.isFinite(parsed) ? parsed : 0 })
+                    }}
+                  >
+                    <option value="0">自动（默认：内存感知 1 或 2）</option>
+                    <option value="1">1 路</option>
+                    <option value="2">2 路</option>
+                    <option value="3">3 路</option>
+                    <option value="4">4 路</option>
+                    <option value="6">6 路</option>
+                    <option value="8">8 路</option>
+                  </select>
+                  <span className="field-help">单次转换的 ODA 子进程并发上限。低配机器或卡顿明显时优先调低。</span>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="settings-oda-timeout">ODA 转换超时（秒）</label>
+                  <input
+                    id="settings-oda-timeout"
+                    type="number"
+                    min={1}
+                    max={86400}
+                    value={settings.odaTimeoutSeconds}
+                    onChange={(event) => {
+                      const parsed = Number.parseInt(event.target.value, 10)
+                      if (!Number.isFinite(parsed)) {
+                        return
+                      }
+                      updateSettingsField({ odaTimeoutSeconds: parsed })
+                    }}
+                  />
+                  <span className="field-help">单个 DWG 文件转换的等待时间上限，超时后会终止整个 ODA 进程树。</span>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="settings-cache-cap">缓存大小上限（字节，留空不限）</label>
+                  <input
+                    id="settings-cache-cap"
+                    type="number"
+                    min={0}
+                    placeholder="留空表示不限制"
+                    value={settings.cacheCapBytes ?? ""}
+                    onChange={(event) => {
+                      const raw = event.target.value.trim()
+                      if (!raw) {
+                        updateSettingsField({ cacheCapBytes: null })
+                        return
+                      }
+                      const parsed = Number.parseInt(raw, 10)
+                      if (Number.isFinite(parsed) && parsed >= 0) {
+                        updateSettingsField({ cacheCapBytes: parsed })
+                      }
+                    }}
+                  />
+                  <span className="field-help">本地 ODA 中间产物缓存目录上限；超过时会先回收最旧条目。留空等同当前行为，不主动限制。</span>
+                </div>
+
+                <div className="field">
+                  <label>诊断阶段遥测</label>
+                  <div className="preview-mode-control" role="group" aria-label="诊断阶段遥测">
+                    <button
+                      type="button"
+                      onClick={() => updateSettingsField({ stageTelemetryEnabled: false })}
+                      aria-pressed={!settings.stageTelemetryEnabled}
+                      className={!settings.stageTelemetryEnabled ? "active" : ""}
+                    >
+                      关闭
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateSettingsField({ stageTelemetryEnabled: true })}
+                      aria-pressed={settings.stageTelemetryEnabled}
+                      className={settings.stageTelemetryEnabled ? "active" : ""}
+                    >
+                      开启
+                    </button>
+                  </div>
+                  <span className="field-help">开启后定时在审计事件流里附阶段耗时、进程占用与 IPC 大小，便于排查卡顿来源。默认关闭。</span>
+                </div>
+              </div>
+
+              {settingsError ? <div className="global-error">{settingsError}</div> : null}
+
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={resetSettings}
+                  disabled={settingsSaving}
+                >
+                  恢复默认
+                </button>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    void saveSettings(settings).catch(() => {
+                      /* error 已写入 settingsError state */
+                    })
+                  }}
+                  disabled={settingsSaving || (settingsSnapshot !== null && JSON.stringify(settings) === JSON.stringify(settingsSnapshot))}
+                >
+                  {settingsSaving ? "保存中…" : "保存设置"}
+                </button>
+              </div>
+            </div>
           </section>
         )}
       </main>

@@ -5,6 +5,8 @@ import type { UnlistenFn } from "@tauri-apps/api/event"
 
 import { emitMockAnalyzeSessionEvents, getMockPreview, getMockProjectResult, getMockRecentProjects } from "./mockData"
 import type { AnalyzeSessionRequest, AnalyzeSessionResult, IssueStatus, PreviewPayload, ProjectResult, RecentProject, SidecarEvent } from "../types"
+import type { DesktopSettings } from "./settings"
+import { defaultSettings, normalizeSettings } from "./settings"
 
 const DESKTOP_EVENT_NAME = "dwg-audit://sidecar-event"
 
@@ -18,6 +20,8 @@ const COMMANDS = {
   setIssueStatus: "desktop_set_issue_status",
   deleteProject: "desktop_delete_project",
   cleanupWorkspaces: "desktop_cleanup_workspaces",
+  readSettings: "desktop_read_settings",
+  writeSettings: "desktop_write_settings",
 } as const
 
 const mockIssueStatuses = new Map<string, IssueStatus>()
@@ -194,6 +198,30 @@ export const desktopApi = {
       await invoke(COMMANDS.cleanupWorkspaces)
     } catch (error) {
       throw toDesktopError("清理过程文件失败。", error)
+    }
+  },
+
+  async readSettings(): Promise<DesktopSettings> {
+    if (!isTauri()) {
+      return defaultSettings()
+    }
+    try {
+      const raw = await invoke<unknown>(COMMANDS.readSettings)
+      return normalizeSettings(raw)
+    } catch (error) {
+      throw toDesktopError("读取设置失败。", error)
+    }
+  },
+
+  async writeSettings(next: DesktopSettings): Promise<DesktopSettings> {
+    if (!isTauri()) {
+      return next
+    }
+    try {
+      const raw = await invoke<unknown>(COMMANDS.writeSettings, { settings: next })
+      return normalizeSettings(raw)
+    } catch (error) {
+      throw toDesktopError("保存设置失败。", error)
     }
   },
 
