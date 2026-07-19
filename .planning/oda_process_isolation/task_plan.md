@@ -35,8 +35,8 @@ Ensure a permanently blocked ODA conversion cannot indefinitely hold the Python 
 - [x] Run focused Python tests, then the complete Python suite.
 - [x] Run desktop Rust/Node/type/lint/build checks because packaged sidecar entry behavior is affected.
 - [x] Reverify final deadline/reaping and packaged-smoke hardening.
-- [ ] Inspect diff, record residual risks, and prepare the scoped local commit.
-- **Status:** in_progress
+- [x] Inspect diff, record residual risks, and prepare the scoped local commit.
+- **Status:** complete
 
 ## Decisions
 - Use a one-shot worker for each ODA call so native/Qt state cannot accumulate across files.

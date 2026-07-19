@@ -12,6 +12,7 @@ import pytest
 from dwg_audit.readers.oda_process import OdaProcessError
 from dwg_audit.readers.oda_process import OdaProcessTimeout
 from dwg_audit.readers.oda_process import _run_worker_request
+from dwg_audit.readers.oda_process import _BoundedStreamCapture
 from dwg_audit.readers.oda_process import bounded_oda_timeout
 from dwg_audit.readers.oda_process import join_named_windows_job
 from dwg_audit.readers.oda_process import MAX_WORKER_OUTPUT_BYTES
@@ -48,6 +49,20 @@ def test_worker_request_drains_large_stdout_without_deadlock() -> None:
     )
 
     assert response == {"ok": True, "result": 7}
+
+
+def test_capture_shutdown_is_bounded_when_writer_keeps_pipe_open() -> None:
+    read_fd, write_fd = os.pipe()
+    stream = os.fdopen(read_fd, "rb")
+    capture = _BoundedStreamCapture(stream)
+    capture.start()
+    started_at = time.monotonic()
+    try:
+        assert capture.text() == ""
+        assert time.monotonic() - started_at < 2.0
+        assert not capture._thread.is_alive()
+    finally:
+        os.close(write_fd)
 
 
 def test_worker_write_timeout_is_bounded_when_child_never_reads() -> None:

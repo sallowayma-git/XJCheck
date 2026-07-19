@@ -44,6 +44,12 @@ ODA File Converter 解析顺序（用户机可不预装）：
 4. 系统 `PATH`
 5. Windows `Program Files\ODA\ODAFileConverter *`
 
+转换保护默认开启：每个 ODA 调用都在一次性 worker 中运行，`ingest.oda_timeout_seconds`
+默认 300 秒。超时会先回收 ODA 进程树，再继续后续 DWG；Windows 使用 kill-on-close
+Job Object；POSIX 监督器崩溃时也会通过父进程哨兵回收 worker 会话。开发态和 PyInstaller
+安装包共用 `oda-worker` 协议，打包脚本会在生成 sidecar 后自动执行协议 smoke。只有在受控诊断时才建议
+设置 `ingest.oda_process_isolation: false`，该模式不保证能硬终止原生 ODA。
+
 ## Windows 正式安装包（推荐一键脚本）
 
 打包会把 **Python 引擎 sidecar** 与 **ODA File Converter** 一并打进 NSIS 安装包，用户电脑无需预装 Python / ODA。

@@ -25,6 +25,8 @@ ODA_PARENT_WATCH_ENV = "DWG_AUDIT_ODA_PARENT_WATCH_FD"
 DEFAULT_ODA_TIMEOUT_SECONDS = 300.0
 MAX_WORKER_OUTPUT_BYTES = 1024 * 1024
 _MAX_TIMEOUT_SECONDS = 24 * 60 * 60.0
+_CAPTURE_DRAIN_TIMEOUT_SECONDS = 1.0
+_CAPTURE_STOP_TIMEOUT_SECONDS = 0.25
 _WORKER_THREAD_ENV_VARS = (
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
@@ -64,9 +66,11 @@ class _BoundedStreamCapture:
         self._stream = stream
         self._fd = os.dup(int(stream.fileno()))
         os.set_inheritable(self._fd, False)
+        os.set_blocking(self._fd, False)
         self._limit = limit
         self._tail = bytearray()
         self._lock = threading.Lock()
+        self._stop = threading.Event()
         self._fd_closed = False
         self._thread = threading.Thread(target=self._drain, daemon=True)
 
@@ -75,8 +79,12 @@ class _BoundedStreamCapture:
 
     def _drain(self) -> None:
         try:
-            while True:
-                chunk = os.read(self._fd, 64 * 1024)
+            while not self._stop.is_set():
+                try:
+                    chunk = os.read(self._fd, 64 * 1024)
+                except BlockingIOError:
+                    self._stop.wait(0.02)
+                    continue
                 if not chunk:
                     return
                 with self._lock:
@@ -89,9 +97,9 @@ class _BoundedStreamCapture:
         except (OSError, ValueError):
             return
         finally:
-            self.close()
+            self._close_descriptors()
 
-    def close(self) -> None:
+    def _close_descriptors(self) -> None:
         with self._lock:
             if self._fd_closed:
                 return
@@ -108,12 +116,10 @@ class _BoundedStreamCapture:
             pass
 
     def text(self) -> str:
-        self._thread.join(timeout=2.0)
+        self._thread.join(timeout=_CAPTURE_DRAIN_TIMEOUT_SECONDS)
         if self._thread.is_alive():
-            self.close()
-            self._thread.join(timeout=0.5)
-        else:
-            self.close()
+            self._stop.set()
+            self._thread.join(timeout=_CAPTURE_STOP_TIMEOUT_SECONDS)
         with self._lock:
             data = bytes(self._tail)
         return data.decode("utf-8", errors="replace")

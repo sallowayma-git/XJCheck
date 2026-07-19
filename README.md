@@ -12,6 +12,9 @@
 - 最小可用 Streamlit 本地查看界面
 - Windows 桌面端（Tauri）可安装包，可捆绑 Python sidecar + ODA
 
+ODA 转换默认启用进程隔离和 300 秒单文件超时；超时会回收 ODA 及其子进程，避免原生
+转换永久卡住时拖死 Python sidecar 或桌面应用。详见 [`doc/windows-packaging.md`](doc/windows-packaging.md)。
+
 快速开始：
 
 ```powershell

@@ -46,6 +46,7 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert '"dwg_audit.readers.oda_worker"' in builder
     assert "Frozen sidecar ODA worker smoke" in script
     assert "unsupported-test-operation" in script
+    assert "WaitForExit(15000)" in script
     # Console-subsystem sidecar preserves JSON pipes; CREATE_NO_WINDOW prevents flashes.
     assert "console=True" in builder
     assert "console=False" not in builder

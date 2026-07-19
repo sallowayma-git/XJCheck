@@ -24,6 +24,8 @@
 - Added a POSIX supervisor-death pipe watchdog, fail-closed Windows Job creation/assignment behavior, Job-close fallback handling, lower worker priority, and pre-launch one-thread native-library limits.
 - Added a frozen `oda-worker` protocol smoke to `build-sidecar.ps1` and a packaging contract assertion. Focused ODA/packaging tests passed 25/25.
 - Repeated full verification after lifecycle hardening: Python 1129 passed/1 skipped; Rust 24 passed; TypeScript check, oxlint, Vite build, and cargo fmt check passed.
+- Final P1 review reproduced cross-thread Windows descriptor-close blocking and an unbounded packaging smoke. Replaced capture reads with nonblocking polling/self-close, bounded the PowerShell smoke at 15 seconds, and added regression coverage; final focused set passed 27/27 and the real frozen smoke returned exit 1 with the expected protocol frame.
+- Final Python suite after the P1 fixes passed: 1137 passed, 1 skipped in 36.00s. Scoped diff check is clean and the ODA hardening slice is ready for its local commit.
 
 ## 2026-07-19 (audit remediation — flaky full-suite run)
 - Full Python suite surfaced a flaky `test_worker_timeout_returns_and_stops_late_side_effect` originally attributed to 0.75s Windows cold start. Re-investigation: timing was a red herring.

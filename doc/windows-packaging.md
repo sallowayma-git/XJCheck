@@ -36,6 +36,28 @@ Installed app
 4. system `PATH`
 5. Windows `Program Files\ODA\ODAFileConverter *`
 
+### ODA worker safety defaults
+
+Every external ODA conversion runs in a one-shot worker process. The parent sidecar
+keeps the cache/event/provenance state, while the worker owns only the native ODA call.
+The default configuration is:
+
+```yaml
+ingest:
+  oda_process_isolation: true
+  oda_timeout_seconds: 300.0
+```
+
+When the timeout expires, the worker and its descendants are terminated before the
+next conversion is admitted. Windows workers join a kill-on-close Job Object; source
+and frozen workers both use the same `oda-worker` protocol. POSIX workers run in a
+private process group, receive TERM/KILL escalation, and watch a supervisor-owned
+pipe so a crashed sidecar cannot leave the worker session running. Worker stdout and
+stderr are drained continuously with a bounded tail, and request writes are also
+deadline-bound. Set
+`ingest.oda_process_isolation: false` only for controlled diagnostics; that opt-out
+does not provide hard native-process cancellation.
+
 ## Build machine prerequisites
 
 | Dependency | Purpose |
@@ -119,6 +141,10 @@ python -m pytest -q tests/unit/test_desktop_packaging.py tests/unit/test_readers
 
 # sidecar CLI smoke
 .\apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe --help
+
+# frozen ODA worker protocol smoke (the build script runs this automatically)
+'{"operation":"unsupported-test-operation"}' |
+  .\apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe oda-worker
 
 # resource presence
 Test-Path .\apps\desktop\src-tauri\resources\sidecar\dwg-audit-sidecar.exe

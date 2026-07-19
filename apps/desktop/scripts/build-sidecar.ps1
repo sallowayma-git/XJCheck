@@ -77,12 +77,33 @@ if (-not (Test-Path $ExePath)) {
 # catches stale specs, missing hidden imports, and broken stdout protocol before
 # the binary is copied into a release installer.
 $SmokeInput = '{"operation":"unsupported-test-operation"}'
-$SmokeRaw = $SmokeInput | & $ExePath oda-worker 2>&1
-$SmokeExit = $LASTEXITCODE
+$SmokeStart = [System.Diagnostics.ProcessStartInfo]::new()
+$SmokeStart.FileName = $ExePath
+$SmokeStart.Arguments = "oda-worker"
+$SmokeStart.UseShellExecute = $false
+$SmokeStart.CreateNoWindow = $true
+$SmokeStart.RedirectStandardInput = $true
+$SmokeStart.RedirectStandardOutput = $true
+$SmokeStart.RedirectStandardError = $true
+$SmokeProcess = [System.Diagnostics.Process]::new()
+$SmokeProcess.StartInfo = $SmokeStart
+if (-not $SmokeProcess.Start()) {
+    throw "Frozen sidecar ODA worker smoke could not start."
+}
+$SmokeProcess.StandardInput.WriteLine($SmokeInput)
+$SmokeProcess.StandardInput.Close()
+if (-not $SmokeProcess.WaitForExit(15000)) {
+    try { $SmokeProcess.Kill() } catch {}
+    $SmokeProcess.WaitForExit(2000) | Out-Null
+    throw "Frozen sidecar ODA worker smoke timed out after 15 seconds."
+}
+$SmokeRaw = $SmokeProcess.StandardOutput.ReadToEnd()
+$SmokeError = $SmokeProcess.StandardError.ReadToEnd()
+$SmokeExit = $SmokeProcess.ExitCode
 try {
     $Smoke = ($SmokeRaw | Out-String).Trim() | ConvertFrom-Json
 } catch {
-    throw "Frozen sidecar ODA worker smoke returned non-JSON output: $SmokeRaw"
+    throw "Frozen sidecar ODA worker smoke returned non-JSON output: $SmokeRaw $SmokeError"
 }
 if ($SmokeExit -ne 1 -or $Smoke.error_code -ne "ODA_WORKER_PROTOCOL") {
     throw "Frozen sidecar ODA worker smoke failed: $($Smoke | ConvertTo-Json -Compress)"
