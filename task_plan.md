@@ -56,12 +56,17 @@ The current authoritative audit is `.tmp/phase180_full_533_audit9`: 58 issues (m
 - [ ] Re-run final rules audit/tests after GND disposition, clean rejected/intermediate replay artifacts, stage only recognition/docs changes, commit, and push
 - **Status:** in_progress
 
+#### Phase 180 structured GND arbitration evidence
+- [x] Enumerate all fresh9/audit9 exact-`GND` structured mappings and residual issues.
+- [x] Prove the three residual groups contain nine independent `table_mapping/pass` rows with no shared `line_group_id`, continuous wire, exact row, or exact header across each group.
+- [ ] Obtain one-by-one human rulings for 30000, 8000/9000, and PAC; preserve every port-to-GND mapping and prohibit port-to-port union even if a shared semantic endpoint is authorized.
+
 #### Phase 180 guardrails
 - Short device instances such as `1n/5n` are authoritative only in explicit `REAR WIRING/背板` titles. Whole-page free text retains the historical compound grammar; fresh4 proves broader free-text matching is unsafe.
 - Rear-wiring scope rekeys preserve every physical row and external endpoint. They never imply internal connectivity or electrical union and do not suppress PAC's retained cardinality/cross-page reviews.
 - Full-corpus execution uses one Python process per project. A long single process exited after cumulative project work, while isolated fresh4/fresh5 completed all 28 projects; top-level run summaries are not authoritative across isolated invocations.
 - Root `package-lock.json` and concurrent desktop lifecycle/packaging changes are user/other-agent state and must not be staged or reverted by the recognition commit.
-- Latest clean-context `gpt-5.6-sol` six-way dispatch and explicit default-role probe still fail before creation with `agent type is currently not available`; do not substitute a different model. The packaged `rg.exe` also remains access-denied, so continue with main-thread PowerShell/structured readers until routing changes.
+- Clean-context default-role subagents now create successfully, but long artifact scans may exceed the ten-minute limit. Use returned read-only evidence, close completed agents immediately, stop silent agents at the limit, and never substitute a non-default role. The packaged `rg.exe` remains access-denied, so use main-thread PowerShell/structured readers for exact follow-up.
 
 ### Phase 177: PAC Signal-output Logical Endpoint Recovery
 - [x] Recover Phase176 baseline, planning state, and clean-worktree boundary

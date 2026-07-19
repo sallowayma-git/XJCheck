@@ -1985,3 +1985,11 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Fresh9 completeness validation must read each project's `extraction_completeness.json`; a probe using the obsolete root-level `completeness.json` path failed before reading any artifact.
 - Targeted raw-DWG replay is exact at the Pair semantic layer: 26000 stays at 976 pairs, 31000 stays at 1,406, and both projects' structured mapping sets are unchanged. Audits change `9 -> 8` and `8 -> 7`, with zero additions and exactly the two enclosure-edge removals.
 - The first audit9 comparison probe guessed an issue `pair_kind` column and failed at Parquet schema selection. No artifact changed; issue identity comparison uses the real `rule_id/sheet_id/pair_id/left_value/right_value` contract.
+
+## Phase 180: structured GND shared-endpoint arbitration
+
+- Audit9 contains exactly three exact-`GND` many-to-one reviews, covering nine `table_mapping / pass / 0.95` rows. Every mapping has valid table header, row number and `说明` evidence, but `line_group_id=None`; none is a ground-symbol IGNORE case.
+- 30000 S0012: `1-JD-21 -> GND` (`GND T1482` at about `(136,166)`) and `2-JD-19 -> GND` (`T1544` at about `(136,56)`) use different headers, rows and physical positions. The first row also maps to `CZ-E`.
+- 8000/9000: `1-26TD-216 -> GND` and `2-26TD-216 -> GND` occur on different sheets, headers and endpoint columns; equal row number 216 does not prove a shared wire.
+- PAC: `1ID-5/31/43/52` and `JD-11` map independently to GND across two sheets, multiple rows and two exact `1ID` header texts plus a separate `JD` header. Rows 5 and 11 also carry another endpoint (`1ID13` / `CZ-E`).
+- No group shares a physical line group, continuous line, exact physical row or exact table-header identity across every member. Therefore no engine-only rule can safely suppress the reviews. If human authority declares common GND semantics, the implementation may exempt only strict `table_mapping/pass` exact-`GND` cardinality; it must preserve all mappings and keep `internal_connectivity_inferred=false` and `electrical_union_eligible=false`.

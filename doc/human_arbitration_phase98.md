@@ -391,3 +391,9 @@ connectivity and electrical union.
 - 只有 line group 的全部成员都来自同一个可重建外框父句柄时，才把其中的 `ordinary_pair` 标记为 `ordinary_pair_eligible=false`、`ordinary_pair_shadow_only=true`，保留原 Pair、数值和原始几何证据；任何混入独立 `LINE/CONNECT` 的 group 保持审核资格。
 - 该几何模型不依赖项目名、文件名、端点值、handle 指纹或问题数量；`component_mapping`、`table_mapping`、`wire_component_mapping` 不受影响，也不推断外框内部联通或 electrical union。31000 的 `1201 -> 1204` 仍保留在 Pair 产物中并沿用既有 grid shadow 证据。
 - 真实回放中仅移除 26000 `PW0130 327 -> ?` 与 31000 `PW0217 1027 -> 1028` 两条外框误报，零新增；fresh9/audit9 覆盖 28 项目、533/533 valid、0 invalid/incomplete，audit 为 58 条。
+
+## Phase 180：结构化 GND 共用端点待裁决（2026-07-19）
+
+- 这不是接地图形 IGNORE。audit9 的三条残余由九条 `table_mapping / pass / 0.95` 组成；每条都有表头、物理行号和 `说明` 证据，但 `line_group_id=None`，没有共享导线或 line group 可证明电气合并。
+- 待逐组裁决：30000 的 `1-JD-21 / 2-JD-19 -> GND`；8000/9000 的 `1-26TD-216 / 2-26TD-216 -> GND`；PAC 的 `1ID-5/31/43/52` 与 `JD-11 -> GND`。这些组分别跨表头、行、页或端点列，不能仅按文本 `GND` 自动静默。
+- 即使人工确认多个端口共享 GND 语义，也只能免除严格结构化 GND 的 many-to-one cardinality；必须保留每一条 port-to-GND mapping，端口之间仍不建立 internal connectivity 或 electrical union。同一行另有 `CZ-E/1ID13` 等端点时也必须保留独立映射证据。
