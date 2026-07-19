@@ -3,6 +3,7 @@ from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation
 from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_schematic_ground_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
+from dwg_audit.audit.page_extractors import _shadow_closed_tall_polyline_enclosure_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
 from dwg_audit.audit.page_extractors import _promote_regular_terminal_row_array_pairs
 from dwg_audit.audit.page_extractors import _promote_xjdz_structural_component_pairs
@@ -110,13 +111,14 @@ def _panel_line(
     end_y: float,
     layer: str = "0",
     source_block_name: str | None = None,
+    source_entity_type: str = "LINE",
 ) -> LineEntity:
     return LineEntity(
         line_id=line_id,
         sheet_id="S1",
         file_id="F1",
         handle=handle,
-        source_entity_type="LINE",
+        source_entity_type=source_entity_type,
         layer=layer,
         start_x=start_x,
         start_y=start_y,
@@ -1226,6 +1228,101 @@ def test_shadow_grid_wire_ordinary_pairs_marks_wire_grid_pairs_ineligible() -> N
     assert ordinary.evidence["ordinary_pair_eligible"] is False
     assert ordinary.evidence["ordinary_pair_shadow_only"] is True
     assert ordinary.evidence["ordinary_pair_shadow_reason"] == "wire_grid_primary"
+
+
+def test_closed_tall_polyline_enclosure_edge_shadows_ordinary_pair() -> None:
+    pair = _pair({}, line_group_id="G_FRAME", left_value="1027", right_value="1028")
+    lines = _closed_tall_frame_lines()
+    group = LineGroup(
+        "G_FRAME", "S1", "F1", 105.0, 80.0, 150.0, 80.0, 45.0, 0.55, ["LF0"], ["0"]
+    )
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["ordinary_pair_shadow_only"] is True
+    assert pair.evidence["ordinary_pair_shadow_reason"] == "closed_tall_polyline_enclosure_edge"
+    assert pair.evidence["closed_polyline_enclosure"] == {
+        "parent_handle": "F41",
+        "width": 45.0,
+        "height": 190.0,
+    }
+
+
+def test_closed_tall_polyline_enclosure_keeps_group_with_connect_line() -> None:
+    pair = _pair({}, line_group_id="G_WIRE", left_value="1201", right_value="1204")
+    lines = _closed_tall_frame_lines()
+    lines.append(
+        _panel_line(
+            "LC",
+            handle="CONNECT1",
+            start_x=127.5,
+            start_y=80.0,
+            end_x=167.5,
+            end_y=80.0,
+            layer="CONNECT",
+        )
+    )
+    group = LineGroup(
+        "G_WIRE", "S1", "F1", 105.0, 80.0, 167.5, 80.0, 62.5, 0.7, ["LF0", "LC"], ["0", "CONNECT"]
+    )
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_closed_tall_polyline_enclosure_preserves_structured_mapping() -> None:
+    mapping = _pair(
+        {},
+        line_group_id="G_FRAME",
+        pair_kind="component_mapping",
+        left_value="1-26n432",
+        right_value="1-26TD46",
+    )
+    group = LineGroup(
+        "G_FRAME", "S1", "F1", 105.0, 80.0, 150.0, 80.0, 45.0, 0.55, ["LF0"], ["0"]
+    )
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
+        [mapping], [group], _closed_tall_frame_lines()
+    )
+
+    assert mapping.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_closed_polyline_requires_tall_enclosure_geometry() -> None:
+    pair = _pair({}, line_group_id="G_FRAME")
+    lines = _closed_tall_frame_lines(height=90.0)
+    group = LineGroup(
+        "G_FRAME", "S1", "F1", 105.0, 80.0, 150.0, 80.0, 45.0, 0.55, ["LF0"], ["0"]
+    )
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence.get("ordinary_pair_eligible") is not False
+
+
+def _closed_tall_frame_lines(*, height: float = 190.0) -> list[LineEntity]:
+    x1, x2, y1, y2 = 105.0, 150.0, 80.0, 80.0 + height
+    return [
+        _panel_line(
+            "LF0", handle="F41:0", start_x=x1, start_y=y1, end_x=x2, end_y=y1,
+            source_entity_type="LWPOLYLINE",
+        ),
+        _panel_line(
+            "LF1", handle="F41:1", start_x=x2, start_y=y1, end_x=x2, end_y=y2,
+            source_entity_type="LWPOLYLINE",
+        ),
+        _panel_line(
+            "LF2", handle="F41:2", start_x=x2, start_y=y2, end_x=x1, end_y=y2,
+            source_entity_type="LWPOLYLINE",
+        ),
+        _panel_line(
+            "LF3", handle="F41:3", start_x=x1, start_y=y2, end_x=x1, end_y=y1,
+            source_entity_type="LWPOLYLINE",
+        ),
+    ]
 
 
 def test_shadow_communication_medium_ordinary_pairs_marks_serial_pages_ineligible() -> None:

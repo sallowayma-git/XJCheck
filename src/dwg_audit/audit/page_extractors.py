@@ -287,6 +287,7 @@ def _extract_pairs_for_route(
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
         _shadow_communication_medium_ordinary_pairs(pairs, pages)
         _shadow_repeated_panel_silkscreen_ordinary_pairs(pairs, pages, texts, blocks or [])
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(pairs, line_groups, lines)
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -455,6 +456,118 @@ def _shadow_communication_medium_ordinary_pairs(pairs: list[Pair], pages: list[S
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "communication_medium"
         pair.evidence["communication_media"] = media
+
+
+def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    lines: list[LineEntity],
+) -> None:
+    """Keep closed enclosure edges as geometry evidence, not electrical pairs."""
+
+    line_by_id = {line.line_id: line for line in lines}
+    parent_lines: dict[tuple[str, str, str], list[tuple[int, LineEntity]]] = defaultdict(list)
+    for line in lines:
+        if str(line.source_entity_type or "").upper() != "LWPOLYLINE":
+            continue
+        parent_handle, separator, segment_index = str(line.handle or "").rpartition(":")
+        if not separator or not parent_handle or not segment_index.isdigit():
+            continue
+        parent_lines[(line.sheet_id, line.file_id, parent_handle)].append((int(segment_index), line))
+
+    enclosure_by_line_id: dict[str, dict[str, object]] = {}
+    for (sheet_id, file_id, parent_handle), indexed_lines in parent_lines.items():
+        enclosure = _closed_tall_polyline_enclosure(indexed_lines)
+        if enclosure is None:
+            continue
+        width, height, member_line_ids = enclosure
+        evidence = {
+            "sheet_id": sheet_id,
+            "file_id": file_id,
+            "parent_handle": parent_handle,
+            "width": width,
+            "height": height,
+            "member_line_ids": member_line_ids,
+        }
+        for line_id in member_line_ids:
+            enclosure_by_line_id[line_id] = evidence
+
+    if not enclosure_by_line_id:
+        return
+
+    group_enclosures: dict[str, dict[str, object]] = {}
+    for group in line_groups:
+        member_line_ids = {str(line_id) for line_id in group.member_line_ids if str(line_id)}
+        if not member_line_ids:
+            continue
+        enclosure_candidates = {
+            str(enclosure_by_line_id[line_id]["parent_handle"])
+            for line_id in member_line_ids
+            if line_id in enclosure_by_line_id
+        }
+        if len(enclosure_candidates) != 1:
+            continue
+        parent_handle = next(iter(enclosure_candidates))
+        enclosure = next(
+            enclosure_by_line_id[line_id]
+            for line_id in member_line_ids
+            if line_id in enclosure_by_line_id
+            and enclosure_by_line_id[line_id]["parent_handle"] == parent_handle
+        )
+        enclosure_member_ids = set(enclosure["member_line_ids"])
+        if not member_line_ids.issubset(enclosure_member_ids):
+            continue
+        if any(line_id not in line_by_id for line_id in member_line_ids):
+            continue
+        group_enclosures[group.line_group_id] = enclosure
+
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        enclosure = group_enclosures.get(pair.line_group_id)
+        if enclosure is None:
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "closed_tall_polyline_enclosure_edge"
+        pair.evidence["closed_polyline_enclosure"] = {
+            "parent_handle": enclosure["parent_handle"],
+            "width": enclosure["width"],
+            "height": enclosure["height"],
+        }
+
+
+def _closed_tall_polyline_enclosure(
+    indexed_lines: list[tuple[int, LineEntity]],
+) -> tuple[float, float, list[str]] | None:
+    if len(indexed_lines) != 4 or {index for index, _ in indexed_lines} != {0, 1, 2, 3}:
+        return None
+    lines = [line for _, line in sorted(indexed_lines)]
+    if len({str(line.layer or "") for line in lines}) != 1:
+        return None
+
+    endpoint_counts: dict[tuple[float, float], int] = defaultdict(int)
+    for line in lines:
+        start = (round(float(line.start_x), 6), round(float(line.start_y), 6))
+        end = (round(float(line.end_x), 6), round(float(line.end_y), 6))
+        if start == end or not (start[0] == end[0] or start[1] == end[1]):
+            return None
+        endpoint_counts[start] += 1
+        endpoint_counts[end] += 1
+    if len(endpoint_counts) != 4 or set(endpoint_counts.values()) != {2}:
+        return None
+
+    xs = {point[0] for point in endpoint_counts}
+    ys = {point[1] for point in endpoint_counts}
+    if len(xs) != 2 or len(ys) != 2:
+        return None
+    width = max(xs) - min(xs)
+    height = max(ys) - min(ys)
+    if width <= 0.0 or height < 4.0 * width:
+        return None
+    return width, height, [line.line_id for line in lines]
 
 
 _SIGNAL_ALARM_SHADOW_PATTERNS = (

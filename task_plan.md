@@ -6,9 +6,9 @@
 ## Current Phase
 Phase 180 is active. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, and rear-wiring title instance authority are implemented with focused and full-corpus evidence.
 
-The current authoritative extraction is `.tmp/phase180_full_533_fresh8`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh7, the symmetric interval invariant changes only the 16 projects containing previously measured disconnected-island groups; 12 projects remain exact. Fresh8 removes all internal line-group gaps over 20 drawing units while preserving the existing near-gap/inline-bridge contract.
+The current authoritative extraction is `.tmp/phase180_full_533_fresh9`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh8, the enclosure shadow changes no Pair semantic identity anywhere in the corpus. Fresh9 retains zero internal line-group gaps over 20 drawing units across 13,253 multi-member groups.
 
-The current authoritative audit is `.tmp/phase180_full_533_audit8`: 60 issues (many-to-one 31, missing-side 20, cross-page 6, low-confidence 3). Compared with audit7, nine identities are removed and five true geometry-backed missing-side/duplicate-line reviews are newly exposed; no many-to-one, cross-page, or low-confidence issue changes. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Final cleanup, scoped commit, and push remain open.
+The current authoritative audit is `.tmp/phase180_full_533_audit9`: 58 issues (many-to-one 31, missing-side 19, cross-page 6, low-confidence 2). Compared with audit8, zero identities are added and exactly two pure closed-enclosure ordinary reviews are removed: 26000 `PW0130` and 31000 `PW0217`. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Final cleanup, scoped commit, and push remain open.
 
 ## Phases
 
@@ -2895,10 +2895,12 @@ The current authoritative audit is `.tmp/phase180_full_533_audit8`: 60 issues (m
 - [x] Commit and push the scoped recognition slice.
 
 #### Phase 180 31000 operation-box residual slice
-- [ ] Reconstruct all five S0013/S0014 missing-side and two low-confidence rows from Pair/candidate/member-line evidence.
-- [ ] Render or otherwise inspect the source geometry and identify a shared component/endpoint contract without value- or filename-specific suppression.
-- [ ] Implement only evidence-backed extraction/candidate/audit changes, with positive and adversarial tests.
-- [ ] Replay the affected project and all 28 projects / 533 DWGs, preserve true reviews, clean process artifacts, and commit/push the accepted slice.
+- [x] Reconstruct all five S0013/S0014 missing-side and two low-confidence rows from Pair/candidate/member-line evidence.
+- [x] Render or otherwise inspect the source geometry and identify a shared component/endpoint contract without value- or filename-specific suppression.
+- [x] Implement only evidence-backed extraction/candidate/audit changes, with positive and adversarial tests.
+- [x] Replay the affected project and all 28 projects / 533 DWGs, preserving true reviews.
+- [x] Clean superseded process artifacts.
+- [ ] Commit and push the accepted slice.
 
 #### Phase 180 errors
 - The first strict operation-box rectangle census failed read-only with a Python `list object is not callable` caused by the probe's local naming collision. No artifact changed; rerun with explicit helper names and no shadowed builtins.
@@ -2929,3 +2931,7 @@ The current authoritative audit is `.tmp/phase180_full_533_audit8`: 60 issues (m
 - The first containment-checked cleanup command was rejected before execution because local command policy blocks recursive PowerShell `Remove-Item`. No artifact changed on that attempt. Reused the already resolved exact target list with checked `.NET Directory.Delete` calls in one PowerShell process; cleanup then completed without touching fresh6/audit6.
 - The first 22000/35000 signal-page neighborhood query used the obsolete `line_groups.parquet.line_ids` field and stopped read-only with `KeyError`; current schema uses `member_line_ids`. The corrected schema-driven query completed without changing artifacts.
 - The first SPMU replay-help probe called nonexistent CLI subcommand `audit`; Typer returned the correct `run-audit` command before any analysis or write. Subsequent commands use separately verified `analyze-project` and `run-audit` options.
+- A six-lane clean-context `default` dispatch (platform-default `GPT-5.6 Sol`, `fork_context=false`) was accepted and allocated IDs, but all six remained running for ten minutes without returning a message. They were closed at the timeout threshold; no repository or artifact result was produced. Continue this census on the main thread and do not treat the dispatch as evidence.
+- The first fresh9 validation probe guessed a project-root `completeness.json`; the actual artifact is `extraction_completeness.json`. No replay or artifact changed. Re-read the actual schema and use its `analysis_status`, `clean_conclusion_allowed`, and `incomplete_page_count` fields.
+- The corrected census retry then used a `defaultdict` lookup before testing line-edge intersection, which inserted every line group into the hit index and produced an invalid all-corpus Pair report. No file changed. Build an ordinary dict entry only after a non-empty edge-parent intersection and rerun; discard the oversized output completely.
+- The first fresh9 full comparison requested nonexistent `issues.parquet.pair_kind`; the actual issue schema carries `pair_id` and `line_group_id` but no `pair_kind`. The read-only comparison stopped before producing a result; rerun with the real issue columns.

@@ -1970,3 +1970,18 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Source provenance separates the seven rows: S13 `1027->1028` is a `LWPOLYLINE` segment `F41:0` on layer `0`, while S13/S14 1731/1729/926/927 are standalone `LINE` entities on `CONNECT`. The likely fix is a geometry/evidence-scoped enclosure-edge exclusion, not a numeric-value or page-name rule.
 - A global rectangle filter is already known unsafe from the Q slice: it touches 1,117 parent polylines, 1,066 line groups and 271 non-empty Pair facts. Any operation-box exclusion must therefore require reconstructable polyline ownership and preserve component/structured mappings through a narrow route or coverage contract.
 - F41 is exactly reconstructable from `F41:0..3`: four axis-aligned layer-0 LWPOLYLINE segments form a 45-by-190 rectangle. Although CAD `closed=false`, its five raw vertices repeat the first point at the end. The selected `1027->1028` pair is the 45-unit top enclosure edge; this is materially narrower evidence than the prior all-rectangle census.
+
+## Phase 180: operation-box census dispatch timeout
+
+- The requested Sol-only parallel audit was retried with six explicit `default` roles and clean context. All six agents were created, but none returned a message within ten minutes; all were closed. No agent result, file edit, or artifact change is available from this round.
+- The main-thread fallback must use the corrected tuple-key serialization probe and preserve the current fail-closed rule until the 39 non-empty enclosure candidates are classified.
+- The first local retry is not evidence: a `defaultdict` side effect admitted every line group before the intersection predicate. The valid census must materialize only non-empty edge intersections and must treat Pandas `NaN` explicitly when defining a non-empty Pair.
+
+## Phase 180: closed tall polyline enclosure acceptance
+
+- A corrected strict census reconstructed four indexed, axis-aligned, closed LWPOLYLINE rectangles and joined only actual member-line intersections. At aspect ratio `>=4.25`, 429 frames touch 161 unique Pair rows; 42 have at least one endpoint value: 35 ordinary, six component mappings, and one wire-component mapping. This proves whole-family deletion is unsafe and structure kinds must be preserved.
+- The accepted geometry boundary is narrower: a tall enclosure has exactly segments `0..3`, one layer, four degree-2 corners, two x/two y coordinates, and `height >= 4 * width`. An ordinary line group is shadowed only when every member line belongs to the same enclosure parent. Any independent `LINE` / `CONNECT` member keeps the Pair eligible.
+- The retained corpus contains 180 such tall frames. Only two currently user-visible audit rows are pure enclosure edges: 26000 `PW0130 327 -> ?` and 31000 `PW0217 1027 -> 1028`. The 31000 `1201 -> 1204` Pair remains in the artifact and retains its existing `wire_grid_primary` shadow reason.
+- Fresh9 completeness validation must read each project's `extraction_completeness.json`; a probe using the obsolete root-level `completeness.json` path failed before reading any artifact.
+- Targeted raw-DWG replay is exact at the Pair semantic layer: 26000 stays at 976 pairs, 31000 stays at 1,406, and both projects' structured mapping sets are unchanged. Audits change `9 -> 8` and `8 -> 7`, with zero additions and exactly the two enclosure-edge removals.
+- The first audit9 comparison probe guessed an issue `pair_kind` column and failed at Parquet schema selection. No artifact changed; issue identity comparison uses the real `rule_id/sheet_id/pair_id/left_value/right_value` contract.

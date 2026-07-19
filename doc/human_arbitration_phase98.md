@@ -384,3 +384,10 @@ connectivity and electrical union.
 - PAC `22 录波信号输出回路图.dwg` 中七条审核可见行的真实 CONNECT 线均为 x=114.744..144.744、长度 30；x=362.5..392.5 的重复线是相距约 217.8 的独立远端岛。不得合成 277.756-unit 长组。权威映射为 `704 -> 1LD27`、`703 -> 1LD26`、`810 -> 1LD24`、`809 -> 1LD23`、`808 -> 1LD22`、`807 -> 1LD21`、`806 -> 1LD20`。
 - 修复按通用区间几何实现，不依赖 PAC、文件名、端点值、handle、fingerprint 或问题数量。fresh7 全语料存在 100 个内部轴 gap 大于 20 的误合并组，跨 16 项目；fresh8 在 13,253 个多成员组中该数量为 0，12 个无此缺陷项目 Pair 精确不变。
 - `.tmp/phase180_full_533_fresh8` 为 28 项目、533/533 valid、0 invalid、0 incomplete。`.tmp/phase180_full_533_audit8` 为 60 条：many-to-one 31、missing-side 20、cross-page 6、low-confidence 3。相对 audit7 移除 9、增加 5；七个 PAC 缺侧按预期移除，新增项均为拆分后真实暴露的独立缺侧/重复线锚点，必须继续 review，禁止为了“零新增”而静默。
+
+## Phase 180：闭合高竖框几何与普通 Pair 降噪（2026-07-19）
+
+- 四段 `LWPOLYLINE` 即使 CAD 的 `closed=false`，只要 segment handle 为同一父句柄的 `:0..:3`、四条边轴对齐、端点形成四角闭环、同层且 `height >= 4 * width`，即可判定为几何外框边，不把边本身当作电气线路。
+- 只有 line group 的全部成员都来自同一个可重建外框父句柄时，才把其中的 `ordinary_pair` 标记为 `ordinary_pair_eligible=false`、`ordinary_pair_shadow_only=true`，保留原 Pair、数值和原始几何证据；任何混入独立 `LINE/CONNECT` 的 group 保持审核资格。
+- 该几何模型不依赖项目名、文件名、端点值、handle 指纹或问题数量；`component_mapping`、`table_mapping`、`wire_component_mapping` 不受影响，也不推断外框内部联通或 electrical union。31000 的 `1201 -> 1204` 仍保留在 Pair 产物中并沿用既有 grid shadow 证据。
+- 真实回放中仅移除 26000 `PW0130 327 -> ?` 与 31000 `PW0217 1027 -> 1028` 两条外框误报，零新增；fresh9/audit9 覆盖 28 项目、533/533 valid、0 invalid/incomplete，audit 为 58 条。
