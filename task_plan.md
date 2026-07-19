@@ -8,7 +8,7 @@ Phase 180 is active. Compact `XD/YD/LD` signal endpoints, explicit terminal cont
 
 The current authoritative extraction is `.tmp/phase180_full_533_fresh9`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh8, the enclosure shadow changes no Pair semantic identity anywhere in the corpus. Fresh9 retains zero internal line-group gaps over 20 drawing units across 13,253 multi-member groups.
 
-The current authoritative audit is `.tmp/phase180_full_533_audit9`: 58 issues (many-to-one 31, missing-side 19, cross-page 6, low-confidence 2). Compared with audit8, zero identities are added and exactly two pure closed-enclosure ordinary reviews are removed: 26000 `PW0130` and 31000 `PW0217`. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Final cleanup, scoped commit, and push remain open.
+The current authoritative audit is `.tmp/phase180_full_533_audit9`: 58 issues (many-to-one 31, missing-side 19, cross-page 6, low-confidence 2). Compared with audit8, zero identities are added and exactly two pure closed-enclosure ordinary reviews are removed: 26000 `PW0130` and 31000 `PW0217`. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Cleanup is complete and the scoped recognition commit `89a1eba` is pushed to `origin/master`.
 
 ## Phases
 
@@ -2900,7 +2900,7 @@ The current authoritative audit is `.tmp/phase180_full_533_audit9`: 58 issues (m
 - [x] Implement only evidence-backed extraction/candidate/audit changes, with positive and adversarial tests.
 - [x] Replay the affected project and all 28 projects / 533 DWGs, preserving true reviews.
 - [x] Clean superseded process artifacts.
-- [ ] Commit and push the accepted slice.
+- [x] Commit and push the accepted slice.
 
 #### Phase 180 errors
 - The first strict operation-box rectangle census failed read-only with a Python `list object is not callable` caused by the probe's local naming collision. No artifact changed; rerun with explicit helper names and no shadowed builtins.
