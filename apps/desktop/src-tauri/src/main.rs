@@ -50,6 +50,11 @@ static PREVIEW_GATE: Mutex<()> = Mutex::new(());
 static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 static ACTIVE_SIDECAR_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static PROTECTED_CLEANUP_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static RESULT_LOAD_STATE: Mutex<ResultLoadState> = Mutex::new(ResultLoadState {
+    latest_generation: 0,
+    cancelled: false,
+    active: Vec::new(),
+});
 static DESKTOP_RESOURCE_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
 static SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -192,78 +197,97 @@ async fn desktop_list_recent_projects(app: AppHandle) -> Result<Value, String> {
 }
 
 #[tauri::command]
-async fn desktop_load_result(app: AppHandle, project_id: String) -> Result<Value, String> {
-    run_sidecar_json_async(
-        app,
-        vec![
-            "load-result".to_string(),
-            "--project-id".to_string(),
-            project_id,
-            "--state-db".to_string(),
-            default_state_db_path()?.to_string_lossy().to_string(),
-        ],
-    )
-    .await
+async fn desktop_load_result(
+    app: AppHandle,
+    project_id: String,
+    run_id: Option<String>,
+    request_generation: Option<u64>,
+) -> Result<Value, String> {
+    let mut args = vec![
+        "load-result".to_string(),
+        "--project-id".to_string(),
+        project_id,
+        "--state-db".to_string(),
+        default_state_db_path()?.to_string_lossy().to_string(),
+    ];
+    push_optional_arg(&mut args, "--run-id", run_id);
+    run_result_sidecar_json_async(app, args, request_generation).await
 }
 
 #[tauri::command]
-async fn desktop_load_result_summary(app: AppHandle, project_id: String) -> Result<Value, String> {
-    run_sidecar_json_async(
-        app,
-        vec![
-            "load-result-summary".to_string(),
-            "--project-id".to_string(),
-            project_id,
-            "--state-db".to_string(),
-            default_state_db_path()?.to_string_lossy().to_string(),
-        ],
-    )
-    .await
+async fn desktop_load_result_summary(
+    app: AppHandle,
+    project_id: String,
+    run_id: Option<String>,
+    request_generation: Option<u64>,
+) -> Result<Value, String> {
+    let mut args = vec![
+        "load-result-summary".to_string(),
+        "--project-id".to_string(),
+        project_id,
+        "--state-db".to_string(),
+        default_state_db_path()?.to_string_lossy().to_string(),
+    ];
+    push_optional_arg(&mut args, "--run-id", run_id);
+    run_result_sidecar_json_async(app, args, request_generation).await
 }
 
 #[tauri::command]
 async fn desktop_load_result_issues(
     app: AppHandle,
     project_id: String,
+    run_id: Option<String>,
     limit: Option<u64>,
     offset: Option<u64>,
+    request_generation: Option<u64>,
 ) -> Result<Value, String> {
-    run_sidecar_json_async(
-        app,
-        vec![
-            "load-result-issues".to_string(),
-            "--project-id".to_string(),
-            project_id,
-            "--state-db".to_string(),
-            default_state_db_path()?.to_string_lossy().to_string(),
-            "--limit".to_string(),
-            limit.unwrap_or(200).to_string(),
-            "--offset".to_string(),
-            offset.unwrap_or(0).to_string(),
-        ],
-    )
-    .await
+    let mut args = vec![
+        "load-result-issues".to_string(),
+        "--project-id".to_string(),
+        project_id,
+        "--state-db".to_string(),
+        default_state_db_path()?.to_string_lossy().to_string(),
+        "--limit".to_string(),
+        limit.unwrap_or(200).to_string(),
+        "--offset".to_string(),
+        offset.unwrap_or(0).to_string(),
+    ];
+    push_optional_arg(&mut args, "--run-id", run_id);
+    run_result_sidecar_json_async(app, args, request_generation).await
 }
 
 #[tauri::command]
 async fn desktop_load_result_issue_detail(
     app: AppHandle,
     project_id: String,
+    run_id: Option<String>,
     issue_id: String,
+    request_generation: Option<u64>,
 ) -> Result<Value, String> {
-    run_sidecar_json_async(
-        app,
-        vec![
-            "load-result-issue-detail".to_string(),
-            "--project-id".to_string(),
-            project_id,
-            "--issue-id".to_string(),
-            issue_id,
-            "--state-db".to_string(),
-            default_state_db_path()?.to_string_lossy().to_string(),
-        ],
-    )
+    let mut args = vec![
+        "load-result-issue-detail".to_string(),
+        "--project-id".to_string(),
+        project_id,
+        "--issue-id".to_string(),
+        issue_id,
+        "--state-db".to_string(),
+        default_state_db_path()?.to_string_lossy().to_string(),
+    ];
+    push_optional_arg(&mut args, "--run-id", run_id);
+    run_result_sidecar_json_async(app, args, request_generation).await
+}
+
+#[tauri::command]
+async fn desktop_cancel_result_load(request_generation: u64) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cancelled = cancel_result_load(request_generation);
+        json!({
+            "cancelled": cancelled,
+            "request_generation": request_generation,
+        })
+    })
     .await
+    .map_err(|error| format!("Result cancellation task failed: {error}"))
 }
 
 #[tauri::command]
@@ -287,6 +311,7 @@ async fn desktop_render_preview(
     client_session_id: Option<String>,
     client_session_epoch: Option<u64>,
     project_id: String,
+    run_id: Option<String>,
     issue_id: Option<String>,
     sheet_id: Option<String>,
     line_group_id: Option<String>,
@@ -299,6 +324,7 @@ async fn desktop_render_preview(
         "--state-db".to_string(),
         state_db.to_string_lossy().to_string(),
     ];
+    push_optional_arg(&mut args, "--run-id", run_id);
     if let Some(value) = issue_id {
         args.push("--issue-id".to_string());
         args.push(value);
@@ -347,24 +373,23 @@ fn desktop_cancel_preview(
 async fn desktop_set_issue_status(
     app: AppHandle,
     project_id: String,
+    run_id: Option<String>,
     issue_id: String,
     status: String,
 ) -> Result<Value, String> {
-    run_sidecar_json_async(
-        app,
-        vec![
-            "set-issue-status".to_string(),
-            "--project-id".to_string(),
-            project_id,
-            "--issue-id".to_string(),
-            issue_id,
-            "--status".to_string(),
-            status,
-            "--state-db".to_string(),
-            default_state_db_path()?.to_string_lossy().to_string(),
-        ],
-    )
-    .await
+    let mut args = vec![
+        "set-issue-status".to_string(),
+        "--project-id".to_string(),
+        project_id,
+        "--issue-id".to_string(),
+        issue_id,
+        "--status".to_string(),
+        status,
+        "--state-db".to_string(),
+        default_state_db_path()?.to_string_lossy().to_string(),
+    ];
+    push_optional_arg(&mut args, "--run-id", run_id);
+    run_sidecar_json_async(app, args).await
 }
 
 #[tauri::command]
@@ -413,6 +438,23 @@ async fn run_sidecar_json_async(app: AppHandle, args: Vec<String>) -> Result<Val
         .map_err(|error| format!("Sidecar task failed: {error}"))?
 }
 
+async fn run_result_sidecar_json_async(
+    app: AppHandle,
+    args: Vec<String>,
+    request_generation: Option<u64>,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(generation) = request_generation {
+            if !begin_result_load(generation) {
+                return Err("Result load request superseded.".to_string());
+            }
+        }
+        run_result_sidecar_json_owned(&app, args, request_generation)
+    })
+    .await
+    .map_err(|error| format!("Result sidecar task failed: {error}"))?
+}
+
 fn run_sidecar_json_owned(app: &AppHandle, args: Vec<String>) -> Result<Value, String> {
     let child = build_desktop_sidecar_command(app, &args)?
         .stdout(Stdio::piped())
@@ -424,6 +466,47 @@ fn run_sidecar_json_owned(app: &AppHandle, args: Vec<String>) -> Result<Value, S
         .wait_with_output()
         .map_err(|error| format!("Failed to wait for DWG audit sidecar: {error}"))?;
     parse_sidecar_json_output(output)
+}
+
+fn run_result_sidecar_json_owned(
+    app: &AppHandle,
+    args: Vec<String>,
+    request_generation: Option<u64>,
+) -> Result<Value, String> {
+    if let Some(generation) = request_generation {
+        if !is_current_result_generation(generation) {
+            return Err("Result load request superseded.".to_string());
+        }
+    }
+    let mut child = build_desktop_sidecar_command(app, &args)?
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Failed to execute DWG audit sidecar: {error}"))?;
+    let pid = child.id();
+    let _active_process = ActiveSidecarProcess::new(pid);
+    let _result_pid = if let Some(generation) = request_generation {
+        if !register_result_pid(generation, pid) {
+            terminate_process_tree_by_pid(pid);
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Result load request superseded.".to_string());
+        }
+        Some(ResultLoadPidGuard { generation, pid })
+    } else {
+        None
+    };
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Failed to wait for DWG audit sidecar: {error}"))?;
+    parse_sidecar_json_output(output)
+}
+
+fn push_optional_arg(args: &mut Vec<String>, flag: &str, value: Option<String>) {
+    if let Some(value) = value.filter(|item| !item.trim().is_empty()) {
+        args.push(flag.to_string());
+        args.push(value);
+    }
 }
 
 fn spawn_session_cleanup(
@@ -965,8 +1048,119 @@ struct ActivePreviewRequest {
     released: bool,
 }
 
+#[derive(Debug)]
+struct ResultLoadState {
+    latest_generation: u64,
+    cancelled: bool,
+    active: Vec<(u64, u32)>,
+}
+
+impl ResultLoadState {
+    fn begin(&mut self, generation: u64) -> (bool, Vec<u32>) {
+        if generation < self.latest_generation
+            || (generation == self.latest_generation && self.cancelled)
+        {
+            return (false, Vec::new());
+        }
+        if generation == self.latest_generation {
+            return (true, Vec::new());
+        }
+        self.latest_generation = generation;
+        self.cancelled = false;
+        let stale = std::mem::take(&mut self.active)
+            .into_iter()
+            .map(|(_, pid)| pid)
+            .collect();
+        (true, stale)
+    }
+
+    fn is_current(&self, generation: u64) -> bool {
+        generation == self.latest_generation && !self.cancelled
+    }
+
+    fn register(&mut self, generation: u64, pid: u32) -> bool {
+        if !self.is_current(generation) {
+            return false;
+        }
+        if !self.active.contains(&(generation, pid)) {
+            self.active.push((generation, pid));
+        }
+        true
+    }
+
+    fn finish(&mut self, generation: u64, pid: u32) {
+        self.active.retain(|owner| *owner != (generation, pid));
+    }
+
+    fn cancel(&mut self, generation: u64) -> (bool, Vec<u32>) {
+        if generation != self.latest_generation || self.cancelled {
+            return (false, Vec::new());
+        }
+        self.cancelled = true;
+        let active = std::mem::take(&mut self.active)
+            .into_iter()
+            .filter_map(|(owner_generation, pid)| (owner_generation == generation).then_some(pid))
+            .collect();
+        (true, active)
+    }
+}
+
+struct ResultLoadPidGuard {
+    generation: u64,
+    pid: u32,
+}
+
+impl Drop for ResultLoadPidGuard {
+    fn drop(&mut self) {
+        finish_result_pid(self.generation, self.pid);
+    }
+}
+
 struct ActiveSidecarProcess {
     pid: u32,
+}
+
+fn begin_result_load(generation: u64) -> bool {
+    let (accepted, stale_pids) = RESULT_LOAD_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .begin(generation);
+    for pid in stale_pids {
+        terminate_process_tree_by_pid(pid);
+    }
+    accepted
+}
+
+fn is_current_result_generation(generation: u64) -> bool {
+    RESULT_LOAD_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .is_current(generation)
+}
+
+fn register_result_pid(generation: u64, pid: u32) -> bool {
+    RESULT_LOAD_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .register(generation, pid)
+}
+
+fn finish_result_pid(generation: u64, pid: u32) {
+    RESULT_LOAD_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .finish(generation, pid);
+}
+
+fn cancel_result_load(generation: u64) -> bool {
+    let (cancelled, active_pids) = RESULT_LOAD_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .cancel(generation);
+    for pid in active_pids {
+        terminate_process_tree_by_pid(pid);
+    }
+    cancelled
 }
 
 impl ActiveSidecarProcess {
@@ -1231,12 +1425,13 @@ fn settings_override_path() -> Option<PathBuf> {
 async fn desktop_read_settings(_app: AppHandle) -> Result<Value, String> {
     let path = default_settings_path()?;
     if !path.exists() {
-        return Ok(json!({}));
+        return Ok(settings_payload_to_frontend(&json!({})));
     }
     let raw = fs::read_to_string(&path)
         .map_err(|error| format!("Failed to read settings {}: {error}", path.display()))?;
-    serde_json::from_str::<Value>(&raw)
-        .map_err(|error| format!("Failed to parse settings {}: {error}", path.display()))
+    let payload = serde_json::from_str::<Value>(&raw)
+        .map_err(|error| format!("Failed to parse settings {}: {error}", path.display()))?;
+    Ok(settings_payload_to_frontend(&payload))
 }
 
 #[tauri::command]
@@ -1249,32 +1444,27 @@ async fn desktop_write_settings(_app: AppHandle, settings: Value) -> Result<Valu
     if is_default_settings_payload(&payload) {
         // Removing the file restores the exact pre-settings spawn shape; the
         // analyze sidecar will receive no `--config` arg.
-        let _ = fs::remove_file(&path);
-        return Ok(json!({}));
+        if let Err(error) = fs::remove_file(&path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                return Err(format!(
+                    "Failed to remove settings {}: {error}",
+                    path.display()
+                ));
+            }
+        }
+        return Ok(settings_payload_to_frontend(&payload));
     }
     fs::write(
         &path,
         serde_json::to_string_pretty(&payload).unwrap_or_else(|_| Value::Null.to_string()),
     )
     .map_err(|error| format!("Failed to write settings {}: {error}", path.display()))?;
-    Ok(payload)
+    Ok(settings_payload_to_frontend(&payload))
 }
 
 fn normalize_settings_payload(input: &Value) -> Result<Value, String> {
     let convert_workers = pick_u64(input, "convertWorkers", 0);
     let oda_timeout_seconds = pick_u64(input, "odaTimeoutSeconds", 300);
-    let cache_cap_bytes = match input.get("cacheCapBytes") {
-        Some(Value::Null) => None,
-        Some(value) => {
-            Some(as_u64(value).ok_or("cacheCapBytes must be a non-negative integer or null")?)
-        }
-        None => None,
-    };
-    let stage_telemetry_enabled = match input.get("stageTelemetryEnabled") {
-        Some(Value::Bool(value)) => *value,
-        Some(_) => return Err("stageTelemetryEnabled must be a boolean".to_string()),
-        None => false,
-    };
     if oda_timeout_seconds < 1 || oda_timeout_seconds > 86400 {
         return Err("oda_timeout_seconds must be between 1 and 86400".to_string());
     }
@@ -1283,19 +1473,30 @@ fn normalize_settings_payload(input: &Value) -> Result<Value, String> {
     }
     // Translate the flat frontend shape into the YAML fragment the Python side
     // already deep-merges against DEFAULT_CONFIG.
-    let mut payload = json!({
+    Ok(json!({
         "ingest": {
             "convert_workers": convert_workers,
             "oda_timeout_seconds": oda_timeout_seconds,
-        },
-        "runtime": {
-            "stage_telemetry": stage_telemetry_enabled,
-        },
-    });
-    if let Some(cap) = cache_cap_bytes {
-        payload["runtime"]["cache_cap_bytes"] = json!(cap);
-    }
-    Ok(payload)
+        }
+    }))
+}
+
+fn settings_payload_to_frontend(payload: &Value) -> Value {
+    let ingest = payload.get("ingest").unwrap_or(&Value::Null);
+    let convert_workers = ingest
+        .get("convert_workers")
+        .and_then(as_u64)
+        .or_else(|| payload.get("convertWorkers").and_then(as_u64))
+        .unwrap_or(0);
+    let oda_timeout_seconds = ingest
+        .get("oda_timeout_seconds")
+        .and_then(as_u64)
+        .or_else(|| payload.get("odaTimeoutSeconds").and_then(as_u64))
+        .unwrap_or(300);
+    json!({
+        "convertWorkers": convert_workers,
+        "odaTimeoutSeconds": oda_timeout_seconds,
+    })
 }
 
 fn pick_u64(input: &Value, key: &str, default: u64) -> u64 {
@@ -1331,15 +1532,7 @@ fn is_default_settings_payload(payload: &Value) -> bool {
         .and_then(|v| v.get("oda_timeout_seconds"))
         .and_then(Value::as_u64)
         .unwrap_or(0);
-    let stage_telemetry = payload
-        .get("runtime")
-        .and_then(|v| v.get("stage_telemetry"))
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let cache_cap = payload
-        .get("runtime")
-        .and_then(|v| v.get("cache_cap_bytes"));
-    convert_workers == 0 && oda_timeout_seconds == 300 && !stage_telemetry && cache_cap.is_none()
+    convert_workers == 0 && oda_timeout_seconds == 300
 }
 
 fn default_local_app_data_dir() -> Result<PathBuf, String> {
@@ -1373,6 +1566,7 @@ fn main() {
             desktop_load_result_summary,
             desktop_load_result_issues,
             desktop_load_result_issue_detail,
+            desktop_cancel_result_load,
             desktop_register_preview_session,
             desktop_render_preview,
             desktop_cancel_preview,
@@ -1739,16 +1933,14 @@ mod tests {
         let input = json!({
             "convertWorkers": 3,
             "odaTimeoutSeconds": 120,
-            "cacheCapBytes": 2147483648u64,
-            "stageTelemetryEnabled": true,
         });
         let payload = normalize_settings_payload(&input).expect("payload should normalize");
         assert_eq!(payload["ingest"]["convert_workers"], json!(3));
         assert_eq!(payload["ingest"]["oda_timeout_seconds"], json!(120));
-        assert_eq!(payload["runtime"]["stage_telemetry"], json!(true));
+        assert!(payload.get("runtime").is_none());
         assert_eq!(
-            payload["runtime"]["cache_cap_bytes"],
-            json!(2_147_483_648u64)
+            settings_payload_to_frontend(&payload),
+            json!({"convertWorkers": 3, "odaTimeoutSeconds": 120})
         );
     }
 
@@ -1758,10 +1950,7 @@ mod tests {
             "ingest": {
                 "convert_workers": 0,
                 "oda_timeout_seconds": 300,
-            },
-            "runtime": {
-                "stage_telemetry": false,
-            },
+            }
         });
         assert!(is_default_settings_payload(&defaults));
     }
@@ -1772,10 +1961,7 @@ mod tests {
             "ingest": {
                 "convert_workers": 0,
                 "oda_timeout_seconds": 300,
-            },
-            "runtime": {
-                "stage_telemetry": false,
-            },
+            }
         });
         payload["ingest"]["convert_workers"] = json!(1);
         assert!(!is_default_settings_payload(&payload));
@@ -1789,18 +1975,41 @@ mod tests {
     }
 
     #[test]
-    fn settings_null_cache_cap_is_preserved() {
-        let input = json!({
-            "convertWorkers": 0,
-            "odaTimeoutSeconds": 300,
-            "cacheCapBytes": null,
-            "stageTelemetryEnabled": false,
-        });
-        let payload = normalize_settings_payload(&input).expect("payload should normalize");
-        assert!(payload
-            .get("runtime")
-            .and_then(|v| v.get("cache_cap_bytes"))
-            .is_none());
-        assert!(is_default_settings_payload(&payload));
+    fn settings_frontend_shape_accepts_legacy_flat_payload() {
+        let payload = json!({"convertWorkers": 2, "odaTimeoutSeconds": 90});
+        assert_eq!(settings_payload_to_frontend(&payload), payload);
+    }
+
+    #[test]
+    fn newer_result_generation_supersedes_every_old_pid() {
+        let mut state = ResultLoadState {
+            latest_generation: 0,
+            cancelled: false,
+            active: Vec::new(),
+        };
+        assert_eq!(state.begin(1), (true, Vec::new()));
+        assert!(state.register(1, 101));
+        assert!(state.register(1, 102));
+
+        assert_eq!(state.begin(2), (true, vec![101, 102]));
+        assert!(!state.register(1, 103));
+        assert!(state.register(2, 201));
+    }
+
+    #[test]
+    fn result_cancel_is_generation_scoped_and_blocks_late_registration() {
+        let mut state = ResultLoadState {
+            latest_generation: 0,
+            cancelled: false,
+            active: Vec::new(),
+        };
+        state.begin(4);
+        assert!(state.register(4, 401));
+
+        assert_eq!(state.cancel(3), (false, Vec::new()));
+        assert_eq!(state.cancel(4), (true, vec![401]));
+        assert!(!state.register(4, 402));
+        assert_eq!(state.begin(4), (false, Vec::new()));
+        assert_eq!(state.begin(5), (true, Vec::new()));
     }
 }

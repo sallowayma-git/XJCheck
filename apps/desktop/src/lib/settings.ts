@@ -18,32 +18,15 @@ export const DEFAULT_CONVERT_WORKERS = 0
  */
 export const DEFAULT_ODA_TIMEOUT_SECONDS = 300
 
-/**
- * Maximum bytes the desktop allows `ingest.ascii_stage_dir` (the on-disk ODA
- * staging cache) to grow to before pruning. `null` means no enforcement, which
- * matches the pre-settings behavior.
- */
-export const DEFAULT_CACHE_CAP_BYTES = null
-
-/**
- * Whether the sidecar emits `stage_telemetry` events during analysis. The
- * default of `false` matches the pre-settings event stream shape.
- */
-export const DEFAULT_STAGE_TELEMETRY_ENABLED = false
-
 export type DesktopSettings = {
   convertWorkers: number
   odaTimeoutSeconds: number
-  cacheCapBytes: number | null
-  stageTelemetryEnabled: boolean
 }
 
 export function defaultSettings(): DesktopSettings {
   return {
     convertWorkers: DEFAULT_CONVERT_WORKERS,
     odaTimeoutSeconds: DEFAULT_ODA_TIMEOUT_SECONDS,
-    cacheCapBytes: DEFAULT_CACHE_CAP_BYTES,
-    stageTelemetryEnabled: DEFAULT_STAGE_TELEMETRY_ENABLED,
   }
 }
 
@@ -53,13 +36,12 @@ export function normalizeSettings(value: unknown): DesktopSettings {
     return fallback
   }
   const raw = value as Record<string, unknown>
-  const convertWorkers = parseInteger(raw.convertWorkers, fallback.convertWorkers)
-  const odaTimeoutSeconds = parseInteger(raw.odaTimeoutSeconds, fallback.odaTimeoutSeconds)
+  const ingest = raw.ingest && typeof raw.ingest === "object" ? raw.ingest as Record<string, unknown> : {}
+  const convertWorkers = parseInteger(raw.convertWorkers ?? ingest.convert_workers, fallback.convertWorkers)
+  const odaTimeoutSeconds = parseInteger(raw.odaTimeoutSeconds ?? ingest.oda_timeout_seconds, fallback.odaTimeoutSeconds)
   return {
     convertWorkers: clampInteger(convertWorkers, 0, 16, fallback.convertWorkers),
     odaTimeoutSeconds: clampInteger(odaTimeoutSeconds, 1, 86400, fallback.odaTimeoutSeconds),
-    cacheCapBytes: parseNullableInteger(raw.cacheCapBytes, fallback.cacheCapBytes),
-    stageTelemetryEnabled: parseBoolean(raw.stageTelemetryEnabled, fallback.stageTelemetryEnabled),
   }
 }
 
@@ -81,9 +63,7 @@ export function loadSettings(): DesktopSettings {
 function settingsEqual(a: DesktopSettings, b: DesktopSettings): boolean {
   return (
     a.convertWorkers === b.convertWorkers &&
-    a.odaTimeoutSeconds === b.odaTimeoutSeconds &&
-    a.cacheCapBytes === b.cacheCapBytes &&
-    a.stageTelemetryEnabled === b.stageTelemetryEnabled
+    a.odaTimeoutSeconds === b.odaTimeoutSeconds
   )
 }
 
@@ -118,17 +98,6 @@ function parseInteger(value: unknown, fallback: number): number {
   return fallback
 }
 
-function parseNullableInteger(value: unknown, fallback: number | null): number | null {
-  if (value === null || value === undefined) {
-    return fallback
-  }
-  if (typeof value === "string" && value.trim() === "") {
-    return fallback
-  }
-  const parsed = parseInteger(value, 0)
-  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback
-}
-
 function clampInteger(value: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(value)) {
     return fallback
@@ -137,11 +106,4 @@ function clampInteger(value: number, min: number, max: number, fallback: number)
     return fallback
   }
   return value
-}
-
-function parseBoolean(value: unknown, fallback: boolean): boolean {
-  if (typeof value === "boolean") {
-    return value
-  }
-  return fallback
 }

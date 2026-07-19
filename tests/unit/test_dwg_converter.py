@@ -129,6 +129,17 @@ def test_startup_pressure_never_admits_above_one_slot() -> None:
     assert gate.target_slots == 1
 
 
+def test_unknown_startup_cpu_admits_only_one_slot_until_sampled() -> None:
+    gate = dwg_converter.AdaptiveResourceGate(8, {})
+    unknown_cpu = dwg_converter.ResourceSnapshot(cpu_percent=None, memory_percent=40.0)
+    healthy = dwg_converter.ResourceSnapshot(cpu_percent=20.0, memory_percent=40.0)
+
+    assert gate.observe(unknown_cpu, startup=True) == (2, 1)
+    for _ in range(gate.recovery_samples - 1):
+        assert gate.observe(healthy) is None
+    assert gate.observe(healthy) == (1, 2)
+
+
 def test_malformed_resource_gate_config_fails_open() -> None:
     gate = dwg_converter.AdaptiveResourceGate(3, {"ingest": {"resource_gate": None}})
     assert gate.enabled is True

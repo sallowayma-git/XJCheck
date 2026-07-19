@@ -234,7 +234,7 @@ class DesktopStateStore:
                     pair_count,
                     issue_count
                 FROM runs
-                ORDER BY updated_at DESC, project_name ASC
+                ORDER BY created_at DESC, run_id DESC, project_name ASC
                 LIMIT ?
                 """,
                 (limit,),
@@ -256,18 +256,14 @@ class DesktopStateStore:
             for row in rows
         ]
 
-    def load_latest_project_result(self, project_id: str) -> dict[str, Any] | None:
+    def load_latest_project_result(
+        self,
+        project_id: str,
+        run_id: str | None = None,
+    ) -> dict[str, Any] | None:
         with self._connect() as conn:
-            run_row = conn.execute(
-                """
-                SELECT *
-                FROM runs
-                WHERE project_id = ?
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                (project_id,),
-            ).fetchone()
+            conn.execute("BEGIN")
+            run_row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
             if run_row is None:
                 return None
             issue_rows = conn.execute(
@@ -324,6 +320,17 @@ class DesktopStateStore:
             ],
         }
 
+    def load_run_for_project(
+        self,
+        project_id: str,
+        run_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Resolve a run without allowing a pinned id to fall back to latest."""
+
+        with self._connect() as conn:
+            row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
+        return _row_to_run(row) if row is not None else None
+
     def latest_run_for_project(self, project_id: str) -> dict[str, Any] | None:
         """Resolve the most recent run dict for ``project_id`` without loading issues."
 
@@ -332,18 +339,33 @@ class DesktopStateStore:
         full issues/page_findings scan on every status/problem mutation.
         """
 
+        return self.load_run_for_project(project_id)
+
+    def load_project_summary(
+        self,
+        project_id: str,
+        run_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Read run identity and both counts from one SQLite snapshot."""
+
         with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT *
-                FROM runs
-                WHERE project_id = ?
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                (project_id,),
+            conn.execute("BEGIN")
+            row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
+            if row is None:
+                return None
+            issue_count = conn.execute(
+                "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
+                (row["run_id"],),
             ).fetchone()
-        return _row_to_run(row) if row is not None else None
+            page_count = conn.execute(
+                "SELECT COUNT(*) FROM page_findings WHERE run_id = ?",
+                (row["run_id"],),
+            ).fetchone()
+        return {
+            "run": _row_to_run(row),
+            "issue_count": int(issue_count[0]) if issue_count is not None else 0,
+            "page_finding_count": int(page_count[0]) if page_count is not None else 0,
+        }
 
     def count_issues(self, run_id: str) -> int:
         with self._connect() as conn:
@@ -379,32 +401,46 @@ class DesktopStateStore:
         safe_limit = max(0, min(int(limit), 5000))
         safe_offset = max(0, int(offset))
         with self._connect() as conn:
-            total_row = conn.execute(
-                "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
-                (run_id,),
-            ).fetchone()
-            total = int(total_row[0]) if total_row is not None else 0
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM issue_summaries
-                WHERE run_id = ?
-                ORDER BY
-                    CASE severity
-                        WHEN 'critical' THEN 0
-                        WHEN 'major' THEN 1
-                        WHEN 'minor' THEN 2
-                        WHEN 'review' THEN 3
-                        ELSE 9
-                    END,
-                    confidence DESC,
-                    issue_id ASC
-                LIMIT ? OFFSET ?
-                """,
-                (run_id, safe_limit, safe_offset),
-            ).fetchall()
+            conn.execute("BEGIN")
+            total, rows = self._list_issue_summaries_page_conn(
+                conn,
+                run_id=run_id,
+                limit=safe_limit,
+                offset=safe_offset,
+            )
         return {
             "items": [_issue_row_to_summary(row) for row in rows],
+            "total": total,
+            "limit": safe_limit,
+            "offset": safe_offset,
+        }
+
+    def load_project_issues_page(
+        self,
+        project_id: str,
+        *,
+        run_id: str | None,
+        limit: int,
+        offset: int = 0,
+    ) -> dict[str, Any] | None:
+        """Resolve a pinned run and read its count/page in one snapshot."""
+
+        safe_limit = max(0, min(int(limit), 5000))
+        safe_offset = max(0, int(offset))
+        with self._connect() as conn:
+            conn.execute("BEGIN")
+            row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
+            if row is None:
+                return None
+            total, rows = self._list_issue_summaries_page_conn(
+                conn,
+                run_id=row["run_id"],
+                limit=safe_limit,
+                offset=safe_offset,
+            )
+        return {
+            "run": _row_to_run(row),
+            "items": [_issue_row_to_summary(item) for item in rows],
             "total": total,
             "limit": safe_limit,
             "offset": safe_offset,
@@ -421,6 +457,32 @@ class DesktopStateStore:
                 (run_id, issue_id),
             ).fetchone()
         return _issue_row_to_summary(row) if row is not None else None
+
+    def load_project_issue_detail(
+        self,
+        project_id: str,
+        *,
+        run_id: str | None,
+        issue_id: str,
+    ) -> dict[str, Any] | None:
+        """Resolve a run and issue together; missing issues return ``None``."""
+
+        with self._connect() as conn:
+            conn.execute("BEGIN")
+            run_row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
+            if run_row is None:
+                return None
+            issue_row = conn.execute(
+                """
+                SELECT *
+                FROM issue_summaries
+                WHERE run_id = ? AND issue_id = ?
+                """,
+                (run_row["run_id"], issue_id),
+            ).fetchone()
+        if issue_row is None:
+            return {"run": _row_to_run(run_row), "issue": None}
+        return {"run": _row_to_run(run_row), "issue": _issue_row_to_summary(issue_row)}
 
     def load_page_findings(self, run_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -510,7 +572,7 @@ class DesktopStateStore:
                 SELECT *
                 FROM runs
                 WHERE project_id = ?
-                ORDER BY updated_at DESC
+                ORDER BY created_at DESC, run_id DESC
                 """,
                 (project_id,),
             ).fetchall()
@@ -522,7 +584,7 @@ class DesktopStateStore:
                 """
                 SELECT *
                 FROM runs
-                ORDER BY updated_at DESC
+                ORDER BY created_at DESC, run_id DESC
                 """
             ).fetchall()
         return [_row_to_run(row) for row in rows]
@@ -581,6 +643,9 @@ class DesktopStateStore:
 
                 CREATE INDEX IF NOT EXISTS idx_runs_project_id_updated_at
                 ON runs(project_id, updated_at DESC);
+
+                CREATE INDEX IF NOT EXISTS idx_runs_project_id_created_at_run_id
+                ON runs(project_id, created_at DESC, run_id DESC);
 
                 CREATE INDEX IF NOT EXISTS idx_runs_session_id
                 ON runs(session_id);
@@ -643,6 +708,68 @@ class DesktopStateStore:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
+
+    @staticmethod
+    def _select_run_row(
+        conn: sqlite3.Connection,
+        *,
+        project_id: str,
+        run_id: str | None,
+    ) -> sqlite3.Row | None:
+        if run_id is None:
+            return conn.execute(
+                """
+                SELECT *
+                FROM runs
+                WHERE project_id = ?
+                ORDER BY created_at DESC, run_id DESC
+                LIMIT 1
+                """,
+                (project_id,),
+            ).fetchone()
+        return conn.execute(
+            """
+            SELECT *
+            FROM runs
+            WHERE project_id = ? AND run_id = ?
+            LIMIT 1
+            """,
+            (project_id, run_id),
+        ).fetchone()
+
+    @staticmethod
+    def _list_issue_summaries_page_conn(
+        conn: sqlite3.Connection,
+        *,
+        run_id: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[int, list[sqlite3.Row]]:
+        total_row = conn.execute(
+            "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+        total = int(total_row[0]) if total_row is not None else 0
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM issue_summaries
+            WHERE run_id = ?
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 0
+                    WHEN 'major' THEN 1
+                    WHEN 'minor' THEN 2
+                    WHEN 'review' THEN 3
+                    ELSE 9
+                END,
+                confidence DESC,
+                issue_id ASC
+            LIMIT ? OFFSET ?
+            """,
+            (run_id, limit, offset),
+        ).fetchall()
+        return total, rows
 
 
 def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:

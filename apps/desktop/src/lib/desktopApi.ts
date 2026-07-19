@@ -17,6 +17,7 @@ const COMMANDS = {
   loadResultSummary: "desktop_load_result_summary",
   loadResultIssues: "desktop_load_result_issues",
   loadResultIssueDetail: "desktop_load_result_issue_detail",
+  cancelResultLoad: "desktop_cancel_result_load",
   registerPreviewSession: "desktop_register_preview_session",
   renderPreview: "desktop_render_preview",
   cancelPreview: "desktop_cancel_preview",
@@ -75,20 +76,20 @@ export const desktopApi = {
     }
   },
 
-  async loadResult(projectId: string): Promise<ProjectResult> {
+  async loadResult(projectId: string, runId: string | null = null, requestGeneration: number | null = null): Promise<ProjectResult> {
     if (!isTauri()) {
       return applyMockStatusOverrides(getMockProjectResult(projectId))
     }
 
     try {
-      const result = await invoke<ProjectResult>(COMMANDS.loadResult, { projectId })
+      const result = await invoke<ProjectResult>(COMMANDS.loadResult, { projectId, runId, requestGeneration })
       return normalizeProjectResult(result)
     } catch (error) {
       throw toDesktopError("加载校验结果失败。", error)
     }
   },
 
-  async loadResultSummary(projectId: string): Promise<ProjectSummary> {
+  async loadResultSummary(projectId: string, runId: string | null = null, requestGeneration: number | null = null): Promise<ProjectSummary> {
     if (!isTauri()) {
       const mock = getMockProjectResult(projectId)
       return {
@@ -98,14 +99,20 @@ export const desktopApi = {
       }
     }
     try {
-      const summary = await invoke<ProjectSummary>(COMMANDS.loadResultSummary, { projectId })
+      const summary = await invoke<ProjectSummary>(COMMANDS.loadResultSummary, { projectId, runId, requestGeneration })
       return { ...summary, run: normalizeRecentProject(summary.run) }
     } catch (error) {
       throw toDesktopError("加载项目概要失败。", error)
     }
   },
 
-  async loadResultIssues(projectId: string, limit: number, offset = 0): Promise<IssuePage> {
+  async loadResultIssues(
+    projectId: string,
+    limit: number,
+    offset = 0,
+    runId: string | null = null,
+    requestGeneration: number | null = null,
+  ): Promise<IssuePage> {
     if (!isTauri()) {
       const mock = applyMockStatusOverrides(getMockProjectResult(projectId))
       const safeLimit = Math.max(1, Math.min(Math.trunc(limit), mock.issues.length) || 1)
@@ -121,8 +128,10 @@ export const desktopApi = {
     try {
       const page = await invoke<IssuePage>(COMMANDS.loadResultIssues, {
         projectId,
+        runId,
         limit,
         offset: offset || null,
+        requestGeneration,
       })
       return {
         run: normalizeRecentProject(page.run),
@@ -136,7 +145,12 @@ export const desktopApi = {
     }
   },
 
-  async loadResultIssueDetail(projectId: string, issueId: string): Promise<IssueDetail | null> {
+  async loadResultIssueDetail(
+    projectId: string,
+    issueId: string,
+    runId: string | null = null,
+    requestGeneration: number | null = null,
+  ): Promise<IssueDetail | null> {
     if (!isTauri()) {
       const mock = applyMockStatusOverrides(getMockProjectResult(projectId))
       const issue = mock.issues.find((item) => item.issue_id === issueId) ?? null
@@ -145,7 +159,9 @@ export const desktopApi = {
     try {
       const payload = await invoke<IssueDetail | null>(COMMANDS.loadResultIssueDetail, {
         projectId,
+        runId,
         issueId,
+        requestGeneration,
       })
       if (!payload) {
         return null
@@ -154,6 +170,14 @@ export const desktopApi = {
     } catch (error) {
       throw toDesktopError("加载问题详情失败。", error)
     }
+  },
+
+  async cancelResultLoad(requestGeneration: number): Promise<boolean> {
+    if (!isTauri()) {
+      return true
+    }
+    const payload = await invoke<{ cancelled?: boolean }>(COMMANDS.cancelResultLoad, { requestGeneration })
+    return payload.cancelled === true
   },
 
   async registerPreviewSession(clientSessionId: string): Promise<number> {
@@ -183,6 +207,7 @@ export const desktopApi = {
     lineGroupId: string | null = null,
     clientSessionId: string | null = null,
     clientSessionEpoch: number | null = null,
+    runId: string | null = null,
   ): Promise<PreviewPayload> {
     if (!isTauri()) {
       return getMockPreview(projectId, issueId, requestId)
@@ -191,6 +216,7 @@ export const desktopApi = {
     try {
       const payload = await invoke<Omit<PreviewPayload, "preview_src"> & { preview_src?: string | null }>(COMMANDS.renderPreview, {
         projectId,
+        runId,
         issueId,
         sheetId,
         lineGroupId,
@@ -205,6 +231,9 @@ export const desktopApi = {
       }
       if (normalized.project_id !== projectId || normalized.issue_id !== issueId) {
         throw new Error("Preview response target mismatch.")
+      }
+      if (runId !== null && normalized.run_id !== runId) {
+        throw new Error("Preview response run mismatch.")
       }
       if (sheetId !== null && normalized.sheet_id !== sheetId) {
         throw new Error("Preview response sheet mismatch.")
@@ -233,7 +262,7 @@ export const desktopApi = {
     return payload.cancelled === true
   },
 
-  async setIssueStatus(projectId: string, issueId: string, status: IssueStatus): Promise<void> {
+  async setIssueStatus(projectId: string, issueId: string, status: IssueStatus, runId: string | null = null): Promise<void> {
     if (!isTauri()) {
       mockIssueStatuses.set(`${projectId}:${issueId}`, status)
       return
@@ -242,6 +271,7 @@ export const desktopApi = {
     try {
       await invoke(COMMANDS.setIssueStatus, {
         projectId,
+        runId,
         issueId,
         status,
       })

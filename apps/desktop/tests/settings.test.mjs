@@ -2,10 +2,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
-  DEFAULT_CACHE_CAP_BYTES,
   DEFAULT_CONVERT_WORKERS,
   DEFAULT_ODA_TIMEOUT_SECONDS,
-  DEFAULT_STAGE_TELEMETRY_ENABLED,
   defaultSettings,
   normalizeSettings,
 } from "../src/lib/settings.ts"
@@ -14,8 +12,6 @@ test("defaultSettings matches current sidecar behavior exactly", () => {
   const actual = defaultSettings()
   assert.equal(actual.convertWorkers, DEFAULT_CONVERT_WORKERS)
   assert.equal(actual.odaTimeoutSeconds, DEFAULT_ODA_TIMEOUT_SECONDS)
-  assert.equal(actual.cacheCapBytes, DEFAULT_CACHE_CAP_BYTES)
-  assert.equal(actual.stageTelemetryEnabled, DEFAULT_STAGE_TELEMETRY_ENABLED)
 })
 
 test("normalizing undefined returns defaults", () => {
@@ -37,14 +33,9 @@ test("oda_timeout_seconds clamps to the 1..86400 contract", () => {
   assert.equal(normalizeSettings({ odaTimeoutSeconds: 60 }).odaTimeoutSeconds, 60)
 })
 
-test("cacheCapBytes accepts null and parses integer strings", () => {
-  assert.equal(normalizeSettings({ cacheCapBytes: null }).cacheCapBytes, null)
-  assert.equal(normalizeSettings({ cacheCapBytes: "" }).cacheCapBytes, null)
-  assert.equal(normalizeSettings({ cacheCapBytes: 1024 }).cacheCapBytes, 1024)
-})
-
-test("stageTelemetryEnabled coerces unknown to default false", () => {
-  assert.equal(normalizeSettings({ stageTelemetryEnabled: true }).stageTelemetryEnabled, true)
-  assert.equal(normalizeSettings({ stageTelemetryEnabled: "yes" }).stageTelemetryEnabled, false)
-  assert.equal(normalizeSettings({ stageTelemetryEnabled: null }).stageTelemetryEnabled, false)
+test("normalizing a persisted nested payload preserves native settings", () => {
+  assert.deepEqual(
+    normalizeSettings({ ingest: { convert_workers: 3, oda_timeout_seconds: 120 } }),
+    { convertWorkers: 3, odaTimeoutSeconds: 120 },
+  )
 })

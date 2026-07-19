@@ -550,9 +550,10 @@ def list_recent_projects(
 @app.command("load-result")
 def load_result(
     project_id: str = typer.Option(..., "--project-id"),
+    run_id: str | None = typer.Option(None, "--run-id"),
     state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
 ) -> None:
-    result = load_desktop_project_result(project_id=project_id, state_db_path=state_db)
+    result = load_desktop_project_result(project_id=project_id, run_id=run_id, state_db_path=state_db)
     if result is None:
         raise typer.BadParameter(f"No stored result found for project_id={project_id}")
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
@@ -563,6 +564,7 @@ def set_issue_status(
     project_id: str = typer.Option(..., "--project-id"),
     issue_id: str = typer.Option(..., "--issue-id"),
     status: str = typer.Option(..., "--status"),
+    run_id: str | None = typer.Option(None, "--run-id"),
     state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
 ) -> None:
     try:
@@ -570,6 +572,7 @@ def set_issue_status(
             project_id=project_id,
             issue_id=issue_id,
             status=status,
+            run_id=run_id,
             state_db_path=state_db,
         )
     except (FileNotFoundError, ValueError) as exc:
@@ -633,6 +636,7 @@ def delete_project_record_cmd(
 @app.command("render-preview")
 def render_preview(
     project_id: str = typer.Option(..., "--project-id"),
+    run_id: str | None = typer.Option(None, "--run-id"),
     sheet_id: str | None = typer.Option(None, "--sheet-id"),
     issue_id: str | None = typer.Option(None, "--issue-id"),
     line_group_id: str | None = typer.Option(None, "--line-group-id"),
@@ -642,6 +646,7 @@ def render_preview(
     try:
         payload = render_project_preview(
             project_id=project_id,
+            run_id=run_id,
             sheet_id=sheet_id,
             issue_id=issue_id,
             line_group_id=line_group_id,

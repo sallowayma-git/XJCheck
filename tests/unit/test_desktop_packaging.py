@@ -47,6 +47,9 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "Frozen sidecar ODA worker smoke" in script
     assert "unsupported-test-operation" in script
     assert "WaitForExit(15000)" in script
+    assert "taskkill.exe" in script
+    assert "/T /F" in script
+    assert "WaitForExit(2000)" in script
     # Console-subsystem sidecar preserves JSON pipes; CREATE_NO_WINDOW prevents flashes.
     assert "console=True" in builder
     assert "console=False" not in builder
@@ -65,6 +68,7 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "PREVIEW_TIMEOUT" in main_rs
     assert "Preview request superseded" in main_rs
     assert "desktop_cancel_preview" in main_rs
+    assert "desktop_cancel_result_load" in main_rs
     assert "ExitRequested" in main_rs
     assert "taskkill" in main_rs
     assert "drain_preview_pipe" in main_rs
@@ -77,6 +81,11 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
 
     app_tsx = (DESKTOP_ROOT / "src" / "App.tsx").read_text(encoding="utf-8")
     assert ".onCloseRequested" not in app_tsx
+    assert "desktopApi.loadResultSummary" in app_tsx
+    assert "desktopApi.loadResultIssues" in app_tsx
+    assert "desktopApi.loadResult(projectId)" not in app_tsx
+    assert "desktopApi.cancelResultLoad" in app_tsx
+    assert "measureElement" in app_tsx
 
 
 def test_oda_staging_and_release_scripts_exist() -> None:
@@ -379,6 +388,8 @@ def test_result_pagination_contract_connects_python_cli_rust_and_frontend() -> N
     assert "desktop_load_result_summary" in main_rs
     assert "desktop_load_result_issues" in main_rs
     assert "desktop_load_result_issue_detail" in main_rs
+    assert "desktop_cancel_result_load" in main_rs
+    assert '"--run-id"' in main_rs
     assert '"load-result-summary".to_string()' in main_rs
     assert '"load-result-issues".to_string()' in main_rs
     assert '"load-result-issue-detail".to_string()' in main_rs
@@ -388,9 +399,10 @@ def test_result_pagination_contract_connects_python_cli_rust_and_frontend() -> N
     assert "loadResultSummary:" in desktop_api
     assert "loadResultIssues:" in desktop_api
     assert "loadResultIssueDetail:" in desktop_api
-    assert "async loadResultSummary(projectId: string): Promise<ProjectSummary>" in desktop_api
+    assert "cancelResultLoad:" in desktop_api
+    assert "async loadResultSummary(" in desktop_api
     assert re.search(
-        r"async loadResultIssues\(projectId: string, limit: number, offset = 0\): Promise<IssuePage>",
+        r"async loadResultIssues\(\s*\n?\s*projectId: string,",
         desktop_api,
     )
     assert "function normalizeIssueSummary(issue: IssueSummary): IssueSummary" in desktop_api
@@ -448,7 +460,9 @@ def test_python_lightweight_command_loads_result_summary(tmp_path: Path, capsys,
         ],
     )
 
-    handled = _run_lightweight_command(["load-result-summary", "--project-id", "demo-project", "--state-db", str(state_db)])
+    handled = _run_lightweight_command([
+        "load-result-summary", "--project-id", "demo-project", "--run-id", "demo-run", "--state-db", str(state_db)
+    ])
 
     assert handled is True
     payload = json.loads(capsys.readouterr().out)
@@ -501,6 +515,8 @@ def test_python_lightweight_command_paginates_issues(tmp_path: Path, capsys) -> 
             "load-result-issues",
             "--project-id",
             "demo-project",
+            "--run-id",
+            "demo-run",
             "--limit",
             "10",
             "--offset",
@@ -570,6 +586,8 @@ def test_python_lightweight_command_loads_issue_detail(tmp_path: Path, capsys) -
             "demo-project",
             "--issue-id",
             "I7",
+            "--run-id",
+            "demo-run",
             "--state-db",
             str(state_db),
         ]
@@ -581,3 +599,19 @@ def test_python_lightweight_command_loads_issue_detail(tmp_path: Path, capsys) -
     assert payload["issue"]["issue_id"] == "I7"
     assert payload["issue"]["summary"] == "target-summary"
     assert payload["issue"]["handling_class"] == "review"
+
+    handled = _run_lightweight_command(
+        [
+            "load-result-issue-detail",
+            "--project-id",
+            "demo-project",
+            "--issue-id",
+            "missing",
+            "--run-id",
+            "demo-run",
+            "--state-db",
+            str(state_db),
+        ]
+    )
+    assert handled is True
+    assert json.loads(capsys.readouterr().out) is None

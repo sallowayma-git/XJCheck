@@ -74,19 +74,24 @@ def _run_lightweight_command(argv: list[str]) -> bool:
         parser.add_argument("--older-than-seconds", type=_non_negative_seconds, default=3600.0)
     elif command == "load-result":
         parser.add_argument("--project-id", required=True)
+        parser.add_argument("--run-id")
     elif command == "load-result-summary":
         parser.add_argument("--project-id", required=True)
+        parser.add_argument("--run-id")
     elif command == "load-result-issues":
         parser.add_argument("--project-id", required=True)
+        parser.add_argument("--run-id")
         parser.add_argument("--limit", type=_bounded_page_size, default=200)
         parser.add_argument("--offset", type=_non_negative_int, default=0)
     elif command == "load-result-issue-detail":
         parser.add_argument("--project-id", required=True)
         parser.add_argument("--issue-id", required=True)
+        parser.add_argument("--run-id")
     elif command == "set-issue-status":
         parser.add_argument("--project-id", required=True)
         parser.add_argument("--issue-id", required=True)
         parser.add_argument("--status", choices=sorted(_ISSUE_STATUSES), required=True)
+        parser.add_argument("--run-id")
     else:
         parser.add_argument(
             "--workspace-root",
@@ -113,36 +118,47 @@ def _run_lightweight_command(argv: list[str]) -> bool:
             )
         payload = {"projects": store.list_recent_projects(limit=options.limit)}
     elif command == "load-result":
-        payload = store.load_latest_project_result(options.project_id)
+        payload = store.load_latest_project_result(options.project_id, run_id=options.run_id)
         if payload is None:
             parser.error(f"No stored result found for project_id={options.project_id}")
     elif command == "load-result-summary":
-        payload = store.latest_run_for_project(options.project_id)
+        payload = store.load_project_summary(options.project_id, run_id=options.run_id)
         if payload is None:
             parser.error(f"No stored result found for project_id={options.project_id}")
-        payload = {
-            "run": payload,
-            "issue_count": store.count_issues(payload["run_id"]),
-            "page_finding_count": store.count_page_findings(payload["run_id"]),
-        }
     elif command == "load-result-issues":
-        payload = store.latest_run_for_project(options.project_id)
+        payload = store.load_project_issues_page(
+            options.project_id,
+            run_id=options.run_id,
+            limit=options.limit,
+            offset=options.offset,
+        )
         if payload is None:
             parser.error(f"No stored result found for project_id={options.project_id}")
-        payload = {"run": payload, **store.list_issue_summaries_page(payload["run_id"], limit=options.limit, offset=options.offset)}
     elif command == "load-result-issue-detail":
-        payload = store.latest_run_for_project(options.project_id)
+        payload = store.load_project_issue_detail(
+            options.project_id,
+            run_id=options.run_id,
+            issue_id=options.issue_id,
+        )
         if payload is None:
             parser.error(f"No stored result found for project_id={options.project_id}")
-        issue = store.load_issue_summary(payload["run_id"], options.issue_id)
-        if issue is None:
-            parser.error(f"No stored issue found for issue_id={options.issue_id}")
-        payload = {"run": payload, "issue": issue}
+        if payload["issue"] is None:
+            payload = None
     elif command == "set-issue-status":
-        runs = store.list_runs_for_project(options.project_id)
-        if not runs:
+        if hasattr(store, "load_run_for_project"):
+            latest_run = store.load_run_for_project(options.project_id, run_id=options.run_id)
+        else:
+            runs = store.list_runs_for_project(options.project_id)
+            latest_run = next(
+                (
+                    run
+                    for run in runs
+                    if options.run_id is None or str(run.get("run_id")) == options.run_id
+                ),
+                None,
+            )
+        if latest_run is None:
             parser.error(f"No stored result found for project_id={options.project_id}")
-        latest_run = runs[0]
         # Legacy un-compacted runs still mirror status into parquet/JSON, so
         # preserve their full CLI path. Compact desktop runs are SQLite-only.
         if str(latest_run.get("artifact_dir") or "").strip():

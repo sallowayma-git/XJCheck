@@ -153,6 +153,15 @@ class AdaptiveResourceGate:
             (snapshot.cpu_percent, self.cpu_low, self.cpu_high),
             (snapshot.memory_percent, self.memory_low, self.memory_high),
         ]
+        previous = self.target_slots
+        if startup and snapshot.cpu_percent is None and self.target_slots > 1:
+            # The first Windows GetSystemTimes read establishes a baseline and
+            # cannot report CPU load. Admit one slot until a real sample proves
+            # that the machine is healthy.
+            self.target_slots = 1
+            self._pressure_count = 0
+            self._healthy_count = 0
+            return previous, self.target_slots
         known = [(value, low, high) for value, low, high in metrics if value is not None]
         if not known:
             return None
@@ -169,7 +178,6 @@ class AdaptiveResourceGate:
             self._pressure_count = 0
             self._healthy_count = 0
 
-        previous = self.target_slots
         if startup and under_pressure and self.target_slots > 1:
             self.target_slots = 1
             self._pressure_count = 0

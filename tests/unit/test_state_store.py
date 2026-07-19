@@ -172,3 +172,100 @@ def test_state_store_list_issue_summaries_page_paginates_large_runs(tmp_path: Pa
     assert detail["issue_id"] == "I03030"
     assert store.load_issue_summary("session-a:demo-project", "missing") is None
     assert store.count_page_findings("session-a:demo-project") == 0
+
+
+def test_latest_run_order_is_immutable_when_cleanup_updates_artifacts(tmp_path: Path) -> None:
+    store = DesktopStateStore(tmp_path / "desktop_state.db")
+    for run_id in ("old", "new"):
+        store.record_run(
+            run_id=run_id,
+            session_id=run_id,
+            project_id="demo-project",
+            project_name="Demo",
+            input_root=str(tmp_path / "input"),
+            artifact_dir=str(tmp_path / run_id),
+            status="completed",
+            sheet_count=1,
+            pair_count=1,
+            issue_count=0,
+            metadata={},
+        )
+    with sqlite3.connect(store.db_path) as conn:
+        conn.execute("UPDATE runs SET created_at = ?, updated_at = ? WHERE run_id = 'old'", ("2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"))
+        conn.execute("UPDATE runs SET created_at = ?, updated_at = ? WHERE run_id = 'new'", ("2026-01-02T00:00:00+00:00", "2026-01-02T00:00:00+00:00"))
+
+    store.update_run_artifact_dir(run_id="new", artifact_dir="")
+    store.update_run_artifact_dir(run_id="old", artifact_dir="")
+
+    assert store.latest_run_for_project("demo-project")["run_id"] == "new"
+    assert store.list_runs_for_project("demo-project")[0]["run_id"] == "new"
+
+
+def test_pinned_project_pages_cannot_fall_back_to_another_run(tmp_path: Path) -> None:
+    store = DesktopStateStore(tmp_path / "desktop_state.db")
+    for run_id, title in (("old", "old issue"), ("new", "new issue")):
+        store.record_run(
+            run_id=run_id,
+            session_id=run_id,
+            project_id="demo-project",
+            project_name="Demo",
+            input_root=str(tmp_path / "input"),
+            artifact_dir="",
+            status="completed",
+            sheet_count=1,
+            pair_count=1,
+            issue_count=1,
+            metadata={},
+        )
+        store.replace_issue_summaries(
+            run_id,
+            [{"issue_id": "I1", "rule_id": "R", "title": title, "severity": "review", "status": "open", "confidence": 0.5, "evidence": {}}],
+        )
+
+    page = store.load_project_issues_page("demo-project", run_id="old", limit=10)
+    assert page is not None
+    assert page["run"]["run_id"] == "old"
+    assert page["items"][0]["title"] == "old issue"
+    assert store.load_project_issues_page("demo-project", run_id="missing", limit=10) is None
+
+    detail = store.load_project_issue_detail("demo-project", run_id="old", issue_id="I1")
+    assert detail is not None
+    assert detail["run"]["run_id"] == "old"
+    assert detail["issue"]["title"] == "old issue"
+
+
+def test_issue_page_count_and_rows_start_inside_one_read_transaction(tmp_path: Path) -> None:
+    db_path = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(db_path)
+    store.record_run(
+        run_id="run",
+        session_id="session",
+        project_id="project",
+        project_name="Project",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=1,
+        metadata={},
+    )
+    store.replace_issue_summaries(
+        "run",
+        [{"issue_id": "I1", "rule_id": "R", "title": "Issue", "severity": "review", "status": "open", "confidence": 0.5, "evidence": {}}],
+    )
+    traces: list[str] = []
+
+    def connect() -> sqlite3.Connection:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        conn.set_trace_callback(traces.append)
+        return conn
+
+    store._connect = connect  # type: ignore[method-assign]
+    page = store.list_issue_summaries_page("run", limit=10)
+
+    assert page["total"] == 1
+    begin_index = next(index for index, statement in enumerate(traces) if statement == "BEGIN")
+    count_index = next(index for index, statement in enumerate(traces) if "SELECT COUNT(*)" in statement)
+    assert begin_index < count_index

@@ -100,6 +100,7 @@ export type IssueDetail = {
 export type PreviewPayload = {
   request_id: string
   project_id: string
+  run_id?: string | null
   sheet_id: string | null
   issue_id: string | null
   preview_path?: string | null

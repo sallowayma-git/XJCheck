@@ -24,6 +24,7 @@ _MAX_PREVIEW_TEXTS = 160
 def render_project_preview(
     *,
     project_id: str,
+    run_id: str | None = None,
     sheet_id: str | None = None,
     issue_id: str | None = None,
     line_group_id: str | None = None,
@@ -31,19 +32,19 @@ def render_project_preview(
     state_db_path: Path | None = None,
 ) -> dict[str, Any]:
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
-    latest = store.load_latest_project_result(project_id)
-    if latest is None:
+    run = store.load_run_for_project(project_id, run_id=run_id)
+    if run is None:
         raise FileNotFoundError(f"No stored result found for project_id={project_id}")
-
-    run = latest["run"]
+    resolved_run_id = str(run["run_id"])
+    page_findings = store.load_page_findings(resolved_run_id)
     artifact_raw = str(run.get("artifact_dir") or "").strip()
     artifact_dir = Path(artifact_raw) if artifact_raw else None
 
     # Prefer SQLite-retained issue records after conversion workspaces are compacted.
-    sqlite_issues = latest.get("issues") or []
+    sqlite_issue = store.load_issue_summary(resolved_run_id, issue_id) if issue_id else None
     issue_row: pd.Series | None = None
-    if issue_id:
-        issue_row = _issue_row_from_sqlite(sqlite_issues, issue_id)
+    if sqlite_issue is not None:
+        issue_row = _issue_row_from_sqlite([sqlite_issue], issue_id or "")
 
     # Lightweight path: when issue already has line geometry evidence, skip loading
     # multi-megabyte parquet frames that freeze the desktop sidecar.
@@ -80,7 +81,7 @@ def render_project_preview(
         pages=pages,
         sheet_id=sheet_id,
         issue_row=issue_row,
-        page_findings=latest.get("page_findings") or [],
+        page_findings=page_findings,
     )
     highlight = _resolve_highlight(issue_row, line_groups, line_group_id=line_group_id)
     line_semantics = _resolve_line_semantics(issue_row, line_groups, line_group_id=line_group_id)
@@ -106,6 +107,7 @@ def render_project_preview(
         target_path.write_text(svg_text, encoding="utf-8")
         return {
             "project_id": project_id,
+            "run_id": resolved_run_id,
             "sheet_id": sheet_id,
             "issue_id": issue_id,
             "preview_path": str(target_path),
@@ -156,6 +158,7 @@ def render_project_preview(
 
     return {
         "project_id": project_id,
+        "run_id": resolved_run_id,
         "sheet_id": sheet_id,
         "issue_id": issue_id,
         "preview_path": str(target_path),

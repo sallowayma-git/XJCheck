@@ -93,8 +93,12 @@ if (-not $SmokeProcess.Start()) {
 $SmokeProcess.StandardInput.WriteLine($SmokeInput)
 $SmokeProcess.StandardInput.Close()
 if (-not $SmokeProcess.WaitForExit(15000)) {
-    try { $SmokeProcess.Kill() } catch {}
-    $SmokeProcess.WaitForExit(2000) | Out-Null
+    $Taskkill = Join-Path $env:SystemRoot "System32\taskkill.exe"
+    try { & $Taskkill /PID $SmokeProcess.Id /T /F *> $null } catch {}
+    if (-not $SmokeProcess.WaitForExit(2000)) {
+        try { $SmokeProcess.Kill() } catch {}
+        $SmokeProcess.WaitForExit(2000) | Out-Null
+    }
     throw "Frozen sidecar ODA worker smoke timed out after 15 seconds."
 }
 $SmokeRaw = $SmokeProcess.StandardOutput.ReadToEnd()

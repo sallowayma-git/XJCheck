@@ -35,6 +35,7 @@ type Screen = "launch" | "process" | "result" | "settings"
 
 const ISSUE_STATUS_OPTIONS = ["open", "ignored", "resolved", "false_positive"] as const
 const PREVIEW_REQUEST_TIMEOUT_MS = 20_000
+const RESULT_ISSUE_PAGE_SIZE = 500
 
 type ProcessState = {
   sessionId: string | null
@@ -63,6 +64,7 @@ function App() {
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [result, setResult] = useState<ProjectResult | null>(null)
+  const [resultIssueTotal, setResultIssueTotal] = useState(0)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [previewOutputContextKey, setPreviewOutputContextKey] = useState<string | null>(null)
@@ -88,6 +90,7 @@ function App() {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
   const [isLoadingProjectId, setIsLoadingProjectId] = useState<string | null>(null)
+  const [isLoadingMoreIssues, setIsLoadingMoreIssues] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isDropTargetActive, setIsDropTargetActive] = useState(false)
   const [launchImportStatus, setLaunchImportStatus] = useState<LaunchImportStatus | null>(null)
@@ -119,6 +122,7 @@ function App() {
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const previewRequestSequenceRef = useRef(0)
   const selectedProjectIdRef = useRef<string | null>(null)
+  const issuePageLoadInFlightRef = useRef<number | null>(null)
 
   function selectProject(projectId: string | null): void {
     selectedProjectIdRef.current = projectId
@@ -130,18 +134,24 @@ function App() {
       invalidateRequests(screenIntentGenerationRef.current)
     }
     if (isLoadingProjectId) {
+      const generation = projectLoadGenerationRef.current.current
+      void desktopApi.cancelResultLoad(generation).catch(() => undefined)
       invalidateRequests(projectLoadGenerationRef.current)
       setIsLoadingProjectId(null)
       selectProject(result?.run.project_id ?? null)
+    } else if (screen === "result" && nextScreen !== "result") {
+      const generation = projectLoadGenerationRef.current.current
+      void desktopApi.cancelResultLoad(generation).catch(() => undefined)
+      invalidateRequests(projectLoadGenerationRef.current)
+      issuePageLoadInFlightRef.current = null
+      setIsLoadingMoreIssues(false)
     }
     setScreen(nextScreen)
   }
 
   function updateSettingsField(patch: Partial<DesktopSettings>): void {
     setSettings((prev) => {
-      const merged = normalizeSettings({ ...prev, ...patch })
-      persistSettings(merged)
-      return merged
+      return normalizeSettings({ ...prev, ...patch })
     })
   }
 
@@ -149,8 +159,8 @@ function App() {
     setSettingsSaving(true)
     setSettingsError(null)
     try {
-      persistSettings(next)
-      const confirmed = await desktopApi.writeSettings(next)
+      const confirmed = await desktopApi.writeSettings(normalizeSettings(next))
+      persistSettings(confirmed)
       setSettings(confirmed)
       setSettingsSnapshot(confirmed)
     } catch (error) {
@@ -161,12 +171,8 @@ function App() {
     }
   }
 
-  function resetSettings(): void {
-    const fallback = defaultSettings()
-    setSettings(fallback)
-    persistSettings(fallback)
-    setSettingsSnapshot(fallback)
-    setSettingsError(null)
+  async function resetSettings(): Promise<void> {
+    await saveSettings(defaultSettings())
   }
 
 
@@ -206,6 +212,7 @@ function App() {
       .readSettings()
       .then((next) => {
         if (!disposed) {
+          persistSettings(next)
           setSettings(next)
           setSettingsSnapshot(next)
         }
@@ -308,6 +315,10 @@ function App() {
   }, [screen])
 
   const loadProjectResult = useEffectEvent(async (projectId: string) => {
+    const previousGeneration = projectLoadGenerationRef.current.current
+    if (previousGeneration > 0) {
+      void desktopApi.cancelResultLoad(previousGeneration).catch(() => undefined)
+    }
     invalidateRequests(previewRequestGenerationRef.current)
     setPreviewContextRevision((current) => current + 1)
     setPreviewSrc(null)
@@ -316,6 +327,10 @@ function App() {
     setPreviewError(null)
     const generation = beginRequest(projectLoadGenerationRef.current)
     setIsLoadingProjectId(projectId)
+    setIsLoadingMoreIssues(false)
+    setResult(null)
+    setResultIssueTotal(0)
+    issuePageLoadInFlightRef.current = null
     setLoadError(null)
     try {
       setIssueSearch("")
@@ -324,12 +339,31 @@ function App() {
       setStatusFilter("all")
       setTriageFilter("all")
       setHandlingFilter("all")
-      const loaded = await desktopApi.loadResult(projectId)
+      const summary = await desktopApi.loadResultSummary(projectId, null, generation)
       if (!isCurrentRequest(projectLoadGenerationRef.current, generation)) {
         return
       }
+      const firstPage = await desktopApi.loadResultIssues(
+        projectId,
+        RESULT_ISSUE_PAGE_SIZE,
+        0,
+        summary.run.run_id,
+        generation,
+      )
+      if (!isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        return
+      }
+      if (firstPage.run.run_id !== summary.run.run_id) {
+        throw new Error("项目结果在加载期间发生变化，请重试。")
+      }
+      const loaded: ProjectResult = {
+        run: summary.run,
+        issues: firstPage.items,
+        page_findings: [],
+      }
       setResult(loaded)
-      const initialIssue = loaded.issues[0] ?? null
+      setResultIssueTotal(firstPage.total)
+      const initialIssue = firstPage.items[0] ?? null
       setSelectedIssueId(initialIssue?.issue_id ?? null)
       setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
       setSelectedPreviewLineGroupId(initialIssue?.line_group_id ?? null)
@@ -346,6 +380,62 @@ function App() {
     } finally {
       if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
         setIsLoadingProjectId(null)
+      }
+    }
+  })
+
+  const loadMoreIssues = useEffectEvent(async () => {
+    const current = result
+    const projectId = current?.run.project_id ?? selectedProjectIdRef.current
+    const runId = current?.run.run_id
+    const generation = projectLoadGenerationRef.current.current
+    if (
+      !projectId ||
+      !runId ||
+      !isCurrentRequest(projectLoadGenerationRef.current, generation) ||
+      issuePageLoadInFlightRef.current !== null ||
+      !resultIssueTotal ||
+      (current?.issues.length ?? 0) >= resultIssueTotal
+    ) {
+      return
+    }
+    issuePageLoadInFlightRef.current = generation
+    setIsLoadingMoreIssues(true)
+    const offset = current?.issues.length ?? 0
+    try {
+      const page = await desktopApi.loadResultIssues(
+        projectId,
+        RESULT_ISSUE_PAGE_SIZE,
+        offset,
+        runId,
+        generation,
+      )
+      if (
+        !isCurrentRequest(projectLoadGenerationRef.current, generation) ||
+        page.run.run_id !== runId ||
+        selectedProjectIdRef.current !== projectId
+      ) {
+        return
+      }
+      setResult((previous) => {
+        if (!previous || previous.run.run_id !== runId) {
+          return previous
+        }
+        const seen = new Set(previous.issues.map((issue) => issue.issue_id))
+        const appended = page.items.filter((issue) => !seen.has(issue.issue_id))
+        return { ...previous, issues: [...previous.issues, ...appended] }
+      })
+      setResultIssueTotal(page.total)
+    } catch (error) {
+      if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        setLoadError(error instanceof Error ? error.message : "加载更多问题失败，请重试。")
+      }
+    } finally {
+      if (issuePageLoadInFlightRef.current === generation) {
+        issuePageLoadInFlightRef.current = null
+      }
+      if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        setIsLoadingMoreIssues(false)
       }
     }
   })
@@ -494,6 +584,16 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const requestGeneration = projectLoadGenerationRef.current
+    return () => {
+      const generation = requestGeneration.current
+      if (generation > 0) {
+        void desktopApi.cancelResultLoad(generation).catch(() => undefined)
+      }
+    }
+  }, [])
+
   async function handleAnalyzeClick() {
     if (analysisInFlightRef.current) {
       return
@@ -513,6 +613,10 @@ function App() {
     }
     const screenIntentGeneration = beginRequest(screenIntentGenerationRef.current)
     analysisInFlightRef.current = true
+    const previousResultGeneration = projectLoadGenerationRef.current.current
+    if (previousResultGeneration > 0) {
+      void desktopApi.cancelResultLoad(previousResultGeneration).catch(() => undefined)
+    }
     invalidateRequests(projectLoadGenerationRef.current)
     setIsLoadingProjectId(null)
     setLoadError(null)
@@ -617,9 +721,12 @@ function App() {
       }
       setRecentProjects((current) => current.filter((item) => item.project_id !== projectId))
       if (selectedProjectIdRef.current === projectId) {
+        const generation = projectLoadGenerationRef.current.current
+        void desktopApi.cancelResultLoad(generation).catch(() => undefined)
         invalidateRequests(projectLoadGenerationRef.current)
         selectProject(null)
         setResult(null)
+        setResultIssueTotal(0)
         setSelectedIssueId(null)
         setPreviewSrc(null)
         setPreviewOutputContextKey(null)
@@ -766,9 +873,25 @@ function App() {
   const issueRowVirtualizer = useVirtualizer({
     count: filteredIssues.length,
     getScrollElement: () => issueListParentRef.current,
-    estimateSize: () => 44,
+    estimateSize: () => 48,
+    getItemKey: (index) => filteredIssues[index]?.issue_id ?? index,
     overscan: 12,
   })
+  const totalIssueCount = Math.max(resultIssueTotal, result?.issues.length ?? 0)
+  const hasActiveIssueFilters = Boolean(
+    deferredIssueSearch.trim() ||
+      handlingFilter !== "all" ||
+      ruleFilter !== "all" ||
+      severityFilter !== "all" ||
+      statusFilter !== "all" ||
+      triageFilter !== "all",
+  )
+  const accessibleIssueRowCount = hasActiveIssueFilters ? filteredIssues.length : totalIssueCount
+
+  useEffect(() => {
+    issueRowVirtualizer.measure()
+    issueRowVirtualizer.scrollToOffset(0)
+  }, [deferredIssueSearch, handlingFilter, issueRowVirtualizer, ruleFilter, severityFilter, statusFilter, triageFilter, result?.run.run_id])
 
   const summaryProject =
     result?.run ??
@@ -920,6 +1043,7 @@ function App() {
           previewLineGroupId,
           previewClientSessionId,
           previewClientSessionEpoch,
+          previewRunId,
         ),
         PREVIEW_REQUEST_TIMEOUT_MS,
         "Preview request timed out.",
@@ -983,22 +1107,29 @@ function App() {
     previewLineGroupId,
     previewMode,
     previewProjectId,
+    previewRunId,
     previewSheetId,
     screen,
   ])
 
   async function handleIssueStatusSave() {
     const projectId = result?.run.project_id ?? selectedProjectId
-    if (!projectId || !selectedIssue) {
+    const runId = result?.run.run_id ?? null
+    if (!projectId || !runId || !selectedIssue) {
       return
     }
     const issueId = selectedIssue.issue_id
     const nextStatus = issueStatusDraft
     setIsSavingIssueStatus(true)
     try {
-      await desktopApi.setIssueStatus(projectId, issueId, nextStatus)
+      await desktopApi.setIssueStatus(projectId, issueId, nextStatus, runId)
       setResult((current) => {
-        if (!current || current.run.project_id !== projectId || selectedProjectIdRef.current !== projectId) {
+        if (
+          !current ||
+          current.run.project_id !== projectId ||
+          current.run.run_id !== runId ||
+          selectedProjectIdRef.current !== projectId
+        ) {
           return current
         }
         return {
@@ -1213,6 +1344,18 @@ function App() {
                   </tbody>
                 </table>
               </div>
+              {result && result.issues.length < totalIssueCount ? (
+                <div className="issue-load-more">
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    disabled={isLoadingMoreIssues}
+                    onClick={() => void loadMoreIssues()}
+                  >
+                    {isLoadingMoreIssues ? "加载中…" : "加载更多"}
+                  </button>
+                </div>
+              ) : null}
             </article>
           </section>
         )}
@@ -1353,7 +1496,7 @@ function App() {
                   <span>图纸页</span>
                 </div>
                 <div className="metric-card">
-                  <strong>{issueStats.total}</strong>
+                  <strong>{totalIssueCount}</strong>
                   <span>问题总数</span>
                 </div>
                 <div className="metric-card metric-error">
@@ -1382,7 +1525,7 @@ function App() {
                   className={handlingFilter === "all" ? "handling-chip active" : "handling-chip"}
                   onClick={() => setHandlingFilter("all")}
                 >
-                  全部 {issueStats.total}
+                  全部 {totalIssueCount}
                 </button>
                 <button
                   type="button"
@@ -1473,12 +1616,22 @@ function App() {
                 <div className="section-heading">
                   <h3>问题清单</h3>
                   <span>
-                    显示 {filteredIssues.length} / {issueStats.total}
+                    显示 {filteredIssues.length} / 已加载 {result?.issues.length ?? 0} / {totalIssueCount}
+                    {isLoadingMoreIssues ? " · 加载中…" : ""}
                   </span>
                 </div>
               </div>
-              <div className="table-wrap result-issue-list-scroll" ref={issueListParentRef}>
-                <table className="data-table compact">
+              <div
+                className="table-wrap result-issue-list-scroll"
+                ref={issueListParentRef}
+                onScroll={(event) => {
+                  const target = event.currentTarget
+                  if (target.scrollHeight - target.scrollTop - target.clientHeight < 720) {
+                    void loadMoreIssues()
+                  }
+                }}
+              >
+                <table className="data-table compact" aria-rowcount={accessibleIssueRowCount || undefined}>
                   <thead>
                     <tr>
                       <th>处理</th>
@@ -1529,9 +1682,20 @@ function App() {
                                 return (
                                   <tr
                                     key={issue.issue_id}
+                                    ref={issueRowVirtualizer.measureElement}
+                                    data-index={virtualRow.index}
+                                    aria-rowindex={virtualRow.index + 2}
+                                    aria-selected={issue.issue_id === selectedIssue?.issue_id}
+                                    tabIndex={0}
                                     className={issue.issue_id === selectedIssue?.issue_id ? "selected-row" : ""}
                                     onClick={() => {
                                       setSelectedIssueId(issue.issue_id)
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault()
+                                        setSelectedIssueId(issue.issue_id)
+                                      }
                                     }}
                                   >
                                     <td>
@@ -1938,51 +2102,6 @@ function App() {
                   <span className="field-help">单个 DWG 文件转换的等待时间上限，超时后会终止整个 ODA 进程树。</span>
                 </div>
 
-                <div className="field">
-                  <label htmlFor="settings-cache-cap">缓存大小上限（字节，留空不限）</label>
-                  <input
-                    id="settings-cache-cap"
-                    type="number"
-                    min={0}
-                    placeholder="留空表示不限制"
-                    value={settings.cacheCapBytes ?? ""}
-                    onChange={(event) => {
-                      const raw = event.target.value.trim()
-                      if (!raw) {
-                        updateSettingsField({ cacheCapBytes: null })
-                        return
-                      }
-                      const parsed = Number.parseInt(raw, 10)
-                      if (Number.isFinite(parsed) && parsed >= 0) {
-                        updateSettingsField({ cacheCapBytes: parsed })
-                      }
-                    }}
-                  />
-                  <span className="field-help">本地 ODA 中间产物缓存目录上限；超过时会先回收最旧条目。留空等同当前行为，不主动限制。</span>
-                </div>
-
-                <div className="field">
-                  <label>诊断阶段遥测</label>
-                  <div className="preview-mode-control" role="group" aria-label="诊断阶段遥测">
-                    <button
-                      type="button"
-                      onClick={() => updateSettingsField({ stageTelemetryEnabled: false })}
-                      aria-pressed={!settings.stageTelemetryEnabled}
-                      className={!settings.stageTelemetryEnabled ? "active" : ""}
-                    >
-                      关闭
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateSettingsField({ stageTelemetryEnabled: true })}
-                      aria-pressed={settings.stageTelemetryEnabled}
-                      className={settings.stageTelemetryEnabled ? "active" : ""}
-                    >
-                      开启
-                    </button>
-                  </div>
-                  <span className="field-help">开启后定时在审计事件流里附阶段耗时、进程占用与 IPC 大小，便于排查卡顿来源。默认关闭。</span>
-                </div>
               </div>
 
               {settingsError ? <div className="global-error">{settingsError}</div> : null}
@@ -1991,7 +2110,11 @@ function App() {
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={resetSettings}
+                  onClick={() => {
+                    void resetSettings().catch(() => {
+                      /* error is stored in settingsError */
+                    })
+                  }}
                   disabled={settingsSaving}
                 >
                   恢复默认

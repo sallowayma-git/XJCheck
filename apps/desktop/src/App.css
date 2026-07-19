@@ -738,7 +738,7 @@
 }
 
 .result-issue-list {
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .result-issue-list > .panel-pad {
@@ -841,6 +841,19 @@
 .status-editor .ghost-button {
   height: 26px;
   font-size: 12px;
+}
+
+.result-issue-list tbody tr:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.issue-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
 }
 
 .preview-mode-field {

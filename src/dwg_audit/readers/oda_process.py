@@ -618,11 +618,16 @@ def _terminate_worker(
     process: subprocess.Popen[bytes],
     job: _WindowsKillOnCloseJob | None,
 ) -> None:
+    # A one-file frozen worker can spawn its inner process before the outer
+    # bootloader is assigned to the Job Object.  Enumerate the live parent
+    # tree first, then close the Job to catch workers that joined it later.
+    if os.name == "nt":
+        _taskkill_tree(process.pid)
     job_closed = True
     if job is not None:
         job_closed = job.close()
     if os.name == "nt":
-        if job is None or not job_closed:
+        if not job_closed:
             _taskkill_tree(process.pid)
     else:
         pgid = int(getattr(process, "_oda_pgid", process.pid))

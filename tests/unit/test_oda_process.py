@@ -13,6 +13,7 @@ from dwg_audit.readers.oda_process import OdaProcessError
 from dwg_audit.readers.oda_process import OdaProcessTimeout
 from dwg_audit.readers.oda_process import _run_worker_request
 from dwg_audit.readers.oda_process import _BoundedStreamCapture
+from dwg_audit.readers.oda_process import _terminate_worker
 from dwg_audit.readers.oda_process import bounded_oda_timeout
 from dwg_audit.readers.oda_process import join_named_windows_job
 from dwg_audit.readers.oda_process import MAX_WORKER_OUTPUT_BYTES
@@ -215,6 +216,29 @@ def test_timeout_normalization_and_non_windows_job_noop() -> None:
     assert bounded_oda_timeout(-1) == 300.0
     assert bounded_oda_timeout(999999) == 86400.0
     join_named_windows_job(None)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows process-tree fallback")
+def test_windows_timeout_always_taskkills_before_closing_job(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class FakeProcess:
+        pid = 321
+        stdin = None
+
+        def kill(self) -> None:
+            calls.append("kill")
+
+    class FakeJob:
+        def close(self) -> bool:
+            calls.append("job-close")
+            return True
+
+    monkeypatch.setattr("dwg_audit.readers.oda_process._taskkill_tree", lambda pid: calls.append(f"tree-{pid}"))
+
+    _terminate_worker(FakeProcess(), FakeJob())  # type: ignore[arg-type]
+
+    assert calls == ["tree-321", "job-close", "kill"]
 
 
 def _pid_exists(pid: int) -> bool:
