@@ -4287,6 +4287,7 @@ def test_build_issues_separates_backplate_scopes_with_distinct_explicit_headers(
                 "source": "table_mapping",
                 "table_mapping": {
                     "mapping_mode": "backplate_virtual_table",
+                    "sheet_id": sheet_id,
                     "source_block_name": source,
                     "composite_device_instance": "1-8n",
                     "raw_header_text": header,
@@ -4342,6 +4343,7 @@ def test_build_issues_keeps_backplate_scope_review_when_headers_are_reused() -> 
                 "source": "table_mapping",
                 "table_mapping": {
                     "mapping_mode": "backplate_virtual_table",
+                    "sheet_id": sheet_id,
                     "source_block_name": source,
                     "composite_device_instance": "1n",
                     "raw_header_text": "NCK305",
@@ -4377,6 +4379,93 @@ def test_build_issues_keeps_backplate_scope_review_when_headers_are_reused() -> 
     cross_page_issues = [issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT"]
     assert len(cross_page_issues) == 1
     assert cross_page_issues[0].title == "背板表格作用域待复核"
+
+
+def test_build_issues_keeps_backplate_scope_review_without_authoritative_scope_contract() -> None:
+    config = deepcopy(DEFAULT_CONFIG)
+
+    def scoped_pair(
+        pair_id: str,
+        sheet_id: str,
+        file_id: str,
+        source: str,
+        header: str,
+        endpoint: str,
+        *,
+        status: str = "pass",
+        confidence: float = 0.95,
+        sequence_valid: object = True,
+    ) -> Pair:
+        return Pair(
+            pair_id=pair_id,
+            line_group_id=None,
+            sheet_id=sheet_id,
+            file_id=file_id,
+            selected_pair_candidate_id=None,
+            left_value="1-8n101",
+            right_value=endpoint,
+            confidence=confidence,
+            status=status,
+            rationale="backplate virtual table",
+            confidence_bucket="high" if confidence >= 0.95 else "review",
+            evidence={
+                "source": "table_mapping",
+                "table_mapping": {
+                    "mapping_mode": "backplate_virtual_table",
+                    "sheet_id": sheet_id,
+                    "source_block_name": source,
+                    "composite_device_instance": "1-8n",
+                    "raw_header_text": header,
+                    "header_prefix": "1-8n1",
+                    "header_text_id": f"H-{pair_id}",
+                    "middle_text_id": f"M-{pair_id}",
+                    "right_text_id": f"R-{pair_id}",
+                    "row_number": 1,
+                    "row_number_sequence_valid": sequence_valid,
+                    "logical_endpoint": "1-8n101",
+                    "right_value": endpoint,
+                    "column_roles": {
+                        "left": "virtual_row_number",
+                        "middle": "virtual_row_number",
+                        "right": "external_terminal_endpoint",
+                    },
+                },
+            },
+            pair_kind="table_mapping",
+        )
+
+    sheets = [
+        SheetRecord("S0001", "F0001", "13 元件接线图.dwg", 13, "13", "背板图", "背板图", "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "14 元件接线图.dwg", 14, "14", "背板图", "背板图", "primary", "filename", True),
+    ]
+    variants = [
+        [
+            scoped_pair("P0001", "S0001", "F0001", "WDLK-861-D1C", "电源插件", "8XD2"),
+            scoped_pair("P0002", "S0002", "F0001", "ZSZ-812E", "备用插件", "4Q1D17"),
+        ],
+        [
+            scoped_pair("P0001", "S0001", "F0001", "WDLK-861-D1C", "电源插件", "8XD2", sequence_valid=False),
+            scoped_pair("P0002", "S0002", "F0002", "ZSZ-812E", "备用插件", "4Q1D17"),
+        ],
+        [
+            scoped_pair("P0001", "S0001", "F0001", "WDLK-861-D1C", "电源插件", "8XD2", status="review"),
+            scoped_pair("P0002", "S0002", "F0002", "ZSZ-812E", "备用插件", "4Q1D17"),
+        ],
+        [
+            scoped_pair("P0001", "S0001", "F0001", "WDLK-861-D1C", "电源插件", "8XD2", confidence=0.94),
+            scoped_pair("P0002", "S0002", "F0002", "ZSZ-812E", "备用插件", "4Q1D17"),
+        ],
+        [
+            scoped_pair("P0001", "S0001", "F0001", "WDLK-861-D1C", "电源插件", "8XD2"),
+            scoped_pair("P0002", "S0002", "F0002", "wdlk-861-d1c", "备用插件", "4Q1D17"),
+        ],
+    ]
+
+    for pairs in variants:
+        issues = build_issues(pairs, [], sheets, config)
+        cross_page_issues = [issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT"]
+        assert len(cross_page_issues) == 1
+        assert cross_page_issues[0].title == "背板表格作用域待复核"
 
 
 def test_build_issues_clusters_backplate_virtual_table_scope_reviews_by_table_scope() -> None:

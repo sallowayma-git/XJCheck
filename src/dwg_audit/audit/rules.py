@@ -1152,25 +1152,50 @@ def _are_backplate_pairs_in_distinct_explicit_scopes(
     if not _is_backplate_virtual_table_scope_review(linked_pairs):
         return False
     source_to_headers: dict[str, set[str]] = defaultdict(set)
+    scope_keys: set[tuple[str, ...]] = set()
+    file_ids: set[str] = set()
     device_instances: set[str] = set()
     header_prefixes: set[str] = set()
     row_numbers: set[str] = set()
     for pair in linked_pairs:
+        if pair.status != "pass" or float(pair.confidence or 0.0) < 0.95:
+            return False
+        if not _is_authoritative_table_mapping_group([pair]):
+            return False
         mapping = _table_mapping_evidence(pair)
         source_block_name = str(mapping.get("source_block_name") or "").strip()
+        normalized_source_block_name = source_block_name.casefold()
         raw_header_text = str(mapping.get("raw_header_text") or "").strip()
         device_instance = str(mapping.get("composite_device_instance") or "").strip()
         header_prefix = str(mapping.get("header_prefix") or "").strip()
         row_number = str(mapping.get("row_number") or "").strip()
+        header_text_id = str(mapping.get("header_text_id") or "").strip()
         if not source_block_name or not raw_header_text or not device_instance:
             return False
-        if not header_prefix or not row_number:
+        if not header_prefix or not row_number or not header_text_id:
             return False
-        source_to_headers[source_block_name].add(raw_header_text.casefold())
+        file_id = str(pair.file_id or "").strip()
+        if not file_id:
+            return False
+        file_ids.add(file_id)
+        scope_keys.add(
+            (
+                str(pair.sheet_id or ""),
+                str(pair.file_id or ""),
+                normalized_source_block_name,
+                header_text_id,
+                raw_header_text.casefold(),
+            )
+        )
+        source_to_headers[normalized_source_block_name].add(raw_header_text.casefold())
         device_instances.add(device_instance.casefold())
         header_prefixes.add(header_prefix.casefold())
         row_numbers.add(row_number)
     if len(source_to_headers) < 2:
+        return False
+    if len(scope_keys) != len(linked_pairs):
+        return False
+    if len(file_ids) != len(linked_pairs):
         return False
     if len(device_instances) != 1 or len(header_prefixes) != 1 or len(row_numbers) != 1:
         return False
