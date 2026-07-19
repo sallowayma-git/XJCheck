@@ -1993,3 +1993,10 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - 8000/9000: `1-26TD-216 -> GND` and `2-26TD-216 -> GND` occur on different sheets, headers and endpoint columns; equal row number 216 does not prove a shared wire.
 - PAC: `1ID-5/31/43/52` and `JD-11` map independently to GND across two sheets, multiple rows and two exact `1ID` header texts plus a separate `JD` header. Rows 5 and 11 also carry another endpoint (`1ID13` / `CZ-E`).
 - No group shares a physical line group, continuous line, exact physical row or exact table-header identity across every member. Therefore no engine-only rule can safely suppress the reviews. If human authority declares common GND semantics, the implementation may exempt only strict `table_mapping/pass` exact-`GND` cardinality; it must preserve all mappings and keep `internal_connectivity_inferred=false` and `electrical_union_eligible=false`.
+
+## Phase 181 scope audit findings
+
+- `source_block_name` alone is not sufficient scope authority: PAC `PAC-885G-H-1/-2`, 24000 `WMH-800-D1C-01-1/-2`, and 25000 reuse the same explicit table header across pages, so their cross-page scope reviews remain.
+- 26000 is a safe narrow exception because each conflicting source block has a different explicit plugin header while device instance, header prefix and row stay constant. This changes audit grouping only; it does not delete structured mappings or infer electrical topology.
+- PAC page `14 交流电压回路2.dwg` is a real positive replay for the existing geometry model: `1F1-1 -> 1VD1` and `1F1-2 -> 1701` are `component_mapping/pass/confidence=0.97`.
+- Full-corpus evidence confirms the scope rule changes no extraction fact: fresh10 Pair semantic delta is `0/0`. Audit10 removes only the three 26000 explicit-plugin cross-page reviews and adds nothing; PAC/24000/25000 same-header reviews and all GND reviews remain.

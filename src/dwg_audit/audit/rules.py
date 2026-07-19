@@ -457,6 +457,8 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
                 continue
             if _is_page_local_numeric_three_column_group(linked_pairs, left_value):
                 continue
+            if _are_backplate_pairs_in_distinct_explicit_scopes(linked_pairs):
+                continue
             if _is_backplate_virtual_table_scope_review(linked_pairs):
                 table_mappings = [_table_mapping_evidence(pair) for pair in linked_pairs]
                 issues.append(
@@ -1141,6 +1143,40 @@ def _is_backplate_virtual_table_scope_review(linked_pairs: list[Pair]) -> bool:
         if mapping.get("mapping_mode") != "backplate_virtual_table":
             return False
     return True
+
+
+def _are_backplate_pairs_in_distinct_explicit_scopes(
+    linked_pairs: list[Pair],
+) -> bool:
+    """Prove reused logical rows belong to differently named plugin scopes."""
+    if not _is_backplate_virtual_table_scope_review(linked_pairs):
+        return False
+    source_to_headers: dict[str, set[str]] = defaultdict(set)
+    device_instances: set[str] = set()
+    header_prefixes: set[str] = set()
+    row_numbers: set[str] = set()
+    for pair in linked_pairs:
+        mapping = _table_mapping_evidence(pair)
+        source_block_name = str(mapping.get("source_block_name") or "").strip()
+        raw_header_text = str(mapping.get("raw_header_text") or "").strip()
+        device_instance = str(mapping.get("composite_device_instance") or "").strip()
+        header_prefix = str(mapping.get("header_prefix") or "").strip()
+        row_number = str(mapping.get("row_number") or "").strip()
+        if not source_block_name or not raw_header_text or not device_instance:
+            return False
+        if not header_prefix or not row_number:
+            return False
+        source_to_headers[source_block_name].add(raw_header_text.casefold())
+        device_instances.add(device_instance.casefold())
+        header_prefixes.add(header_prefix.casefold())
+        row_numbers.add(row_number)
+    if len(source_to_headers) < 2:
+        return False
+    if len(device_instances) != 1 or len(header_prefixes) != 1 or len(row_numbers) != 1:
+        return False
+    if any(len(headers) != 1 for headers in source_to_headers.values()):
+        return False
+    return len({next(iter(headers)) for headers in source_to_headers.values()}) > 1
 
 
 def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:

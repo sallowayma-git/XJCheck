@@ -6,9 +6,9 @@
 ## Current Phase
 Phase 180 is active. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, and rear-wiring title instance authority are implemented with focused and full-corpus evidence.
 
-The current authoritative extraction is `.tmp/phase180_full_533_fresh9`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh8, the enclosure shadow changes no Pair semantic identity anywhere in the corpus. Fresh9 retains zero internal line-group gaps over 20 drawing units across 13,253 multi-member groups.
+The current authoritative extraction is `.tmp/phase181_full_533_fresh10`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh9, the explicit backplate scope guard changes no Pair semantic identity anywhere in the corpus.
 
-The current authoritative audit is `.tmp/phase180_full_533_audit9`: 58 issues (many-to-one 31, missing-side 19, cross-page 6, low-confidence 2). Compared with audit8, zero identities are added and exactly two pure closed-enclosure ordinary reviews are removed: 26000 `PW0130` and 31000 `PW0217`. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Cleanup is complete and the scoped recognition commit `89a1eba` is pushed to `origin/master`.
+The current authoritative audit is `.tmp/phase181_full_533_audit10`: 55 issues (many-to-one 31, missing-side 19, cross-page 3, low-confidence 2). Compared with audit9, zero identities are added and exactly three 26000 explicit-plugin scope reviews are removed. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. The scoped Phase181 rules/test change is ready for commit; other-agent ODA/packaging changes remain outside its boundary.
 
 ## Phases
 
@@ -2940,3 +2940,24 @@ The current authoritative audit is `.tmp/phase180_full_533_audit9`: 58 issues (m
 - The first fresh9 validation probe guessed a project-root `completeness.json`; the actual artifact is `extraction_completeness.json`. No replay or artifact changed. Re-read the actual schema and use its `analysis_status`, `clean_conclusion_allowed`, and `incomplete_page_count` fields.
 - The corrected census retry then used a `defaultdict` lookup before testing line-edge intersection, which inserted every line group into the hit index and produced an invalid all-corpus Pair report. No file changed. Build an ordinary dict entry only after a non-empty edge-parent intersection and rerun; discard the oversized output completely.
 - The first fresh9 full comparison requested nonexistent `issues.parquet.pair_kind`; the actual issue schema carries `pair_id` and `line_group_id` but no `pair_kind`. The read-only comparison stopped before producing a result; rerun with the real issue columns.
+
+## Phase 181 explicit backplate scope isolation
+
+- [x] Audit remaining cross-page table conflicts by source block, device instance, header text and row.
+- [x] Implement the strict explicit-plugin-header scope guard in the audit engine.
+- [x] Add positive and negative unit tests and run the focused rules gate.
+- [x] Replay PAC and 26000 from raw DWG; verify Pair identity and audit deltas.
+- [x] Replay all 28 projects / 533 DWGs and compare fresh10/audit10 against fresh9/audit9.
+- [x] Clean only superseded Phase181 intermediates after acceptance; preserve other-agent ODA/packaging work.
+- [x] Commit only the scoped rules/test/planning changes after final gates.
+
+### Phase 181 guardrails
+
+- Distinct explicit plugin headers can remove only the generic cross-page conflict cluster when all linked mappings are complete `backplate_virtual_table` facts with one device instance, header prefix and row. Same-header reuse, missing scope, ordinary pairs and mixed sources remain review.
+- The guard does not alter Pair identity, mapping generation, port count, `internal_connectivity_inferred`, `electrical_union_eligible`, or graph topology.
+
+### Phase 181 acceptance
+
+- `.tmp/phase181_full_533_fresh10`: 28 projects, 533 files/sheets, 533 valid, zero invalid/incomplete, Pair semantic delta `0/0` versus fresh9.
+- `.tmp/phase181_full_533_audit10`: 55 issues, with zero additions and exactly three removed 26000 cross-page scope reviews; all other projects exact.
+- Gates: `108 passed` rules, `50 passed` table/backplate, `1125 passed, 1 skipped` full repository, compileall and global diff-check.
