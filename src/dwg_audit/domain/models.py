@@ -102,6 +102,8 @@ class TextItem:
     bbox_max_x: float
     bbox_max_y: float
     source_block_name: str | None = None
+    color_index: int | None = None
+    true_color: int | None = None
 
 
 @dataclass(slots=True)

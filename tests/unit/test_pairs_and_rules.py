@@ -324,8 +324,12 @@ def _phase178_strip_component_pair(
     sheet_id: str,
     logical_endpoint: str,
     endpoint: str,
+    *,
+    raw_endpoint: str | None = None,
+    endpoint_text_id: str | None = None,
 ) -> Pair:
     body, port = logical_endpoint.rsplit("-", 1)
+    raw_endpoint = raw_endpoint or endpoint
     return Pair(
         pair_id, f"G-{pair_id}", sheet_id, sheet_id, None,
         logical_endpoint, endpoint, 0.95, "pass", "strip component", [], "high",
@@ -338,9 +342,9 @@ def _phase178_strip_component_pair(
             "component_port_text_id": f"PORT-{pair_id}",
             "component_block_name": "FJL-25-2A_Mirror",
             "external_endpoint": endpoint,
-            "external_endpoint_raw": endpoint,
+            "external_endpoint_raw": raw_endpoint,
             "external_endpoint_split": endpoint,
-            "external_endpoint_text_id": f"END-{pair_id}",
+            "external_endpoint_text_id": endpoint_text_id or f"END-{pair_id}",
             "logical_endpoint": logical_endpoint,
             "endpoint_side": "top",
             "line_group_id": f"G-{pair_id}",
@@ -510,6 +514,43 @@ def test_rules_keep_component_table_endpoint_with_same_sheet_component_chain_vis
     issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
 
     assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_accept_component_table_endpoint_with_authoritative_comma_chain() -> None:
+    pairs = [
+        _phase178_strip_component_pair(
+            "PC1",
+            "S1",
+            "1KLP2-1",
+            "1KLP1-1",
+        ),
+        _phase178_terminal_header_pair("PT", "S2", "1QD-2", "1KLP1-1"),
+        _phase178_strip_component_pair(
+            "PC2",
+            "S1",
+            "1KLP1-1",
+            "1QD2",
+            raw_endpoint="1QD2,1KLP2-1",
+            endpoint_text_id="END-PC2-GROUP",
+        ),
+        _phase178_strip_component_pair(
+            "PC3",
+            "S1",
+            "1KLP1-1",
+            "1KLP2-1",
+            raw_endpoint="1QD2,1KLP2-1",
+            endpoint_text_id="END-PC2-GROUP",
+        ),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "28 元件接线图2.dwg", 28, "28", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "32 右侧端子图1.dwg", 32, "32", "TERMINALS", "端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+    assert not any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
 
 
 def test_rules_keep_normalized_same_sheet_component_chain_visible() -> None:

@@ -1612,7 +1612,30 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
             and _terminal_endpoint_identity(pair.left_value)
             == _terminal_endpoint_identity(shared_value)
         ):
-            return False
+            # A strip component may describe all neighboring ports in one
+            # comma-separated label.  Accept the shared endpoint only when
+            # that outgoing group closes the graph by naming every incoming
+            # component/table source (display separators are normalized).
+            outgoing = [
+                candidate
+                for candidate in all_pairs
+                if candidate.sheet_id == component_pair.sheet_id
+                and candidate.pair_kind == "component_mapping"
+                and _terminal_endpoint_identity(candidate.left_value)
+                == _terminal_endpoint_identity(shared_value)
+            ]
+            incoming_sources = {
+                _terminal_endpoint_identity(candidate.left_value)
+                for candidate in linked_pairs
+            }
+            outgoing_targets = {
+                _terminal_endpoint_identity(candidate.right_value)
+                for candidate in outgoing
+            }
+            if not _is_authoritative_comma_component_mapping_group(outgoing):
+                return False
+            if not incoming_sources or outgoing_targets != incoming_sources:
+                return False
     return True
 
 
@@ -1855,40 +1878,58 @@ def _is_authoritative_comma_component_mapping_group(linked_pairs: list[Pair]) ->
         return False
     has_comma_group = False
     for pair in linked_pairs:
-        if getattr(pair, "pair_kind", "ordinary_pair") != "component_mapping":
-            return False
-        if pair.status != "pass" or float(pair.confidence or 0.0) < 0.95:
+        if not _is_authoritative_component_mapping_pair(pair):
             return False
         evidence = pair.evidence or {}
-        if evidence.get("source") != "component_mapping":
-            return False
-        if evidence.get("component_submode") != "strip_two_port_component":
-            return False
-        if str(evidence.get("logical_endpoint") or "") != str(pair.left_value or ""):
-            return False
-        if str(evidence.get("external_endpoint") or "") != str(pair.right_value or ""):
-            return False
-        if not all(
-            evidence.get(key)
-            for key in (
-                "component_body",
-                "component_body_text_id",
-                "component_port",
-                "component_port_text_id",
-                "component_block_name",
-                "external_endpoint_text_id",
-                "line_group_id",
-                "supporting_line_ids",
-            )
-        ):
-            return False
         raw_endpoint = str(evidence.get("external_endpoint_raw") or "")
-        split_endpoint = str(evidence.get("external_endpoint_split") or "")
-        if not raw_endpoint or split_endpoint != str(pair.right_value or ""):
-            return False
         if "," in raw_endpoint or "，" in raw_endpoint:
             has_comma_group = True
     return has_comma_group
+
+
+def _is_authoritative_comma_component_mapping_pair(pair: Pair) -> bool:
+    """Validate one high-confidence edge split from a comma endpoint label."""
+
+    if not _is_authoritative_component_mapping_pair(pair):
+        return False
+    raw_endpoint = str((pair.evidence or {}).get("external_endpoint_raw") or "")
+    return "," in raw_endpoint or "，" in raw_endpoint
+
+
+def _is_authoritative_component_mapping_pair(pair: Pair) -> bool:
+    """Validate one complete high-confidence strip-component mapping edge."""
+
+    if (
+        getattr(pair, "pair_kind", "ordinary_pair") != "component_mapping"
+        or pair.status != "pass"
+        or float(pair.confidence or 0.0) < 0.95
+    ):
+        return False
+    evidence = pair.evidence or {}
+    if (
+        evidence.get("source") != "component_mapping"
+        or evidence.get("component_submode") != "strip_two_port_component"
+        or str(evidence.get("logical_endpoint") or "") != str(pair.left_value or "")
+        or str(evidence.get("external_endpoint") or "") != str(pair.right_value or "")
+    ):
+        return False
+    if not all(
+        evidence.get(key)
+        for key in (
+            "component_body",
+            "component_body_text_id",
+            "component_port",
+            "component_port_text_id",
+            "component_block_name",
+            "external_endpoint_text_id",
+            "line_group_id",
+            "supporting_line_ids",
+        )
+    ):
+        return False
+    raw_endpoint = str(evidence.get("external_endpoint_raw") or "")
+    split_endpoint = str(evidence.get("external_endpoint_split") or "")
+    return bool(raw_endpoint) and split_endpoint == str(pair.right_value or "")
 
 
 def _structured_mapping_shared_endpoint_scope_info(

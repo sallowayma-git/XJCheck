@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 
 from dwg_audit.domain.models import LineEntity
@@ -14,6 +15,7 @@ _ORIENTATION_HORIZONTAL = "horizontal"
 _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
 _SIGNAL_INLINE_BRIDGE_GAP = 20.0
+_NAMED_COMPONENT_BARRIER_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,11}$", re.IGNORECASE)
 
 
 def _point_in_bbox(x: float, y: float, bbox: tuple[float, float, float, float] | None) -> bool:
@@ -37,8 +39,7 @@ def build_line_groups(
         by_sheet[line.sheet_id].append(line)
     by_sheet_texts = defaultdict(list)
     for text in texts or []:
-        if text.is_numeric_candidate:
-            by_sheet_texts[text.sheet_id].append(text)
+        by_sheet_texts[text.sheet_id].append(text)
     sheet_map = {sheet.sheet_id: sheet for sheet in sheets}
     group_ids = group_id_factory or IdFactory("G")
     band_ids = band_id_factory or IdFactory("RB")
@@ -443,6 +444,16 @@ def _can_merge_axis_intervals(
 
     if gap <= gap_tol:
         return True
+    if _has_named_component_barrier(
+        previous_end_axis,
+        next_start_axis,
+        previous_cross_axis,
+        next_cross_axis,
+        texts,
+        orientation=orientation,
+        cross_axis_tolerance=inline_bridge_y_tol,
+    ):
+        return False
     return _has_inline_numeric_bridge(
         previous_end_axis,
         next_start_axis,
@@ -453,6 +464,43 @@ def _can_merge_axis_intervals(
         inline_bridge_gap=inline_bridge_gap,
         inline_bridge_y_tol=inline_bridge_y_tol,
     )
+
+
+def _has_named_component_barrier(
+    previous_end_axis: float,
+    next_start_axis: float,
+    previous_cross_axis: float,
+    next_cross_axis: float,
+    texts: list[TextItem],
+    *,
+    orientation: str,
+    cross_axis_tolerance: float,
+) -> bool:
+    """Keep wire segments separate when an instance label occupies their gap."""
+
+    target_cross_axis = (previous_cross_axis + next_cross_axis) / 2.0
+    for text in texts:
+        instance = str(text.normalized_text or text.text or "").strip()
+        if (
+            text.is_numeric_candidate
+            or text.source_block_name
+            or text.entity_type.upper() != "MTEXT"
+            or not _NAMED_COMPONENT_BARRIER_PATTERN.fullmatch(instance)
+        ):
+            continue
+        if orientation == _ORIENTATION_VERTICAL:
+            text_axis_min = min(text.bbox_min_y, text.bbox_max_y)
+            text_axis_max = max(text.bbox_min_y, text.bbox_max_y)
+            cross_axis = (text.bbox_min_x + text.bbox_max_x) / 2.0
+        else:
+            text_axis_min = min(text.bbox_min_x, text.bbox_max_x)
+            text_axis_max = max(text.bbox_min_x, text.bbox_max_x)
+            cross_axis = (text.bbox_min_y + text.bbox_max_y) / 2.0
+        if text_axis_max < previous_end_axis - 1.0 or text_axis_min > next_start_axis + 1.0:
+            continue
+        if abs(cross_axis - target_cross_axis) <= cross_axis_tolerance:
+            return True
+    return False
 
 
 def _sheet_geometry_value_for_grid(sheet: SheetRecord, key: str, default: object) -> object:

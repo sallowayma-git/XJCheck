@@ -332,6 +332,8 @@ def _append_text(
     height: float,
     rotation: float,
     source_block_name: str | None = None,
+    color_index: int | None = None,
+    true_color: int | None = None,
 ) -> None:
     text = _normalize_text(raw_text)
     if not text:
@@ -357,6 +359,8 @@ def _append_text(
             bbox_max_x=bbox[2],
             bbox_max_y=bbox[3],
             source_block_name=source_block_name,
+            color_index=color_index,
+            true_color=true_color,
         )
     )
 
@@ -398,6 +402,19 @@ def _append_line(
     )
 
 
+def _optional_dxf_int(entity, attribute: str) -> int | None:
+    try:
+        value = getattr(entity.dxf, attribute, None)
+    except Exception:
+        return None
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _extract_graphic_entity(
     entity,
     *,
@@ -419,6 +436,8 @@ def _extract_graphic_entity(
     dxftype = entity.dxftype()
     handle = synthetic_handle or str(getattr(entity.dxf, "handle", "") or f"virtual:{dxftype}")
     layer = str(getattr(entity.dxf, "layer", "0") or "0")
+    color_index = _optional_dxf_int(entity, "color")
+    true_color = _optional_dxf_int(entity, "true_color")
 
     if dxftype == "TEXT":
         insert = entity.dxf.insert
@@ -436,6 +455,8 @@ def _extract_graphic_entity(
             float(entity.dxf.height),
             float(entity.dxf.rotation),
             source_block_name,
+            color_index,
+            true_color,
         )
         return
 
@@ -455,6 +476,8 @@ def _extract_graphic_entity(
             float(entity.dxf.char_height or 0.0),
             0.0,
             source_block_name,
+            color_index,
+            true_color,
         )
         return
 
@@ -474,6 +497,8 @@ def _extract_graphic_entity(
             float(entity.dxf.height),
             float(entity.dxf.rotation),
             source_block_name,
+            color_index,
+            true_color,
         )
         return
 
@@ -571,7 +596,7 @@ def _extract_graphic_entity(
                 end[0],
                 end[1],
                 source_block_name,
-            )
+        )
         return
 
     if dxftype == "INSERT":

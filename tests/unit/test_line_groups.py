@@ -64,6 +64,29 @@ def test_build_line_groups_keeps_gap_split_without_inline_numeric_text() -> None
     assert len(groups) == 2
 
 
+def test_build_line_groups_keeps_named_component_gap_split() -> None:
+    lines = [
+        LineEntity("L1", "S1", "F1", "H1", "LINE", "CONNECT", 10.0, 20.0, 32.5, 20.0, 22.5, 0.0, 10.0, 20.0, 32.5, 20.0),
+        LineEntity("L2", "S1", "F1", "H2", "LINE", "CONNECT", 42.5, 20.0, 57.5, 20.0, 15.0, 0.0, 42.5, 20.0, 57.5, 20.0),
+    ]
+    sheets = [
+        SheetRecord(
+            "S1", "F1", "generic.dwg", 1, "01", "COMMUNICATION", "二次原理图",
+            "primary", "filename", True, audit_area_bbox=(0.0, 0.0, 80.0, 50.0),
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "P1", "TEXT", "11", "11", True, "DIM", 0.0, 2.5, 31.2, 21.0, 31.2, 20.1, 34.3, 23.0),
+        TextItem("T2", "S1", "F1", "B1", "MTEXT", "PORTDEV", "PORTDEV", False, "DIM", 0.0, 3.0, 37.5, 21.6, 37.5, 20.6, 49.0, 24.0),
+        TextItem("T3", "S1", "F1", "P2", "TEXT", "12", "12", True, "DIM", 0.0, 2.5, 41.2, 21.0, 41.2, 20.1, 44.3, 23.0),
+    ]
+
+    groups = build_line_groups(lines, sheets, DEFAULT_CONFIG, texts)
+
+    assert len(groups) == 2
+    assert [group.member_line_ids for group in groups] == [["L1"], ["L2"]]
+
+
 def test_build_line_groups_bridges_gap_just_above_previous_threshold() -> None:
     lines = [
         LineEntity("L1", "S1", "F1", "H1", "LINE", "WIRE", 32.5, 20.0, 92.5, 20.0, 60.0, 0.0, 32.5, 20.0, 92.5, 20.0),

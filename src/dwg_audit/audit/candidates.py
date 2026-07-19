@@ -46,6 +46,8 @@ _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_Y = 4.0
 _SCHEMATIC_Q_DEVICE_ENDPOINT_MAX_LINE_LENGTH = 50.0
 _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MAX_ROW_DELTA = 6.0
 _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MIN_OVERLAP_RATIO = 0.35
+_SCHEMATIC_NAMED_COMPONENT_INSTANCE_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,11}$", re.IGNORECASE)
+_SCHEMATIC_NAMED_COMPONENT_PORT_DETAIL = "schematic_named_component_port"
 _SCHEMATIC_WIRE_LOGIC_SEARCH_RADIUS_X = 28.0
 _SCHEMATIC_DEVICE_ENDPOINT_SEARCH_RADIUS_X = 35.0
 _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS = (
@@ -184,6 +186,20 @@ def build_terminal_candidates(
                     orientation=orientation,
                     matched_terminal_strip_bypass=matched_terminal_strip_bypass,
                 )
+                named_component_port = _named_component_port_endpoint(
+                    text=text,
+                    raw_port_value=value,
+                    index=index,
+                    group=group,
+                    sheet=sheet,
+                    orientation=orientation,
+                    side=side,
+                    single_char_reject_layers=profile["single_char_reject_layers"],
+                )
+                if named_component_port is not None:
+                    value = named_component_port
+                    channel = _CHANNEL_WIRE_LOGIC_ENDPOINT
+                    channel_detail = _SCHEMATIC_NAMED_COMPONENT_PORT_DETAIL
                 if matched_terminal_strip_bypass:
                     status = "rejected"
                     reason = "terminal_strip_bypass_text"
@@ -312,6 +328,8 @@ def build_terminal_candidates(
                         horizontal_distance_weight=profile["terminal_strip_distance_x_weight"],
                         cross_axis_distance_weight=profile["terminal_strip_distance_y_weight"],
                     )
+                    if named_component_port is not None:
+                        score = max(score, 0.95)
                     if channel_detail in {
                         "schematic_binary_input_function_label",
                         "schematic_binary_input_function_description",
@@ -1204,6 +1222,79 @@ def _candidate_numeric_value(text: TextItem, patterns: list[re.Pattern[str]]) ->
             return match.group(match.lastindex or 1)
         return match.group(0)
     return None
+
+
+def _named_component_port_endpoint(
+    *,
+    text: TextItem,
+    raw_port_value: str | None,
+    index: TextSpatialIndex,
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    orientation: str,
+    side: str,
+    single_char_reject_layers: set[str],
+) -> str | None:
+    """Compose a nearby instance label and its endpoint-local single-digit port."""
+
+    if sheet is None or sheet.sheet_category != "二次原理图":
+        return None
+    if orientation not in {"horizontal", _ORIENTATION_GRID}:
+        return None
+    port = str(raw_port_value or "").strip()
+    if not port.isdigit() or not (1 <= len(port) <= 2):
+        return None
+    if text.source_block_name or text.layer.upper() not in single_char_reject_layers:
+        return None
+    if orientation == _ORIENTATION_VERTICAL:
+        if abs(text.insert_x - ((group.start_x + group.end_x) / 2.0)) > max(2.0, text.height):
+            return None
+    elif abs(text.insert_y - ((group.start_y + group.end_y) / 2.0)) > max(2.0, text.height):
+        return None
+
+    label_x_radius = max(8.0, text.height * 3.2)
+    label_y_radius = max(3.0, text.height * 1.5)
+    nearby = index.query(
+        (
+            text.bbox_min_x - label_x_radius,
+            text.bbox_min_y - label_y_radius,
+            text.bbox_max_x + label_x_radius,
+            text.bbox_max_y + label_y_radius,
+        )
+    )
+    labels: list[tuple[float, TextItem]] = []
+    for label in nearby:
+        if label.text_id == text.text_id or label.source_block_name:
+            continue
+        instance = str(label.normalized_text or label.text or "").strip()
+        if not _SCHEMATIC_NAMED_COMPONENT_INSTANCE_PATTERN.fullmatch(instance):
+            continue
+        if label.layer.upper() != text.layer.upper() or label.entity_type.upper() != "MTEXT":
+            continue
+        if not _is_red_text(label) and label.height <= text.height:
+            continue
+        if abs(label.insert_y - text.insert_y) > label_y_radius:
+            continue
+        if side == "right":
+            outside_gap = label.bbox_min_x - text.bbox_max_x
+        else:
+            outside_gap = text.bbox_min_x - label.bbox_max_x
+        if not (-0.5 <= outside_gap <= label_x_radius):
+            continue
+        labels.append((abs(outside_gap) + abs(label.insert_y - text.insert_y), label))
+    if not labels:
+        return None
+    labels.sort(key=lambda item: (item[0], item[1].text_id))
+    if len(labels) > 1 and abs(labels[0][0] - labels[1][0]) <= 0.25:
+        return None
+    instance = str(labels[0][1].normalized_text or labels[0][1].text).strip()
+    return f"{instance}{port}"
+
+
+def _is_red_text(text: TextItem) -> bool:
+    if text.color_index == 1:
+        return True
+    return text.true_color == 0xFF0000
 
 
 def _candidate_wire_logic_endpoint_value(

@@ -81,6 +81,92 @@ def test_build_terminal_candidates_accepts_numeric_text_inside_line_endpoint_win
     assert right_candidate.score > 0.0
 
 
+def test_build_terminal_candidates_composes_named_component_port_at_wire_endpoint() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=10.0,
+            start_y=20.0,
+            end_x=32.5,
+            end_y=20.0,
+            length=22.5,
+            wire_candidate_score=0.7,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1309", "1309", True, "DIM", 0.0, 2.5, 7.5, 20.7, 7.5, 19.8, 13.7, 22.7),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "9", "9", True, "DIM", 0.0, 2.5, 31.9, 21.0, 31.9, 20.1, 33.7, 23.0),
+        TextItem("T3", "S1", "F1", "H3", "MTEXT", "DEVX", "DEVX", False, "DIM", 0.0, 3.0, 37.5, 21.6, 37.5, 20.6, 44.9, 24.0, color_index=1),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "10", "10", True, "DIM", 0.0, 2.5, 41.2, 21.0, 41.2, 20.1, 44.3, 23.0),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "09 通讯、对时及打印回路.dwg", 9, "09", "COMMUNICATION", "二次原理图", "primary", "filename", True)
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    port = next(item for item in candidates if item.text_id == "T2" and item.side == "right")
+    assert port.status == "accepted"
+    assert port.value == "DEVX9"
+    assert port.channel == "wire_logic_endpoint_channel"
+    assert port.channel_detail == "schematic_named_component_port"
+    assert pairs[0].left_value == "1309"
+    assert pairs[0].right_value == "DEVX9"
+    assert pairs[0].pair_kind == "wire_component_mapping"
+    assert pairs[0].evidence["logical_endpoint"] == "DEVX9"
+
+
+def test_build_terminal_candidates_uses_component_side_for_two_digit_port() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 47.5, 20.0, 37.5, 0.7, ["L1", "L2"], ["CONNECT"])
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1307", "1307", True, "DIM", 0.0, 2.5, 7.5, 20.7, 7.5, 19.8, 13.7, 22.7),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "11", "11", True, "DIM", 0.0, 2.5, 31.2, 21.0, 31.2, 20.1, 34.3, 23.0),
+        TextItem("T3", "S1", "F1", "H3", "MTEXT", "PORTDEV", "PORTDEV", False, "DIM", 0.0, 3.0, 37.5, 21.6, 37.5, 20.6, 49.0, 24.0),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "12", "12", True, "DIM", 0.0, 2.5, 41.2, 21.0, 41.2, 20.1, 44.3, 23.0),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "generic.dwg", 1, "01", "COMMUNICATION", "二次原理图", "primary", "filename", True)
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    port = next(item for item in candidates if item.text_id == "T2" and item.side == "right")
+    opposite_port = next(item for item in candidates if item.text_id == "T4" and item.side == "right")
+    assert port.value == "PORTDEV11"
+    assert port.score >= 0.95
+    assert opposite_port.value == "12"
+    assert pairs[0].left_value == "1307"
+    assert pairs[0].right_value == "PORTDEV11"
+    assert pairs[0].pair_kind == "wire_component_mapping"
+
+
+def test_build_terminal_candidates_keeps_unowned_dim_single_char_filtered() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 32.5, 20.0, 22.5, 0.7, ["L1"], ["CONNECT"])
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1309", "1309", True, "DIM", 0.0, 2.5, 7.5, 20.7, 7.5, 19.8, 13.7, 22.7),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "9", "9", True, "DIM", 0.0, 2.5, 31.9, 21.0, 31.9, 20.1, 33.7, 23.0),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "09 通讯、对时及打印回路.dwg", 9, "09", "COMMUNICATION", "二次原理图", "primary", "filename", True)
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    port = next(item for item in candidates if item.text_id == "T2" and item.side == "right")
+    assert port.status == "rejected"
+    assert port.rejection_reason == "single_char_layer_filtered"
+
+
 def test_build_terminal_candidates_marks_binary_input_function_label_as_semantic_endpoint() -> None:
     line_groups = [
         LineGroup(
