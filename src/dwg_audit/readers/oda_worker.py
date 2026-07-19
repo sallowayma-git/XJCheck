@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from dwg_audit.readers.oda_process import ODA_JOB_ENV
+from dwg_audit.readers.oda_process import apply_worker_resource_policy
 from dwg_audit.readers.oda_process import join_named_windows_job
+from dwg_audit.readers.oda_process import start_parent_watchdog
 
 
 def run_worker(request: dict[str, Any]) -> dict[str, Any]:
@@ -77,6 +79,8 @@ def _run_smoke(request: dict[str, Any]) -> dict[str, Any]:
 
 def main(_argv: list[str] | None = None) -> int:
     try:
+        start_parent_watchdog()
+        apply_worker_resource_policy()
         join_named_windows_job(os.environ.get(ODA_JOB_ENV))
         line = sys.stdin.buffer.readline()
         if not line:

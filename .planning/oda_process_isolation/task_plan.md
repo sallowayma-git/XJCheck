@@ -19,23 +19,24 @@ Ensure a permanently blocked ODA conversion cannot indefinitely hold the Python 
 - **Status:** complete
 
 ### Phase 2: Isolated ODA execution
-- [ ] Add one-shot worker protocol and parent runner.
-- [ ] Assign Windows workers to kill-on-close Job Objects before sending work.
-- [ ] Use POSIX process groups and bounded termination fallback.
-- [ ] Route conversion and default health smoke through the isolated runner.
-- **Status:** in_progress
+- [x] Add one-shot worker protocol and parent runner.
+- [x] Assign Windows workers to kill-on-close Job Objects before sending work.
+- [x] Use POSIX process groups and bounded termination fallback.
+- [x] Route conversion and default health smoke through the isolated runner.
+- **Status:** complete
 
 ### Phase 3: Configuration and regression coverage
-- [ ] Add validated timeout settings and defaults.
-- [ ] Cover success, timeout, crash, invalid protocol, large output, and continued scheduling.
-- [ ] Preserve existing monkeypatched converter test seams explicitly.
-- **Status:** pending
+- [x] Add validated timeout settings and defaults.
+- [x] Cover success, timeout, crash, invalid protocol, large output, and continued scheduling.
+- [x] Preserve existing monkeypatched converter test seams explicitly.
+- **Status:** complete
 
 ### Phase 4: Verification and handoff
-- [ ] Run focused Python tests, then the complete Python suite.
-- [ ] Run desktop Rust/Node/type/lint/build checks because packaged sidecar entry behavior is affected.
-- [ ] Inspect diff, record residual risks, and create a local commit if verification is clean.
-- **Status:** pending
+- [x] Run focused Python tests, then the complete Python suite.
+- [x] Run desktop Rust/Node/type/lint/build checks because packaged sidecar entry behavior is affected.
+- [x] Reverify final deadline/reaping and packaged-smoke hardening.
+- [ ] Inspect diff, record residual risks, and prepare the scoped local commit.
+- **Status:** in_progress
 
 ## Decisions
 - Use a one-shot worker for each ODA call so native/Qt state cannot accumulate across files.
@@ -51,3 +52,8 @@ Ensure a permanently blocked ODA conversion cannot indefinitely hold the Python 
 | Assumed the PyInstaller build script was under the root `scripts` directory | 1 | The path did not exist; locate it under the desktop packaging tree before reading. |
 | Timeout integration test used 0.1s, shorter than a fresh Windows Python startup, so its pre-sleep marker was never written | 1 | Raise only the test timeout to 0.75s while retaining a 5s total-return bound and late-side-effect assertion. |
 | Called the long-running exec wait helper three times with nonexistent cell IDs while an agent review was active | 3 | No process or file was affected; stop attempting any exec-cell wait and use the direct collaboration agent wait tool only. |
+| Independent review reproduced nonzero-success protocol acceptance, spawn-after-serialization leakage, POSIX descendant leakage, unbounded temp output, and restrictive-Job fallback gaps | 1 | Replaced temp files with bounded drain threads, serialized before spawn, made cleanup universal, enforced exit/frame consistency, fixed killpg escalation, and added real descendant tests. |
+| The worktree advanced to commits `a94467e` and `af34340` while hardening was in progress | 1 | Accepted the concurrent commits, confirmed the initial isolation slice is intact in `a94467e`, and kept only post-commit hardening changes unstaged. |
+| A transient Python PID disappeared between two process-list probes after tests finished | 1 | Confirmed no running child remained; no repository or artifact change occurred. |
+| Final review found kill-after-reap lacked a final wait, stream close could block on inherited pipes, and synchronous stdin writes were outside the deadline | 1 | Move request transport to a bounded writer thread, make stream collection close-safe, and guarantee kill plus final wait before return. |
+| Final review found the automated packaged-worker test only exercised source mode and the staged sidecar can be stale | 1 | Keep the successful onefile smoke evidence, add a reusable post-build worker smoke to the build script, and update CI/checklist coverage. |

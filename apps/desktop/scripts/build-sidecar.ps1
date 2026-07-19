@@ -73,6 +73,21 @@ if (-not (Test-Path $ExePath)) {
     throw "Expected sidecar executable was not produced: $ExePath"
 }
 
+# Exercise the frozen worker dispatcher immediately after every build. This
+# catches stale specs, missing hidden imports, and broken stdout protocol before
+# the binary is copied into a release installer.
+$SmokeInput = '{"operation":"unsupported-test-operation"}'
+$SmokeRaw = $SmokeInput | & $ExePath oda-worker 2>&1
+$SmokeExit = $LASTEXITCODE
+try {
+    $Smoke = ($SmokeRaw | Out-String).Trim() | ConvertFrom-Json
+} catch {
+    throw "Frozen sidecar ODA worker smoke returned non-JSON output: $SmokeRaw"
+}
+if ($SmokeExit -ne 1 -or $Smoke.error_code -ne "ODA_WORKER_PROTOCOL") {
+    throw "Frozen sidecar ODA worker smoke failed: $($Smoke | ConvertTo-Json -Compress)"
+}
+
 $Marker = Join-Path $OutputDir "SIDECAR_BUILT_FROM.txt"
 @(
     "entrypoint=$EntryPoint"

@@ -35,3 +35,14 @@
 - There are 27 existing `dwg_converter.odafc.convert` patches: 23 in `test_analyze_project.py`, one in `acceptance_mini.py`, and three in `test_dwg_converter.py`.
 - All fake converters accept source/target positionally and extra keywords, so an explicit module-level `_oda_conversion_runner` can preserve the call shape. Tests should patch that seam directly; production must never auto-detect pytest or monkeypatches to disable isolation.
 - The first focused run passed 62/63 Python tests; the only failure was the historical exact-kwargs assertion, which now needs to include the worker executable and timeout fields.
+
+## Independent hardening review
+- A nonzero fake worker could previously print `{"ok": true}` and be accepted; protocol validation now requires a boolean `ok` on the final non-empty JSON line and enforces exit-code consistency.
+- Disk-backed temporary captures avoided pipe deadlock but could grow without bound. Dedicated reader threads now drain continuously and retain only a 1 MiB tail per stream.
+- POSIX termination previously skipped SIGKILL when the leader exited quickly after SIGTERM, leaving resistant descendants. SIGKILL is now sent to the process group regardless of leader exit timing.
+- Request serialization and all post-spawn exceptions now share one terminate/reap boundary. Windows Job assignment failure cleans the first worker and retries with bounded taskkill fallback.
+- ODA workers receive below-normal Windows priority or a positive POSIX nice adjustment, plus conservative one-thread defaults for common native math runtimes.
+- Request and capture pipes now use duplicated raw file descriptors, so timeout cleanup never closes a buffered stream while its I/O thread owns the buffer lock. Each stream keeps only a 1 MiB tail and returns after bounded joins even if an unowned descendant keeps a pipe open.
+- POSIX workers receive a supervisor-owned pipe descriptor. The worker watchdog kills its private session on EOF, covering a sidecar crash/SIGKILL where the parent cannot run normal cleanup. Pipe descriptors are moved above stdio before being passed to the worker.
+- The parent sets common numeric-library thread variables to one before the worker interpreter starts; the worker also applies below-normal priority/nice policy before importing ezdxf.
+- Residual boundary: Windows assignment still occurs immediately after process creation, and POSIX descendants that deliberately call `setsid()` are outside process-group ownership. The controlled worker waits for its ODA call and the named Job self-join remains fail-closed before any request is accepted.

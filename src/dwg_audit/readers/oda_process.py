@@ -7,18 +7,30 @@ import os
 import signal
 import subprocess
 import sys
-import tempfile
+import threading
+import time
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
+if os.name != "nt":
+    import fcntl
+
 
 ODA_WORKER_COMMAND = "oda-worker"
 ODA_JOB_ENV = "DWG_AUDIT_ODA_JOB_NAME"
+ODA_PARENT_WATCH_ENV = "DWG_AUDIT_ODA_PARENT_WATCH_FD"
 DEFAULT_ODA_TIMEOUT_SECONDS = 300.0
 MAX_WORKER_OUTPUT_BYTES = 1024 * 1024
 _MAX_TIMEOUT_SECONDS = 24 * 60 * 60.0
+_WORKER_THREAD_ENV_VARS = (
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+)
 
 
 class OdaProcessError(RuntimeError):
@@ -45,6 +57,120 @@ class WorkerCapture:
     stderr: str
 
 
+class _BoundedStreamCapture:
+    """Drain a child stream continuously while retaining only a bounded tail."""
+
+    def __init__(self, stream: Any, *, limit: int = MAX_WORKER_OUTPUT_BYTES) -> None:
+        self._stream = stream
+        self._fd = os.dup(int(stream.fileno()))
+        os.set_inheritable(self._fd, False)
+        self._limit = limit
+        self._tail = bytearray()
+        self._lock = threading.Lock()
+        self._fd_closed = False
+        self._thread = threading.Thread(target=self._drain, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _drain(self) -> None:
+        try:
+            while True:
+                chunk = os.read(self._fd, 64 * 1024)
+                if not chunk:
+                    return
+                with self._lock:
+                    if len(chunk) >= self._limit:
+                        self._tail = bytearray(chunk[-self._limit :])
+                    else:
+                        self._tail.extend(chunk)
+                        if len(self._tail) > self._limit:
+                            del self._tail[: len(self._tail) - self._limit]
+        except (OSError, ValueError):
+            return
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        with self._lock:
+            if self._fd_closed:
+                return
+            self._fd_closed = True
+            fd = self._fd
+            self._fd = -1
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            self._stream.close()
+        except (OSError, ValueError):
+            pass
+
+    def text(self) -> str:
+        self._thread.join(timeout=2.0)
+        if self._thread.is_alive():
+            self.close()
+            self._thread.join(timeout=0.5)
+        else:
+            self.close()
+        with self._lock:
+            data = bytes(self._tail)
+        return data.decode("utf-8", errors="replace")
+
+
+class _WorkerRequestWriter:
+    def __init__(self, stream: Any, payload: bytes) -> None:
+        self._fd = os.dup(int(stream.fileno()))
+        os.set_inheritable(self._fd, False)
+        self._payload = payload
+        self._error: BaseException | None = None
+        self._closed = False
+        self._lock = threading.Lock()
+        self._thread = threading.Thread(
+            target=self._write,
+            name="oda-request-writer",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _write(self) -> None:
+        fd = self._fd
+        try:
+            remaining = memoryview(self._payload)
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("ODA worker stdin accepted no data.")
+                remaining = remaining[written:]
+        except BaseException as exc:
+            self._error = exc
+        finally:
+            self.close()
+
+    def wait(self, timeout: float) -> bool:
+        self._thread.join(timeout=max(0.0, timeout))
+        return not self._thread.is_alive()
+
+    @property
+    def error(self) -> BaseException | None:
+        return self._error
+
+    def close(self) -> None:
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            fd = self._fd
+            self._fd = -1
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
 def bounded_oda_timeout(value: object, *, default: float = DEFAULT_ODA_TIMEOUT_SECONDS) -> float:
     """Return a finite, positive wall-time limit for one ODA invocation."""
 
@@ -58,7 +184,7 @@ def bounded_oda_timeout(value: object, *, default: float = DEFAULT_ODA_TIMEOUT_S
 
 
 def oda_timeout_from_config(config: object) -> float:
-    if not isinstance(config, dict):
+    if not isinstance(config, Mapping):
         return DEFAULT_ODA_TIMEOUT_SECONDS
     ingest = config.get("ingest", {})
     if not isinstance(ingest, dict):
@@ -67,7 +193,7 @@ def oda_timeout_from_config(config: object) -> float:
 
 
 def oda_process_isolation_enabled(config: object) -> bool:
-    if not isinstance(config, dict):
+    if not isinstance(config, Mapping):
         return True
     ingest = config.get("ingest", {})
     if not isinstance(ingest, dict):
@@ -82,6 +208,73 @@ def worker_command() -> list[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, ODA_WORKER_COMMAND]
     return [sys.executable, "-m", "dwg_audit.readers.oda_worker"]
+
+
+def apply_worker_resource_policy() -> None:
+    """Give the foreground desktop priority over an ODA worker by default."""
+
+    for variable in _WORKER_THREAD_ENV_VARS:
+        os.environ[variable] = "1"
+    if os.name == "nt":
+        try:
+            kernel32 = _kernel32()
+            below_normal = 0x00004000
+            kernel32.SetPriorityClass(
+                kernel32.GetCurrentProcess(),
+                below_normal,
+            )
+        except (OdaProcessError, OSError, AttributeError):
+            pass
+        return
+    try:
+        os.nice(5)
+    except (AttributeError, OSError):
+        pass
+
+
+def start_parent_watchdog() -> None:
+    """Kill the worker session if the supervising process disappears.
+
+    POSIX has no Windows Job Object equivalent.  A pipe held only by the
+    supervisor gives the worker an ownership signal that also works on
+    platforms without Linux ``prctl``: EOF means the supervisor died.
+    """
+
+    if os.name == "nt":
+        return
+    raw_fd = os.environ.get(ODA_PARENT_WATCH_ENV)
+    if not raw_fd:
+        return
+    try:
+        read_fd = int(raw_fd)
+    except ValueError:
+        return
+
+    def watch() -> None:
+        parent_gone = False
+        try:
+            while True:
+                if not os.read(read_fd, 1):
+                    parent_gone = True
+                    break
+        except (OSError, ValueError):
+            return
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+        if not parent_gone:
+            return
+        try:
+            os.killpg(os.getpgrp(), signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            try:
+                os.kill(os.getpid(), signal.SIGKILL)
+            except OSError:
+                pass
+
+    threading.Thread(target=watch, name="oda-parent-watchdog", daemon=True).start()
 
 
 def run_oda_conversion(
@@ -140,65 +333,114 @@ def _run_worker_request(
     command: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     timeout = bounded_oda_timeout(timeout_seconds)
+    deadline = time.monotonic() + timeout
     command_line = list(command or worker_command())
+    try:
+        payload = (json.dumps(request, ensure_ascii=True) + "\n").encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise OdaProcessError("ODA_WORKER_REQUEST", str(exc)) from exc
     environment = os.environ.copy()
     environment["PYTHONUNBUFFERED"] = "1"
     environment.setdefault("PYTHONIOENCODING", "utf-8")
+    for variable in _WORKER_THREAD_ENV_VARS:
+        environment[variable] = "1"
 
     job: _WindowsKillOnCloseJob | None = None
+    process: subprocess.Popen[bytes] | None = None
+    stdout_capture: _BoundedStreamCapture | None = None
+    stderr_capture: _BoundedStreamCapture | None = None
+    parent_watch_write: int | None = None
+    parent_watch_read: int | None = None
     try:
         if os.name == "nt":
-            try:
-                job = _WindowsKillOnCloseJob.create()
-                environment[ODA_JOB_ENV] = job.name
-            except OdaProcessError:
-                # Some desktop hosts already place children in a restrictive Job.
-                # Keep the bounded taskkill fallback rather than disabling ODA.
-                job = None
-                environment.pop(ODA_JOB_ENV, None)
+            job = _WindowsKillOnCloseJob.create()
+            environment[ODA_JOB_ENV] = job.name
+        else:
+            parent_watch_read, parent_watch_write = _open_parent_watch_pipe()
+            os.set_inheritable(parent_watch_read, True)
+            environment[ODA_PARENT_WATCH_ENV] = str(parent_watch_read)
 
-        process, stdout_file, stderr_file = _spawn_worker(
+        process, stdout_capture, stderr_capture = _spawn_worker(
             command_line,
             environment=environment,
             job=job,
+            pass_fds=(parent_watch_read,) if parent_watch_read is not None else (),
         )
-        try:
-            payload = (json.dumps(request, ensure_ascii=True) + "\n").encode("utf-8")
-            try:
-                process.communicate(payload, timeout=timeout)
-            except subprocess.TimeoutExpired:
-                _terminate_worker(process, job)
-                job = None
-                _reap_worker(process)
-                raise OdaProcessTimeout(timeout) from None
+        if parent_watch_read is not None:
+            _close_fd(parent_watch_read)
+        parent_watch_read = None
 
-            capture = WorkerCapture(
-                returncode=int(process.returncode or 0),
-                stdout=_read_tail(stdout_file),
-                stderr=_read_tail(stderr_file),
-            )
-        finally:
-            stdout_file.close()
-            stderr_file.close()
-            if job is not None:
-                job.close()
-                job = None
+        if process.stdin is None:
+            raise OdaProcessError("ODA_WORKER_IO_FAILED", "ODA worker stdin is unavailable.")
+        _write_worker_request(process, payload, deadline=deadline, timeout_seconds=timeout)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise OdaProcessTimeout(timeout)
+        try:
+            process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            raise OdaProcessTimeout(timeout) from None
+
+        if job is not None:
+            if not job.close():
+                _taskkill_tree(process.pid)
+            job = None
+        _reap_worker(process)
+        capture = WorkerCapture(
+            returncode=int(process.returncode or 0),
+            stdout=stdout_capture.text(),
+            stderr=stderr_capture.text(),
+        )
     except OdaProcessError:
+        if process is not None:
+            _terminate_worker(process, job)
+            _reap_worker(process)
+        if stdout_capture is not None:
+            stdout_capture.text()
+        if stderr_capture is not None:
+            stderr_capture.text()
         if job is not None:
             job.close()
         raise
-    except OSError as exc:
+    except BaseException as exc:
+        if process is not None:
+            _terminate_worker(process, job)
+            _reap_worker(process)
+        if stdout_capture is not None:
+            stdout_capture.text()
+        if stderr_capture is not None:
+            stderr_capture.text()
         if job is not None:
             job.close()
-        raise OdaProcessError("ODA_WORKER_SPAWN_FAILED", str(exc)) from exc
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
+        raise OdaProcessError("ODA_WORKER_FAILED", str(exc)) from exc
+    finally:
+        if parent_watch_read is not None:
+            _close_fd(parent_watch_read)
+        if parent_watch_write is not None:
+            _close_fd(parent_watch_write)
 
     response = _decode_worker_response(capture)
-    if capture.returncode != 0 and response is None:
-        detail = capture.stderr or capture.stdout or f"worker exited with code {capture.returncode}"
-        raise OdaProcessError("ODA_WORKER_FAILED", detail)
     if response is None:
-        detail = capture.stderr or "ODA worker returned an invalid response."
-        raise OdaProcessError("ODA_WORKER_PROTOCOL", detail)
+        code = "ODA_WORKER_FAILED" if capture.returncode != 0 else "ODA_WORKER_PROTOCOL"
+        detail = capture.stderr or capture.stdout or f"worker exited with code {capture.returncode}"
+        if code == "ODA_WORKER_PROTOCOL":
+            detail = f"ODA worker returned an invalid response: {detail}"
+        raise OdaProcessError(code, detail)
+    ok = response.get("ok")
+    if not isinstance(ok, bool):
+        raise OdaProcessError("ODA_WORKER_PROTOCOL", "ODA worker response has no boolean ok field.")
+    if capture.returncode == 0 and not ok:
+        raise OdaProcessError(
+            "ODA_WORKER_PROTOCOL",
+            "ODA worker returned ok=false with exit code 0.",
+        )
+    if capture.returncode != 0 and ok:
+        raise OdaProcessError(
+            "ODA_WORKER_FAILED",
+            f"ODA worker exited with code {capture.returncode} after reporting success.",
+        )
     return response
 
 
@@ -207,64 +449,107 @@ def _spawn_worker(
     *,
     environment: dict[str, str],
     job: _WindowsKillOnCloseJob | None,
+    pass_fds: Sequence[int] = (),
 ) -> tuple[subprocess.Popen[bytes], Any, Any]:
-    stdout_file = tempfile.TemporaryFile(mode="w+b")
-    stderr_file = tempfile.TemporaryFile(mode="w+b")
     creationflags = 0
     if os.name == "nt":
         creationflags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    process: subprocess.Popen[bytes] | None = None
+    stdout_capture: _BoundedStreamCapture | None = None
+    stderr_capture: _BoundedStreamCapture | None = None
     try:
-        process = subprocess.Popen(
-            list(command),
-            stdin=subprocess.PIPE,
-            stdout=stdout_file,
-            stderr=stderr_file,
-            env=environment,
-            creationflags=creationflags,
-            start_new_session=os.name != "nt",
-        )
+        popen_kwargs: dict[str, Any] = {
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "env": environment,
+            "creationflags": creationflags,
+            "start_new_session": os.name != "nt",
+        }
+        if os.name != "nt":
+            popen_kwargs["pass_fds"] = tuple(pass_fds)
+        process = subprocess.Popen(list(command), **popen_kwargs)
+        if os.name != "nt":
+            process._oda_pgid = int(process.pid)  # type: ignore[attr-defined]
+        if process.stdout is None or process.stderr is None:
+            raise OdaProcessError("ODA_WORKER_SPAWN_FAILED", "ODA worker pipes are unavailable.")
+        stdout_capture = _BoundedStreamCapture(process.stdout)
+        stderr_capture = _BoundedStreamCapture(process.stderr)
+        # Drop the Popen-owned file objects so that Popen.wait()/communicate() does
+        # NOT spawn its own ``_readerthread`` readers on the same pipe handles we
+        # already drain via the bounded capture. Without this, on Windows a
+        # timed-out ``process.wait`` falls back to ``_communicate`` which performs
+        # a strict ``utf-8`` decode of mixed worker+grandchild stdout bytes and
+        # raises UnicodeDecodeError from a background reader thread.
+        process.stdout = None
+        process.stderr = None
+        stdout_capture.start()
+        stderr_capture.start()
         if job is not None:
-            try:
-                job.assign_process(process.pid)
-            except OdaProcessError:
-                _terminate_worker(process, job)
-                raise
-        return process, stdout_file, stderr_file
+            job.assign_process(process.pid)
+        return process, stdout_capture, stderr_capture
+    except OSError as exc:
+        if process is not None:
+            _terminate_worker(process, None)
+            _reap_worker(process)
+        if stdout_capture is not None:
+            stdout_capture.text()
+        if stderr_capture is not None:
+            stderr_capture.text()
+        raise OdaProcessError("ODA_WORKER_SPAWN_FAILED", str(exc)) from exc
     except BaseException:
-        stdout_file.close()
-        stderr_file.close()
+        if process is not None:
+            # Assignment may have failed before the process entered the Job.
+            _terminate_worker(process, None)
+            _reap_worker(process)
+        if stdout_capture is not None:
+            stdout_capture.text()
+        if stderr_capture is not None:
+            stderr_capture.text()
         raise
 
 
-def _read_tail(stream: Any, limit: int = MAX_WORKER_OUTPUT_BYTES) -> str:
-    try:
-        stream.seek(0, os.SEEK_END)
-        size = int(stream.tell())
-        stream.seek(max(0, size - limit), os.SEEK_SET)
-        data = stream.read(limit)
-    except (OSError, ValueError):
-        return ""
-    if not isinstance(data, bytes):
-        return str(data)
-    return data.decode("utf-8", errors="replace")
-
-
 def _decode_worker_response(capture: WorkerCapture) -> dict[str, Any] | None:
-    # A frozen bootloader or a diagnostic fake may write a preamble. The worker
-    # response is always the last JSON object, so parse from the tail backwards.
-    for line in reversed([line.strip() for line in capture.stdout.splitlines() if line.strip()]):
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict):
-            return value
-    return None
+    lines = [line.strip() for line in capture.stdout.splitlines() if line.strip()]
+    if not lines:
+        return None
+    try:
+        value = json.loads(lines[-1])
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _write_worker_request(
+    process: subprocess.Popen[bytes],
+    payload: bytes,
+    *,
+    deadline: float,
+    timeout_seconds: float,
+) -> None:
+    stream = process.stdin
+    if stream is None:
+        raise OdaProcessError("ODA_WORKER_IO_FAILED", "ODA worker stdin is unavailable.")
+    writer = _WorkerRequestWriter(stream, payload)
+    process._oda_request_writer = writer  # type: ignore[attr-defined]
+    writer.start()
+    remaining = max(0.0, deadline - time.monotonic())
+    if not writer.wait(remaining):
+        raise OdaProcessTimeout(timeout_seconds)
+    if writer.error is not None:
+        exc = writer.error
+        if isinstance(exc, (BrokenPipeError, OSError, ValueError)):
+            raise OdaProcessError("ODA_WORKER_IO_FAILED", str(exc)) from exc
+        raise exc
+    _close_worker_stdin(process)
+    process._oda_request_writer = None  # type: ignore[attr-defined]
 
 
 def _reap_worker(process: subprocess.Popen[bytes]) -> None:
+    _close_worker_stdin(process)
+    _join_worker_writer(process)
     try:
-        process.communicate(timeout=2.0)
+        process.wait(timeout=2.0)
     except (subprocess.TimeoutExpired, OSError):
         try:
             process.kill()
@@ -276,29 +561,81 @@ def _reap_worker(process: subprocess.Popen[bytes]) -> None:
             pass
 
 
+def _close_worker_stdin(process: subprocess.Popen[bytes]) -> None:
+    stream = process.stdin
+    if stream is None:
+        return
+    process.stdin = None
+    try:
+        stream.close()
+    except (OSError, ValueError):
+        pass
+
+
+def _join_worker_writer(process: subprocess.Popen[bytes]) -> None:
+    writer = getattr(process, "_oda_request_writer", None)
+    if not isinstance(writer, _WorkerRequestWriter):
+        return
+    writer.close()
+    if writer.wait(1.0):
+        process._oda_request_writer = None  # type: ignore[attr-defined]
+
+
+def _close_fd(fd: int) -> None:
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def _open_parent_watch_pipe() -> tuple[int, int]:
+    read_fd, write_fd = os.pipe()
+    try:
+        read_fd = _move_fd_above_stdio(read_fd)
+        write_fd = _move_fd_above_stdio(write_fd)
+        return read_fd, write_fd
+    except BaseException:
+        _close_fd(read_fd)
+        _close_fd(write_fd)
+        raise
+
+
+def _move_fd_above_stdio(fd: int) -> int:
+    if fd > 2:
+        return fd
+    replacement = fcntl.fcntl(fd, fcntl.F_DUPFD, 3)
+    os.close(fd)
+    return replacement
+
+
 def _terminate_worker(
     process: subprocess.Popen[bytes],
     job: _WindowsKillOnCloseJob | None,
 ) -> None:
+    job_closed = True
     if job is not None:
-        job.close()
+        job_closed = job.close()
     if os.name == "nt":
-        _taskkill_tree(process.pid)
+        if job is None or not job_closed:
+            _taskkill_tree(process.pid)
     else:
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except (ProcessLookupError, OSError):
-            pass
-        try:
-            process.wait(timeout=0.25)
-        except (subprocess.TimeoutExpired, OSError):
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except (ProcessLookupError, OSError):
-                pass
+        pgid = int(getattr(process, "_oda_pgid", process.pid))
+        _kill_process_group(pgid, signal.SIGTERM)
+        _kill_process_group(pgid, signal.SIGKILL)
     try:
         process.kill()
     except OSError:
+        pass
+    _close_worker_stdin(process)
+    _join_worker_writer(process)
+
+
+def _kill_process_group(pgid: int, signum: int) -> None:
+    if os.name == "nt":
+        return
+    try:
+        os.killpg(pgid, signum)
+    except (ProcessLookupError, OSError):
         pass
 
 
@@ -423,15 +760,18 @@ class _WindowsKillOnCloseJob:
         finally:
             kernel32.CloseHandle(process_handle)
 
-    def close(self) -> None:
+    def close(self) -> bool:
         handle = getattr(self, "_handle", 0)
         if not handle or os.name != "nt":
-            return
-        self._handle = 0
+            return True
         try:
-            _kernel32().CloseHandle(handle)
+            kernel32 = _kernel32()
+            if kernel32.CloseHandle(handle):
+                self._handle = 0
+                return True
         except (AttributeError, OSError):
-            pass
+            return False
+        return False
 
 
 def _kernel32():
@@ -457,6 +797,8 @@ def _kernel32():
     kernel32.OpenJobObjectW.restype = ctypes.c_void_p
     kernel32.GetCurrentProcess.argtypes = []
     kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+    kernel32.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    kernel32.SetPriorityClass.restype = ctypes.c_int
     kernel32.IsProcessInJob.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)]
     kernel32.IsProcessInJob.restype = ctypes.c_int
     return kernel32
