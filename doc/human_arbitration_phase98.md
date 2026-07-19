@@ -397,3 +397,10 @@ connectivity and electrical union.
 - 这不是接地图形 IGNORE。audit9 的三条残余由九条 `table_mapping / pass / 0.95` 组成；每条都有表头、物理行号和 `说明` 证据，但 `line_group_id=None`，没有共享导线或 line group 可证明电气合并。
 - 待逐组裁决：30000 的 `1-JD-21 / 2-JD-19 -> GND`；8000/9000 的 `1-26TD-216 / 2-26TD-216 -> GND`；PAC 的 `1ID-5/31/43/52` 与 `JD-11 -> GND`。这些组分别跨表头、行、页或端点列，不能仅按文本 `GND` 自动静默。
 - 即使人工确认多个端口共享 GND 语义，也只能免除严格结构化 GND 的 many-to-one cardinality；必须保留每一条 port-to-GND mapping，端口之间仍不建立 internal connectivity 或 electrical union。同一行另有 `CZ-E/1ID13` 等端点时也必须保留独立映射证据。
+
+## Phase 181：闭合辅助框与 CONNECT 重复认领（2026-07-19）
+
+- 31000 的 `1731/1729` 以及同族 26000 的 `229/431` 均确认由独立 `LINE/CONNECT` 主线和其上方约 2.5 图纸单位的 layer-0 闭合矩形边共同认领同一文本。闭合矩形边为辅助几何，可标记 shadow；独立 CONNECT 主线仍保留为 canonical Pair，并继续按真实缺侧规则审核。
+- 已确认的 shadow -> canonical 为：26000 `PW0150 -> PW0148`、`PW0151 -> PW0149`；31000 `PW0237 -> PW0236`、`PW0261 -> PW0260`、`PW0262 -> PW0259`。其中 `PW0237/PW0261` 由两个 bbox 等价 parent 共同组成，原始 parent handles 全部保留。
+- 自动泛化必须要求四边几何闭合、纯 layer-0 框边、唯一且无歧义的纯 `LINE/CONNECT` 主线、同 text ID/侧别/值、足够水平重叠与按文本高度归一化的垂直邻近。`CONNECT` 层 polyline、混合 layer、alternative candidate、`NaN/None/null` 文本 ID、过短或长于框边的支线全部 fail-closed。
+- 该裁决不授权删除 canonical Pair、消除真实缺侧、合并框内端口或建立 electrical union。31000 的 `926/927/932` 和组件共享端点继续保留审核；fresh13/audit13 覆盖 28 项目、533/533 valid，Pair 与 issue identity 均相对基线零增删。

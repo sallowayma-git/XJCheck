@@ -1,3 +1,5 @@
+import pytest
+
 from dwg_audit.audit.page_extractors import _mark_input_matrix_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation_pairs
 from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
@@ -1249,6 +1251,215 @@ def test_closed_tall_polyline_enclosure_edge_shadows_ordinary_pair() -> None:
     }
 
 
+def test_closed_polyline_duplicate_edge_shadows_only_with_unique_connect_claim() -> None:
+    frame_pair = _pair(
+        {},
+        pair_id="P_FRAME",
+        line_group_id="G_FRAME",
+        left_text_id="T1731",
+        left_value="1731",
+        right_value=None,
+    )
+    connect_pair = _pair(
+        {},
+        pair_id="P_CONNECT",
+        line_group_id="G_CONNECT",
+        left_text_id="T1731",
+        left_value="1731",
+        right_value=None,
+    )
+    frame_lines = _closed_tall_frame_lines(height=90.0, y1=82.5)
+    connect_line = _panel_line(
+        "CONNECT_LINE",
+        handle="CONNECT1",
+        start_x=110.0,
+        start_y=80.0,
+        end_x=145.0,
+        end_y=80.0,
+        layer="CONNECT",
+    )
+    frame_group = LineGroup(
+        "G_FRAME", "S1", "F1", 105.0, 82.5, 150.0, 82.5, 45.0, 0.55, ["LF0"], ["0"]
+    )
+    connect_group = LineGroup(
+        "G_CONNECT", "S1", "F1", 110.0, 80.0, 145.0, 80.0, 35.0, 0.85, ["CONNECT_LINE"], ["CONNECT"]
+    )
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
+        [frame_pair, connect_pair],
+        [frame_group, connect_group],
+        [*frame_lines, connect_line],
+        [_panel_text("T1731", "1731", x=105.0, y=80.0)],
+    )
+
+    assert frame_pair.evidence["ordinary_pair_eligible"] is False
+    assert frame_pair.evidence["ordinary_pair_shadow_reason"] == "closed_polyline_duplicate_enclosure_edge"
+    assert frame_pair.evidence["closed_polyline_enclosure"]["canonical_pair_id"] == "P_CONNECT"
+    assert connect_pair.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_closed_polyline_duplicate_edge_fails_closed_without_text_height() -> None:
+    frame_pair = _pair(
+        {},
+        pair_id="P_FRAME",
+        line_group_id="G_FRAME",
+        left_text_id="T1731",
+        left_value="1731",
+        right_value=None,
+    )
+    connect_pair = _pair(
+        {},
+        pair_id="P_CONNECT",
+        line_group_id="G_CONNECT",
+        left_text_id="T1731",
+        left_value="1731",
+        right_value=None,
+    )
+    lines = _closed_tall_frame_lines(height=90.0, y1=82.5)
+    lines.append(
+        _panel_line(
+            "CONNECT_LINE",
+            handle="CONNECT1",
+            start_x=105.0,
+            start_y=80.0,
+            end_x=150.0,
+            end_y=80.0,
+            layer="CONNECT",
+        )
+    )
+    groups = [
+        LineGroup("G_FRAME", "S1", "F1", 105.0, 82.5, 150.0, 82.5, 45.0, 0.55, ["LF0"], ["0"]),
+        LineGroup("G_CONNECT", "S1", "F1", 105.0, 80.0, 150.0, 80.0, 45.0, 0.85, ["CONNECT_LINE"], ["CONNECT"]),
+    ]
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
+        [frame_pair, connect_pair], groups, lines
+    )
+
+    assert frame_pair.evidence.get("ordinary_pair_eligible") is not False
+
+
+def test_closed_polyline_duplicate_edge_rejects_short_connect_overlap() -> None:
+    frame_pair = _pair(
+        {},
+        pair_id="P_FRAME",
+        line_group_id="G_FRAME",
+        left_text_id="T1731",
+        left_value="1731",
+        right_value=None,
+    )
+    connect_pair = _pair(
+        {},
+        pair_id="P_CONNECT",
+        line_group_id="G_CONNECT",
+        left_text_id="T1731",
+        left_value="1731",
+        right_value=None,
+    )
+    lines = _closed_tall_frame_lines(height=90.0, y1=82.5)
+    lines.append(
+        _panel_line(
+            "CONNECT_LINE",
+            handle="CONNECT1",
+            start_x=120.0,
+            start_y=80.0,
+            end_x=130.0,
+            end_y=80.0,
+            layer="CONNECT",
+        )
+    )
+    groups = [
+        LineGroup("G_FRAME", "S1", "F1", 105.0, 82.5, 150.0, 82.5, 45.0, 0.55, ["LF0"], ["0"]),
+        LineGroup("G_CONNECT", "S1", "F1", 120.0, 80.0, 130.0, 80.0, 10.0, 0.85, ["CONNECT_LINE"], ["CONNECT"]),
+    ]
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
+        [frame_pair, connect_pair],
+        groups,
+        lines,
+        [_panel_text("T1731", "1731", x=120.0, y=80.0)],
+    )
+
+    assert frame_pair.evidence.get("ordinary_pair_eligible") is not False
+
+
+@pytest.mark.parametrize(
+    ("text_id", "connect_source_type", "connect_layer", "connect_start_x", "alternatives", "ambiguity_gap"),
+    [
+        ("NaN", "LINE", "CONNECT", 110.0, [], None),
+        ("T1731", "LWPOLYLINE", "CONNECT", 110.0, [], None),
+        ("T1731", "LINE", "0", 110.0, [], None),
+        ("T1731", "LINE", "CONNECT", 110.0, ["ALT"], None),
+        ("T1731", "LINE", "CONNECT", 110.0, [], 0.2),
+        ("T1731", "LINE", "CONNECT", 90.0, [], None),
+    ],
+)
+def test_closed_polyline_duplicate_edge_rejects_non_authoritative_connect_claim(
+    text_id: str,
+    connect_source_type: str,
+    connect_layer: str,
+    connect_start_x: float,
+    alternatives: list[str],
+    ambiguity_gap: float | None,
+) -> None:
+    frame_pair = _pair(
+        {},
+        pair_id="P_FRAME",
+        line_group_id="G_FRAME",
+        left_text_id=text_id,
+        left_value="1731",
+        right_value=None,
+    )
+    connect_pair = _pair(
+        {},
+        pair_id="P_CONNECT",
+        line_group_id="G_CONNECT",
+        left_text_id=text_id,
+        left_value="1731",
+        right_value=None,
+    )
+    connect_pair.alternative_pair_candidate_ids = alternatives
+    connect_pair.ambiguity_gap = ambiguity_gap
+    lines = _closed_tall_frame_lines(height=90.0, y1=82.5)
+    lines.append(
+        _panel_line(
+            "CONNECT_LINE",
+            handle="CONNECT1",
+            start_x=connect_start_x,
+            start_y=80.0,
+            end_x=145.0,
+            end_y=80.0,
+            layer=connect_layer,
+            source_entity_type=connect_source_type,
+        )
+    )
+    groups = [
+        LineGroup("G_FRAME", "S1", "F1", 105.0, 82.5, 150.0, 82.5, 45.0, 0.55, ["LF0"], ["0"]),
+        LineGroup(
+            "G_CONNECT",
+            "S1",
+            "F1",
+            connect_start_x,
+            80.0,
+            145.0,
+            80.0,
+            145.0 - connect_start_x,
+            0.85,
+            ["CONNECT_LINE"],
+            [connect_layer],
+        ),
+    ]
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
+        [frame_pair, connect_pair],
+        groups,
+        lines,
+        [_panel_text(text_id, "1731", x=110.0, y=80.0)],
+    )
+
+    assert frame_pair.evidence.get("ordinary_pair_eligible") is not False
+
+
 def test_closed_tall_polyline_enclosure_keeps_group_with_connect_line() -> None:
     pair = _pair({}, line_group_id="G_WIRE", left_value="1201", right_value="1204")
     lines = _closed_tall_frame_lines()
@@ -1303,8 +1514,8 @@ def test_closed_polyline_requires_tall_enclosure_geometry() -> None:
     assert pair.evidence.get("ordinary_pair_eligible") is not False
 
 
-def _closed_tall_frame_lines(*, height: float = 190.0) -> list[LineEntity]:
-    x1, x2, y1, y2 = 105.0, 150.0, 80.0, 80.0 + height
+def _closed_tall_frame_lines(*, height: float = 190.0, y1: float = 80.0) -> list[LineEntity]:
+    x1, x2, y2 = 105.0, 150.0, y1 + height
     return [
         _panel_line(
             "LF0", handle="F41:0", start_x=x1, start_y=y1, end_x=x2, end_y=y1,

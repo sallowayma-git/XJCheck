@@ -6,9 +6,9 @@
 ## Current Phase
 Phase 180 is active. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, and rear-wiring title instance authority are implemented with focused and full-corpus evidence.
 
-The current authoritative extraction is `.tmp/phase181_full_533_fresh10`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. Compared with fresh9, the explicit backplate scope guard changes no Pair semantic identity anywhere in the corpus.
+The current authoritative extraction is `.tmp/phase181_full_533_fresh13`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. It contains 38,814 Pair identities with zero additions/removals versus fresh10 and exactly five geometry-proven auxiliary-frame shadows.
 
-The current authoritative audit is `.tmp/phase181_full_533_audit10`: 55 issues (many-to-one 31, missing-side 19, cross-page 3, low-confidence 2). Compared with audit9, zero identities are added and exactly three 26000 explicit-plugin scope reviews are removed. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. The scoped Phase181 rules/test change is ready for commit; other-agent ODA/packaging changes remain outside its boundary.
+The current authoritative audit is `.tmp/phase181_full_533_audit13`: 55 issues (many-to-one 31, missing-side 19, cross-page 3, low-confidence 2), with zero issue-identity additions/removals versus audit11. Independent review hardened case-insensitive source-block scope identity and the auxiliary-frame canonical proof. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Other-agent ODA/packaging changes remain outside the recognition commit boundary.
 
 ## Phases
 
@@ -2955,9 +2955,16 @@ The current authoritative audit is `.tmp/phase181_full_533_audit10`: 55 issues (
 
 - Distinct explicit plugin headers can remove only the generic cross-page conflict cluster when all linked mappings are complete `backplate_virtual_table` facts with one device instance, header prefix and row. Same-header reuse, missing scope, ordinary pairs and mixed sources remain review.
 - The guard does not alter Pair identity, mapping generation, port count, `internal_connectivity_inferred`, `electrical_union_eligible`, or graph topology.
+- The closed-polyline auxiliary-edge slice is shadow-only: it preserves source lines, LineGroups and the canonical CONNECT Pair. It requires a reconstructable four-edge rectangle, no independent line-group member, and unique same-text/same-side CONNECT corroboration for non-tall frames.
 
 ### Phase 181 acceptance
 
 - `.tmp/phase181_full_533_fresh10`: 28 projects, 533 files/sheets, 533 valid, zero invalid/incomplete, Pair semantic delta `0/0` versus fresh9.
 - `.tmp/phase181_full_533_audit10`: 55 issues, with zero additions and exactly three removed 26000 cross-page scope reviews; all other projects exact.
 - Gates: `108 passed` rules, `50 passed` table/backplate, `1125 passed, 1 skipped` full repository, compileall and global diff-check.
+
+### Phase 181 current follow-up acceptance
+
+- Local 31000 fresh/audit replay preserves 1406 Pair facts and all seven baseline issue identities while shadowing only auxiliary frame Pairs `PW0237`, `PW0261`, and `PW0262`.
+- Full acceptance still requires fresh extraction and audit across both test roots (`28` projects, `533` DWG), followed by cleanup and a scoped recognition commit.
+- Final fresh13/audit13 acceptance is complete: 28 projects, 533/533 valid, zero incomplete, Pair and issue identity deltas both `0/0`. Remaining work for this slice is cleanup, scoped commit and push.

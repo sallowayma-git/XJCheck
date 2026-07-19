@@ -287,7 +287,7 @@ def _extract_pairs_for_route(
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
         _shadow_communication_medium_ordinary_pairs(pairs, pages)
         _shadow_repeated_panel_silkscreen_ordinary_pairs(pairs, pages, texts, blocks or [])
-    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(pairs, line_groups, lines)
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs(pairs, line_groups, lines, texts)
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -462,8 +462,14 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
     pairs: list[Pair],
     line_groups: list[LineGroup],
     lines: list[LineEntity],
+    texts: list[TextItem] | None = None,
 ) -> None:
-    """Keep closed enclosure edges as geometry evidence, not electrical pairs."""
+    """Keep auxiliary closed-polyline edges as geometry evidence, not electrical pairs.
+
+    A tall frame is self-proving geometry. A shorter frame is shadowed only when it
+    duplicates one unique CONNECT claim on the same text and side; this preserves
+    real open-ended CONNECT claims and all structured mappings.
+    """
 
     line_by_id = {line.line_id: line for line in lines}
     parent_lines: dict[tuple[str, str, str], list[tuple[int, LineEntity]]] = defaultdict(list)
@@ -477,49 +483,64 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
 
     enclosure_by_line_id: dict[str, dict[str, object]] = {}
     for (sheet_id, file_id, parent_handle), indexed_lines in parent_lines.items():
-        enclosure = _closed_tall_polyline_enclosure(indexed_lines)
+        enclosure = _closed_polyline_enclosure(indexed_lines)
         if enclosure is None:
             continue
-        width, height, member_line_ids = enclosure
+        width = float(enclosure["width"])
+        height = float(enclosure["height"])
         evidence = {
             "sheet_id": sheet_id,
             "file_id": file_id,
             "parent_handle": parent_handle,
             "width": width,
             "height": height,
-            "member_line_ids": member_line_ids,
+            "member_line_ids": list(enclosure["member_line_ids"]),
+            "min_x": float(enclosure["min_x"]),
+            "min_y": float(enclosure["min_y"]),
+            "max_x": float(enclosure["max_x"]),
+            "max_y": float(enclosure["max_y"]),
+            "is_tall": height >= 4.0 * width,
         }
-        for line_id in member_line_ids:
+        for line_id in enclosure["member_line_ids"]:
             enclosure_by_line_id[line_id] = evidence
 
     if not enclosure_by_line_id:
         return
 
     group_enclosures: dict[str, dict[str, object]] = {}
+    group_by_id = {group.line_group_id: group for group in line_groups}
     for group in line_groups:
         member_line_ids = {str(line_id) for line_id in group.member_line_ids if str(line_id)}
         if not member_line_ids:
             continue
         enclosure_candidates = {
-            str(enclosure_by_line_id[line_id]["parent_handle"])
+            str(enclosure_by_line_id[line_id]["parent_handle"]): enclosure_by_line_id[line_id]
             for line_id in member_line_ids
             if line_id in enclosure_by_line_id
         }
-        if len(enclosure_candidates) != 1:
+        if not enclosure_candidates:
             continue
-        parent_handle = next(iter(enclosure_candidates))
-        enclosure = next(
-            enclosure_by_line_id[line_id]
-            for line_id in member_line_ids
-            if line_id in enclosure_by_line_id
-            and enclosure_by_line_id[line_id]["parent_handle"] == parent_handle
-        )
-        enclosure_member_ids = set(enclosure["member_line_ids"])
+        enclosures = list(enclosure_candidates.values())
+        reference = enclosures[0]
+        if any(not _equivalent_polyline_bbox(reference, enclosure) for enclosure in enclosures[1:]):
+            continue
+        enclosure_member_ids = {
+            str(line_id)
+            for enclosure in enclosures
+            for line_id in enclosure["member_line_ids"]
+        }
         if not member_line_ids.issubset(enclosure_member_ids):
             continue
         if any(line_id not in line_by_id for line_id in member_line_ids):
             continue
-        group_enclosures[group.line_group_id] = enclosure
+        group_enclosures[group.line_group_id] = {
+            **reference,
+            "parent_handles": sorted(enclosure_candidates),
+            "member_line_ids": sorted(enclosure_member_ids),
+            "is_tall": all(bool(enclosure["is_tall"]) for enclosure in enclosures),
+        }
+
+    text_by_id = {text.text_id: text for text in (texts or [])}
 
     for pair in pairs:
         if pair.pair_kind != "ordinary_pair":
@@ -529,19 +550,162 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
         enclosure = group_enclosures.get(pair.line_group_id)
         if enclosure is None:
             continue
+        if not enclosure["is_tall"]:
+            primary = _unique_nearby_connect_claim(
+                pair,
+                enclosure,
+                pairs,
+                group_by_id,
+                line_by_id,
+                text_by_id,
+            )
+            if primary is None:
+                continue
+            pair.evidence["ordinary_pair_shadow_reason"] = "closed_polyline_duplicate_enclosure_edge"
+            pair.evidence["closed_polyline_enclosure"] = {
+                "parent_handles": enclosure["parent_handles"],
+                "width": enclosure["width"],
+                "height": enclosure["height"],
+                "canonical_pair_id": primary.pair_id,
+                "canonical_line_group_id": primary.line_group_id,
+            }
+        else:
+            pair.evidence["ordinary_pair_shadow_reason"] = "closed_tall_polyline_enclosure_edge"
+            pair.evidence["closed_polyline_enclosure"] = {
+                "parent_handle": enclosure["parent_handles"][0],
+                "width": enclosure["width"],
+                "height": enclosure["height"],
+            }
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
-        pair.evidence["ordinary_pair_shadow_reason"] = "closed_tall_polyline_enclosure_edge"
-        pair.evidence["closed_polyline_enclosure"] = {
-            "parent_handle": enclosure["parent_handle"],
-            "width": enclosure["width"],
-            "height": enclosure["height"],
+
+
+def _equivalent_polyline_bbox(left: dict[str, object], right: dict[str, object]) -> bool:
+    """Treat duplicate parent polylines as one frame only at CAD precision."""
+
+    tolerance = 0.25
+    return all(
+        abs(float(left[key]) - float(right[key])) <= tolerance
+        for key in ("min_x", "min_y", "max_x", "max_y")
+    )
+
+
+def _pair_claims(pair: Pair) -> set[tuple[str, str, str]]:
+    """Return text/value/side claims that can safely identify a duplicate edge."""
+
+    evidence = pair.evidence or {}
+    claims: set[tuple[str, str, str]] = set()
+    for side in ("left", "right"):
+        value = getattr(pair, f"{side}_value", None)
+        other = getattr(pair, "right_value" if side == "left" else "left_value", None)
+        text_ids = {
+            getattr(pair, f"{side}_text_id", None),
+            evidence.get(f"selected_{side}_text_id"),
         }
+        if value is None or other is not None:
+            continue
+        for text_id in text_ids:
+            normalized_text_id = text_id.strip() if isinstance(text_id, str) else ""
+            if normalized_text_id and normalized_text_id.casefold() not in {"nan", "none", "null"}:
+                claims.add((normalized_text_id, str(value), side))
+    return claims
+
+
+def _unique_nearby_connect_claim(
+    frame_pair: Pair,
+    enclosure: dict[str, object],
+    pairs: list[Pair],
+    group_by_id: dict[str, LineGroup],
+    line_by_id: dict[str, LineEntity],
+    text_by_id: dict[str, TextItem],
+) -> Pair | None:
+    claims = _pair_claims(frame_pair)
+    if not claims:
+        return None
+    matching: list[tuple[Pair, float, float]] = []
+    for candidate in pairs:
+        if candidate is frame_pair or candidate.pair_kind != "ordinary_pair":
+            continue
+        if candidate.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        if candidate.alternative_pair_candidate_ids or candidate.ambiguity_gap is not None:
+            continue
+        if candidate.sheet_id != frame_pair.sheet_id or candidate.file_id != frame_pair.file_id:
+            continue
+        if not claims.intersection(_pair_claims(candidate)):
+            continue
+        group = group_by_id.get(candidate.line_group_id)
+        if group is None or str(group.orientation or "").casefold() != "horizontal":
+            continue
+        member_lines = [line_by_id[line_id] for line_id in group.member_line_ids if line_id in line_by_id]
+        if not member_lines or not all(
+            str(line.layer or "").casefold() == "connect"
+            and str(line.source_entity_type or "").upper() == "LINE"
+            for line in member_lines
+        ):
+            continue
+        group_min_x = min(float(group.start_x), float(group.end_x))
+        group_max_x = max(float(group.start_x), float(group.end_x))
+        group_width = group_max_x - group_min_x
+        frame_width = float(enclosure["width"])
+        overlap = max(
+            0.0,
+            min(group_max_x, float(enclosure["max_x"]))
+            - max(group_min_x, float(enclosure["min_x"])),
+        )
+        if min(group_width, frame_width) <= 0.0:
+            continue
+        overlap_ratio = overlap / min(group_width, frame_width)
+        span_ratio = min(group_width, frame_width) / max(group_width, frame_width)
+        if group_width > frame_width + 0.25 or overlap_ratio < 0.95 or span_ratio < 0.75:
+            continue
+        group_y = (float(group.start_y) + float(group.end_y)) / 2.0
+        frame_y_delta = min(
+            abs(group_y - float(enclosure["min_y"])),
+            abs(group_y - float(enclosure["max_y"])),
+        )
+        heights = [
+            float(text_by_id[text_id].height)
+            for text_id, _, _ in claims
+            if text_id in text_by_id and float(text_by_id[text_id].height) > 0.0
+        ]
+        if not heights:
+            continue
+        y_tolerance = min(3.25, max(1.5, 1.25 * max(heights)))
+        if frame_y_delta > y_tolerance:
+            continue
+        matching.append((candidate, overlap_ratio, frame_y_delta))
+    if len(matching) != 1:
+        return None
+    primary, overlap_ratio, frame_y_delta = matching[0]
+    primary.evidence.setdefault("auxiliary_enclosure_matches", []).append(
+        {
+            "frame_pair_id": frame_pair.pair_id,
+            "overlap_ratio": round(overlap_ratio, 4),
+            "span_ratio": round(span_ratio, 4),
+            "y_delta": round(frame_y_delta, 4),
+        }
+    )
+    return primary
 
 
 def _closed_tall_polyline_enclosure(
     indexed_lines: list[tuple[int, LineEntity]],
 ) -> tuple[float, float, list[str]] | None:
+    enclosure = _closed_polyline_enclosure(indexed_lines)
+    if enclosure is None or float(enclosure["height"]) < 4.0 * float(enclosure["width"]):
+        return None
+
+    return (
+        float(enclosure["width"]),
+        float(enclosure["height"]),
+        list(enclosure["member_line_ids"]),
+    )
+
+
+def _closed_polyline_enclosure(
+    indexed_lines: list[tuple[int, LineEntity]],
+) -> dict[str, object] | None:
     if len(indexed_lines) != 4 or {index for index, _ in indexed_lines} != {0, 1, 2, 3}:
         return None
     lines = [line for _, line in sorted(indexed_lines)]
@@ -565,9 +729,17 @@ def _closed_tall_polyline_enclosure(
         return None
     width = max(xs) - min(xs)
     height = max(ys) - min(ys)
-    if width <= 0.0 or height < 4.0 * width:
+    if width <= 0.0 or height <= 0.0:
         return None
-    return width, height, [line.line_id for line in lines]
+    return {
+        "width": width,
+        "height": height,
+        "member_line_ids": [line.line_id for line in lines],
+        "min_x": min(xs),
+        "min_y": min(ys),
+        "max_x": max(xs),
+        "max_y": max(ys),
+    }
 
 
 _SIGNAL_ALARM_SHADOW_PATTERNS = (
