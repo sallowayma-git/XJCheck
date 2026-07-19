@@ -115,6 +115,54 @@ def test_recent_projects_effect_runs_once_per_app_mount() -> None:
     assert "return await this.loadResult(projectId)" not in desktop_api
 
 
+def test_preview_commands_use_request_scoped_ownership() -> None:
+    main_rs = (DESKTOP_ROOT / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
+    app_tsx = (DESKTOP_ROOT / "src" / "App.tsx").read_text(encoding="utf-8")
+    desktop_api = (DESKTOP_ROOT / "src" / "lib" / "desktopApi.ts").read_text(encoding="utf-8")
+
+    assert re.search(r"async fn desktop_render_preview\([^)]*request_id: String", main_rs)
+    assert re.search(
+        r"fn desktop_register_preview_session\([^)]*client_session_id: String",
+        main_rs,
+    )
+    assert re.search(
+        r"fn desktop_cancel_preview\([^)]*request_id: String,[^)]*request_generation: u64",
+        main_rs,
+    )
+    assert "struct PreviewState" in main_rs
+    assert "struct PreviewToken" in main_rs
+    assert "ACTIVE_PREVIEW_PID" not in main_rs
+    assert "PREVIEW_GENERATION" not in main_rs
+    assert "known_client_sessions" in main_rs
+    assert "client_session_epoch: Option<u64>" in main_rs
+    assert "activate_client_session" not in main_rs
+
+    assert "COMMANDS.registerPreviewSession" in desktop_api
+    assert "async registerPreviewSession(clientSessionId: string): Promise<number>" in desktop_api
+    assert re.search(
+        r"COMMANDS\.renderPreview,\s*\{[^{}]*requestId,[^{}]*requestGeneration,",
+        desktop_api,
+        re.DOTALL,
+    )
+    assert re.search(
+        r"cancelPreview\(\s*requestId: string,\s*requestGeneration: number,\s*clientSessionId:",
+        desktop_api,
+    )
+    assert re.search(
+        r"COMMANDS\.cancelPreview,\s*\{\s*requestId,\s*requestGeneration,\s*clientSessionId,\s*clientSessionEpoch,?",
+        desktop_api,
+    )
+    assert "preview.request_id !== requestId" in app_tsx
+    assert "previewClientSessionId" in app_tsx
+    assert "previewClientSessionEpoch" in app_tsx
+    assert "createPreviewContextKey" in app_tsx
+    assert "normalized.project_id !== projectId" in desktop_api
+    assert "normalized.issue_id !== issueId" in desktop_api
+    assert "previewMode" in app_tsx
+    assert "projectLoadGenerationRef" in app_tsx
+    assert app_tsx.count("isCurrentRequest(projectLoadGenerationRef.current, generation)") >= 2
+
+
 def test_python_sidecar_entrypoint_forces_utf8_output() -> None:
     raw = io.BytesIO()
     stream = io.TextIOWrapper(raw, encoding="gb18030")

@@ -2894,7 +2894,17 @@ The current authoritative audit is `.tmp/phase180_full_533_audit8`: 60 issues (m
 - [x] Run final gates (`1086 passed, 1 skipped`, compileall, global diff-check, 28/533 artifact validation).
 - [x] Commit and push the scoped recognition slice.
 
+#### Phase 180 31000 operation-box residual slice
+- [ ] Reconstruct all five S0013/S0014 missing-side and two low-confidence rows from Pair/candidate/member-line evidence.
+- [ ] Render or otherwise inspect the source geometry and identify a shared component/endpoint contract without value- or filename-specific suppression.
+- [ ] Implement only evidence-backed extraction/candidate/audit changes, with positive and adversarial tests.
+- [ ] Replay the affected project and all 28 projects / 533 DWGs, preserve true reviews, clean process artifacts, and commit/push the accepted slice.
+
 #### Phase 180 errors
+- The first strict operation-box rectangle census failed read-only with a Python `list object is not callable` caused by the probe's local naming collision. No artifact changed; rerun with explicit helper names and no shadowed builtins.
+- The first 31000 canonical-scene/render probe included a nonexistent repository `tools/` path, so the parallel wrapper returned nonzero and discarded the Parquet schema output. No artifact changed; inspect the existing `src/dwg_audit/desktop` preview entry and canonical-scene files directly.
+- The follow-up single `default + gpt-5.6-sol` capability probe failed with the same `agent type is currently not available` before ID allocation. This confirms the current slice cannot use the subagent service; continue the 31000 evidence audit on the main thread without substituting another model.
+- The resumed 31000 slice requested six clean-context `gpt-5.6-sol` explorer agents after the user reported stable routing, but every lane was rejected before ID allocation with `agent type is currently not available`. No agent accessed the repository and no alternate model was used; probe the default role once, then continue locally if unavailable.
 - The first `1105` local-evidence probe guessed a `raw_text` column; the actual `texts.parquet` schema uses `text`. The read-only script stopped before data inspection and changed no artifacts; use the actual schema rather than repeating the guessed field.
 - The first audit8 residual evidence probe hit a NumPy `ndarray` inside Parquet evidence and failed during JSON serialization; the parallel wrapper discarded the sibling Pair output. No artifact changed. Normalize arrays or use a serialization fallback and run issue/Pair probes separately.
 - The first PAC replay-contract read correctly recovered the 31-file input root from `manifest.json`, then failed only because it guessed a project-local `run_summary.json` that does not exist. No artifact changed, and the parallel wrapper discarded CLI help output; enumerate the actual PAC artifact files and query each help command separately.

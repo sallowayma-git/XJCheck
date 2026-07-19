@@ -13,11 +13,10 @@ use std::path::PathBuf;
 use std::process::Output;
 use std::process::Stdio;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc;
 use std::sync::Mutex;
-use std::thread::JoinHandle;
 use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
@@ -36,8 +35,17 @@ use sidecar_runtime::build_sidecar_command;
 const DESKTOP_EVENT_NAME: &str = "dwg-audit://sidecar-event";
 const PREVIEW_TIMEOUT: Duration = Duration::from_secs(15);
 const PREVIEW_POLL_INTERVAL: Duration = Duration::from_millis(40);
-static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
-static ACTIVE_PREVIEW_PID: AtomicU32 = AtomicU32::new(0);
+const PREVIEW_PIPE_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
+const LEGACY_PREVIEW_CLIENT_SESSION_ID: &str = "legacy";
+static PREVIEW_STATE: Mutex<PreviewState> = Mutex::new(PreviewState {
+    next_generation: 0,
+    next_client_epoch: 0,
+    known_client_sessions: Vec::new(),
+    current_client_session_id: None,
+    current_client_session_epoch: None,
+    latest_client_request: None,
+    active: None,
+});
 static PREVIEW_GATE: Mutex<()> = Mutex::new(());
 static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 static ACTIVE_SIDECAR_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
@@ -193,8 +201,25 @@ async fn desktop_load_result(app: AppHandle, project_id: String) -> Result<Value
 }
 
 #[tauri::command]
+fn desktop_register_preview_session(client_session_id: String) -> Result<Value, String> {
+    let client_session_id = client_session_id.trim().to_string();
+    if client_session_id.is_empty() || client_session_id == LEGACY_PREVIEW_CLIENT_SESSION_ID {
+        return Err("A non-empty modern preview session id is required.".to_string());
+    }
+    let client_session_epoch = register_preview_client_session(client_session_id.clone())?;
+    Ok(json!({
+        "client_session_id": client_session_id,
+        "client_session_epoch": client_session_epoch,
+    }))
+}
+
+#[tauri::command]
 async fn desktop_render_preview(
     app: AppHandle,
+    request_id: String,
+    request_generation: u64,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
     project_id: String,
     issue_id: Option<String>,
     sheet_id: Option<String>,
@@ -220,18 +245,36 @@ async fn desktop_render_preview(
         args.push("--line-group-id".to_string());
         args.push(value);
     }
-    let generation = begin_preview_request();
-    tauri::async_runtime::spawn_blocking(move || {
-        run_preview_sidecar_json_owned(&app, args, generation)
-    })
-    .await
-    .map_err(|error| format!("Preview sidecar task failed: {error}"))?
+    let token = begin_preview_request(
+        normalize_preview_client_session_id(client_session_id),
+        client_session_epoch,
+        request_id,
+        request_generation,
+    )
+    .ok_or_else(|| "Preview request superseded.".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || run_preview_sidecar_json_owned(&app, args, token))
+        .await
+        .map_err(|error| format!("Preview sidecar task failed: {error}"))?
 }
 
 #[tauri::command]
-fn desktop_cancel_preview() -> Value {
-    cancel_preview_requests();
-    json!({ "cancelled": true })
+fn desktop_cancel_preview(
+    request_id: String,
+    request_generation: u64,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
+) -> Value {
+    let cancelled = cancel_preview_request(
+        &normalize_preview_client_session_id(client_session_id),
+        client_session_epoch,
+        &request_id,
+        request_generation,
+    );
+    json!({
+        "cancelled": cancelled,
+        "request_id": request_id,
+        "request_generation": request_generation,
+    })
 }
 
 #[tauri::command]
@@ -409,114 +452,451 @@ fn parse_sidecar_json_output(output: Output) -> Result<Value, String> {
         .map_err(|error| format!("Failed to parse DWG audit sidecar JSON output: {error}"))
 }
 
-fn begin_preview_request() -> u64 {
-    PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
+fn attach_preview_request_id(mut payload: Value, request_id: &str) -> Result<Value, String> {
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| "Preview sidecar response must be a JSON object.".to_string())?;
+    object.insert(
+        "request_id".to_string(),
+        Value::String(request_id.to_string()),
+    );
+    Ok(payload)
 }
 
-fn is_current_preview_request(generation: u64) -> bool {
-    PREVIEW_GENERATION.load(Ordering::SeqCst) == generation
+fn normalize_preview_client_session_id(value: Option<String>) -> String {
+    value
+        .map(|session_id| session_id.trim().to_string())
+        .filter(|session_id| !session_id.is_empty())
+        .unwrap_or_else(|| LEGACY_PREVIEW_CLIENT_SESSION_ID.to_string())
 }
 
-fn cancel_preview_requests() {
-    PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst);
-    let pid = ACTIVE_PREVIEW_PID.load(Ordering::SeqCst);
-    if pid != 0 {
-        terminate_process_tree_by_pid(pid);
-    }
+fn register_preview_client_session(client_session_id: String) -> Result<u64, String> {
+    PREVIEW_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .register_client_session(client_session_id)
+}
+
+fn begin_preview_request(
+    client_session_id: String,
+    client_session_epoch: Option<u64>,
+    request_id: String,
+    client_generation: u64,
+) -> Option<PreviewToken> {
+    PREVIEW_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .begin(
+            client_session_id,
+            client_session_epoch,
+            request_id,
+            client_generation,
+        )
+}
+
+fn is_current_preview_request(token: &PreviewToken) -> bool {
+    PREVIEW_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .is_current(token)
+}
+
+fn cancel_preview_request(
+    client_session_id: &str,
+    client_session_epoch: Option<u64>,
+    request_id: &str,
+    client_generation: u64,
+) -> bool {
+    PREVIEW_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .cancel(
+            client_session_id,
+            client_session_epoch,
+            request_id,
+            client_generation,
+        )
+}
+
+fn register_preview_pid(token: &PreviewToken, pid: u32) -> bool {
+    PREVIEW_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .register_pid(token, pid)
+}
+
+fn release_preview_request(token: &PreviewToken, pid: Option<u32>) -> bool {
+    PREVIEW_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .release(token, pid)
 }
 
 fn run_preview_sidecar_json_owned(
     app: &AppHandle,
     args: Vec<String>,
-    generation: u64,
+    token: PreviewToken,
 ) -> Result<Value, String> {
     let _gate = PREVIEW_GATE
         .lock()
-        .map_err(|_| "Preview sidecar gate is unavailable.".to_string())?;
-    if !is_current_preview_request(generation) {
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if !is_current_preview_request(&token) {
         return Err("Preview request superseded.".to_string());
     }
+    let mut active_request = ActivePreviewRequest::new(token.clone());
 
-    let mut child = build_desktop_sidecar_command(app, &args)?
+    let mut command = build_desktop_sidecar_command(app, &args)?;
+    if !is_current_preview_request(&token) {
+        return Err("Preview request superseded.".to_string());
+    }
+    let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("Failed to execute DWG audit preview sidecar: {error}"))?;
     let _active_sidecar = ActiveSidecarProcess::new(child.id());
-    let _active_process = ActivePreviewProcess::new(child.id());
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "DWG audit preview sidecar stdout pipe is unavailable.".to_string())?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| "DWG audit preview sidecar stderr pipe is unavailable.".to_string())?;
-    let stdout_thread = drain_preview_pipe(stdout, "stdout");
-    let stderr_thread = drain_preview_pipe(stderr, "stderr");
+    if !active_request.register_pid(child.id()) {
+        terminate_preview_child(&mut child);
+        return Err("Preview request superseded.".to_string());
+    }
+    let stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            terminate_preview_child(&mut child);
+            return Err("DWG audit preview sidecar stdout pipe is unavailable.".to_string());
+        }
+    };
+    let stderr = match child.stderr.take() {
+        Some(stderr) => stderr,
+        None => {
+            terminate_preview_child(&mut child);
+            return Err("DWG audit preview sidecar stderr pipe is unavailable.".to_string());
+        }
+    };
+    let stdout_drain = match drain_preview_pipe(stdout, "stdout") {
+        Ok(drain) => drain,
+        Err(error) => {
+            terminate_preview_child(&mut child);
+            return Err(error);
+        }
+    };
+    let stderr_drain = match drain_preview_pipe(stderr, "stderr") {
+        Ok(drain) => drain,
+        Err(error) => {
+            terminate_preview_child(&mut child);
+            drop(stdout_drain);
+            return Err(error);
+        }
+    };
     let started = Instant::now();
 
     loop {
-        if !is_current_preview_request(generation) {
+        if !is_current_preview_request(&token) {
             terminate_preview_child(&mut child);
-            discard_preview_output(stdout_thread, stderr_thread);
+            discard_preview_output(stdout_drain, stderr_drain);
             return Err("Preview request superseded.".to_string());
         }
         if started.elapsed() >= PREVIEW_TIMEOUT {
             terminate_preview_child(&mut child);
-            discard_preview_output(stdout_thread, stderr_thread);
+            discard_preview_output(stdout_drain, stderr_drain);
             return Err(format!(
                 "Preview generation timed out after {} seconds.",
                 PREVIEW_TIMEOUT.as_secs()
             ));
         }
-        match child
-            .try_wait()
-            .map_err(|error| format!("Failed to poll DWG audit preview sidecar: {error}"))?
-        {
+        let child_status = match child.try_wait() {
+            Ok(status) => status,
+            Err(error) => {
+                terminate_preview_child(&mut child);
+                discard_preview_output(stdout_drain, stderr_drain);
+                return Err(format!("Failed to poll DWG audit preview sidecar: {error}"));
+            }
+        };
+        match child_status {
             Some(status) => {
-                let stdout = join_preview_pipe(stdout_thread)?;
-                let stderr = join_preview_pipe(stderr_thread)?;
+                let stdout = join_preview_pipe(stdout_drain)?;
+                let stderr = join_preview_pipe(stderr_drain)?;
                 let output = Output {
                     status,
                     stdout,
                     stderr,
                 };
-                return parse_sidecar_json_output(output);
+                let payload = attach_preview_request_id(
+                    parse_sidecar_json_output(output)?,
+                    &token.request_id,
+                )?;
+                if !active_request.finish() {
+                    return Err("Preview request superseded.".to_string());
+                }
+                return Ok(payload);
             }
             None => std::thread::sleep(PREVIEW_POLL_INTERVAL),
         }
     }
 }
 
-fn drain_preview_pipe<R>(mut pipe: R, label: &'static str) -> JoinHandle<Result<Vec<u8>, String>>
+struct PreviewPipeDrain {
+    label: &'static str,
+    receiver: mpsc::Receiver<Result<Vec<u8>, String>>,
+}
+
+fn drain_preview_pipe<R>(mut pipe: R, label: &'static str) -> Result<PreviewPipeDrain, String>
 where
     R: Read + Send + 'static,
 {
-    std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        pipe.read_to_end(&mut bytes)
-            .map_err(|error| format!("Failed to read preview sidecar {label}: {error}"))?;
-        Ok(bytes)
-    })
+    let (sender, receiver) = mpsc::sync_channel(1);
+    std::thread::Builder::new()
+        .name(format!("preview-{label}-reader"))
+        .spawn(move || {
+            let result = (|| {
+                let mut bytes = Vec::new();
+                pipe.read_to_end(&mut bytes)
+                    .map_err(|error| format!("Failed to read preview sidecar {label}: {error}"))?;
+                Ok(bytes)
+            })();
+            let _ = sender.send(result);
+        })
+        .map_err(|error| format!("Failed to start preview sidecar {label} reader: {error}"))?;
+    Ok(PreviewPipeDrain { label, receiver })
 }
 
-fn join_preview_pipe(thread: JoinHandle<Result<Vec<u8>, String>>) -> Result<Vec<u8>, String> {
-    thread
-        .join()
-        .map_err(|_| "Preview sidecar output reader panicked.".to_string())?
+fn join_preview_pipe(drain: PreviewPipeDrain) -> Result<Vec<u8>, String> {
+    join_preview_pipe_with_timeout(drain, PREVIEW_PIPE_DRAIN_TIMEOUT)
 }
 
-fn discard_preview_output(
-    stdout_thread: JoinHandle<Result<Vec<u8>, String>>,
-    stderr_thread: JoinHandle<Result<Vec<u8>, String>>,
-) {
-    let _ = stdout_thread.join();
-    let _ = stderr_thread.join();
+fn join_preview_pipe_with_timeout(
+    drain: PreviewPipeDrain,
+    timeout: Duration,
+) -> Result<Vec<u8>, String> {
+    match drain.receiver.recv_timeout(timeout) {
+        Ok(result) => result,
+        Err(mpsc::RecvTimeoutError::Timeout) => Err(format!(
+            "Timed out waiting for preview sidecar {} pipe to close.",
+            drain.label
+        )),
+        Err(mpsc::RecvTimeoutError::Disconnected) => Err(format!(
+            "Preview sidecar {} output reader stopped unexpectedly.",
+            drain.label
+        )),
+    }
 }
 
-struct ActivePreviewProcess {
-    pid: u32,
+fn discard_preview_output(stdout_drain: PreviewPipeDrain, stderr_drain: PreviewPipeDrain) {
+    drop(stdout_drain);
+    drop(stderr_drain);
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PreviewToken {
+    client_session_id: String,
+    client_epoch: u64,
+    request_id: String,
+    client_generation: u64,
+    generation: u64,
+}
+
+#[derive(Debug)]
+struct PreviewOwner {
+    token: PreviewToken,
+    pid: Option<u32>,
+}
+
+#[derive(Debug)]
+struct PreviewClientRequest {
+    client_session_id: String,
+    client_epoch: u64,
+    request_id: String,
+    generation: u64,
+    cancelled: bool,
+}
+
+#[derive(Debug)]
+struct PreviewState {
+    next_generation: u64,
+    next_client_epoch: u64,
+    known_client_sessions: Vec<(String, u64)>,
+    current_client_session_id: Option<String>,
+    current_client_session_epoch: Option<u64>,
+    latest_client_request: Option<PreviewClientRequest>,
+    active: Option<PreviewOwner>,
+}
+
+impl PreviewState {
+    fn register_client_session(&mut self, client_session_id: String) -> Result<u64, String> {
+        if client_session_id == LEGACY_PREVIEW_CLIENT_SESSION_ID {
+            return Err("The reserved legacy preview session cannot be registered.".to_string());
+        }
+        if let Some((_, epoch)) = self
+            .known_client_sessions
+            .iter()
+            .find(|(session_id, _)| session_id == &client_session_id)
+        {
+            return Ok(*epoch);
+        }
+
+        self.next_client_epoch = self.next_client_epoch.checked_add(1).unwrap_or(1);
+        let client_epoch = self.next_client_epoch;
+        self.known_client_sessions
+            .push((client_session_id.clone(), client_epoch));
+        self.current_client_session_id = Some(client_session_id);
+        self.current_client_session_epoch = Some(client_epoch);
+        self.latest_client_request = None;
+        self.active = None;
+        Ok(client_epoch)
+    }
+
+    fn accepts_request(&mut self, client_session_id: &str, client_epoch: Option<u64>) -> bool {
+        if client_session_id == LEGACY_PREVIEW_CLIENT_SESSION_ID && client_epoch.is_none() {
+            if self.current_client_session_id.is_none() {
+                self.known_client_sessions
+                    .push((client_session_id.to_string(), 0));
+                self.current_client_session_id = Some(client_session_id.to_string());
+                self.current_client_session_epoch = Some(0);
+            }
+            return self.current_client_session_id.as_deref() == Some(client_session_id)
+                && self.current_client_session_epoch == Some(0);
+        }
+
+        let Some(client_epoch) = client_epoch else {
+            return false;
+        };
+        self.current_client_session_id.as_deref() == Some(client_session_id)
+            && self.current_client_session_epoch == Some(client_epoch)
+            && self
+                .known_client_sessions
+                .iter()
+                .any(|(session_id, epoch)| {
+                    session_id == client_session_id && *epoch == client_epoch
+                })
+    }
+
+    fn begin(
+        &mut self,
+        client_session_id: String,
+        client_epoch: Option<u64>,
+        request_id: String,
+        client_generation: u64,
+    ) -> Option<PreviewToken> {
+        if !self.accepts_request(&client_session_id, client_epoch) {
+            return None;
+        }
+        let client_epoch = self.current_client_session_epoch?;
+        if self
+            .latest_client_request
+            .as_ref()
+            .is_some_and(|latest| client_generation <= latest.generation)
+        {
+            return None;
+        }
+        self.next_generation = self.next_generation.checked_add(1).unwrap_or(1);
+        let token = PreviewToken {
+            client_session_id: client_session_id.clone(),
+            client_epoch,
+            request_id: request_id.clone(),
+            client_generation,
+            generation: self.next_generation,
+        };
+        self.latest_client_request = Some(PreviewClientRequest {
+            client_session_id,
+            client_epoch,
+            request_id,
+            generation: client_generation,
+            cancelled: false,
+        });
+        self.active = Some(PreviewOwner {
+            token: token.clone(),
+            pid: None,
+        });
+        Some(token)
+    }
+
+    fn is_current(&self, token: &PreviewToken) -> bool {
+        self.active
+            .as_ref()
+            .is_some_and(|owner| owner.token == *token)
+    }
+
+    fn register_pid(&mut self, token: &PreviewToken, pid: u32) -> bool {
+        let Some(owner) = self
+            .active
+            .as_mut()
+            .filter(|owner| owner.token == *token && owner.pid.is_none())
+        else {
+            return false;
+        };
+        owner.pid = Some(pid);
+        true
+    }
+
+    fn cancel(
+        &mut self,
+        client_session_id: &str,
+        client_epoch: Option<u64>,
+        request_id: &str,
+        client_generation: u64,
+    ) -> bool {
+        if !self.accepts_request(client_session_id, client_epoch) {
+            return false;
+        }
+        let client_epoch = self.current_client_session_epoch.unwrap_or(0);
+        match self.latest_client_request.as_mut() {
+            Some(latest) if client_generation < latest.generation => false,
+            Some(latest) if client_generation == latest.generation => {
+                if latest.client_session_id != client_session_id
+                    || latest.client_epoch != client_epoch
+                    || latest.request_id != request_id
+                    || latest.cancelled
+                {
+                    return false;
+                }
+                latest.cancelled = true;
+                if self.active.as_ref().is_some_and(|owner| {
+                    owner.token.client_session_id == client_session_id
+                        && owner.token.client_epoch == client_epoch
+                        && owner.token.request_id == request_id
+                        && owner.token.client_generation == client_generation
+                }) {
+                    self.active = None;
+                }
+                true
+            }
+            _ => {
+                self.latest_client_request = Some(PreviewClientRequest {
+                    client_session_id: client_session_id.to_string(),
+                    client_epoch,
+                    request_id: request_id.to_string(),
+                    generation: client_generation,
+                    cancelled: true,
+                });
+                if self.active.as_ref().is_some_and(|owner| {
+                    owner.token.client_session_id == client_session_id
+                        && owner.token.client_epoch == client_epoch
+                        && owner.token.client_generation < client_generation
+                }) {
+                    self.active = None;
+                }
+                true
+            }
+        }
+    }
+
+    fn release(&mut self, token: &PreviewToken, pid: Option<u32>) -> bool {
+        if !self
+            .active
+            .as_ref()
+            .is_some_and(|owner| owner.token == *token && owner.pid == pid)
+        {
+            return false;
+        }
+        self.active = None;
+        true
+    }
+}
+
+struct ActivePreviewRequest {
+    token: PreviewToken,
+    pid: Option<u32>,
+    released: bool,
 }
 
 struct ActiveSidecarProcess {
@@ -661,17 +1041,35 @@ fn descendant_processes_to_terminate(
     descendants
 }
 
-impl ActivePreviewProcess {
-    fn new(pid: u32) -> Self {
-        ACTIVE_PREVIEW_PID.store(pid, Ordering::SeqCst);
-        Self { pid }
+impl ActivePreviewRequest {
+    fn new(token: PreviewToken) -> Self {
+        Self {
+            token,
+            pid: None,
+            released: false,
+        }
+    }
+
+    fn register_pid(&mut self, pid: u32) -> bool {
+        if !register_preview_pid(&self.token, pid) {
+            return false;
+        }
+        self.pid = Some(pid);
+        true
+    }
+
+    fn finish(&mut self) -> bool {
+        let released = release_preview_request(&self.token, self.pid);
+        self.released = true;
+        released
     }
 }
 
-impl Drop for ActivePreviewProcess {
+impl Drop for ActivePreviewRequest {
     fn drop(&mut self) {
-        let _ =
-            ACTIVE_PREVIEW_PID.compare_exchange(self.pid, 0, Ordering::SeqCst, Ordering::SeqCst);
+        if !self.released {
+            let _ = release_preview_request(&self.token, self.pid);
+        }
     }
 }
 
@@ -761,6 +1159,7 @@ fn main() {
             desktop_analyze_session,
             desktop_list_recent_projects,
             desktop_load_result,
+            desktop_register_preview_session,
             desktop_render_preview,
             desktop_cancel_preview,
             desktop_set_issue_status,
@@ -780,14 +1179,295 @@ fn main() {
 mod tests {
     use super::*;
 
+    struct BlockingReader {
+        release: mpsc::Receiver<()>,
+    }
+
+    impl Read for BlockingReader {
+        fn read(&mut self, _buffer: &mut [u8]) -> std::io::Result<usize> {
+            let _ = self.release.recv();
+            Ok(0)
+        }
+    }
+
+    fn preview_state() -> PreviewState {
+        PreviewState {
+            next_generation: 0,
+            next_client_epoch: 0,
+            known_client_sessions: Vec::new(),
+            current_client_session_id: None,
+            current_client_session_epoch: None,
+            latest_client_request: None,
+            active: None,
+        }
+    }
+
+    fn register(state: &mut PreviewState, session: &str) -> u64 {
+        state.register_client_session(session.to_string()).unwrap()
+    }
+
+    fn session_epoch(state: &PreviewState, session: &str) -> Option<u64> {
+        state
+            .known_client_sessions
+            .iter()
+            .find_map(|(session_id, epoch)| (session_id == session).then_some(*epoch))
+    }
+
+    fn begin(
+        state: &mut PreviewState,
+        session: &str,
+        request: &str,
+        generation: u64,
+    ) -> PreviewToken {
+        let epoch = session_epoch(state, session).unwrap_or_else(|| register(state, session));
+        state
+            .begin(
+                session.to_string(),
+                Some(epoch),
+                request.to_string(),
+                generation,
+            )
+            .unwrap()
+    }
+
+    fn cancel(state: &mut PreviewState, session: &str, request: &str, generation: u64) -> bool {
+        let epoch = session_epoch(state, session);
+        state.cancel(session, epoch, request, generation)
+    }
+
     #[test]
     fn newer_preview_request_supersedes_older_generation() {
-        let older = begin_preview_request();
-        assert!(is_current_preview_request(older));
+        let mut state = preview_state();
+        let older = begin(&mut state, "session-a", "older", 1);
+        assert!(state.is_current(&older));
 
-        let newer = begin_preview_request();
-        assert!(!is_current_preview_request(older));
-        assert!(is_current_preview_request(newer));
+        let newer = begin(&mut state, "session-a", "newer", 2);
+        assert!(!state.is_current(&older));
+        assert!(state.is_current(&newer));
+    }
+
+    #[test]
+    fn stale_preview_cancel_does_not_cancel_current_request() {
+        let mut state = preview_state();
+        begin(&mut state, "session-a", "older", 1);
+        let current = begin(&mut state, "session-a", "current", 2);
+
+        assert!(!cancel(&mut state, "session-a", "older", 1));
+        assert!(state.is_current(&current));
+        assert!(cancel(&mut state, "session-a", "current", 2));
+        assert!(!state.is_current(&current));
+        assert!(!cancel(&mut state, "session-a", "current", 2));
+    }
+
+    #[test]
+    fn stale_cancel_with_reused_request_id_does_not_cancel_new_generation() {
+        let mut state = preview_state();
+        begin(&mut state, "session-a", "same-id", 10);
+        let current = begin(&mut state, "session-a", "same-id", 11);
+
+        assert!(!cancel(&mut state, "session-a", "same-id", 10));
+        assert!(state.is_current(&current));
+        assert!(cancel(&mut state, "session-a", "same-id", 11));
+    }
+
+    #[test]
+    fn preview_pid_registration_and_release_require_exact_owner() {
+        let mut state = preview_state();
+        let older = begin(&mut state, "session-a", "older", 1);
+        assert!(state.register_pid(&older, 101));
+
+        let current = begin(&mut state, "session-a", "current", 2);
+        assert!(!state.register_pid(&older, 202));
+        assert!(!state.release(&older, Some(101)));
+        assert!(state.is_current(&current));
+        assert!(state.register_pid(&current, 303));
+        assert!(!state.release(&current, Some(404)));
+        assert!(state.release(&current, Some(303)));
+    }
+
+    #[test]
+    fn cancel_before_begin_prevents_request_resurrection() {
+        let mut state = preview_state();
+        let epoch = register(&mut state, "session-a");
+
+        assert!(cancel(&mut state, "session-a", "cancelled", 3));
+        assert!(state
+            .begin(
+                "session-a".to_string(),
+                Some(epoch),
+                "cancelled".to_string(),
+                3,
+            )
+            .is_none());
+        assert!(!cancel(&mut state, "session-a", "cancelled", 3));
+        assert!(state.active.is_none());
+    }
+
+    #[test]
+    fn out_of_order_begin_cannot_replace_newer_client_generation() {
+        let mut state = preview_state();
+        let newer = begin(&mut state, "session-a", "newer", 8);
+        let epoch = session_epoch(&state, "session-a").unwrap();
+
+        assert!(state
+            .begin("session-a".to_string(), Some(epoch), "older".to_string(), 7,)
+            .is_none());
+        assert!(state.is_current(&newer));
+    }
+
+    #[test]
+    fn newer_cancel_tombstone_supersedes_active_older_request() {
+        let mut state = preview_state();
+        let older = begin(&mut state, "session-a", "older", 4);
+        let epoch = session_epoch(&state, "session-a").unwrap();
+
+        assert!(cancel(&mut state, "session-a", "future", 5));
+        assert!(!state.is_current(&older));
+        assert!(state
+            .begin(
+                "session-a".to_string(),
+                Some(epoch),
+                "future".to_string(),
+                5,
+            )
+            .is_none());
+    }
+
+    #[test]
+    fn a_new_renderer_session_can_restart_generation_at_one() {
+        let mut state = preview_state();
+        let old = begin(&mut state, "session-a", "old", 20);
+        let current = begin(&mut state, "session-b", "new", 1);
+
+        assert!(!state.is_current(&old));
+        assert!(state.is_current(&current));
+    }
+
+    #[test]
+    fn old_registered_session_cancel_cannot_touch_new_renderer_request() {
+        let mut state = preview_state();
+        begin(&mut state, "session-a", "old", 20);
+        let current = begin(&mut state, "session-b", "new", 1);
+
+        assert!(!cancel(&mut state, "session-a", "old", 20));
+        assert!(state.is_current(&current));
+        assert!(cancel(&mut state, "session-b", "new", 1));
+    }
+
+    #[test]
+    fn cancel_before_begin_is_scoped_to_its_renderer_session() {
+        let mut state = preview_state();
+        let epoch_a = register(&mut state, "session-a");
+
+        assert!(cancel(&mut state, "session-a", "cancelled", 3));
+        assert!(state
+            .begin(
+                "session-a".to_string(),
+                Some(epoch_a),
+                "cancelled".to_string(),
+                3,
+            )
+            .is_none());
+        assert_eq!(
+            begin(&mut state, "session-b", "new", 1).client_generation,
+            1
+        );
+    }
+
+    #[test]
+    fn unknown_session_begin_and_cancel_do_not_mutate_current_request() {
+        let mut state = preview_state();
+        let current = begin(&mut state, "session-current", "current", 1);
+
+        assert!(state
+            .begin(
+                "session-unknown".to_string(),
+                Some(999),
+                "late".to_string(),
+                999,
+            )
+            .is_none());
+        assert!(!state.cancel("session-unknown", Some(999), "late", 999));
+        assert!(state.is_current(&current));
+        assert_eq!(
+            state.current_client_session_id.as_deref(),
+            Some("session-current")
+        );
+    }
+
+    #[test]
+    fn registering_an_old_session_is_idempotent_and_does_not_reactivate_it() {
+        let mut state = preview_state();
+        let old_epoch = register(&mut state, "session-old");
+        begin(&mut state, "session-old", "old", 10);
+        let current = begin(&mut state, "session-current", "current", 1);
+
+        assert_eq!(register(&mut state, "session-old"), old_epoch);
+        assert!(state.is_current(&current));
+        assert_eq!(
+            state.current_client_session_id.as_deref(),
+            Some("session-current")
+        );
+    }
+
+    #[test]
+    fn session_registry_never_forgets_old_epochs() {
+        let mut state = preview_state();
+        let first_epoch = register(&mut state, "session-0");
+        for index in 1..32 {
+            register(&mut state, &format!("session-{index}"));
+        }
+        let current_epoch = session_epoch(&state, "session-31").unwrap();
+        let current = state
+            .begin(
+                "session-31".to_string(),
+                Some(current_epoch),
+                "current".to_string(),
+                1,
+            )
+            .unwrap();
+
+        assert_eq!(register(&mut state, "session-0"), first_epoch);
+        assert!(state
+            .begin(
+                "session-0".to_string(),
+                Some(first_epoch),
+                "late".to_string(),
+                999,
+            )
+            .is_none());
+        assert!(!state.cancel("session-0", Some(first_epoch), "late", 999));
+        assert!(state.is_current(&current));
+    }
+
+    #[test]
+    fn legacy_requests_cannot_replace_a_registered_modern_session() {
+        let mut state = preview_state();
+        assert!(state
+            .register_client_session(LEGACY_PREVIEW_CLIENT_SESSION_ID.to_string())
+            .is_err());
+        let legacy = state
+            .begin(
+                LEGACY_PREVIEW_CLIENT_SESSION_ID.to_string(),
+                None,
+                "legacy".to_string(),
+                1,
+            )
+            .unwrap();
+        assert!(state.is_current(&legacy));
+
+        let modern = begin(&mut state, "session-modern", "modern", 1);
+        assert!(!state.cancel(LEGACY_PREVIEW_CLIENT_SESSION_ID, None, "legacy", 2));
+        assert!(state.is_current(&modern));
+    }
+
+    #[test]
+    fn preview_response_echoes_request_id() {
+        let payload =
+            attach_preview_request_id(json!({ "preview_src": "data:image/svg+xml" }), "request-7")
+                .unwrap();
+
+        assert_eq!(payload["request_id"], "request-7");
     }
 
     #[test]
@@ -795,9 +1475,22 @@ mod tests {
         let payload = vec![b'x'; 256 * 1024];
         let reader = std::io::Cursor::new(payload.clone());
 
-        let drained = join_preview_pipe(drain_preview_pipe(reader, "test")).unwrap();
+        let drained = join_preview_pipe(drain_preview_pipe(reader, "test").unwrap()).unwrap();
 
         assert_eq!(drained, payload);
+    }
+
+    #[test]
+    fn preview_pipe_drain_timeout_is_bounded() {
+        let (release, receiver) = mpsc::channel();
+        let drain = drain_preview_pipe(BlockingReader { release: receiver }, "blocked").unwrap();
+        let started = Instant::now();
+
+        let error = join_preview_pipe_with_timeout(drain, Duration::from_millis(20)).unwrap_err();
+
+        assert!(error.contains("Timed out waiting"));
+        assert!(started.elapsed() < Duration::from_secs(1));
+        drop(release);
     }
 
     #[test]

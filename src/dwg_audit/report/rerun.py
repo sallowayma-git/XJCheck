@@ -25,6 +25,121 @@ from dwg_audit.audit.audit_v2 import summarize_audit_v2
 from dwg_audit.audit.failure_queue import build_failure_queue
 from dwg_audit.audit.failure_queue import summarize_failure_queue
 from dwg_audit.services.issue_diagnostics import write_issue_root_cause_audit
+from dwg_audit.utils.config import resolve_report_formats
+from dwg_audit.utils.config import resolve_runtime_profile
+
+
+_AUDIT_COPY_NAMES = (
+    "issues.parquet",
+    "issues.json",
+    "issue_root_cause_audit.json",
+    "issue_root_cause_audit.md",
+    "audit_report.md",
+    "audit_report.html",
+    "issues.xlsx",
+    "topology_shadow_report.json",
+    "topology_shadow_report.md",
+    "issue_witnesses_v2.parquet",
+    "issue_witness_summary.json",
+    "audit_v2_issue_clusters.parquet",
+    "audit_v2_summary.json",
+    "failure_queue.parquet",
+    "failure_queue_summary.json",
+    "runtime_profile.json",
+)
+
+_CORE_FRAME_NAMES = (
+    "pages",
+    "texts",
+    "line_groups",
+    "terminal_candidates",
+    "pairs",
+)
+
+_DIAGNOSTIC_AUDIT_NAMES = (
+    "issue_root_cause_audit.json",
+    "issue_root_cause_audit.md",
+    "topology_shadow_report.json",
+    "topology_shadow_report.md",
+    "issue_witnesses_v2.parquet",
+    "issue_witness_summary.json",
+    "audit_v2_issue_clusters.parquet",
+    "audit_v2_summary.json",
+    "failure_queue.parquet",
+    "failure_queue_summary.json",
+)
+
+_REPORT_FILES_BY_FORMAT = {
+    "md": "audit_report.md",
+    "html": "audit_report.html",
+    "xlsx": "issues.xlsx",
+}
+
+
+def _prune_profile_artifacts(audit_dir: Path, profile: str, formats: list[str]) -> None:
+    names = set(_DIAGNOSTIC_AUDIT_NAMES) if profile == "production" else set()
+    names.update(
+        filename
+        for format_name, filename in _REPORT_FILES_BY_FORMAT.items()
+        if format_name not in formats
+    )
+    for name in names:
+        path = audit_dir / name
+        if path.is_file():
+            path.unlink()
+
+
+def _finalize_rerun(
+    project_dir: Path,
+    audit_dir: Path,
+    output_dir: Path | None,
+    *,
+    profile: str,
+    report_formats: list[str],
+    event_sink: Any = None,
+    issue_count: int,
+) -> Path:
+    _prune_profile_artifacts(audit_dir, profile, report_formats)
+    (audit_dir / "runtime_profile.json").write_text(
+        json.dumps(
+            {
+                "run_profile": profile,
+                "report_formats": report_formats,
+                "diagnostics_status": (
+                    "not_generated_for_profile" if profile == "production" else "generated"
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    if profile == "regression":
+        # Preserve the historical low-level call shape for callers that replace
+        # the exporter in tests or integrations; regression always means all formats.
+        export_existing_reports(project_dir)
+    else:
+        export_existing_reports(project_dir, formats=report_formats)
+    if event_sink is not None:
+        event_sink.emit(
+            "audit_finished",
+            project_dir=str(project_dir),
+            audit_dir=str(audit_dir),
+            issue_count=issue_count,
+            run_profile=profile,
+        )
+
+    if output_dir is not None and output_dir.resolve() != audit_dir.resolve():
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for name in _AUDIT_COPY_NAMES:
+            source = audit_dir / name
+            target = output_dir / name
+            if source.is_file():
+                copy2(source, target)
+            elif target.is_file():
+                target.unlink()
+        return output_dir
+    return audit_dir
 
 
 def rerun_audit_from_findings(
@@ -34,7 +149,13 @@ def rerun_audit_from_findings(
     *,
     event_sink = None,
 ) -> Path:
-    frames = load_report_frames(project_dir)
+    profile = resolve_runtime_profile(config)
+    report_formats = resolve_report_formats(config, profile=profile)
+    if profile == "production":
+        frames = load_report_frames(project_dir, names=_CORE_FRAME_NAMES)
+    else:
+        # Keep the historical no-keyword call for diagnostic/regression callers.
+        frames = load_report_frames(project_dir)
     pages = [_sheet_record(row) for _, row in frames.get("pages", pd.DataFrame()).iterrows()]
     line_groups = [_line_group(row) for _, row in frames.get("line_groups", pd.DataFrame()).iterrows()]
     pairs = [_pair(row) for _, row in frames.get("pairs", pd.DataFrame()).iterrows()]
@@ -77,15 +198,38 @@ def rerun_audit_from_findings(
     audit_dir = project_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
-    issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
-    issue_witnesses, issue_witness_summary = _build_issue_witness_frame(
-        project_dir, issues_frame
-    )
-    issue_witnesses.to_parquet(audit_dir / "issue_witnesses_v2.parquet", index=False)
-    (audit_dir / "issue_witness_summary.json").write_text(
-        json.dumps(issue_witness_summary, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    if profile == "production":
+        issues_frame = _issue_frame(issues)
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        issues_frame.to_parquet(audit_dir / "issues.parquet", index=False)
+        issues_frame.to_json(
+            audit_dir / "issues.json",
+            orient="records",
+            force_ascii=False,
+            indent=2,
+        )
+    else:
+        issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
+    if profile != "production":
+        issue_witnesses, issue_witness_summary = _build_issue_witness_frame(
+            project_dir, issues_frame
+        )
+        issue_witnesses.to_parquet(audit_dir / "issue_witnesses_v2.parquet", index=False)
+        (audit_dir / "issue_witness_summary.json").write_text(
+            json.dumps(issue_witness_summary, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    if profile == "production":
+        return _finalize_rerun(
+            project_dir,
+            audit_dir,
+            output_dir,
+            profile=profile,
+            report_formats=report_formats,
+            event_sink=event_sink,
+            issue_count=len(issues),
+        )
 
     # Phase 120: Audit V2 clusters + Failure Queue (shadow; legacy issues retained).
     findings_dir = project_dir / "findings"
@@ -223,33 +367,15 @@ def rerun_audit_from_findings(
         render_topology_shadow_report_markdown(topology_shadow_payload),
         encoding="utf-8",
     )
-    export_existing_reports(project_dir)
-    if event_sink is not None:
-        event_sink.emit(
-            "audit_finished",
-            project_dir=str(project_dir),
-            audit_dir=str(audit_dir),
-            issue_count=len(issues),
-        )
-
-    if output_dir is not None and output_dir.resolve() != audit_dir.resolve():
-        output_dir.mkdir(parents=True, exist_ok=True)
-        for name in (
-            "issues.parquet",
-            "issues.json",
-            "issue_root_cause_audit.json",
-            "issue_root_cause_audit.md",
-            "audit_report.md",
-            "audit_report.html",
-            "issues.xlsx",
-            "topology_shadow_report.json",
-            "topology_shadow_report.md",
-            "issue_witnesses_v2.parquet",
-            "issue_witness_summary.json",
-        ):
-            copy2(audit_dir / name, output_dir / name)
-        return output_dir
-    return audit_dir
+    return _finalize_rerun(
+        project_dir,
+        audit_dir,
+        output_dir,
+        profile=profile,
+        report_formats=report_formats,
+        event_sink=event_sink,
+        issue_count=len(issues),
+    )
 
 
 def _sheet_record(row: pd.Series) -> SheetRecord:

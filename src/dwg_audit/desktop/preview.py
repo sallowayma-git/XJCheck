@@ -51,7 +51,10 @@ def render_project_preview(
     if lightweight:
         frames = {}
     elif artifact_dir and artifact_dir.exists():
-        frames = load_report_frames(artifact_dir)
+        frames = load_report_frames(
+            artifact_dir,
+            names=("issues", "pages", "lines", "texts", "line_groups"),
+        )
     else:
         frames = {}
 

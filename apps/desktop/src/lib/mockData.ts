@@ -264,10 +264,11 @@ export function getMockProjectResult(projectId: string): ProjectResult {
   return structuredClone(result)
 }
 
-export function getMockPreview(projectId: string, issueId: string | null): PreviewPayload {
+export function getMockPreview(projectId: string, issueId: string | null, requestId = "mock-preview"): PreviewPayload {
   const result = getMockProjectResult(projectId)
   const issue = result.issues.find((item) => item.issue_id === issueId) ?? result.issues[0] ?? null
   return {
+    request_id: requestId,
     project_id: projectId,
     sheet_id: issue?.sheet_no ?? "05",
     issue_id: issue?.issue_id ?? null,

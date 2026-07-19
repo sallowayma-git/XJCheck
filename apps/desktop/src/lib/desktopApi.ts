@@ -12,6 +12,7 @@ const COMMANDS = {
   analyzeSession: "desktop_analyze_session",
   listRecentProjects: "desktop_list_recent_projects",
   loadResult: "desktop_load_result",
+  registerPreviewSession: "desktop_register_preview_session",
   renderPreview: "desktop_render_preview",
   cancelPreview: "desktop_cancel_preview",
   setIssueStatus: "desktop_set_issue_status",
@@ -80,14 +81,36 @@ export const desktopApi = {
     }
   },
 
+  async registerPreviewSession(clientSessionId: string): Promise<number> {
+    if (!isTauri()) {
+      return 0
+    }
+
+    try {
+      const payload = await invoke<{ client_session_id?: string; client_session_epoch?: number }>(COMMANDS.registerPreviewSession, {
+        clientSessionId,
+      })
+      if (payload.client_session_id !== clientSessionId || !Number.isSafeInteger(payload.client_session_epoch)) {
+        throw new Error("Preview session registration mismatch.")
+      }
+      return payload.client_session_epoch as number
+    } catch (error) {
+      throw toDesktopError("无法初始化图纸预览。", error)
+    }
+  },
+
   async renderPreview(
     projectId: string,
     issueId: string | null,
+    requestId: string,
+    requestGeneration: number,
     sheetId: string | null = null,
     lineGroupId: string | null = null,
+    clientSessionId: string | null = null,
+    clientSessionEpoch: number | null = null,
   ): Promise<PreviewPayload> {
     if (!isTauri()) {
-      return getMockPreview(projectId, issueId)
+      return getMockPreview(projectId, issueId, requestId)
     }
 
     try {
@@ -96,18 +119,43 @@ export const desktopApi = {
         issueId,
         sheetId,
         lineGroupId,
+        requestId,
+        requestGeneration,
+        clientSessionId,
+        clientSessionEpoch,
       })
-      return normalizePreviewPayload(payload)
+      const normalized = normalizePreviewPayload(payload)
+      if (normalized.request_id !== requestId) {
+        throw new Error("Preview response ownership mismatch.")
+      }
+      if (normalized.project_id !== projectId || normalized.issue_id !== issueId) {
+        throw new Error("Preview response target mismatch.")
+      }
+      if (sheetId !== null && normalized.sheet_id !== sheetId) {
+        throw new Error("Preview response sheet mismatch.")
+      }
+      return normalized
     } catch (error) {
       throw toDesktopError("无法生成图纸预览。", error)
     }
   },
 
-  async cancelPreview(): Promise<void> {
+  async cancelPreview(
+    requestId: string,
+    requestGeneration: number,
+    clientSessionId: string | null = null,
+    clientSessionEpoch: number | null = null,
+  ): Promise<boolean> {
     if (!isTauri()) {
-      return
+      return true
     }
-    await invoke(COMMANDS.cancelPreview)
+    const payload = await invoke<{ cancelled?: boolean }>(COMMANDS.cancelPreview, {
+      requestId,
+      requestGeneration,
+      clientSessionId,
+      clientSessionEpoch,
+    })
+    return payload.cancelled === true
   },
 
   async setIssueStatus(projectId: string, issueId: string, status: IssueStatus): Promise<void> {

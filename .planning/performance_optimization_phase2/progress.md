@@ -1,0 +1,36 @@
+# Progress: Performance Optimization Phase 2
+
+## 2026-07-19
+- Closed Phase 1 after rerunning Rust 14 tests, packaging 14 tests, TypeScript, lint, and request-generation tests.
+- Started Phase 2 with two independent optimization tracks: ODA bounded admission and runtime artifact profiles.
+- ODA/result/profile explorations were dispatched concurrently; the result-query exploration was rate-limited, while ODA and profile evidence returned.
+- Implemented the first ODA bounded-admission draft plus config defaults; focused tests are next.
+- Added CPU/memory helper, sampler, gate hysteresis, bounded scheduler, stable run ordering, and config/deep-merge coverage.
+- ODA/config focused suite passes: 20 tests. Phase 1 of this plan is complete.
+- Read the exact writer/rerun/store/report-loader boundaries and selected a safe first production-profile vertical slice.
+- The first combined rerun patch was rejected with no file changes; subsequent edits will use smaller exact contexts.
+- Resumed after session catch-up; confirmed Phase 1 is complete and Phase 2 runtime-profile wiring remains the active implementation slice.
+- Dispatched three independent audits concurrently; one failed immediately and two exceeded the ten-minute window, so they were stopped per the repository agent policy.
+- Completed runtime profile wiring in `rerun.py`: production projects only load core frames, skip diagnostic artifacts, honor configured report formats, prune stale optional outputs, and record `runtime_profile.json`; regression retains all diagnostics and formats.
+- Narrowed desktop sidecar storage reads to `pairs` and `issues` projections.
+- Added profile validation, projected-frame, production inventory, and regression parity tests.
+- Focused verification passed: config 12, report artifacts 21, rerun regression 3.
+- Independent review found a default-frame compatibility regression plus two desktop request-order races; targeted fixes are now in progress.
+- Restored default issues-frame loading and regression-compatible rerun call shapes; 50 affected Python tests pass.
+- Added Rust preview cancel tombstones/monotonic client generation and same-screen navigation preservation. Rust 17 tests and Node request-generation 4 tests pass; format/build/lint checks remain.
+- Desktop verification now passes: Rust 17, Node request tests 4, `npm run check`, lint, production build, and rustfmt check.
+- Broader focused Python verification passes: ODA/config 24, report/rerun/regression 32, sidecar/packaging 20, extraction-gate integration 1.
+- Added persisted preview policy (`auto`, `manual-only`, `off`) with six pure Node checks; mode changes use the existing effect cleanup to cancel active work.
+- Added renderer session IDs to Tauri render/cancel commands and Rust retired-session/tombstone handling; Rust preview tests now total 20.
+- Preview sidecar now projects only `issues`, `pages`, `lines`, `texts`, and `line_groups`; a sidecar test verifies the requested frame set.
+- Production `write_project_artifacts` now short-circuits before shadow/census work after writing core frames and findings metadata. Production writer/rerun tests pass; full verification remains.
+- Updated shadow-focused integration tests to request `runtime.profile=diagnostic`; complete Python suite passes: 1100 passed, 1 skipped.
+- Dispatched concurrent residual audits for Rust session ordering, React preview state, and pipeline/native-process pressure. Confirmed three UI state bugs, an unknown-session activation bug, and the ODA thread/native-child timeout boundary.
+- Began Phase 5 lifecycle hardening: preview context tagging and explicit server-owned renderer epochs are the active implementation tracks; native ODA Job Object work remains explicitly deferred pending child-handle ownership design.
+- Completed preview context/status isolation, primitive request dependencies, related-sheet line-group resolution, target-response validation, and stale debounce suppression.
+- Replaced implicit renderer activation with explicit server epoch registration; Rust now rejects unknown/old/missing-epoch requests without touching current ownership and has 24 passing state/pipe tests.
+- Removed production root-cause diagnostics, made report inventories format-aware, cleaned stale profile-transition outputs, and changed production core parquet writing to one frame at a time.
+- Hardened ODA startup admission: healthy startup admits at most two conversions, startup pressure admits one, recovery remains hysteretic, and malformed/non-finite sampling config is bounded.
+- Focused verification passes: Python performance/profile/packaging 52, ODA converter 15, Rust 24, Node 9, TypeScript and lint. Full suite remains.
+- Full verification passes: Python 1103 passed/1 skipped, Rust 24 passed, Node 9 passed, TypeScript check, lint, production Vite build, rustfmt check, and `git diff --check`.
+- Confirmed the existing frontend dev server is healthy at `http://127.0.0.1:1420` (HTTP 200, PID 19480). Phase 4 and Phase 5 are complete.

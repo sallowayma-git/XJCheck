@@ -11,6 +11,12 @@ from typer.testing import CliRunner
 from dwg_audit.cli import app
 
 
+def _diagnostic_config(tmp_path: Path) -> Path:
+    path = tmp_path / "diagnostic.yml"
+    path.write_text("runtime:\n  profile: diagnostic\n", encoding="utf-8")
+    return path
+
+
 def test_switch_class_policy_prefix_is_provenance_only() -> None:
     from dwg_audit.audit.symbol_port_proposal import human_symbol_port_policy
     policy = human_symbol_port_policy("5a5823aaf90c-full-digest-from-manifest")
@@ -52,7 +58,18 @@ def test_analyze_project_recovers_nested_symbol_definition_proposal(
     monkeypatch.setattr("dwg_audit.ingest.dwg_converter._detect_odafc_exe", lambda config: fake_exe)
     monkeypatch.setattr("dwg_audit.ingest.dwg_converter.odafc.convert", fake_convert)
     output_dir = tmp_path / "artifacts"
-    result = CliRunner().invoke(app, ["analyze-project", "--input", str(project), "--output", str(output_dir)])
+    result = CliRunner().invoke(
+        app,
+        [
+            "analyze-project",
+            "--input",
+            str(project),
+            "--output",
+            str(output_dir),
+            "--config",
+            str(_diagnostic_config(tmp_path)),
+        ],
+    )
     assert result.exit_code == 0, result.output
     run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
     findings = Path(run_summary[0]["artifact_dir"]) / "findings"
@@ -108,7 +125,15 @@ def test_analyze_project_geometry_ignores_unseen_vertical_zigzag_element(
     output_dir = tmp_path / "artifacts"
     result = CliRunner().invoke(
         app,
-        ["analyze-project", "--input", str(project), "--output", str(output_dir)],
+        [
+            "analyze-project",
+            "--input",
+            str(project),
+            "--output",
+            str(output_dir),
+            "--config",
+            str(_diagnostic_config(tmp_path)),
+        ],
     )
     assert result.exit_code == 0, result.output
 
@@ -199,7 +224,15 @@ def test_analyze_project_suppresses_direct_and_deep_children_of_ignored_parent(
     output_dir = tmp_path / "artifacts"
     result = CliRunner().invoke(
         app,
-        ["analyze-project", "--input", str(project), "--output", str(output_dir)],
+        [
+            "analyze-project",
+            "--input",
+            str(project),
+            "--output",
+            str(output_dir),
+            "--config",
+            str(_diagnostic_config(tmp_path)),
+        ],
     )
     assert result.exit_code == 0, result.output
 

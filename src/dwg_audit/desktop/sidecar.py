@@ -249,7 +249,7 @@ def _store_project_run(
 ) -> dict[str, Any]:
     manifest = json.loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
     findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
-    frames = load_report_frames(project_dir)
+    frames = load_report_frames(project_dir, names=("pairs", "issues"))
     pairs = frames.get("pairs", pd.DataFrame())
     issues = frames.get("issues", pd.DataFrame())
     issue_payload = _issue_payloads(issues)

@@ -1,0 +1,49 @@
+# Progress: XJToolkit Performance And Lifecycle Audit
+
+## 2026-07-18
+- Read the `planning-with-files` skill and ran its session catch-up script; no unsynced context was reported.
+- Confirmed the repository root planning files belong to a long-running correctness audit, so created this separate scoped performance audit.
+- Recorded the user's reported symptoms and separated confirmed behavior from profiling hypotheses.
+- Phase 1 is in progress.
+- Spawned three clean-context read-only audits for ODA, the Python engine, and desktop rendering. All exceeded the 10-minute completion threshold without returning partial evidence and were interrupted. The next delegation round will use narrower, file-bounded questions after local architecture discovery.
+- The repository discovery attempt confirmed the packaged `rg.exe` cannot launch due to access denial. Switched to native PowerShell discovery for the rest of this audit.
+- Recovered the top-level architecture and dirty-worktree boundary. The project combines a Python DWG engine with a React/Tauri desktop shell that packages both ODA and a Python sidecar. Existing correctness-related modifications are explicitly out of scope for mutation.
+- Read the root and desktop READMEs plus all primary runtime manifests. Confirmed the documented end-to-end product stages and the intended Tauri-to-sidecar command boundary.
+- Began a complete direct read of the foundational `doc/任务书.md` in bounded character slices. The first slices confirm the ten-layer architecture, page-level findings model, session-cache cleanup contract, and two-stage Read/Findings versus Audit/Report workflow.
+- Continued through the documented concurrency and productization sections. Confirmed that per-page parallelism is specified conceptually but has no resource-budget or cancellation contract, and that many heavy artifacts are optional debug/runtime state rather than required UI payload.
+- Read the findings schemas, geometry strategy, confidence model, and rule-engine boundary. The stable identifier-rich data model supports summary/detail projection; eager nested evidence loading would be an implementation choice, not a product requirement.
+- Read the frontend, sidecar-contract, configuration, milestone, and desktop-acceptance sections. Identified explicit design support for on-demand preview and minimal persisted results, plus missing cancellation/resource-control contracts and missing performance acceptance criteria.
+- Read the test/risk/roadmap sections. Confirmed reproducibility and isolated fault-injection are existing principles that can anchor cancellation, stale-event, process-cleanup, and resource-budget regression tests.
+- Read the topology migration contracts. Flagged the temporary legacy-plus-topology compare phase and the future high-cardinality trace tables as important performance modes requiring explicit telemetry and lazy storage-backed access.
+- Read the Findings V2 cache/version and promotion-gate sections. Confirmed intended stage-level cache invalidation and a deliberately expensive dual-engine shadow/compare mode that needs its own resource policy.
+- Read the corpus-scale and shadow-artifact status sections. Recorded concrete record/node volumes and separated development evidence modes from the minimal production path.
+- Continued the complete task-book read through the detailed symbol-policy history. No new UI/process cancellation contract appeared; the main performance implication is repeated coexistence of raw, proposed, shadow, and legacy representations.
+- Continued through later symbol-family adjudication and replay history. These sections are semantic regression evidence and introduce no additional process-lifecycle or rendering requirements.
+- Continued through the remaining detailed symbol-family and full-scope replay contracts. The material reinforces the high cost difference between targeted replay, 40-page replay, and full 450/502-page validation, so benchmark results must always name their workload scope.
+- Completed the final Phase 179/180 task-book sections and found direct evidence of cumulative single-process instability after four projects. Project-level process isolation is now a confirmed requirement, not merely a profiling hypothesis.
+- Completed the Windows packaging guide and current configuration read. Found a static 1/2-worker memory-tier default rather than fixed 4, no dynamic CPU/RAM control, and a three-layer Tauri/sidecar/ODA lifecycle boundary.
+- Enumerated Python and desktop implementation files and isolated the exact modules for the next narrow delegation and main-thread source review.
+- Completed narrow read-only delegations for ODA, Tauri process lifecycle, and frontend switching. Captured exact source locations and separated confirmed behavior from external-library/profiling hypotheses.
+- Main-thread spot checks verified the high-impact ODA, Rust process-lifecycle, React race, preview guard, and full-result rendering citations against the exact source slices.
+- Read the complete core Python pipeline and desktop sidecar orchestration. Confirmed single-process sequential project accumulation, synchronous stages, overlapping in-memory projections, and a second full-result materialization during SQLite storage/compaction.
+- Read desktop lifecycle and SQLite state-store code. Confirmed full-result fetch/decode, absent pagination, cross-process SQLite contention risk, and history-sized recursive cleanup work.
+- Read the full preview implementation and workflow service. Confirmed each issue switch launches a new process that reloads the entire stored result, optional full parquet frames, generates/writes/returns SVG, and performs no semantic preview cache hit.
+- Logged a read-only PowerShell discovery syntax error; no repository source or artifacts changed.
+- Traced CLI entrypoints and the audit rerun path. Confirmed fresh full-sidecar startup per preview, production generation of development shadow artifacts, and no hidden Python page/audit worker pool beyond ODA conversion threads.
+- Reviewed frontend event batching and the Tauri sidecar runtime. Confirmed UI event coalescing already exists, while OS process priority, Job Objects, and native thread limits are absent.
+- Verified desktop configuration resolution and cleanup command wiring. The 1/2-worker default is active; only cleanup receives below-normal priority, and recent-project loading includes recursive stale cleanup.
+- Attempted parallel geometry and artifact hotspot scans; both failed at the service boundary with HTTP 429 and produced no evidence or file changes. Continuing with bounded main-thread searches.
+- Static instrumentation and tabular-I/O census confirmed that only ODA conversion is timed today and that artifact/report code contains the densest explicit dataframe/parquet/JSON work.
+- Inspected the artifact writer and report loader. Confirmed unconditional legacy-plus-shadow computation, dozens of simultaneous tabular artifacts, full-bundle reloads, and multi-format report serialization in the standard desktop path.
+- Resumed from the persisted plan after context handoff and recorded that the two prior broad hotspot agents ended with HTTP 429; they were not retried.
+- Completed three clean-context, file-bounded verifications for report amplification, extraction/pairing hotspots, and the existing test boundary. Main-thread spot checks confirmed the highest-impact citations.
+- Corrected report-path wording: the loader reads every existing file in a fixed 18-frame bundle, while HTML/XLSX serialize the four frames supplied by `export_existing_reports`.
+- Confirmed several concrete algorithmic hotspots: quadratic line-group merging with text rescans, repeated global candidate scans, four linear candidate-coordinate lookups per pair, table cell Cartesian assignment, and multiple retained CAD representations.
+- Phase 1 architecture recovery and Phase 2 lifecycle audits are complete. Phase 3 now only needs the consolidated resource-governance and cancellation design.
+- Ran the focused Python lifecycle baseline with bytecode and pytest cache writes disabled: 28 tests passed in 2.02 seconds.
+- Ran the Rust desktop binary tests with `CARGO_TARGET_DIR` under the system temp directory: 9 tests passed after the first dependency build.
+- Ran frontend `tsc --noEmit` and `oxlint`; both completed successfully.
+- Produced `performance_audit.md` with the complete flow map, confirmed P0/P1/P2 issues, adaptive admission policy, project/preview lifecycle ownership, settings model, implementation sequence, and acceptance metrics.
+- Phase 3 is complete. Phase 4 source verification and recommendation design are complete; only final delivery remains.
+- Final sanity check confirmed that this audit changed only the scoped `.planning/performance_lifecycle_audit` records. Existing root planning-file modifications and untracked `package-lock.json` remain user-owned and untouched.
+- Phase 4 and the audit are complete; the report is ready for user delivery.

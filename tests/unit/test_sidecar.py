@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import dwg_audit.desktop.preview as preview_module
 
 from dwg_audit.desktop.sidecar import DesktopEventWriter
 from dwg_audit.desktop.sidecar import analyze_session
@@ -197,6 +198,44 @@ def test_render_project_preview_writes_svg_with_issue_highlight(tmp_path: Path) 
     assert preview.get("cropped_to_issue") is True
     assert isinstance(preview.get("focus_bbox"), list)
     assert len(preview["focus_bbox"]) == 4
+
+
+def test_render_project_preview_reads_only_rendering_frames(monkeypatch, tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    artifact_dir = tmp_path / "artifacts" / "demo_project"
+    _write_preview_project_output(artifact_dir)
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path / "input"),
+        artifact_dir=str(artifact_dir),
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=1,
+        metadata={},
+    )
+    requested: list[tuple[str, ...] | None] = []
+    original = preview_module.load_report_frames
+
+    def spy_load_report_frames(path: Path, names=None):
+        requested.append(tuple(names) if names is not None else None)
+        return original(path, names=names)
+
+    monkeypatch.setattr(preview_module, "load_report_frames", spy_load_report_frames)
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        sheet_id="S1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    assert Path(preview["preview_path"]).exists()
+    assert requested == [("issues", "pages", "lines", "texts", "line_groups")]
 
 
 def test_render_project_preview_prefers_explicit_line_group_override(tmp_path: Path) -> None:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
+from threading import Lock
 
 import ezdxf
 
@@ -13,6 +15,14 @@ class DummyLogger:
         return None
 
     def warning(self, *_args, **_kwargs) -> None:
+        return None
+
+
+class NoopResourceSampler:
+    sample_interval_seconds = 0.01
+
+    def sample_if_due(self, *, force: bool = False):
+        del force
         return None
 
 
@@ -60,6 +70,101 @@ def test_explicit_convert_workers_override_memory_default(monkeypatch) -> None:
         {"ingest": {"convert_workers": 3}},
         file_count=40,
     ) == 3
+
+
+def test_cpu_and_memory_percent_helpers_are_bounded() -> None:
+    assert dwg_converter._cpu_percent_from_times((100, 1000), (150, 1200)) == 75.0
+    assert dwg_converter._cpu_percent_from_times((100, 1000), (90, 1200)) is None
+    assert dwg_converter._memory_load_percent(1000, 200) == 80.0
+    assert dwg_converter._memory_load_percent(None, 200) is None
+
+
+def test_cpu_sampler_uses_counter_deltas() -> None:
+    samples = iter([(100, 1000), (150, 1200)])
+    sampler = dwg_converter.CpuUsageSampler(reader=lambda: next(samples))
+
+    assert sampler.sample() is None
+    assert sampler.sample() == 75.0
+
+
+def test_resource_sampler_rejects_non_finite_or_unbounded_intervals() -> None:
+    sampler = dwg_converter.SystemResourceSampler(float("inf"))
+    assert sampler.sample_interval_seconds == 60.0
+    assert dwg_converter._config_float({"sample": float("inf")}, "sample", 0.75) == 0.75
+
+
+def test_resource_gate_downshifts_and_recovers_with_hysteresis() -> None:
+    gate = dwg_converter.AdaptiveResourceGate(
+        3,
+        {
+            "ingest": {
+                "resource_gate": {
+                    "pressure_samples": 2,
+                    "recovery_samples": 2,
+                }
+            }
+        },
+    )
+    pressure = dwg_converter.ResourceSnapshot(cpu_percent=85.0, memory_percent=60.0)
+    healthy = dwg_converter.ResourceSnapshot(cpu_percent=40.0, memory_percent=50.0)
+
+    assert gate.target_slots == 2
+    assert gate.observe(pressure) is None
+    assert gate.observe(pressure) == (2, 1)
+    assert gate.observe(None) is None
+    assert gate.target_slots == 1
+    assert gate.observe(healthy) is None
+    assert gate.observe(healthy) == (1, 2)
+    assert gate.observe(healthy) is None
+    assert gate.observe(healthy) == (2, 3)
+
+
+def test_startup_pressure_never_admits_above_one_slot() -> None:
+    gate = dwg_converter.AdaptiveResourceGate(8, {})
+    pressure = dwg_converter.ResourceSnapshot(cpu_percent=90.0, memory_percent=85.0)
+
+    assert gate.target_slots == 2
+    assert gate.observe(pressure, startup=True) == (2, 1)
+    assert gate.target_slots == 1
+
+
+def test_malformed_resource_gate_config_fails_open() -> None:
+    gate = dwg_converter.AdaptiveResourceGate(3, {"ingest": {"resource_gate": None}})
+    assert gate.enabled is True
+    assert gate.target_slots == 2
+
+
+def test_bounded_scheduler_never_exceeds_gate_slots() -> None:
+    gate = dwg_converter.AdaptiveResourceGate(
+        2,
+        {"ingest": {"resource_gate": {"enabled": False}}},
+    )
+    lock = Lock()
+    active = 0
+    max_active = 0
+    completed: list[int] = []
+
+    def convert_one(item: int) -> None:
+        nonlocal active, max_active
+        with lock:
+            active += 1
+            max_active = max(max_active, active)
+        time.sleep(0.01)
+        with lock:
+            active -= 1
+            completed.append(item)
+
+    dwg_converter._run_bounded_conversions(
+        list(range(12)),  # type: ignore[arg-type]
+        convert_one,  # type: ignore[arg-type]
+        workers=4,
+        resource_gate=gate,
+        resource_sampler=NoopResourceSampler(),  # type: ignore[arg-type]
+        logger=DummyLogger(),
+    )
+
+    assert max_active == 2
+    assert sorted(completed) == list(range(12))
 
 
 def test_missing_converter_returns_reader_run(tmp_path: Path, monkeypatch) -> None:

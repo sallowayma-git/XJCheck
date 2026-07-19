@@ -1,10 +1,26 @@
 import { isTauri } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
-import { startTransition, useDeferredValue, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
+import { useDeferredValue, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 
 import "./App.css"
 import logoUrl from "./assets/logo.png"
 import { desktopApi } from "./lib/desktopApi"
+import {
+  createPreviewContextKey,
+  isPreviewOutputCurrent,
+  parsePreviewMode,
+  PREVIEW_MODE_STORAGE_KEY,
+  resolvePreviewEmptyState,
+  shouldRenderPreview,
+} from "./lib/previewPolicy"
+import {
+  beginRequest,
+  createRequestGeneration,
+  invalidateRequests,
+  isCurrentRequest,
+  shouldInvalidateScreenIntent,
+} from "./lib/requestGeneration"
+import type { PreviewMode } from "./lib/previewPolicy"
 import type { IssueSummary, ProjectResult, RecentProject, RunStageCard, SidecarEvent } from "./types"
 
 type Screen = "launch" | "process" | "result"
@@ -41,9 +57,16 @@ function App() {
   const [result, setResult] = useState<ProjectResult | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
+  const [previewOutputContextKey, setPreviewOutputContextKey] = useState<string | null>(null)
+  const [previewStatusContextKey, setPreviewStatusContextKey] = useState<string | null>(null)
   const [selectedPreviewSheetId, setSelectedPreviewSheetId] = useState<string | null>(null)
   const [selectedPreviewLineGroupId, setSelectedPreviewLineGroupId] = useState<string | null>(null)
   const [previewGeneration, setPreviewGeneration] = useState(0)
+  const [previewContextRevision, setPreviewContextRevision] = useState(0)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(loadStoredPreviewMode)
+  const [previewClientSessionId] = useState(createPreviewClientSessionId)
+  const [previewClientSessionEpoch, setPreviewClientSessionEpoch] = useState<number | null>(null)
+  const [previewClientSessionError, setPreviewClientSessionError] = useState<string | null>(null)
   const [issueSearch, setIssueSearch] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [ruleFilter, setRuleFilter] = useState("all")
@@ -56,6 +79,7 @@ function App() {
   const [isRefreshingPreview, setIsRefreshingPreview] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
+  const [isLoadingProjectId, setIsLoadingProjectId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isDropTargetActive, setIsDropTargetActive] = useState(false)
   const [launchImportStatus, setLaunchImportStatus] = useState<LaunchImportStatus | null>(null)
@@ -77,6 +101,29 @@ function App() {
   const processEventQueueRef = useRef<SidecarEvent[]>([])
   const processFlushTimerRef = useRef<number | null>(null)
   const analysisInFlightRef = useRef(false)
+  const projectLoadGenerationRef = useRef(createRequestGeneration())
+  const previewRequestGenerationRef = useRef(createRequestGeneration())
+  const handledPreviewGenerationRef = useRef(0)
+  const screenIntentGenerationRef = useRef(createRequestGeneration())
+  const previewRequestSequenceRef = useRef(0)
+  const selectedProjectIdRef = useRef<string | null>(null)
+
+  function selectProject(projectId: string | null): void {
+    selectedProjectIdRef.current = projectId
+    setSelectedProjectId(projectId)
+  }
+
+  function navigateToScreen(nextScreen: Screen): void {
+    if (shouldInvalidateScreenIntent(screen, nextScreen)) {
+      invalidateRequests(screenIntentGenerationRef.current)
+    }
+    if (isLoadingProjectId) {
+      invalidateRequests(projectLoadGenerationRef.current)
+      setIsLoadingProjectId(null)
+      selectProject(result?.run.project_id ?? null)
+    }
+    setScreen(nextScreen)
+  }
 
 
   const refreshRecentProjects = useEffectEvent(async () => {
@@ -84,7 +131,7 @@ function App() {
       const projects = await desktopApi.listRecentProjects()
       setRecentProjects(projects)
       if (!selectedProjectId && projects[0]) {
-        setSelectedProjectId(projects[0].project_id)
+        selectProject(projects[0].project_id)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "刷新最近项目失败。"
@@ -95,6 +142,35 @@ function App() {
   useEffect(() => {
     void refreshRecentProjects()
   }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PREVIEW_MODE_STORAGE_KEY, previewMode)
+    } catch {
+      // Keep the in-memory preference when storage is unavailable.
+    }
+  }, [previewMode])
+
+  useEffect(() => {
+    let disposed = false
+    void desktopApi
+      .registerPreviewSession(previewClientSessionId)
+      .then((epoch) => {
+        if (!disposed) {
+          setPreviewClientSessionEpoch(epoch)
+          setPreviewClientSessionError(null)
+        }
+      })
+      .catch((error) => {
+        if (!disposed) {
+          setPreviewClientSessionEpoch(null)
+          setPreviewClientSessionError(error instanceof Error ? error.message : "无法初始化图纸预览。")
+        }
+      })
+    return () => {
+      disposed = true
+    }
+  }, [previewClientSessionId])
 
   const applyImportedInputRoot = useEffectEvent((nextPath: string, source: "picker" | "drop") => {
     setInputRoot(nextPath)
@@ -165,6 +241,14 @@ function App() {
   }, [screen])
 
   const loadProjectResult = useEffectEvent(async (projectId: string) => {
+    invalidateRequests(previewRequestGenerationRef.current)
+    setPreviewContextRevision((current) => current + 1)
+    setPreviewSrc(null)
+    setPreviewOutputContextKey(null)
+    setPreviewStatusContextKey(null)
+    setPreviewError(null)
+    const generation = beginRequest(projectLoadGenerationRef.current)
+    setIsLoadingProjectId(projectId)
     setLoadError(null)
     try {
       setIssueSearch("")
@@ -174,16 +258,28 @@ function App() {
       setTriageFilter("all")
       setHandlingFilter("all")
       const loaded = await desktopApi.loadResult(projectId)
+      if (!isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        return
+      }
       setResult(loaded)
       const initialIssue = loaded.issues[0] ?? null
       setSelectedIssueId(initialIssue?.issue_id ?? null)
       setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
       setSelectedPreviewLineGroupId(initialIssue?.line_group_id ?? null)
       setPreviewSrc(null)
-      startTransition(() => setScreen("result"))
+      setPreviewOutputContextKey(null)
+      setPreviewStatusContextKey(null)
+      setScreen("result")
     } catch (error) {
+      if (!isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        return
+      }
       const message = error instanceof Error ? error.message : "加载项目结果失败，请重试。"
       setLoadError(message)
+    } finally {
+      if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        setIsLoadingProjectId(null)
+      }
     }
   })
 
@@ -348,7 +444,10 @@ function App() {
       })
       return
     }
+    const screenIntentGeneration = beginRequest(screenIntentGenerationRef.current)
     analysisInFlightRef.current = true
+    invalidateRequests(projectLoadGenerationRef.current)
+    setIsLoadingProjectId(null)
     setLoadError(null)
     setIsAnalyzing(true)
     setScreen("process")
@@ -388,14 +487,16 @@ function App() {
           })
           .slice(0, 20)
       })
-      if (payload.projects[0]) {
-        setSelectedProjectId(payload.projects[0].project_id)
+      if (payload.projects[0] && isCurrentRequest(screenIntentGenerationRef.current, screenIntentGeneration)) {
+        selectProject(payload.projects[0].project_id)
         await loadProjectResult(payload.projects[0].project_id)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "校验失败，请检查项目目录后重试。"
       setLoadError(message)
-      setScreen("launch")
+      if (isCurrentRequest(screenIntentGenerationRef.current, screenIntentGeneration)) {
+        setScreen("launch")
+      }
     } finally {
       analysisInFlightRef.current = false
       setIsAnalyzing(false)
@@ -432,13 +533,15 @@ function App() {
     if (isDeletingProjectId) {
       return
     }
+    if (isLoadingProjectId) {
+      return
+    }
     const confirmed = window.confirm(
       `确认删除项目记录「${projectName || projectId}」？\n将移除应用内保存的问题清单与定位信息，且不可恢复。`,
     )
     if (!confirmed) {
       return
     }
-
     setIsDeletingProjectId(projectId)
     setLoadError(null)
     try {
@@ -446,15 +549,16 @@ function App() {
         await desktopApi.deleteProject(projectId)
       }
       setRecentProjects((current) => current.filter((item) => item.project_id !== projectId))
-      if (selectedProjectId === projectId) {
-        setSelectedProjectId(null)
+      if (selectedProjectIdRef.current === projectId) {
+        invalidateRequests(projectLoadGenerationRef.current)
+        selectProject(null)
         setResult(null)
         setSelectedIssueId(null)
         setPreviewSrc(null)
+        setPreviewOutputContextKey(null)
+        setPreviewStatusContextKey(null)
         setPreviewError(null)
-        if (screen === "result") {
-          setScreen("launch")
-        }
+        setScreen("launch")
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "删除项目记录失败。"
@@ -599,6 +703,30 @@ function App() {
     previewOptions.find((option) => option.sheetId === selectedPreviewSheetId) ??
     previewOptions[0] ??
     null
+  const previewProjectId = result?.run.project_id ?? selectedProjectId
+  const previewRunId = result?.run.run_id ?? null
+  const previewIssueId = selectedIssue?.issue_id ?? null
+  const previewSheetId = activePreviewOption?.sheetId ?? selectedPreviewSheetId ?? selectedIssue?.sheet_id ?? null
+  const previewLineGroupId = resolvePreviewLineGroupForSheet(selectedIssue, previewSheetId)
+  const previewContextKey = createPreviewContextKey({
+    revision: previewContextRevision,
+    runId: previewRunId,
+    projectId: previewProjectId,
+    issueId: previewIssueId,
+    sheetId: previewSheetId,
+    lineGroupId: previewLineGroupId,
+  })
+  const visiblePreviewSrc = isPreviewOutputCurrent(previewOutputContextKey, previewContextKey) ? previewSrc : null
+  const previewStatusIsCurrent = previewStatusContextKey === previewContextKey
+  const visiblePreviewError = previewStatusIsCurrent ? previewError : null
+  const visibleIsRefreshingPreview = previewStatusIsCurrent && isRefreshingPreview
+  const previewEmptyState = resolvePreviewEmptyState({
+    hasIssue: Boolean(selectedIssue),
+    isLoading: visibleIsRefreshingPreview,
+    mode: previewMode,
+    hasError: Boolean(visiblePreviewError),
+    hasPreviewOptions: previewOptions.length > 0,
+  })
   const structuredLocation = useMemo(() => readStructuredLocation(selectedIssue), [selectedIssue])
   const scoreBreakdown = useMemo(
     () => (selectedIssue ? readScoreBreakdown(selectedIssue.evidence) : {}),
@@ -649,86 +777,171 @@ function App() {
   }, [selectedIssue, selectedIssueId])
 
   useEffect(() => {
-    const projectId = result?.run.project_id ?? selectedProjectId
-    if (screen !== "result") {
+    const requestGeneration = previewRequestGenerationRef.current
+    const generation = beginRequest(requestGeneration)
+    if (previewClientSessionEpoch === null) {
+      setPreviewSrc(null)
+      setPreviewOutputContextKey(null)
       setIsRefreshingPreview(false)
+      setPreviewStatusContextKey(previewContextKey)
+      setPreviewError(previewClientSessionError)
+      return
+    }
+    const shouldRender = shouldRenderPreview(
+      previewMode,
+      previewGeneration,
+      handledPreviewGenerationRef.current,
+    )
+    handledPreviewGenerationRef.current = previewGeneration
+    if (screen !== "result") {
+      setPreviewSrc(null)
+      setPreviewOutputContextKey(null)
+      setIsRefreshingPreview(false)
+      setPreviewStatusContextKey(null)
       setPreviewError(null)
       return
     }
-    if (!projectId || !selectedIssue) {
+    if (!previewProjectId || !previewIssueId) {
       setPreviewSrc(null)
+      setPreviewOutputContextKey(null)
       setPreviewError(null)
       setIsRefreshingPreview(false)
+      setPreviewStatusContextKey(null)
+      return
+    }
+    if (!shouldRender) {
+      setPreviewSrc(null)
+      setPreviewOutputContextKey(null)
+      setPreviewError(null)
+      setIsRefreshingPreview(false)
+      setPreviewStatusContextKey(null)
       return
     }
 
     let cancelled = false
+    let requestId: string | null = null
     setIsRefreshingPreview(true)
+    setPreviewStatusContextKey(previewContextKey)
+    setPreviewSrc(null)
+    setPreviewOutputContextKey(null)
     setPreviewError(null)
 
     const timer = window.setTimeout(() => {
+      if (cancelled || !isCurrentRequest(requestGeneration, generation)) {
+        return
+      }
+      requestId = createPreviewRequestId(++previewRequestSequenceRef.current)
       void withTimeout(
-        desktopApi.renderPreview(projectId, selectedIssue.issue_id, selectedPreviewSheetId, selectedPreviewLineGroupId),
+        desktopApi.renderPreview(
+          previewProjectId,
+          previewIssueId,
+          requestId,
+          generation,
+          previewSheetId,
+          previewLineGroupId,
+          previewClientSessionId,
+          previewClientSessionEpoch,
+        ),
         PREVIEW_REQUEST_TIMEOUT_MS,
         "Preview request timed out.",
+        () => {
+          if (requestId) {
+            void desktopApi
+              .cancelPreview(requestId, generation, previewClientSessionId, previewClientSessionEpoch)
+              .catch(() => undefined)
+          }
+        },
       )
         .then((preview) => {
-          if (cancelled) {
+          if (
+            cancelled ||
+            !requestId ||
+            preview.request_id !== requestId ||
+            !isCurrentRequest(requestGeneration, generation)
+          ) {
             return
           }
           setPreviewSrc(preview.preview_src)
+          setPreviewOutputContextKey(previewContextKey)
+          setPreviewStatusContextKey(previewContextKey)
           setPreviewError(null)
           setIsRefreshingPreview(false)
         })
         .catch((error) => {
-          if (cancelled) {
+          if (cancelled || !isCurrentRequest(requestGeneration, generation)) {
             return
           }
           const message =
             error instanceof Error ? humanizePreviewError(error.message) : "无法生成该问题的图纸预览，可先查看下方文字说明。"
           // Keep preview failures local so the inspector stays usable.
           setPreviewError(message)
+          setPreviewStatusContextKey(previewContextKey)
           setPreviewSrc(null)
+          setPreviewOutputContextKey(null)
           setIsRefreshingPreview(false)
         })
     }, 240)
 
     return () => {
       cancelled = true
+      if (isCurrentRequest(requestGeneration, generation)) {
+        invalidateRequests(requestGeneration)
+      }
       window.clearTimeout(timer)
-      void desktopApi.cancelPreview().catch(() => undefined)
+      if (requestId) {
+        void desktopApi
+          .cancelPreview(requestId, generation, previewClientSessionId, previewClientSessionEpoch)
+          .catch(() => undefined)
+      }
     }
-  }, [previewGeneration, result?.run.project_id, screen, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId, selectedProjectId])
+  }, [
+    previewClientSessionEpoch,
+    previewClientSessionError,
+    previewClientSessionId,
+    previewContextKey,
+    previewGeneration,
+    previewIssueId,
+    previewLineGroupId,
+    previewMode,
+    previewProjectId,
+    previewSheetId,
+    screen,
+  ])
 
   async function handleIssueStatusSave() {
     const projectId = result?.run.project_id ?? selectedProjectId
     if (!projectId || !selectedIssue) {
       return
     }
+    const issueId = selectedIssue.issue_id
+    const nextStatus = issueStatusDraft
     setIsSavingIssueStatus(true)
     try {
-      await desktopApi.setIssueStatus(projectId, selectedIssue.issue_id, issueStatusDraft)
-      setResult((current) =>
-        current
-          ? {
-              ...current,
-              issues: current.issues.map((issue) =>
-                issue.issue_id === selectedIssue.issue_id ? { ...issue, status: issueStatusDraft } : issue,
-              ),
-            }
-          : current,
-      )
-      setLoadError(null)
+      await desktopApi.setIssueStatus(projectId, issueId, nextStatus)
+      setResult((current) => {
+        if (!current || current.run.project_id !== projectId || selectedProjectIdRef.current !== projectId) {
+          return current
+        }
+        return {
+          ...current,
+          issues: current.issues.map((issue) => (issue.issue_id === issueId ? { ...issue, status: nextStatus } : issue)),
+        }
+      })
+      if (selectedProjectIdRef.current === projectId) {
+        setLoadError(null)
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "保存处理状态失败，请稍后重试。"
-      setLoadError(message)
+      if (selectedProjectIdRef.current === projectId) {
+        const message = error instanceof Error ? error.message : "保存处理状态失败，请稍后重试。"
+        setLoadError(message)
+      }
     } finally {
       setIsSavingIssueStatus(false)
     }
   }
 
   function handlePreviewRegenerateClick() {
-    if (!selectedIssue) {
+    if (!selectedIssue || previewMode === "off") {
       return
     }
     setPreviewGeneration((current) => current + 1)
@@ -752,13 +965,13 @@ function App() {
           </div>
         </div>
         <nav className="nav-strip" aria-label="主视图">
-          <button type="button" className={screen === "launch" ? "nav-chip active" : "nav-chip"} onClick={() => setScreen("launch")}>
+          <button type="button" className={screen === "launch" ? "nav-chip active" : "nav-chip"} onClick={() => navigateToScreen("launch")}>
             项目
           </button>
-          <button type="button" className={screen === "process" ? "nav-chip active" : "nav-chip"} onClick={() => setScreen("process")}>
+          <button type="button" className={screen === "process" ? "nav-chip active" : "nav-chip"} onClick={() => navigateToScreen("process")}>
             校验中
           </button>
-          <button type="button" className={screen === "result" ? "nav-chip active" : "nav-chip"} onClick={() => setScreen("result")}>
+          <button type="button" className={screen === "result" ? "nav-chip active" : "nav-chip"} onClick={() => navigateToScreen("result")}>
             问题
           </button>
         </nav>
@@ -858,7 +1071,10 @@ function App() {
                           key={project.run_id}
                           className={project.project_id === selectedProjectId ? "selected-row" : ""}
                           onClick={() => {
-                            setSelectedProjectId(project.project_id)
+                            if (isAnalyzing || isDeletingProjectId || isLoadingProjectId === project.project_id) {
+                              return
+                            }
+                            selectProject(project.project_id)
                             void loadProjectResult(project.project_id)
                           }}
                         >
@@ -881,19 +1097,19 @@ function App() {
                               <button
                                 type="button"
                                 className="ghost-button"
-                                disabled={isAnalyzing}
+                                disabled={isAnalyzing || Boolean(isDeletingProjectId) || isLoadingProjectId === project.project_id}
                                 onClick={(event) => {
                                   event.stopPropagation()
-                                  setSelectedProjectId(project.project_id)
+                                  selectProject(project.project_id)
                                   void loadProjectResult(project.project_id)
                                 }}
                               >
-                                查看
+                                {isLoadingProjectId === project.project_id ? "加载中…" : "查看"}
                               </button>
                               <button
                                 type="button"
                                 className="danger-button"
-                                disabled={isDeletingProjectId === project.project_id || isAnalyzing}
+                                disabled={Boolean(isDeletingProjectId) || Boolean(isLoadingProjectId) || isAnalyzing}
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   void handleDeleteProject(project.project_id, project.project_name)
@@ -1306,8 +1522,33 @@ function App() {
                         )}
                       </select>
                     </label>
-                    <button type="button" className="ghost-button" disabled={!selectedIssue || isRefreshingPreview} onClick={() => handlePreviewRegenerateClick()}>
-                        {isRefreshingPreview ? "刷新中…" : "刷新预览"}
+                    <div className="field compact-field preview-mode-field">
+                      <span>预览策略</span>
+                      <div className="preview-mode-control" role="group" aria-label="图纸预览策略">
+                        {([
+                          ["auto", "自动"],
+                          ["manual-only", "仅手动"],
+                          ["off", "关闭"],
+                        ] as const).map(([mode, label]) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            className={previewMode === mode ? "active" : ""}
+                            aria-pressed={previewMode === mode}
+                            onClick={() => setPreviewMode(mode)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={!selectedIssue || visibleIsRefreshingPreview || previewMode === "off"}
+                      onClick={() => handlePreviewRegenerateClick()}
+                    >
+                        {visibleIsRefreshingPreview ? "生成中…" : previewMode === "manual-only" ? "生成预览" : "刷新预览"}
                     </button>
                   </div>
                 ) : null}
@@ -1315,27 +1556,33 @@ function App() {
 
               <div className="panel inspector-preview">
                 <div className="preview-shell">
-                  {previewSrc ? (
+                  {visiblePreviewSrc ? (
                     <img
-                      src={previewSrc}
+                      src={visiblePreviewSrc}
                       alt="问题定位预览"
                       className="preview-image"
                       onError={() => {
                         setPreviewSrc(null)
+                        setPreviewOutputContextKey(null)
+                        setPreviewStatusContextKey(previewContextKey)
                         setPreviewError("预览图未能显示。请查看下方文字说明，或点击“刷新预览”。")
                       }}
                     />
                   ) : (
-                    <div className={`preview-empty${selectedIssue && isRefreshingPreview ? " is-loading" : ""}`}>
-                      {selectedIssue
-                        ? isRefreshingPreview
+                    <div className={`preview-empty${previewEmptyState === "loading" ? " is-loading" : ""}`}>
+                      {previewEmptyState === "no-issue"
+                        ? "请从左侧选择一条问题进行复核。"
+                        : previewEmptyState === "loading"
                           ? "正在生成问题区域预览…"
-                          : previewError
-                            ? previewError
-                            : previewOptions.length
-                              ? "暂无预览图。可点击“刷新预览”，或直接阅读下方问题说明。"
-                              : "当前问题没有可定位的图纸区域，请阅读文字说明。"
-                        : "请从左侧选择一条问题进行复核。"}
+                          : previewEmptyState === "off"
+                            ? "图纸预览已关闭。"
+                            : previewEmptyState === "error"
+                              ? visiblePreviewError
+                              : previewEmptyState === "manual-only"
+                                ? "当前为仅手动预览，可点击“生成预览”。"
+                                : previewEmptyState === "no-preview"
+                                  ? "暂无预览图。可点击“刷新预览”，或直接阅读下方问题说明。"
+                                  : "当前问题没有可定位的图纸区域，请阅读文字说明。"}
                     </div>
                   )}
                 </div>
@@ -1461,7 +1708,7 @@ function App() {
                       <div className="detail-block">
                         <span>当前预览</span>
                         <strong>
-                          {isRefreshingPreview
+                          {visibleIsRefreshingPreview
                             ? "正在生成…"
                             : activePreviewOption
                               ? activePreviewOption.caption
@@ -2387,7 +2634,16 @@ function resolvePreviewLineGroupForSheet(issue: IssueSummary | null, sheetId: st
   if (!issue || !sheetId) {
     return null
   }
-  return issue.sheet_id === sheetId ? issue.line_group_id : null
+  if (issue.sheet_id === sheetId) {
+    return issue.line_group_id
+  }
+  const matchingRef = issue.evidence_refs.find((ref) => {
+    if (!isRecord(ref)) {
+      return false
+    }
+    return readString(ref.sheet_id) === sheetId && Boolean(readString(ref.line_group_id))
+  })
+  return isRecord(matchingRef) ? readString(matchingRef.line_group_id) : null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -2561,9 +2817,33 @@ function humanizePreviewError(message: string): string {
     .trim() || "无法生成预览，请查看文字说明。"
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+function loadStoredPreviewMode(): PreviewMode {
+  if (typeof window === "undefined") {
+    return "auto"
+  }
+  try {
+    return parsePreviewMode(window.localStorage.getItem(PREVIEW_MODE_STORAGE_KEY))
+  } catch {
+    return "auto"
+  }
+}
+
+function createPreviewClientSessionId(): string {
+  const randomId = globalThis.crypto?.randomUUID?.()
+  return randomId ? `session-${randomId}` : `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
+function createPreviewRequestId(sequence: number): string {
+  const randomId = globalThis.crypto?.randomUUID?.()
+  return randomId ? `preview-${randomId}` : `preview-${Date.now().toString(36)}-${sequence.toString(36)}`
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string, onTimeout?: () => void): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error(message)), timeoutMs)
+    const timeout = window.setTimeout(() => {
+      onTimeout?.()
+      reject(new Error(message))
+    }, timeoutMs)
     promise.then(
       (value) => {
         window.clearTimeout(timeout)

@@ -843,6 +843,45 @@
   font-size: 12px;
 }
 
+.preview-mode-field {
+  min-width: 164px;
+}
+
+.preview-mode-control {
+  display: inline-flex;
+  height: 26px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-0);
+}
+
+.preview-mode-control button {
+  border: 0;
+  border-right: 1px solid var(--border);
+  padding: 0 8px;
+  min-width: 48px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.preview-mode-control button:last-child {
+  border-right: 0;
+}
+
+.preview-mode-control button:hover {
+  background: var(--surface-2);
+}
+
+.preview-mode-control button.active {
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
 .inspector-preview {
   display: flex;
   flex-direction: column;

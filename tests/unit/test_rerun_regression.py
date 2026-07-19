@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from pathlib import Path
 
@@ -139,6 +140,12 @@ def _decode(value: object) -> object:
     return value
 
 
+def _regression_config() -> dict:
+    config = deepcopy(DEFAULT_CONFIG)
+    config["runtime"]["profile"] = "regression"
+    return config
+
+
 def _issue_snapshot(audit_dir: Path) -> list[dict[str, object]]:
     payload = json.loads((audit_dir / "issues.json").read_text(encoding="utf-8"))
     snapshots = []
@@ -179,7 +186,7 @@ def _issue_snapshot(audit_dir: Path) -> list[dict[str, object]]:
 def test_rerun_audit_from_findings_matches_golden_snapshot(tmp_path: Path) -> None:
     project_dir = _build_findings_only_project(tmp_path)
 
-    audit_dir = rerun_audit_from_findings(project_dir, DEFAULT_CONFIG)
+    audit_dir = rerun_audit_from_findings(project_dir, _regression_config())
 
     assert audit_dir == project_dir / "audit"
     assert _issue_snapshot(audit_dir) == [
@@ -218,15 +225,35 @@ def test_rerun_audit_from_findings_matches_golden_snapshot(tmp_path: Path) -> No
     assert "sheet_order=4" in report_text
     assert "line_group=G0001" in report_text
 
+    runtime_profile = json.loads((audit_dir / "runtime_profile.json").read_text(encoding="utf-8"))
+    assert runtime_profile == {
+        "run_profile": "regression",
+        "report_formats": ["md", "html", "xlsx"],
+        "diagnostics_status": "generated",
+    }
+    assert (audit_dir / "audit_v2_issue_clusters.parquet").exists()
+    assert (audit_dir / "failure_queue.parquet").exists()
+    assert (audit_dir / "topology_shadow_report.json").exists()
+
 
 def test_run_audit_cli_copies_regenerated_outputs_from_findings(tmp_path: Path) -> None:
     project_dir = _build_findings_only_project(tmp_path)
     copied_audit = tmp_path / "copied_audit"
+    config_path = tmp_path / "regression.yml"
+    config_path.write_text("runtime:\n  profile: regression\n", encoding="utf-8")
 
     runner = CliRunner()
     result = runner.invoke(
         app,
-        ["run-audit", "--findings", str(project_dir / "findings"), "--output", str(copied_audit)],
+        [
+            "run-audit",
+            "--findings",
+            str(project_dir / "findings"),
+            "--output",
+            str(copied_audit),
+            "--config",
+            str(config_path),
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -234,3 +261,45 @@ def test_run_audit_cli_copies_regenerated_outputs_from_findings(tmp_path: Path) 
     assert (copied_audit / "audit_report.html").exists()
     assert (copied_audit / "issues.xlsx").exists()
     assert _issue_snapshot(copied_audit) == _issue_snapshot(project_dir / "audit")
+
+
+def test_production_rerun_skips_diagnostics_and_heavy_report_formats(tmp_path: Path) -> None:
+    project_dir = _build_findings_only_project(tmp_path)
+    audit_dir = project_dir / "audit"
+    copied_audit = tmp_path / "production_audit"
+    copied_audit.mkdir()
+    (copied_audit / "failure_queue_summary.json").write_text("stale", encoding="utf-8")
+    (copied_audit / "audit_report.html").write_text("stale", encoding="utf-8")
+
+    result = rerun_audit_from_findings(project_dir, DEFAULT_CONFIG, copied_audit)
+
+    assert result == copied_audit
+    for name in (
+        "issue_witnesses_v2.parquet",
+        "issue_witness_summary.json",
+        "audit_v2_issue_clusters.parquet",
+        "audit_v2_summary.json",
+        "failure_queue.parquet",
+        "failure_queue_summary.json",
+        "topology_shadow_report.json",
+        "topology_shadow_report.md",
+        "issue_root_cause_audit.json",
+        "issue_root_cause_audit.md",
+        "audit_report.html",
+        "issues.xlsx",
+    ):
+        assert not (audit_dir / name).exists()
+        assert not (copied_audit / name).exists()
+
+    assert (copied_audit / "issues.parquet").exists()
+    assert (copied_audit / "audit_report.md").exists()
+    assert not (copied_audit / "issue_root_cause_audit.json").exists()
+    assert not (copied_audit / "issue_root_cause_audit.md").exists()
+    runtime_profile = json.loads(
+        (copied_audit / "runtime_profile.json").read_text(encoding="utf-8")
+    )
+    assert runtime_profile == {
+        "run_profile": "production",
+        "report_formats": ["md"],
+        "diagnostics_status": "not_generated_for_profile",
+    }

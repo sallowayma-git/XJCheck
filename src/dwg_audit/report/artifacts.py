@@ -4,6 +4,7 @@ from collections import Counter
 from collections import defaultdict
 import json
 import re
+import shutil
 from dataclasses import fields
 from pathlib import Path
 from typing import Any
@@ -68,6 +69,8 @@ from dwg_audit.extract.scale_evidence import build_project_scale_evidence
 from dwg_audit.report.canonical_scene_artifacts import write_canonical_scene_artifacts
 from dwg_audit.report.shadow_gap_triage import build_shadow_gap_triage
 from dwg_audit.report.symbol_review_artifacts import write_symbol_review_artifacts
+from dwg_audit.utils.config import resolve_report_formats
+from dwg_audit.utils.config import resolve_runtime_profile
 
 from dwg_audit.audit.table_structure import build_table_structure_profiles
 from dwg_audit.audit.wire_topology import build_wire_topology_frames
@@ -80,6 +83,39 @@ except ImportError:  # pragma: no cover - optional until ScopeResolver lands
 
 
 _REPORT_FORMATS = ("md", "html", "xlsx")
+_FINDINGS_FRAME_NAMES = (
+    "pages",
+    "texts",
+    "lines",
+    "blocks",
+    "polylines",
+    "line_groups",
+    "terminal_candidates",
+    "pair_candidates",
+    "pairs",
+    "text_assignments",
+    "entity_coverage_summary",
+    "wire_junctions",
+    "wire_networks",
+    "source_files",
+    "sidecars",
+    "terminal_strips",
+    "extraction_warnings",
+)
+_PRODUCTION_CORE_FINDINGS_NAMES = frozenset(
+    {
+        "source_files.parquet",
+        "pages.parquet",
+        "texts.parquet",
+        "lines.parquet",
+        "line_groups.parquet",
+        "terminal_candidates.parquet",
+        "pairs.parquet",
+        "findings.json",
+        "findings.md",
+        "runtime_profile.json",
+    }
+)
 _ISSUE_STRUCTURED_COLUMNS = ("evidence", "related_pair_ids", "sheet_ids", "values", "evidence_refs")
 _COMMUNICATION_MEDIUM_COLUMNS = (
     "medium_candidate_id",
@@ -373,9 +409,113 @@ def _issue_frame(issues: list[Issue]) -> pd.DataFrame:
     return frame
 
 
+def _clear_directory_contents(directory: Path, *, keep: set[str] | None = None) -> None:
+    if directory.is_symlink():
+        directory.unlink(missing_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)
+        return
+    if not directory.is_dir():
+        return
+    keep = keep or set()
+    for path in directory.iterdir():
+        if path.name in keep:
+            continue
+        if path.is_symlink() or not path.is_dir():
+            path.unlink(missing_ok=True)
+        else:
+            shutil.rmtree(path)
+
+
+def _clear_production_findings(findings_dir: Path, *, preserve_page_findings: bool) -> None:
+    """Remove artifacts from a prior diagnostic run before writing production output."""
+    keep = set(_PRODUCTION_CORE_FINDINGS_NAMES)
+    if preserve_page_findings:
+        keep.add("page_findings")
+    _clear_directory_contents(findings_dir, keep=keep)
+    if preserve_page_findings:
+        page_findings_dir = findings_dir / "page_findings"
+        page_findings_dir.mkdir(parents=True, exist_ok=True)
+        _clear_directory_contents(page_findings_dir)
+
+
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._")
     return slug or "project"
+
+
+def _write_production_core_artifacts(
+    *,
+    artifacts: ProjectArtifacts,
+    project_dir: Path,
+    findings_dir: Path,
+    config: dict | None,
+    page_classifications: dict[str, PageClassification] | None,
+    table_mappings: list[dict[str, Any]] | None,
+    extraction_gate_payload: dict[str, Any] | None,
+    persist_page_findings: bool,
+) -> Path:
+    """Persist the frames required by the desktop workflow before shadow work.
+
+    The production profile keeps the legacy pair/issue inputs and preview geometry,
+    while diagnostic projections remain opt-in through the full writer path.
+    """
+    _clear_production_findings(findings_dir, preserve_page_findings=persist_page_findings)
+    core_frame_specs = (
+        ("source_files", artifacts.scan.manifest.source_files, SourceFileRecord),
+        ("pages", artifacts.scan.pages, SheetRecord),
+        ("texts", artifacts.texts, TextItem),
+        ("lines", artifacts.lines, LineEntity),
+        ("line_groups", artifacts.line_groups, LineGroup),
+        ("terminal_candidates", artifacts.terminal_candidates, TerminalCandidate),
+        ("pairs", artifacts.pairs, Pair),
+    )
+    core_frame_names: list[str] = []
+    for name, records, record_type in core_frame_specs:
+        _frame(records, record_type).to_parquet(findings_dir / f"{name}.parquet", index=False)
+        core_frame_names.append(name)
+
+    findings_payload = _build_findings_payload(
+        artifacts,
+        config=config,
+        page_classifications=page_classifications,
+        table_mappings=table_mappings,
+        extraction_gate=extraction_gate_payload,
+        runtime_profile="production",
+    )
+    if persist_page_findings:
+        page_findings_dir = findings_dir / "page_findings"
+        page_findings_dir.mkdir(parents=True, exist_ok=True)
+        for page_finding in findings_payload["page_findings"]:
+            sheet_id = str(page_finding["sheet_id"])
+            (page_findings_dir / f"{sheet_id}.json").write_text(
+                json.dumps(page_finding, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            (page_findings_dir / f"{sheet_id}.md").write_text(
+                _build_page_finding_markdown(page_finding),
+                encoding="utf-8",
+            )
+    (findings_dir / "findings.json").write_text(
+        json.dumps(findings_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (findings_dir / "findings.md").write_text(
+        _build_findings_markdown(findings_payload),
+        encoding="utf-8",
+    )
+    (findings_dir / "runtime_profile.json").write_text(
+        json.dumps(
+            {
+                "run_profile": "production",
+                "diagnostics_status": "not_generated_for_profile",
+                "core_frames": sorted(core_frame_names),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return project_dir
 
 
 def write_project_artifacts(
@@ -417,6 +557,20 @@ def write_project_artifacts(
             json.dumps(extraction_gate_payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    if resolve_runtime_profile(config) == "production":
+        written_project_dir = _write_production_core_artifacts(
+            artifacts=artifacts,
+            project_dir=project_dir,
+            findings_dir=findings_dir,
+            config=config,
+            page_classifications=page_classifications,
+            table_mappings=table_mappings,
+            extraction_gate_payload=extraction_gate_payload,
+            persist_page_findings=persist_page_findings,
+        )
+        _clear_directory_contents(project_dir / "audit")
+        return written_project_dir
 
     extraction_census_files = [
         dict(item) for item in artifacts.extraction_censuses
@@ -2738,7 +2892,9 @@ def _build_findings_payload(
     constraint_resolution_summary: dict[str, Any] | None = None,
     project_graph_summary: dict[str, Any] | None = None,
     engine_comparison: dict[str, Any] | None = None,
+    runtime_profile: str | None = None,
 ) -> dict[str, Any]:
+    resolved_profile = runtime_profile or resolve_runtime_profile(config)
     manifest = artifacts.scan.manifest
     primary_pages = [page for page in artifacts.scan.pages if page.audit_role == "primary"]
     supplemental_pages = [page for page in artifacts.scan.pages if page.audit_role == "supplemental"]
@@ -2855,9 +3011,55 @@ def _build_findings_payload(
         "sidecars.parquet",
         "terminal_strips.parquet",
     ]
+    if resolved_profile == "production":
+        persisted_findings_artifacts = [
+            "findings.md",
+            "findings.json",
+            "runtime_profile.json",
+            "source_files.parquet",
+            "pages.parquet",
+            "texts.parquet",
+            "lines.parquet",
+            "line_groups.parquet",
+            "terminal_candidates.parquet",
+            "pairs.parquet",
+        ]
     if bool((config or {}).get("runtime", {}).get("persist_page_findings_files", False)):
         persisted_findings_artifacts.insert(2, "page_findings/")
+    report_artifacts = {
+        "md": "audit_report.md",
+        "html": "audit_report.html",
+        "xlsx": "issues.xlsx",
+    }
+    selected_report_artifacts = [
+        report_artifacts[format_name]
+        for format_name in resolve_report_formats(config, profile=resolved_profile)
+    ]
+    audit_artifacts = [
+        "issues.parquet",
+        "issues.json",
+        *selected_report_artifacts,
+        "topology_shadow_report.json",
+        "topology_shadow_report.md",
+        "issue_witnesses_v2.parquet",
+        "issue_witness_summary.json",
+        "audit_v2_issue_clusters.parquet",
+        "audit_v2_summary.json",
+        "failure_queue.parquet",
+        "failure_queue_summary.json",
+    ]
+    if resolved_profile == "production":
+        audit_artifacts = [
+            "issues.parquet",
+            "issues.json",
+            *selected_report_artifacts,
+            "runtime_profile.json",
+        ]
     payload = {
+        "run_profile": resolved_profile,
+        "diagnostics_status": (
+            "not_generated_for_profile" if resolved_profile == "production" else "generated"
+        ),
         "project_name": manifest.project_name,
         "project_id": manifest.project_id,
         "input_root": manifest.input_root,
@@ -2990,21 +3192,7 @@ def _build_findings_payload(
         ],
         "artifacts": {
             "findings": persisted_findings_artifacts,
-            "audit": [
-                "issues.parquet",
-                "issues.json",
-                "audit_report.md",
-                "audit_report.html",
-                "issues.xlsx",
-                "topology_shadow_report.json",
-                "topology_shadow_report.md",
-                "issue_witnesses_v2.parquet",
-                "issue_witness_summary.json",
-                "audit_v2_issue_clusters.parquet",
-                "audit_v2_summary.json",
-                "failure_queue.parquet",
-                "failure_queue_summary.json",
-            ],
+            "audit": audit_artifacts,
         },
     }
     if extraction_gate is not None:
@@ -3633,33 +3821,24 @@ def _write_reports(
                 frame.to_excel(writer, sheet_name=sheet_name[:31], index=False)
 
 
-def load_report_frames(project_dir: Path) -> dict[str, pd.DataFrame]:
+def load_report_frames(
+    project_dir: Path,
+    names: list[str] | tuple[str, ...] | set[str] | None = None,
+) -> dict[str, pd.DataFrame]:
     findings_dir = project_dir / "findings"
     audit_dir = project_dir / "audit"
+    requested = set(_FINDINGS_FRAME_NAMES if names is None else names)
+    if names is None:
+        requested.add("issues")
     frames = {}
-    for name in (
-        "pages",
-        "texts",
-        "lines",
-        "blocks",
-        "polylines",
-        "line_groups",
-        "terminal_candidates",
-        "pair_candidates",
-        "pairs",
-        "text_assignments",
-        "entity_coverage_summary",
-        "wire_junctions",
-        "wire_networks",
-        "source_files",
-        "sidecars",
-        "terminal_strips",
-        "extraction_warnings",
-    ):
+    for name in _FINDINGS_FRAME_NAMES:
+        if name not in requested:
+            continue
         path = findings_dir / f"{name}.parquet"
         frames[name] = pd.read_parquet(path) if path.exists() else pd.DataFrame()
-    issue_path = audit_dir / "issues.parquet"
-    frames["issues"] = pd.read_parquet(issue_path) if issue_path.exists() else pd.DataFrame()
+    if "issues" in requested:
+        issue_path = audit_dir / "issues.parquet"
+        frames["issues"] = pd.read_parquet(issue_path) if issue_path.exists() else pd.DataFrame()
     return frames
 
 
@@ -3668,7 +3847,7 @@ def export_existing_reports(
     formats: list[str] | tuple[str, ...] | set[str] | str | None = None,
 ) -> None:
     manifest = json.loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
-    frames = load_report_frames(project_dir)
+    frames = load_report_frames(project_dir, names=("issues", "pairs", "source_files"))
     files = frames.get("source_files", pd.DataFrame())
     pairs = frames.get("pairs", pd.DataFrame())
     low_conf = pairs[pairs["status"] != "pass"] if not pairs.empty and "status" in pairs.columns else pd.DataFrame()

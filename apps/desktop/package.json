@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "check": "tsc --noEmit",
     "lint": "oxlint",
+    "test:requests": "node --test tests/*.test.mjs",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

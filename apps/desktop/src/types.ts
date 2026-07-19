@@ -79,6 +79,7 @@ export type ProjectResult = {
 }
 
 export type PreviewPayload = {
+  request_id: string
   project_id: string
   sheet_id: string | null
   issue_id: string | null

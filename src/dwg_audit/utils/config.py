@@ -7,6 +7,10 @@ from typing import Any
 import yaml
 
 
+RUNTIME_PROFILES = ("production", "diagnostic", "regression")
+REPORT_FORMATS = ("md", "html", "xlsx")
+
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "project": {
         "name": "",
@@ -27,6 +31,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "audit_before_load": True,
         # 0 selects a memory-aware default (1 on low-memory systems, otherwise 2).
         "convert_workers": 0,
+        "resource_gate": {
+            "enabled": True,
+            "sample_interval_seconds": 0.75,
+            "cpu_high_percent": 80.0,
+            "cpu_low_percent": 65.0,
+            "memory_high_percent": 80.0,
+            "memory_low_percent": 70.0,
+            "pressure_samples": 2,
+            "recovery_samples": 4,
+        },
         "ascii_stage_dir": ".cache/odafc_stage",
     },
     "layout": {
@@ -169,9 +183,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "report": {
         "include_low_confidence_pairs": True,
         "include_candidate_details": True,
-        "export_formats": ["xlsx", "html", "md"],
+        "export_formats": ["md"],
     },
     "runtime": {
+        "profile": "production",
         "persist_page_findings_files": False,
     },
 }
@@ -189,12 +204,51 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 def load_config(config_path: Path | None = None) -> dict[str, Any]:
     if config_path is None:
-        return deepcopy(DEFAULT_CONFIG)
+        merged = deepcopy(DEFAULT_CONFIG)
+        _validate_runtime_config(merged)
+        return merged
 
     loaded = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     if not isinstance(loaded, dict):
         raise ValueError("Config root must be a mapping.")
-    return _deep_merge(DEFAULT_CONFIG, loaded)
+    merged = _deep_merge(DEFAULT_CONFIG, loaded)
+    _validate_runtime_config(merged)
+    return merged
+
+
+def resolve_runtime_profile(config: dict[str, Any] | None, *, default: str = "regression") -> str:
+    runtime = (config or {}).get("runtime", {})
+    raw = runtime.get("profile", default) if isinstance(runtime, dict) else default
+    profile = str(raw or default).strip().lower()
+    if profile not in RUNTIME_PROFILES:
+        raise ValueError(
+            f"Unsupported runtime profile {profile!r}; expected one of {', '.join(RUNTIME_PROFILES)}."
+        )
+    return profile
+
+
+def resolve_report_formats(config: dict[str, Any] | None, *, profile: str | None = None) -> list[str]:
+    resolved_profile = profile or resolve_runtime_profile(config)
+    report = (config or {}).get("report", {})
+    raw_formats = report.get("export_formats", ["md"]) if isinstance(report, dict) else ["md"]
+    if isinstance(raw_formats, str):
+        raw_formats = raw_formats.split(",")
+    if not isinstance(raw_formats, (list, tuple, set)):
+        raise ValueError("report.export_formats must be a list or comma-separated string.")
+    formats = [str(item).strip().lower().lstrip(".") for item in raw_formats if str(item).strip()]
+    unknown = set(formats).difference(REPORT_FORMATS)
+    if unknown:
+        raise ValueError(f"Unsupported report format(s): {', '.join(sorted(unknown))}")
+    if not formats:
+        raise ValueError("At least one report format is required.")
+    if resolved_profile == "regression":
+        return list(REPORT_FORMATS)
+    return list(dict.fromkeys(formats))
+
+
+def _validate_runtime_config(config: dict[str, Any]) -> None:
+    resolve_runtime_profile(config, default="production")
+    resolve_report_formats(config, profile=resolve_runtime_profile(config, default="production"))
 
 
 def write_default_config(output: Path, *, force: bool = False) -> Path:

@@ -1,0 +1,35 @@
+# Progress: Performance Optimization Phase 1
+
+## 2026-07-18
+- Re-read the planning skill and recovered the completed performance audit.
+- Confirmed the current dirty-worktree boundary; this slice will touch only desktop request-lifecycle code and focused tests.
+- Created the Phase 1 implementation plan.
+- Completed three bounded read-only verifications for Rust preview ownership, React/IPC flow, and the feasible test boundary.
+- Selected a request-scoped mutex state machine because the existing split generation/PID globals permit stale-cancel/new-spawn races.
+- Main-thread source slices verified the Rust state split, missing final-result ownership check, PID-only Drop cleanup, React project-load race, and unconditional global preview cancel.
+- Located every render/cancel call site and confirmed there is only one production frontend caller for each command.
+- Confirmed the existing Node 26/TypeScript toolchain can support dependency-free request-generation tests.
+- Added a shared request-generation helper and dependency-free Node tests for out-of-order completion, stale finally, and invalidation.
+- Added project-load generation guards and explicit preview request IDs through App/types/desktop API.
+- Replaced Rust's split preview generation/PID globals with a mutex-owned token/PID state machine and added local ownership tests.
+- First validation found only two rustfmt layout differences; npm sibling outputs were hidden by the orchestration failure and will be rerun.
+- Applied crate-scoped rustfmt, then confirmed TypeScript compilation, Rust formatting, and all three request-generation tests pass.
+- Added a Python cross-file contract sentinel for Rust request ownership, camelCase IPC payloads, response validation, and removal of naked preview globals.
+- All 12 Rust desktop tests pass, including the three new ownership tests.
+- Packaging/static contract tests pass: 14 tests, including the new cross-language request ownership sentinel.
+- Removed the redundant active-preview ref; request-scoped cancel is idempotent, so each effect cleanup can safely cancel its captured ID directly.
+- Frontend lint is warning-free, the production Vite build succeeds, and all three request-generation tests pass after the cleanup refinement.
+- Independent review found navigation/delete races plus Node-version and static-regex test weaknesses; these are being corrected before handoff.
+- Reworked the request test into portable `.mjs` that transpiles and imports the real TypeScript helper using the existing TypeScript dependency.
+- Added explicit screen-navigation invalidation, current-project identity tracking, and deletion/analysis row admission guards.
+- Made preview response request IDs required in the frontend type and browser mock.
+- Tightened cross-file IPC regex assertions so render and cancel signatures cannot match across function boundaries.
+- Final narrow review found a pipe-drain gate hang risk and remaining project-selection/screen-intent races; implementation is being hardened before the final validation run.
+- Added explicit loading state and screen-intent generation. Navigation now abandons pending loads and restores the committed result selection; analysis auto-open is suppressed after a user navigation.
+- Delete actions are blocked while any project load is active, row actions are blocked during deletion/analysis, and successful deletion always returns to launch without relying on a stale captured screen.
+- Replaced unbounded preview pipe thread joins with bounded channel receives and fallible thread creation; cancellation/timeout drops drain handles instead of blocking the preview gate.
+- Added a bounded pipe-drain regression test and tightened the render payload contract assertion to top-level fields.
+- Post-slice review found no remaining React lifecycle findings; strengthened the IPC design to match request ID and client generation, closing theoretical same-ID stale-cancel reuse.
+- Extended render/cancel IPC with `requestGeneration`; Rust now tests same-ID different-generation cancellation explicitly.
+- Re-ran the full Phase 1 validation after the ownership extension: Rust 14 tests, packaging 14 tests, TypeScript, lint, and Node request tests all pass.
+- Phase 1 is complete. Remaining next-slice work is real Windows Job Object/child integration, not silently treated as solved by request cancellation.

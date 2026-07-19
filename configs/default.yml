@@ -45,6 +45,19 @@ ingest:
   audit_before_load: true
   # 0 = memory-aware default: 1 worker below 4 GiB available, otherwise 2.
   convert_workers: 0
+  # Adaptive admission starts at at most 2 workers, drops to 1 when startup is
+  # already above a pressure threshold, and recovers gradually when healthy.
+  # Disable the gate to admit the full explicit convert_workers ceiling immediately.
+  # Active conversions are never force-killed by this telemetry gate.
+  resource_gate:
+    enabled: true
+    sample_interval_seconds: 0.75
+    cpu_high_percent: 80.0
+    cpu_low_percent: 65.0
+    memory_high_percent: 80.0
+    memory_low_percent: 70.0
+    pressure_samples: 2
+    recovery_samples: 4
   ascii_stage_dir: ".cache/odafc_stage"
 
 layout:
@@ -184,9 +197,8 @@ report:
   include_low_confidence_pairs: true
   include_candidate_details: true
   export_formats:
-    - "xlsx"
-    - "html"
     - "md"
 
 runtime:
+  profile: "production"
   persist_page_findings_files: false

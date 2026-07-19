@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from dataclasses import fields
 from pathlib import Path
 
@@ -21,8 +22,118 @@ from dwg_audit.extract.primitive_normalizer import PRIMITIVE_ALGORITHM_VERSION
 from dwg_audit.extract.primitive_normalizer import PRIMITIVE_SCHEMA_VERSION
 from dwg_audit.extract.primitive_normalizer import PrimitiveSegment
 from dwg_audit.readers import ReaderRun
+from dwg_audit.report.artifacts import load_report_frames
 from dwg_audit.report.artifacts import write_audit_outputs
 from dwg_audit.report.artifacts import write_project_artifacts
+from dwg_audit.report.rerun import rerun_audit_from_findings
+from dwg_audit.utils.config import DEFAULT_CONFIG
+
+
+def test_load_report_frames_reads_only_requested_frames(monkeypatch, tmp_path: Path) -> None:
+    findings_dir = tmp_path / "findings"
+    audit_dir = tmp_path / "audit"
+    findings_dir.mkdir()
+    audit_dir.mkdir()
+    for path in (
+        findings_dir / "pairs.parquet",
+        findings_dir / "source_files.parquet",
+        audit_dir / "issues.parquet",
+    ):
+        path.touch()
+
+    reads: list[str] = []
+
+    def fake_read_parquet(path: Path) -> pd.DataFrame:
+        reads.append(path.name)
+        return pd.DataFrame({"source": [path.stem]})
+
+    monkeypatch.setattr(pd, "read_parquet", fake_read_parquet)
+
+    frames = load_report_frames(tmp_path, names=("pairs", "issues"))
+
+    assert set(frames) == {"pairs", "issues"}
+    assert reads == ["pairs.parquet", "issues.parquet"]
+
+
+def test_production_writer_short_circuits_shadow_artifacts(monkeypatch, tmp_path: Path) -> None:
+    scan = ProjectScanResult(
+        manifest=Manifest(
+            project_id="Production Project",
+            project_name="Production Project",
+            created_at="2026-07-19T00:00:00+00:00",
+            tool_version="0.2.0",
+            input_root="C:/demo",
+            file_count=0,
+            sheet_count=0,
+            valid_dwg_files=0,
+            invalid_dwg_files=0,
+            source_files=[],
+            sidecars=[],
+            project_name_sources={},
+            warnings=[],
+        ),
+        pages=[],
+        terminal_strips=[],
+        project_root="C:/demo",
+    )
+    config = deepcopy(DEFAULT_CONFIG)
+    config["report"]["export_formats"] = ["html"]
+
+    def fail_shadow_work(*_args, **_kwargs):
+        raise AssertionError("production writer entered shadow work")
+
+    monkeypatch.setattr(
+        "dwg_audit.report.artifacts.build_project_scale_evidence",
+        fail_shadow_work,
+    )
+
+    stale_findings = tmp_path / "Production_Project" / "findings"
+    stale_findings.mkdir(parents=True)
+    (stale_findings / "blocks.parquet").write_bytes(b"stale")
+    (stale_findings / "old_diagnostic.json").write_text("stale", encoding="utf-8")
+    stale_page_findings = stale_findings / "page_findings"
+    stale_page_findings.mkdir()
+    (stale_page_findings / "old.json").write_text("stale", encoding="utf-8")
+    stale_audit = tmp_path / "Production_Project" / "audit"
+    stale_audit.mkdir(parents=True)
+    (stale_audit / "issues.parquet").write_bytes(b"stale")
+    (stale_audit / "issue_root_cause_audit.json").write_text("stale", encoding="utf-8")
+
+    project_dir = write_project_artifacts(ProjectArtifacts(scan=scan), tmp_path, config=config)
+    findings_dir = project_dir / "findings"
+
+    assert {
+        path.name for path in findings_dir.iterdir() if path.is_file()
+    } == {
+        "findings.json",
+        "findings.md",
+        "line_groups.parquet",
+        "lines.parquet",
+        "pages.parquet",
+        "pairs.parquet",
+        "runtime_profile.json",
+        "source_files.parquet",
+        "terminal_candidates.parquet",
+        "texts.parquet",
+    }
+    payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
+    assert payload["run_profile"] == "production"
+    assert payload["diagnostics_status"] == "not_generated_for_profile"
+    assert "wire_networks.parquet" not in payload["artifacts"]["findings"]
+    assert "issue_root_cause_audit.json" not in payload["artifacts"]["audit"]
+    assert "audit_report.html" in payload["artifacts"]["audit"]
+    assert "audit_report.md" not in payload["artifacts"]["audit"]
+    assert not (findings_dir / "blocks.parquet").exists()
+    assert not (findings_dir / "old_diagnostic.json").exists()
+    assert not (findings_dir / "page_findings").exists()
+    assert not (project_dir / "audit" / "issues.parquet").exists()
+    assert not (project_dir / "audit" / "issue_root_cause_audit.json").exists()
+
+    audit_dir = rerun_audit_from_findings(project_dir, config)
+    assert (audit_dir / "issues.parquet").exists()
+    assert (audit_dir / "audit_report.html").exists()
+    assert not (audit_dir / "audit_report.md").exists()
+    assert not (audit_dir / "audit_v2_issue_clusters.parquet").exists()
 
 
 def test_write_project_artifacts_creates_findings_outputs(tmp_path: Path) -> None:
