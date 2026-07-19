@@ -5,6 +5,8 @@ from pathlib import Path
 
 from dwg_audit.readers.base import ReaderHealthStatus, ReaderProbe
 from dwg_audit.readers.oda_reader import ODA_CAPABILITIES, OdaFileConverterReader
+from dwg_audit.readers.oda_process import OdaProcessTimeout
+import dwg_audit.readers.oda_reader as oda_reader
 
 
 def _reader(tmp_path: Path, **kwargs: object) -> OdaFileConverterReader:
@@ -97,3 +99,17 @@ def test_explicit_smoke_timeout_is_bounded(tmp_path: Path) -> None:
     assert time.monotonic() - started < 0.5
     assert health.status is ReaderHealthStatus.DEGRADED
     assert health.error_code == "odafc_smoke_timeout"
+
+
+def test_builtin_smoke_timeout_uses_isolated_runner_error_code(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def timeout(_executable: Path, *, timeout_seconds: float) -> bool:
+        raise OdaProcessTimeout(timeout_seconds)
+
+    monkeypatch.setattr(oda_reader, "run_oda_smoke", timeout)
+    health = _reader(tmp_path).health_check(smoke=True, smoke_timeout_seconds=0.2)
+
+    assert health.status is ReaderHealthStatus.DEGRADED
+    assert health.error_code == "odafc_smoke_timeout"
+    assert health.detail == "ODA conversion smoke timed out after 0.2s."

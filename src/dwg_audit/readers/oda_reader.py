@@ -24,9 +24,17 @@ from dwg_audit.readers.base import (
     ReaderOptions,
     ReaderProbe,
 )
+from dwg_audit.readers.oda_process import OdaProcessTimeout
+from dwg_audit.readers.oda_process import oda_process_isolation_enabled
+from dwg_audit.readers.oda_process import oda_timeout_from_config
+from dwg_audit.readers.oda_process import run_oda_conversion
+from dwg_audit.readers.oda_process import run_oda_smoke
 
 VersionReader = Callable[[Path], str | None]
 SmokeCheck = Callable[[Path], bool]
+
+
+_oda_conversion_runner = run_oda_conversion
 
 
 ODA_CAPABILITIES = ReaderCapabilities(
@@ -300,6 +308,8 @@ class OdaFileConverterReader:
         self._probe = discover_oda_file_converter(config)
         self._version_reader = version_reader
         self._smoke_check = smoke_check
+        self._process_isolation = oda_process_isolation_enabled(config)
+        self._oda_timeout_seconds = oda_timeout_from_config(config)
 
     def probe(self) -> ReaderProbe:
         return self._probe
@@ -362,7 +372,23 @@ class OdaFileConverterReader:
                 detail="Explicit conversion smoke check was requested but is not configured.",
             )
 
-        outcome, value = _bounded_smoke(self._smoke_check, executable, smoke_timeout_seconds)
+        if self._process_isolation and self._smoke_check is _oda_conversion_smoke:
+            try:
+                value = run_oda_smoke(
+                    executable,
+                    timeout_seconds=smoke_timeout_seconds,
+                )
+                outcome = "result"
+            except OdaProcessTimeout as exc:
+                outcome, value = "timeout", exc.timeout_seconds
+            except Exception as exc:
+                outcome, value = "error", exc
+        else:
+            outcome, value = _bounded_smoke(
+                self._smoke_check,
+                executable,
+                smoke_timeout_seconds,
+            )
         if outcome == "result" and value is True:
             return ReaderHealth(
                 status=ReaderHealthStatus.READY,
@@ -402,14 +428,25 @@ class OdaFileConverterReader:
                 backend_name=self.backend_name,
             )
 
-        with oda_execution_environment(probe.executable_path):
-            odafc.convert(
+        if self._process_isolation:
+            _oda_conversion_runner(
                 path,
                 options.output_path,
+                executable=probe.executable_path,
+                timeout_seconds=self._oda_timeout_seconds,
                 version=options.target_version,
                 audit=options.audit,
                 replace=options.replace,
             )
+        else:
+            with oda_execution_environment(probe.executable_path):
+                odafc.convert(
+                    path,
+                    options.output_path,
+                    version=options.target_version,
+                    audit=options.audit,
+                    replace=options.replace,
+                )
         ezdxf.readfile(options.output_path)
         return CadDocument(
             source_path=path,

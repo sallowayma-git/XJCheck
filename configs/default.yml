@@ -43,6 +43,10 @@ ingest:
   odafc_path: ""
   convert_version: "R2018"
   audit_before_load: true
+  # Isolate every ODA invocation so a hung native process can be terminated.
+  oda_process_isolation: true
+  # Maximum wall time for one ODA conversion before its process tree is killed.
+  oda_timeout_seconds: 300.0
   # 0 = memory-aware default: 1 worker below 4 GiB available, otherwise 2.
   convert_workers: 0
   # Adaptive admission starts at at most 2 workers, drops to 1 when startup is

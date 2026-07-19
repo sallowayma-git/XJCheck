@@ -10,6 +10,7 @@ from pathlib import Path
 
 from dwg_audit.desktop.sidecar_entry import _configure_text_stream_utf8
 from dwg_audit.desktop.sidecar_entry import _run_lightweight_command
+from dwg_audit.desktop.sidecar_entry import _run_oda_worker_command
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,7 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "ezdxf.addons.odafc" in builder
     assert '"dwg_audit.desktop.sidecar"' in builder
     assert '"dwg_audit.desktop.lifecycle"' in builder
+    assert '"dwg_audit.readers.oda_worker"' in builder
     # Console-subsystem sidecar preserves JSON pipes; CREATE_NO_WINDOW prevents flashes.
     assert "console=True" in builder
     assert "console=False" not in builder
@@ -97,6 +99,20 @@ def test_python_sidecar_entrypoint_uses_existing_cli_contract() -> None:
 
     assert "from dwg_audit.cli import run" in content
     assert "run()" in content
+
+
+def test_python_sidecar_entrypoint_dispatches_frozen_oda_worker(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_worker(argv: list[str]) -> int:
+        calls.append(argv)
+        return 0
+
+    monkeypatch.setattr("dwg_audit.readers.oda_worker.main", fake_worker)
+
+    assert _run_oda_worker_command(["other-command"]) is None
+    assert _run_oda_worker_command(["oda-worker"]) == 0
+    assert calls == [[]]
 
 
 def test_recent_projects_effect_runs_once_per_app_mount() -> None:

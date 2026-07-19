@@ -7,6 +7,7 @@ from pathlib import Path
 import ezdxf
 import pytest
 
+import dwg_audit.readers.oda_reader as oda_reader
 from dwg_audit.readers.base import (
     ReaderCapabilities,
     ReaderError,
@@ -16,6 +17,7 @@ from dwg_audit.readers.base import (
 )
 from dwg_audit.readers.ezdxf_reader import EzdxfReader
 from dwg_audit.readers.oda_reader import (
+    OdaFileConverterReader,
     discover_oda_file_converter,
     oda_execution_environment,
 )
@@ -159,6 +161,39 @@ def test_oda_execution_environment_sets_and_restores_explicit_path(
 
     assert ezdxf.options.get("odafc-addon", option) == original_option
     assert os.environ.get("PATH", "") == original_path
+
+
+def test_oda_reader_uses_isolated_runner_and_parent_readback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "ODAFileConverter 27.1.0.exe"
+    executable.write_bytes(b"fake executable")
+    source = tmp_path / "drawing.dwg"
+    source.write_bytes(b"AC1032")
+    target = tmp_path / "drawing.dxf"
+    calls: list[dict[str, object]] = []
+
+    def fake_runner(_source: Path, output: Path, **kwargs: object) -> None:
+        calls.append(kwargs)
+        ezdxf.new("R2018").saveas(output)
+
+    monkeypatch.setattr(oda_reader, "_oda_conversion_runner", fake_runner)
+    reader = OdaFileConverterReader(
+        {"ingest": {"odafc_path": str(executable), "oda_timeout_seconds": 12.5}}
+    )
+
+    result = reader.read(source, ReaderOptions(output_path=target))
+
+    assert result.document_path == target
+    assert calls == [
+        {
+            "executable": executable,
+            "timeout_seconds": 12.5,
+            "version": "R2018",
+            "audit": True,
+            "replace": True,
+        }
+    ]
 
 
 def test_reader_registry_reports_unknown_backend() -> None:

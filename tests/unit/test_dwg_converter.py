@@ -8,6 +8,7 @@ import ezdxf
 
 from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.ingest import dwg_converter
+from dwg_audit.readers.oda_process import OdaProcessTimeout
 
 
 class DummyLogger:
@@ -234,7 +235,13 @@ def test_converted_run_has_shadow_cache_identity_and_legacy_call_compatibility(
 
     assert source.conversion_status == "converted"
     assert len(calls) == 1
-    assert calls[0][2] == {"version": "R2018", "audit": True, "replace": True}
+    assert calls[0][2] == {
+        "executable": executable,
+        "timeout_seconds": 300.0,
+        "version": "R2018",
+        "audit": True,
+        "replace": True,
+    }
     assert runs[0].status == "converted"
     assert runs[0].cache_key
     assert runs[0].cache_identity is not None
@@ -292,3 +299,37 @@ def test_invalid_fresh_dxf_has_stable_validation_error(
     assert source.conversion_status == "failed"
     assert source.dxf_path is None
     assert runs[0].error_code == "DXF_VALIDATION_FAILED"
+
+
+def test_conversion_timeout_is_recorded_and_later_files_continue(
+    tmp_path: Path, monkeypatch
+) -> None:
+    executable = tmp_path / "ODAFileConverter 27.1.0.exe"
+    executable.write_bytes(b"fake executable")
+    first_path = tmp_path / "first.dwg"
+    second_path = tmp_path / "second.dwg"
+    first_path.write_bytes(b"AC1032-first")
+    second_path.write_bytes(b"AC1032-second")
+    first = _source(first_path, file_id="F0001")
+    second = _source(second_path, file_id="F0002")
+    monkeypatch.setattr(dwg_converter, "_detect_odafc_exe", lambda _config: executable)
+
+    def fake_convert(_source: Path, target: Path, **_kwargs) -> None:
+        if target.name.startswith("F0001_"):
+            raise OdaProcessTimeout(0.01)
+        ezdxf.new().saveas(target)
+
+    monkeypatch.setattr(dwg_converter.odafc, "convert", fake_convert)
+
+    runs = dwg_converter.convert_source_files(
+        [first, second],
+        tmp_path / "output",
+        {"ingest": {"convert_workers": 2, "oda_timeout_seconds": 0.01}},
+        DummyLogger(),
+    )
+
+    assert [run.status for run in runs] == ["failed", "converted"]
+    assert runs[0].error_code == "ODA_CONVERSION_TIMEOUT"
+    assert first.conversion_status == "failed"
+    assert second.conversion_status == "converted"
+    assert second.dxf_path is not None

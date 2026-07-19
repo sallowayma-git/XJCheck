@@ -8,15 +8,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
 from threading import Lock
-from typing import Callable
+from typing import Any, Callable
 
-from ezdxf.addons import odafc
+from ezdxf.addons import odafc as _native_odafc
 
 from dwg_audit.domain.models import SourceFileRecord
 from dwg_audit.readers.base import ReaderError, ReaderOptions
 from dwg_audit.readers.ezdxf_reader import EzdxfReader
 from dwg_audit.readers.oda_reader import OdaFileConverterReader
 from dwg_audit.readers.oda_reader import oda_execution_environment
+from dwg_audit.readers.oda_process import OdaProcessError
+from dwg_audit.readers.oda_process import OdaProcessTimeout
+from dwg_audit.readers.oda_process import oda_process_isolation_enabled
+from dwg_audit.readers.oda_process import oda_timeout_from_config
+from dwg_audit.readers.oda_process import run_oda_conversion
 from dwg_audit.readers.provenance import (
     ReaderRun,
     build_cache_identity,
@@ -26,6 +31,45 @@ from dwg_audit.readers.provenance import (
     normalized_reader_options,
 )
 from dwg_audit.readers.registry import ReaderRegistry
+
+
+_oda_conversion_runner = run_oda_conversion
+
+
+class _OdaConversionFacade:
+    """Keep one explicit injection seam while production uses the process runner."""
+
+    @staticmethod
+    def convert(source: Path, target: Path, **kwargs: Any) -> None:
+        _oda_conversion_runner(source, target, **kwargs)
+
+
+# Existing callers/tests import this name; it is now a facade rather than the
+# third-party module so the external call cannot accidentally bypass isolation.
+odafc = _OdaConversionFacade()
+
+
+def _run_in_process_oda_conversion(
+    source: Path,
+    target: Path,
+    *,
+    executable: Path,
+    version: str,
+    audit: bool,
+    replace: bool,
+    timeout_seconds: float,
+) -> None:
+    """Explicit opt-out for controlled diagnostics; production stays isolated."""
+
+    del timeout_seconds
+    with oda_execution_environment(executable):
+        _native_odafc.convert(
+            source,
+            target,
+            version=version,
+            audit=audit,
+            replace=replace,
+        )
 
 
 @dataclass(frozen=True)
@@ -356,7 +400,10 @@ def convert_source_files(
     reader = ReaderRegistry.from_config(config).get("odafc")
     probe = reader.probe()
     if odafc_exe is not None and probe.executable_path != odafc_exe:
-        reader = OdaFileConverterReader({"ingest": {"odafc_path": str(odafc_exe)}})
+        ingest_config = config.get("ingest", {})
+        ingest_values = dict(ingest_config) if isinstance(ingest_config, dict) else {}
+        ingest_values["odafc_path"] = str(odafc_exe)
+        reader = OdaFileConverterReader({"ingest": ingest_values})
         probe = reader.probe()
     health = reader.health_check()
     dxf_dir = output_dir / "cache" / "converted_dxf"
@@ -366,6 +413,12 @@ def convert_source_files(
 
     convert_version = str(config.get("ingest", {}).get("convert_version", "R2018"))
     audit_before_load = bool(config.get("ingest", {}).get("audit_before_load", True))
+    oda_timeout_seconds = oda_timeout_from_config(config)
+    conversion_runner = (
+        odafc.convert
+        if oda_process_isolation_enabled(config)
+        else _run_in_process_oda_conversion
+    )
     options = normalized_reader_options(
         target_version=convert_version,
         audit=audit_before_load,
@@ -506,12 +559,14 @@ def convert_source_files(
             except ReaderError:
                 target.unlink()
 
-        copy2(source.path, staged)
         started = time.perf_counter()
         try:
-            odafc.convert(
+            copy2(source.path, staged)
+            conversion_runner(
                 staged,
                 target,
+                executable=odafc_exe,
+                timeout_seconds=oda_timeout_seconds,
                 version=convert_version,
                 audit=audit_before_load,
                 replace=True,
@@ -526,11 +581,16 @@ def convert_source_files(
             source.conversion_status = "failed"
             source.conversion_duration_ms = int((time.perf_counter() - started) * 1000)
             source.conversion_detail = str(exc)
-            if target.exists():
+            if target.exists() and not isinstance(exc, OdaProcessError):
                 try:
                     message = target.read_text(encoding="utf-8", errors="replace").strip()
                     if message:
                         source.conversion_detail = message
+                except OSError:
+                    pass
+            if isinstance(exc, OdaProcessError):
+                try:
+                    target.unlink(missing_ok=True)
                 except OSError:
                     pass
             logger.warning("Failed to convert %s: %s", source.filename, source.conversion_detail)
@@ -542,11 +602,14 @@ def convert_source_files(
                     filename=source.filename,
                     message=source.conversion_detail,
                 )
-            error_code = (
-                "DXF_VALIDATION_FAILED"
-                if isinstance(exc, ReaderError)
-                else "CONVERSION_FAILED"
-            )
+            if isinstance(exc, OdaProcessTimeout):
+                error_code = "ODA_CONVERSION_TIMEOUT"
+            elif isinstance(exc, OdaProcessError):
+                error_code = exc.code
+            elif isinstance(exc, ReaderError):
+                error_code = "DXF_VALIDATION_FAILED"
+            else:
+                error_code = "CONVERSION_FAILED"
         if event_sink is not None:
             event_sink.emit(
                 "page_finished",
@@ -567,17 +630,16 @@ def convert_source_files(
             0.75,
         )
     )
-    with oda_execution_environment(odafc_exe):
-        if workers > 1 and len(source_files) > 1:
-            logger.info("Converting %s DWG files with %s workers", len(source_files), workers)
-        _run_bounded_conversions(
-            source_files,
-            convert_one,
-            workers=workers,
-            resource_gate=resource_gate,
-            resource_sampler=resource_sampler,
-            logger=logger,
-        )
+    if workers > 1 and len(source_files) > 1:
+        logger.info("Converting %s DWG files with %s workers", len(source_files), workers)
+    _run_bounded_conversions(
+        source_files,
+        convert_one,
+        workers=workers,
+        resource_gate=resource_gate,
+        resource_sampler=resource_sampler,
+        logger=logger,
+    )
 
     with runs_lock:
         return [runs[source.file_id] for source in source_files if source.file_id in runs]

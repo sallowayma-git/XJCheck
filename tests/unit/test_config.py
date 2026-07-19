@@ -85,6 +85,25 @@ def test_default_config_declares_adaptive_oda_resource_gate() -> None:
     assert template["ingest"]["resource_gate"] == gate
 
 
+def test_default_config_declares_bounded_oda_process_policy() -> None:
+    ingest = DEFAULT_CONFIG["ingest"]
+    assert ingest["oda_process_isolation"] is True
+    assert ingest["oda_timeout_seconds"] == 300.0
+
+    template_path = Path(__file__).parents[2] / "configs" / "default.yml"
+    template = yaml.safe_load(template_path.read_text(encoding="utf-8"))
+    assert template["ingest"]["oda_process_isolation"] is True
+    assert template["ingest"]["oda_timeout_seconds"] == 300.0
+
+
+def test_config_rejects_unbounded_oda_timeout(tmp_path: Path) -> None:
+    config_path = tmp_path / "invalid-oda-timeout.yml"
+    config_path.write_text("ingest:\n  oda_timeout_seconds: 0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="oda_timeout_seconds"):
+        load_config(config_path)
+
+
 def test_resource_gate_config_deep_merges_without_dropping_defaults(tmp_path: Path) -> None:
     config_path = tmp_path / "config.yml"
     config_path.write_text(

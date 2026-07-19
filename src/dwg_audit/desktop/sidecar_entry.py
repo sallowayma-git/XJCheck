@@ -139,10 +139,23 @@ def _run_lightweight_command(argv: list[str]) -> bool:
     return True
 
 
+def _run_oda_worker_command(argv: list[str]) -> int | None:
+    """Dispatch the frozen one-shot ODA worker before importing the full CLI."""
+
+    if not argv or argv[0] != "oda-worker":
+        return None
+    from dwg_audit.readers.oda_worker import main as run_oda_worker
+
+    return int(run_oda_worker(argv[1:]))
+
+
 def main() -> None:
     # Rust expects JSON bytes to be UTF-8 regardless of the Windows code page.
     _configure_text_stream_utf8(sys.stdout)
     _configure_text_stream_utf8(sys.stderr)
+    worker_exit = _run_oda_worker_command(sys.argv[1:])
+    if worker_exit is not None:
+        raise SystemExit(worker_exit)
     if _run_lightweight_command(sys.argv[1:]):
         return
 

@@ -128,6 +128,8 @@ def _spec_source(
         "dwg_audit.desktop.preview",
         "dwg_audit.desktop.sidecar",
         "dwg_audit.desktop.state_store",
+        "dwg_audit.readers.oda_process",
+        "dwg_audit.readers.oda_worker",
     ]
 
     return textwrap.dedent(

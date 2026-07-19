@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "odafc_path": "",
         "convert_version": "R2018",
         "audit_before_load": True,
+        # Each ODA invocation runs in a killable worker process by default.
+        "oda_process_isolation": True,
+        # Hard wall-time bound for one external conversion. A timeout kills the
+        # worker and its ODA descendants before the next file is admitted.
+        "oda_timeout_seconds": 300.0,
         # 0 selects a memory-aware default (1 on low-memory systems, otherwise 2).
         "convert_workers": 0,
         "resource_gate": {
@@ -249,6 +255,17 @@ def resolve_report_formats(config: dict[str, Any] | None, *, profile: str | None
 def _validate_runtime_config(config: dict[str, Any]) -> None:
     resolve_runtime_profile(config, default="production")
     resolve_report_formats(config, profile=resolve_runtime_profile(config, default="production"))
+    ingest = config.get("ingest", {})
+    if not isinstance(ingest, dict):
+        raise ValueError("ingest must be a mapping.")
+    if not isinstance(ingest.get("oda_process_isolation", True), bool):
+        raise ValueError("ingest.oda_process_isolation must be true or false.")
+    try:
+        timeout = float(ingest.get("oda_timeout_seconds", 300.0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("ingest.oda_timeout_seconds must be a positive number.") from exc
+    if not (0 < timeout <= 24 * 60 * 60) or not math.isfinite(timeout):
+        raise ValueError("ingest.oda_timeout_seconds must be finite and between 0 and 86400.")
 
 
 def write_default_config(output: Path, *, force: bool = False) -> Path:
