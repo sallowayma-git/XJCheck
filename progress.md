@@ -5846,3 +5846,30 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Final fresh13/audit13 completed 28/28 projects in 635.94 seconds with two workers: 533 files/sheets, 533 valid, zero invalid/incomplete, 38,814 Pair identities (`0/0` delta) and 55 issue identities (`0/0` delta). Rule distribution remains many-to-one 31, missing-side 19, cross-page 3, low-confidence 2.
 - The final accepted auxiliary-frame set is exactly five rows: 26000 `PW0150/PW0151`; 31000 `PW0237/PW0261/PW0262`. PAC `1F1-1 -> 1VD1` and `1F1-2 -> 1701` remain `component_mapping/pass/0.97`.
 - Cleanup removed superseded Phase181 fresh/audit bundles, targeted 31000 probes, replay logs/status, the temporary full-corpus runner, and rebuildable ODA/PyInstaller/Cargo caches. `.tmp` is now about `0.322 GB`; only fresh13/audit13 remain from this slice.
+
+## Phase 182 residual issue triage (2026-07-19)
+
+- The authoritative starting point is fresh13/audit13: 28 projects, 533 valid DWG, 38,814 Pair identities, 55 review issues. The next loop must reduce only evidence-backed false positives and preserve real missing-side, many-to-one, low-confidence and cross-page findings.
+- The first automatic continuation read-only orchestration call failed in the JavaScript wrapper before any shell command ran due to an unterminated path string. It changed no files; the corrected recovery call completed and confirmed the dirty boundary.
+- Current non-recognition dirty files belong to the desktop/sidecar branch (`apps/desktop/*`, `src/dwg_audit/desktop/*`, packaging tests, root `package-lock.json`). Do not stage or revert them while selecting the next recognition slice.
+- A six-agent broad residual audit was too large: only the three cross-page rows completed; five agents stayed silent past the ten-minute threshold and were closed. Cross-page result is authoritative for this slice: all three remain review, with zero safe exemptions.
+- Main-thread issue-only aggregation produced the exact remaining distribution and Pair IDs without re-reading all geometry. Phase182 now narrows to bounded probes for two low-confidence rows, four PAC missing-side rows, the 23000/26000 missing-side cluster, repeated CLP9 backplate sharing, and terminal-header/component sharing.
+- Bounded Sol probes completed for 23000, PAC missing-side, 26000/31000, CLP9 sharing and KLP1 terminal-header/component sharing; one mixed PAC/WBH probe timed out and was closed. The results separate future extraction work from the current rule slice.
+- Selected Phase182 rule slice: the initial 15-row hypothesis was narrowed by evidence. Six KLP1 terminal-header/component groups retain authoritative same-sheet chains and remain fail-closed; only complete backplate virtual-row bridges receive the strict evidence contract in `rules.py`.
+
+## Phase 182 backplate virtual endpoint implementation (2026-07-19)
+
+- Four clean-context `gpt-5.6-sol` probes completed and were closed. Artifact-level verification disproved the earlier six-KLP exemption: every KLP group has a real same-sheet component continuation, so the existing fail-closed guard remains unchanged.
+- Added `_is_authoritative_backplate_virtual_endpoint_bridge()` in `rules.py` and strengthened the cross-diagram group gate with component pass/confidence and distinct physical file requirements. No project, page, handle, fingerprint, CLP/KLP name, fixed terminal number or row number is encoded.
+- Added complete scoped-n bridge positives, a non-CLP9 generic positive and five incomplete-contract negatives. `tests/unit/test_pairs_and_rules.py` passes `112 passed`.
+- Affected rules-only replay removes `2/2/3/2` reviews from 18000/19000/20000/2_2. Full 28-project replay found one additional valid generic hit in 23000 (`PCM0073`) and no additions. Final rules-only result is `55 -> 45`, exactly ten removed reviews.
+- Recoverable tooling errors: bundled `rg.exe` returned access denied, so searches used PowerShell `Select-String`; two PowerShell comparison attempts used an invalid direct pipeline after `foreach` and were replaced with an explicit result variable; the generic test initially fed an embedded-prefix endpoint to a hyphen-row fixture helper and was corrected without changing production code; one JavaScript wrapper typo failed before any nested tool ran. None changed baseline artifacts.
+- Current git boundary is `HEAD=d08ccaa`, one commit ahead of `origin/master`; desktop/sidecar work is already committed and remains outside this recognition slice. The untracked root `package-lock.json` is untouched.
+- Fresh original-DWG replay for 18000/19000/20000/2_2/23000 completed in 178.2s with no extraction Pair semantic delta in any project. Their current audits removed exactly `2/2/3/2/1` target reviews and added none.
+- Full repository gates after the rule/test slice: `1145 passed, 1 skipped`; `python -m compileall -q src tests` and `git diff --check` passed.
+
+## Phase 182 full-corpus acceptance (2026-07-19)
+
+- Full fresh extraction `.tmp/phase182_full_533_fresh` completed for 28 projects and 533/533 valid files/pages, with zero invalid or incomplete pages and 38,814 Pair identities.
+- Full audit `.tmp/phase182_full_533_audit2` completed with issue identities `55 -> 45`, exactly ten expected removals and zero additions. Final distribution: many-to-one 21, missing-side 19, cross-page 3, low-confidence 2.
+- Phase 182 implementation and full fresh/audit acceptance checklist are complete. All 45 remaining issues stay fail-closed for the next evidence loop.

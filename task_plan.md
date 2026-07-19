@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 180 is active. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, and rear-wiring title instance authority are implemented with focused and full-corpus evidence.
+Phase 182 is complete for this recognition slice. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, rear-wiring title instance authority, and the generalized backplate virtual endpoint contract are implemented with focused and full-corpus evidence.
 
-The current authoritative extraction is `.tmp/phase181_full_533_fresh13`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. It contains 38,814 Pair identities with zero additions/removals versus fresh10 and exactly five geometry-proven auxiliary-frame shadows.
+The current authoritative extraction is `.tmp/phase182_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. It contains 38,814 Pair identities with zero semantic additions/removals versus fresh13.
 
-The current authoritative audit is `.tmp/phase181_full_533_audit13`: 55 issues (many-to-one 31, missing-side 19, cross-page 3, low-confidence 2), with zero issue-identity additions/removals versus audit11. Independent review hardened case-insensitive source-block scope identity and the auxiliary-frame canonical proof. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Other-agent ODA/packaging changes remain outside the recognition commit boundary.
+The current authoritative audit is `.tmp/phase182_full_533_audit2`: 45 issues (many-to-one 21, missing-side 19, cross-page 3, low-confidence 2). Identity comparison against `.tmp/phase181_full_533_audit13` is exactly 55 -> 45: the ten expected backplate reviews were removed and no issue was added. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Other-agent ODA/packaging changes remain outside the recognition commit boundary.
 
 ## Phases
 
@@ -2968,3 +2968,17 @@ The current authoritative audit is `.tmp/phase181_full_533_audit13`: 55 issues (
 - Local 31000 fresh/audit replay preserves 1406 Pair facts and all seven baseline issue identities while shadowing only auxiliary frame Pairs `PW0237`, `PW0261`, and `PW0262`.
 - Full acceptance still requires fresh extraction and audit across both test roots (`28` projects, `533` DWG), followed by cleanup and a scoped recognition commit.
 - Final fresh13/audit13 acceptance is complete: 28 projects, 533/533 valid, zero incomplete, Pair and issue identity deltas both `0/0`. Remaining work for this slice is cleanup, scoped commit and push.
+
+## Phase 182 residual evidence loop
+
+- [x] Recover fresh13/audit13 and the concurrent desktop/sidecar dirty boundary.
+- [x] Prove all three remaining cross-page conflicts must stay fail-closed.
+- [x] Audit the two low-confidence rows and 19 missing-side rows in bounded project groups; retain all as fail-closed review.
+- [x] Audit repeated CLP9 and terminal-header/component shared-endpoint families against physical ownership.
+- [x] Correct the initial 15-row hypothesis: ten complete backplate virtual-row bridges are safe; six KLP groups retain review because authoritative same-sheet component chains exist.
+- [x] Implement the strict, name-independent one-component/one-table backplate virtual endpoint contract with complete structural evidence and negative tests.
+- [x] Run fresh original-DWG replay for 18000/19000/20000/2_2/23000 and verify zero Pair semantic drift plus only the expected ten issue removals.
+- [x] Complete the 28-project/533-DWG fresh extraction and audit acceptance: 28/533 valid, 38,814 Pair identities, 55 -> 45 issues, ten removals and zero additions.
+- **Status:** complete
+
+All 45 remaining issues are retained as fail-closed objects for the next evidence loop, including the three cross-page, 19 missing-side, two low-confidence, and remaining many-to-one/GND/KLP structures.

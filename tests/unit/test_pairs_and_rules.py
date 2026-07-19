@@ -569,6 +569,146 @@ def test_rules_keep_same_scoped_n_terminal_transition_visible() -> None:
     assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
 
 
+def test_rules_accept_complete_backplate_virtual_endpoint_bridge() -> None:
+    table_pair = Pair(
+        "PT", None, "S2", "F2", None, "1-21n425", "1-21n427",
+        0.95, "pass", "backplate virtual table", [], "high",
+        {
+            "source": "table_mapping",
+            "table_mapping": {
+                "mapping_mode": "backplate_virtual_table",
+                "sheet_id": "S2",
+                "source_block_name": "GENERIC-BACKPLATE",
+                "raw_header_text": "Output",
+                "header_prefix": "1-21n4",
+                "header_text_id": "HEADER-PT",
+                "row_number": 25,
+                "raw_row_number": "25",
+                "middle_value": "25",
+                "middle_text_id": "MIDDLE-PT",
+                "logical_endpoint": "1-21n425",
+                "left_value": None,
+                "right_value": "1-21n427",
+                "left_text_id": None,
+                "right_text_id": "RIGHT-PT",
+                "row_number_sequence_valid": True,
+                "semantic_notes": ["Open Out+", "Open Out-"],
+                "composite_device_instance": "1-21n",
+                "plugin_slot": 4,
+                "plugin_title": "Output",
+                "column_roles": {
+                    "left": "virtual_row_number",
+                    "middle": "virtual_row_number",
+                    "right": "external_terminal_endpoint",
+                },
+            },
+        },
+        pair_kind="table_mapping",
+    )
+    pairs = [
+        _phase178_strip_component_pair("PC", "S1", "1-21CLP9-2", "1-21n427"),
+        table_pair,
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "26 元件图.dwg", 26, "26", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "20 背板图.dwg", 20, "20", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_accept_generic_backplate_virtual_endpoint_bridge() -> None:
+    table_pair = _phase177_backplate_table_pair("PT", "S2", "NJL307-11", "1-4n611")
+    table_pair.file_id = "F2"
+    table_pair.left_value = "1-4n511"
+    table_pair.evidence["table_mapping"].update(
+        {
+            "source_block_name": "GENERIC-BACKPLATE",
+            "raw_header_text": "TRIP PLUGIN 2",
+            "header_prefix": "1-4n5",
+            "raw_row_number": "11",
+            "middle_value": "11",
+            "semantic_notes": ["Contact 2", "Output"],
+            "composite_device_instance": "1-4n",
+            "plugin_slot": 5,
+            "plugin_title": "TRIP PLUGIN 2",
+            "logical_endpoint": "1-4n511",
+        }
+    )
+    pairs = [
+        _phase178_strip_component_pair("PC", "S1", "1-4CLP2-2", "1-4n611"),
+        table_pair,
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "29 元件图.dwg", 29, "29", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "26 背板图.dwg", 26, "26", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_incomplete_backplate_virtual_endpoint_bridges_visible() -> None:
+    base_mapping = {
+        "mapping_mode": "backplate_virtual_table",
+        "sheet_id": "S2",
+        "source_block_name": "GENERIC-BACKPLATE",
+        "raw_header_text": "Output",
+        "header_prefix": "1-21n4",
+        "header_text_id": "HEADER-PT",
+        "row_number": 25,
+        "raw_row_number": "25",
+        "middle_value": "25",
+        "middle_text_id": "MIDDLE-PT",
+        "logical_endpoint": "1-21n425",
+        "left_value": None,
+        "right_value": "1-21n427",
+        "left_text_id": None,
+        "right_text_id": "RIGHT-PT",
+        "row_number_sequence_valid": True,
+        "semantic_notes": ["Open Out+", "Open Out-"],
+        "composite_device_instance": "1-21n",
+        "plugin_slot": 4,
+        "plugin_title": "Output",
+        "column_roles": {
+            "left": "virtual_row_number",
+            "middle": "virtual_row_number",
+            "right": "external_terminal_endpoint",
+        },
+    }
+    variants = {
+        "missing_device_instance": {"composite_device_instance": None},
+        "mismatched_plugin_slot": {"plugin_slot": 5},
+        "mismatched_middle_value": {"middle_value": "26"},
+        "mismatched_plugin_title": {"plugin_title": "Input"},
+        "missing_semantic_notes": {"semantic_notes": []},
+    }
+    sheets = [
+        SheetRecord("S1", "S1", "26 元件图.dwg", 26, "26", "ACCESSORIES", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "20 背板图.dwg", 20, "20", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    for name, changes in variants.items():
+        mapping = {**deepcopy(base_mapping), **changes}
+        table_pair = Pair(
+            f"PT-{name}", None, "S2", "F2", None, "1-21n425", "1-21n427",
+            0.95, "pass", "backplate virtual table", [], "high",
+            {"source": "table_mapping", "table_mapping": mapping},
+            pair_kind="table_mapping",
+        )
+        pairs = [
+            _phase178_strip_component_pair(f"PC-{name}", "S1", "1-21CLP9-2", "1-21n427"),
+            table_pair,
+        ]
+
+        issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+        assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues), name
+
+
 def test_rules_do_not_merge_same_xjdz_definition_pin_across_distinct_instances() -> None:
     common = {
         "filename": "25 元件接线图2.dwg",

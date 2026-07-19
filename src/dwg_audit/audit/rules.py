@@ -1569,7 +1569,14 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
         return False
     component_pair = component_pairs[0]
     table_pair = table_pairs[0]
-    if component_pair.sheet_id == table_pair.sheet_id:
+    if (
+        component_pair.sheet_id == table_pair.sheet_id
+        or not str(component_pair.file_id or "").strip()
+        or not str(table_pair.file_id or "").strip()
+        or component_pair.file_id == table_pair.file_id
+    ):
+        return False
+    if component_pair.status != "pass" or float(component_pair.confidence or 0.0) < 0.95:
         return False
     if table_pair.status != "pass" or float(table_pair.confidence or 0.0) < 0.95:
         return False
@@ -1585,9 +1592,13 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
     table_mode = _table_mapping_evidence(table_pair).get("mapping_mode")
     if table_mode not in {"backplate_virtual_table", "terminal_header_table"}:
         return False
-    if table_mode == "backplate_virtual_table" and _is_same_scoped_n_terminal_transition(
-        table_pair.left_value,
-        table_pair.right_value,
+    if (
+        table_mode == "backplate_virtual_table"
+        and _is_same_scoped_n_terminal_transition(
+            table_pair.left_value,
+            table_pair.right_value,
+        )
+        and not _is_authoritative_backplate_virtual_endpoint_bridge(table_pair)
     ):
         return False
     for pair in all_pairs:
@@ -1603,6 +1614,67 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
         ):
             return False
     return True
+
+
+def _is_authoritative_backplate_virtual_endpoint_bridge(pair: Pair) -> bool:
+    """Prove a virtual backplate row is an independent endpoint description."""
+
+    mapping = _table_mapping_evidence(pair)
+    if mapping.get("mapping_mode") != "backplate_virtual_table":
+        return False
+    required_text = (
+        "source_block_name",
+        "raw_header_text",
+        "header_prefix",
+        "header_text_id",
+        "raw_row_number",
+        "middle_value",
+        "middle_text_id",
+        "logical_endpoint",
+        "right_value",
+        "right_text_id",
+        "composite_device_instance",
+        "plugin_title",
+    )
+    if not all(str(mapping.get(key) or "").strip() for key in required_text):
+        return False
+    if mapping.get("row_number") is None or mapping.get("plugin_slot") is None:
+        return False
+
+    row_number = str(mapping.get("row_number")).strip()
+    raw_row_number = str(mapping.get("raw_row_number")).strip()
+    middle_value = str(mapping.get("middle_value")).strip()
+    device_instance = str(mapping.get("composite_device_instance")).strip()
+    plugin_slot = str(mapping.get("plugin_slot")).strip()
+    header_prefix = str(mapping.get("header_prefix")).strip()
+    logical_endpoint = str(mapping.get("logical_endpoint")).strip()
+    if raw_row_number != row_number or middle_value != row_number:
+        return False
+    if header_prefix.casefold() != f"{device_instance}{plugin_slot}".casefold():
+        return False
+    if logical_endpoint.casefold() != f"{header_prefix}{row_number}".casefold():
+        return False
+    if str(pair.left_value or "").strip().casefold() != logical_endpoint.casefold():
+        return False
+    if str(pair.right_value or "").strip() != str(mapping.get("right_value")).strip():
+        return False
+    if str(mapping.get("raw_header_text")).strip().casefold() != str(
+        mapping.get("plugin_title")
+    ).strip().casefold():
+        return False
+
+    semantic_notes = mapping.get("semantic_notes")
+    if not isinstance(semantic_notes, list) or not any(
+        str(note or "").strip() for note in semantic_notes
+    ):
+        return False
+    column_roles = mapping.get("column_roles")
+    return bool(
+        isinstance(column_roles, dict)
+        and column_roles.get("left") == "virtual_row_number"
+        and column_roles.get("middle") == "virtual_row_number"
+        and column_roles.get("right") == "external_terminal_endpoint"
+    )
 
 
 def _is_same_scoped_n_terminal_transition(left_value: object, right_value: object) -> bool:
