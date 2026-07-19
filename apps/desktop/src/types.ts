@@ -78,6 +78,25 @@ export type ProjectResult = {
   page_findings: PageFindingSummary[]
 }
 
+export type ProjectSummary = {
+  run: ProjectRun
+  issue_count: number
+  page_finding_count: number
+}
+
+export type IssuePage = {
+  run: ProjectRun
+  items: IssueSummary[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export type IssueDetail = {
+  run: ProjectRun
+  issue: IssueSummary
+}
+
 export type PreviewPayload = {
   request_id: string
   project_id: string

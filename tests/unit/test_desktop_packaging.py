@@ -339,3 +339,245 @@ def test_oda_stage_prunes_optional_payloads() -> None:
     removals = stage.split("OptionalRemovals")[1] if "OptionalRemovals" in stage else stage
     assert "RecomputeDimBlock" not in removals
 
+
+
+def test_result_pagination_contract_connects_python_cli_rust_and_frontend() -> None:
+    """The Paginated result API must be plumbed through all three layers.
+
+    Asserts that new lightweight subcommands were added to the dispatcher, the
+    Rust side registered matching Tauri commands, the desktopApi exposed typed
+    wrappers with the right COMMANDS entries, and the loader/sidecar functions
+    in Python support the contract.
+    """
+
+    entry_path = REPO_ROOT / "src" / "dwg_audit" / "desktop" / "sidecar_entry.py"
+    entry = entry_path.read_text(encoding="utf-8")
+    assert '"load-result-summary"' in entry
+    assert '"load-result-issues"' in entry
+    assert '"load-result-issue-detail"' in entry
+    assert "_bounded_page_size" in entry
+
+    sidecar_path = REPO_ROOT / "src" / "dwg_audit" / "desktop" / "sidecar.py"
+    sidecar = sidecar_path.read_text(encoding="utf-8")
+    assert "def load_project_summary(" in sidecar
+    assert "def load_project_issues(" in sidecar
+    assert "def load_project_issue_detail(" in sidecar
+
+    store_path = REPO_ROOT / "src" / "dwg_audit" / "desktop" / "state_store.py"
+    store = store_path.read_text(encoding="utf-8")
+    assert "def latest_run_for_project(" in store
+    assert "def count_issues(" in store
+    assert "def list_issue_summaries_page(" in store
+    assert "def load_issue_summary(" in store
+    assert "def count_page_findings(" in store
+
+    main_rs_path = DESKTOP_ROOT / "src-tauri" / "src" / "main.rs"
+    main_rs = main_rs_path.read_text(encoding="utf-8")
+    assert "async fn desktop_load_result_summary(" in main_rs
+    assert "async fn desktop_load_result_issues(" in main_rs
+    assert "async fn desktop_load_result_issue_detail(" in main_rs
+    assert "desktop_load_result_summary" in main_rs
+    assert "desktop_load_result_issues" in main_rs
+    assert "desktop_load_result_issue_detail" in main_rs
+    assert '"load-result-summary".to_string()' in main_rs
+    assert '"load-result-issues".to_string()' in main_rs
+    assert '"load-result-issue-detail".to_string()' in main_rs
+
+    desktop_api_path = DESKTOP_ROOT / "src" / "lib" / "desktopApi.ts"
+    desktop_api = desktop_api_path.read_text(encoding="utf-8")
+    assert "loadResultSummary:" in desktop_api
+    assert "loadResultIssues:" in desktop_api
+    assert "loadResultIssueDetail:" in desktop_api
+    assert "async loadResultSummary(projectId: string): Promise<ProjectSummary>" in desktop_api
+    assert re.search(
+        r"async loadResultIssues\(projectId: string, limit: number, offset = 0\): Promise<IssuePage>",
+        desktop_api,
+    )
+    assert "function normalizeIssueSummary(issue: IssueSummary): IssueSummary" in desktop_api
+
+    types_path = DESKTOP_ROOT / "src" / "types.ts"
+    types = types_path.read_text(encoding="utf-8")
+    assert "export type ProjectSummary" in types
+    assert "export type IssuePage" in types
+    assert "export type IssueDetail" in types
+
+
+def test_python_lightweight_command_loads_result_summary(tmp_path: Path, capsys, monkeypatch) -> None:
+    """`load-result-summary` must NOT touch issue_summaries rows. Just counts."""
+
+    from dwg_audit.desktop.sidecar_entry import _run_lightweight_command
+
+    state_db = tmp_path / "desktop_state.db"
+
+    # Write a run directly then have the dispatcher read it through the store.
+    from dwg_audit.desktop.state_store import DesktopStateStore
+
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="demo-run",
+        session_id="demo-session",
+        project_id="demo-project",
+        project_name="Demo",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=2,
+        pair_count=3,
+        issue_count=5,
+        metadata={},
+    )
+    store.replace_issue_summaries(
+        "demo-run",
+        [
+            {
+                "issue_id": f"I{i}",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
+                "title": f"Issue {i}",
+                "summary": f"summary {i}",
+                "severity": "minor",
+                "status": "open",
+                "confidence": 0.1 * i,
+                "evidence": {},
+                "evidence_refs": [],
+                "related_pair_ids": [],
+                "sheet_ids": [],
+                "values": [],
+            }
+            for i in range(5)
+        ],
+    )
+
+    handled = _run_lightweight_command(["load-result-summary", "--project-id", "demo-project", "--state-db", str(state_db)])
+
+    assert handled is True
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["run"]["run_id"] == "demo-run"
+    assert payload["issue_count"] == 5
+
+
+def test_python_lightweight_command_paginates_issues(tmp_path: Path, capsys) -> None:
+    from dwg_audit.desktop.sidecar_entry import _run_lightweight_command
+
+    from dwg_audit.desktop.state_store import DesktopStateStore
+
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="demo-run",
+        session_id="demo-session",
+        project_id="demo-project",
+        project_name="Demo",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=2,
+        pair_count=3,
+        issue_count=30,
+        metadata={},
+    )
+    issues = [
+        {
+            "issue_id": f"I{i:03d}",
+            "rule_id": "R-PAIR-LOW-CONFIDENCE",
+            "issue_type": "pair_low_confidence",
+            "title": f"Issue {i}",
+            "summary": f"summary {i}",
+            "severity": "minor",
+            "status": "open",
+            "confidence": 0.1,
+            "evidence": {},
+            "evidence_refs": [],
+            "related_pair_ids": [],
+            "sheet_ids": [],
+            "values": [],
+        }
+        for i in range(30)
+    ]
+    store.replace_issue_summaries("demo-run", issues)
+
+    handled = _run_lightweight_command(
+        [
+            "load-result-issues",
+            "--project-id",
+            "demo-project",
+            "--limit",
+            "10",
+            "--offset",
+            "5",
+            "--state-db",
+            str(state_db),
+        ]
+    )
+
+    assert handled is True
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["run"]["run_id"] == "demo-run"
+    assert payload["total"] == 30
+    assert payload["limit"] == 10
+    assert payload["offset"] == 5
+    ids = [item["issue_id"] for item in payload["items"]]
+    # Sorted by severity asc (all 'minor') → confidence desc → issue_id asc.
+    # With identical confidence, issue_id asc dominates; offset 5 of 30 picks rows 5-14.
+    assert ids == [f"I{i:03d}" for i in range(5, 15)]
+
+
+def test_python_lightweight_command_loads_issue_detail(tmp_path: Path, capsys) -> None:
+    from dwg_audit.desktop.sidecar_entry import _run_lightweight_command
+
+    from dwg_audit.desktop.state_store import DesktopStateStore
+
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="demo-run",
+        session_id="demo-session",
+        project_id="demo-project",
+        project_name="Demo",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=2,
+        pair_count=3,
+        issue_count=1,
+        metadata={},
+    )
+    store.replace_issue_summaries(
+        "demo-run",
+        [
+            {
+                "issue_id": "I7",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
+                "title": "Specific issue",
+                "summary": "target-summary",
+                "severity": "minor",
+                "status": "open",
+                "confidence": 0.4,
+                "evidence": {"handling_class": "review"},
+                "evidence_refs": [],
+                "related_pair_ids": [],
+                "sheet_ids": [],
+                "values": [],
+            }
+        ],
+    )
+
+    handled = _run_lightweight_command(
+        [
+            "load-result-issue-detail",
+            "--project-id",
+            "demo-project",
+            "--issue-id",
+            "I7",
+            "--state-db",
+            str(state_db),
+        ]
+    )
+
+    assert handled is True
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["run"]["run_id"] == "demo-run"
+    assert payload["issue"]["issue_id"] == "I7"
+    assert payload["issue"]["summary"] == "target-summary"
+    assert payload["issue"]["handling_class"] == "review"

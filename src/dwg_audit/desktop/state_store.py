@@ -324,6 +324,138 @@ class DesktopStateStore:
             ],
         }
 
+    def latest_run_for_project(self, project_id: str) -> dict[str, Any] | None:
+        """Resolve the most recent run dict for ``project_id`` without loading issues."
+
+        Used by sidecar helpers that previously piggy-backed on
+        ``load_latest_project_result`` just to read the run id, which forced a
+        full issues/page_findings scan on every status/problem mutation.
+        """
+
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM runs
+                WHERE project_id = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (project_id,),
+            ).fetchone()
+        return _row_to_run(row) if row is not None else None
+
+    def count_issues(self, run_id: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        return int(row[0]) if row is not None else 0
+
+    def count_page_findings(self, run_id: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM page_findings WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        return int(row[0]) if row is not None else 0
+
+    def list_issue_summaries_page(
+        self,
+        run_id: str,
+        *,
+        limit: int,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Return one page of issue summaries with the same ordering as
+        ``load_latest_project_result``.
+
+        The ``total`` field is computed by a separate ``COUNT(*)`` so callers can
+        render pager metadata without re-querying; ``limit`` and ``offset`` are
+        echoed back so the caller can correlate the page with its request.
+        """
+
+        safe_limit = max(0, min(int(limit), 5000))
+        safe_offset = max(0, int(offset))
+        with self._connect() as conn:
+            total_row = conn.execute(
+                "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            total = int(total_row[0]) if total_row is not None else 0
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM issue_summaries
+                WHERE run_id = ?
+                ORDER BY
+                    CASE severity
+                        WHEN 'critical' THEN 0
+                        WHEN 'major' THEN 1
+                        WHEN 'minor' THEN 2
+                        WHEN 'review' THEN 3
+                        ELSE 9
+                    END,
+                    confidence DESC,
+                    issue_id ASC
+                LIMIT ? OFFSET ?
+                """,
+                (run_id, safe_limit, safe_offset),
+            ).fetchall()
+        return {
+            "items": [_issue_row_to_summary(row) for row in rows],
+            "total": total,
+            "limit": safe_limit,
+            "offset": safe_offset,
+        }
+
+    def load_issue_summary(self, run_id: str, issue_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM issue_summaries
+                WHERE run_id = ? AND issue_id = ?
+                """,
+                (run_id, issue_id),
+            ).fetchone()
+        return _issue_row_to_summary(row) if row is not None else None
+
+    def load_page_findings(self, run_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM page_findings
+                WHERE run_id = ?
+                ORDER BY sheet_order ASC, sheet_id ASC
+                """,
+                (run_id,),
+            ).fetchall()
+        return [
+            {
+                "sheet_id": row["sheet_id"],
+                "file_id": row["file_id"] or None,
+                "filename": row["filename"],
+                "sheet_no": row["sheet_no"] or None,
+                "sheet_order": int(row["sheet_order"]),
+                "sheet_title": row["sheet_title"],
+                "page_type": row["page_type"],
+                "page_type_confidence": float(row["page_type_confidence"]),
+                "audit_role": row["audit_role"],
+                "route_target": row["route_target"],
+                "layout_summary": json.loads(row["layout_summary_json"] or "{}"),
+                "structure_summary": json.loads(row["structure_summary_json"] or "{}"),
+                "recognition_strategy": row["recognition_strategy"],
+                "number_matching_strategy": row["number_matching_strategy"],
+                "high_confidence_signals": json.loads(row["high_confidence_signals_json"] or "[]"),
+                "open_questions": json.loads(row["open_questions_json"] or "[]"),
+                "warnings": json.loads(row["warnings_json"] or "[]"),
+            }
+            for row in rows
+        ]
+
     def update_issue_status(self, *, run_id: str, issue_id: str, status: str) -> dict[str, Any] | None:
         now = _now_iso()
         with self._connect() as conn:

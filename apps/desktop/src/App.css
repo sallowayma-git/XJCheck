@@ -1378,3 +1378,18 @@
 .settings-grid .field select:focus { outline: 1px solid var(--accent-warm); border-color: var(--border-focus); }
 .settings-grid .field-help { color: var(--text-muted); font-size: 11px; }
 .settings-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); }
+
+/* Virtualized issue list scroller: keeps the table header pinned and lets the
+   tbody container scroll independently, so windowed rows provide a stable
+   scroll surface regardless of how many rows actually exist in DOM. */
+.result-issue-list-scroll {
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  overflow-x: auto;
+}
+.result-issue-list-scroll .data-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+  z-index: 1;
+}

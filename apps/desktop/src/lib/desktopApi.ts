@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog"
 import type { UnlistenFn } from "@tauri-apps/api/event"
 
 import { emitMockAnalyzeSessionEvents, getMockPreview, getMockProjectResult, getMockRecentProjects } from "./mockData"
-import type { AnalyzeSessionRequest, AnalyzeSessionResult, IssueStatus, PreviewPayload, ProjectResult, RecentProject, SidecarEvent } from "../types"
+import type { AnalyzeSessionRequest, AnalyzeSessionResult, IssueDetail, IssuePage, IssueStatus, IssueSummary, PreviewPayload, ProjectResult, ProjectSummary, RecentProject, SidecarEvent } from "../types"
 import type { DesktopSettings } from "./settings"
 import { defaultSettings, normalizeSettings } from "./settings"
 
@@ -14,6 +14,9 @@ const COMMANDS = {
   analyzeSession: "desktop_analyze_session",
   listRecentProjects: "desktop_list_recent_projects",
   loadResult: "desktop_load_result",
+  loadResultSummary: "desktop_load_result_summary",
+  loadResultIssues: "desktop_load_result_issues",
+  loadResultIssueDetail: "desktop_load_result_issue_detail",
   registerPreviewSession: "desktop_register_preview_session",
   renderPreview: "desktop_render_preview",
   cancelPreview: "desktop_cancel_preview",
@@ -82,6 +85,74 @@ export const desktopApi = {
       return normalizeProjectResult(result)
     } catch (error) {
       throw toDesktopError("加载校验结果失败。", error)
+    }
+  },
+
+  async loadResultSummary(projectId: string): Promise<ProjectSummary> {
+    if (!isTauri()) {
+      const mock = getMockProjectResult(projectId)
+      return {
+        run: mock.run,
+        issue_count: mock.issues.length,
+        page_finding_count: mock.page_findings.length,
+      }
+    }
+    try {
+      const summary = await invoke<ProjectSummary>(COMMANDS.loadResultSummary, { projectId })
+      return { ...summary, run: normalizeRecentProject(summary.run) }
+    } catch (error) {
+      throw toDesktopError("加载项目概要失败。", error)
+    }
+  },
+
+  async loadResultIssues(projectId: string, limit: number, offset = 0): Promise<IssuePage> {
+    if (!isTauri()) {
+      const mock = applyMockStatusOverrides(getMockProjectResult(projectId))
+      const safeLimit = Math.max(1, Math.min(Math.trunc(limit), mock.issues.length) || 1)
+      const safeOffset = Math.max(0, Math.trunc(offset))
+      return {
+        run: mock.run,
+        items: mock.issues.slice(safeOffset, safeOffset + safeLimit),
+        total: mock.issues.length,
+        limit: safeLimit,
+        offset: safeOffset,
+      }
+    }
+    try {
+      const page = await invoke<IssuePage>(COMMANDS.loadResultIssues, {
+        projectId,
+        limit,
+        offset: offset || null,
+      })
+      return {
+        run: normalizeRecentProject(page.run),
+        items: page.items.map(normalizeIssueSummary),
+        total: Number(page.total ?? page.items.length),
+        limit: Number(page.limit ?? limit),
+        offset: Number(page.offset ?? offset),
+      }
+    } catch (error) {
+      throw toDesktopError("加载问题列表失败。", error)
+    }
+  },
+
+  async loadResultIssueDetail(projectId: string, issueId: string): Promise<IssueDetail | null> {
+    if (!isTauri()) {
+      const mock = applyMockStatusOverrides(getMockProjectResult(projectId))
+      const issue = mock.issues.find((item) => item.issue_id === issueId) ?? null
+      return issue ? { run: mock.run, issue } : null
+    }
+    try {
+      const payload = await invoke<IssueDetail | null>(COMMANDS.loadResultIssueDetail, {
+        projectId,
+        issueId,
+      })
+      if (!payload) {
+        return null
+      }
+      return { run: normalizeRecentProject(payload.run), issue: normalizeIssueSummary(payload.issue) }
+    } catch (error) {
+      throw toDesktopError("加载问题详情失败。", error)
     }
   },
 
@@ -265,60 +336,64 @@ function normalizeRecentProject(project: RecentProject): RecentProject {
   }
 }
 
+function normalizeIssueSummary(issue: IssueSummary): IssueSummary {
+  return {
+    ...issue,
+    issue_type: issue.issue_type ?? issue.rule_id,
+    summary: issue.summary ?? issue.title ?? "",
+    explanation: issue.explanation ?? "",
+    recommended_action: issue.recommended_action ?? "",
+    confidence: Number(issue.confidence ?? 0),
+    sheet_id: issue.sheet_id ?? null,
+    file_id: issue.file_id ?? null,
+    left_value: issue.left_value ?? null,
+    line_group_id: issue.line_group_id ?? null,
+    primary_pair_id: issue.primary_pair_id ?? null,
+    related_pair_ids: Array.isArray(issue.related_pair_ids) ? issue.related_pair_ids.map(String) : [],
+    sheet_ids: Array.isArray(issue.sheet_ids) ? issue.sheet_ids.map(String) : [],
+    values: Array.isArray(issue.values) ? issue.values.map(String) : [],
+    evidence_refs: Array.isArray(issue.evidence_refs) ? issue.evidence_refs : [],
+    one_to_many_classification:
+      issue.one_to_many_classification ??
+      (typeof issue.evidence?.one_to_many_classification === "string" ? issue.evidence.one_to_many_classification : null),
+    handling_class:
+      issue.handling_class ??
+      (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
+      deriveHandlingClass(issue),
+    handling_label:
+      issue.handling_label ??
+      (typeof issue.evidence?.handling_label === "string" ? issue.evidence.handling_label : null) ??
+      labelHandlingClass(
+        issue.handling_class ??
+          (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
+          deriveHandlingClass(issue),
+      ),
+    review_group_id:
+      issue.review_group_id ??
+      (typeof issue.evidence?.review_group_id === "string" ? issue.evidence.review_group_id : null) ??
+      issue.issue_id,
+    review_group_label:
+      issue.review_group_label ??
+      (typeof issue.evidence?.review_group_label === "string" ? issue.evidence.review_group_label : null) ??
+      issue.title,
+    review_group_size: Number(
+      issue.review_group_size ??
+        (typeof issue.evidence?.review_group_size === "number" ? issue.evidence.review_group_size : 1) ??
+        1,
+    ),
+    issue_family:
+      issue.issue_family ??
+      (typeof issue.evidence?.issue_family === "string" ? issue.evidence.issue_family : null) ??
+      issue.title,
+    right_value: issue.right_value ?? null,
+    evidence: issue.evidence ?? {},
+  }
+}
+
 function normalizeProjectResult(result: ProjectResult): ProjectResult {
   return {
     run: normalizeRecentProject(result.run),
-    issues: result.issues.map((issue) => ({
-      ...issue,
-      issue_type: issue.issue_type ?? issue.rule_id,
-      summary: issue.summary ?? issue.title ?? "",
-      explanation: issue.explanation ?? "",
-      recommended_action: issue.recommended_action ?? "",
-      confidence: Number(issue.confidence ?? 0),
-      sheet_id: issue.sheet_id ?? null,
-      file_id: issue.file_id ?? null,
-      left_value: issue.left_value ?? null,
-      line_group_id: issue.line_group_id ?? null,
-      primary_pair_id: issue.primary_pair_id ?? null,
-      related_pair_ids: Array.isArray(issue.related_pair_ids) ? issue.related_pair_ids.map(String) : [],
-      sheet_ids: Array.isArray(issue.sheet_ids) ? issue.sheet_ids.map(String) : [],
-      values: Array.isArray(issue.values) ? issue.values.map(String) : [],
-      evidence_refs: Array.isArray(issue.evidence_refs) ? issue.evidence_refs : [],
-      one_to_many_classification:
-        issue.one_to_many_classification ??
-        (typeof issue.evidence?.one_to_many_classification === "string" ? issue.evidence.one_to_many_classification : null),
-      handling_class:
-        issue.handling_class ??
-        (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
-        deriveHandlingClass(issue),
-      handling_label:
-        issue.handling_label ??
-        (typeof issue.evidence?.handling_label === "string" ? issue.evidence.handling_label : null) ??
-        labelHandlingClass(
-          issue.handling_class ??
-            (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : null) ??
-            deriveHandlingClass(issue),
-        ),
-      review_group_id:
-        issue.review_group_id ??
-        (typeof issue.evidence?.review_group_id === "string" ? issue.evidence.review_group_id : null) ??
-        issue.issue_id,
-      review_group_label:
-        issue.review_group_label ??
-        (typeof issue.evidence?.review_group_label === "string" ? issue.evidence.review_group_label : null) ??
-        issue.title,
-      review_group_size: Number(
-        issue.review_group_size ??
-          (typeof issue.evidence?.review_group_size === "number" ? issue.evidence.review_group_size : 1) ??
-          1,
-      ),
-      issue_family:
-        issue.issue_family ??
-        (typeof issue.evidence?.issue_family === "string" ? issue.evidence.issue_family : null) ??
-        issue.title,
-      right_value: issue.right_value ?? null,
-      evidence: issue.evidence ?? {},
-    })),
+    issues: result.issues.map(normalizeIssueSummary),
     page_findings: Array.isArray(result.page_findings)
       ? result.page_findings.map((pageFinding) => ({
           ...pageFinding,

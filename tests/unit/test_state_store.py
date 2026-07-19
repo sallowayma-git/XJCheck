@@ -98,3 +98,77 @@ def test_state_store_migrates_legacy_issue_summary_schema(tmp_path: Path) -> Non
     assert issue["one_to_many_classification"] == "review"
     assert issue["related_pair_ids"] == ["P2"]
     assert issue["evidence_refs"] == [{"pair_id": "P1", "filename": "01.dwg", "sheet_no": "01"}]
+
+
+def test_state_store_list_issue_summaries_page_paginates_large_runs(tmp_path: Path) -> None:
+    """The pagination seam must stay stable for very large runs.
+
+    A regression here would either balloon memory or break the pager
+    contract (`total/limit/offset` plus server-side ordering identical to the
+    full loader)."""
+
+    store = DesktopStateStore(tmp_path / "desktop_state.db")
+    store.record_run(
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path / "input"),
+        artifact_dir="",
+        status="completed",
+        sheet_count=1,
+        pair_count=2,
+        issue_count=5_000,
+        metadata={"demo": True},
+    )
+    store.replace_issue_summaries(
+        "session-a:demo-project",
+        [
+            {
+                "issue_id": f"I{i:05d}",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
+                "title": f"Issue {i}",
+                "summary": f"summary {i}",
+                "explanation": "",
+                "recommended_action": "",
+                "severity": "minor",
+                "status": "open",
+                "confidence": 0.1,
+                "sheet_id": "",
+                "file_id": "",
+                "filename": "01.dwg",
+                "sheet_no": "01",
+                "line_group_id": "",
+                "left_value": "",
+                "right_value": "",
+                "primary_pair_id": "",
+                "one_to_many_classification": "",
+                "evidence": {},
+                "evidence_refs": [],
+                "related_pair_ids": [],
+                "sheet_ids": [],
+                "values": [],
+            }
+            for i in range(5_000)
+        ],
+    )
+
+    assert store.count_issues("session-a:demo-project") == 5_000
+    first = store.list_issue_summaries_page("session-a:demo-project", limit=50, offset=0)
+    assert first["total"] == 5_000
+    assert first["limit"] == 50
+    assert first["offset"] == 0
+    assert len(first["items"]) == 50
+    assert first["items"][0]["issue_id"] == "I00000"
+
+    later = store.list_issue_summaries_page("session-a:demo-project", limit=50, offset=4_950)
+    assert later["total"] == 5_000
+    assert later["offset"] == 4_950
+    assert [item["issue_id"] for item in later["items"]] == [f"I{i:05d}" for i in range(4_950, 5_000)]
+
+    detail = store.load_issue_summary("session-a:demo-project", "I03030")
+    assert detail is not None
+    assert detail["issue_id"] == "I03030"
+    assert store.load_issue_summary("session-a:demo-project", "missing") is None
+    assert store.count_page_findings("session-a:demo-project") == 0

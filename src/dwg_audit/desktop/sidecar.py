@@ -131,6 +131,65 @@ def load_project_result(*, project_id: str, state_db_path: Path | None = None) -
     return store.load_latest_project_result(project_id)
 
 
+def load_project_summary(*, project_id: str, state_db_path: Path | None = None) -> dict[str, Any] | None:
+    """Return `{run, issue_count, page_finding_count}` for the latest run, with
+    no issue or page payloads. Used by the result screen to render the page
+    header and pager metadata without loading the full result set.
+    """
+
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    run = store.latest_run_for_project(project_id)
+    if run is None:
+        return None
+    return {
+        "run": run,
+        "issue_count": store.count_issues(run["run_id"]),
+        "page_finding_count": store.count_page_findings(run["run_id"]),
+    }
+
+
+def load_project_issues(
+    *,
+    project_id: str,
+    limit: int,
+    offset: int = 0,
+    state_db_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """Return one page of issues for the latest run of ``project_id`` plus
+    pager metadata. ``None`` is returned when the project has no stored run at
+    all, so callers can distinguish "no project" from "empty issue list".
+    """
+
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    run = store.latest_run_for_project(project_id)
+    if run is None:
+        return None
+    page = store.list_issue_summaries_page(run["run_id"], limit=limit, offset=offset)
+    return {"run": run, **page}
+
+
+def load_project_issue_detail(
+    *,
+    project_id: str,
+    issue_id: str,
+    state_db_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """Resolve a single issue by ``issue_id`` for the latest run of the project.
+
+    This avoids re-loading the entire issue array when the user clicks a row in
+    a virtualized list and the issue was not present in the current page.
+    """
+
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    run = store.latest_run_for_project(project_id)
+    if run is None:
+        return None
+    issue = store.load_issue_summary(run["run_id"], issue_id)
+    if issue is None:
+        return None
+    return {"run": run, "issue": issue}
+
+
 def update_issue_status(
     *,
     project_id: str,
@@ -144,11 +203,10 @@ def update_issue_status(
         raise ValueError(f"Unsupported issue status: {status}. Expected one of: {allowed}")
 
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
-    latest = store.load_latest_project_result(project_id)
-    if latest is None:
+    run = store.latest_run_for_project(project_id)
+    if run is None:
         raise FileNotFoundError(f"No stored result found for project_id={project_id}")
 
-    run = latest["run"]
     issue = store.update_issue_status(run_id=str(run["run_id"]), issue_id=issue_id, status=normalized_status)
     if issue is None:
         raise FileNotFoundError(f"No stored issue found for issue_id={issue_id}")

@@ -12,6 +12,9 @@ _LIGHTWEIGHT_COMMANDS = {
     "compact-session-workspace",
     "list-recent-projects",
     "load-result",
+    "load-result-summary",
+    "load-result-issues",
+    "load-result-issue-detail",
     "set-issue-status",
 }
 
@@ -28,6 +31,24 @@ def _bounded_recent_limit(value: str) -> int:
     if not 1 <= limit <= 200:
         raise argparse.ArgumentTypeError("limit must be between 1 and 200")
     return limit
+
+
+def _bounded_page_size(value: str) -> int:
+    """Limit the per-request issue page size so a malicious caller cannot force
+    the sidecar to materialize the full table.
+    """
+
+    size = int(value)
+    if not 1 <= size <= 5000:
+        raise argparse.ArgumentTypeError("limit must be between 1 and 5000")
+    return size
+
+
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("offset must not be negative")
+    return parsed
 
 
 def _non_negative_seconds(value: str) -> float:
@@ -53,6 +74,15 @@ def _run_lightweight_command(argv: list[str]) -> bool:
         parser.add_argument("--older-than-seconds", type=_non_negative_seconds, default=3600.0)
     elif command == "load-result":
         parser.add_argument("--project-id", required=True)
+    elif command == "load-result-summary":
+        parser.add_argument("--project-id", required=True)
+    elif command == "load-result-issues":
+        parser.add_argument("--project-id", required=True)
+        parser.add_argument("--limit", type=_bounded_page_size, default=200)
+        parser.add_argument("--offset", type=_non_negative_int, default=0)
+    elif command == "load-result-issue-detail":
+        parser.add_argument("--project-id", required=True)
+        parser.add_argument("--issue-id", required=True)
     elif command == "set-issue-status":
         parser.add_argument("--project-id", required=True)
         parser.add_argument("--issue-id", required=True)
@@ -86,6 +116,28 @@ def _run_lightweight_command(argv: list[str]) -> bool:
         payload = store.load_latest_project_result(options.project_id)
         if payload is None:
             parser.error(f"No stored result found for project_id={options.project_id}")
+    elif command == "load-result-summary":
+        payload = store.latest_run_for_project(options.project_id)
+        if payload is None:
+            parser.error(f"No stored result found for project_id={options.project_id}")
+        payload = {
+            "run": payload,
+            "issue_count": store.count_issues(payload["run_id"]),
+            "page_finding_count": store.count_page_findings(payload["run_id"]),
+        }
+    elif command == "load-result-issues":
+        payload = store.latest_run_for_project(options.project_id)
+        if payload is None:
+            parser.error(f"No stored result found for project_id={options.project_id}")
+        payload = {"run": payload, **store.list_issue_summaries_page(payload["run_id"], limit=options.limit, offset=options.offset)}
+    elif command == "load-result-issue-detail":
+        payload = store.latest_run_for_project(options.project_id)
+        if payload is None:
+            parser.error(f"No stored result found for project_id={options.project_id}")
+        issue = store.load_issue_summary(payload["run_id"], options.issue_id)
+        if issue is None:
+            parser.error(f"No stored issue found for issue_id={options.issue_id}")
+        payload = {"run": payload, "issue": issue}
     elif command == "set-issue-status":
         runs = store.list_runs_for_project(options.project_id)
         if not runs:

@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { useDeferredValue, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 
 import "./App.css"
@@ -757,6 +758,18 @@ function App() {
     return filteredIssues.find((issue) => issue.issue_id === selectedIssueId) ?? filteredIssues[0] ?? null
   }, [filteredIssues, selectedIssueId])
 
+  // Virtualize the per-issue list. Everything below this point keeps the same
+  // `<table>` markup and styling; only the rendered rows are windowed. The
+  // table remains scrollable inside `.result-issue-list` so tens of thousands
+  // of rows no longer force the WebView to commit the full DOM at once.
+  const issueListParentRef = useRef<HTMLDivElement | null>(null)
+  const issueRowVirtualizer = useVirtualizer({
+    count: filteredIssues.length,
+    getScrollElement: () => issueListParentRef.current,
+    estimateSize: () => 44,
+    overscan: 12,
+  })
+
   const summaryProject =
     result?.run ??
     recentProjects.find((project) => project.project_id === selectedProjectId) ??
@@ -1464,7 +1477,7 @@ function App() {
                   </span>
                 </div>
               </div>
-              <div className="table-wrap">
+              <div className="table-wrap result-issue-list-scroll" ref={issueListParentRef}>
                 <table className="data-table compact">
                   <thead>
                     <tr>
@@ -1478,48 +1491,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredIssues.length ? (
-                      filteredIssues.map((issue) => {
-                        const handling = resolveHandlingClass(issue)
-                        const source = formatSourcePage(issue)
-                        const location = formatIssueLocation(issue)
-                        return (
-                          <tr
-                            key={issue.issue_id}
-                            className={issue.issue_id === selectedIssue?.issue_id ? "selected-row" : ""}
-                            onClick={() => {
-                              setSelectedIssueId(issue.issue_id)
-                            }}
-                          >
-                            <td>
-                              <span className={`chip handling-${normalizeToken(handling)}`}>{labelHandlingClass(handling)}</span>
-                            </td>
-                            <td>
-                              <div className="issue-title-cell">
-                                <strong>{issue.title}</strong>
-                                <span className="muted">{labelIssueCategory(issue)}</span>
-                              </div>
-                            </td>
-                            <td>{formatPair(issue)}</td>
-                            <td title={source.detail || source.label}>
-                              <div className="issue-title-cell">
-                                <strong>{source.label}</strong>
-                                {source.secondary ? <span className="muted">{source.secondary}</span> : null}
-                              </div>
-                            </td>
-                            <td title={location.detail}>{location.label}</td>
-                            <td title={issue.review_group_label || undefined}>
-                              {(issue.review_group_size ?? 1) > 1
-                                ? `${issue.review_group_size} 处同类`
-                                : "单条"}
-                            </td>
-                            <td>
-                              <span className={`chip status-${normalizeToken(issue.status)}`}>{labelIssueStatus(issue.status)}</span>
-                            </td>
-                          </tr>
-                        )
-                      })
-                    ) : (
+                    {!filteredIssues.length ? (
                       <tr>
                         <td colSpan={7}>
                           <div className="empty-state">
@@ -1531,6 +1503,74 @@ function App() {
                           </div>
                         </td>
                       </tr>
+                    ) : (
+                      <>
+                        {(() => {
+                          const items = issueRowVirtualizer.getVirtualItems()
+                          const totalSize = issueRowVirtualizer.getTotalSize()
+                          const firstOffset = items.length ? items[0].start : 0
+                          const lastEnd = items.length ? items[items.length - 1].end : 0
+                          const tailPad = Math.max(0, totalSize - lastEnd)
+                          return (
+                            <>
+                              {firstOffset > 0 ? (
+                                <tr aria-hidden style={{ height: `${firstOffset}px` }}>
+                                  <td colSpan={7} style={{ padding: 0, border: 0 }} />
+                                </tr>
+                              ) : null}
+                              {items.map((virtualRow) => {
+                                const issue = filteredIssues[virtualRow.index]
+                                if (!issue) {
+                                  return null
+                                }
+                                const handling = resolveHandlingClass(issue)
+                                const source = formatSourcePage(issue)
+                                const location = formatIssueLocation(issue)
+                                return (
+                                  <tr
+                                    key={issue.issue_id}
+                                    className={issue.issue_id === selectedIssue?.issue_id ? "selected-row" : ""}
+                                    onClick={() => {
+                                      setSelectedIssueId(issue.issue_id)
+                                    }}
+                                  >
+                                    <td>
+                                      <span className={`chip handling-${normalizeToken(handling)}`}>{labelHandlingClass(handling)}</span>
+                                    </td>
+                                    <td>
+                                      <div className="issue-title-cell">
+                                        <strong>{issue.title}</strong>
+                                        <span className="muted">{labelIssueCategory(issue)}</span>
+                                      </div>
+                                    </td>
+                                    <td>{formatPair(issue)}</td>
+                                    <td title={source.detail || source.label}>
+                                      <div className="issue-title-cell">
+                                        <strong>{source.label}</strong>
+                                        {source.secondary ? <span className="muted">{source.secondary}</span> : null}
+                                      </div>
+                                    </td>
+                                    <td title={location.detail}>{location.label}</td>
+                                    <td title={issue.review_group_label || undefined}>
+                                      {(issue.review_group_size ?? 1) > 1
+                                        ? `${issue.review_group_size} 处同类`
+                                        : "单条"}
+                                    </td>
+                                    <td>
+                                      <span className={`chip status-${normalizeToken(issue.status)}`}>{labelIssueStatus(issue.status)}</span>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                              {tailPad > 0 ? (
+                                <tr aria-hidden style={{ height: `${tailPad}px` }}>
+                                  <td colSpan={7} style={{ padding: 0, border: 0 }} />
+                                </tr>
+                              ) : null}
+                            </>
+                          )
+                        })()}
+                      </>
                     )}
                   </tbody>
                 </table>

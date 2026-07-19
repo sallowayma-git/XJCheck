@@ -207,6 +207,66 @@ async fn desktop_load_result(app: AppHandle, project_id: String) -> Result<Value
 }
 
 #[tauri::command]
+async fn desktop_load_result_summary(app: AppHandle, project_id: String) -> Result<Value, String> {
+    run_sidecar_json_async(
+        app,
+        vec![
+            "load-result-summary".to_string(),
+            "--project-id".to_string(),
+            project_id,
+            "--state-db".to_string(),
+            default_state_db_path()?.to_string_lossy().to_string(),
+        ],
+    )
+    .await
+}
+
+#[tauri::command]
+async fn desktop_load_result_issues(
+    app: AppHandle,
+    project_id: String,
+    limit: Option<u64>,
+    offset: Option<u64>,
+) -> Result<Value, String> {
+    run_sidecar_json_async(
+        app,
+        vec![
+            "load-result-issues".to_string(),
+            "--project-id".to_string(),
+            project_id,
+            "--state-db".to_string(),
+            default_state_db_path()?.to_string_lossy().to_string(),
+            "--limit".to_string(),
+            limit.unwrap_or(200).to_string(),
+            "--offset".to_string(),
+            offset.unwrap_or(0).to_string(),
+        ],
+    )
+    .await
+}
+
+#[tauri::command]
+async fn desktop_load_result_issue_detail(
+    app: AppHandle,
+    project_id: String,
+    issue_id: String,
+) -> Result<Value, String> {
+    run_sidecar_json_async(
+        app,
+        vec![
+            "load-result-issue-detail".to_string(),
+            "--project-id".to_string(),
+            project_id,
+            "--issue-id".to_string(),
+            issue_id,
+            "--state-db".to_string(),
+            default_state_db_path()?.to_string_lossy().to_string(),
+        ],
+    )
+    .await
+}
+
+#[tauri::command]
 fn desktop_register_preview_session(client_session_id: String) -> Result<Value, String> {
     let client_session_id = client_session_id.trim().to_string();
     if client_session_id.is_empty() || client_session_id == LEGACY_PREVIEW_CLIENT_SESSION_ID {
@@ -1310,6 +1370,9 @@ fn main() {
             desktop_analyze_session,
             desktop_list_recent_projects,
             desktop_load_result,
+            desktop_load_result_summary,
+            desktop_load_result_issues,
+            desktop_load_result_issue_detail,
             desktop_register_preview_session,
             desktop_render_preview,
             desktop_cancel_preview,

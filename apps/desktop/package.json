@@ -17,6 +17,7 @@
     "build:sidecar": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-sidecar.ps1"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.6",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "react": "^19.2.7",
