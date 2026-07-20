@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 183 is in progress. The comma-grouped strip-component endpoint slice is committed in `519e6d7`; the active work is to validate that bounded behavior, preserve incomplete comma/KLP structures as review, and implement one additional fail-closed residual optimization backed by physical endpoint evidence.
+The Phase 183 endpoint-local terminal-range slice is accepted and published. Complete comma-grouped strip-component graphs remain handled by `519e6d7`, incomplete comma/KLP structures remain review, and PAC `PW0147` now contributes semantic review evidence without range expansion or electrical connectivity.
 
 The current authoritative extraction is `.tmp/phase182_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. It contains 38,814 Pair identities with zero semantic additions/removals versus fresh13.
 
-The current authoritative audit baseline is `.tmp/phase182_full_533_audit2`: 45 issues (many-to-one 21, missing-side 19, cross-page 3, low-confidence 2). HEAD-side focused artifacts show the complete comma strip-component graph removes nine matching reviews while the incomplete `PCM0101` structure remains fail-closed. The next evidence-backed candidate is PAC `PW0147 (? -> 431)`: a terminal range label immediately anchored at the missing endpoint may be represented as semantic review evidence, but must not be expanded into a single electrical endpoint. Other-agent ODA/packaging changes and root `package-lock.json` remain outside the recognition commit boundary.
+The authoritative full-corpus audit baseline remains `.tmp/phase182_full_533_audit2`: 45 issues (many-to-one 21, missing-side 19, cross-page 3, low-confidence 2). Focused evidence removes nine complete comma reviews, while the accepted PAC replay removes only `PW0147` with no addition; a new full-current-corpus identity total has not yet been established and must not be inferred arithmetically. Other-agent desktop/performance changes and root `package-lock.json` remain outside the recognition commit boundary.
 
 ## Phases
 
@@ -2994,7 +2994,8 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - [x] Run focused tests plus raw PAC bounded replay; prove the intended issue delta, Pair semantics, and retained negative structures.
 - [x] Run repository gates and update the acceptance evidence.
 - [x] Stage only the six recognition/planning files and create the scoped Phase183 commit; push it while leaving all concurrent desktop/performance state unstaged.
-- **Status:** in_progress
+- [ ] In the next residual loop, establish the authoritative current-corpus issue identity set before selecting another fail-closed class.
+- **Status:** complete for this slice; residual loop remains active
 
 ### Phase 183 guardrails
 
