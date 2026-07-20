@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-The Phase 183 endpoint-local terminal-range slice is accepted and published. Complete comma-grouped strip-component graphs remain handled by `519e6d7`, incomplete comma/KLP structures remain review, and PAC `PW0147` now contributes semantic review evidence without range expansion or electrical connectivity.
+Phase 183 is accepted and published. Phase 184 has established the current HEAD full-corpus identity baseline and is selecting the next residual recognition slice; complete comma-grouped strip-component graphs remain handled by `519e6d7`, incomplete comma/KLP structures remain review, and PAC `PW0147` remains a bounded semantic review recovery.
 
-The current authoritative extraction is `.tmp/phase182_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. It contains 38,814 Pair identities with zero semantic additions/removals versus fresh13.
+The current authoritative extraction is `.tmp/phase184_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Stable semantic changes are confined to the expected comma-grouped 23000/27000 rows and PAC `PW0147`; the other 25 projects are exact against Phase182.
 
-The authoritative full-corpus audit baseline remains `.tmp/phase182_full_533_audit2`: 45 issues (many-to-one 21, missing-side 19, cross-page 3, low-confidence 2). Focused evidence removes nine complete comma reviews, while the accepted PAC replay removes only `PW0147` with no addition; a new full-current-corpus identity total has not yet been established and must not be inferred arithmetically. Other-agent desktop/performance changes and root `package-lock.json` remain outside the recognition commit boundary.
+The current authoritative audit is `.tmp/phase184_full_533_audit`: 34 issues (many-to-one 12, missing-side 18, cross-page 3, low-confidence 1). Compared with Phase182, exact Pair IDs show two added and thirteen removed rows, but the two additions are 23000 ID shifts; content identity proves zero additions and exactly eleven removals. Other-agent desktop/performance changes and root `package-lock.json` remain outside the recognition commit boundary.
 
 ## Phases
 
@@ -3003,3 +3003,38 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Same-side competing endpoint text, non-schematic placement, block-owned text, weak opposite-side candidates, and incomplete comma/KLP graphs remain fail-closed.
 - Rules must not depend on project/file names, CLP/KLP names, handles, fingerprints, or fixed row/terminal values.
 - Root `package-lock.json` and desktop/sidecar files remain outside the recognition stage/commit boundary.
+
+## Phase 184 current-corpus identity baseline
+
+- [x] Recover `HEAD=5e9509a`, origin synchronization, Phase183 artifacts, and the concurrent dirty boundary without touching unrelated files.
+- [x] Confirm the only safe full-corpus replay contract: derive all 28 input roots from Phase182 `manifest.json`, use one isolated Python process per project with throttle 2, and validate each project's own bundle/completeness.
+- [x] Fresh-replay current HEAD across all 28 projects / 533 DWG into a new artifact root; accept only per-project `COMPLETE`, `clean_conclusion_allowed=true`, `incomplete_page_count=0` bundles.
+- [x] Audit all 28 current bundles through their inner `findings` directories; do not treat outer run summaries or flat output paths as authoritative.
+- [x] Compare current Pair semantic identities and issue identities with Phase182 fresh/audit; report additions/removals/changed rows by project, sheet, file and Pair ID.
+- [x] Cluster the authoritative current residual issues and select one evidence-backed fail-closed optimization slice.
+- [x] Implement, test, bounded-replay, gate, document, commit, and push the next scoped slice while preserving all unrelated dirty state.
+- **Status:** complete for this Phase184 slice; residual recognition loop remains active.
+
+### Phase 184 replay guardrails
+
+- Manifest-derived `input_root` values are authoritative; nested test paths and normalized artifact slugs must not be guessed.
+- A project is accepted only from its own inner bundle `manifest.json` plus `extraction_completeness.json`; partial or failed output is excluded from aggregate counts and retried independently.
+- Pair and issue aggregation must inject project provenance before joining because sheet/file/Pair IDs repeat across projects; Parquet columns require explicit canonical casting before concatenation.
+- Keep the full-corpus current issue total distinct from the Phase182 45 baseline until an actual all-28 audit comparison proves it.
+
+### Phase 184 selected rule slice
+
+- Extend only the existing component/table cross-diagram endpoint contract to the four exact geometry-owned accessory producer triples; reject unknown and mismatched prefix-compatible modes.
+- Require complete body/port/text/block-name/block-handle/external-text/external-coordinate evidence, Pair/evidence text-ID and coordinate identity, real raw split-token membership, exact logical/right values, `pass >= 0.95`, distinct sheets/files, and all connectivity/ordinary eligibility flags explicitly false.
+- Preserve the existing outgoing-chain guard: any component-page chain starting at the shared endpoint must be one shared raw comma text/coordinate group whose split rows exactly cover its normalized tokens and whose normalized targets exactly equal all incoming sources.
+- Expected bounded delta is five PAC many-to-one reviews. GND groups, all three cross-page conflicts, WBH `PCM0042/PCM0101`, 23000 `PCM0082`, 31000 `PW0225`, and all ordinary missing-side rows remain review.
+- Operation-box multi-drop/closed-frame shadowing has evidence but a broader topology blast radius; defer it to a dedicated later slice.
+
+### Phase 184 acceptance
+
+- Final fresh extraction: `.tmp/phase184_full_533_fresh`; 28/28 projects, 533/533 files/sheets, 533 valid, zero invalid/incomplete, Pair total `38,825`.
+- Baseline audit: `.tmp/phase184_full_533_audit` with 34 issues. Final tight audit: `.tmp/phase184_full_533_audit_tight` with 29 issues; content identity is `0 additions / 5 removals`, all five PAC `R-MANY-TO-ONE` targets listed in `findings.md`.
+- Final distribution: many-to-one `7`, missing-side `18`, cross-page `3`, low-confidence `1`. No residual issue class is auto-cleared beyond the strict geometry-owned component/table contract.
+- Focused gates: backplate `12 passed`; rules/terminal `184 passed`. Full gate: `1167 passed, 1 skipped`; compileall and diff-check pass.
+- The five-file Phase184 implementation boundary is expanded by one necessary regression fixture in `tests/unit/test_backplate_components.py`; desktop/sidecar, performance planning, and root `package-lock.json` remain untouched and unstaged.
+- **Status:** complete for this slice; keep the overarching residual goal active and carry all 29 issues into the next fail-closed evidence loop.

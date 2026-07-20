@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+import pytest
+
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.rules import build_issues
 from dwg_audit.domain.models import LineGroup
@@ -354,6 +356,84 @@ def _phase178_strip_component_pair(
     )
 
 
+def _phase184_geometry_owned_component_pair(
+    pair_id: str,
+    sheet_id: str,
+    file_id: str,
+    logical_endpoint: str,
+    endpoint: str,
+    *,
+    raw_endpoint: str | None = None,
+    port_text_id: str | None = None,
+    endpoint_text_id: str | None = None,
+    producer_mode: tuple[str, str, str] = (
+        "accessory_backplate_two_port",
+        "geometry_owned_two_port_capsule",
+        "strip_two_port_component",
+    ),
+    overrides: dict[str, object] | None = None,
+    pair_overrides: dict[str, object] | None = None,
+) -> Pair:
+    body, port = logical_endpoint.rsplit("-", 1)
+    mapping_mode, recognition_mode, component_submode = producer_mode
+    port_text_id = port_text_id or f"PORT-{pair_id}"
+    endpoint_text_id = endpoint_text_id or f"END-{pair_id}"
+    evidence: dict[str, object] = {
+        "source": "component_mapping",
+        "component_submode": component_submode,
+        "mapping_mode": mapping_mode,
+        "recognition_mode": recognition_mode,
+        "component_body": body,
+        "component_body_text_id": f"BODY-{pair_id}",
+        "component_port": port,
+        "component_port_text_id": port_text_id,
+        "component_block_name": "FJL-25-2A_Mirror",
+        "component_block_handle": f"HANDLE-{pair_id}",
+        "component_port_coord": [10.0, 20.0],
+        "external_endpoint": endpoint,
+        "external_endpoint_raw": raw_endpoint or endpoint,
+        "external_endpoint_split": endpoint,
+        "external_endpoint_text_id": endpoint_text_id,
+        "external_endpoint_coord": [12.0, 21.0],
+        "logical_endpoint": logical_endpoint,
+        "endpoint_side": "top",
+        "internal_connectivity_inferred": False,
+        "electrical_union_eligible": False,
+        "ordinary_pair_eligible": False,
+    }
+    evidence.update(overrides or {})
+    pair = Pair(
+        pair_id=pair_id,
+        line_group_id=None,
+        sheet_id=sheet_id,
+        file_id=file_id,
+        selected_pair_candidate_id=None,
+        left_value=logical_endpoint,
+        right_value=endpoint,
+        confidence=0.97,
+        status="pass",
+        rationale="geometry-owned accessory component",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=port_text_id,
+        right_text_id=endpoint_text_id,
+        left_coord_x=10.0,
+        left_coord_y=20.0,
+        right_coord_x=12.0,
+        right_coord_y=21.0,
+        pair_key=f"{logical_endpoint}->{endpoint}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="component_mapping",
+    )
+    for key, value in (pair_overrides or {}).items():
+        setattr(pair, key, value)
+    return pair
+
+
 def _phase178_terminal_header_pair(
     pair_id: str,
     sheet_id: str,
@@ -551,6 +631,331 @@ def test_rules_accept_component_table_endpoint_with_authoritative_comma_chain() 
 
     assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
     assert not any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "producer_mode",
+    [
+        (
+            "accessory_backplate_two_port",
+            "geometry_owned_two_port_capsule",
+            "strip_two_port_component",
+        ),
+        (
+            "accessory_backplate_multi_port",
+            "geometry_owned_opposed_port_panel",
+            "opposed_port_panel",
+        ),
+        (
+            "accessory_backplate_inline_two_port",
+            "geometry_owned_inline_two_port",
+            "inline_two_port_component",
+        ),
+        (
+            "accessory_backplate_four_port_contact",
+            "geometry_owned_four_port_contact",
+            "four_port_contact_component",
+        ),
+    ],
+)
+def test_rules_accept_geometry_owned_component_table_endpoint_without_line_group(
+    producer_mode: tuple[str, str, str],
+) -> None:
+    pairs = [
+        _phase184_geometry_owned_component_pair(
+            "PC",
+            "COMP",
+            "F_COMP",
+            "1FA-14",
+            "1QD35",
+            producer_mode=producer_mode,
+        ),
+        _phase177_backplate_table_pair("PT", "TABLE", "NKR302-3@c0", "1QD35"),
+    ]
+    sheets = [
+        SheetRecord("COMP", "F_COMP", "25 accessory.dwg", 25, "25", "ACCESSORIES", "背板接线图", "supplemental", "filename", True),
+        SheetRecord("TABLE", "TABLE", "23 rear.dwg", 23, "23", "REAR WIRING", "背板接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_accept_geometry_owned_component_table_endpoint_with_authoritative_comma_chain() -> None:
+    pairs = [
+        _phase184_geometry_owned_component_pair("PC1", "COMP", "F_COMP", "1KLP2-1", "1KLP1-1"),
+        _phase177_backplate_table_pair("PT", "TABLE", "1QD-2", "1KLP1-1"),
+        _phase184_geometry_owned_component_pair(
+            "PC2",
+            "COMP",
+            "F_COMP",
+            "1KLP1-1",
+            "1QD2",
+            raw_endpoint="1QD2，1KLP2-1",
+            port_text_id="PORT-GROUP",
+            endpoint_text_id="END-GROUP",
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PC3",
+            "COMP",
+            "F_COMP",
+            "1KLP1-1",
+            "1KLP2-1",
+            raw_endpoint="1QD2，1KLP2-1",
+            port_text_id="PORT-GROUP",
+            endpoint_text_id="END-GROUP",
+        ),
+    ]
+    sheets = [
+        SheetRecord("COMP", "F_COMP", "26 accessory.dwg", 26, "26", "ACCESSORIES", "背板接线图", "supplemental", "filename", True),
+        SheetRecord("TABLE", "TABLE", "28 terminal.dwg", 28, "28", "TERMINALS", "端子图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id in {"R-MANY-TO-ONE", "R-ONE-TO-MANY"} for issue in issues)
+
+
+def test_rules_accept_cross_sheet_geometry_owned_comma_adjacency() -> None:
+    pairs = [
+        _phase184_geometry_owned_component_pair(
+            "PA1",
+            "SA",
+            "FA",
+            "DEV-A-1",
+            "SHARED",
+            raw_endpoint="SHARED,AUX-A",
+            port_text_id="PORT-A",
+            endpoint_text_id="END-A",
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PA2",
+            "SA",
+            "FA",
+            "DEV-A-1",
+            "AUX-A",
+            raw_endpoint="SHARED,AUX-A",
+            port_text_id="PORT-A",
+            endpoint_text_id="END-A",
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PB1",
+            "SB",
+            "FB",
+            "DEV-B-1",
+            "SHARED",
+            raw_endpoint="SHARED,AUX-B",
+            port_text_id="PORT-B",
+            endpoint_text_id="END-B",
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PB2",
+            "SB",
+            "FB",
+            "DEV-B-1",
+            "AUX-B",
+            raw_endpoint="SHARED,AUX-B",
+            port_text_id="PORT-B",
+            endpoint_text_id="END-B",
+        ),
+    ]
+    sheets = [
+        SheetRecord("SA", "FA", "a.dwg", 1, "1", "ACCESSORIES", "背板接线图", "supplemental", "filename", True),
+        SheetRecord("SB", "FB", "b.dwg", 2, "2", "ACCESSORIES", "背板接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(
+        issue.rule_id in {"R-MANY-TO-ONE", "R-ONE-TO-MANY"}
+        for issue in issues
+    )
+
+
+def test_rules_keep_geometry_owned_component_table_endpoint_when_authority_is_incomplete() -> None:
+    sheets = [
+        SheetRecord("COMP", "F_COMP", "26 accessory.dwg", 26, "26", "ACCESSORIES", "背板接线图", "supplemental", "filename", True),
+        SheetRecord("TABLE", "TABLE", "28 terminal.dwg", 28, "28", "TERMINALS", "端子图", "supplemental", "filename", True),
+    ]
+    table = _phase177_backplate_table_pair("PT", "TABLE", "1QD-2", "1KLP1-1")
+
+    for overrides in (
+        {"component_block_handle": None},
+        {"recognition_mode": "manual_component_mapping"},
+        {
+            "component_submode": "four_port_contact_component",
+            "mapping_mode": "accessory_backplate_two_port",
+            "recognition_mode": "geometry_owned_two_port_capsule",
+        },
+        {
+            "component_submode": "invented_component",
+            "mapping_mode": "accessory_backplate_invented",
+            "recognition_mode": "geometry_owned_invented",
+        },
+        {"internal_connectivity_inferred": True},
+        {"electrical_union_eligible": True},
+    ):
+        component = _phase184_geometry_owned_component_pair(
+            "PC", "COMP", "F_COMP", "1KLP2-1", "1KLP1-1", overrides=overrides
+        )
+        issues = build_issues([component, table], [], sheets, DEFAULT_CONFIG)
+        assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+    for pair_overrides in (
+        {"left_text_id": "OTHER-PORT"},
+        {"right_text_id": "OTHER-END"},
+        {"left_coord_x": 10.5},
+        {"right_coord_y": 21.5},
+    ):
+        component = _phase184_geometry_owned_component_pair(
+            "PC",
+            "COMP",
+            "F_COMP",
+            "1KLP2-1",
+            "1KLP1-1",
+            pair_overrides=pair_overrides,
+        )
+        issues = build_issues([component, table], [], sheets, DEFAULT_CONFIG)
+        assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+    forged_legacy_provenance = _phase184_geometry_owned_component_pair(
+        "PF",
+        "COMP",
+        "F_COMP",
+        "1KLP2-1",
+        "1KLP1-1",
+        overrides={
+            "line_group_id": "FORGED-G",
+            "supporting_line_ids": ["FORGED-L"],
+        },
+        pair_overrides={"left_text_id": "MISMATCHED-PORT"},
+    )
+    issues = build_issues([forged_legacy_provenance, table], [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+    phantom_raw_split = _phase184_geometry_owned_component_pair(
+        "PC",
+        "COMP",
+        "F_COMP",
+        "1KLP2-1",
+        "1KLP1-1",
+        raw_endpoint="UNRELATED,OTHER",
+    )
+    issues = build_issues([phantom_raw_split, table], [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+    incomplete_chain = [
+        _phase184_geometry_owned_component_pair("PC1", "COMP", "F_COMP", "1KLP2-1", "1KLP1-1"),
+        table,
+        _phase184_geometry_owned_component_pair(
+            "PC2", "COMP", "F_COMP", "1KLP1-1", "1QD2", raw_endpoint="1QD2,other"
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PC3", "COMP", "F_COMP", "1KLP1-1", "other", raw_endpoint="1QD2,other"
+        ),
+    ]
+    issues = build_issues(incomplete_chain, [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+    phantom_chain = [
+        _phase184_geometry_owned_component_pair("PC1", "COMP", "F_COMP", "1KLP2-1", "1KLP1-1"),
+        table,
+        _phase184_geometry_owned_component_pair(
+            "PC2", "COMP", "F_COMP", "1KLP1-1", "1QD2", raw_endpoint="UNRELATED,OTHER"
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PC3", "COMP", "F_COMP", "1KLP1-1", "1KLP2-1", raw_endpoint="UNRELATED,OTHER"
+        ),
+    ]
+    issues = build_issues(phantom_chain, [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+    assert any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
+
+    partial_raw_group = [
+        _phase184_geometry_owned_component_pair(
+            "PP1",
+            "COMP",
+            "F_COMP",
+            "1KLP1-1",
+            "1QD2",
+            raw_endpoint="1QD2,1KLP2-1,UNEMITTED",
+            port_text_id="PORT-PARTIAL",
+            endpoint_text_id="END-PARTIAL",
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PP2",
+            "COMP",
+            "F_COMP",
+            "1KLP1-1",
+            "1KLP2-1",
+            raw_endpoint="1QD2,1KLP2-1,UNEMITTED",
+            port_text_id="PORT-PARTIAL",
+            endpoint_text_id="END-PARTIAL",
+        ),
+    ]
+    issues = build_issues(partial_raw_group, [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
+
+    mismatched_text_group = [
+        _phase184_geometry_owned_component_pair(
+            "PM1",
+            "COMP",
+            "F_COMP",
+            "1KLP1-1",
+            "1QD2",
+            raw_endpoint="1QD2,1KLP2-1",
+            port_text_id="PORT-MISMATCH",
+            endpoint_text_id="END-MISMATCH-A",
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PM2",
+            "COMP",
+            "F_COMP",
+            "1KLP1-1",
+            "1KLP2-1",
+            raw_endpoint="1QD2,1KLP2-1",
+            port_text_id="PORT-MISMATCH",
+            endpoint_text_id="END-MISMATCH-B",
+        ),
+    ]
+    issues = build_issues(mismatched_text_group, [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-ONE-TO-MANY" for issue in issues)
+
+    duplicate_pairs = [
+        _phase184_geometry_owned_component_pair(
+            "PD1",
+            "COMP",
+            "F_COMP",
+            "1FA-14",
+            "1QD35",
+            raw_endpoint="1QD35,OTHER",
+            overrides={"line_group_id": "G-PD1", "supporting_line_ids": ["L-PD1"]},
+        ),
+        _phase184_geometry_owned_component_pair(
+            "PD2",
+            "COMP",
+            "F_COMP",
+            "1FA-14",
+            "1QD35",
+            raw_endpoint="1QD35,OTHER",
+            overrides={"line_group_id": "G-PD2", "supporting_line_ids": ["L-PD2"]},
+        ),
+    ]
+    issues = build_issues(duplicate_pairs, [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+    extra_table = [
+        _phase184_geometry_owned_component_pair("PC4", "COMP", "F_COMP", "1KLP2-1", "1KLP1-1"),
+        table,
+        _phase177_backplate_table_pair("PT2", "TABLE2", "1QD-3", "1KLP1-1"),
+    ]
+    extra_sheets = [
+        *sheets,
+        SheetRecord("TABLE2", "TABLE2", "29 terminal.dwg", 29, "29", "TERMINALS", "端子图", "supplemental", "filename", True),
+    ]
+    issues = build_issues(extra_table, [], extra_sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
 
 
 def test_rules_keep_normalized_same_sheet_component_chain_visible() -> None:

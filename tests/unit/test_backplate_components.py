@@ -211,19 +211,66 @@ def test_rejects_two_digits_without_parallel_component_geometry() -> None:
 
 
 def test_authoritative_geometry_chain_does_not_raise_many_to_one() -> None:
-    evidence = {
-        "source": "component_mapping",
-        "component_submode": "strip_two_port_component",
-        "recognition_mode": "geometry_owned_two_port_capsule",
-        "electrical_union_eligible": False,
-        "internal_connectivity_inferred": False,
-        "external_endpoint_raw": "1KLP2-1,1KLP4-1",
-        "external_endpoint_split": "1KLP2-1",
-        "external_endpoint_text_id": "T1",
-    }
+    def component_pair(
+        pair_id: str,
+        logical_endpoint: str,
+        endpoint: str,
+        raw_endpoint: str,
+        group_id: str,
+        coord_x: float,
+    ) -> Pair:
+        body, port = logical_endpoint.rsplit("-", 1)
+        port_text_id = f"PORT-{group_id}"
+        endpoint_text_id = f"END-{group_id}"
+        return Pair(
+            pair_id=pair_id,
+            line_group_id=None,
+            sheet_id="S1",
+            file_id="F1",
+            selected_pair_candidate_id=None,
+            left_value=logical_endpoint,
+            right_value=endpoint,
+            confidence=0.97,
+            status="pass",
+            rationale="geometry-owned component",
+            confidence_bucket="high",
+            evidence={
+                "source": "component_mapping",
+                "component_submode": "strip_two_port_component",
+                "mapping_mode": "accessory_backplate_two_port",
+                "recognition_mode": "geometry_owned_two_port_capsule",
+                "component_body": body,
+                "component_body_text_id": f"BODY-{group_id}",
+                "component_port": port,
+                "component_port_text_id": port_text_id,
+                "component_port_coord": [coord_x, 20.0],
+                "component_block_name": "FJL-25-2A_Mirror",
+                "component_block_handle": f"BLOCK-{group_id}",
+                "external_endpoint": endpoint,
+                "external_endpoint_raw": raw_endpoint,
+                "external_endpoint_split": endpoint,
+                "external_endpoint_text_id": endpoint_text_id,
+                "external_endpoint_coord": [coord_x + 2.0, 21.0],
+                "logical_endpoint": logical_endpoint,
+                "endpoint_side": "top",
+                "electrical_union_eligible": False,
+                "internal_connectivity_inferred": False,
+                "ordinary_pair_eligible": False,
+            },
+            left_text_id=port_text_id,
+            right_text_id=endpoint_text_id,
+            left_coord_x=coord_x,
+            left_coord_y=20.0,
+            right_coord_x=coord_x + 2.0,
+            right_coord_y=21.0,
+            pair_kind="component_mapping",
+        )
+
     pairs = [
-        Pair("P1", None, "S1", "F1", None, "1KLP1-1", "1KLP2-1", 0.97, "pass", "ok", [], "high", dict(evidence), pair_kind="component_mapping"),
-        Pair("P2", None, "S1", "F1", None, "1KLP3-1", "1KLP2-1", 0.97, "pass", "ok", [], "high", dict(evidence), pair_kind="component_mapping"),
+        component_pair("P1", "1KLP1-1", "1KLP2-1", "1KLP2-1,AUX1", "A", 10.0),
+        component_pair("P1A", "1KLP1-1", "AUX1", "1KLP2-1,AUX1", "A", 10.0),
+        component_pair("P2", "1KLP3-1", "1KLP2-1", "1KLP2-1,AUX2", "B", 30.0),
+        component_pair("P2A", "1KLP3-1", "AUX2", "1KLP2-1,AUX2", "B", 30.0),
     ]
 
     issues = build_issues(pairs, [], [_page()], DEFAULT_CONFIG)

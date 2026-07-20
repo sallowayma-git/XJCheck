@@ -747,7 +747,7 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
 
         split_endpoint_info = _strip_two_port_component_split_endpoint_info(linked_pairs)
         if split_endpoint_info is not None:
-            if _is_geometry_owned_accessory_component_group(linked_pairs):
+            if _is_geometry_owned_accessory_component_group(linked_pairs, context.pairs):
                 continue
             issues.append(
                 context.issue_factory.build(
@@ -899,7 +899,7 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 shared_value=right_value,
             )
             if split_endpoint_info is not None:
-                if _is_geometry_owned_accessory_component_group(linked_pairs):
+                if _is_geometry_owned_accessory_component_group(linked_pairs, context.pairs):
                     continue
                 sheet_ids = {pair.sheet_id for pair in linked_pairs}
                 issues.append(
@@ -1296,6 +1296,8 @@ def _is_authoritative_structured_cardinality_group(linked_pairs: list[Pair]) -> 
         linked_pairs
     ) or _is_authoritative_comma_component_mapping_group(
         linked_pairs
+    ) or _is_authoritative_geometry_owned_comma_component_mapping_group(
+        linked_pairs
     ) or _is_authoritative_inline_component_cross_diagram_correspondence(
         linked_pairs
     ) or _is_authoritative_schematic_kk_component_duplicate(
@@ -1523,6 +1525,106 @@ def _authoritative_strip_component_identity(pair: Pair) -> tuple[str, str, str] 
     )
 
 
+_GEOMETRY_OWNED_ACCESSORY_MODES = frozenset(
+    {
+        (
+            "accessory_backplate_two_port",
+            "geometry_owned_two_port_capsule",
+            "strip_two_port_component",
+        ),
+        (
+            "accessory_backplate_multi_port",
+            "geometry_owned_opposed_port_panel",
+            "opposed_port_panel",
+        ),
+        (
+            "accessory_backplate_inline_two_port",
+            "geometry_owned_inline_two_port",
+            "inline_two_port_component",
+        ),
+        (
+            "accessory_backplate_four_port_contact",
+            "geometry_owned_four_port_contact",
+            "four_port_contact_component",
+        ),
+    }
+)
+
+
+def _authoritative_geometry_owned_component_identity(
+    pair: Pair,
+) -> tuple[str, str, str] | None:
+    """Validate block-owned accessory mappings without line-group provenance."""
+
+    evidence = pair.evidence or {}
+    if (
+        pair.pair_kind != "component_mapping"
+        or pair.status != "pass"
+        or float(pair.confidence or 0.0) < 0.95
+        or evidence.get("source") != "component_mapping"
+        or (
+            str(evidence.get("mapping_mode") or ""),
+            str(evidence.get("recognition_mode") or ""),
+            str(evidence.get("component_submode") or ""),
+        )
+        not in _GEOMETRY_OWNED_ACCESSORY_MODES
+        or evidence.get("internal_connectivity_inferred") is not False
+        or evidence.get("electrical_union_eligible") is not False
+        or evidence.get("ordinary_pair_eligible") is not False
+    ):
+        return None
+    for coordinate_key in ("component_port_coord", "external_endpoint_coord"):
+        coordinate = evidence.get(coordinate_key)
+        if not isinstance(coordinate, (list, tuple)) or len(coordinate) != 2:
+            return None
+        try:
+            numeric_coordinate = [float(value) for value in coordinate]
+        except (TypeError, ValueError):
+            return None
+        if any(value != value or abs(value) == float("inf") for value in numeric_coordinate):
+            return None
+        pair_coordinate = (
+            [pair.left_coord_x, pair.left_coord_y]
+            if coordinate_key == "component_port_coord"
+            else [pair.right_coord_x, pair.right_coord_y]
+        )
+        try:
+            numeric_pair_coordinate = [float(value) for value in pair_coordinate]
+        except (TypeError, ValueError):
+            return None
+        if numeric_coordinate != numeric_pair_coordinate:
+            return None
+    raw_endpoint = str(evidence.get("external_endpoint_raw") or "").strip()
+    split_endpoint = str(evidence.get("external_endpoint_split") or "").strip()
+    raw_tokens = [token.strip() for token in re.split(r"[,，]", raw_endpoint)]
+    raw_token_identities = [_terminal_endpoint_identity(token) for token in raw_tokens]
+    split_identity = _terminal_endpoint_identity(split_endpoint)
+    if (
+        not raw_endpoint
+        or not split_identity
+        or any(not token for token in raw_tokens)
+        or any(not identity for identity in raw_token_identities)
+        or split_identity not in raw_token_identities
+        or split_endpoint != str(pair.right_value or "").strip()
+        or str(pair.left_text_id or "").strip()
+        != str(evidence.get("component_port_text_id") or "").strip()
+        or str(pair.right_text_id or "").strip()
+        != str(evidence.get("external_endpoint_text_id") or "").strip()
+    ):
+        return None
+    return _authoritative_component_port_identity(
+        pair,
+        required_evidence=(
+            "component_body_text_id",
+            "component_port_text_id",
+            "component_block_name",
+            "component_block_handle",
+            "external_endpoint_text_id",
+            "external_endpoint_coord",
+        ),
+    )
+
+
 def _authoritative_component_port_identity(
     pair: Pair,
     *,
@@ -1582,9 +1684,18 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
         return False
     if any(str(pair.right_value or "") != str(shared_value or "") for pair in linked_pairs):
         return False
-    component_identity = _authoritative_kk_component_identity(
-        component_pair
-    ) or _authoritative_strip_component_identity(component_pair)
+    evidence = component_pair.evidence or {}
+    geometry_signal = (
+        str(evidence.get("mapping_mode") or "").startswith("accessory_backplate_")
+        or str(evidence.get("recognition_mode") or "").startswith("geometry_owned_")
+    )
+    geometry_owned_identity = _authoritative_geometry_owned_component_identity(component_pair)
+    if geometry_signal:
+        component_identity = geometry_owned_identity
+    else:
+        component_identity = _authoritative_kk_component_identity(
+            component_pair
+        ) or _authoritative_strip_component_identity(component_pair)
     if component_identity is None:
         return False
     if not _is_authoritative_table_mapping_group([table_pair]):
@@ -1632,7 +1743,13 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
                 _terminal_endpoint_identity(candidate.right_value)
                 for candidate in outgoing
             }
-            if not _is_authoritative_comma_component_mapping_group(outgoing):
+            if geometry_owned_identity is not None:
+                authoritative_outgoing = (
+                    _is_authoritative_geometry_owned_comma_component_mapping_group(outgoing)
+                )
+            else:
+                authoritative_outgoing = _is_authoritative_comma_component_mapping_group(outgoing)
+            if not authoritative_outgoing:
                 return False
             if not incoming_sources or outgoing_targets != incoming_sources:
                 return False
@@ -1887,6 +2004,58 @@ def _is_authoritative_comma_component_mapping_group(linked_pairs: list[Pair]) ->
     return has_comma_group
 
 
+def _is_authoritative_geometry_owned_comma_component_mapping_group(
+    linked_pairs: list[Pair],
+) -> bool:
+    """Validate every split row from one geometry-owned raw comma label."""
+
+    if len(linked_pairs) < 2:
+        return False
+    group_keys: set[tuple[str, str, str, str, float, float, str, str, float, float]] = set()
+    split_identities: set[str] = set()
+    raw_token_identities: set[str] | None = None
+    for pair in linked_pairs:
+        if _authoritative_geometry_owned_component_identity(pair) is None:
+            return False
+        evidence = pair.evidence or {}
+        raw_endpoint = str(evidence.get("external_endpoint_raw") or "").strip()
+        if "," not in raw_endpoint and "，" not in raw_endpoint:
+            return False
+        tokens = [token.strip() for token in re.split(r"[,，]", raw_endpoint)]
+        token_identities = {_terminal_endpoint_identity(token) for token in tokens}
+        split_identity = _terminal_endpoint_identity(evidence.get("external_endpoint_split"))
+        if (
+            any(not token for token in tokens)
+            or "" in token_identities
+            or split_identity not in token_identities
+        ):
+            return False
+        current_group_key = (
+            str(pair.sheet_id or ""),
+            str(pair.file_id or ""),
+            str(pair.left_value or ""),
+            str(pair.left_text_id or ""),
+            float(pair.left_coord_x),
+            float(pair.left_coord_y),
+            str(evidence.get("external_endpoint_text_id") or ""),
+            raw_endpoint,
+            float(pair.right_coord_x),
+            float(pair.right_coord_y),
+        )
+        group_keys.add(current_group_key)
+        split_identities.add(split_identity)
+        if raw_token_identities is None:
+            raw_token_identities = token_identities
+        elif raw_token_identities != token_identities:
+            return False
+    return (
+        len(group_keys) == 1
+        and raw_token_identities is not None
+        and len(raw_token_identities) >= 2
+        and split_identities == raw_token_identities
+    )
+
+
 def _is_authoritative_component_mapping_pair(pair: Pair) -> bool:
     """Validate one complete high-confidence strip-component mapping edge."""
 
@@ -1897,6 +2066,10 @@ def _is_authoritative_component_mapping_pair(pair: Pair) -> bool:
     ):
         return False
     evidence = pair.evidence or {}
+    if str(evidence.get("mapping_mode") or "").startswith("accessory_backplate_"):
+        return False
+    if str(evidence.get("recognition_mode") or "").startswith("geometry_owned_"):
+        return False
     if (
         evidence.get("source") != "component_mapping"
         or evidence.get("component_submode") != "strip_two_port_component"
@@ -2265,17 +2438,48 @@ def _is_same_sheet_strip_two_port_component_mapping(linked_pairs: list[Pair]) ->
     )
 
 
-def _is_geometry_owned_accessory_component_group(linked_pairs: list[Pair]) -> bool:
-    """Machine-owned capsule geometry makes comma endpoint expansion authoritative."""
+def _is_geometry_owned_accessory_component_group(
+    linked_pairs: list[Pair],
+    all_pairs: list[Pair] | None = None,
+) -> bool:
+    """Validate geometry-owned shared endpoints and every comma group they use."""
 
-    return bool(linked_pairs) and all(
-        pair.pair_kind == "component_mapping"
-        and (pair.evidence or {}).get("component_submode") == "strip_two_port_component"
-        and (pair.evidence or {}).get("recognition_mode") == "geometry_owned_two_port_capsule"
-        and (pair.evidence or {}).get("electrical_union_eligible") is False
-        and (pair.evidence or {}).get("internal_connectivity_inferred") is False
-        for pair in linked_pairs
-    )
+    if not linked_pairs:
+        return False
+    if any(_authoritative_geometry_owned_component_identity(pair) is None for pair in linked_pairs):
+        return False
+    available_pairs = all_pairs if all_pairs is not None else linked_pairs
+    comma_group_seen = False
+    for pair in linked_pairs:
+        evidence = pair.evidence or {}
+        raw_endpoint = str(evidence.get("external_endpoint_raw") or "").strip()
+        if "," not in raw_endpoint and "，" not in raw_endpoint:
+            continue
+        comma_group_seen = True
+        group_pairs = []
+        for candidate in available_pairs:
+            candidate_evidence = candidate.evidence or {}
+            if candidate.pair_kind != "component_mapping":
+                continue
+            if (
+                candidate.sheet_id != pair.sheet_id
+                or candidate.file_id != pair.file_id
+                or candidate.left_value != pair.left_value
+                or candidate.left_text_id != pair.left_text_id
+                or candidate.left_coord_x != pair.left_coord_x
+                or candidate.left_coord_y != pair.left_coord_y
+                or str(candidate_evidence.get("external_endpoint_raw") or "").strip()
+                != raw_endpoint
+                or str(candidate_evidence.get("external_endpoint_text_id") or "")
+                != str(evidence.get("external_endpoint_text_id") or "")
+                or candidate.right_coord_x != pair.right_coord_x
+                or candidate.right_coord_y != pair.right_coord_y
+            ):
+                continue
+            group_pairs.append(candidate)
+        if not _is_authoritative_geometry_owned_comma_component_mapping_group(group_pairs):
+            return False
+    return comma_group_seen
 
 
 def _strip_two_port_component_split_endpoint_info(
@@ -2300,7 +2504,7 @@ def _strip_two_port_component_split_endpoint_info(
         evidence = pair.evidence or {}
         raw_value = evidence.get("external_endpoint_raw")
         split_value = evidence.get("external_endpoint_split")
-        if not isinstance(raw_value, str) or "," not in raw_value:
+        if not isinstance(raw_value, str) or ("," not in raw_value and "，" not in raw_value):
             continue
         if not isinstance(split_value, str) or not split_value:
             continue
