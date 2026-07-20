@@ -5873,3 +5873,30 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Full fresh extraction `.tmp/phase182_full_533_fresh` completed for 28 projects and 533/533 valid files/pages, with zero invalid or incomplete pages and 38,814 Pair identities.
 - Full audit `.tmp/phase182_full_533_audit2` completed with issue identities `55 -> 45`, exactly ten expected removals and zero additions. Final distribution: many-to-one 21, missing-side 19, cross-page 3, low-confidence 2.
 - Phase 182 implementation and full fresh/audit acceptance checklist are complete. All 45 remaining issues stay fail-closed for the next evidence loop.
+
+## Phase 183 recovery and candidate selection (2026-07-20)
+
+- Ran the planning session catch-up, re-read the persistent plan/findings/progress records, and recovered `master` at `519e6d7` with only `rules.py` tracked dirty plus untouched untracked `package-lock.json`.
+- Completed three clean-context `gpt-5.6-sol` read-only audits: dead-helper/reference safety, Phase183 23000 artifact completeness/identity, and all-45 residual candidate clustering.
+- Confirmed the dirty nine-line helper deletion is behavior-neutral inside the repository; `git diff --check -- rules.py` passes.
+- Confirmed `.tmp/phase183_dyqk_baseline_current_rules_audit` contains six issues exact against the Phase182 23000 baseline and is backed by the authoritative 33/33 complete extraction bundle.
+- Confirmed the comma-grouped strip endpoint slice already removes nine complete focused reviews while incomplete `PCM0101` remains fail-closed.
+- Selected PAC `PW0147 (? -> 431)` for main-thread source/test verification as a range-semantic review takeover, never as range expansion or electrical connectivity.
+- The first combined planning patch used a findings heading that exists only in progress, so it was rejected atomically; separate exact-tail patches completed the sync without overwriting prior content.
+- Next: read the exact candidate and pair semantic code, implement strict positive/negative coverage, then run focused tests and raw PAC bounded replay before deciding whether the slice is acceptable.
+- Verified `PW0147` directly from Phase182 Parquet: `GW0147` is a 32.5-unit horizontal pure-CONNECT group; `T0998=1QD47~53` is unblocked at distance `0.6635/0.798`; opposite numeric scores are `431=1.0`, `432=0.8147`, `331=0.627`.
+- Completed a local 28-project range-label census: 20 matching texts, with only `GW0147` satisfying all proposed guards. Interrupted the delegated census at the ten-minute limit and discarded its incomplete output.
+- Next: add candidate-only terminal-range semantics plus positive, competing-label, off-row/structural and ambiguity negatives; existing `pairs.py` semantic mapping behavior is sufficient and remains unchanged.
+- Implemented the candidate-only contract in `candidates.py` and added real-geometry plus adversarial tests. `python -m pytest tests/unit/test_terminal_candidates.py -q` passes `64 passed`.
+- A clean-context `gpt-5.6-sol` code-review probe failed with `bad_response_status_code` and produced no result. Newly visible `.planning/perf_phase3b1_fix/*` changes are treated as concurrent out-of-scope state and will not be staged.
+- Confirmed the raw bounded replay command and authoritative input root from the PAC manifest; next artifact is `.tmp/phase183_terminal_range_pac_fresh` followed by a rules audit and identity comparison.
+- Focused `tests/unit/test_terminal_candidates.py` passes `64 passed` after the terminal-range implementation.
+- Raw PAC fresh completed in 29.7 seconds and audit completed successfully. Completeness is `COMPLETE`, `clean_conclusion_allowed=true`, `incomplete_page_count=0`, 31 files/sheets valid.
+- Structured comparison proves Pair count and IDs are unchanged (`2012/2012`); only `PW0147` becomes `1QD47~53 -> 431 / semantic_mapping / review`, and all other Pair semantic tuples remain exact.
+- Audit comparison proves `12 -> 11` with zero additions and exactly the target `PW0147` missing-side removal; the PAC many-to-one and cross-page reviews remain visible.
+- Phase183 implementation and bounded replay checklist are complete. Remaining steps are the repository gates, scoped staging/commit/push, and cleanup of only superseded Phase183 intermediate artifacts if any.
+- Combination gate passes `177 passed`; compileall and global diff-check pass. The authoritative full repository rerun passes `1157 passed, 1 skipped in 22.10s`.
+- The first full-test handle was lost after the process exited during a context transition, so its unobservable result was discarded and the gate was rerun rather than inferred.
+- Final dirty-boundary audit found extensive concurrent desktop/sidecar and `.planning/perf_phase3b1_fix/*` changes. They remain untouched and unstaged; the Phase183 commit set is restricted to the six recognition/planning files listed in findings.
+- No Phase183 artifact created by this slice is superseded: retain the PAC fresh/audit acceptance pair and preserve all pre-existing dyqk bundles.
+- Created the scoped Phase183 commit with only the six recognition/planning files. The remaining unstaged worktree is concurrent desktop/performance state plus `package-lock.json`; push it without staging those files.

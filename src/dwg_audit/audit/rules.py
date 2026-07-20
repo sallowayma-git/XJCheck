@@ -1887,15 +1887,6 @@ def _is_authoritative_comma_component_mapping_group(linked_pairs: list[Pair]) ->
     return has_comma_group
 
 
-def _is_authoritative_comma_component_mapping_pair(pair: Pair) -> bool:
-    """Validate one high-confidence edge split from a comma endpoint label."""
-
-    if not _is_authoritative_component_mapping_pair(pair):
-        return False
-    raw_endpoint = str((pair.evidence or {}).get("external_endpoint_raw") or "")
-    return "," in raw_endpoint or "，" in raw_endpoint
-
-
 def _is_authoritative_component_mapping_pair(pair: Pair) -> bool:
     """Validate one complete high-confidence strip-component mapping edge."""
 

@@ -540,6 +540,120 @@ def test_build_terminal_candidates_maps_q_device_endpoints_on_short_horizontal_l
     assert farther_line.value == "829"
 
 
+def test_build_terminal_candidates_maps_endpoint_local_terminal_range_as_semantic_review() -> None:
+    line_groups = [
+        LineGroup(
+            "G1",
+            "S1",
+            "F1",
+            95.0,
+            252.5,
+            127.5,
+            252.5,
+            32.5,
+            0.85,
+            ["L1"],
+            ["CONNECT"],
+            orientation="horizontal",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "15 交直流回路.dwg",
+            15,
+            "15",
+            "AC&DC POWER SUPPLY",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    texts = [
+        TextItem(
+            "T1",
+            "S1",
+            "F1",
+            "H1",
+            "MTEXT",
+            "1QD47~53",
+            "1QD47~53",
+            False,
+            "DIM",
+            0.0,
+            3.0,
+            94.3365,
+            253.298,
+            94.3365,
+            252.248,
+            109.2165,
+            255.698,
+        ),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "431", "431", True, "DIM", 0.0, 2.5, 128.0729, 253.4379, 128.0729, 252.5629, 132.7229, 255.4379),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "432", "432", True, "DIM", 0.0, 2.5, 134.2644, 253.4725, 134.2644, 252.5975, 138.9144, 255.4725),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    terminal_range = next(item for item in candidates if item.text_id == "T1")
+    pair = pairs[0]
+    assert terminal_range.status == "accepted"
+    assert terminal_range.value == "1QD47~53"
+    assert terminal_range.channel == "schematic_semantic_endpoint_channel"
+    assert terminal_range.channel_detail == "schematic_terminal_range_label"
+    assert (pair.left_value, pair.right_value) == ("1QD47~53", "431")
+    assert pair.status == "review"
+    assert pair.pair_kind == "semantic_mapping"
+    assert pair.evidence["semantic_mapping_kind"] == "schematic_terminal_range_label"
+    assert pair.evidence["ordinary_pair_eligible"] is False
+
+
+def test_build_terminal_candidates_rejects_non_authoritative_terminal_range_contexts() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 42.5, 20.0, 32.5, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S1", "F1", 10.0, 40.0, 42.5, 40.0, 32.5, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G3", "S1", "F1", 10.0, 60.0, 42.5, 60.0, 32.5, 0.85, ["L3"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G4", "S1", "F1", 10.0, 80.0, 80.0, 80.0, 70.0, 0.85, ["L4"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G5", "S1", "F1", 10.0, 100.0, 42.5, 100.0, 32.5, 0.85, ["L5", "L6"], ["0", "CONNECT"], orientation="horizontal"),
+        LineGroup("G6", "S1", "F1", 10.0, 120.0, 42.5, 120.0, 32.5, 0.85, ["L7"], ["CONNECT"], orientation="grid"),
+        LineGroup("G7", "S1", "F1", 10.0, 140.0, 42.5, 140.0, 32.5, 0.85, ["L8"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "15 交直流回路.dwg", 15, "15", "AC&DC POWER SUPPLY", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "1QD47~53", "1QD47~53", False, "DIM", 0.0, 2.5, 9.0, 21.0, 7.0, 19.0, 20.0, 23.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "431", "431", True, "DIM", 0.0, 2.5, 43.0, 21.0, 42.0, 19.0, 48.0, 23.0),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "432", "432", True, "DIM", 0.0, 2.5, 43.2, 21.0, 42.2, 19.0, 48.2, 23.0),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "1QD47~53", "1QD47~53", False, "DIM", 0.0, 2.5, 9.0, 41.0, 7.0, 39.0, 20.0, 43.0, "BLOCK"),
+        TextItem("T5", "S1", "F1", "H5", "TEXT", "433", "433", True, "DIM", 0.0, 2.5, 43.0, 41.0, 42.0, 39.0, 48.0, 43.0),
+        TextItem("T6", "S1", "F1", "H6", "TEXT", "1QD47~53", "1QD47~53", False, "DIM", 0.0, 2.5, 9.0, 65.0, 7.0, 59.0, 20.0, 67.0),
+        TextItem("T7", "S1", "F1", "H7", "TEXT", "434", "434", True, "DIM", 0.0, 2.5, 43.0, 61.0, 42.0, 59.0, 48.0, 63.0),
+        TextItem("T8", "S1", "F1", "H8", "TEXT", "1QD47~53", "1QD47~53", False, "DIM", 0.0, 2.5, 9.0, 81.0, 7.0, 79.0, 20.0, 83.0),
+        TextItem("T9", "S1", "F1", "H9", "TEXT", "435", "435", True, "DIM", 0.0, 2.5, 81.0, 81.0, 80.0, 79.0, 86.0, 83.0),
+        TextItem("T10", "S1", "F1", "H10", "TEXT", "1QD47~53", "1QD47~53", False, "DIM", 0.0, 2.5, 9.0, 101.0, 7.0, 99.0, 20.0, 103.0),
+        TextItem("T11", "S1", "F1", "H11", "TEXT", "436", "436", True, "DIM", 0.0, 2.5, 43.0, 101.0, 42.0, 99.0, 48.0, 103.0),
+        TextItem("T12", "S1", "F1", "H12", "TEXT", "1QD47~53", "1QD47~53", False, "DIM", 0.0, 2.5, 9.0, 121.0, 7.0, 119.0, 20.0, 123.0),
+        TextItem("T13", "S1", "F1", "H13", "TEXT", "437", "437", True, "DIM", 0.0, 2.5, 43.0, 121.0, 42.0, 119.0, 48.0, 123.0),
+        TextItem("T14", "S1", "F1", "H14", "TEXT", "1QD53~47", "1QD53~47", False, "DIM", 0.0, 2.5, 9.0, 141.0, 7.0, 139.0, 20.0, 143.0),
+        TextItem("T15", "S1", "F1", "H15", "TEXT", "438", "438", True, "DIM", 0.0, 2.5, 43.0, 141.0, 42.0, 139.0, 48.0, 143.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    by_text = {item.text_id: item for item in candidates if item.side == "left" and item.text_id in {"T1", "T4", "T6", "T8", "T10", "T12", "T14"}}
+
+    assert by_text["T1"].rejection_reason == "schematic_terminal_range_ambiguous_numeric_peer"
+    assert by_text["T4"].rejection_reason == "schematic_terminal_range_out_of_scope"
+    assert by_text["T6"].rejection_reason == "schematic_terminal_range_out_of_scope"
+    assert by_text["T8"].rejection_reason == "schematic_terminal_range_out_of_scope"
+    assert by_text["T10"].rejection_reason == "schematic_terminal_range_out_of_scope"
+    assert by_text["T12"].rejection_reason == "not_numeric"
+    assert by_text["T14"].rejection_reason == "not_numeric"
+
+
 def test_build_terminal_candidates_keeps_shared_numeric_anchor_when_q_owner_is_ambiguous() -> None:
     line_groups = [
         LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
@@ -590,7 +704,7 @@ def test_build_terminal_candidates_rejects_q_device_endpoint_outside_strict_geom
     assert grid_qd.rejection_reason == "schematic_q_device_endpoint_out_of_scope"
     assert long_qd.rejection_reason == "schematic_q_device_endpoint_out_of_scope"
     assert adjacent_qd.rejection_reason == "schematic_logic_endpoint_out_of_row"
-    assert different_grammar.rejection_reason == "not_numeric"
+    assert different_grammar.rejection_reason == "schematic_terminal_range_competing_endpoint"
     assert all(
         item.channel == "noise_channel"
         for item in (grid_qd, long_qd, adjacent_qd, different_grammar)

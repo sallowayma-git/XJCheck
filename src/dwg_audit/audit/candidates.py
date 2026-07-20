@@ -32,6 +32,10 @@ _SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN = re.compile(
     r"^\d+Q\d+D\d+(?:~\d+)?$",
     re.IGNORECASE,
 )
+_SCHEMATIC_TERMINAL_RANGE_PATTERN = re.compile(
+    r"^(?P<prefix>\d+QD)(?P<start>\d+)[~～](?P<end>\d+)$",
+    re.IGNORECASE,
+)
 _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
     r"^(?:"
     r"\d+(?:XD|YD|LD)\d+"
@@ -46,6 +50,10 @@ _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_Y = 4.0
 _SCHEMATIC_Q_DEVICE_ENDPOINT_MAX_LINE_LENGTH = 50.0
 _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MAX_ROW_DELTA = 6.0
 _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MIN_OVERLAP_RATIO = 0.35
+_SCHEMATIC_TERMINAL_RANGE_MAX_LINE_LENGTH = 50.0
+_SCHEMATIC_TERMINAL_RANGE_MAX_ENDPOINT_DISTANCE = 4.0
+_SCHEMATIC_TERMINAL_RANGE_MIN_NUMERIC_GAP = 0.08
+_SCHEMATIC_TERMINAL_RANGE_DETAIL = "schematic_terminal_range_label"
 _SCHEMATIC_NAMED_COMPONENT_INSTANCE_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,11}$", re.IGNORECASE)
 _SCHEMATIC_NAMED_COMPONENT_PORT_DETAIL = "schematic_named_component_port"
 _SCHEMATIC_WIRE_LOGIC_SEARCH_RADIUS_X = 28.0
@@ -389,6 +397,7 @@ def build_terminal_candidates(
             profile=profile,
             candidate_ids=candidate_ids,
         )
+        _apply_schematic_terminal_range_contract(results, group, sheet, config)
     _prefer_q_device_mapping_numeric_anchor(results, group_map, sheet_map)
     _dedupe_shared_text_anchors(results, group_map, sheet_map)
     _apply_terminal_strip_row_lock(results, group_map, sheet_map)
@@ -763,6 +772,102 @@ def _add_schematic_device_near_endpoint_candidates(
             )
         )
         existing_text_ids.add(text.text_id)
+
+
+def _apply_schematic_terminal_range_contract(
+    candidates: list[TerminalCandidate],
+    group: LineGroup,
+    sheet: SheetRecord | None,
+    config: dict,
+) -> None:
+    """Admit endpoint-local terminal ranges only as semantic review evidence."""
+
+    group_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.line_group_id == group.line_group_id
+    ]
+    range_candidates = [
+        candidate
+        for candidate in group_candidates
+        if candidate.status == "accepted"
+        and candidate.channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+        and candidate.channel_detail == _SCHEMATIC_TERMINAL_RANGE_DETAIL
+    ]
+    if not range_candidates:
+        return
+
+    high_threshold = float(config.get("confidence", {}).get("high_threshold", 0.92))
+    normalized_layers = {
+        str(layer).strip().upper()
+        for layer in group.layer_hints
+        if str(layer).strip()
+    }
+    for candidate in range_candidates:
+        reason: str | None = None
+        if (
+            sheet is None
+            or sheet.sheet_category != "二次原理图"
+            or group.orientation != "horizontal"
+            or group.length > _SCHEMATIC_TERMINAL_RANGE_MAX_LINE_LENGTH
+            or normalized_layers != {"CONNECT"}
+            or bool(str(candidate.source_block_name or "").strip())
+            or candidate.distance_x > _SCHEMATIC_TERMINAL_RANGE_MAX_ENDPOINT_DISTANCE
+            or candidate.distance_y > _SCHEMATIC_TERMINAL_RANGE_MAX_ENDPOINT_DISTANCE
+        ):
+            reason = "schematic_terminal_range_out_of_scope"
+        elif any(
+            _is_competing_terminal_range_endpoint(peer)
+            for peer in group_candidates
+            if peer.side == candidate.side and peer.text_id != candidate.text_id
+        ):
+            reason = "schematic_terminal_range_competing_endpoint"
+        else:
+            opposite_numeric = sorted(
+                (
+                    peer
+                    for peer in group_candidates
+                    if peer.side != candidate.side
+                    and peer.status == "accepted"
+                    and peer.channel == _CHANNEL_TERMINAL_NUMERIC
+                    and peer.value
+                ),
+                key=lambda peer: peer.score,
+                reverse=True,
+            )
+            if not opposite_numeric or opposite_numeric[0].score < high_threshold:
+                reason = "schematic_terminal_range_weak_numeric_peer"
+            elif (
+                len(opposite_numeric) > 1
+                and opposite_numeric[0].score - opposite_numeric[1].score
+                < _SCHEMATIC_TERMINAL_RANGE_MIN_NUMERIC_GAP
+            ):
+                reason = "schematic_terminal_range_ambiguous_numeric_peer"
+
+        if reason is None:
+            continue
+        candidate.status = "rejected"
+        candidate.rejection_reason = reason
+        candidate.value = None
+        candidate.score = 0.0
+        candidate.rank = None
+        candidate.channel = _CHANNEL_NOISE
+        candidate.channel_detail = reason
+
+
+def _is_competing_terminal_range_endpoint(candidate: TerminalCandidate) -> bool:
+    normalized = candidate.text.strip()
+    if candidate.status == "accepted" and candidate.channel in {
+        _CHANNEL_TERMINAL_NUMERIC,
+        _CHANNEL_WIRE_LOGIC_ENDPOINT,
+        _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT,
+    }:
+        return True
+    return bool(
+        normalized.isdigit()
+        or _WIRE_LOGIC_ENDPOINT_PATTERN.fullmatch(normalized)
+        or _SCHEMATIC_TERMINAL_RANGE_PATTERN.fullmatch(normalized)
+    )
 
 
 def _endpoints_for_group(group: LineGroup) -> tuple[tuple[str, tuple[float, float]], tuple[str, tuple[float, float]]]:
@@ -1343,6 +1448,8 @@ def _candidate_schematic_semantic_endpoint_value(
     if detail is None:
         return None
     normalized = text.normalized_text.strip()
+    if detail == _SCHEMATIC_TERMINAL_RANGE_DETAIL:
+        return normalized.replace("～", "~")
     if detail == "schematic_ac_phase_label":
         phase = _extract_schematic_ac_phase_endpoint(normalized)
         if phase is not None:
@@ -1361,6 +1468,8 @@ def _candidate_schematic_semantic_endpoint_detail(
         return None
     sheet_context = f"{sheet.filename} {sheet.sheet_title}".upper()
     normalized = text.normalized_text.strip()
+    if orientation == "horizontal" and _is_ascending_schematic_terminal_range(normalized):
+        return _SCHEMATIC_TERMINAL_RANGE_DETAIL
     if (
         ("直流" in sheet_context or "DC" in sheet_context)
         and any(pattern.fullmatch(normalized) for pattern in _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS)
@@ -1401,6 +1510,13 @@ def _candidate_schematic_semantic_endpoint_detail(
     ):
         return "schematic_device_endpoint"
     return None
+
+
+def _is_ascending_schematic_terminal_range(normalized: str) -> bool:
+    match = _SCHEMATIC_TERMINAL_RANGE_PATTERN.fullmatch(normalized.strip())
+    if match is None:
+        return False
+    return int(match.group("start")) < int(match.group("end"))
 
 
 def _normalize_schematic_semantic_endpoint_value(normalized: str) -> str:

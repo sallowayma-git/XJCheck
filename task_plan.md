@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 182 is complete for this recognition slice. Compact `XD/YD/LD` signal endpoints, explicit terminal continuation tables, distinct-row numeric duplicate handling, rear-wiring title instance authority, and the generalized backplate virtual endpoint contract are implemented with focused and full-corpus evidence.
+Phase 183 is in progress. The comma-grouped strip-component endpoint slice is committed in `519e6d7`; the active work is to validate that bounded behavior, preserve incomplete comma/KLP structures as review, and implement one additional fail-closed residual optimization backed by physical endpoint evidence.
 
 The current authoritative extraction is `.tmp/phase182_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete. It contains 38,814 Pair identities with zero semantic additions/removals versus fresh13.
 
-The current authoritative audit is `.tmp/phase182_full_533_audit2`: 45 issues (many-to-one 21, missing-side 19, cross-page 3, low-confidence 2). Identity comparison against `.tmp/phase181_full_533_audit13` is exactly 55 -> 45: the ten expected backplate reviews were removed and no issue was added. The three structured terminal-table GND shared-endpoint reviews remain pending human arbitration; no GND exception is authorized. Other-agent ODA/packaging changes remain outside the recognition commit boundary.
+The current authoritative audit baseline is `.tmp/phase182_full_533_audit2`: 45 issues (many-to-one 21, missing-side 19, cross-page 3, low-confidence 2). HEAD-side focused artifacts show the complete comma strip-component graph removes nine matching reviews while the incomplete `PCM0101` structure remains fail-closed. The next evidence-backed candidate is PAC `PW0147 (? -> 431)`: a terminal range label immediately anchored at the missing endpoint may be represented as semantic review evidence, but must not be expanded into a single electrical endpoint. Other-agent ODA/packaging changes and root `package-lock.json` remain outside the recognition commit boundary.
 
 ## Phases
 
@@ -2982,3 +2982,23 @@ The current authoritative audit is `.tmp/phase182_full_533_audit2`: 45 issues (m
 - **Status:** complete
 
 All 45 remaining issues are retained as fail-closed objects for the next evidence loop, including the three cross-page, 19 missing-side, two low-confidence, and remaining many-to-one/GND/KLP structures.
+
+## Phase 183 comma strip endpoint and residual semantic loop
+
+- [x] Recover HEAD `519e6d7`, the Phase182 28/533 baseline, and the root `package-lock.json` boundary without reverting existing work.
+- [x] Audit the dirty `rules.py` deletion and prove `_is_authoritative_comma_component_mapping_pair()` is an unused private helper; the live group contract is unchanged.
+- [x] Validate `.tmp/phase183_dyqk_baseline_current_rules_audit`: 23000 remains 33/33 complete and its six issue identities are exact against the Phase182 project baseline.
+- [x] Aggregate all 45 authoritative residual issues and verify complete comma strip-component graphs are already handled while incomplete comma/KLP structures remain review.
+- [x] Select PAC `PW0147` as the next bounded candidate: an endpoint-anchored terminal range semantic label, with no range expansion or electrical-union claim.
+- [x] Implement the generalized terminal-range semantic candidate contract and adversarial coverage.
+- [x] Run focused tests plus raw PAC bounded replay; prove the intended issue delta, Pair semantics, and retained negative structures.
+- [x] Run repository gates and update the acceptance evidence.
+- [x] Stage only the six recognition/planning files and create the scoped Phase183 commit; push it while leaving all concurrent desktop/performance state unstaged.
+- **Status:** in_progress
+
+### Phase 183 guardrails
+
+- Terminal-range labels may supply semantic review evidence only when structurally and geometrically unique at the missing endpoint. They do not denote one electrical endpoint and must never be expanded into terminal-to-terminal connectivity.
+- Same-side competing endpoint text, non-schematic placement, block-owned text, weak opposite-side candidates, and incomplete comma/KLP graphs remain fail-closed.
+- Rules must not depend on project/file names, CLP/KLP names, handles, fingerprints, or fixed row/terminal values.
+- Root `package-lock.json` and desktop/sidecar files remain outside the recognition stage/commit boundary.
