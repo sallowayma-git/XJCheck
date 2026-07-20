@@ -82,6 +82,35 @@ export type ProjectSummary = {
   run: ProjectRun
   issue_count: number
   page_finding_count: number
+  issue_stats: IssueStats
+  filter_options: IssueFilterOptions
+}
+
+export type IssueStats = {
+  total: number
+  open_count: number
+  serious_open_count: number
+  resolved_count: number
+  error_count: number
+  warning_count: number
+  review_count: number
+  group_count: number
+}
+
+export type IssueFilterOptions = {
+  severities: string[]
+  rules: string[]
+  statuses: string[]
+  triages: string[]
+}
+
+export type IssueQuery = {
+  search?: string | null
+  severity?: string | null
+  rule_id?: string | null
+  status?: string | null
+  triage?: string | null
+  handling?: string | null
 }
 
 export type IssuePage = {

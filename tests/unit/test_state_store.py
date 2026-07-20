@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 from dwg_audit.desktop.state_store import DesktopStateStore
+from dwg_audit.desktop.state_store import IssueQueryFilters
 
 
 def test_state_store_migrates_legacy_issue_summary_schema(tmp_path: Path) -> None:
@@ -232,6 +233,112 @@ def test_pinned_project_pages_cannot_fall_back_to_another_run(tmp_path: Path) ->
     assert detail is not None
     assert detail["run"]["run_id"] == "old"
     assert detail["issue"]["title"] == "old issue"
+
+
+def test_summary_facets_and_filtered_pages_use_the_whole_pinned_run(tmp_path: Path) -> None:
+    store = DesktopStateStore(tmp_path / "desktop_state.db")
+    store.record_run(
+        run_id="run",
+        session_id="session",
+        project_id="project",
+        project_name="Project",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=3,
+        metadata={},
+    )
+    store.replace_issue_summaries(
+        "run",
+        [
+            {
+                "issue_id": "error",
+                "rule_id": "R-CROSS-PAGE-CONFLICT",
+                "title": "Cross page conflict",
+                "severity": "major",
+                "status": "open",
+                "confidence": 0.9,
+                "sheet_no": "01",
+                "evidence": {"handling_class": "error", "review_group_id": "G1"},
+            },
+            {
+                "issue_id": "warning",
+                "rule_id": "R-ONE-TO-MANY",
+                "title": "Branch connection",
+                "severity": "minor",
+                "status": "open",
+                "confidence": 0.8,
+                "sheet_no": "02",
+                "one_to_many_classification": "branch",
+                "evidence": {"review_group_id": "G1"},
+            },
+            {
+                "issue_id": "review",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "title": "100% all manual review",
+                "severity": "review",
+                "status": "resolved",
+                "confidence": 0.4,
+                "sheet_no": "03",
+                "evidence": {"one_to_many_classification": "review", "review_group_id": "G2"},
+            },
+        ],
+    )
+
+    summary = store.load_project_summary("project", run_id="run")
+    assert summary is not None
+    assert summary["issue_count"] == 3
+    assert summary["issue_stats"] == {
+        "total": 3,
+        "open_count": 2,
+        "serious_open_count": 1,
+        "resolved_count": 1,
+        "error_count": 1,
+        "warning_count": 1,
+        "review_count": 1,
+        "group_count": 2,
+    }
+    assert summary["filter_options"]["triages"] == ["branch", "review"]
+
+    warning_page = store.load_project_issues_page(
+        "project",
+        run_id="run",
+        limit=10,
+        filters=IssueQueryFilters(handling="warning"),
+    )
+    assert warning_page is not None
+    assert warning_page["total"] == 1
+    assert [item["issue_id"] for item in warning_page["items"]] == ["warning"]
+
+    search_page = store.load_project_issues_page(
+        "project",
+        run_id="run",
+        limit=10,
+        filters=IssueQueryFilters(search="100%"),
+    )
+    assert search_page is not None
+    assert [item["issue_id"] for item in search_page["items"]] == ["review"]
+
+    all_search_page = store.load_project_issues_page(
+        "project",
+        run_id="run",
+        limit=10,
+        filters=IssueQueryFilters(search="all"),
+    )
+    assert all_search_page is not None
+    assert [item["issue_id"] for item in all_search_page["items"]] == ["review"]
+
+    triage_page = store.load_project_issues_page(
+        "project",
+        run_id="run",
+        limit=10,
+        filters=IssueQueryFilters(triage="review"),
+    )
+    assert triage_page is not None
+    assert [item["issue_id"] for item in triage_page["items"]] == ["review"]
+    assert store.load_project_issue_detail("project", run_id="run", issue_id="missing") is None
 
 
 def test_issue_page_count_and_rows_start_inside_one_read_transaction(tmp_path: Path) -> None:

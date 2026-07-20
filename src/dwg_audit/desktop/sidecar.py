@@ -15,6 +15,7 @@ from dwg_audit.desktop.lifecycle import compact_session_workspace
 from dwg_audit.desktop.lifecycle import default_preview_cache_root
 from dwg_audit.desktop.lifecycle import default_workspace_root
 from dwg_audit.desktop.state_store import DesktopStateStore
+from dwg_audit.desktop.state_store import IssueQueryFilters
 from dwg_audit.desktop.state_store import default_state_db_path
 from dwg_audit.report.artifacts import load_report_frames
 from dwg_audit.services import run_analysis_workflow
@@ -157,6 +158,12 @@ def load_project_issues(
     run_id: str | None = None,
     limit: int,
     offset: int = 0,
+    search: str | None = None,
+    severity: str | None = None,
+    rule_id: str | None = None,
+    status: str | None = None,
+    triage: str | None = None,
+    handling: str | None = None,
     state_db_path: Path | None = None,
 ) -> dict[str, Any] | None:
     """Return one page of issues for the latest run of ``project_id`` plus
@@ -170,6 +177,14 @@ def load_project_issues(
         run_id=run_id,
         limit=limit,
         offset=offset,
+        filters=IssueQueryFilters(
+            search=search,
+            severity=severity,
+            rule_id=rule_id,
+            status=status,
+            triage=triage,
+            handling=handling,
+        ),
     )
 
 

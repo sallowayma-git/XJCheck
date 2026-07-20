@@ -60,6 +60,7 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "ODAFC_PATH" in runtime
     assert "DWG_AUDIT_RESOURCE_DIR" in runtime
     assert "oda" in runtime
+    assert "dwg_audit.desktop.sidecar_entry" in runtime
 
     main_rs = (DESKTOP_ROOT / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
     assert 'windows_subsystem = "windows"' in main_rs
@@ -77,6 +78,8 @@ def test_sidecar_packaging_hook_matches_runtime_candidates() -> None:
     assert "CreateToolhelp32Snapshot" in main_rs
     assert "terminate_descendant_processes" in main_rs
     assert "TerminateProcess" in main_rs
+    assert "client_session_epoch" in main_rs
+    assert "ResultProcessControl" in main_rs
     assert "std::process::exit(0)" in main_rs
 
     app_tsx = (DESKTOP_ROOT / "src" / "App.tsx").read_text(encoding="utf-8")
@@ -536,6 +539,28 @@ def test_python_lightweight_command_paginates_issues(tmp_path: Path, capsys) -> 
     # Sorted by severity asc (all 'minor') → confidence desc → issue_id asc.
     # With identical confidence, issue_id asc dominates; offset 5 of 30 picks rows 5-14.
     assert ids == [f"I{i:03d}" for i in range(5, 15)]
+
+    handled = _run_lightweight_command(
+        [
+            "load-result-issues",
+            "--project-id",
+            "demo-project",
+            "--run-id",
+            "demo-run",
+            "--limit",
+            "10",
+            "--search",
+            "summary 17",
+            "--handling",
+            "review",
+            "--state-db",
+            str(state_db),
+        ]
+    )
+    assert handled is True
+    filtered = json.loads(capsys.readouterr().out)
+    assert filtered["total"] == 1
+    assert [item["issue_id"] for item in filtered["items"]] == ["I017"]
 
 
 def test_python_lightweight_command_loads_issue_detail(tmp_path: Path, capsys) -> None:

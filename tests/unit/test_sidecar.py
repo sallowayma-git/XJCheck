@@ -10,6 +10,7 @@ import dwg_audit.desktop.preview as preview_module
 
 from dwg_audit.desktop.sidecar import DesktopEventWriter
 from dwg_audit.desktop.sidecar import analyze_session
+from dwg_audit.desktop.sidecar import load_project_issue_detail
 from dwg_audit.desktop.sidecar import load_project_result
 from dwg_audit.desktop.sidecar import list_recent_projects
 from dwg_audit.desktop.sidecar import purge_session
@@ -200,6 +201,34 @@ def test_render_project_preview_writes_svg_with_issue_highlight(tmp_path: Path) 
     assert len(preview["focus_bbox"]) == 4
 
 
+def test_sidecar_missing_issue_detail_returns_none(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    store.record_run(
+        run_id="run",
+        session_id="session",
+        project_id="project",
+        project_name="Project",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=0,
+        pair_count=0,
+        issue_count=0,
+        metadata={},
+    )
+
+    assert (
+        load_project_issue_detail(
+            project_id="project",
+            run_id="run",
+            issue_id="missing",
+            state_db_path=state_db,
+        )
+        is None
+    )
+
+
 def test_render_project_preview_reads_only_rendering_frames(monkeypatch, tmp_path: Path) -> None:
     state_db = tmp_path / "desktop_state.db"
     artifact_dir = tmp_path / "artifacts" / "demo_project"
@@ -236,6 +265,46 @@ def test_render_project_preview_reads_only_rendering_frames(monkeypatch, tmp_pat
 
     assert Path(preview["preview_path"]).exists()
     assert requested == [("issues", "pages", "lines", "texts", "line_groups")]
+
+
+def test_default_preview_cache_is_partitioned_by_pinned_run(monkeypatch, tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    artifact_dir = tmp_path / "artifacts" / "demo_project"
+    _write_preview_project_output(artifact_dir)
+    monkeypatch.setattr(preview_module, "default_preview_cache_root", lambda: tmp_path / "preview-cache")
+    store = DesktopStateStore(state_db)
+    for run_id in ("run-a", "run-b"):
+        store.record_run(
+            run_id=run_id,
+            session_id=run_id,
+            project_id="demo-project",
+            project_name="Demo Project",
+            input_root=str(tmp_path / "input"),
+            artifact_dir=str(artifact_dir),
+            status="completed",
+            sheet_count=1,
+            pair_count=1,
+            issue_count=1,
+            metadata={},
+        )
+
+    first = render_project_preview(
+        project_id="demo-project",
+        run_id="run-a",
+        issue_id="I1",
+        state_db_path=state_db,
+    )
+    second = render_project_preview(
+        project_id="demo-project",
+        run_id="run-b",
+        issue_id="I1",
+        state_db_path=state_db,
+    )
+    first_path = Path(first["preview_path"])
+    second_path = Path(second["preview_path"])
+    assert first_path.exists() and second_path.exists()
+    assert first_path != second_path
+    assert first_path.parent != second_path.parent
 
 
 def test_render_project_preview_prefers_explicit_line_group_override(tmp_path: Path) -> None:

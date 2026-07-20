@@ -33,3 +33,42 @@
 - PowerShell 5.1 cannot rely on Process.Kill(entireProcessTree); use taskkill /T /F.
 - Missing issue detail must emit JSON null while missing runs remain errors.
 - Preview also needs an optional run_id pin to avoid summary/preview run drift.
+- Post-commit review confirmed result-load cancellation needs session isolation,
+  a cancel-before-begin tombstone, and owned process handles rather than delayed
+  termination by a bare PID.
+- Source-development fallback must execute `dwg_audit.desktop.sidecar_entry`;
+  lightweight paging commands are not registered on the Typer CLI.
+- Recent-run selection must preserve run_id through summary, page, detail, and
+  preview calls. Project-only selection silently opens the newest run.
+- The explicit load-more action belongs in the result issue list; scroll-only
+  loading makes later pages unreachable after restrictive filters or errors.
+- Preview output paths need run identity, and selected evidence line groups must
+  drive the preview request rather than only visual selection state.
+- Store-level missing issue detail should return None consistently instead of a
+  truthy wrapper whose issue field is None.
+
+## Follow-up design
+- Register a dedicated result renderer session and server-issued epoch. Every
+  summary/page/detail/cancel call carries session id, epoch, and client
+  generation so a WebView reload cannot inherit a stale generation namespace.
+- Result cancellation records a tombstone even when it races ahead of begin.
+- On Windows, keep an owned process handle for each result sidecar until
+  cancellation/finish. `taskkill /T /F` terminates the tree and the handle
+  terminates the root while preventing PID reuse across the unlocked gap.
+- Keep issue payloads bounded by pushing search/facet filters into SQLite.
+  Summary returns whole-run stats and filter options; page total represents the
+  filtered query while issue_count remains the unfiltered total.
+- Keep result identity as `(project_id, run_id)` in React selection and recent
+  rows, and keep preview cache paths partitioned by run_id.
+
+## Follow-up review resolution
+- Keyed query refs and testable commit/reload guards close the A -> B -> A
+  filter race; navigation clears both load-more and query-reload state.
+- A shared registration promise prevents concurrent renderer-session callbacks
+  from clearing a successfully registered epoch.
+- SQLite now materializes handling_class for new rows and uses the same Python
+  derivation UDF for legacy rows, so stats, filters, and returned rows agree.
+- Triage uses one expression across direct columns and both evidence fallbacks;
+  literal search text such as `all`, `%`, and `_` remains literal.
+- Successful load-more requests clear prior errors, while failed query reloads
+  retain an explicit retry action in the result list.

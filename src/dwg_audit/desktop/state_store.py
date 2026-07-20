@@ -31,6 +31,16 @@ class StoredRun:
     metadata: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class IssueQueryFilters:
+    search: str | None = None
+    severity: str | None = None
+    rule_id: str | None = None
+    status: str | None = None
+    triage: str | None = None
+    handling: str | None = None
+
+
 class DesktopStateStore:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
@@ -127,12 +137,13 @@ class DesktopStateStore:
                     right_value,
                     primary_pair_id,
                     one_to_many_classification,
+                    handling_class,
                     evidence_json,
                     evidence_refs_json,
                     related_pair_ids_json,
                     sheet_ids_json,
                     values_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -156,6 +167,14 @@ class DesktopStateStore:
                         str(issue.get("right_value") or ""),
                         str(issue.get("primary_pair_id") or ""),
                         str(issue.get("one_to_many_classification") or ""),
+                        _derive_issue_handling_class(
+                            rule_id=str(issue.get("rule_id") or ""),
+                            severity=str(issue.get("severity") or ""),
+                            confidence=float(issue.get("confidence") or 0.0),
+                            evidence=issue.get("evidence") if isinstance(issue.get("evidence"), dict) else {},
+                            triage=str(issue.get("one_to_many_classification") or ""),
+                            explicit=str(issue.get("handling_class") or ""),
+                        ),
                         json.dumps(issue.get("evidence") or {}, ensure_ascii=False, sort_keys=True),
                         json.dumps(issue.get("evidence_refs") or [], ensure_ascii=False, sort_keys=True),
                         json.dumps(issue.get("related_pair_ids") or [], ensure_ascii=False, sort_keys=True),
@@ -353,18 +372,16 @@ class DesktopStateStore:
             row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
             if row is None:
                 return None
-            issue_count = conn.execute(
-                "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
-                (row["run_id"],),
-            ).fetchone()
             page_count = conn.execute(
                 "SELECT COUNT(*) FROM page_findings WHERE run_id = ?",
                 (row["run_id"],),
             ).fetchone()
+            issue_metadata = self._load_issue_metadata_conn(conn, run_id=row["run_id"])
         return {
             "run": _row_to_run(row),
-            "issue_count": int(issue_count[0]) if issue_count is not None else 0,
+            "issue_count": int(issue_metadata["issue_stats"]["total"]),
             "page_finding_count": int(page_count[0]) if page_count is not None else 0,
+            **issue_metadata,
         }
 
     def count_issues(self, run_id: str) -> int:
@@ -389,6 +406,7 @@ class DesktopStateStore:
         *,
         limit: int,
         offset: int = 0,
+        filters: IssueQueryFilters | None = None,
     ) -> dict[str, Any]:
         """Return one page of issue summaries with the same ordering as
         ``load_latest_project_result``.
@@ -407,6 +425,7 @@ class DesktopStateStore:
                 run_id=run_id,
                 limit=safe_limit,
                 offset=safe_offset,
+                filters=filters,
             )
         return {
             "items": [_issue_row_to_summary(row) for row in rows],
@@ -422,6 +441,7 @@ class DesktopStateStore:
         run_id: str | None,
         limit: int,
         offset: int = 0,
+        filters: IssueQueryFilters | None = None,
     ) -> dict[str, Any] | None:
         """Resolve a pinned run and read its count/page in one snapshot."""
 
@@ -437,6 +457,7 @@ class DesktopStateStore:
                 run_id=row["run_id"],
                 limit=safe_limit,
                 offset=safe_offset,
+                filters=filters,
             )
         return {
             "run": _row_to_run(row),
@@ -481,7 +502,7 @@ class DesktopStateStore:
                 (run_row["run_id"], issue_id),
             ).fetchone()
         if issue_row is None:
-            return {"run": _row_to_run(run_row), "issue": None}
+            return None
         return {"run": _row_to_run(run_row), "issue": _issue_row_to_summary(issue_row)}
 
     def load_page_findings(self, run_id: str) -> list[dict[str, Any]]:
@@ -671,6 +692,7 @@ class DesktopStateStore:
                     right_value TEXT NOT NULL,
                     primary_pair_id TEXT NOT NULL DEFAULT '',
                     one_to_many_classification TEXT NOT NULL DEFAULT '',
+                    handling_class TEXT NOT NULL DEFAULT '',
                     evidence_json TEXT NOT NULL,
                     evidence_refs_json TEXT NOT NULL DEFAULT '[]',
                     related_pair_ids_json TEXT NOT NULL DEFAULT '[]',
@@ -703,11 +725,90 @@ class DesktopStateStore:
                 """
             )
             _ensure_issue_summary_columns(conn)
+            conn.executescript(
+                """
+                CREATE INDEX IF NOT EXISTS idx_issue_summaries_run_severity
+                ON issue_summaries(run_id, severity);
+                CREATE INDEX IF NOT EXISTS idx_issue_summaries_run_rule
+                ON issue_summaries(run_id, rule_id);
+                CREATE INDEX IF NOT EXISTS idx_issue_summaries_run_status
+                ON issue_summaries(run_id, status);
+                CREATE INDEX IF NOT EXISTS idx_issue_summaries_run_triage
+                ON issue_summaries(run_id, one_to_many_classification);
+                CREATE INDEX IF NOT EXISTS idx_issue_summaries_run_handling
+                ON issue_summaries(run_id, handling_class);
+                """
+            )
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        _register_sqlite_functions(conn)
         return conn
+
+    @staticmethod
+    def _load_issue_metadata_conn(conn: sqlite3.Connection, *, run_id: str) -> dict[str, Any]:
+        _register_sqlite_functions(conn)
+        stats = conn.execute(
+            f"""
+            SELECT
+                COUNT(*) AS total,
+                COALESCE(SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END), 0) AS open_count,
+                COALESCE(SUM(CASE
+                    WHEN status = 'open' AND (
+                        LOWER(severity) IN ('critical', 'error', 'high', 'major')
+                        OR ({_HANDLING_CLASS_SQL}) = 'error'
+                    ) THEN 1 ELSE 0 END), 0) AS serious_open_count,
+                COALESCE(SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END), 0) AS resolved_count,
+                COALESCE(SUM(CASE WHEN ({_HANDLING_CLASS_SQL}) = 'error' THEN 1 ELSE 0 END), 0) AS error_count,
+                COALESCE(SUM(CASE WHEN ({_HANDLING_CLASS_SQL}) = 'warning' THEN 1 ELSE 0 END), 0) AS warning_count,
+                COALESCE(SUM(CASE WHEN ({_HANDLING_CLASS_SQL}) = 'review' THEN 1 ELSE 0 END), 0) AS review_count,
+                COUNT(DISTINCT COALESCE(
+                    NULLIF(CASE WHEN json_valid(evidence_json)
+                        THEN json_extract(evidence_json, '$.review_group_id') END, ''),
+                    issue_id
+                )) AS group_count
+            FROM issue_summaries
+            WHERE run_id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+
+        def distinct_values(column: str) -> list[str]:
+            value_sql = (
+                f"({_TRIAGE_CLASS_SQL})"
+                if column == "one_to_many_classification"
+                else column
+            )
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT {value_sql} AS value
+                FROM issue_summaries
+                WHERE run_id = ? AND TRIM(COALESCE({value_sql}, '')) <> ''
+                ORDER BY value ASC
+                """,
+                (run_id,),
+            ).fetchall()
+            return [str(item["value"]) for item in rows]
+
+        return {
+            "issue_stats": {
+                "total": int(stats["total"]),
+                "open_count": int(stats["open_count"]),
+                "serious_open_count": int(stats["serious_open_count"]),
+                "resolved_count": int(stats["resolved_count"]),
+                "error_count": int(stats["error_count"]),
+                "warning_count": int(stats["warning_count"]),
+                "review_count": int(stats["review_count"]),
+                "group_count": int(stats["group_count"]),
+            },
+            "filter_options": {
+                "severities": distinct_values("severity"),
+                "rules": distinct_values("rule_id"),
+                "statuses": distinct_values("status"),
+                "triages": distinct_values("one_to_many_classification"),
+            },
+        }
 
     @staticmethod
     def _select_run_row(
@@ -744,60 +845,226 @@ class DesktopStateStore:
         run_id: str,
         limit: int,
         offset: int,
+        filters: IssueQueryFilters | None = None,
     ) -> tuple[int, list[sqlite3.Row]]:
+        _register_sqlite_functions(conn)
+        where_sql, params = _issue_query_where(run_id, filters)
         total_row = conn.execute(
-            "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
-            (run_id,),
+            f"SELECT COUNT(*) FROM issue_summaries WHERE {where_sql}",
+            params,
         ).fetchone()
         total = int(total_row[0]) if total_row is not None else 0
         rows = conn.execute(
-            """
+            f"""
             SELECT *
             FROM issue_summaries
-            WHERE run_id = ?
+            WHERE {where_sql}
             ORDER BY
+                CASE ({_HANDLING_CLASS_SQL})
+                    WHEN 'error' THEN 0
+                    WHEN 'warning' THEN 1
+                    ELSE 2
+                END,
+                CASE WHEN status = 'open' THEN 0 ELSE 1 END,
                 CASE severity
                     WHEN 'critical' THEN 0
+                    WHEN 'error' THEN 0
+                    WHEN 'high' THEN 0
                     WHEN 'major' THEN 1
+                    WHEN 'medium' THEN 1
+                    WHEN 'warning' THEN 1
+                    WHEN 'warn' THEN 1
                     WHEN 'minor' THEN 2
+                    WHEN 'low' THEN 2
+                    WHEN 'info' THEN 2
                     WHEN 'review' THEN 3
                     ELSE 9
                 END,
-                confidence DESC,
+                CAST(COALESCE(CASE WHEN json_valid(evidence_json)
+                    THEN json_extract(evidence_json, '$.review_group_size') END, 1) AS INTEGER) DESC,
+                COALESCE(NULLIF(CASE WHEN json_valid(evidence_json)
+                    THEN json_extract(evidence_json, '$.review_group_id') END, ''), issue_id) ASC,
+                sheet_no ASC,
+                title ASC,
                 issue_id ASC
             LIMIT ? OFFSET ?
             """,
-            (run_id, limit, offset),
+            (*params, limit, offset),
         ).fetchall()
         return total, rows
 
 
-def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:
-    evidence = json.loads(row["evidence_json"] or "{}")
-    if not isinstance(evidence, dict):
-        evidence = {}
-    handling_class = str(evidence.get("handling_class") or "").strip()
-    if not handling_class:
-        # Backfill for runs stored before triage enrichment.
-        from dwg_audit.audit.issue_triage import summarize_handling
+_TRIAGE_CLASS_SQL = """
+TRIM(COALESCE(
+    NULLIF(TRIM(one_to_many_classification), ''),
+    NULLIF(TRIM(CASE WHEN json_valid(evidence_json)
+        THEN json_extract(evidence_json, '$.one_to_many_classification') END), ''),
+    NULLIF(TRIM(CASE WHEN json_valid(evidence_json)
+        THEN json_extract(evidence_json, '$.many_to_one_classification') END), ''),
+    ''
+))
+""".strip()
 
-        handling_class = next(
-            (
-                key
-                for key, count in summarize_handling(
-                    [
-                        {
-                            "rule_id": row["rule_id"],
-                            "severity": row["severity"],
-                            "confidence": float(row["confidence"] or 0.0),
-                            "evidence": evidence,
-                        }
-                    ]
-                ).items()
-                if key != "other" and count
-            ),
-            "review",
+_HANDLING_CLASS_SQL = """
+CASE
+    WHEN LOWER(TRIM(handling_class)) IN ('error', 'warning', 'review')
+        THEN LOWER(TRIM(handling_class))
+    ELSE dwg_issue_handling_class(
+        rule_id, severity, confidence, evidence_json, one_to_many_classification
+    )
+END
+""".strip()
+
+
+def _issue_query_where(run_id: str, filters: IssueQueryFilters | None) -> tuple[str, tuple[Any, ...]]:
+    filters = filters or IssueQueryFilters()
+    clauses = ["run_id = ?"]
+    params: list[Any] = [run_id]
+
+    for column, value in (
+        ("severity", filters.severity),
+        ("rule_id", filters.rule_id),
+        ("status", filters.status),
+    ):
+        normalized = _normalize_issue_filter(value)
+        if normalized is not None:
+            clauses.append(f"{column} = ?")
+            params.append(normalized)
+
+    triage = _normalize_issue_filter(filters.triage)
+    if triage is not None:
+        clauses.append(f"({_TRIAGE_CLASS_SQL}) = ?")
+        params.append(triage)
+
+    handling = _normalize_issue_filter(filters.handling)
+    if handling is not None:
+        clauses.append(f"({_HANDLING_CLASS_SQL}) = ?")
+        params.append(handling.lower())
+
+    search = _normalize_issue_filter(filters.search, all_is_none=False)
+    if search is not None:
+        searchable = " || ' ' || ".join(
+            f"COALESCE({column}, '')"
+            for column in (
+                "title",
+                "summary",
+                "explanation",
+                "recommended_action",
+                "filename",
+                "sheet_no",
+                "left_value",
+                "right_value",
+                "rule_id",
+                "issue_type",
+                "severity",
+                "status",
+                "one_to_many_classification",
+                "evidence_json",
+                "values_json",
+            )
         )
+        clauses.append(f"LOWER({searchable}) LIKE ? ESCAPE '\\'")
+        params.append(f"%{_escape_like(search.lower())}%")
+    return " AND ".join(clauses), tuple(params)
+
+
+def _normalize_issue_filter(value: str | None, *, all_is_none: bool = True) -> str | None:
+    normalized = str(value or "").strip()
+    return None if not normalized or (all_is_none and normalized.lower() == "all") else normalized
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _register_sqlite_functions(conn: sqlite3.Connection) -> None:
+    conn.create_function(
+        "dwg_issue_handling_class",
+        5,
+        _sqlite_issue_handling_class,
+        deterministic=True,
+    )
+
+
+def _sqlite_issue_handling_class(
+    rule_id: object,
+    severity: object,
+    confidence: object,
+    evidence_json: object,
+    triage: object,
+) -> str:
+    return _derive_issue_handling_class(
+        rule_id=str(rule_id or ""),
+        severity=str(severity or ""),
+        confidence=float(confidence or 0.0),
+        evidence=_parse_evidence_json(evidence_json),
+        triage=str(triage or ""),
+    )
+
+
+def _derive_issue_handling_class(
+    *,
+    rule_id: str,
+    severity: str,
+    confidence: float,
+    evidence: dict[str, Any],
+    triage: str,
+    explicit: str = "",
+) -> str:
+    direct = str(explicit or evidence.get("handling_class") or "").strip().lower()
+    if direct in {"error", "warning", "review"}:
+        return direct
+    merged_evidence = dict(evidence)
+    if triage.strip() and not (
+        str(merged_evidence.get("one_to_many_classification") or "").strip()
+        or str(merged_evidence.get("many_to_one_classification") or "").strip()
+    ):
+        merged_evidence["one_to_many_classification"] = triage.strip()
+
+    from dwg_audit.audit.issue_triage import summarize_handling
+
+    return next(
+        (
+            key
+            for key, count in summarize_handling(
+                [
+                    {
+                        "rule_id": rule_id,
+                        "severity": severity,
+                        "confidence": confidence,
+                        "evidence": merged_evidence,
+                    }
+                ]
+            ).items()
+            if key != "other" and count
+        ),
+        "review",
+    )
+
+
+def _parse_evidence_json(value: object) -> dict[str, Any]:
+    try:
+        parsed = json.loads(str(value or "{}"))
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:
+    evidence = _parse_evidence_json(row["evidence_json"])
+    handling_class = _derive_issue_handling_class(
+        rule_id=str(row["rule_id"] or ""),
+        severity=str(row["severity"] or ""),
+        confidence=float(row["confidence"] or 0.0),
+        evidence=evidence,
+        triage=str(row["one_to_many_classification"] or ""),
+        explicit=str(row["handling_class"] or ""),
+    )
+    if str(evidence.get("handling_class") or "").strip().lower() not in {
+        "error",
+        "warning",
+        "review",
+    }:
         evidence = {
             **evidence,
             "handling_class": handling_class,
@@ -883,6 +1150,7 @@ def _ensure_issue_summary_columns(conn: sqlite3.Connection) -> None:
         "line_group_id": "TEXT NOT NULL DEFAULT ''",
         "primary_pair_id": "TEXT NOT NULL DEFAULT ''",
         "one_to_many_classification": "TEXT NOT NULL DEFAULT ''",
+        "handling_class": "TEXT NOT NULL DEFAULT ''",
         "evidence_refs_json": "TEXT NOT NULL DEFAULT '[]'",
         "related_pair_ids_json": "TEXT NOT NULL DEFAULT '[]'",
         "sheet_ids_json": "TEXT NOT NULL DEFAULT '[]'",

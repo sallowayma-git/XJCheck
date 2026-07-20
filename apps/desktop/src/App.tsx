@@ -19,6 +19,8 @@ import {
   createRequestGeneration,
   invalidateRequests,
   isCurrentRequest,
+  shouldCommitKeyedRequest,
+  shouldReloadKeyedRequest,
   shouldInvalidateScreenIntent,
 } from "./lib/requestGeneration"
 import {
@@ -29,13 +31,74 @@ import {
   type DesktopSettings,
 } from "./lib/settings"
 import type { PreviewMode } from "./lib/previewPolicy"
-import type { IssueSummary, ProjectResult, RecentProject, RunStageCard, SidecarEvent } from "./types"
+import type { IssueQuery, IssueSummary, ProjectResult, ProjectSummary, RecentProject, RunStageCard, SidecarEvent } from "./types"
 
 type Screen = "launch" | "process" | "result" | "settings"
 
 const ISSUE_STATUS_OPTIONS = ["open", "ignored", "resolved", "false_positive"] as const
 const PREVIEW_REQUEST_TIMEOUT_MS = 20_000
 const RESULT_ISSUE_PAGE_SIZE = 500
+
+function buildIssueQuery(
+  search: string,
+  severity: string,
+  ruleId: string,
+  status: string,
+  triage: string,
+  handling: string,
+): IssueQuery {
+  return {
+    search: search.trim() || null,
+    severity: severity === "all" ? null : severity,
+    rule_id: ruleId === "all" ? null : ruleId,
+    status: status === "all" ? null : status,
+    triage: triage === "all" ? null : triage,
+    handling: handling === "all" ? null : handling,
+  }
+}
+
+function issueQueryKey(query: IssueQuery): string {
+  return JSON.stringify([
+    query.search ?? "",
+    query.severity ?? "",
+    query.rule_id ?? "",
+    query.status ?? "",
+    query.triage ?? "",
+    query.handling ?? "",
+  ])
+}
+
+function updateSummaryIssueStatus(
+  summary: ProjectSummary,
+  issue: IssueSummary,
+  nextStatus: string,
+): ProjectSummary {
+  if (issue.status === nextStatus) {
+    return summary
+  }
+  const issueStats = { ...summary.issue_stats }
+  const serious = isSeriousSeverity(issue.severity) || resolveHandlingClass(issue) === "error"
+  if (issue.status === "open") {
+    issueStats.open_count = Math.max(0, issueStats.open_count - 1)
+    if (serious) issueStats.serious_open_count = Math.max(0, issueStats.serious_open_count - 1)
+  } else if (issue.status === "resolved") {
+    issueStats.resolved_count = Math.max(0, issueStats.resolved_count - 1)
+  }
+  if (nextStatus === "open") {
+    issueStats.open_count += 1
+    if (serious) issueStats.serious_open_count += 1
+  } else if (nextStatus === "resolved") {
+    issueStats.resolved_count += 1
+  }
+  const statuses = summary.filter_options.statuses.includes(nextStatus)
+    ? summary.filter_options.statuses
+    : [...summary.filter_options.statuses, nextStatus].sort()
+  return {
+    ...summary,
+    issue_stats: issueStats,
+    filter_options: { ...summary.filter_options, statuses },
+  }
+}
 
 type ProcessState = {
   sessionId: string | null
@@ -63,7 +126,9 @@ function App() {
   const [inputRoot, setInputRoot] = useState("")
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [result, setResult] = useState<ProjectResult | null>(null)
+  const [resultSummary, setResultSummary] = useState<ProjectSummary | null>(null)
   const [resultIssueTotal, setResultIssueTotal] = useState(0)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
@@ -91,6 +156,7 @@ function App() {
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
   const [isLoadingProjectId, setIsLoadingProjectId] = useState<string | null>(null)
   const [isLoadingMoreIssues, setIsLoadingMoreIssues] = useState(false)
+  const [isReloadingIssueQuery, setIsReloadingIssueQuery] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isDropTargetActive, setIsDropTargetActive] = useState(false)
   const [launchImportStatus, setLaunchImportStatus] = useState<LaunchImportStatus | null>(null)
@@ -122,11 +188,36 @@ function App() {
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const previewRequestSequenceRef = useRef(0)
   const selectedProjectIdRef = useRef<string | null>(null)
+  const selectedRunIdRef = useRef<string | null>(null)
   const issuePageLoadInFlightRef = useRef<number | null>(null)
+  const issuePageQueryKeyRef = useRef<string | null>(null)
+  const appliedIssueQueryKeyRef = useRef<string | null>(null)
+  const previewClientSessionEpochRef = useRef<number | null>(null)
+  const previewClientSessionRegistrationRef = useRef<Promise<number> | null>(null)
+  const appDisposedRef = useRef(false)
+  const activeIssueQuery = useMemo(
+    () =>
+      buildIssueQuery(
+        deferredIssueSearch,
+        severityFilter,
+        ruleFilter,
+        statusFilter,
+        triageFilter,
+        handlingFilter,
+      ),
+    [deferredIssueSearch, handlingFilter, ruleFilter, severityFilter, statusFilter, triageFilter],
+  )
+  const activeIssueQueryKey = issueQueryKey(activeIssueQuery)
+  const activeIssueQueryRef = useRef(activeIssueQuery)
+  const activeIssueQueryKeyRef = useRef(activeIssueQueryKey)
+  activeIssueQueryRef.current = activeIssueQuery
+  activeIssueQueryKeyRef.current = activeIssueQueryKey
 
-  function selectProject(projectId: string | null): void {
+  function selectProject(projectId: string | null, runId: string | null = null): void {
     selectedProjectIdRef.current = projectId
+    selectedRunIdRef.current = runId
     setSelectedProjectId(projectId)
+    setSelectedRunId(runId)
   }
 
   function navigateToScreen(nextScreen: Screen): void {
@@ -135,16 +226,18 @@ function App() {
     }
     if (isLoadingProjectId) {
       const generation = projectLoadGenerationRef.current.current
-      void desktopApi.cancelResultLoad(generation).catch(() => undefined)
+      void desktopApi.cancelResultLoad(generation, previewClientSessionId, previewClientSessionEpochRef.current).catch(() => undefined)
       invalidateRequests(projectLoadGenerationRef.current)
       setIsLoadingProjectId(null)
-      selectProject(result?.run.project_id ?? null)
+      selectProject(result?.run.project_id ?? null, result?.run.run_id ?? null)
     } else if (screen === "result" && nextScreen !== "result") {
       const generation = projectLoadGenerationRef.current.current
-      void desktopApi.cancelResultLoad(generation).catch(() => undefined)
+      void desktopApi.cancelResultLoad(generation, previewClientSessionId, previewClientSessionEpochRef.current).catch(() => undefined)
       invalidateRequests(projectLoadGenerationRef.current)
       issuePageLoadInFlightRef.current = null
+      issuePageQueryKeyRef.current = null
       setIsLoadingMoreIssues(false)
+      setIsReloadingIssueQuery(false)
     }
     setScreen(nextScreen)
   }
@@ -181,7 +274,7 @@ function App() {
       const projects = await desktopApi.listRecentProjects()
       setRecentProjects(projects)
       if (!selectedProjectId && projects[0]) {
-        selectProject(projects[0].project_id)
+        selectProject(projects[0].project_id, projects[0].run_id)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "刷新最近项目失败。"
@@ -225,25 +318,40 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    let disposed = false
-    void desktopApi
-      .registerPreviewSession(previewClientSessionId)
-      .then((epoch) => {
-        if (!disposed) {
+  const ensurePreviewClientSession = useEffectEvent(async (): Promise<number> => {
+    const existing = previewClientSessionEpochRef.current
+    if (existing !== null) {
+      return existing
+    }
+    let registration = previewClientSessionRegistrationRef.current
+    if (!registration) {
+      registration = desktopApi.registerPreviewSession(previewClientSessionId)
+      previewClientSessionRegistrationRef.current = registration
+    }
+    try {
+      const epoch = await registration
+      if (previewClientSessionRegistrationRef.current === registration) {
+        previewClientSessionEpochRef.current = epoch
+        if (!appDisposedRef.current) {
           setPreviewClientSessionEpoch(epoch)
           setPreviewClientSessionError(null)
         }
-      })
-      .catch((error) => {
-        if (!disposed) {
-          setPreviewClientSessionEpoch(null)
-          setPreviewClientSessionError(error instanceof Error ? error.message : "无法初始化图纸预览。")
-        }
-      })
-    return () => {
-      disposed = true
+      }
+      return epoch
+    } catch (error) {
+      if (previewClientSessionRegistrationRef.current === registration && !appDisposedRef.current) {
+        setPreviewClientSessionError(error instanceof Error ? error.message : "无法初始化图纸预览。")
+      }
+      throw error
+    } finally {
+      if (previewClientSessionRegistrationRef.current === registration) {
+        previewClientSessionRegistrationRef.current = null
+      }
     }
+  })
+
+  useEffect(() => {
+    void ensurePreviewClientSession().catch(() => undefined)
   }, [previewClientSessionId])
 
   const applyImportedInputRoot = useEffectEvent((nextPath: string, source: "picker" | "drop") => {
@@ -314,10 +422,29 @@ function App() {
     }
   }, [screen])
 
-  const loadProjectResult = useEffectEvent(async (projectId: string) => {
+  const loadProjectResult = useEffectEvent(async (projectId: string, runId: string | null = null) => {
     const previousGeneration = projectLoadGenerationRef.current.current
     if (previousGeneration > 0) {
-      void desktopApi.cancelResultLoad(previousGeneration).catch(() => undefined)
+      void desktopApi
+        .cancelResultLoad(previousGeneration, previewClientSessionId, previewClientSessionEpochRef.current)
+        .catch(() => undefined)
+    }
+    const generation = beginRequest(projectLoadGenerationRef.current)
+    setIsLoadingProjectId(projectId)
+    let resultClientSessionEpoch = previewClientSessionEpoch
+    if (desktopApi.isNative() && resultClientSessionEpoch === null) {
+      try {
+        resultClientSessionEpoch = await ensurePreviewClientSession()
+      } catch (error) {
+        if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+          setLoadError(error instanceof Error ? error.message : "无法初始化桌面结果会话。")
+          setIsLoadingProjectId(null)
+        }
+        return
+      }
+    }
+    if (appDisposedRef.current || !isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+      return
     }
     invalidateRequests(previewRequestGenerationRef.current)
     setPreviewContextRevision((current) => current + 1)
@@ -325,12 +452,14 @@ function App() {
     setPreviewOutputContextKey(null)
     setPreviewStatusContextKey(null)
     setPreviewError(null)
-    const generation = beginRequest(projectLoadGenerationRef.current)
-    setIsLoadingProjectId(projectId)
     setIsLoadingMoreIssues(false)
+    setIsReloadingIssueQuery(false)
     setResult(null)
+    setResultSummary(null)
     setResultIssueTotal(0)
     issuePageLoadInFlightRef.current = null
+    issuePageQueryKeyRef.current = null
+    appliedIssueQueryKeyRef.current = null
     setLoadError(null)
     try {
       setIssueSearch("")
@@ -339,7 +468,13 @@ function App() {
       setStatusFilter("all")
       setTriageFilter("all")
       setHandlingFilter("all")
-      const summary = await desktopApi.loadResultSummary(projectId, null, generation)
+      const summary = await desktopApi.loadResultSummary(
+        projectId,
+        runId,
+        generation,
+        previewClientSessionId,
+        resultClientSessionEpoch,
+      )
       if (!isCurrentRequest(projectLoadGenerationRef.current, generation)) {
         return
       }
@@ -349,6 +484,9 @@ function App() {
         0,
         summary.run.run_id,
         generation,
+        previewClientSessionId,
+        resultClientSessionEpoch,
+        {},
       )
       if (!isCurrentRequest(projectLoadGenerationRef.current, generation)) {
         return
@@ -356,13 +494,16 @@ function App() {
       if (firstPage.run.run_id !== summary.run.run_id) {
         throw new Error("项目结果在加载期间发生变化，请重试。")
       }
+      selectProject(summary.run.project_id, summary.run.run_id)
       const loaded: ProjectResult = {
         run: summary.run,
         issues: firstPage.items,
         page_findings: [],
       }
+      setResultSummary(summary)
       setResult(loaded)
       setResultIssueTotal(firstPage.total)
+      appliedIssueQueryKeyRef.current = issueQueryKey({})
       const initialIssue = firstPage.items[0] ?? null
       setSelectedIssueId(initialIssue?.issue_id ?? null)
       setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
@@ -394,12 +535,16 @@ function App() {
       !runId ||
       !isCurrentRequest(projectLoadGenerationRef.current, generation) ||
       issuePageLoadInFlightRef.current !== null ||
+      appliedIssueQueryKeyRef.current !== activeIssueQueryKey ||
       !resultIssueTotal ||
       (current?.issues.length ?? 0) >= resultIssueTotal
     ) {
       return
     }
-    issuePageLoadInFlightRef.current = generation
+    const requestGeneration = beginRequest(projectLoadGenerationRef.current)
+    const requestQueryKey = activeIssueQueryKey
+    issuePageLoadInFlightRef.current = requestGeneration
+    issuePageQueryKeyRef.current = requestQueryKey
     setIsLoadingMoreIssues(true)
     const offset = current?.issues.length ?? 0
     try {
@@ -408,10 +553,18 @@ function App() {
         RESULT_ISSUE_PAGE_SIZE,
         offset,
         runId,
-        generation,
+        requestGeneration,
+        previewClientSessionId,
+        previewClientSessionEpochRef.current,
+        activeIssueQuery,
       )
       if (
-        !isCurrentRequest(projectLoadGenerationRef.current, generation) ||
+        !shouldCommitKeyedRequest(
+          projectLoadGenerationRef.current,
+          requestGeneration,
+          requestQueryKey,
+          activeIssueQueryKeyRef.current,
+        ) ||
         page.run.run_id !== runId ||
         selectedProjectIdRef.current !== projectId
       ) {
@@ -426,19 +579,112 @@ function App() {
         return { ...previous, issues: [...previous.issues, ...appended] }
       })
       setResultIssueTotal(page.total)
+      setLoadError(null)
     } catch (error) {
-      if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+      if (isCurrentRequest(projectLoadGenerationRef.current, requestGeneration)) {
         setLoadError(error instanceof Error ? error.message : "加载更多问题失败，请重试。")
       }
     } finally {
-      if (issuePageLoadInFlightRef.current === generation) {
+      if (issuePageLoadInFlightRef.current === requestGeneration) {
         issuePageLoadInFlightRef.current = null
+        issuePageQueryKeyRef.current = null
       }
-      if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+      if (isCurrentRequest(projectLoadGenerationRef.current, requestGeneration)) {
         setIsLoadingMoreIssues(false)
       }
     }
   })
+
+  const reloadIssuesForQuery = useEffectEvent(async (query: IssueQuery, queryKey: string) => {
+    const current = result
+    const projectId = current?.run.project_id
+    const runId = current?.run.run_id
+    if (!projectId || !runId) {
+      return
+    }
+    const previousGeneration = issuePageLoadInFlightRef.current
+    if (previousGeneration !== null) {
+      void desktopApi
+        .cancelResultLoad(previousGeneration, previewClientSessionId, previewClientSessionEpochRef.current)
+        .catch(() => undefined)
+    }
+    const generation = beginRequest(projectLoadGenerationRef.current)
+    issuePageLoadInFlightRef.current = generation
+    issuePageQueryKeyRef.current = queryKey
+    setIsReloadingIssueQuery(true)
+    setIsLoadingMoreIssues(false)
+    setLoadError(null)
+    try {
+      const page = await desktopApi.loadResultIssues(
+        projectId,
+        RESULT_ISSUE_PAGE_SIZE,
+        0,
+        runId,
+        generation,
+        previewClientSessionId,
+        previewClientSessionEpochRef.current,
+        query,
+      )
+      if (
+        !shouldCommitKeyedRequest(
+          projectLoadGenerationRef.current,
+          generation,
+          queryKey,
+          activeIssueQueryKeyRef.current,
+        ) ||
+        page.run.run_id !== runId ||
+        selectedProjectIdRef.current !== projectId
+      ) {
+        return
+      }
+      setResult((previous) =>
+        previous?.run.run_id === runId ? { ...previous, issues: page.items } : previous,
+      )
+      setResultIssueTotal(page.total)
+      appliedIssueQueryKeyRef.current = queryKey
+      const initialIssue = page.items[0] ?? null
+      setSelectedIssueId(initialIssue?.issue_id ?? null)
+      setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
+      setSelectedPreviewLineGroupId(initialIssue?.line_group_id ?? null)
+    } catch (error) {
+      if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        setLoadError(error instanceof Error ? error.message : "筛选问题列表失败，请重试。")
+      }
+    } finally {
+      if (issuePageLoadInFlightRef.current === generation) {
+        issuePageLoadInFlightRef.current = null
+        issuePageQueryKeyRef.current = null
+      }
+      if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
+        setIsReloadingIssueQuery(false)
+      }
+    }
+  })
+
+  useEffect(() => {
+    appDisposedRef.current = false
+    return () => {
+      appDisposedRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (
+      screen !== "result" ||
+      !result?.run.run_id ||
+      !shouldReloadKeyedRequest(
+        appliedIssueQueryKeyRef.current,
+        activeIssueQueryKey,
+        issuePageQueryKeyRef.current,
+      )
+    ) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      void reloadIssuesForQuery(activeIssueQuery, activeIssueQueryKey)
+    }, 180)
+    return () => window.clearTimeout(timer)
+  }, [activeIssueQuery, activeIssueQueryKey, result?.run.run_id, screen])
 
   const applyProcessEvents = useEffectEvent((events: SidecarEvent[]) => {
     if (!events.length) {
@@ -589,10 +835,12 @@ function App() {
     return () => {
       const generation = requestGeneration.current
       if (generation > 0) {
-        void desktopApi.cancelResultLoad(generation).catch(() => undefined)
+        void desktopApi
+          .cancelResultLoad(generation, previewClientSessionId, previewClientSessionEpochRef.current)
+          .catch(() => undefined)
       }
     }
-  }, [])
+  }, [previewClientSessionId])
 
   async function handleAnalyzeClick() {
     if (analysisInFlightRef.current) {
@@ -615,10 +863,16 @@ function App() {
     analysisInFlightRef.current = true
     const previousResultGeneration = projectLoadGenerationRef.current.current
     if (previousResultGeneration > 0) {
-      void desktopApi.cancelResultLoad(previousResultGeneration).catch(() => undefined)
+      void desktopApi
+        .cancelResultLoad(previousResultGeneration, previewClientSessionId, previewClientSessionEpochRef.current)
+        .catch(() => undefined)
     }
     invalidateRequests(projectLoadGenerationRef.current)
+    issuePageLoadInFlightRef.current = null
+    issuePageQueryKeyRef.current = null
     setIsLoadingProjectId(null)
+    setIsLoadingMoreIssues(false)
+    setIsReloadingIssueQuery(false)
     setLoadError(null)
     setIsAnalyzing(true)
     setScreen("process")
@@ -650,17 +904,17 @@ function App() {
         const seen = new Set<string>()
         return [...payload.projects, ...current]
           .filter((project) => {
-            if (seen.has(project.project_id)) {
+            if (seen.has(project.run_id)) {
               return false
             }
-            seen.add(project.project_id)
+            seen.add(project.run_id)
             return true
           })
           .slice(0, 20)
       })
       if (payload.projects[0] && isCurrentRequest(screenIntentGenerationRef.current, screenIntentGeneration)) {
-        selectProject(payload.projects[0].project_id)
-        await loadProjectResult(payload.projects[0].project_id)
+        selectProject(payload.projects[0].project_id, payload.projects[0].run_id)
+        await loadProjectResult(payload.projects[0].project_id, payload.projects[0].run_id)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "校验失败，请检查项目目录后重试。"
@@ -722,10 +976,15 @@ function App() {
       setRecentProjects((current) => current.filter((item) => item.project_id !== projectId))
       if (selectedProjectIdRef.current === projectId) {
         const generation = projectLoadGenerationRef.current.current
-        void desktopApi.cancelResultLoad(generation).catch(() => undefined)
+        void desktopApi.cancelResultLoad(generation, previewClientSessionId, previewClientSessionEpochRef.current).catch(() => undefined)
         invalidateRequests(projectLoadGenerationRef.current)
+        issuePageLoadInFlightRef.current = null
+        issuePageQueryKeyRef.current = null
+        setIsLoadingMoreIssues(false)
+        setIsReloadingIssueQuery(false)
         selectProject(null)
         setResult(null)
+        setResultSummary(null)
         setResultIssueTotal(0)
         setSelectedIssueId(null)
         setPreviewSrc(null)
@@ -742,118 +1001,25 @@ function App() {
     }
   }
 
-  const filteredIssues = useMemo(() => {
-    const issues = result?.issues ?? []
-    const needle = deferredIssueSearch.trim().toLowerCase()
-    const filtered = issues.filter((issue) => {
-      if (severityFilter !== "all" && issue.severity !== severityFilter) {
-        return false
-      }
-      if (ruleFilter !== "all" && issue.rule_id !== ruleFilter) {
-        return false
-      }
-      if (statusFilter !== "all" && issue.status !== statusFilter) {
-        return false
-      }
-      const handling = resolveHandlingClass(issue)
-      if (handlingFilter !== "all" && handling !== handlingFilter) {
-        return false
-      }
-      const triage = issue.one_to_many_classification ?? readOneToManyClassification(issue)
-      if (triageFilter !== "all" && (triage ?? "") !== triageFilter) {
-        return false
-      }
-      if (!needle) {
-        return true
-      }
-      return [
-        issue.title,
-        issue.summary,
-        issue.explanation,
-        issue.recommended_action,
-        issue.filename,
-        issue.sheet_no,
-        issue.left_value ?? "",
-        issue.right_value ?? "",
-        labelRule(issue.rule_id),
-        labelIssueType(issue.issue_type),
-        labelSeverity(issue.severity),
-        labelIssueStatus(issue.status),
-        labelHandlingClass(handling),
-        issue.review_group_label ?? "",
-        issue.issue_family ?? "",
-        triage ?? "",
-        formatPair(issue),
-        formatSourcePage(issue).detail,
-        formatSourcePage(issue).label,
-        formatIssueLocation(issue).label,
-        formatIssueLocation(issue).detail,
-        issue.values.join(" "),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle)
-    })
-    return [...filtered].sort(compareIssuesForReview)
-  }, [deferredIssueSearch, handlingFilter, result?.issues, ruleFilter, severityFilter, statusFilter, triageFilter])
+  const filteredIssues = useMemo(() => result?.issues ?? [], [result?.issues])
 
-  const issueStats = useMemo(() => {
-    const issues = result?.issues ?? []
-    let openCount = 0
-    let seriousOpenCount = 0
-    let resolvedCount = 0
-    let errorCount = 0
-    let warningCount = 0
-    let reviewCount = 0
-    const groupIds = new Set<string>()
-    for (const issue of issues) {
-      const handling = resolveHandlingClass(issue)
-      if (handling === "error") {
-        errorCount += 1
-      } else if (handling === "warning") {
-        warningCount += 1
-      } else {
-        reviewCount += 1
-      }
-      groupIds.add(issue.review_group_id || issue.issue_id)
-      if (issue.status === "open") {
-        openCount += 1
-        if (isSeriousSeverity(issue.severity) || handling === "error") {
-          seriousOpenCount += 1
-        }
-      } else if (issue.status === "resolved") {
-        resolvedCount += 1
-      }
-    }
-    return {
-      total: issues.length,
-      openCount,
-      seriousOpenCount,
-      resolvedCount,
-      errorCount,
-      warningCount,
-      reviewCount,
-      groupCount: groupIds.size,
-    }
-  }, [result?.issues])
+  const issueStats = {
+    total: resultSummary?.issue_stats.total ?? 0,
+    openCount: resultSummary?.issue_stats.open_count ?? 0,
+    seriousOpenCount: resultSummary?.issue_stats.serious_open_count ?? 0,
+    resolvedCount: resultSummary?.issue_stats.resolved_count ?? 0,
+    errorCount: resultSummary?.issue_stats.error_count ?? 0,
+    warningCount: resultSummary?.issue_stats.warning_count ?? 0,
+    reviewCount: resultSummary?.issue_stats.review_count ?? 0,
+    groupCount: resultSummary?.issue_stats.group_count ?? 0,
+  }
 
-  const issueFilterOptions = useMemo(() => {
-    const issues = result?.issues ?? []
-    return {
-      severities: Array.from(new Set(issues.map((issue) => issue.severity))).sort(compareSeverity),
-      rules: Array.from(new Set(issues.map((issue) => issue.rule_id))).sort((left, right) =>
-        labelRule(left).localeCompare(labelRule(right), "zh-CN"),
-      ),
-      statuses: Array.from(new Set(issues.map((issue) => issue.status))).sort(),
-      triages: Array.from(
-        new Set(
-          issues
-            .map((issue) => issue.one_to_many_classification ?? readOneToManyClassification(issue))
-            .filter((value): value is string => Boolean(value)),
-        ),
-      ).sort(),
-    }
-  }, [result?.issues])
+  const issueFilterOptions = resultSummary?.filter_options ?? {
+    severities: [],
+    rules: [],
+    statuses: [],
+    triages: [],
+  }
 
   const selectedIssue = useMemo(() => {
     if (!filteredIssues.length) {
@@ -877,16 +1043,10 @@ function App() {
     getItemKey: (index) => filteredIssues[index]?.issue_id ?? index,
     overscan: 12,
   })
-  const totalIssueCount = Math.max(resultIssueTotal, result?.issues.length ?? 0)
-  const hasActiveIssueFilters = Boolean(
-    deferredIssueSearch.trim() ||
-      handlingFilter !== "all" ||
-      ruleFilter !== "all" ||
-      severityFilter !== "all" ||
-      statusFilter !== "all" ||
-      triageFilter !== "all",
-  )
-  const accessibleIssueRowCount = hasActiveIssueFilters ? filteredIssues.length : totalIssueCount
+  const totalIssueCount = resultSummary?.issue_count ?? Math.max(resultIssueTotal, result?.issues.length ?? 0)
+  const filteredIssueTotal = Math.max(resultIssueTotal, result?.issues.length ?? 0)
+  const issueQueryNeedsReload = appliedIssueQueryKeyRef.current !== activeIssueQueryKey
+  const accessibleIssueRowCount = filteredIssueTotal
 
   useEffect(() => {
     issueRowVirtualizer.measure()
@@ -895,7 +1055,10 @@ function App() {
 
   const summaryProject =
     result?.run ??
-    recentProjects.find((project) => project.project_id === selectedProjectId) ??
+    recentProjects.find(
+      (project) =>
+        project.project_id === selectedProjectId && (!selectedRunId || project.run_id === selectedRunId),
+    ) ??
     recentProjects[0] ??
     null
   const inputHealth = describeInputRoot(inputRoot)
@@ -909,7 +1072,10 @@ function App() {
   const previewRunId = result?.run.run_id ?? null
   const previewIssueId = selectedIssue?.issue_id ?? null
   const previewSheetId = activePreviewOption?.sheetId ?? selectedPreviewSheetId ?? selectedIssue?.sheet_id ?? null
-  const previewLineGroupId = resolvePreviewLineGroupForSheet(selectedIssue, previewSheetId)
+  const previewLineGroupId =
+    selectedPreviewSheetId === previewSheetId
+      ? selectedPreviewLineGroupId
+      : resolvePreviewLineGroupForSheet(selectedIssue, previewSheetId)
   const previewContextKey = createPreviewContextKey({
     revision: previewContextRevision,
     runId: previewRunId,
@@ -963,8 +1129,21 @@ function App() {
     if (!selectedPreviewSheetId || !previewOptions.some((option) => option.sheetId === selectedPreviewSheetId)) {
       setSelectedPreviewSheetId(previewOptions[0].sheetId)
       setSelectedPreviewLineGroupId(resolvePreviewLineGroupForSheet(selectedIssue, previewOptions[0].sheetId))
+      return
     }
-  }, [previewOptions, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId])
+
+    const selectedLocationExists =
+      (selectedIssue.sheet_id === selectedPreviewSheetId &&
+        selectedIssue.line_group_id === selectedPreviewLineGroupId) ||
+      evidenceRefEntries.some(
+        (entry) =>
+          entry.sheetId === selectedPreviewSheetId &&
+          entry.lineGroupId === selectedPreviewLineGroupId,
+      )
+    if (!selectedLocationExists) {
+      setSelectedPreviewLineGroupId(resolvePreviewLineGroupForSheet(selectedIssue, selectedPreviewSheetId))
+    }
+  }, [evidenceRefEntries, previewOptions, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId])
 
   useEffect(() => {
     if (!selectedIssue) {
@@ -1123,6 +1302,9 @@ function App() {
     setIsSavingIssueStatus(true)
     try {
       await desktopApi.setIssueStatus(projectId, issueId, nextStatus, runId)
+      if (selectedProjectIdRef.current !== projectId || selectedRunIdRef.current !== runId) {
+        return
+      }
       setResult((current) => {
         if (
           !current ||
@@ -1137,6 +1319,14 @@ function App() {
           issues: current.issues.map((issue) => (issue.issue_id === issueId ? { ...issue, status: nextStatus } : issue)),
         }
       })
+      setResultSummary((current) =>
+        current && current.run.run_id === runId
+          ? updateSummaryIssueStatus(current, selectedIssue, nextStatus)
+          : current,
+      )
+      appliedIssueQueryKeyRef.current = null
+      const currentQuery = activeIssueQueryRef.current
+      void reloadIssuesForQuery(currentQuery, activeIssueQueryKeyRef.current)
       if (selectedProjectIdRef.current === projectId) {
         setLoadError(null)
       }
@@ -1282,13 +1472,13 @@ function App() {
                       recentProjects.map((project) => (
                         <tr
                           key={project.run_id}
-                          className={project.project_id === selectedProjectId ? "selected-row" : ""}
+                          className={project.run_id === selectedRunId ? "selected-row" : ""}
                           onClick={() => {
                             if (isAnalyzing || isDeletingProjectId || isLoadingProjectId === project.project_id) {
                               return
                             }
-                            selectProject(project.project_id)
-                            void loadProjectResult(project.project_id)
+                            selectProject(project.project_id, project.run_id)
+                            void loadProjectResult(project.project_id, project.run_id)
                           }}
                         >
                           <td>
@@ -1313,8 +1503,8 @@ function App() {
                                 disabled={isAnalyzing || Boolean(isDeletingProjectId) || isLoadingProjectId === project.project_id}
                                 onClick={(event) => {
                                   event.stopPropagation()
-                                  selectProject(project.project_id)
-                                  void loadProjectResult(project.project_id)
+                                  selectProject(project.project_id, project.run_id)
+                                  void loadProjectResult(project.project_id, project.run_id)
                                 }}
                               >
                                 {isLoadingProjectId === project.project_id ? "加载中…" : "查看"}
@@ -1344,18 +1534,6 @@ function App() {
                   </tbody>
                 </table>
               </div>
-              {result && result.issues.length < totalIssueCount ? (
-                <div className="issue-load-more">
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    disabled={isLoadingMoreIssues}
-                    onClick={() => void loadMoreIssues()}
-                  >
-                    {isLoadingMoreIssues ? "加载中…" : "加载更多"}
-                  </button>
-                </div>
-              ) : null}
             </article>
           </section>
         )}
@@ -1616,8 +1794,8 @@ function App() {
                 <div className="section-heading">
                   <h3>问题清单</h3>
                   <span>
-                    显示 {filteredIssues.length} / 已加载 {result?.issues.length ?? 0} / {totalIssueCount}
-                    {isLoadingMoreIssues ? " · 加载中…" : ""}
+                    显示 {filteredIssues.length} / 筛选结果 {filteredIssueTotal} / 全部 {totalIssueCount}
+                    {isLoadingMoreIssues || isReloadingIssueQuery ? " · 加载中…" : ""}
                   </span>
                 </div>
               </div>
@@ -1626,7 +1804,7 @@ function App() {
                 ref={issueListParentRef}
                 onScroll={(event) => {
                   const target = event.currentTarget
-                  if (target.scrollHeight - target.scrollTop - target.clientHeight < 720) {
+                   if (!isReloadingIssueQuery && target.scrollHeight - target.scrollTop - target.clientHeight < 720) {
                     void loadMoreIssues()
                   }
                 }}
@@ -1739,6 +1917,28 @@ function App() {
                   </tbody>
                 </table>
               </div>
+              {result && (issueQueryNeedsReload || result.issues.length < filteredIssueTotal) ? (
+                <div className="issue-load-more">
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    disabled={isLoadingMoreIssues || isReloadingIssueQuery}
+                    onClick={() => {
+                      if (issueQueryNeedsReload) {
+                        void reloadIssuesForQuery(activeIssueQuery, activeIssueQueryKey)
+                      } else {
+                        void loadMoreIssues()
+                      }
+                    }}
+                  >
+                    {isLoadingMoreIssues || isReloadingIssueQuery
+                      ? "加载中…"
+                      : issueQueryNeedsReload
+                        ? "重新加载筛选结果"
+                        : `加载更多（剩余 ${filteredIssueTotal - result.issues.length}）`}
+                  </button>
+                </div>
+              ) : null}
             </article>
 
             <article className="result-inspector">
@@ -1951,7 +2151,13 @@ function App() {
                             <button
                               key={entry.key}
                               type="button"
-                              className={`evidence-ref-card ${entry.sheetId && entry.sheetId === selectedPreviewSheetId ? "active" : ""}`}
+                              className={`evidence-ref-card ${
+                                entry.sheetId &&
+                                entry.sheetId === selectedPreviewSheetId &&
+                                entry.lineGroupId === selectedPreviewLineGroupId
+                                  ? "active"
+                                  : ""
+                              }`}
                               onClick={() => {
                                 if (entry.sheetId) {
                                   setSelectedPreviewSheetId(entry.sheetId)
@@ -2338,71 +2544,9 @@ function labelHandlingClass(value: string | null | undefined): string {
   return map[value] ?? value
 }
 
-function handlingRank(value: string): number {
-  if (value === "error") {
-    return 0
-  }
-  if (value === "warning") {
-    return 1
-  }
-  return 2
-}
-
-function compareSeverity(left: string, right: string): number {
-  const rank = (value: string): number => {
-    const key = value.toLowerCase()
-    if (["critical", "error", "high"].includes(key)) {
-      return 0
-    }
-    if (["major", "medium", "warning", "warn"].includes(key)) {
-      return 1
-    }
-    if (["minor", "low", "info"].includes(key)) {
-      return 2
-    }
-    if (["review"].includes(key)) {
-      return 3
-    }
-    return 4
-  }
-  return rank(left) - rank(right) || left.localeCompare(right, "zh-CN")
-}
-
 function isSeriousSeverity(value: string | null | undefined): boolean {
   const key = String(value || "").toLowerCase()
   return ["critical", "error", "high", "major"].includes(key)
-}
-
-function compareIssuesForReview(left: IssueSummary, right: IssueSummary): number {
-  const leftHandling = resolveHandlingClass(left)
-  const rightHandling = resolveHandlingClass(right)
-  const byHandling = handlingRank(leftHandling) - handlingRank(rightHandling)
-  if (byHandling !== 0) {
-    return byHandling
-  }
-  const leftOpen = left.status === "open" ? 0 : 1
-  const rightOpen = right.status === "open" ? 0 : 1
-  if (leftOpen !== rightOpen) {
-    return leftOpen - rightOpen
-  }
-  const bySeverity = compareSeverity(left.severity, right.severity)
-  if (bySeverity !== 0) {
-    return bySeverity
-  }
-  const leftGroupSize = Number(left.review_group_size ?? 1)
-  const rightGroupSize = Number(right.review_group_size ?? 1)
-  if (rightGroupSize !== leftGroupSize) {
-    return rightGroupSize - leftGroupSize
-  }
-  const byGroup = String(left.review_group_id || left.issue_id).localeCompare(String(right.review_group_id || right.issue_id), "zh-CN")
-  if (byGroup !== 0) {
-    return byGroup
-  }
-  const bySheet = String(left.sheet_no || "").localeCompare(String(right.sheet_no || ""), "zh-CN", { numeric: true })
-  if (bySheet !== 0) {
-    return bySheet
-  }
-  return left.title.localeCompare(right.title, "zh-CN")
 }
 
 function describeProcessStatus(state: ProcessState, analyzing: boolean): string {

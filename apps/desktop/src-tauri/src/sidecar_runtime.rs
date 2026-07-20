@@ -147,7 +147,10 @@ where
     Ok(SidecarRuntime {
         kind: SidecarRuntimeKind::DevelopmentPython,
         executable,
-        arg_prefix: vec!["-m".to_string(), "dwg_audit.cli".to_string()],
+        arg_prefix: vec![
+            "-m".to_string(),
+            "dwg_audit.desktop.sidecar_entry".to_string(),
+        ],
         current_dir: repo_root.clone(),
         pythonpath: Some(pythonpath_value(&repo_root, env_var("PYTHONPATH"))),
         env_vars: packaging_env_vars(resource_dir.as_deref(), None, &path_exists),
@@ -341,7 +344,10 @@ mod tests {
         let separator = if cfg!(windows) { ";" } else { ":" };
         assert_eq!(runtime.kind, SidecarRuntimeKind::DevelopmentPython);
         assert_eq!(runtime.executable, PathBuf::from("C:/Python/python.exe"));
-        assert_eq!(runtime.arg_prefix, vec!["-m", "dwg_audit.cli"]);
+        assert_eq!(
+            runtime.arg_prefix,
+            vec!["-m", "dwg_audit.desktop.sidecar_entry"]
+        );
         assert_eq!(
             runtime.pythonpath,
             Some(format!(

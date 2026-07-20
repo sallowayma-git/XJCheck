@@ -23,6 +23,8 @@ const {
   createRequestGeneration,
   invalidateRequests,
   isCurrentRequest,
+  shouldCommitKeyedRequest,
+  shouldReloadKeyedRequest,
   shouldInvalidateScreenIntent,
 } = helperModule
 
@@ -94,6 +96,19 @@ test("invalidation prevents an abandoned request from committing", () => {
   invalidateRequests(state)
 
   assert.equal(isCurrentRequest(state, generation), false)
+})
+
+test("a keyed request cannot commit after the filter key changes", () => {
+  const state = createRequestGeneration()
+  const generation = beginRequest(state)
+  assert.equal(shouldCommitKeyedRequest(state, generation, "B", "A"), false)
+  assert.equal(shouldCommitKeyedRequest(state, generation, "A", "A"), true)
+})
+
+test("a query reload is required when an older in-flight key remains", () => {
+  assert.equal(shouldReloadKeyedRequest("A", "A", "B"), true)
+  assert.equal(shouldReloadKeyedRequest("A", "A", "A"), false)
+  assert.equal(shouldReloadKeyedRequest("B", "A", null), true)
 })
 
 test("same-screen navigation preserves an active request intent", () => {

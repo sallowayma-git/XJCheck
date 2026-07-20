@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog"
 import type { UnlistenFn } from "@tauri-apps/api/event"
 
 import { emitMockAnalyzeSessionEvents, getMockPreview, getMockProjectResult, getMockRecentProjects } from "./mockData"
-import type { AnalyzeSessionRequest, AnalyzeSessionResult, IssueDetail, IssuePage, IssueStatus, IssueSummary, PreviewPayload, ProjectResult, ProjectSummary, RecentProject, SidecarEvent } from "../types"
+import type { AnalyzeSessionRequest, AnalyzeSessionResult, IssueDetail, IssueFilterOptions, IssuePage, IssueQuery, IssueStats, IssueStatus, IssueSummary, PreviewPayload, ProjectResult, ProjectSummary, RecentProject, SidecarEvent } from "../types"
 import type { DesktopSettings } from "./settings"
 import { defaultSettings, normalizeSettings } from "./settings"
 
@@ -76,30 +76,56 @@ export const desktopApi = {
     }
   },
 
-  async loadResult(projectId: string, runId: string | null = null, requestGeneration: number | null = null): Promise<ProjectResult> {
+  async loadResult(
+    projectId: string,
+    runId: string | null = null,
+    requestGeneration: number | null = null,
+    clientSessionId: string | null = null,
+    clientSessionEpoch: number | null = null,
+  ): Promise<ProjectResult> {
     if (!isTauri()) {
       return applyMockStatusOverrides(getMockProjectResult(projectId))
     }
 
     try {
-      const result = await invoke<ProjectResult>(COMMANDS.loadResult, { projectId, runId, requestGeneration })
+      const result = await invoke<ProjectResult>(COMMANDS.loadResult, {
+        projectId,
+        runId,
+        requestGeneration,
+        clientSessionId,
+        clientSessionEpoch,
+      })
       return normalizeProjectResult(result)
     } catch (error) {
       throw toDesktopError("加载校验结果失败。", error)
     }
   },
 
-  async loadResultSummary(projectId: string, runId: string | null = null, requestGeneration: number | null = null): Promise<ProjectSummary> {
+  async loadResultSummary(
+    projectId: string,
+    runId: string | null = null,
+    requestGeneration: number | null = null,
+    clientSessionId: string | null = null,
+    clientSessionEpoch: number | null = null,
+  ): Promise<ProjectSummary> {
     if (!isTauri()) {
       const mock = getMockProjectResult(projectId)
       return {
         run: mock.run,
         issue_count: mock.issues.length,
         page_finding_count: mock.page_findings.length,
+        issue_stats: mockIssueStats(mock.issues),
+        filter_options: mockIssueFilterOptions(mock.issues),
       }
     }
     try {
-      const summary = await invoke<ProjectSummary>(COMMANDS.loadResultSummary, { projectId, runId, requestGeneration })
+      const summary = await invoke<ProjectSummary>(COMMANDS.loadResultSummary, {
+        projectId,
+        runId,
+        requestGeneration,
+        clientSessionId,
+        clientSessionEpoch,
+      })
       return { ...summary, run: normalizeRecentProject(summary.run) }
     } catch (error) {
       throw toDesktopError("加载项目概要失败。", error)
@@ -112,15 +138,19 @@ export const desktopApi = {
     offset = 0,
     runId: string | null = null,
     requestGeneration: number | null = null,
+    clientSessionId: string | null = null,
+    clientSessionEpoch: number | null = null,
+    filters: IssueQuery = {},
   ): Promise<IssuePage> {
     if (!isTauri()) {
       const mock = applyMockStatusOverrides(getMockProjectResult(projectId))
       const safeLimit = Math.max(1, Math.min(Math.trunc(limit), mock.issues.length) || 1)
       const safeOffset = Math.max(0, Math.trunc(offset))
+      const filtered = mock.issues.filter((issue) => matchesMockIssue(issue, filters))
       return {
         run: mock.run,
-        items: mock.issues.slice(safeOffset, safeOffset + safeLimit),
-        total: mock.issues.length,
+        items: filtered.slice(safeOffset, safeOffset + safeLimit),
+        total: filtered.length,
         limit: safeLimit,
         offset: safeOffset,
       }
@@ -132,6 +162,14 @@ export const desktopApi = {
         limit,
         offset: offset || null,
         requestGeneration,
+        clientSessionId,
+        clientSessionEpoch,
+        search: filters.search ?? null,
+        severity: filters.severity ?? null,
+        ruleId: filters.rule_id ?? null,
+        statusFilter: filters.status ?? null,
+        triage: filters.triage ?? null,
+        handling: filters.handling ?? null,
       })
       return {
         run: normalizeRecentProject(page.run),
@@ -150,6 +188,8 @@ export const desktopApi = {
     issueId: string,
     runId: string | null = null,
     requestGeneration: number | null = null,
+    clientSessionId: string | null = null,
+    clientSessionEpoch: number | null = null,
   ): Promise<IssueDetail | null> {
     if (!isTauri()) {
       const mock = applyMockStatusOverrides(getMockProjectResult(projectId))
@@ -162,6 +202,8 @@ export const desktopApi = {
         runId,
         issueId,
         requestGeneration,
+        clientSessionId,
+        clientSessionEpoch,
       })
       if (!payload) {
         return null
@@ -172,11 +214,19 @@ export const desktopApi = {
     }
   },
 
-  async cancelResultLoad(requestGeneration: number): Promise<boolean> {
+  async cancelResultLoad(
+    requestGeneration: number,
+    clientSessionId: string | null = null,
+    clientSessionEpoch: number | null = null,
+  ): Promise<boolean> {
     if (!isTauri()) {
       return true
     }
-    const payload = await invoke<{ cancelled?: boolean }>(COMMANDS.cancelResultLoad, { requestGeneration })
+    const payload = await invoke<{ cancelled?: boolean }>(COMMANDS.cancelResultLoad, {
+      requestGeneration,
+      clientSessionId,
+      clientSessionEpoch,
+    })
     return payload.cancelled === true
   },
 
@@ -364,6 +414,72 @@ function normalizeRecentProject(project: RecentProject): RecentProject {
     pair_count: Number(project.pair_count ?? 0),
     issue_count: Number(project.issue_count ?? 0),
   }
+}
+
+function mockIssueStats(issues: IssueSummary[]): IssueStats {
+  const stats: IssueStats = {
+    total: issues.length,
+    open_count: 0,
+    serious_open_count: 0,
+    resolved_count: 0,
+    error_count: 0,
+    warning_count: 0,
+    review_count: 0,
+    group_count: new Set(issues.map((issue) => issue.review_group_id || issue.issue_id)).size,
+  }
+  for (const issue of issues) {
+    const handling = issue.handling_class || "review"
+    if (handling === "error") stats.error_count += 1
+    else if (handling === "warning") stats.warning_count += 1
+    else stats.review_count += 1
+    if (issue.status === "open") {
+      stats.open_count += 1
+      if (["critical", "error", "high", "major"].includes(issue.severity) || handling === "error") {
+        stats.serious_open_count += 1
+      }
+    } else if (issue.status === "resolved") {
+      stats.resolved_count += 1
+    }
+  }
+  return stats
+}
+
+function mockIssueFilterOptions(issues: IssueSummary[]): IssueFilterOptions {
+  return {
+    severities: [...new Set(issues.map((issue) => issue.severity))].sort(),
+    rules: [...new Set(issues.map((issue) => issue.rule_id))].sort(),
+    statuses: [...new Set(issues.map((issue) => issue.status))].sort(),
+    triages: [...new Set(issues.map((issue) => issue.one_to_many_classification).filter(Boolean) as string[])].sort(),
+  }
+}
+
+function matchesMockIssue(issue: IssueSummary, filters: IssueQuery): boolean {
+  if (filters.severity && filters.severity !== "all" && issue.severity !== filters.severity) return false
+  if (filters.rule_id && filters.rule_id !== "all" && issue.rule_id !== filters.rule_id) return false
+  if (filters.status && filters.status !== "all" && issue.status !== filters.status) return false
+  const triage = issue.one_to_many_classification ?? (typeof issue.evidence?.one_to_many_classification === "string" ? issue.evidence.one_to_many_classification : null)
+  if (filters.triage && filters.triage !== "all" && triage !== filters.triage) return false
+  const handling = issue.handling_class || (typeof issue.evidence?.handling_class === "string" ? issue.evidence.handling_class : "review")
+  if (filters.handling && filters.handling !== "all" && handling !== filters.handling) return false
+  const search = String(filters.search || "").trim().toLowerCase()
+  if (!search) return true
+  return [
+    issue.title,
+    issue.summary,
+    issue.explanation,
+    issue.recommended_action,
+    issue.filename,
+    issue.sheet_no,
+    issue.left_value || "",
+    issue.right_value || "",
+    issue.rule_id,
+    issue.issue_type,
+    issue.values.join(" "),
+    JSON.stringify(issue.evidence),
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(search)
 }
 
 function normalizeIssueSummary(issue: IssueSummary): IssueSummary {

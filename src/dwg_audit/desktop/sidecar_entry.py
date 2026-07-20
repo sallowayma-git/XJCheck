@@ -63,6 +63,7 @@ def _run_lightweight_command(argv: list[str]) -> bool:
         return False
 
     from dwg_audit.desktop.state_store import DesktopStateStore
+    from dwg_audit.desktop.state_store import IssueQueryFilters
     from dwg_audit.desktop.state_store import default_state_db_path
 
     command = argv[0]
@@ -83,6 +84,12 @@ def _run_lightweight_command(argv: list[str]) -> bool:
         parser.add_argument("--run-id")
         parser.add_argument("--limit", type=_bounded_page_size, default=200)
         parser.add_argument("--offset", type=_non_negative_int, default=0)
+        parser.add_argument("--search")
+        parser.add_argument("--severity")
+        parser.add_argument("--rule-id")
+        parser.add_argument("--status-filter")
+        parser.add_argument("--triage")
+        parser.add_argument("--handling")
     elif command == "load-result-issue-detail":
         parser.add_argument("--project-id", required=True)
         parser.add_argument("--issue-id", required=True)
@@ -131,19 +138,26 @@ def _run_lightweight_command(argv: list[str]) -> bool:
             run_id=options.run_id,
             limit=options.limit,
             offset=options.offset,
+            filters=IssueQueryFilters(
+                search=options.search,
+                severity=options.severity,
+                rule_id=options.rule_id,
+                status=options.status_filter,
+                triage=options.triage,
+                handling=options.handling,
+            ),
         )
         if payload is None:
             parser.error(f"No stored result found for project_id={options.project_id}")
     elif command == "load-result-issue-detail":
+        run = store.load_run_for_project(options.project_id, run_id=options.run_id)
+        if run is None:
+            parser.error(f"No stored result found for project_id={options.project_id}")
         payload = store.load_project_issue_detail(
             options.project_id,
-            run_id=options.run_id,
+            run_id=str(run["run_id"]),
             issue_id=options.issue_id,
         )
-        if payload is None:
-            parser.error(f"No stored result found for project_id={options.project_id}")
-        if payload["issue"] is None:
-            payload = None
     elif command == "set-issue-status":
         if hasattr(store, "load_run_for_project"):
             latest_run = store.load_run_for_project(options.project_id, run_id=options.run_id)

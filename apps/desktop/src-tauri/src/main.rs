@@ -16,6 +16,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::Instant;
@@ -51,6 +52,8 @@ static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 static ACTIVE_SIDECAR_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static PROTECTED_CLEANUP_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static RESULT_LOAD_STATE: Mutex<ResultLoadState> = Mutex::new(ResultLoadState {
+    current_client_session_id: None,
+    current_client_session_epoch: None,
     latest_generation: 0,
     cancelled: false,
     active: Vec::new(),
@@ -202,6 +205,8 @@ async fn desktop_load_result(
     project_id: String,
     run_id: Option<String>,
     request_generation: Option<u64>,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
 ) -> Result<Value, String> {
     let mut args = vec![
         "load-result".to_string(),
@@ -211,7 +216,14 @@ async fn desktop_load_result(
         default_state_db_path()?.to_string_lossy().to_string(),
     ];
     push_optional_arg(&mut args, "--run-id", run_id);
-    run_result_sidecar_json_async(app, args, request_generation).await
+    run_result_sidecar_json_async(
+        app,
+        args,
+        request_generation,
+        client_session_id,
+        client_session_epoch,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -220,6 +232,8 @@ async fn desktop_load_result_summary(
     project_id: String,
     run_id: Option<String>,
     request_generation: Option<u64>,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
 ) -> Result<Value, String> {
     let mut args = vec![
         "load-result-summary".to_string(),
@@ -229,7 +243,14 @@ async fn desktop_load_result_summary(
         default_state_db_path()?.to_string_lossy().to_string(),
     ];
     push_optional_arg(&mut args, "--run-id", run_id);
-    run_result_sidecar_json_async(app, args, request_generation).await
+    run_result_sidecar_json_async(
+        app,
+        args,
+        request_generation,
+        client_session_id,
+        client_session_epoch,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -240,6 +261,14 @@ async fn desktop_load_result_issues(
     limit: Option<u64>,
     offset: Option<u64>,
     request_generation: Option<u64>,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
+    search: Option<String>,
+    severity: Option<String>,
+    rule_id: Option<String>,
+    status_filter: Option<String>,
+    triage: Option<String>,
+    handling: Option<String>,
 ) -> Result<Value, String> {
     let mut args = vec![
         "load-result-issues".to_string(),
@@ -253,7 +282,20 @@ async fn desktop_load_result_issues(
         offset.unwrap_or(0).to_string(),
     ];
     push_optional_arg(&mut args, "--run-id", run_id);
-    run_result_sidecar_json_async(app, args, request_generation).await
+    push_optional_arg(&mut args, "--search", search);
+    push_optional_arg(&mut args, "--severity", severity);
+    push_optional_arg(&mut args, "--rule-id", rule_id);
+    push_optional_arg(&mut args, "--status-filter", status_filter);
+    push_optional_arg(&mut args, "--triage", triage);
+    push_optional_arg(&mut args, "--handling", handling);
+    run_result_sidecar_json_async(
+        app,
+        args,
+        request_generation,
+        client_session_id,
+        client_session_epoch,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -263,6 +305,8 @@ async fn desktop_load_result_issue_detail(
     run_id: Option<String>,
     issue_id: String,
     request_generation: Option<u64>,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
 ) -> Result<Value, String> {
     let mut args = vec![
         "load-result-issue-detail".to_string(),
@@ -274,13 +318,28 @@ async fn desktop_load_result_issue_detail(
         default_state_db_path()?.to_string_lossy().to_string(),
     ];
     push_optional_arg(&mut args, "--run-id", run_id);
-    run_result_sidecar_json_async(app, args, request_generation).await
+    run_result_sidecar_json_async(
+        app,
+        args,
+        request_generation,
+        client_session_id,
+        client_session_epoch,
+    )
+    .await
 }
 
 #[tauri::command]
-async fn desktop_cancel_result_load(request_generation: u64) -> Result<Value, String> {
+async fn desktop_cancel_result_load(
+    request_generation: u64,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
+) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let cancelled = cancel_result_load(request_generation);
+        let cancelled = cancel_result_load(
+            &normalize_result_client_session_id(client_session_id),
+            client_session_epoch,
+            request_generation,
+        );
         json!({
             "cancelled": cancelled,
             "request_generation": request_generation,
@@ -297,6 +356,7 @@ fn desktop_register_preview_session(client_session_id: String) -> Result<Value, 
         return Err("A non-empty modern preview session id is required.".to_string());
     }
     let client_session_epoch = register_preview_client_session(client_session_id.clone())?;
+    activate_result_client_session(client_session_id.clone(), client_session_epoch);
     Ok(json!({
         "client_session_id": client_session_id,
         "client_session_epoch": client_session_epoch,
@@ -442,14 +502,26 @@ async fn run_result_sidecar_json_async(
     app: AppHandle,
     args: Vec<String>,
     request_generation: Option<u64>,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
 ) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if let Some(generation) = request_generation {
-            if !begin_result_load(generation) {
+            if !begin_result_load(
+                &normalize_result_client_session_id(client_session_id.clone()),
+                client_session_epoch,
+                generation,
+            ) {
                 return Err("Result load request superseded.".to_string());
             }
         }
-        run_result_sidecar_json_owned(&app, args, request_generation)
+        run_result_sidecar_json_owned(
+            &app,
+            args,
+            request_generation,
+            client_session_id,
+            client_session_epoch,
+        )
     })
     .await
     .map_err(|error| format!("Result sidecar task failed: {error}"))?
@@ -472,9 +544,15 @@ fn run_result_sidecar_json_owned(
     app: &AppHandle,
     args: Vec<String>,
     request_generation: Option<u64>,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
 ) -> Result<Value, String> {
     if let Some(generation) = request_generation {
-        if !is_current_result_generation(generation) {
+        if !is_current_result_generation(
+            &normalize_result_client_session_id(client_session_id.clone()),
+            client_session_epoch,
+            generation,
+        ) {
             return Err("Result load request superseded.".to_string());
         }
     }
@@ -486,13 +564,19 @@ fn run_result_sidecar_json_owned(
     let pid = child.id();
     let _active_process = ActiveSidecarProcess::new(pid);
     let _result_pid = if let Some(generation) = request_generation {
-        if !register_result_pid(generation, pid) {
-            terminate_process_tree_by_pid(pid);
+        let token = ResultLoadToken {
+            client_session_id: normalize_result_client_session_id(client_session_id),
+            client_session_epoch: client_session_epoch.unwrap_or(0),
+            generation,
+        };
+        let control = Arc::new(ResultProcessControl::new(pid));
+        if !register_result_process(&token, control.clone()) {
+            control.terminate();
             let _ = child.kill();
             let _ = child.wait();
             return Err("Result load request superseded.".to_string());
         }
-        Some(ResultLoadPidGuard { generation, pid })
+        Some(ResultLoadProcessGuard { token, control })
     } else {
         None
     };
@@ -1048,15 +1132,134 @@ struct ActivePreviewRequest {
     released: bool,
 }
 
+const LEGACY_RESULT_CLIENT_SESSION_ID: &str = "legacy";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ResultLoadToken {
+    client_session_id: String,
+    client_session_epoch: u64,
+    generation: u64,
+}
+
+#[derive(Debug)]
+struct ResultProcessControl {
+    pid: u32,
+    #[cfg(windows)]
+    process_handle: Option<usize>,
+}
+
+impl ResultProcessControl {
+    fn new(pid: u32) -> Self {
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::System::Threading::OpenProcess;
+            use windows_sys::Win32::System::Threading::PROCESS_TERMINATE;
+
+            let process_handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
+            return Self {
+                pid,
+                process_handle: (!process_handle.is_null()).then_some(process_handle as usize),
+            };
+        }
+        #[cfg(not(windows))]
+        {
+            Self { pid }
+        }
+    }
+
+    fn terminate(&self) {
+        // Keep the owned process handle alive while taskkill walks the tree. A
+        // live handle prevents Windows from reusing this PID for a newer load.
+        terminate_process_tree_by_pid(self.pid);
+        #[cfg(windows)]
+        if let Some(handle) = self.process_handle {
+            use windows_sys::Win32::Foundation::HANDLE;
+            use windows_sys::Win32::System::Threading::TerminateProcess;
+
+            unsafe {
+                let _ = TerminateProcess(handle as HANDLE, 1);
+            }
+        }
+    }
+}
+
+impl Drop for ResultProcessControl {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Some(handle) = self.process_handle.take() {
+            use windows_sys::Win32::Foundation::CloseHandle;
+            use windows_sys::Win32::Foundation::HANDLE;
+
+            unsafe {
+                let _ = CloseHandle(handle as HANDLE);
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ResultProcessOwner {
+    token: ResultLoadToken,
+    control: Arc<ResultProcessControl>,
+}
+
 #[derive(Debug)]
 struct ResultLoadState {
+    current_client_session_id: Option<String>,
+    current_client_session_epoch: Option<u64>,
     latest_generation: u64,
     cancelled: bool,
-    active: Vec<(u64, u32)>,
+    active: Vec<ResultProcessOwner>,
 }
 
 impl ResultLoadState {
-    fn begin(&mut self, generation: u64) -> (bool, Vec<u32>) {
+    fn register_client_session(
+        &mut self,
+        client_session_id: String,
+        client_session_epoch: u64,
+    ) -> Vec<Arc<ResultProcessControl>> {
+        if let Some(current_epoch) = self.current_client_session_epoch {
+            if client_session_epoch < current_epoch {
+                return Vec::new();
+            }
+            if client_session_epoch == current_epoch
+                && self.current_client_session_id.as_deref() == Some(client_session_id.as_str())
+            {
+                return Vec::new();
+            }
+        }
+        self.current_client_session_id = Some(client_session_id);
+        self.current_client_session_epoch = Some(client_session_epoch);
+        self.latest_generation = 0;
+        self.cancelled = false;
+        std::mem::take(&mut self.active)
+            .into_iter()
+            .map(|owner| owner.control)
+            .collect()
+    }
+
+    fn accepts_session(&self, client_session_id: &str, client_session_epoch: Option<u64>) -> bool {
+        if client_session_id == LEGACY_RESULT_CLIENT_SESSION_ID && client_session_epoch.is_none() {
+            return self.current_client_session_id.is_none()
+                || self.current_client_session_id.as_deref() == Some(client_session_id);
+        }
+        self.current_client_session_id.as_deref() == Some(client_session_id)
+            && self.current_client_session_epoch == client_session_epoch
+    }
+
+    fn begin(
+        &mut self,
+        client_session_id: &str,
+        client_session_epoch: Option<u64>,
+        generation: u64,
+    ) -> (bool, Vec<Arc<ResultProcessControl>>) {
+        if !self.accepts_session(client_session_id, client_session_epoch) {
+            return (false, Vec::new());
+        }
+        if self.current_client_session_id.is_none() {
+            self.current_client_session_id = Some(client_session_id.to_string());
+            self.current_client_session_epoch = Some(client_session_epoch.unwrap_or(0));
+        }
         if generation < self.latest_generation
             || (generation == self.latest_generation && self.cancelled)
         {
@@ -1069,50 +1272,76 @@ impl ResultLoadState {
         self.cancelled = false;
         let stale = std::mem::take(&mut self.active)
             .into_iter()
-            .map(|(_, pid)| pid)
+            .map(|owner| owner.control)
             .collect();
         (true, stale)
     }
 
-    fn is_current(&self, generation: u64) -> bool {
-        generation == self.latest_generation && !self.cancelled
+    fn is_current(
+        &self,
+        client_session_id: &str,
+        client_session_epoch: Option<u64>,
+        generation: u64,
+    ) -> bool {
+        self.accepts_session(client_session_id, client_session_epoch)
+            && generation == self.latest_generation
+            && !self.cancelled
     }
 
-    fn register(&mut self, generation: u64, pid: u32) -> bool {
-        if !self.is_current(generation) {
+    fn register(&mut self, token: ResultLoadToken, control: Arc<ResultProcessControl>) -> bool {
+        if !self.is_current(
+            &token.client_session_id,
+            Some(token.client_session_epoch),
+            token.generation,
+        ) {
             return false;
         }
-        if !self.active.contains(&(generation, pid)) {
-            self.active.push((generation, pid));
-        }
+        self.active.push(ResultProcessOwner { token, control });
         true
     }
 
-    fn finish(&mut self, generation: u64, pid: u32) {
-        self.active.retain(|owner| *owner != (generation, pid));
+    fn finish(&mut self, token: &ResultLoadToken, pid: u32) {
+        self.active
+            .retain(|owner| owner.token != *token || owner.control.pid != pid);
     }
 
-    fn cancel(&mut self, generation: u64) -> (bool, Vec<u32>) {
-        if generation != self.latest_generation || self.cancelled {
+    fn cancel(
+        &mut self,
+        client_session_id: &str,
+        client_session_epoch: Option<u64>,
+        generation: u64,
+    ) -> (bool, Vec<Arc<ResultProcessControl>>) {
+        if !self.accepts_session(client_session_id, client_session_epoch)
+            || generation < self.latest_generation
+        {
             return (false, Vec::new());
         }
-        self.cancelled = true;
+        if generation > self.latest_generation {
+            self.latest_generation = generation;
+            self.cancelled = true;
+        } else if self.cancelled {
+            return (false, Vec::new());
+        } else {
+            self.cancelled = true;
+        }
         let active = std::mem::take(&mut self.active)
             .into_iter()
-            .filter_map(|(owner_generation, pid)| (owner_generation == generation).then_some(pid))
+            .map(|owner| owner.control)
             .collect();
         (true, active)
     }
 }
 
-struct ResultLoadPidGuard {
-    generation: u64,
-    pid: u32,
+struct ResultLoadProcessGuard {
+    token: ResultLoadToken,
+    control: Arc<ResultProcessControl>,
 }
 
-impl Drop for ResultLoadPidGuard {
+impl Drop for ResultLoadProcessGuard {
     fn drop(&mut self) {
-        finish_result_pid(self.generation, self.pid);
+        finish_result_process(&self.token, self.control.pid);
+        // Keep the control alive until the sidecar wait has returned.
+        let _ = &self.control;
     }
 }
 
@@ -1120,45 +1349,74 @@ struct ActiveSidecarProcess {
     pid: u32,
 }
 
-fn begin_result_load(generation: u64) -> bool {
-    let (accepted, stale_pids) = RESULT_LOAD_STATE
+fn normalize_result_client_session_id(value: Option<String>) -> String {
+    value
+        .map(|session_id| session_id.trim().to_string())
+        .filter(|session_id| !session_id.is_empty())
+        .unwrap_or_else(|| LEGACY_RESULT_CLIENT_SESSION_ID.to_string())
+}
+
+fn activate_result_client_session(client_session_id: String, client_session_epoch: u64) {
+    let stale = RESULT_LOAD_STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .begin(generation);
-    for pid in stale_pids {
-        terminate_process_tree_by_pid(pid);
+        .register_client_session(client_session_id, client_session_epoch);
+    for control in stale {
+        control.terminate();
+    }
+}
+
+fn begin_result_load(
+    client_session_id: &str,
+    client_session_epoch: Option<u64>,
+    generation: u64,
+) -> bool {
+    let (accepted, stale) = RESULT_LOAD_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .begin(client_session_id, client_session_epoch, generation);
+    for control in stale {
+        control.terminate();
     }
     accepted
 }
 
-fn is_current_result_generation(generation: u64) -> bool {
+fn is_current_result_generation(
+    client_session_id: &str,
+    client_session_epoch: Option<u64>,
+    generation: u64,
+) -> bool {
     RESULT_LOAD_STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .is_current(generation)
+        .is_current(client_session_id, client_session_epoch, generation)
 }
 
-fn register_result_pid(generation: u64, pid: u32) -> bool {
+fn register_result_process(token: &ResultLoadToken, control: Arc<ResultProcessControl>) -> bool {
     RESULT_LOAD_STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .register(generation, pid)
+        .register(token.clone(), control)
 }
 
-fn finish_result_pid(generation: u64, pid: u32) {
+fn finish_result_process(token: &ResultLoadToken, pid: u32) {
     RESULT_LOAD_STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .finish(generation, pid);
+        .finish(token, pid);
 }
 
-fn cancel_result_load(generation: u64) -> bool {
-    let (cancelled, active_pids) = RESULT_LOAD_STATE
+fn cancel_result_load(
+    client_session_id: &str,
+    client_session_epoch: Option<u64>,
+    generation: u64,
+) -> bool {
+    let (cancelled, active) = RESULT_LOAD_STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .cancel(generation);
-    for pid in active_pids {
-        terminate_process_tree_by_pid(pid);
+        .cancel(client_session_id, client_session_epoch, generation);
+    for control in active {
+        control.terminate();
     }
     cancelled
 }
@@ -1983,33 +2241,87 @@ mod tests {
     #[test]
     fn newer_result_generation_supersedes_every_old_pid() {
         let mut state = ResultLoadState {
+            current_client_session_id: None,
+            current_client_session_epoch: None,
             latest_generation: 0,
             cancelled: false,
             active: Vec::new(),
         };
-        assert_eq!(state.begin(1), (true, Vec::new()));
-        assert!(state.register(1, 101));
-        assert!(state.register(1, 102));
+        assert!(state
+            .register_client_session("renderer-a".to_string(), 1)
+            .is_empty());
+        assert!(state.begin("renderer-a", Some(1), 1).0);
+        for pid in [101, 102] {
+            let token = ResultLoadToken {
+                client_session_id: "renderer-a".to_string(),
+                client_session_epoch: 1,
+                generation: 1,
+            };
+            assert!(state.register(token, Arc::new(ResultProcessControl::new(pid))));
+        }
 
-        assert_eq!(state.begin(2), (true, vec![101, 102]));
-        assert!(!state.register(1, 103));
-        assert!(state.register(2, 201));
+        let (accepted, stale) = state.begin("renderer-a", Some(1), 2);
+        assert!(accepted);
+        assert_eq!(
+            stale.iter().map(|item| item.pid).collect::<Vec<_>>(),
+            vec![101, 102]
+        );
+        assert!(!state.register(
+            ResultLoadToken {
+                client_session_id: "renderer-a".to_string(),
+                client_session_epoch: 1,
+                generation: 1,
+            },
+            Arc::new(ResultProcessControl::new(103)),
+        ));
     }
 
     #[test]
-    fn result_cancel_is_generation_scoped_and_blocks_late_registration() {
+    fn result_cancel_before_begin_creates_a_tombstone() {
         let mut state = ResultLoadState {
+            current_client_session_id: None,
+            current_client_session_epoch: None,
             latest_generation: 0,
             cancelled: false,
             active: Vec::new(),
         };
-        state.begin(4);
-        assert!(state.register(4, 401));
+        state.register_client_session("renderer-a".to_string(), 1);
+        let (cancelled, active) = state.cancel("renderer-a", Some(1), 4);
+        assert!(cancelled);
+        assert!(active.is_empty());
+        assert!(!state.begin("renderer-a", Some(1), 4).0);
+        assert!(state.begin("renderer-a", Some(1), 5).0);
+    }
 
-        assert_eq!(state.cancel(3), (false, Vec::new()));
-        assert_eq!(state.cancel(4), (true, vec![401]));
-        assert!(!state.register(4, 402));
-        assert_eq!(state.begin(4), (false, Vec::new()));
-        assert_eq!(state.begin(5), (true, Vec::new()));
+    #[test]
+    fn new_result_session_can_restart_generation_from_one() {
+        let mut state = ResultLoadState {
+            current_client_session_id: None,
+            current_client_session_epoch: None,
+            latest_generation: 0,
+            cancelled: false,
+            active: Vec::new(),
+        };
+        state.register_client_session("renderer-a".to_string(), 1);
+        assert!(state.begin("renderer-a", Some(1), 9).0);
+        assert!(state.register(
+            ResultLoadToken {
+                client_session_id: "renderer-a".to_string(),
+                client_session_epoch: 1,
+                generation: 9,
+            },
+            Arc::new(ResultProcessControl::new(901)),
+        ));
+
+        let stale = state.register_client_session("renderer-b".to_string(), 2);
+        assert_eq!(
+            stale.iter().map(|item| item.pid).collect::<Vec<_>>(),
+            vec![901]
+        );
+        assert!(state.begin("renderer-b", Some(2), 1).0);
+        assert!(!state.begin("renderer-a", Some(1), 10).0);
+        assert!(state
+            .register_client_session("renderer-a".to_string(), 1)
+            .is_empty());
     }
 }

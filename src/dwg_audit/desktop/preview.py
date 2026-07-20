@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 from pathlib import Path
@@ -94,7 +95,7 @@ def render_project_preview(
         or _extent_from_issue_evidence(issue_row)
     )
 
-    preview_root = default_preview_cache_root() / project_id
+    preview_root = default_preview_cache_root() / project_id / _preview_run_cache_key(resolved_run_id)
     target_dir = (output_dir or preview_root).expanduser().resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     if page_extent is None:
@@ -335,6 +336,10 @@ def _build_svg(
         ]
     )
     return "\n".join(svg_lines) + "\n"
+
+
+def _preview_run_cache_key(run_id: str) -> str:
+    return hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:20]
 
 
 def _build_unlocated_svg(
