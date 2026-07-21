@@ -5,6 +5,7 @@ from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation
 from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_schematic_ground_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
+from dwg_audit.audit.page_extractors import _shadow_connect_multidrop_rail_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_closed_tall_polyline_enclosure_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
 from dwg_audit.audit.page_extractors import _promote_regular_terminal_row_array_pairs
@@ -1232,6 +1233,142 @@ def test_shadow_grid_wire_ordinary_pairs_marks_wire_grid_pairs_ineligible() -> N
     assert ordinary.evidence["ordinary_pair_shadow_reason"] == "wire_grid_primary"
 
 
+def test_connect_multidrop_rail_shadows_single_sided_ordinary_pair() -> None:
+    pair = _pair(
+        {},
+        line_group_id="G_RAIL",
+        left_text_id="T828",
+        left_value="828",
+        right_value=None,
+    )
+    group = LineGroup(
+        "G_RAIL", "S1", "F1", 10.0, 50.0, 90.0, 50.0, 80.0, 0.85, ["RAIL"], ["CONNECT"]
+    )
+    lines = [
+        _panel_line("RAIL", handle="H0", start_x=10.0, start_y=50.0, end_x=90.0, end_y=50.0, layer="CONNECT"),
+        _panel_line("DROP1", handle="H1", start_x=30.0, start_y=50.0, end_x=30.0, end_y=70.0, layer="CONNECT"),
+        _panel_line("DROP2", handle="H2", start_x=70.0, start_y=20.0, end_x=70.0, end_y=50.0, layer="CONNECT"),
+        _panel_line("CROSS", handle="H3", start_x=50.0, start_y=20.0, end_x=50.0, end_y=70.0, layer="CONNECT"),
+    ]
+
+    _shadow_connect_multidrop_rail_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["ordinary_pair_shadow_only"] is True
+    assert pair.evidence["ordinary_pair_shadow_reason"] == "connect_multidrop_rail"
+    assert pair.evidence["connect_multidrop_rail"] == {
+        "member_line_ids": ["RAIL"],
+        "interior_drop_line_ids": ["DROP1", "DROP2"],
+        "interior_drop_xs": [30.0, 70.0],
+        "interior_drop_count": 2,
+    }
+
+
+@pytest.mark.parametrize(
+    ("pair_changes", "group_layer", "extra_lines"),
+    [
+        ({}, "CONNECT", []),
+        (
+            {},
+            "CONNECT",
+            [
+                _panel_line("SAME_X", handle="H4", start_x=30.1, start_y=50.0, end_x=30.1, end_y=80.0, layer="CONNECT"),
+            ],
+        ),
+        (
+            {},
+            "CONNECT",
+            [
+                _panel_line("NON_CONNECT", handle="H5", start_x=70.0, start_y=50.0, end_x=70.0, end_y=80.0, layer="0"),
+            ],
+        ),
+        (
+            {},
+            "CONNECT",
+            [
+                _panel_line("EDGE_SLANT", handle="H6", start_x=10.2, start_y=50.0, end_x=10.45, end_y=80.0, layer="CONNECT"),
+            ],
+        ),
+        (
+            {"alternative_pair_candidate_ids": ["ALT"]},
+            "CONNECT",
+            [
+                _panel_line("DROP2", handle="H7", start_x=70.0, start_y=50.0, end_x=70.0, end_y=80.0, layer="CONNECT"),
+            ],
+        ),
+        (
+            {"ambiguity_gap": 0.1},
+            "CONNECT",
+            [
+                _panel_line("DROP2", handle="H8", start_x=70.0, start_y=50.0, end_x=70.0, end_y=80.0, layer="CONNECT"),
+            ],
+        ),
+        (
+            {},
+            "CONNECT",
+            [
+                _panel_line(
+                    "BLOCK_DROP",
+                    handle="H9",
+                    start_x=70.0,
+                    start_y=50.0,
+                    end_x=70.0,
+                    end_y=80.0,
+                    layer="CONNECT",
+                    source_block_name="BLOCK",
+                ),
+            ],
+        ),
+        (
+            {},
+            "CONNECT",
+            [
+                _panel_line(
+                    "POLY_DROP",
+                    handle="H10",
+                    start_x=70.0,
+                    start_y=50.0,
+                    end_x=70.0,
+                    end_y=80.0,
+                    layer="CONNECT",
+                    source_entity_type="LWPOLYLINE",
+                ),
+            ],
+        ),
+        ({"right_value": "829", "right_text_id": "T829"}, "CONNECT", []),
+        ({}, "0", []),
+    ],
+)
+def test_connect_multidrop_rail_keeps_incomplete_or_non_authoritative_geometry(
+    pair_changes: dict[str, object],
+    group_layer: str,
+    extra_lines: list[LineEntity],
+) -> None:
+    pair = _pair(
+        {},
+        line_group_id="G_RAIL",
+        left_text_id="T828",
+        left_value="828",
+        right_value=None,
+    )
+    for key, value in pair_changes.items():
+        setattr(pair, key, value)
+    group = LineGroup(
+        "G_RAIL", "S1", "F1", 10.0, 50.0, 90.0, 50.0, 80.0, 0.85, ["RAIL"], [group_layer]
+    )
+    lines = [
+        _panel_line("RAIL", handle="H0", start_x=10.0, start_y=50.0, end_x=90.0, end_y=50.0, layer=group_layer),
+        _panel_line("DROP1", handle="H1", start_x=30.0, start_y=50.0, end_x=30.0, end_y=70.0, layer="CONNECT"),
+        _panel_line("CROSS", handle="H3", start_x=70.0, start_y=20.0, end_x=70.0, end_y=80.0, layer="CONNECT"),
+        *extra_lines,
+    ]
+
+    _shadow_connect_multidrop_rail_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence.get("ordinary_pair_eligible") is not False
+    assert "ordinary_pair_shadow_reason" not in pair.evidence
+
+
 def test_closed_tall_polyline_enclosure_edge_shadows_ordinary_pair() -> None:
     pair = _pair({}, line_group_id="G_FRAME", left_value="1027", right_value="1028")
     lines = _closed_tall_frame_lines()
@@ -1278,6 +1415,26 @@ def test_closed_polyline_duplicate_edge_shadows_only_with_unique_connect_claim()
         end_y=80.0,
         layer="CONNECT",
     )
+    drop_lines = [
+        _panel_line(
+            "DROP1",
+            handle="DROP1",
+            start_x=120.0,
+            start_y=80.0,
+            end_x=120.0,
+            end_y=60.0,
+            layer="CONNECT",
+        ),
+        _panel_line(
+            "DROP2",
+            handle="DROP2",
+            start_x=135.0,
+            start_y=80.0,
+            end_x=135.0,
+            end_y=100.0,
+            layer="CONNECT",
+        ),
+    ]
     frame_group = LineGroup(
         "G_FRAME", "S1", "F1", 105.0, 82.5, 150.0, 82.5, 45.0, 0.55, ["LF0"], ["0"]
     )
@@ -1285,17 +1442,24 @@ def test_closed_polyline_duplicate_edge_shadows_only_with_unique_connect_claim()
         "G_CONNECT", "S1", "F1", 110.0, 80.0, 145.0, 80.0, 35.0, 0.85, ["CONNECT_LINE"], ["CONNECT"]
     )
 
+    all_lines = [*frame_lines, connect_line, *drop_lines]
     _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
         [frame_pair, connect_pair],
         [frame_group, connect_group],
-        [*frame_lines, connect_line],
+        all_lines,
         [_panel_text("T1731", "1731", x=105.0, y=80.0)],
+    )
+    _shadow_connect_multidrop_rail_ordinary_pairs(
+        [frame_pair, connect_pair],
+        [frame_group, connect_group],
+        all_lines,
     )
 
     assert frame_pair.evidence["ordinary_pair_eligible"] is False
     assert frame_pair.evidence["ordinary_pair_shadow_reason"] == "closed_polyline_duplicate_enclosure_edge"
     assert frame_pair.evidence["closed_polyline_enclosure"]["canonical_pair_id"] == "P_CONNECT"
-    assert connect_pair.evidence.get("ordinary_pair_eligible") is not False
+    assert connect_pair.evidence["ordinary_pair_eligible"] is False
+    assert connect_pair.evidence["ordinary_pair_shadow_reason"] == "connect_multidrop_rail"
 
 
 def test_closed_polyline_duplicate_edge_fails_closed_without_text_height() -> None:

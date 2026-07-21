@@ -288,6 +288,8 @@ def _extract_pairs_for_route(
         _shadow_communication_medium_ordinary_pairs(pairs, pages)
         _shadow_repeated_panel_silkscreen_ordinary_pairs(pairs, pages, texts, blocks or [])
     _shadow_closed_tall_polyline_enclosure_ordinary_pairs(pairs, line_groups, lines, texts)
+    if executed_extractor == "WireDiagramExtractor":
+        _shadow_connect_multidrop_rail_ordinary_pairs(pairs, line_groups, lines)
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -456,6 +458,102 @@ def _shadow_communication_medium_ordinary_pairs(pairs: list[Pair], pages: list[S
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "communication_medium"
         pair.evidence["communication_media"] = media
+
+
+def _shadow_connect_multidrop_rail_ordinary_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    lines: list[LineEntity],
+) -> None:
+    """Keep complete CONNECT distribution rails out of endpoint-pair audit."""
+
+    tolerance = 0.25
+    group_by_id = {group.line_group_id: group for group in line_groups}
+    line_by_id = {line.line_id: line for line in lines}
+    lines_by_sheet: dict[tuple[str, str], list[LineEntity]] = defaultdict(list)
+    for line in lines:
+        lines_by_sheet[(line.sheet_id, line.file_id)].append(line)
+
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        if pair.alternative_pair_candidate_ids or pair.ambiguity_gap is not None:
+            continue
+        present_sides = [
+            side
+            for side in ("left", "right")
+            if str(getattr(pair, f"{side}_value", None) or "").strip()
+        ]
+        if len(present_sides) != 1:
+            continue
+        present_side = present_sides[0]
+        missing_side = "right" if present_side == "left" else "left"
+        if not str(getattr(pair, f"{present_side}_text_id", None) or "").strip():
+            continue
+        if getattr(pair, f"{missing_side}_text_id", None) is not None:
+            continue
+
+        group = group_by_id.get(pair.line_group_id)
+        if group is None or str(group.orientation or "").casefold() != "horizontal":
+            continue
+        member_lines = [line_by_id.get(line_id) for line_id in group.member_line_ids]
+        if not member_lines or any(line is None for line in member_lines):
+            continue
+        group_y = (float(group.start_y) + float(group.end_y)) / 2.0
+        group_min_x = min(float(group.start_x), float(group.end_x))
+        group_max_x = max(float(group.start_x), float(group.end_x))
+        if any(
+            str(line.source_entity_type or "").upper() != "LINE"
+            or str(line.layer or "").casefold() != "connect"
+            or line.source_block_name is not None
+            or abs(float(line.start_y) - float(line.end_y)) > tolerance
+            or abs((float(line.start_y) + float(line.end_y)) / 2.0 - group_y) > tolerance
+            for line in member_lines
+            if line is not None
+        ):
+            continue
+
+        drop_lines: list[LineEntity] = []
+        drop_xs: list[float] = []
+        member_ids = {str(line.line_id) for line in member_lines if line is not None}
+        for line in lines_by_sheet.get((pair.sheet_id, pair.file_id), []):
+            if str(line.line_id) in member_ids:
+                continue
+            if (
+                str(line.source_entity_type or "").upper() != "LINE"
+                or str(line.layer or "").casefold() != "connect"
+                or line.source_block_name is not None
+                or abs(float(line.start_x) - float(line.end_x)) > tolerance
+                or abs(float(line.start_y) - float(line.end_y)) <= tolerance
+            ):
+                continue
+            endpoint_touches = (
+                abs(float(line.start_y) - group_y) <= tolerance,
+                abs(float(line.end_y) - group_y) <= tolerance,
+            )
+            if sum(endpoint_touches) != 1:
+                continue
+            drop_x = float(line.start_x) if endpoint_touches[0] else float(line.end_x)
+            if not group_min_x + tolerance < drop_x < group_max_x - tolerance:
+                continue
+            if any(abs(drop_x - existing) <= tolerance for existing in drop_xs):
+                continue
+            drop_lines.append(line)
+            drop_xs.append(drop_x)
+        if len(drop_xs) < 2:
+            continue
+
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "connect_multidrop_rail"
+        pair.evidence["connect_multidrop_rail"] = {
+            "member_line_ids": sorted(member_ids),
+            "interior_drop_line_ids": sorted(str(line.line_id) for line in drop_lines),
+            "interior_drop_xs": sorted(round(value, 6) for value in drop_xs),
+            "interior_drop_count": len(drop_xs),
+        }
 
 
 def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(

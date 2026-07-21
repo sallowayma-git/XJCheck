@@ -3038,3 +3038,22 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Focused gates: backplate `12 passed`; rules/terminal `184 passed`. Full gate: `1167 passed, 1 skipped`; compileall and diff-check pass.
 - The five-file Phase184 implementation boundary is expanded by one necessary regression fixture in `tests/unit/test_backplate_components.py`; desktop/sidecar, performance planning, and root `package-lock.json` remain untouched and unstaged.
 - **Status:** complete for this slice; keep the overarching residual goal active and carry all 29 issues into the next fail-closed evidence loop.
+
+## Phase 185 residual evidence loop
+
+- [x] Establish the Phase184 final residual baseline (`29` issues; fresh Pair total `38,825`) after commit/push.
+- [x] Run bounded read-only audits for all 18 missing-side and 7 many-to-one residuals.
+- [ ] Re-audit the 3 cross-page and 1 low-confidence residuals when selecting one of those classes; retain their Phase184 fail-closed disposition meanwhile.
+- [x] Reject broad missing-side geometry shadowing because current LineGroup/RuleContext lacks the necessary raw line/polyline ownership contract.
+- [x] Reject row-number normalization as the immediate slice: WBH lacks additional plugin authority and 23000 `PCM0082` remains an explicit retained review object.
+- [x] Design and implement a producer-owned CONNECT multi-drop rail shadow contract for the ten uniform missing-side rows, with endpoint-touch geometry and natural negatives.
+- [x] Add focused positive/negative tests, fresh replay/audit, repository gates, docs, commit and push only after the rail slice is proven zero-addition.
+- **Status:** complete for this Phase185 slice; residual goal remains active.
+
+### Phase 185 acceptance
+
+- Final fresh artifact: `.tmp/phase185_full_533_fresh`; 28/28 projects, 533/533 valid files/sheets, zero invalid/incomplete, Pair total `38,825`, zero stable Pair semantic drift.
+- Final audit artifact: `.tmp/phase185_full_533_audit`; issue identity `29 -> 19`, zero additions and exactly ten CONNECT multi-drop rail missing-side removals.
+- Final distribution: many-to-one `7`, missing-side `8`, cross-page `3`, low-confidence `1`. All 19 remain active fail-closed objects for the next loop.
+- Focused page-extractor gate: `72 passed`. Full repository gate: `1178 passed, 1 skipped`; compileall and diff-check pass.
+- Root `package-lock.json` remains untouched and unstaged. The overarching residual-recognition goal must not be marked complete.
