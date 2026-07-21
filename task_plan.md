@@ -3078,3 +3078,21 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Final distribution is many-to-one `7`, missing-side `6`, cross-page `3`, low-confidence `1`. Keep all 17 active fail-closed objects for the next loop.
 - Pair comparison against Phase185 is `0/0` ID delta and `0` persistent-column drift. Six evidence-only rows differ: two intended separator annotations and four existing 31000 closed-polyline floating-point canonicalization rows; no Pair or audit semantic changed.
 - Focused page-extractor gate: `84 passed`. Full repository gate: `1190 passed, 1 skipped`; compileall and diff-check pass. Retain both Phase185 baseline and Phase186 current full artifacts; root `package-lock.json` remains untouched and unstaged.
+
+## Phase 187 repeated closed-polyline loop (active)
+
+- [x] Reconfirm the authoritative Phase186 baseline: 17 issues, Pair total `38,825`, clean tracked worktree, and only root `package-lock.json` outside the recognition boundary.
+- [x] Select the narrow producer candidate: the four 8000/9000 missing-side rows whose line groups aggregate three distinct, equivalent closed LWPOLYLINE parents.
+- [x] Run an all-corpus census proving the repeated-parent contract's exact candidate set: only 8000/9000 `PW0018/PW0019/PW0035/PW0036`; the single 23000 frame/PAC CT line stay fail-closed.
+- [x] Implement the strict repeated-enclosure shadow contract plus positive and adversarial tests without changing tall-frame or unique-CONNECT behavior; focused gate `111 passed`.
+- [x] Run bounded 8000/9000 replay, full 28/533 replay/audit, repository gates, docs, and prepare the scoped commit/push boundary.
+- **Status:** complete for this Phase187 slice; the overarching recognition goal remains active with 13 fail-closed issues.
+
+### Phase 187 acceptance
+
+- Full fresh artifact: `.tmp/phase187_full_533_fresh`; 28/28 projects, 533/533 files/sheets/valid, zero invalid/incomplete, 28 clean conclusions, Pair total `38,825`.
+- Full audit artifact: `.tmp/phase187_full_533_audit`; 28/28 successful, JSON/Parquet/Markdown aligned, issue content identity `17 -> 13` with `0 additions / 4 removals`.
+- The only removals are 8000/9000 `PW0018/PW0019/PW0035/PW0036`; `closed_repeated_polyline_enclosure_edge` appears on exactly these four Pair IDs.
+- Pair comparison against Phase186 is `0/0` ID delta and `0` persistent-column drift. Eight evidence-only rows differ: four intended repeated-frame annotations plus the four known 31000 closed-frame conversion canonicalization rows.
+- Final distribution is many-to-one `7`, missing-side `2`, cross-page `3`, low-confidence `1`. The 23000 single short frame and PAC CT row remain missing-side fail-closed negatives.
+- Focused page-extractor gate: `115 passed`. Full repository gate: `1221 passed, 1 skipped`; compileall and diff-check pass. Retained artifacts are the Phase186 baseline and Phase187 current full fresh/audit pairs; root `package-lock.json` remains untouched and unstaged.

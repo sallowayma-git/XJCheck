@@ -1809,6 +1809,327 @@ def test_closed_polyline_requires_tall_enclosure_geometry() -> None:
     assert pair.evidence.get("ordinary_pair_eligible") is not False
 
 
+def test_repeated_closed_polyline_enclosure_shadows_complete_half_pair() -> None:
+    pair, group, lines = _repeated_enclosure_fixture()
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["ordinary_pair_shadow_only"] is True
+    assert pair.evidence["ordinary_pair_shadow_reason"] == "closed_repeated_polyline_enclosure_edge"
+    assert pair.evidence["closed_polyline_enclosure"] == {
+        "parent_handles": ["RP0", "RP1", "RP2"],
+        "parent_count": 3,
+        "member_edge_line_ids": ["RF0L0", "RF1L0", "RF2L0"],
+        "layer": "0",
+        "width": 45.0,
+        "height": 30.0,
+        "shared_side": "left",
+        "shared_value": "1201",
+        "shared_text_id": "T1201",
+    }
+
+
+def test_repeated_closed_polyline_enclosure_accepts_right_side_vertical_edge() -> None:
+    pair, group, lines = _repeated_enclosure_fixture(vertical=True)
+    pair.left_value = None
+    pair.left_text_id = None
+    pair.left_candidate_id = None
+    pair.right_value = "1201"
+    pair.right_text_id = "T1201"
+    pair.right_candidate_id = "C1201"
+    for field in (
+        "selected_left_candidate_id",
+        "selected_left_text_id",
+        "selected_left_raw_text",
+        "selected_left_channel",
+        "selected_left_source_block_name",
+    ):
+        pair.evidence[field] = None
+    pair.evidence.update(
+        {
+            "selected_right_candidate_id": "C1201",
+            "selected_right_text_id": "T1201",
+            "selected_right_raw_text": "1201",
+            "selected_right_is_derived_numeric": False,
+            "selected_right_source_block_name": None,
+        }
+    )
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence["ordinary_pair_shadow_reason"] == "closed_repeated_polyline_enclosure_edge"
+    assert pair.evidence["closed_polyline_enclosure"]["shared_side"] == "right"
+
+
+@pytest.mark.parametrize(
+    "negative",
+    [
+        "discarded",
+        "already_ineligible",
+        "shadow_only",
+        "alternative",
+        "ambiguity",
+        "two_sided",
+        "missing_selected_pair",
+        "missing_selected_candidate",
+        "mismatched_selected_text",
+        "mismatched_raw_value",
+        "absent_side_evidence",
+        "derived_numeric",
+        "line_evidence_mismatch",
+        "padded_value",
+        "padded_text_id",
+        "padded_candidate_id",
+    ],
+)
+def test_repeated_closed_polyline_enclosure_rejects_incomplete_pair_contract(negative: str) -> None:
+    pair, group, lines = _repeated_enclosure_fixture()
+    if negative == "discarded":
+        pair.status = "discard"
+    elif negative == "already_ineligible":
+        pair.evidence["ordinary_pair_eligible"] = False
+    elif negative == "shadow_only":
+        pair.evidence["ordinary_pair_shadow_only"] = True
+    elif negative == "alternative":
+        pair.alternative_pair_candidate_ids = ["ALT"]
+    elif negative == "ambiguity":
+        pair.ambiguity_gap = 0.1
+    elif negative == "two_sided":
+        pair.right_value = "1202"
+        pair.right_text_id = "T1202"
+        pair.right_candidate_id = "C1202"
+    elif negative == "missing_selected_pair":
+        pair.selected_pair_candidate_id = None
+    elif negative == "missing_selected_candidate":
+        pair.evidence["selected_left_candidate_id"] = None
+    elif negative == "mismatched_selected_text":
+        pair.evidence["selected_left_text_id"] = "T-OTHER"
+    elif negative == "mismatched_raw_value":
+        pair.evidence["selected_left_raw_text"] = "1201 "
+    elif negative == "absent_side_evidence":
+        pair.evidence["selected_right_text_id"] = "T-GHOST"
+    elif negative == "derived_numeric":
+        pair.evidence["selected_left_is_derived_numeric"] = True
+    elif negative == "line_evidence_mismatch":
+        pair.evidence["line_end"] = [150.251, 80.0]
+    elif negative == "padded_value":
+        pair.left_value = " 1201"
+        pair.evidence["selected_left_raw_text"] = " 1201"
+    elif negative == "padded_text_id":
+        pair.left_text_id = " T1201"
+        pair.evidence["selected_left_text_id"] = " T1201"
+    elif negative == "padded_candidate_id":
+        pair.left_candidate_id = " C1201"
+        pair.evidence["selected_left_candidate_id"] = " C1201"
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence.get("ordinary_pair_shadow_reason") != "closed_repeated_polyline_enclosure_edge"
+
+
+@pytest.mark.parametrize(
+    "negative",
+    [
+        "two_parents",
+        "bbox_outside_tolerance",
+        "cross_parent_layer",
+        "block_owned_edge",
+        "two_edges_from_one_parent",
+        "mixed_frame_edges",
+        "extra_connect_member",
+        "duplicate_member_id",
+        "group_scope_mismatch",
+        "pair_scope_mismatch",
+        "open_parent",
+    ],
+)
+def test_repeated_closed_polyline_enclosure_rejects_incomplete_geometry(negative: str) -> None:
+    third_x2 = 150.250001 if negative == "bbox_outside_tolerance" else 150.0
+    pair, group, lines = _repeated_enclosure_fixture(third_x2=third_x2)
+    if negative == "two_parents":
+        lines = [line for line in lines if not line.line_id.startswith("RF2")]
+        group.member_line_ids.remove("RF2L0")
+    elif negative == "cross_parent_layer":
+        for line in lines:
+            if line.line_id.startswith("RF2"):
+                line.layer = "DIM"
+        group.layer_hints = ["0", "DIM"]
+    elif negative == "block_owned_edge":
+        next(line for line in lines if line.line_id == "RF2L0").source_block_name = "FRAME-BLOCK"
+    elif negative == "two_edges_from_one_parent":
+        group.member_line_ids.append("RF0L2")
+    elif negative == "mixed_frame_edges":
+        group.member_line_ids[-1] = "RF2L2"
+    elif negative == "extra_connect_member":
+        lines.append(
+            _panel_line(
+                "CONNECT",
+                handle="CONNECT",
+                start_x=105.0,
+                start_y=80.0,
+                end_x=150.0,
+                end_y=80.0,
+                layer="CONNECT",
+            )
+        )
+        group.member_line_ids.append("CONNECT")
+    elif negative == "duplicate_member_id":
+        group.member_line_ids.append("RF2L0")
+    elif negative == "group_scope_mismatch":
+        group.file_id = "F2"
+    elif negative == "pair_scope_mismatch":
+        pair.file_id = "F2"
+    elif negative == "open_parent":
+        lines = [line for line in lines if line.line_id != "RF2L3"]
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert pair.evidence.get("ordinary_pair_shadow_reason") != "closed_repeated_polyline_enclosure_edge"
+
+
+@pytest.mark.parametrize(("delta", "accepted"), [(0.25, True), (0.250001, False)])
+def test_repeated_closed_polyline_enclosure_locks_bbox_tolerance(
+    delta: float,
+    accepted: bool,
+) -> None:
+    pair, group, lines = _repeated_enclosure_fixture(third_x2=150.0 + delta)
+
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines)
+
+    assert (
+        pair.evidence.get("ordinary_pair_shadow_reason")
+        == "closed_repeated_polyline_enclosure_edge"
+    ) is accepted
+
+
+def _repeated_enclosure_fixture(
+    *,
+    third_x2: float = 150.0,
+    vertical: bool = False,
+) -> tuple[Pair, LineGroup, list[LineEntity]]:
+    evidence = {
+        "pair_kind": "ordinary_pair",
+        "line_orientation": "vertical" if vertical else "horizontal",
+        "line_start": [105.0, 80.0],
+        "line_end": [105.0, 110.0] if vertical else [150.0, 80.0],
+        "selected_pair_candidate_id": "PC1",
+        "selected_left_candidate_id": "C1201",
+        "selected_right_candidate_id": None,
+        "selected_left_text_id": "T1201",
+        "selected_right_text_id": None,
+        "selected_left_raw_text": "1201",
+        "selected_right_raw_text": None,
+        "selected_left_is_derived_numeric": False,
+        "selected_right_is_derived_numeric": False,
+        "selected_left_source_block_name": None,
+        "selected_right_source_block_name": None,
+        "selected_right_channel": None,
+        "alternative_pair_candidate_ids": [],
+        "score_breakdown": {"ambiguity_gap": None},
+    }
+    pair = _pair(
+        evidence,
+        pair_id="P-REPEATED",
+        line_group_id="G-REPEATED",
+        left_text_id="T1201",
+        left_value="1201",
+        right_value=None,
+    )
+    pair.left_candidate_id = "C1201"
+    group = (
+        LineGroup(
+            "G-REPEATED",
+            "S1",
+            "F1",
+            105.0,
+            80.0,
+            105.0,
+            110.0,
+            30.0,
+            0.55,
+            ["RF0L3", "RF1L3", "RF2L3"],
+            ["0"],
+            "vertical",
+        )
+        if vertical
+        else LineGroup(
+            "G-REPEATED",
+            "S1",
+            "F1",
+            105.0,
+            80.0,
+            150.0,
+            80.0,
+            45.0,
+            0.55,
+            ["RF0L0", "RF1L0", "RF2L0"],
+            ["0"],
+            "horizontal",
+        )
+    )
+    lines: list[LineEntity] = []
+    for index in range(3):
+        lines.extend(
+            _closed_frame_lines(
+                parent_handle=f"RP{index}",
+                line_prefix=f"RF{index}L",
+                x2=third_x2 if index == 2 else 150.0,
+            )
+        )
+    return pair, group, lines
+
+
+def _closed_frame_lines(
+    *,
+    parent_handle: str,
+    line_prefix: str,
+    x1: float = 105.0,
+    x2: float = 150.0,
+    y1: float = 80.0,
+    height: float = 30.0,
+) -> list[LineEntity]:
+    y2 = y1 + height
+    return [
+        _panel_line(
+            f"{line_prefix}0",
+            handle=f"{parent_handle}:0",
+            start_x=x1,
+            start_y=y1,
+            end_x=x2,
+            end_y=y1,
+            source_entity_type="LWPOLYLINE",
+        ),
+        _panel_line(
+            f"{line_prefix}1",
+            handle=f"{parent_handle}:1",
+            start_x=x2,
+            start_y=y1,
+            end_x=x2,
+            end_y=y2,
+            source_entity_type="LWPOLYLINE",
+        ),
+        _panel_line(
+            f"{line_prefix}2",
+            handle=f"{parent_handle}:2",
+            start_x=x2,
+            start_y=y2,
+            end_x=x1,
+            end_y=y2,
+            source_entity_type="LWPOLYLINE",
+        ),
+        _panel_line(
+            f"{line_prefix}3",
+            handle=f"{parent_handle}:3",
+            start_x=x1,
+            start_y=y2,
+            end_x=x1,
+            end_y=y1,
+            source_entity_type="LWPOLYLINE",
+        ),
+    ]
+
+
 def _closed_tall_frame_lines(*, height: float = 190.0, y1: float = 80.0) -> list[LineEntity]:
     x1, x2, y2 = 105.0, 150.0, y1 + height
     return [

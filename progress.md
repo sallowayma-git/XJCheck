@@ -5966,3 +5966,17 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Gates: `python -m pytest -q` -> `1190 passed, 1 skipped`; `python -m compileall -q src tests` passed; `git diff --check` passed.
 - Recoverable tooling errors logged: initial fresh-to-audit path probe found no direct outer `findings` and launched zero jobs; one verifier first mapped `findings` instead of its inner project parent; a PowerShell audit redirection expression failed at parse time before execution; completeness validation initially used manifest keys for extraction status and was corrected to `extraction_completeness.analysis_status`. None changed source or authoritative artifacts.
 - Final retained artifacts: Phase185 baseline fresh/audit plus Phase186 current fresh/audit. Bounded PAC artifacts and rebuild logs removed. The next loop inherits 17 active fail-closed issues: many-to-one `7`, missing-side `6`, cross-page `3`, low-confidence `1`.
+
+## Phase 187 repeated enclosure audit (2026-07-21)
+
+- Recovered synchronized `HEAD=3bfbde2` with a clean tracked worktree; root `package-lock.json` remains untouched and untracked.
+- Enumerated all 17 Phase186 issues from `.tmp/phase186_full_533_audit`; selected only the four 8000/9000 closed-frame missing-side rows for repeated-parent producer census.
+- Main-thread source review located the existing exact closure/equivalent-bbox contract in `page_extractors.py`. Phase187 will extend only the short-frame branch when three or more distinct equivalent closed parents each contribute the same grouped edge; single frames remain fail-closed.
+- Full Phase186 fresh-corpus census found the final strict predicate matches exactly four 8000/9000 Pairs (`PW0018/PW0019/PW0035/PW0036`). Broad parent-count census results were rejected because they included discard/already-shadowed rows; the final predicate requires active review eligibility and complete Pair/evidence identity.
+- Implemented repeated closed-polyline authority in `page_extractors.py` and added focused positive/adversarial coverage. Existing and new extractor tests pass `111 passed`; next gate is raw 8000/9000 bounded replay/audit.
+- Extended focused coverage to right-side and vertical repeated edges plus strict whitespace negatives; final page-extractor gate is `115 passed`.
+- Raw 8000/9000 bounded replay: Pair `1999/1999`, IDs `0/0`, persistent drift `0`, reason IDs exactly `PW0018/PW0019/PW0035/PW0036`; audit `5 -> 1`, additions `0`, removals `4`.
+- Full replay/audit: 28/28 subprocesses returned `0`; 533 files/sheets/valid, zero invalid/incomplete, 28 clean conclusions, Pair `38,825`; issue content identity `17 -> 13`, additions `0`, removals exactly the four 8000/9000 rows. JSON/Parquet/Markdown align for all projects.
+- Final gates: `python -m pytest -q` -> `1221 passed, 1 skipped`; `python -m compileall -q src tests` passed; `git diff --check` passed.
+- Cleanup retained `.tmp/phase186_full_533_fresh`, `.tmp/phase186_full_533_audit`, `.tmp/phase187_full_533_fresh`, and `.tmp/phase187_full_533_audit`; removed Phase185, bounded Phase187 and replay logs with containment checks.
+- Phase187 slice is acceptance-complete. The next loop inherits 13 active fail-closed issues: many-to-one `7`, missing-side `2`, cross-page `3`, low-confidence `1`.

@@ -2099,6 +2099,22 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Retained artifact set is `.tmp/phase185_full_533_fresh`, `.tmp/phase185_full_533_audit`, `.tmp/phase186_full_533_fresh`, and `.tmp/phase186_full_533_audit`. PAC bounded outputs and rebuild logs were removed with containment-checked cleanup.
 - Remaining 17 issues are explicitly retained: many-to-one `7`, missing-side `6`, cross-page `3`, and low-confidence `1`. The next loop must continue evidence-first and fail-closed.
 
+## Phase 187 repeated enclosure candidate (2026-07-21)
+
+- The current authoritative audit has 17 rows: many-to-one `7`, missing-side `6`, cross-page `3`, low-confidence `1`. Missing-side identities are 23000 `PW0526`, 8000/9000 `PW0018/PW0019/PW0035/PW0036`, and PAC `PW0001`.
+- Existing `_shadow_closed_tall_polyline_enclosure_ordinary_pairs()` already reconstructs only exact four-segment, single-layer, axis-aligned closed LWPOLYLINE parents and requires CAD-precision equivalent bboxes when one line group contains multiple parents.
+- The four 8000/9000 target groups each contain one coincident horizontal edge from three distinct closed parents. A single short frame still lacks authority and must continue to require the existing unique nearby CONNECT claim; the proposed Phase187 authority is therefore repeated-parent closure, not a general short-frame exemption.
+- Next proof gate: full Phase186 fresh-corpus census of repeated closed parents, exact group-edge participation, Pair claim completeness, and natural negatives before editing production code.
+- The strict audit-facing census adds `status=review`, prior-shadow rejection, no alternatives/ambiguity, Pair/evidence selected identity, exact one edge per parent, shared scope/layer and group-aligned span. It matches exactly four rows: 8000/9000 `PW0018/PW0019/PW0035/PW0036`; no other project or Pair qualifies.
+- Independent `gpt-5.6-sol` review identified and the implementation closes duplicate line-ID, cross-scope, cross-parent-layer, mixed-edge, incomplete Pair/evidence and bbox non-finite/tolerance bypasses. The new reason is `closed_repeated_polyline_enclosure_edge`; fewer than three parents continue through the unchanged unique-CONNECT branch.
+- Focused coverage now includes repeated-parent positive evidence, Pair/evidence adversaries, two-parent, open/extra/mixed/block-owned edges, cross-scope/layer, duplicate members and `0.25/0.250001` bbox boundaries. `tests/unit/test_page_extractors.py` passes `111 passed`.
+- Added right-side and vertical-edge positives plus padded value/text/candidate negatives; final focused coverage is `115 passed`. The contract is orientation- and side-generic while the corpus authority remains exactly four rows.
+- 8000/9000 raw bounded replay preserved `1,999` Pair IDs and all persistent fields; only the four target evidence payloads changed. Its audit changed `5 -> 1` with zero additions, removing the four missing-side reviews and retaining GND many-to-one.
+- Full Phase187 fresh replay is 28 projects / 533 files and sheets, 533 valid, zero invalid/incomplete, 28 clean conclusions and `38,825` Pairs. Pair IDs and all non-evidence persistent columns are exact against Phase186.
+- Full audit changes `17 -> 13` with content identity `0 additions / 4 removals`; every project has JSON/Parquet/Markdown-aligned counts. New reason census is exactly 8000/9000 `PW0018/PW0019/PW0035/PW0036`.
+- Final issue distribution is many-to-one `7`, missing-side `2`, cross-page `3`, low-confidence `1`. The two missing-side rows are 23000 `PW0526` (single short frame without repeated-parent or unique CONNECT authority) and PAC `PW0001` (unresolved CT line); both remain fail-closed.
+- Full gates pass `1221 passed, 1 skipped`; compileall and diff-check pass. Artifact cleanup retains Phase186 baseline fresh/audit plus Phase187 current fresh/audit and removes Phase185, bounded replay and logs.
+
 ## Phase 185 residual audit (active)
 
 - The new authoritative residual set is 29 issues from `.tmp/phase184_full_533_audit_tight`: many-to-one `7`, missing-side `18`, cross-page `3`, low-confidence `1`.

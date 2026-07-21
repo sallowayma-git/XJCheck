@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 
 from dataclasses import dataclass
@@ -819,6 +820,7 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
         parent_lines[(line.sheet_id, line.file_id, parent_handle)].append((int(segment_index), line))
 
     enclosure_by_line_id: dict[str, dict[str, object]] = {}
+    ambiguous_enclosure_line_ids: set[str] = set()
     for (sheet_id, file_id, parent_handle), indexed_lines in parent_lines.items():
         enclosure = _closed_polyline_enclosure(indexed_lines)
         if enclosure is None:
@@ -829,6 +831,8 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
             "sheet_id": sheet_id,
             "file_id": file_id,
             "parent_handle": parent_handle,
+            "parent_key": (sheet_id, file_id, parent_handle),
+            "layer": enclosure["layer"],
             "width": width,
             "height": height,
             "member_line_ids": list(enclosure["member_line_ids"]),
@@ -839,6 +843,12 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
             "is_tall": height >= 4.0 * width,
         }
         for line_id in enclosure["member_line_ids"]:
+            if line_id in ambiguous_enclosure_line_ids:
+                continue
+            if line_id in enclosure_by_line_id:
+                enclosure_by_line_id.pop(line_id, None)
+                ambiguous_enclosure_line_ids.add(line_id)
+                continue
             enclosure_by_line_id[line_id] = evidence
 
     if not enclosure_by_line_id:
@@ -847,19 +857,34 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
     group_enclosures: dict[str, dict[str, object]] = {}
     group_by_id = {group.line_group_id: group for group in line_groups}
     for group in line_groups:
-        member_line_ids = {str(line_id) for line_id in group.member_line_ids if str(line_id)}
+        raw_member_line_ids = [str(line_id) for line_id in group.member_line_ids if str(line_id)]
+        member_line_ids = set(raw_member_line_ids)
         if not member_line_ids:
             continue
+        if len(raw_member_line_ids) != len(member_line_ids):
+            continue
+        if any(line_id not in line_by_id for line_id in member_line_ids):
+            continue
+        if any(
+            line_by_id[line_id].sheet_id != group.sheet_id
+            or line_by_id[line_id].file_id != group.file_id
+            for line_id in member_line_ids
+        ):
+            continue
         enclosure_candidates = {
-            str(enclosure_by_line_id[line_id]["parent_handle"]): enclosure_by_line_id[line_id]
+            tuple(enclosure_by_line_id[line_id]["parent_key"]): enclosure_by_line_id[line_id]
             for line_id in member_line_ids
             if line_id in enclosure_by_line_id
+            and enclosure_by_line_id[line_id]["sheet_id"] == group.sheet_id
+            and enclosure_by_line_id[line_id]["file_id"] == group.file_id
         }
         if not enclosure_candidates:
             continue
         enclosures = list(enclosure_candidates.values())
         reference = enclosures[0]
         if any(not _equivalent_polyline_bbox(reference, enclosure) for enclosure in enclosures[1:]):
+            continue
+        if len({str(enclosure["layer"]) for enclosure in enclosures}) != 1:
             continue
         enclosure_member_ids = {
             str(line_id)
@@ -868,13 +893,24 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
         }
         if not member_line_ids.issubset(enclosure_member_ids):
             continue
-        if any(line_id not in line_by_id for line_id in member_line_ids):
-            continue
+        contributions: dict[tuple[str, str, str], list[LineEntity]] = defaultdict(list)
+        for line_id in member_line_ids:
+            enclosure = enclosure_by_line_id.get(line_id)
+            if enclosure is None:
+                continue
+            contributions[tuple(enclosure["parent_key"])].append(line_by_id[line_id])
+        repeated_edge = _repeated_closed_polyline_edge_evidence(
+            group,
+            contributions,
+            reference,
+        )
         group_enclosures[group.line_group_id] = {
             **reference,
-            "parent_handles": sorted(enclosure_candidates),
+            "parent_handles": sorted(str(key[2]) for key in enclosure_candidates),
+            "parent_keys": sorted(enclosure_candidates),
             "member_line_ids": sorted(enclosure_member_ids),
             "is_tall": all(bool(enclosure["is_tall"]) for enclosure in enclosures),
+            "repeated_edge": repeated_edge,
         }
 
     text_by_id = {text.text_id: text for text in (texts or [])}
@@ -888,24 +924,42 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
         if enclosure is None:
             continue
         if not enclosure["is_tall"]:
-            primary = _unique_nearby_connect_claim(
-                pair,
-                enclosure,
-                pairs,
-                group_by_id,
-                line_by_id,
-                text_by_id,
+            repeated_edge = enclosure.get("repeated_edge")
+            repeated_claim = (
+                _authoritative_repeated_enclosure_half_pair(pair, group_by_id.get(pair.line_group_id))
+                if isinstance(repeated_edge, dict)
+                else None
             )
-            if primary is None:
-                continue
-            pair.evidence["ordinary_pair_shadow_reason"] = "closed_polyline_duplicate_enclosure_edge"
-            pair.evidence["closed_polyline_enclosure"] = {
-                "parent_handles": enclosure["parent_handles"],
-                "width": enclosure["width"],
-                "height": enclosure["height"],
-                "canonical_pair_id": primary.pair_id,
-                "canonical_line_group_id": primary.line_group_id,
-            }
+            if repeated_claim is not None:
+                pair.evidence["ordinary_pair_shadow_reason"] = "closed_repeated_polyline_enclosure_edge"
+                pair.evidence["closed_polyline_enclosure"] = {
+                    "parent_handles": repeated_edge["parent_handles"],
+                    "parent_count": repeated_edge["parent_count"],
+                    "member_edge_line_ids": repeated_edge["member_edge_line_ids"],
+                    "layer": repeated_edge["layer"],
+                    "width": enclosure["width"],
+                    "height": enclosure["height"],
+                    **repeated_claim,
+                }
+            else:
+                primary = _unique_nearby_connect_claim(
+                    pair,
+                    enclosure,
+                    pairs,
+                    group_by_id,
+                    line_by_id,
+                    text_by_id,
+                )
+                if primary is None:
+                    continue
+                pair.evidence["ordinary_pair_shadow_reason"] = "closed_polyline_duplicate_enclosure_edge"
+                pair.evidence["closed_polyline_enclosure"] = {
+                    "parent_handles": enclosure["parent_handles"],
+                    "width": enclosure["width"],
+                    "height": enclosure["height"],
+                    "canonical_pair_id": primary.pair_id,
+                    "canonical_line_group_id": primary.line_group_id,
+                }
         else:
             pair.evidence["ordinary_pair_shadow_reason"] = "closed_tall_polyline_enclosure_edge"
             pair.evidence["closed_polyline_enclosure"] = {
@@ -921,10 +975,203 @@ def _equivalent_polyline_bbox(left: dict[str, object], right: dict[str, object])
     """Treat duplicate parent polylines as one frame only at CAD precision."""
 
     tolerance = 0.25
+    try:
+        coordinates = [
+            (float(left[key]), float(right[key]))
+            for key in ("min_x", "min_y", "max_x", "max_y")
+        ]
+    except (KeyError, TypeError, ValueError):
+        return False
     return all(
-        abs(float(left[key]) - float(right[key])) <= tolerance
-        for key in ("min_x", "min_y", "max_x", "max_y")
+        math.isfinite(left_value)
+        and math.isfinite(right_value)
+        and abs(left_value - right_value) <= tolerance
+        for left_value, right_value in coordinates
     )
+
+
+def _repeated_closed_polyline_edge_evidence(
+    group: LineGroup,
+    contributions: dict[tuple[str, str, str], list[LineEntity]],
+    enclosure: dict[str, object],
+) -> dict[str, object] | None:
+    """Prove that at least three closed parents contribute one coincident edge."""
+
+    tolerance = 0.25
+    if len(contributions) < 3 or any(len(lines) != 1 for lines in contributions.values()):
+        return None
+    edges = [lines[0] for lines in contributions.values()]
+    if len(edges) != len(contributions):
+        return None
+    if any(
+        edge.sheet_id != group.sheet_id
+        or edge.file_id != group.file_id
+        or str(edge.source_entity_type or "").upper() != "LWPOLYLINE"
+        or edge.source_block_name is not None
+        for edge in edges
+    ):
+        return None
+    layers = {str(edge.layer or "") for edge in edges}
+    if len(layers) != 1 or not next(iter(layers)):
+        return None
+    group_layers = {str(layer or "") for layer in group.layer_hints if str(layer or "")}
+    if group_layers and group_layers != layers:
+        return None
+    orientation = str(group.orientation or "").casefold()
+    if orientation not in {"horizontal", "vertical"}:
+        return None
+    group_coordinates = (
+        float(group.start_x),
+        float(group.start_y),
+        float(group.end_x),
+        float(group.end_y),
+    )
+    if not all(math.isfinite(value) for value in group_coordinates):
+        return None
+    group_min_axis, group_max_axis = sorted(
+        (group_coordinates[0], group_coordinates[2])
+        if orientation == "horizontal"
+        else (group_coordinates[1], group_coordinates[3])
+    )
+    group_cross_axis = (
+        (group_coordinates[1] + group_coordinates[3]) / 2.0
+        if orientation == "horizontal"
+        else (group_coordinates[0] + group_coordinates[2]) / 2.0
+    )
+    for edge in edges:
+        edge_coordinates = (
+            float(edge.start_x),
+            float(edge.start_y),
+            float(edge.end_x),
+            float(edge.end_y),
+        )
+        if not all(math.isfinite(value) for value in edge_coordinates):
+            return None
+        if orientation == "horizontal":
+            edge_min_axis, edge_max_axis = sorted((edge_coordinates[0], edge_coordinates[2]))
+            edge_cross_values = (edge_coordinates[1], edge_coordinates[3])
+        else:
+            edge_min_axis, edge_max_axis = sorted((edge_coordinates[1], edge_coordinates[3]))
+            edge_cross_values = (edge_coordinates[0], edge_coordinates[2])
+        if (
+            abs(edge_min_axis - group_min_axis) > tolerance
+            or abs(edge_max_axis - group_max_axis) > tolerance
+            or any(abs(value - group_cross_axis) > tolerance for value in edge_cross_values)
+        ):
+            return None
+    try:
+        width = float(enclosure["width"])
+        height = float(enclosure["height"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not math.isfinite(width) or not math.isfinite(height):
+        return None
+    return {
+        "parent_handles": sorted(key[2] for key in contributions),
+        "parent_count": len(contributions),
+        "member_edge_line_ids": sorted(str(edge.line_id) for edge in edges),
+        "layer": next(iter(layers)),
+    }
+
+
+def _authoritative_repeated_enclosure_half_pair(
+    pair: Pair,
+    group: LineGroup | None,
+) -> dict[str, object] | None:
+    """Require complete Pair/evidence identity before repeated-frame shadowing."""
+
+    if group is None or pair.status != "review":
+        return None
+    if pair.sheet_id != group.sheet_id or pair.file_id != group.file_id:
+        return None
+    evidence = pair.evidence or {}
+    if (
+        evidence.get("ordinary_pair_eligible") is False
+        or evidence.get("ordinary_pair_shadow_only") is True
+        or evidence.get("ordinary_pair_shadow_reason")
+        or pair.alternative_pair_candidate_ids
+        or pair.ambiguity_gap is not None
+    ):
+        return None
+    present_sides = [
+        side
+        for side in ("left", "right")
+        if isinstance(getattr(pair, f"{side}_value", None), str)
+        and bool(getattr(pair, f"{side}_value"))
+    ]
+    if len(present_sides) != 1:
+        return None
+    present_side = present_sides[0]
+    absent_side = "right" if present_side == "left" else "left"
+    value = getattr(pair, f"{present_side}_value")
+    text_id = getattr(pair, f"{present_side}_text_id")
+    candidate_id = getattr(pair, f"{present_side}_candidate_id")
+    if not isinstance(value, str) or not value or value.strip() != value:
+        return None
+    if (
+        not isinstance(text_id, str)
+        or not text_id
+        or text_id.strip() != text_id
+        or text_id.casefold() in {"nan", "none", "null"}
+    ):
+        return None
+    if not isinstance(candidate_id, str) or not candidate_id or candidate_id.strip() != candidate_id:
+        return None
+    if any(
+        getattr(pair, f"{absent_side}_{field}") is not None
+        for field in ("value", "text_id", "candidate_id")
+    ):
+        return None
+    if (
+        not isinstance(pair.selected_pair_candidate_id, str)
+        or not pair.selected_pair_candidate_id
+        or pair.selected_pair_candidate_id.strip() != pair.selected_pair_candidate_id
+    ):
+        return None
+    if (
+        evidence.get("pair_kind") != "ordinary_pair"
+        or evidence.get("line_orientation") != group.orientation
+        or evidence.get("selected_pair_candidate_id") != pair.selected_pair_candidate_id
+        or evidence.get(f"selected_{present_side}_candidate_id") != candidate_id
+        or evidence.get(f"selected_{present_side}_text_id") != text_id
+        or evidence.get(f"selected_{present_side}_raw_text") != value
+        or evidence.get(f"selected_{present_side}_is_derived_numeric") is not False
+        or evidence.get(f"selected_{present_side}_source_block_name") is not None
+        or any(
+            evidence.get(f"selected_{absent_side}_{field}") is not None
+            for field in ("candidate_id", "text_id", "raw_text", "channel", "source_block_name")
+        )
+        or evidence.get("alternative_pair_candidate_ids") != []
+    ):
+        return None
+    score_breakdown = evidence.get("score_breakdown")
+    if not isinstance(score_breakdown, dict) or score_breakdown.get("ambiguity_gap") is not None:
+        return None
+    line_start = evidence.get("line_start")
+    line_end = evidence.get("line_end")
+    if not (
+        isinstance(line_start, list)
+        and len(line_start) == 2
+        and isinstance(line_end, list)
+        and len(line_end) == 2
+    ):
+        return None
+    try:
+        evidence_coordinates = tuple(float(value) for value in (*line_start, *line_end))
+    except (TypeError, ValueError):
+        return None
+    group_coordinates = (group.start_x, group.start_y, group.end_x, group.end_y)
+    if any(
+        not math.isfinite(actual)
+        or abs(actual - float(expected)) > 0.25
+        for actual, expected in zip(evidence_coordinates, group_coordinates)
+    ):
+        return None
+    return {
+        "shared_side": present_side,
+        "shared_value": value,
+        "shared_text_id": text_id,
+    }
 
 
 def _pair_claims(pair: Pair) -> set[tuple[str, str, str]]:
@@ -1051,6 +1298,14 @@ def _closed_polyline_enclosure(
 
     endpoint_counts: dict[tuple[float, float], int] = defaultdict(int)
     for line in lines:
+        coordinates = (
+            float(line.start_x),
+            float(line.start_y),
+            float(line.end_x),
+            float(line.end_y),
+        )
+        if not all(math.isfinite(value) for value in coordinates):
+            return None
         start = (round(float(line.start_x), 6), round(float(line.start_y), 6))
         end = (round(float(line.end_x), 6), round(float(line.end_y), 6))
         if start == end or not (start[0] == end[0] or start[1] == end[1]):
@@ -1069,6 +1324,7 @@ def _closed_polyline_enclosure(
     if width <= 0.0 or height <= 0.0:
         return None
     return {
+        "layer": str(lines[0].layer or ""),
         "width": width,
         "height": height,
         "member_line_ids": [line.line_id for line in lines],
