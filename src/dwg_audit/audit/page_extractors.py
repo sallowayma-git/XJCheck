@@ -287,6 +287,7 @@ def _extract_pairs_for_route(
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
         _shadow_communication_medium_ordinary_pairs(pairs, pages)
         _shadow_repeated_panel_silkscreen_ordinary_pairs(pairs, pages, texts, blocks or [])
+        _shadow_parallel_grid_separator_ordinary_pairs(pairs, line_groups, lines)
     _shadow_closed_tall_polyline_enclosure_ordinary_pairs(pairs, line_groups, lines, texts)
     if executed_extractor == "WireDiagramExtractor":
         _shadow_connect_multidrop_rail_ordinary_pairs(pairs, line_groups, lines)
@@ -434,6 +435,244 @@ def _shadow_grid_wire_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "wire_grid_primary"
+
+
+def _shadow_parallel_grid_separator_ordinary_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    lines: list[LineEntity],
+) -> None:
+    """Shadow repeated, text-backed separator rows with no electrical drop.
+
+    A separator is accepted only when the producer supplies a complete local
+    parallel-row family: at least two rows repeat one side/value/text claim,
+    another parallel row has no endpoint claim, and no interior vertical line
+    touches any row. Boundary touches remain permitted because frame edges can
+    terminate at a separator without making an interior connection.
+    """
+
+    tolerance = 0.25
+    group_by_id = {group.line_group_id: group for group in line_groups}
+    line_by_id = {line.line_id: line for line in lines}
+    pairs_by_group: dict[str, list[Pair]] = defaultdict(list)
+    for pair in pairs:
+        pairs_by_group[pair.line_group_id].append(pair)
+
+    def _group_lines(group: LineGroup) -> list[LineEntity] | None:
+        member_lines = [line_by_id.get(line_id) for line_id in group.member_line_ids]
+        if not member_lines or any(line is None for line in member_lines):
+            return None
+        resolved = [line for line in member_lines if line is not None]
+        if any(
+            str(line.source_entity_type or "").upper() != "LINE"
+            or not str(line.layer or "").strip()
+            or str(line.layer or "").casefold() == "connect"
+            or line.source_block_name is not None
+            or abs(float(line.start_y) - float(line.end_y)) > tolerance
+            for line in resolved
+        ):
+            return None
+        return resolved
+
+    groups_by_scope: dict[tuple[str, str], list[tuple[LineGroup, list[LineEntity]]]] = defaultdict(list)
+    for group in line_groups:
+        resolved = _group_lines(group)
+        if resolved is None or str(group.orientation or "").casefold() != "horizontal":
+            continue
+        groups_by_scope[(group.sheet_id, group.file_id)].append((group, resolved))
+
+    for pair in pairs:
+        if pair.pair_kind != "ordinary_pair":
+            continue
+        if pair.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        if pair.alternative_pair_candidate_ids or pair.ambiguity_gap is not None:
+            continue
+        present_sides = [
+            side
+            for side in ("left", "right")
+            if str(getattr(pair, f"{side}_value", None) or "").strip()
+        ]
+        if len(present_sides) != 1:
+            continue
+        present_side = present_sides[0]
+        present_value = str(getattr(pair, f"{present_side}_value") or "").strip()
+        present_text_id = str(getattr(pair, f"{present_side}_text_id") or "").strip()
+        if (
+            not present_value
+            or not present_text_id
+            or present_text_id.casefold() in {"nan", "none", "null"}
+        ):
+            continue
+
+        group = group_by_id.get(pair.line_group_id)
+        if group is None:
+            continue
+        group_lines = _group_lines(group)
+        if group_lines is None:
+            continue
+        group_min_x, group_max_x = sorted((float(group.start_x), float(group.end_x)))
+        group_width = group_max_x - group_min_x
+        if group_width <= 0.0:
+            continue
+        scope = (group.sheet_id, group.file_id)
+        parallel: list[tuple[LineGroup, list[LineEntity]]] = []
+        for candidate_group, candidate_lines in groups_by_scope.get(scope, []):
+            candidate_min_x, candidate_max_x = sorted(
+                (float(candidate_group.start_x), float(candidate_group.end_x))
+            )
+            if (
+                abs(candidate_min_x - group_min_x) > tolerance
+                or abs(candidate_max_x - group_max_x) > tolerance
+                or abs((candidate_max_x - candidate_min_x) - group_width) > tolerance
+            ):
+                continue
+            candidate_layer = {str(line.layer or "").casefold() for line in candidate_lines}
+            group_layer = {str(line.layer or "").casefold() for line in group_lines}
+            if not candidate_layer or candidate_layer != group_layer:
+                continue
+            parallel.append((candidate_group, candidate_lines))
+        if len(parallel) < 3:
+            continue
+
+        row_y_by_group = {
+            candidate_group.line_group_id: (float(candidate_group.start_y) + float(candidate_group.end_y)) / 2.0
+            for candidate_group, _ in parallel
+        }
+        row_ys = sorted(row_y_by_group.values())
+        if any(abs(left - right) <= tolerance for left, right in zip(row_ys, row_ys[1:])):
+            continue
+        row_gaps = [right - left for left, right in zip(row_ys, row_ys[1:])]
+        if max(row_gaps) - min(row_gaps) > tolerance:
+            continue
+        if row_ys[-1] - row_ys[0] > group_width + tolerance:
+            continue
+
+        parallel_pairs: list[Pair] = []
+        valid_family = True
+        for candidate_group, _ in parallel:
+            candidate_pairs = pairs_by_group.get(candidate_group.line_group_id, [])
+            if len(candidate_pairs) != 1 or candidate_pairs[0].pair_kind != "ordinary_pair":
+                valid_family = False
+                break
+            parallel_pairs.append(candidate_pairs[0])
+        if not valid_family:
+            continue
+
+        valued_pairs = [
+            candidate
+            for candidate in parallel_pairs
+            if str(getattr(candidate, "left_value", None) or "").strip()
+            or str(getattr(candidate, "right_value", None) or "").strip()
+        ]
+        unvalued_pairs = [
+            candidate
+            for candidate in parallel_pairs
+            if not str(getattr(candidate, "left_value", None) or "").strip()
+            and not str(getattr(candidate, "right_value", None) or "").strip()
+            and not str(getattr(candidate, "left_text_id", None) or "").strip()
+            and not str(getattr(candidate, "right_text_id", None) or "").strip()
+        ]
+        if (
+            len(valued_pairs) < 2
+            or not unvalued_pairs
+            or len(valued_pairs) + len(unvalued_pairs) != len(parallel_pairs)
+        ):
+            continue
+        if any(
+            candidate.status == "discard"
+            or candidate.evidence.get("ordinary_pair_eligible") is False
+            or candidate.alternative_pair_candidate_ids
+            or candidate.ambiguity_gap is not None
+            for candidate in valued_pairs
+        ):
+            continue
+        other_side = "right" if present_side == "left" else "left"
+        if any(
+            str(getattr(candidate, f"{present_side}_value", None) or "").strip() != present_value
+            or str(getattr(candidate, f"{present_side}_text_id", None) or "").strip() != present_text_id
+            or bool(str(getattr(candidate, f"{other_side}_value", None) or "").strip())
+            or bool(str(getattr(candidate, f"{other_side}_text_id", None) or "").strip())
+            or not str(candidate.selected_pair_candidate_id or "").strip()
+            or str(candidate.evidence.get("line_orientation") or "").casefold() != "horizontal"
+            or str(candidate.evidence.get(f"selected_{present_side}_candidate_id") or "").strip() == ""
+            or str(candidate.evidence.get(f"selected_{present_side}_text_id") or "").strip() != present_text_id
+            or str(candidate.evidence.get(f"selected_{present_side}_raw_text") or "").strip() != present_value
+            or candidate.evidence.get(f"selected_{other_side}_candidate_id") is not None
+            or candidate.evidence.get(f"selected_{other_side}_text_id") is not None
+            or candidate.evidence.get(f"selected_{other_side}_raw_text") is not None
+            for candidate in valued_pairs
+        ):
+            continue
+        if any(
+            candidate.status != "discard"
+            or not str(candidate.selected_pair_candidate_id or "").strip()
+            or str(candidate.evidence.get("line_orientation") or "").casefold() != "horizontal"
+            or any(
+                candidate.evidence.get(key) is not None
+                for key in (
+                    "selected_left_candidate_id",
+                    "selected_left_text_id",
+                    "selected_left_raw_text",
+                    "selected_right_candidate_id",
+                    "selected_right_text_id",
+                    "selected_right_raw_text",
+                )
+            )
+            for candidate in unvalued_pairs
+        ):
+            continue
+
+        member_ids = {
+            str(line.line_id)
+            for _, candidate_lines in parallel
+            for line in candidate_lines
+        }
+        row_bounds = [
+            (
+                min(float(candidate_group.start_x), float(candidate_group.end_x)),
+                max(float(candidate_group.start_x), float(candidate_group.end_x)),
+                row_y_by_group[candidate_group.line_group_id],
+            )
+            for candidate_group, _ in parallel
+        ]
+        touches_interior = False
+        for line in lines:
+            if str(line.line_id) in member_ids:
+                continue
+            dx = abs(float(line.start_x) - float(line.end_x))
+            dy = abs(float(line.start_y) - float(line.end_y))
+            if dx > tolerance or dy <= tolerance:
+                continue
+            if line.sheet_id != group.sheet_id or line.file_id != group.file_id:
+                continue
+            line_x = (float(line.start_x) + float(line.end_x)) / 2.0
+            for row_min_x, row_max_x, row_y in row_bounds:
+                if not row_min_x + tolerance < line_x < row_max_x - tolerance:
+                    continue
+                if min(float(line.start_y), float(line.end_y)) - tolerance <= row_y <= max(float(line.start_y), float(line.end_y)) + tolerance:
+                    touches_interior = True
+                    break
+            if touches_interior:
+                break
+        if touches_interior:
+            continue
+
+        for candidate in valued_pairs:
+            candidate.evidence["ordinary_pair_eligible"] = False
+            candidate.evidence["ordinary_pair_shadow_only"] = True
+            candidate.evidence["ordinary_pair_shadow_reason"] = "parallel_grid_separator"
+            candidate.evidence["parallel_grid_separator"] = {
+                "parallel_line_group_ids": sorted(candidate_group.line_group_id for candidate_group, _ in parallel),
+                "parallel_row_ys": [round(value, 6) for value in row_ys],
+                "shared_side": present_side,
+                "shared_value": present_value,
+                "shared_text_id": present_text_id,
+                "unvalued_line_group_ids": sorted(
+                    candidate.line_group_id
+                    for candidate in unvalued_pairs
+                ),
+            }
 
 
 def _shadow_communication_medium_ordinary_pairs(pairs: list[Pair], pages: list[SheetRecord]) -> None:

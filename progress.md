@@ -5945,3 +5945,24 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - A final delegated artifact/code review remained silent past the ten-minute limit (including its child audit) and was interrupted; no output was treated as evidence. Main-thread structured validators remain the acceptance authority.
 - Final repository gate passes `1178 passed, 1 skipped`; `python -m compileall -q src tests` and `git diff --check` pass.
 - Phase185 acceptance is complete for the rail slice: retain `.tmp/phase185_full_533_fresh` and `.tmp/phase185_full_533_audit`; clean the affected replay plus full-run logs/status, then stage only the five recognition/planning files.
+
+## Phase 185 recovery / Phase 186 active loop (2026-07-21)
+
+- Recovered the deleted Phase185 disk evidence from the original `test/` DWG roots. The direct-DWG-root runner found 28 roots and 533 files; all 28 fresh and all 28 audit subprocesses returned `0`.
+- The first audit runner pass assumed outer output directories contained `findings` and correctly produced no jobs. The second pass recursively bound the inner `pairs.parquet` parent directories and produced the full 28-project audit. This was a tooling-path correction only; no source or prior artifact was changed.
+- Fresh validation: `28/28` complete, `533/533` files/sheets/valid, `0` invalid/incomplete, `38,825` Pair rows, and exactly the ten expected `connect_multidrop_rail` shadows. Independent `gpt-5.6-sol` read-only verification returned the same counts and Pair IDs.
+- Audit validation: `28/28` projects contain `issues.json`, `issues.parquet`, and `audit_report.md`; total `19`, with JSON/Parquet/Markdown counts aligned per project. Distribution is `7/8/3/1` for many-to-one/missing-side/cross-page/low-confidence.
+- Cleanup retained only `.tmp/phase185_full_533_fresh` and `.tmp/phase185_full_533_audit`; the exact rebuild-log directory was removed with a containment-checked process after the native recursive cleanup was blocked by local policy.
+- Historical note: the accepted pre-cleanup artifact audit established `29 -> 19`, `0 additions / 10 removals`; since its baseline was deleted concurrently, this session does not claim a fresh baseline identity recomputation.
+- **Next:** begin Phase186 candidate selection over the 19 current fail-closed issues. Keep cross-page `3`, missing-side `8`, low-confidence `1`, and many-to-one `7` active until a producer-backed contract and bounded zero-addition replay are proven.
+
+## Phase 186 parallel separator implementation and acceptance (2026-07-21)
+
+- Read-only residual topology census selected only PAC `PW0146/PW0148`: three same-span parallel `LINE` rows, two shared `211/T1008` claims, and one fully unvalued row. No other Pair in the 28-project fresh corpus matched.
+- Implemented `parallel_grid_separator` shadowing in `src/dwg_audit/audit/page_extractors.py` with exact producer/evidence identity, uniform local geometry, non-CONNECT/non-block pure LINE ownership, and interior-touch rejection. Added positive, boundary-touch, and natural-negative tests in `tests/unit/test_page_extractors.py`.
+- Focused gate: `python -m pytest tests/unit/test_page_extractors.py -q` -> `84 passed`.
+- PAC bounded fresh/audit: Pair `2012/2012`, IDs `0/0`, persistent drift `0`; separator shadows exactly `PW0146/PW0148`; audit `6 -> 4`, additions `0`, removals `2`.
+- Full fresh/audit: 28/28 workers returned `0`; 533 files/sheets/valid, 0 invalid/incomplete, 28 clean conclusions, Pair `38,825`; audit `19 -> 17`, additions `0`, removals exactly the two PAC pairs. JSON/Parquet/Markdown counts aligned for every project.
+- Gates: `python -m pytest -q` -> `1190 passed, 1 skipped`; `python -m compileall -q src tests` passed; `git diff --check` passed.
+- Recoverable tooling errors logged: initial fresh-to-audit path probe found no direct outer `findings` and launched zero jobs; one verifier first mapped `findings` instead of its inner project parent; a PowerShell audit redirection expression failed at parse time before execution; completeness validation initially used manifest keys for extraction status and was corrected to `extraction_completeness.analysis_status`. None changed source or authoritative artifacts.
+- Final retained artifacts: Phase185 baseline fresh/audit plus Phase186 current fresh/audit. Bounded PAC artifacts and rebuild logs removed. The next loop inherits 17 active fail-closed issues: many-to-one `7`, missing-side `6`, cross-page `3`, low-confidence `1`.

@@ -5,6 +5,7 @@ from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation
 from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_schematic_ground_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
+from dwg_audit.audit.page_extractors import _shadow_parallel_grid_separator_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_connect_multidrop_rail_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_closed_tall_polyline_enclosure_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_terminal_prefixed_endpoint_ordinary_pairs
@@ -102,6 +103,36 @@ def _line_group(
         orientation=orientation,
         row_band_id=row_band_id,
     )
+
+
+def _parallel_separator_pair(
+    *,
+    pair_id: str,
+    line_group_id: str,
+    value: str | None = "211",
+    text_id: str | None = "T211",
+) -> Pair:
+    evidence = {
+        "line_orientation": "horizontal",
+        "selected_left_candidate_id": "C211" if value is not None else None,
+        "selected_left_text_id": text_id if value is not None else None,
+        "selected_left_raw_text": value,
+        "selected_right_candidate_id": None,
+        "selected_right_text_id": None,
+        "selected_right_raw_text": None,
+    }
+    pair = _pair(
+        evidence,
+        pair_id=pair_id,
+        line_group_id=line_group_id,
+        left_text_id=text_id if value is not None else None,
+        left_value=value,
+        right_value=None,
+    )
+    if value is None:
+        pair.status = "discard"
+        pair.confidence_bucket = "low"
+    return pair
 
 
 def _panel_line(
@@ -1231,6 +1262,106 @@ def test_shadow_grid_wire_ordinary_pairs_marks_wire_grid_pairs_ineligible() -> N
     assert ordinary.evidence["ordinary_pair_eligible"] is False
     assert ordinary.evidence["ordinary_pair_shadow_only"] is True
     assert ordinary.evidence["ordinary_pair_shadow_reason"] == "wire_grid_primary"
+
+
+def test_parallel_grid_separator_shadows_repeated_text_backed_rows() -> None:
+    pairs = [
+        _parallel_separator_pair(pair_id="P_TOP", line_group_id="G_TOP"),
+        _parallel_separator_pair(pair_id="P_MIDDLE", line_group_id="G_MIDDLE"),
+        _parallel_separator_pair(pair_id="P_EMPTY", line_group_id="G_EMPTY", value=None, text_id=None),
+    ]
+    groups = [
+        _line_group("G_TOP", start_x=40.0, end_x=70.0, start_y=40.0, end_y=40.0, orientation="horizontal", row_band_id=None, wire_score=0.55),
+        _line_group("G_MIDDLE", start_x=40.0, end_x=70.0, start_y=50.0, end_y=50.0, orientation="horizontal", row_band_id=None, wire_score=0.55),
+        _line_group("G_EMPTY", start_x=40.0, end_x=70.0, start_y=60.0, end_y=60.0, orientation="horizontal", row_band_id=None, wire_score=0.55),
+    ]
+    lines = [
+        _panel_line(
+            "BOUNDARY",
+            handle="H-BOUNDARY",
+            start_x=70.0,
+            start_y=30.0,
+            end_x=70.0,
+            end_y=40.0,
+        )
+    ]
+    for index, group in enumerate(groups):
+        line_id = f"L{index}"
+        group.member_line_ids = [line_id]
+        lines.append(_panel_line(line_id, handle=f"H{index}", start_x=40.0, start_y=40.0 + index * 10.0, end_x=70.0, end_y=40.0 + index * 10.0))
+
+    _shadow_parallel_grid_separator_ordinary_pairs(pairs, groups, lines)
+
+    for pair in pairs[:2]:
+        assert pair.evidence["ordinary_pair_eligible"] is False
+        assert pair.evidence["ordinary_pair_shadow_only"] is True
+        assert pair.evidence["ordinary_pair_shadow_reason"] == "parallel_grid_separator"
+    assert "ordinary_pair_shadow_reason" not in pairs[2].evidence
+
+
+@pytest.mark.parametrize(
+    "negative",
+    [
+        "two_rows",
+        "different_values",
+        "interior_drop",
+        "block_member",
+        "polyline_member",
+        "alternative",
+        "text_only_row",
+        "discarded_claim",
+        "uneven_spacing",
+        "connect_layer",
+        "invalid_text_id",
+    ],
+)
+def test_parallel_grid_separator_fails_closed_for_non_authoritative_geometry(negative: str) -> None:
+    top = _parallel_separator_pair(pair_id="P_TOP", line_group_id="G_TOP")
+    middle = _parallel_separator_pair(pair_id="P_MIDDLE", line_group_id="G_MIDDLE")
+    empty = _parallel_separator_pair(pair_id="P_EMPTY", line_group_id="G_EMPTY", value=None, text_id=None)
+    if negative == "different_values":
+        middle.left_text_id = "T212"
+        middle.left_value = "212"
+        middle.evidence["selected_left_text_id"] = "T212"
+        middle.evidence["selected_left_raw_text"] = "212"
+    if negative == "alternative":
+        middle.alternative_pair_candidate_ids = ["ALT"]
+    if negative == "text_only_row":
+        empty.left_text_id = "T-UNBOUND"
+    if negative == "discarded_claim":
+        middle.status = "discard"
+    if negative == "invalid_text_id":
+        top.left_text_id = "NaN"
+        top.evidence["selected_left_text_id"] = "NaN"
+    pairs = [top, middle, empty]
+    groups = [
+        _line_group("G_TOP", start_x=40.0, end_x=70.0, start_y=40.0, end_y=40.0, orientation="horizontal", row_band_id=None, wire_score=0.55),
+        _line_group("G_MIDDLE", start_x=40.0, end_x=70.0, start_y=50.0, end_y=50.0, orientation="horizontal", row_band_id=None, wire_score=0.55),
+        _line_group("G_EMPTY", start_x=40.0, end_x=70.0, start_y=60.0, end_y=60.0, orientation="horizontal", row_band_id=None, wire_score=0.55),
+    ]
+    lines = []
+    for index, group in enumerate(groups):
+        line_id = f"L{index}"
+        group.member_line_ids = [line_id]
+        source_type = "LWPOLYLINE" if negative == "polyline_member" and index == 1 else "LINE"
+        source_block = "BLOCK" if negative == "block_member" and index == 1 else None
+        layer = "CONNECT" if negative == "connect_layer" else "0"
+        lines.append(_panel_line(line_id, handle=f"H{index}", start_x=40.0, start_y=40.0 + index * 10.0, end_x=70.0, end_y=40.0 + index * 10.0, layer=layer, source_entity_type=source_type, source_block_name=source_block))
+    if negative == "two_rows":
+        groups.pop()
+        pairs.pop()
+        lines.pop()
+    elif negative == "interior_drop":
+        lines.append(_panel_line("DROP", handle="HDROP", start_x=55.0, start_y=35.0, end_x=55.0, end_y=65.0))
+    elif negative == "uneven_spacing":
+        groups[2].start_y = 65.0
+        groups[2].end_y = 65.0
+        lines[2].start_y = 65.0
+        lines[2].end_y = 65.0
+
+    _shadow_parallel_grid_separator_ordinary_pairs(pairs, groups, lines)
+
+    assert all(pair.evidence.get("ordinary_pair_eligible") is not False for pair in pairs[:2])
 
 
 def test_connect_multidrop_rail_shadows_single_sided_ordinary_pair() -> None:

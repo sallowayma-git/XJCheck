@@ -3057,3 +3057,24 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Final distribution: many-to-one `7`, missing-side `8`, cross-page `3`, low-confidence `1`. All 19 remain active fail-closed objects for the next loop.
 - Focused page-extractor gate: `72 passed`. Full repository gate: `1178 passed, 1 skipped`; compileall and diff-check pass.
 - Root `package-lock.json` remains untouched and unstaged. The overarching residual-recognition goal must not be marked complete.
+
+## Phase 186 residual optimization loop (active)
+
+- [x] Rebuild the authoritative Phase185 fresh artifact from original DWG inputs after the concurrent `.tmp` cleanup; 28 projects, 533 files/sheets, and 38,825 Pairs are present.
+- [x] Rebuild the authoritative Phase185 audit artifact from the rebuilt findings; all 28 audit jobs returned zero and JSON/Parquet/Markdown counts align.
+- [x] Reconfirm the Phase185 rail contract on disk: exactly ten `connect_multidrop_rail` shadows, with no extra project or Pair.
+- [x] Remove only the rebuild runner logs; retain `.tmp/phase185_full_533_fresh` and `.tmp/phase185_full_533_audit`.
+- [x] Select one evidence-backed residual slice from the 19 fail-closed issues and inspect the exact producer contract before changing code: PAC's three parallel non-CONNECT separator rows.
+- [x] Implement the generalized parallel-grid separator shadow with exact value/text/evidence identity, local uniform spacing, no interior vertical touch, and natural negatives.
+- [x] Run PAC bounded replay and full 28/533 replay/audit; Pair IDs and all persistent columns stayed stable, with only PAC `PW0146/PW0148` removed and no additions.
+- [x] Run repository gates, update the three planning files, and prepare the scoped recognition commit boundary.
+- **Status:** complete for this Phase186 slice; overarching residual goal remains active with 17 fail-closed issues for the next loop. Do not mark the overarching recognition goal complete.
+
+### Phase 186 acceptance
+
+- Full fresh artifact: `.tmp/phase186_full_533_fresh`; 28/28 projects, 533/533 files/sheets/valid, zero invalid/incomplete, 28 clean conclusions, Pair total `38,825`.
+- Full audit artifact: `.tmp/phase186_full_533_audit`; 28/28 successful, JSON/Parquet/Markdown aligned, issue content identity `19 -> 17` with `0 additions / 2 removals`.
+- The only removed issues are PAC `PW0146` and `PW0148` (`R-PAIR-MISSING-SIDE`, both `211 -> ?`). The new shadow reason is exactly two rows; the existing ten `connect_multidrop_rail` rows remain unchanged.
+- Final distribution is many-to-one `7`, missing-side `6`, cross-page `3`, low-confidence `1`. Keep all 17 active fail-closed objects for the next loop.
+- Pair comparison against Phase185 is `0/0` ID delta and `0` persistent-column drift. Six evidence-only rows differ: two intended separator annotations and four existing 31000 closed-polyline floating-point canonicalization rows; no Pair or audit semantic changed.
+- Focused page-extractor gate: `84 passed`. Full repository gate: `1190 passed, 1 skipped`; compileall and diff-check pass. Retain both Phase185 baseline and Phase186 current full artifacts; root `package-lock.json` remains untouched and unstaged.
