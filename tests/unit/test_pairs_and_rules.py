@@ -4,6 +4,7 @@ import pytest
 
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.rules import build_issues
+from dwg_audit.audit.rules import _is_authoritative_terminal_header_reciprocal_physical_cluster_group
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
@@ -1444,6 +1445,340 @@ def test_rules_keep_unrelated_terminal_header_many_to_one_visible_without_recipr
     issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
 
     assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def _phase192_terminal_reciprocal_cluster_pairs() -> list[Pair]:
+    def table_pair(
+        pair_id: str,
+        header: str,
+        row_number: int,
+        endpoint: str,
+        endpoint_text_id: str,
+        endpoint_coord: tuple[float, float],
+        *,
+        side: str,
+    ) -> Pair:
+        middle_coord = [20.0, float(row_number)]
+        mapping = {
+            "mapping_mode": "terminal_header_table",
+            "sheet_id": "S16",
+            "header_prefix": header,
+            "header_text_id": f"TH-{header}",
+            "middle_value": str(row_number),
+            "middle_text_id": f"TM-{header}-{row_number}",
+            "middle_coord": middle_coord,
+            "row_number": row_number,
+            "row_number_sequence_valid": True,
+            "logical_endpoint": f"{header}-{row_number}",
+            "has_shuoming_column": True,
+            "shuoming_text_id": f"SH-{header}",
+            "endpoint_column_authority": "nearest_header_or_named_row",
+            "column_roles": {
+                "description": "shuoming",
+                "left": "terminal_endpoint" if side == "left" else "empty",
+                "middle": "row_number",
+                "right": "terminal_endpoint" if side == "right" else "empty",
+            },
+            f"{side}_value": endpoint,
+            f"{side}_text_id": endpoint_text_id,
+            f"{side}_coord": list(endpoint_coord),
+        }
+        return Pair(
+            pair_id,
+            None,
+            "S16",
+            "F16",
+            None,
+            f"{header}-{row_number}",
+            endpoint,
+            0.95,
+            "pass",
+            "terminal table mapping",
+            [],
+            "high",
+            {"source": "table_mapping", "table_mapping": mapping},
+            pair_kind="table_mapping",
+            left_text_id=mapping["middle_text_id"],
+            right_text_id=endpoint_text_id,
+            left_coord_x=middle_coord[0],
+            left_coord_y=middle_coord[1],
+            right_coord_x=endpoint_coord[0],
+            right_coord_y=endpoint_coord[1],
+        )
+
+    return [
+        table_pair("TL1", "DEV-A", 5, "BUS-X13", "TE-A", (10.0, 20.0), side="right"),
+        table_pair("TL2", "DEV-B", 21, "BUS-X13", "TE-B", (30.0, 40.0), side="left"),
+        table_pair("TL3", "DEV-C", 13, "BUS-X13", "TE-B", (30.0, 40.0), side="right"),
+        table_pair("TR1", "BUS-X", 13, "DEV-A5", "TE-RA", (5.0, 60.0), side="left"),
+        table_pair("TR2", "BUS-X", 13, "DEV-B21", "TE-RB", (50.0, 60.0), side="right"),
+    ]
+
+
+def _phase192_terminal_many_to_one_visible(pairs: list[Pair]) -> bool:
+    sheets = [
+        SheetRecord(
+            "S16",
+            "F16",
+            "16.dwg",
+            16,
+            "16",
+            "TERMINAL",
+            "屏端子图",
+            "primary",
+            "filename",
+            True,
+        ),
+        SheetRecord(
+            "S17",
+            "F17",
+            "17.dwg",
+            17,
+            "17",
+            "TERMINAL",
+            "屏端子图",
+            "primary",
+            "filename",
+            True,
+        ),
+    ]
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+    return any(
+        issue.rule_id == "R-MANY-TO-ONE" and issue.right_value == "BUS-X13"
+        for issue in issues
+    )
+
+
+def test_rules_accept_authoritative_terminal_header_reciprocal_physical_clusters() -> None:
+    pairs = _phase192_terminal_reciprocal_cluster_pairs()
+
+    assert not _phase192_terminal_many_to_one_visible(pairs)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "component_pair",
+        "backplate_pair",
+        "other_sheet",
+        "other_file",
+        "blank_scope",
+        "review_status",
+        "low_confidence",
+        "nan_confidence",
+        "infinite_confidence",
+        "boolean_confidence",
+        "nonnumeric_confidence",
+        "huge_integer_confidence",
+        "missing_shuoming",
+        "blank_shuoming",
+        "blank_header_text",
+        "wrong_column_authority",
+        "missing_endpoint_text",
+        "blank_endpoint_text",
+        "blank_middle_text",
+        "missing_endpoint_coord",
+        "pair_text_mismatch",
+        "pair_coord_mismatch",
+        "pair_boolean_coord_alias",
+        "endpoint_value_mismatch",
+        "duplicate_pair_id",
+        "blank_pair_id",
+        "duplicate_source_identity",
+    ],
+)
+def test_rules_reject_terminal_reciprocal_cluster_with_untrusted_linked_fact(
+    case: str,
+) -> None:
+    pairs = _phase192_terminal_reciprocal_cluster_pairs()
+    pair = pairs[0]
+    mapping = pair.evidence["table_mapping"]
+    if case == "component_pair":
+        pair.pair_kind = "component_mapping"
+        pair.evidence["source"] = "component_mapping"
+    elif case == "backplate_pair":
+        mapping["mapping_mode"] = "backplate_virtual_table"
+    elif case == "other_sheet":
+        pair.sheet_id = "S17"
+        mapping["sheet_id"] = "S17"
+    elif case == "other_file":
+        pair.file_id = "F17"
+    elif case == "blank_scope":
+        pair.sheet_id = "   "
+        mapping["sheet_id"] = "   "
+    elif case == "review_status":
+        pair.status = "review"
+    elif case == "low_confidence":
+        pair.confidence = 0.94
+    elif case == "nan_confidence":
+        pair.confidence = float("nan")
+    elif case == "infinite_confidence":
+        pair.confidence = float("inf")
+    elif case == "boolean_confidence":
+        pair.confidence = True
+    elif case == "nonnumeric_confidence":
+        pair.confidence = "high"
+    elif case == "huge_integer_confidence":
+        pair.confidence = 10**1000
+    elif case == "missing_shuoming":
+        mapping["shuoming_text_id"] = None
+    elif case == "blank_shuoming":
+        mapping["shuoming_text_id"] = "   "
+    elif case == "blank_header_text":
+        mapping["header_text_id"] = "   "
+    elif case == "wrong_column_authority":
+        mapping["endpoint_column_authority"] = "nearest_text"
+    elif case == "missing_endpoint_text":
+        mapping["right_text_id"] = None
+    elif case == "blank_endpoint_text":
+        mapping["right_text_id"] = "   "
+        pair.right_text_id = "   "
+    elif case == "blank_middle_text":
+        mapping["middle_text_id"] = "   "
+        pair.left_text_id = "   "
+    elif case == "missing_endpoint_coord":
+        mapping["right_coord"] = None
+    elif case == "pair_text_mismatch":
+        pair.right_text_id = "TE-OTHER"
+    elif case == "pair_coord_mismatch":
+        pair.right_coord_x = 11.0
+    elif case == "pair_boolean_coord_alias":
+        mapping["right_coord"] = [1.0, 0.0]
+        pair.right_coord_x = True
+        pair.right_coord_y = False
+    elif case == "endpoint_value_mismatch":
+        mapping["right_value"] = "OTHER"
+    elif case == "duplicate_pair_id":
+        pairs[1].pair_id = pair.pair_id
+    elif case == "blank_pair_id":
+        pair.pair_id = "   "
+    else:
+        duplicate = pairs[1]
+        duplicate_mapping = duplicate.evidence["table_mapping"]
+        duplicate.left_value = pair.left_value
+        duplicate_mapping["logical_endpoint"] = pair.left_value
+        duplicate_mapping["header_prefix"] = "DEV-A"
+        duplicate_mapping["row_number"] = 5
+        duplicate_mapping["middle_value"] = "5"
+
+    if case in {"nonnumeric_confidence", "huge_integer_confidence"}:
+        assert not _is_authoritative_terminal_header_reciprocal_physical_cluster_group(
+            pairs[:3], pairs, "BUS-X13"
+        )
+        return
+    assert _phase192_terminal_many_to_one_visible(pairs)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "target_outside_sources",
+        "cluster_without_unique_target",
+        "reciprocal_other_scope",
+        "reciprocal_other_row",
+        "reciprocal_other_physical_row",
+        "reciprocal_other_file",
+        "reciprocal_review_status",
+        "reciprocal_nonnumeric_confidence",
+        "reciprocal_missing_authority",
+        "single_endpoint_side",
+        "duplicate_reciprocal_pair_id",
+        "duplicate_reciprocal_text_identity",
+        "semantic_separator_target",
+        "semantic_underscore_target",
+        "semantic_dot_target",
+        "only_two_linked_pairs",
+        "only_one_physical_cluster",
+        "extra_reciprocal_pair",
+    ],
+)
+def test_rules_reject_incomplete_terminal_reciprocal_cluster_quotient(
+    case: str,
+) -> None:
+    pairs = _phase192_terminal_reciprocal_cluster_pairs()
+    first_reciprocal = pairs[3]
+    second_reciprocal = pairs[4]
+    first_mapping = first_reciprocal.evidence["table_mapping"]
+    second_mapping = second_reciprocal.evidence["table_mapping"]
+    if case == "target_outside_sources":
+        second_reciprocal.right_value = "OUTSIDE-2"
+        second_mapping["right_value"] = "OUTSIDE-2"
+    elif case == "cluster_without_unique_target":
+        first_reciprocal.right_value = "DEV-B21"
+        first_mapping["left_value"] = "DEV-B21"
+        second_reciprocal.right_value = "DEV-C13"
+        second_mapping["right_value"] = "DEV-C13"
+    elif case == "reciprocal_other_scope":
+        second_mapping["header_text_id"] = "TH-OTHER"
+    elif case == "reciprocal_other_row":
+        second_mapping["row_number"] = 14
+        second_mapping["middle_value"] = "14"
+    elif case == "reciprocal_other_physical_row":
+        second_mapping["middle_text_id"] = "TM-BUS-X-13-OTHER"
+        second_reciprocal.left_text_id = "TM-BUS-X-13-OTHER"
+    elif case == "reciprocal_other_file":
+        second_reciprocal.file_id = "F17"
+    elif case == "reciprocal_review_status":
+        second_reciprocal.status = "review"
+    elif case == "reciprocal_nonnumeric_confidence":
+        second_reciprocal.confidence = "high"
+    elif case == "reciprocal_missing_authority":
+        second_mapping["endpoint_column_authority"] = None
+    elif case == "single_endpoint_side":
+        second_mapping["column_roles"]["left"] = "terminal_endpoint"
+        second_mapping["column_roles"]["right"] = "empty"
+        second_mapping["left_value"] = second_mapping.pop("right_value")
+        second_mapping["left_text_id"] = second_mapping.pop("right_text_id")
+        second_mapping["left_coord"] = second_mapping.pop("right_coord")
+    elif case == "duplicate_reciprocal_pair_id":
+        second_reciprocal.pair_id = first_reciprocal.pair_id
+    elif case == "duplicate_reciprocal_text_identity":
+        second_mapping["right_text_id"] = first_mapping["left_text_id"]
+        second_mapping["right_coord"] = first_mapping["left_coord"]
+        second_reciprocal.right_text_id = first_reciprocal.right_text_id
+        second_reciprocal.right_coord_x = first_reciprocal.right_coord_x
+        second_reciprocal.right_coord_y = first_reciprocal.right_coord_y
+    elif case in {
+        "semantic_separator_target",
+        "semantic_underscore_target",
+        "semantic_dot_target",
+    }:
+        target = {
+            "semantic_separator_target": "DEV+A5",
+            "semantic_underscore_target": "DEV_A5",
+            "semantic_dot_target": "DEV.A5",
+        }[case]
+        first_reciprocal.right_value = target
+        first_mapping["left_value"] = target
+    elif case == "only_two_linked_pairs":
+        pairs.pop(2)
+    elif case == "only_one_physical_cluster":
+        linked = pairs[0]
+        linked_mapping = linked.evidence["table_mapping"]
+        linked_mapping["right_text_id"] = "TE-B"
+        linked_mapping["right_coord"] = [30.0, 40.0]
+        linked.right_text_id = "TE-B"
+        linked.right_coord_x = 30.0
+        linked.right_coord_y = 40.0
+    else:
+        extra = deepcopy(second_reciprocal)
+        extra.pair_id = "TR3"
+        extra.right_value = "DEV-C13"
+        extra.right_text_id = "TE-RC"
+        extra.right_coord_x = 60.0
+        extra.right_coord_y = 60.0
+        extra_mapping = extra.evidence["table_mapping"]
+        extra_mapping["right_value"] = "DEV-C13"
+        extra_mapping["right_text_id"] = "TE-RC"
+        extra_mapping["right_coord"] = [60.0, 60.0]
+        pairs.append(extra)
+
+    if case == "only_one_physical_cluster":
+        assert not _is_authoritative_terminal_header_reciprocal_physical_cluster_group(
+            pairs[:3], pairs, "BUS-X13"
+        )
+        return
+    assert _phase192_terminal_many_to_one_visible(pairs)
 
 
 def test_build_pairs_keeps_selected_and_alternative_traceability() -> None:

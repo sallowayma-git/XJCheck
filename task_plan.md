@@ -4,7 +4,7 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 191 is an evidence-backed no-change disposition: independent review rejected the only candidate because row ownership did not prove cross-scope endpoint identity. All 11 Phase190 issues remain fail-closed inputs for Phase192, and the overarching recognition loop stays active.
+Phase 191 is published as the no-change evidence disposition `f2aa339`. Phase 192 is active and will investigate only producer-issued physical/electrical scope for the 11 retained issues, prioritizing PAC reciprocal terminal topology and backplate device identity rather than rule-layer text equality.
 
 The current authoritative extraction is `.tmp/phase190_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Project-qualified Pair IDs and all non-evidence persistent semantics are unchanged from Phase189.
 
@@ -3234,3 +3234,33 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Retained authoritative artifacts remain `.tmp/phase190_full_533_fresh` and `.tmp/phase190_full_533_audit`: 28/28 projects, 533/533 valid files/sheets, zero invalid/incomplete, 38,825 Pair facts and 11 review-severity issues.
 - Final distribution remains many-to-one 6, cross-page 3, missing-side 1 and low-confidence 1. All 11 remain active; Phase191 suppresses none.
 - Repository gates pass `1263 passed, 1 skipped`; compileall and diff-check pass. Cleanup removed only `.tmp/phase191_fail_closed_audit` after exact containment validation.
+
+## Phase 192 producer identity loop (active)
+
+### Phase 192 recoverable errors
+
+- All three initial clean-context `gpt-5.6-sol` producer probes failed at the service boundary with HTTP 429 before returning evidence. They made no file changes and ran no replay; do not treat them as audits or repeat the same batch immediately. The main thread will perform the same bounded structured reads.
+- Two PAC census documentation patches used stale long-line anchors and were rejected atomically before changing any file. Subsequent updates use the exact Phase192 file tails and short unique anchors.
+- The Phase192 Sol diff reviewer exceeded the 10-minute subagent window and was interrupted. Its completed child checks still returned actionable exact-line findings; main-thread verification closed the physical-row, top-level/nested identity, whitespace, normalization and large-integer paths before replay.
+- The first focused run exposed that a nonnumeric synthetic Pair reaches an existing issue-triage `float()` assumption after the new helper rejects it. The helper is now tested directly for this out-of-model malformed type, while public-path adversarial tests cover native `NaN`, infinity, bool and low confidence without expanding Phase192 into shared issue serialization.
+- The first one-cluster negative expected a generic issue, but the existing same-physical-text guard correctly accepted that topology. The test now asserts only that the new reciprocal-cluster helper rejects it, preserving the older guard.
+- The first full replay batch incorrectly assumed project IDs were direct children of `test/`; 27 CLI invocations exited at argument validation and PAC alone completed. No partial recognition artifacts were accepted. The successful retry read each Phase190 manifest's authoritative `input_root` and completed all remaining projects.
+- Native PowerShell cleanup of bounded PAC artifacts was policy-blocked before execution. A single-process Python fallback verified both resolved targets were exact children of `.tmp` before removing them.
+
+- [x] Publish Phase191 no-change disposition `f2aa339`; verify `HEAD == origin/master` and only root `package-lock.json` remains untracked.
+- [x] Reset the active goal to Phase192 while keeping all 11 reviews and the overarching recognition loop active.
+- [x] Audit PAC `1ID13` reciprocal topology, GND scope evidence and backplate cross-page device/plugin identity at producer/raw-artifact level.
+- [x] Run full-corpus candidate and natural-negative census for any producer-backed hypothesis; reject text equality, project/file names and page/block suffixes as identity.
+- [x] Select the single strict PAC reciprocal physical-cluster quotient contract; reject GND and backplate scope hypotheses as evidence-insufficient.
+- [x] Add focused positive/adversarial producer and rule tests before bounded raw-DWG replay.
+- [x] Run bounded and full 28-project / 533-DWG fresh replay/audit with Pair identity, zero additions, artifact parity and repository gates.
+- [x] Clean only Phase192 intermediates, update acceptance evidence, and prepare only scoped files for publication.
+- **Status:** complete for the Phase192 reciprocal physical-cluster contract; the overarching recognition goal remains active with 10 fail-closed issues for the next loop.
+
+### Phase 192 guardrails
+
+- Phase191 proved terminal row/description/column ownership is not cross-scope endpoint identity. Do not reintroduce an all-terminal-table or same-normalized-text suppression.
+- Any PAC reciprocal extension must prove a closed topology from independently extracted mappings; it cannot special-case `1ID13`, GND, PAC, row numbers or fixed Pair IDs.
+- Any backplate scope enhancement must come from independently parsed device/plugin identity. Repeated raw headers and source-block `-1/-2` suffixes remain natural negatives.
+- GND audit found only table-cell `TEXT` evidence; no block, layer, continuous net or reciprocal logical endpoint authorizes a global-ground identity. Backplate pages that expose `1n REAR WIRING 1/2` identify one device across page halves, not independent scopes.
+- Root `package-lock.json` remains unrelated, unmodified and unstaged. Subagents stay clean-context, read-only `gpt-5.6-sol` probes with exact project/Pair and `file:line` output.

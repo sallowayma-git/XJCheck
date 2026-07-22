@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import math
 import re
 
 from dwg_audit.audit.graph_builder import PairGraphSummary
@@ -859,6 +860,12 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 right_value,
             ):
                 continue
+            if _is_authoritative_terminal_header_reciprocal_physical_cluster_group(
+                linked_pairs,
+                context.pairs,
+                right_value,
+            ):
+                continue
             if _is_distinct_xjdz_instance_pin_group(linked_pairs):
                 continue
             terminal_header_info = _terminal_header_table_shared_endpoint_info(
@@ -1121,10 +1128,20 @@ def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
         if pair.left_value
         and pair.right_value
         and (
-            (pair.confidence >= context.high_threshold and (pair.status == "pass" or pair.confidence_bucket == "high"))
+            (
+                _is_native_finite_number(pair.confidence)
+                and pair.confidence >= context.high_threshold
+                and (pair.status == "pass" or pair.confidence_bucket == "high")
+            )
             or _structured_source_kind(pair) == "table_mapping"
         )
     ]
+
+
+def _is_native_finite_number(value: object) -> bool:
+    if type(value) is int:
+        return True
+    return type(value) is float and math.isfinite(value)
 
 
 def _high_confidence_source_eligible(pair: Pair) -> bool:
@@ -1966,6 +1983,210 @@ def _is_authoritative_terminal_header_reciprocal_chain_group(
             continue
         reciprocal_targets.add(_terminal_endpoint_identity(pair.right_value))
     return reciprocal_targets == source_endpoint_keys
+
+
+def _is_authoritative_terminal_header_reciprocal_physical_cluster_group(
+    linked_pairs: list[Pair],
+    all_pairs: list[Pair],
+    shared_value: str,
+) -> bool:
+    """Accept physical terminal clusters closed by one reciprocal two-sided row."""
+
+    if len(linked_pairs) < 3:
+        return False
+    scope_keys = {
+        (str(pair.sheet_id or ""), str(pair.file_id or ""))
+        for pair in linked_pairs
+    }
+    if len(scope_keys) != 1 or any(not value.strip() for value in next(iter(scope_keys))):
+        return False
+    pair_ids = [pair.pair_id for pair in linked_pairs]
+    if any(not isinstance(pair_id, str) or not pair_id.strip() for pair_id in pair_ids):
+        return False
+    if len(set(pair_ids)) != len(pair_ids):
+        return False
+
+    shared_key = _terminal_reciprocal_identity(shared_value)
+    if not shared_key:
+        return False
+    source_keys: set[str] = set()
+    physical_clusters: dict[tuple[str, float | int, float | int], set[str]] = defaultdict(set)
+    for pair in linked_pairs:
+        fact = _authoritative_terminal_header_endpoint_fact(pair)
+        if fact is None:
+            return False
+        source_key, endpoint_key, _, _ = fact
+        mapping = _table_mapping_evidence(pair)
+        mapped_endpoint = mapping.get("left_value") or mapping.get("right_value")
+        if mapped_endpoint != shared_value or pair.right_value != shared_value:
+            return False
+        source_keys.add(source_key)
+        physical_clusters[endpoint_key].add(source_key)
+    if len(source_keys) != len(linked_pairs) or len(physical_clusters) < 2:
+        return False
+
+    sheet_id, file_id = next(iter(scope_keys))
+    reciprocal_pairs = [
+        pair
+        for pair in all_pairs
+        if str(pair.sheet_id or "") == sheet_id
+        and str(pair.file_id or "") == file_id
+        and _terminal_reciprocal_identity(pair.left_value) == shared_key
+    ]
+    if len(reciprocal_pairs) != 2:
+        return False
+    reciprocal_pair_ids = [pair.pair_id for pair in reciprocal_pairs]
+    if (
+        any(not isinstance(pair_id, str) or not pair_id.strip() for pair_id in reciprocal_pair_ids)
+        or len(set(reciprocal_pair_ids)) != len(reciprocal_pair_ids)
+        or set(reciprocal_pair_ids).intersection(pair_ids)
+    ):
+        return False
+    if not _is_authoritative_table_mapping_group(reciprocal_pairs):
+        return False
+
+    reciprocal_targets: set[str] = set()
+    reciprocal_endpoint_keys: set[tuple[str, float | int, float | int]] = set()
+    reciprocal_sides: set[str] = set()
+    reciprocal_rows: set[tuple[int, str, float | int, float | int]] = set()
+    for pair in reciprocal_pairs:
+        fact = _authoritative_terminal_header_endpoint_fact(pair)
+        if fact is None:
+            return False
+        reciprocal_source, endpoint_key, side, row_number = fact
+        if reciprocal_source != shared_key:
+            return False
+        target_key = _terminal_reciprocal_identity(pair.right_value)
+        if not target_key:
+            return False
+        reciprocal_targets.add(target_key)
+        reciprocal_endpoint_keys.add(endpoint_key)
+        reciprocal_sides.add(side)
+        reciprocal_rows.add(row_number)
+    if (
+        reciprocal_sides != {"left", "right"}
+        or len(reciprocal_rows) != 1
+        or len(reciprocal_endpoint_keys) != len(reciprocal_pairs)
+        or len(reciprocal_targets) != len(reciprocal_pairs)
+        or len(reciprocal_targets) != len(physical_clusters)
+        or not reciprocal_targets.issubset(source_keys)
+    ):
+        return False
+
+    cluster_targets = {
+        next(iter(intersection))
+        for sources in physical_clusters.values()
+        if len(intersection := sources.intersection(reciprocal_targets)) == 1
+    }
+    return len(cluster_targets) == len(physical_clusters) and cluster_targets == reciprocal_targets
+
+
+def _authoritative_terminal_header_endpoint_fact(
+    pair: Pair,
+) -> tuple[
+    str,
+    tuple[str, float | int, float | int],
+    str,
+    tuple[int, str, float | int, float | int],
+] | None:
+    evidence = pair.evidence or {}
+    if (
+        pair.pair_kind != "table_mapping"
+        or evidence.get("source") != "table_mapping"
+        or pair.status != "pass"
+        or not _is_native_finite_number(pair.confidence)
+        or pair.confidence < 0.95
+        or pair.confidence > 1.0
+        or not _is_authoritative_table_mapping_group([pair])
+    ):
+        return None
+    mapping = _table_mapping_evidence(pair)
+    if (
+        mapping.get("mapping_mode") != "terminal_header_table"
+        or not isinstance(mapping.get("header_prefix"), str)
+        or not mapping.get("header_prefix").strip()
+        or not isinstance(mapping.get("header_text_id"), str)
+        or not mapping.get("header_text_id").strip()
+        or mapping.get("has_shuoming_column") is not True
+        or not isinstance(mapping.get("shuoming_text_id"), str)
+        or not mapping.get("shuoming_text_id").strip()
+        or mapping.get("endpoint_column_authority")
+        != "nearest_header_or_named_row"
+    ):
+        return None
+    row_number = mapping.get("row_number")
+    middle_value = mapping.get("middle_value")
+    middle_text_id = mapping.get("middle_text_id")
+    middle_coord = mapping.get("middle_coord")
+    if (
+        type(row_number) is not int
+        or row_number < 1
+        or not isinstance(middle_value, str)
+        or middle_value != str(row_number)
+        or not isinstance(middle_text_id, str)
+        or not middle_text_id.strip()
+        or not isinstance(middle_coord, (list, tuple))
+        or len(middle_coord) != 2
+        or not all(_is_native_finite_number(value) for value in middle_coord)
+        or not all(
+            _is_native_finite_number(value)
+            for value in (pair.left_coord_x, pair.left_coord_y)
+        )
+        or pair.left_text_id != middle_text_id
+        or pair.left_coord_x != middle_coord[0]
+        or pair.left_coord_y != middle_coord[1]
+    ):
+        return None
+    source_key = _terminal_reciprocal_identity(pair.left_value)
+    if (
+        not source_key
+        or _terminal_reciprocal_identity(mapping.get("logical_endpoint")) != source_key
+        or _terminal_reciprocal_identity(f"{mapping.get('header_prefix')}{row_number}")
+        != source_key
+    ):
+        return None
+
+    column_roles = mapping.get("column_roles")
+    if not isinstance(column_roles, dict):
+        return None
+    if column_roles.get("left") == "terminal_endpoint" and column_roles.get("right") == "empty":
+        side, other_side = "left", "right"
+    elif column_roles.get("right") == "terminal_endpoint" and column_roles.get("left") == "empty":
+        side, other_side = "right", "left"
+    else:
+        return None
+    endpoint_value = mapping.get(f"{side}_value")
+    text_id = mapping.get(f"{side}_text_id")
+    coord = mapping.get(f"{side}_coord")
+    if (
+        endpoint_value != pair.right_value
+        or not isinstance(text_id, str)
+        or not text_id.strip()
+        or not isinstance(coord, (list, tuple))
+        or len(coord) != 2
+        or not all(_is_native_finite_number(value) for value in coord)
+        or not all(
+            _is_native_finite_number(value)
+            for value in (pair.right_coord_x, pair.right_coord_y)
+        )
+        or pair.right_text_id != text_id
+        or pair.right_coord_x != coord[0]
+        or pair.right_coord_y != coord[1]
+        or any(mapping.get(f"{other_side}_{field}") is not None for field in ("value", "text_id", "coord"))
+    ):
+        return None
+    row_key = (row_number, middle_text_id, middle_coord[0], middle_coord[1])
+    return source_key, (text_id, coord[0], coord[1]), side, row_key
+
+
+def _terminal_reciprocal_identity(value: object) -> str:
+    """Normalize only the optional hyphens emitted in terminal references."""
+
+    if not isinstance(value, str) or not value or value != value.strip():
+        return ""
+    if re.fullmatch(r"[0-9A-Za-z-]+", value) is None:
+        return ""
+    return value.upper().replace("-", "")
 
 
 def _terminal_endpoint_identity(value: object) -> str:
