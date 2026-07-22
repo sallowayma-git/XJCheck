@@ -288,6 +288,14 @@ def _extract_pairs_for_route(
         _shadow_grid_wire_ordinary_pairs(pairs, pages)
         _shadow_communication_medium_ordinary_pairs(pairs, pages)
         _shadow_repeated_panel_silkscreen_ordinary_pairs(pairs, pages, texts, blocks or [])
+        _shadow_ct_polarity_reference_ordinary_pairs(
+            pairs,
+            pages,
+            texts,
+            line_groups,
+            lines,
+            terminal_candidates,
+        )
         _shadow_parallel_grid_separator_ordinary_pairs(pairs, line_groups, lines)
     _shadow_closed_tall_polyline_enclosure_ordinary_pairs(pairs, line_groups, lines, texts)
     if executed_extractor == "WireDiagramExtractor":
@@ -698,6 +706,334 @@ def _shadow_communication_medium_ordinary_pairs(pairs: list[Pair], pages: list[S
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "communication_medium"
         pair.evidence["communication_media"] = media
+
+
+def _shadow_ct_polarity_reference_ordinary_pairs(
+    pairs: list[Pair],
+    pages: list[SheetRecord],
+    texts: list[TextItem],
+    line_groups: list[LineGroup],
+    lines: list[LineEntity],
+    terminal_candidates: list[TerminalCandidate] | None = None,
+) -> None:
+    """Keep complete CT-polarity reference annotations out of endpoint audit."""
+
+    geometry_tolerance = 1e-6
+    motif_radius = 20.0
+    required_motif_tokens = ("P1", "P2", "S1", "S2")
+    pages_by_scope: dict[tuple[str, str], list[SheetRecord]] = defaultdict(list)
+    groups_by_key: dict[tuple[str, str, str], list[LineGroup]] = defaultdict(list)
+    lines_by_key: dict[tuple[str, str, str], list[LineEntity]] = defaultdict(list)
+    for page in pages:
+        pages_by_scope[(page.sheet_id, page.file_id)].append(page)
+    for group in line_groups:
+        groups_by_key[(group.sheet_id, group.file_id, group.line_group_id)].append(group)
+    for line in lines:
+        lines_by_key[(line.sheet_id, line.file_id, line.line_id)].append(line)
+    texts_by_scope: dict[tuple[str, str], list[TextItem]] = defaultdict(list)
+    text_by_key: dict[tuple[str, str, str], list[TextItem]] = defaultdict(list)
+    for text in texts:
+        scope = (text.sheet_id, text.file_id)
+        texts_by_scope[scope].append(text)
+        text_by_key[(*scope, text.text_id)].append(text)
+    candidates_by_key: dict[tuple[str, str, str], list[TerminalCandidate]] = defaultdict(list)
+    for candidate in terminal_candidates or []:
+        candidates_by_key[(candidate.sheet_id, candidate.file_id, candidate.candidate_id)].append(candidate)
+
+    def _finite_point(first: object, second: object) -> tuple[float, float] | None:
+        try:
+            point = (float(first), float(second))
+        except (TypeError, ValueError):
+            return None
+        return point if all(math.isfinite(value) for value in point) else None
+
+    def _finite_scalar(value: object) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) else None
+
+    def _same_point(
+        first: tuple[float, float] | None,
+        second: tuple[float, float] | None,
+    ) -> bool:
+        return first is not None and second is not None and all(
+            abs(left - right) <= geometry_tolerance
+            for left, right in zip(first, second, strict=True)
+        )
+
+    def _same_segment(group: LineGroup, line: LineEntity) -> bool:
+        group_start = _finite_point(group.start_x, group.start_y)
+        group_end = _finite_point(group.end_x, group.end_y)
+        line_start = _finite_point(line.start_x, line.start_y)
+        line_end = _finite_point(line.end_x, line.end_y)
+        return (
+            _same_point(group_start, line_start) and _same_point(group_end, line_end)
+        ) or (
+            _same_point(group_start, line_end) and _same_point(group_end, line_start)
+        )
+
+    def _evidence_geometry_matches(evidence: dict[str, object], group: LineGroup) -> bool:
+        raw_start = evidence.get("line_start")
+        raw_end = evidence.get("line_end")
+        if not (
+            isinstance(raw_start, (list, tuple))
+            and len(raw_start) == 2
+            and isinstance(raw_end, (list, tuple))
+            and len(raw_end) == 2
+        ):
+            return False
+        evidence_start = _finite_point(raw_start[0], raw_start[1])
+        evidence_end = _finite_point(raw_end[0], raw_end[1])
+        group_start = _finite_point(group.start_x, group.start_y)
+        group_end = _finite_point(group.end_x, group.end_y)
+        return _same_point(evidence_start, group_start) and _same_point(
+            evidence_end,
+            group_end,
+        )
+
+    def _motif_text_ids(
+        scope_texts: list[TextItem],
+        endpoint: tuple[float, float],
+    ) -> list[str] | None:
+        tokens: dict[str, list[str]] = defaultdict(list)
+        for text in scope_texts:
+            if text.source_block_name is not None:
+                continue
+            text_point = _finite_point(text.insert_x, text.insert_y)
+            if text_point is None:
+                continue
+            distance = math.hypot(text_point[0] - endpoint[0], text_point[1] - endpoint[1])
+            if not math.isfinite(distance) or distance > motif_radius:
+                continue
+            token = str(text.normalized_text or text.text or "").strip().upper()
+            if token in {*required_motif_tokens, "*"}:
+                tokens[token].append(text.text_id)
+        if any(len(tokens[token]) != 1 for token in required_motif_tokens):
+            return None
+        if len(tokens["*"]) < 2:
+            return None
+        motif_ids = sorted(
+            text_id
+            for token in (*required_motif_tokens, "*")
+            for text_id in tokens[token]
+        )
+        return motif_ids if len(set(motif_ids)) == len(motif_ids) else None
+
+    def _semantic_text_ids(scope_texts: list[TextItem]) -> tuple[list[str], list[str]] | None:
+        polarity_ids: list[str] = []
+        power_flow_ids: list[str] = []
+        for text in scope_texts:
+            if text.source_block_name is not None:
+                continue
+            raw = f"{text.normalized_text or ''} {text.text or ''}".casefold()
+            has_ct = re.search(r"(?<![a-z0-9])ct(?![a-z0-9])", raw) is not None or "电流互感器" in raw
+            has_polarity = "polarity" in raw or "极性" in raw
+            if has_ct and has_polarity:
+                polarity_ids.append(text.text_id)
+            if "power flow" in raw or "功率流向" in raw:
+                power_flow_ids.append(text.text_id)
+        if not polarity_ids or not power_flow_ids:
+            return None
+        if not any(polarity_id != power_flow_id for polarity_id in polarity_ids for power_flow_id in power_flow_ids):
+            return None
+        return sorted(set(polarity_ids)), sorted(set(power_flow_ids))
+
+    for pair in pairs:
+        evidence = pair.evidence
+        if not isinstance(evidence, dict):
+            continue
+        if (
+            pair.pair_kind != "ordinary_pair"
+            or pair.status != "review"
+            or evidence.get("ordinary_pair_eligible") is False
+            or pair.alternative_pair_candidate_ids != []
+            or pair.ambiguity_gap is not None
+        ):
+            continue
+        scope = (pair.sheet_id, pair.file_id)
+        page_rows = pages_by_scope.get(scope, [])
+        if len(page_rows) != 1 or page_rows[0].route_target != "WireDiagramExtractor":
+            continue
+        present_sides = [
+            side
+            for side in ("left", "right")
+            if str(getattr(pair, f"{side}_value", None) or "").strip()
+        ]
+        if len(present_sides) != 1:
+            continue
+        present_side = present_sides[0]
+        missing_side = "right" if present_side == "left" else "left"
+        selected_candidate_id = getattr(pair, f"{present_side}_candidate_id", None)
+        selected_text_id = getattr(pair, f"{present_side}_text_id", None)
+        selected_value = str(getattr(pair, f"{present_side}_value", None) or "").strip()
+        selected_raw = evidence.get(f"selected_{present_side}_raw_text")
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (
+                pair.selected_pair_candidate_id,
+                selected_candidate_id,
+                selected_text_id,
+                selected_raw,
+            )
+        ):
+            continue
+        if (
+            re.fullmatch(r"[+-]?\d+(?:\.\d+)?", selected_value) is None
+            or re.fullmatch(r"[+-]?\d+(?:\.\d+)?", str(selected_raw).strip()) is None
+            or str(getattr(pair, "pair_key", "") or "")
+            != (f"?->{selected_value}" if present_side == "right" else f"{selected_value}->?")
+            or evidence.get("pair_key") != getattr(pair, "pair_key", None)
+        ):
+            continue
+        if (
+            evidence.get("line_group_id") != pair.line_group_id
+            or evidence.get("selected_pair_candidate_id") != pair.selected_pair_candidate_id
+            or evidence.get(f"selected_{present_side}_candidate_id") != selected_candidate_id
+            or evidence.get(f"selected_{present_side}_text_id") != selected_text_id
+            or evidence.get(f"selected_{present_side}_channel") != "terminal_numeric_channel"
+            or evidence.get(f"selected_{present_side}_channel_detail") is not None
+            or evidence.get(f"selected_{present_side}_source_block_name") is not None
+            or evidence.get(f"selected_{present_side}_is_derived_numeric") is not False
+            or evidence.get("alternative_pair_candidate_ids") != []
+            or any(
+                evidence.get(f"selected_{missing_side}_{field}") is not None
+                for field in ("candidate_id", "text_id", "raw_text", "channel", "channel_detail", "source_block_name")
+            )
+            or getattr(pair, f"{missing_side}_candidate_id", None) is not None
+            or getattr(pair, f"{missing_side}_text_id", None) is not None
+        ):
+            continue
+        score_breakdown = evidence.get("score_breakdown")
+        if not isinstance(score_breakdown, dict) or score_breakdown.get("ambiguity_gap") is not None:
+            continue
+
+        group_rows = groups_by_key.get((*scope, pair.line_group_id), [])
+        group = group_rows[0] if len(group_rows) == 1 else None
+        if group is None:
+            continue
+        member_line_ids = group.member_line_ids
+        if (
+            not isinstance(member_line_ids, list)
+            or len(member_line_ids) != 1
+            or not isinstance(member_line_ids[0], str)
+            or not member_line_ids[0].strip()
+            or (group.sheet_id, group.file_id) != scope
+            or str(group.orientation or "").casefold() != "horizontal"
+            or evidence.get("line_orientation") != group.orientation
+            or not _evidence_geometry_matches(evidence, group)
+        ):
+            continue
+        line_rows = lines_by_key.get((*scope, member_line_ids[0]), [])
+        line = line_rows[0] if len(line_rows) == 1 else None
+        if (
+            line is None
+            or (line.sheet_id, line.file_id) != scope
+            or str(line.source_entity_type or "").upper() != "LINE"
+            or str(line.layer or "").strip().casefold() == "connect"
+            or line.source_block_name is not None
+            or not _same_segment(group, line)
+        ):
+            continue
+
+        candidate_rows = candidates_by_key.get((*scope, str(selected_candidate_id)), [])
+        text_rows = text_by_key.get((*scope, str(selected_text_id)), [])
+        if len(candidate_rows) != 1 or len(text_rows) != 1:
+            continue
+        candidate = candidate_rows[0]
+        selected_text = text_rows[0]
+        pair_text_point = _finite_point(
+            getattr(pair, f"{present_side}_coord_x", None),
+            getattr(pair, f"{present_side}_coord_y", None),
+        )
+        candidate_text_point = _finite_point(candidate.text_insert_x, candidate.text_insert_y)
+        selected_text_point = _finite_point(selected_text.insert_x, selected_text.insert_y)
+        candidate_endpoint = _finite_point(candidate.endpoint_x, candidate.endpoint_y)
+        group_endpoint = _finite_point(
+            group.start_x if present_side == "left" else group.end_x,
+            group.start_y if present_side == "left" else group.end_y,
+        )
+        candidate_distance_x = _finite_scalar(candidate.distance_x)
+        candidate_distance_y = _finite_scalar(candidate.distance_y)
+        expected_distance_x = (
+            abs(candidate_text_point[0] - candidate_endpoint[0])
+            if candidate_text_point is not None and candidate_endpoint is not None
+            else None
+        )
+        expected_distance_y = (
+            abs(candidate_text_point[1] - candidate_endpoint[1])
+            if candidate_text_point is not None and candidate_endpoint is not None
+            else None
+        )
+        if (
+            candidate.line_group_id != pair.line_group_id
+            or (candidate.sheet_id, candidate.file_id) != scope
+            or candidate.side != present_side
+            or candidate.text_id != selected_text_id
+            or str(candidate.value or "").strip() != selected_value
+            or str(candidate.text or "").strip() != str(selected_raw).strip()
+            or str(selected_text.text or "").strip() != str(selected_raw).strip()
+            or str(selected_text.normalized_text or selected_text.text or "").strip() != selected_value
+            or str(candidate.status or "").casefold() != "accepted"
+            or candidate.rejection_reason not in (None, "")
+            or candidate.channel != "terminal_numeric_channel"
+            or candidate.channel_detail != evidence.get(f"selected_{present_side}_channel_detail")
+            or candidate.source_block_name is not None
+            or selected_text.source_block_name is not None
+            or selected_text.is_numeric_candidate is not True
+            or not _same_point(pair_text_point, candidate_text_point)
+            or not _same_point(candidate_text_point, selected_text_point)
+            or not _same_point(candidate_endpoint, group_endpoint)
+            or expected_distance_x is None
+            or expected_distance_y is None
+            or candidate_distance_x is None
+            or candidate_distance_y is None
+            or abs(candidate_distance_x - expected_distance_x) > 1e-3
+            or abs(candidate_distance_y - expected_distance_y) > 1e-3
+        ):
+            continue
+
+        scope_texts = texts_by_scope.get(scope, [])
+        group_start = _finite_point(group.start_x, group.start_y)
+        group_end = _finite_point(group.end_x, group.end_y)
+        if group_start is None or group_end is None:
+            continue
+        start_motif_ids = _motif_text_ids(
+            scope_texts,
+            group_start,
+        )
+        end_motif_ids = _motif_text_ids(
+            scope_texts,
+            group_end,
+        )
+        semantic_ids = _semantic_text_ids(scope_texts)
+        if start_motif_ids is None or end_motif_ids is None or semantic_ids is None:
+            continue
+        if set(start_motif_ids) & set(end_motif_ids):
+            continue
+        polarity_ids, power_flow_ids = semantic_ids
+        annotation_ids = [*start_motif_ids, *end_motif_ids, *polarity_ids, *power_flow_ids]
+        if any(len(text_by_key.get((*scope, text_id), [])) != 1 for text_id in annotation_ids):
+            continue
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = "ct_polarity_reference_annotation"
+        pair.evidence["ct_polarity_reference_annotation"] = {
+            "line_id": line.line_id,
+            "selected_side": present_side,
+            "selected_candidate_id": selected_candidate_id,
+            "selected_text_id": selected_text_id,
+            "selected_raw_text": selected_raw,
+            "endpoint_motif_text_ids": {
+                "start": start_motif_ids,
+                "end": end_motif_ids,
+            },
+            "semantic_text_ids": {
+                "ct_polarity": polarity_ids,
+                "power_flow": power_flow_ids,
+            },
+        }
 
 
 def _shadow_connect_multidrop_rail_ordinary_pairs(

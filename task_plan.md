@@ -4,7 +4,7 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 187 is accepted and published at `108cd00`. Phase 188 is now auditing the 13 authoritative residual issues and will select at most one producer-backed fail-closed optimization slice; unsupported single-frame, CT, cross-page, GND, KLP and cardinality structures remain review.
+Phase 188 is accepted and published at `512186d` with all 13 residual issues explicitly retained. Phase 189 is now testing whether new raw producer authority exists for either a multi-port closed enclosure or a complete CT-polarity reference annotation; neither family is eligible until a full-corpus census and natural negatives prove it.
 
 The current authoritative extraction is `.tmp/phase187_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Pair IDs and persistent semantics are unchanged from Phase186.
 
@@ -3123,3 +3123,35 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 
 - The first full-artifact validator proved manifest, completeness, issue parity and audit identity, then failed only in its Pair persistent-column comparison because `pair_id` was moved to the index but remained in the requested column list. Re-run only the Pair comparison with `(project, pair_id)` provenance and exclude index columns; do not repeat the already-proven checks.
 - Native PowerShell recursive cleanup of the exact Phase188 bounded-audit directory was rejected by local policy before execution. Use one containment-checked Python process for this exact `.tmp` child; do not broaden or repeat the blocked command.
+
+## Phase 189 producer-authority loop (active)
+
+### Phase 189 recoverable errors
+
+- The first exact Pair-level CT census failed before producing a candidate set because pandas comparison expressions were combined without parenthesizing each boolean Series. The corrected rerun uses separate parenthesized x/y masks joined by `&`; do not repeat the invalid expression.
+- The first documentation patch used a shortened Phase189 heading and was rejected by `apply_patch` without changing files. Subsequent updates anchor to the exact `## Phase 189 producer-authority loop (active)` heading.
+- The packaged Windows `rg.exe` failed to start with access denied during source lookup. Use `Select-String` or exact `Get-Content` slices for this session rather than repeating the blocked executable.
+- The first focused PAC artifact probe read `pairs.parquet` successfully, then guessed `groups.parquet`; the real bundle uses a different group filename, so the read-only script stopped before line/text output. Inspect the artifact filenames and rerun only the missing rows.
+- Independent Sol contract review found strictness gaps before bounded replay: Pair/candidate/text insert coordinates were not cross-checked; one motif cluster could serve both endpoints; duplicate page/group/line IDs were silently overwritten; malformed evidence/geometry could raise; present-side channel/detail/source/derived fields were not fully bound; and the 20-unit motif window used Chebyshev distance. Close these gaps and add focused negatives before replay.
+- The first PAC replay-path probe guessed the outer worker directory contained `manifest.json`; Phase187 stores the project bundle one level deeper. The read-only probe failed before changing files; use the actual nested bundle path for input provenance.
+- After the successful PAC replay, a metadata probe guessed `run_summary.json` under the emitted project directory; direct `analyze-project` writes a different nesting than the full worker wrapper. Inspect the actual directory tree and bind audit to the discovered `findings` directory rather than guessing another level.
+- Final pre-full-replay Sol review found two additional malformed-input gaps: candidate `channel_detail` and TextItem `is_numeric_candidate` were not cross-checked, and `member_line_ids=None`/non-string members could raise before failing closed. PAC behavior remains exact; patch both before replay.
+- The final review also identified unbound candidate `distance_x/y`; the contract now checks finite rounded distances against candidate text insertion and endpoint coordinates within `1e-3`, with mismatch/malformed negatives. The at-least-two-star rule is intentional and not tightened to exactly two.
+- The first full-audit comparator keyed current projects by `issues.parquet` parent names while baseline uses normalized outer slugs; it failed at the first join before comparing issue rows. Re-key current audit bundles through their containing fresh slug and project manifest, then rerun only the comparator.
+- The containment-checked native PowerShell cleanup was rejected by local policy before execution; no artifact changed. Use one exact-target Python cleanup with the same resolved `.tmp` containment check, then verify the retained roots.
+
+- [x] Recover synchronized `HEAD=512186d`, Phase187 authoritative artifacts, and the clean recognition boundary.
+- [x] Audit a multi-port closed-enclosure contract: reject it because the current raw geometry does not prove distinct complete CONNECT paths traversing opposite enclosure edges.
+- [x] Audit a CT-polarity reference annotation contract using complete P1/P2/S1/S2, direction-text and symbol geometry rather than page/project names.
+- [x] Run an all-38,825-Pair/raw-line census for both hypotheses and select at most one exact candidate family with explainable natural negatives: only PAC `PW0001/GW0001` qualifies the complete CT contract; 23000 `PW0526` is a natural negative because its member is LWPOLYLINE and lacks the complete motif.
+- [x] Implement only the selected producer contract with focused positive/adversarial tests; focused gate is `151 passed`, and PAC bounded replay removes only `PW0001` with zero Pair semantic drift or issue additions.
+- [x] Run bounded raw-DWG replay/audit, then full 28/533 replay/audit with Pair persistent identity and zero-addition checks: PAC `2012/2012` Pair IDs and full `38825/38825` project-qualified Pair IDs are stable; audit identity is `13 -> 12`, zero additions, one expected removal.
+- [ ] Run repository gates, update planning evidence, clean superseded artifacts, and commit/push only scoped recognition files.
+- **Status:** active; 12 residual issues remain fail-closed until the next producer contract is proven.
+
+### Phase 189 guardrails
+
+- Multi-port enclosure authority must prove one closed parent, exact edge membership, at least two distinct parallel CONNECT paths touching opposite sides, no block ownership, no alternative/ambiguity evidence, and exact Pair/evidence identity. Mere nearby/crossing lines are insufficient.
+- CT-polarity authority must be geometry- and text-structure backed; title keywords, project names, Pair IDs, handles or fixed coordinates cannot authorize suppression.
+- Preserve GND, KLP, cross-page and low-confidence reviews; this phase targets at most one of the two remaining missing-side rows.
+- The selected CT contract is name-independent and retained only one exact full-corpus candidate: PAC `PW0001`. Full acceptance leaves 12 fail-closed issues: many-to-one `7`, missing-side `1` (`23000 PW0526`), cross-page `3`, low-confidence `1`.

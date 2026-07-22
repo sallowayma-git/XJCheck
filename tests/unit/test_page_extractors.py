@@ -5,6 +5,7 @@ from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation
 from dwg_audit.audit.page_extractors import _mark_schematic_ac_phase_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_schematic_ground_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_grid_wire_ordinary_pairs
+from dwg_audit.audit.page_extractors import _shadow_ct_polarity_reference_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_parallel_grid_separator_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_connect_multidrop_rail_ordinary_pairs
 from dwg_audit.audit.page_extractors import _shadow_closed_tall_polyline_enclosure_ordinary_pairs
@@ -18,6 +19,7 @@ from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
+from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.config import DEFAULT_CONFIG
 
@@ -197,6 +199,142 @@ def _panel_text(
         bbox_max_x=x + max(1.0, len(value) * 1.5),
         bbox_max_y=y + 1.0,
         source_block_name=source_block_name,
+    )
+
+
+def _ct_polarity_reference_fixture(
+    *,
+    present_side: str = "right",
+    reverse_line: bool = False,
+    value: str = "3",
+) -> tuple[
+    Pair,
+    list[SheetRecord],
+    list[TextItem],
+    list[LineGroup],
+    list[LineEntity],
+    list[TerminalCandidate],
+]:
+    missing_side = "left" if present_side == "right" else "right"
+    evidence = {
+        "line_group_id": "G_CT",
+        "line_orientation": "horizontal",
+        "line_start": [10.0, 50.0],
+        "line_end": [110.0, 50.0],
+        "pair_key": f"{value}->?" if present_side == "left" else f"?->{value}",
+        "selected_pair_candidate_id": "PC1",
+        "selected_left_candidate_id": "C_VALUE" if present_side == "left" else None,
+        "selected_right_candidate_id": "C_VALUE" if present_side == "right" else None,
+        "selected_left_text_id": "T_VALUE" if present_side == "left" else None,
+        "selected_right_text_id": "T_VALUE" if present_side == "right" else None,
+        "selected_left_raw_text": value if present_side == "left" else None,
+        "selected_right_raw_text": value if present_side == "right" else None,
+        "selected_left_channel": "terminal_numeric_channel" if present_side == "left" else None,
+        "selected_right_channel": "terminal_numeric_channel" if present_side == "right" else None,
+        "selected_left_channel_detail": None,
+        "selected_right_channel_detail": None,
+        "selected_left_is_derived_numeric": False,
+        "selected_right_is_derived_numeric": False,
+        "selected_left_source_block_name": None,
+        "selected_right_source_block_name": None,
+        "alternative_pair_candidate_ids": [],
+        "score_breakdown": {"ambiguity_gap": None},
+    }
+    pair = _pair(
+        evidence,
+        pair_id="P_CT",
+        line_group_id="G_CT",
+        left_text_id="T_VALUE" if present_side == "left" else None,
+        right_text_id="T_VALUE" if present_side == "right" else None,
+        left_value=value if present_side == "left" else None,
+        right_value=value if present_side == "right" else None,
+    )
+    setattr(pair, f"{present_side}_candidate_id", "C_VALUE")
+    setattr(pair, f"{missing_side}_candidate_id", None)
+    pair.pair_key = f"{value}->?" if present_side == "left" else f"?->{value}"
+    setattr(pair, f"{present_side}_coord_x", 8.0 if present_side == "left" else 112.0)
+    setattr(pair, f"{present_side}_coord_y", 50.0)
+    group = LineGroup(
+        "G_CT",
+        "S1",
+        "F1",
+        10.0,
+        50.0,
+        110.0,
+        50.0,
+        100.0,
+        0.55,
+        ["L_CT"],
+        ["0"],
+        "horizontal",
+    )
+    line_start_x, line_end_x = (110.0, 10.0) if reverse_line else (10.0, 110.0)
+    lines = [
+        _panel_line(
+            "L_CT",
+            handle="H_CT",
+            start_x=line_start_x,
+            start_y=50.0,
+            end_x=line_end_x,
+            end_y=50.0,
+        )
+    ]
+    value_x = 8.0 if present_side == "left" else 112.0
+    texts = [
+        _panel_text("T_VALUE", value, x=value_x, y=50.0),
+        _panel_text("TL_P1", "P1", x=6.0, y=44.0),
+        _panel_text("TL_P2", "P2", x=6.0, y=56.0),
+        _panel_text("TL_S1", "S1", x=15.0, y=44.0),
+        _panel_text("TL_S2", "S2", x=15.0, y=56.0),
+        _panel_text("TL_STAR1", "*", x=9.0, y=48.0),
+        _panel_text("TL_STAR2", "*", x=13.0, y=48.0),
+        _panel_text("TR_P1", "P1", x=106.0, y=44.0),
+        _panel_text("TR_P2", "P2", x=106.0, y=56.0),
+        _panel_text("TR_S1", "S1", x=115.0, y=44.0),
+        _panel_text("TR_S2", "S2", x=115.0, y=56.0),
+        _panel_text("TR_STAR1", "*", x=109.0, y=48.0),
+        _panel_text("TR_STAR2", "*", x=113.0, y=48.0),
+        _panel_text("T_POLARITY", "CT subtractive polarity reference", x=50.0, y=90.0),
+        _panel_text("T_POWER", "Power flow direction during normal operation", x=50.0, y=95.0),
+        _panel_text("T_POWER_2", "功率流向", x=50.0, y=100.0),
+    ]
+    candidate = TerminalCandidate(
+        candidate_id="C_VALUE",
+        line_group_id="G_CT",
+        sheet_id="S1",
+        file_id="F1",
+        side=present_side,
+        text_id="T_VALUE",
+        text=value,
+        value=value,
+        score=0.64,
+        status="accepted",
+        rejection_reason=None,
+        endpoint_x=10.0 if present_side == "left" else 110.0,
+        endpoint_y=50.0,
+        distance_x=2.0,
+        distance_y=0.0,
+        text_insert_x=value_x,
+        text_insert_y=50.0,
+        vertical_alignment_score=1.0,
+        horizontal_side_score=1.0,
+        text_type_score=1.0,
+        height_score=1.0,
+        rank=1,
+        source_block_name=None,
+        channel="terminal_numeric_channel",
+        channel_detail=None,
+    )
+    page = _sheet(route_target="WireDiagramExtractor")
+    page.sheet_title = "Reference diagram"
+    page.filename = "reference.dwg"
+    return (
+        pair,
+        [page],
+        texts,
+        [group],
+        lines,
+        [candidate],
     )
 
 
@@ -1393,6 +1531,202 @@ def test_connect_multidrop_rail_shadows_single_sided_ordinary_pair() -> None:
         "interior_drop_xs": [30.0, 70.0],
         "interior_drop_count": 2,
     }
+
+
+@pytest.mark.parametrize(
+    ("present_side", "reverse_line", "value"),
+    [("right", False, "3"), ("left", True, "7")],
+)
+def test_ct_polarity_reference_shadows_complete_single_sided_pair(
+    present_side: str,
+    reverse_line: bool,
+    value: str,
+) -> None:
+    pair, pages, texts, groups, lines, candidates = _ct_polarity_reference_fixture(
+        present_side=present_side,
+        reverse_line=reverse_line,
+        value=value,
+    )
+
+    _shadow_ct_polarity_reference_ordinary_pairs(
+        [pair], pages, texts, groups, lines, candidates
+    )
+
+    assert pair.evidence["ordinary_pair_eligible"] is False
+    assert pair.evidence["ordinary_pair_shadow_only"] is True
+    assert pair.evidence["ordinary_pair_shadow_reason"] == "ct_polarity_reference_annotation"
+    annotation = pair.evidence["ct_polarity_reference_annotation"]
+    assert annotation["line_id"] == "L_CT"
+    assert annotation["selected_side"] == present_side
+    assert annotation["selected_candidate_id"] == "C_VALUE"
+    assert annotation["selected_text_id"] == "T_VALUE"
+    assert annotation["semantic_text_ids"] == {
+        "ct_polarity": ["T_POLARITY"],
+        "power_flow": ["T_POWER", "T_POWER_2"],
+    }
+    assert set(annotation["endpoint_motif_text_ids"]["start"]) == {
+        "TL_P1",
+        "TL_P2",
+        "TL_S1",
+        "TL_S2",
+        "TL_STAR1",
+        "TL_STAR2",
+    }
+    assert set(annotation["endpoint_motif_text_ids"]["end"]) == {
+        "TR_P1",
+        "TR_P2",
+        "TR_S1",
+        "TR_S2",
+        "TR_STAR1",
+        "TR_STAR2",
+    }
+
+
+@pytest.mark.parametrize(
+    "negative",
+    [
+        "polarity_without_motif",
+        "p_labels_without_semantics",
+        "missing_left_s2",
+        "missing_right_s2",
+        "one_star",
+        "connect_layer",
+        "block_owned_line",
+        "polyline_line",
+        "missing_group_member",
+        "multiple_group_members",
+        "complete_pair",
+        "alternative",
+        "ambiguity",
+        "wrong_route",
+        "pair_candidate_mismatch",
+        "evidence_candidate_mismatch",
+        "pair_text_mismatch",
+        "evidence_text_mismatch",
+        "raw_value_mismatch",
+        "candidate_scope_mismatch",
+        "geometry_mismatch",
+        "nonnumeric_value",
+        "derived_numeric",
+        "present_channel_detail",
+        "present_source_block",
+        "pair_coord_mismatch",
+        "candidate_text_insert_mismatch",
+        "text_insert_mismatch",
+        "malformed_candidate_endpoint",
+        "duplicate_page",
+        "duplicate_group",
+        "duplicate_line",
+        "duplicate_candidate",
+        "duplicate_text",
+        "candidate_channel_detail",
+        "text_not_numeric_candidate",
+        "malformed_member_list",
+        "malformed_member_id",
+        "candidate_distance_mismatch",
+        "malformed_candidate_distance",
+    ],
+)
+def test_ct_polarity_reference_keeps_incomplete_or_forged_pairs_fail_closed(
+    negative: str,
+) -> None:
+    pair, pages, texts, groups, lines, candidates = _ct_polarity_reference_fixture()
+    text_by_id = {text.text_id: text for text in texts}
+    if negative == "polarity_without_motif":
+        texts = [text for text in texts if not text.text_id.startswith(("TL_", "TR_"))]
+    elif negative == "p_labels_without_semantics":
+        texts = [text for text in texts if text.text_id not in {"T_POLARITY", "T_POWER"}]
+    elif negative == "missing_left_s2":
+        texts = [text for text in texts if text.text_id != "TL_S2"]
+    elif negative == "missing_right_s2":
+        texts = [text for text in texts if text.text_id != "TR_S2"]
+    elif negative == "one_star":
+        texts = [text for text in texts if text.text_id != "TL_STAR2"]
+    elif negative == "connect_layer":
+        lines[0].layer = "CONNECT"
+    elif negative == "block_owned_line":
+        lines[0].source_block_name = "CT_BLOCK"
+    elif negative == "polyline_line":
+        lines[0].source_entity_type = "LWPOLYLINE"
+    elif negative == "missing_group_member":
+        groups[0].member_line_ids = []
+    elif negative == "multiple_group_members":
+        groups[0].member_line_ids = ["L_CT", "L_EXTRA"]
+        lines.append(_panel_line("L_EXTRA", handle="H_EXTRA", start_x=10.0, start_y=50.0, end_x=110.0, end_y=50.0))
+    elif negative == "complete_pair":
+        pair.left_value = "2"
+        pair.left_text_id = "T_LEFT"
+    elif negative == "alternative":
+        pair.alternative_pair_candidate_ids = ["PC_ALT"]
+    elif negative == "ambiguity":
+        pair.ambiguity_gap = 0.1
+    elif negative == "wrong_route":
+        pages[0].route_target = "ComponentDiagramExtractor"
+    elif negative == "pair_candidate_mismatch":
+        pair.right_candidate_id = "C_OTHER"
+    elif negative == "evidence_candidate_mismatch":
+        pair.evidence["selected_right_candidate_id"] = "C_OTHER"
+    elif negative == "pair_text_mismatch":
+        pair.right_text_id = "T_OTHER"
+    elif negative == "evidence_text_mismatch":
+        pair.evidence["selected_right_text_id"] = "T_OTHER"
+    elif negative == "raw_value_mismatch":
+        pair.evidence["selected_right_raw_text"] = "4"
+    elif negative == "candidate_scope_mismatch":
+        candidates[0].file_id = "F2"
+    elif negative == "geometry_mismatch":
+        pair.evidence["line_end"] = [111.0, 50.0]
+    elif negative == "nonnumeric_value":
+        pair.right_value = "ABC"
+        pair.pair_key = "?->ABC"
+        pair.evidence["pair_key"] = "?->ABC"
+        pair.evidence["selected_right_raw_text"] = "ABC"
+        candidates[0].value = "ABC"
+        candidates[0].text = "ABC"
+        text_by_id["T_VALUE"].text = "ABC"
+        text_by_id["T_VALUE"].normalized_text = "ABC"
+    elif negative == "derived_numeric":
+        pair.evidence["selected_right_is_derived_numeric"] = True
+    elif negative == "present_channel_detail":
+        pair.evidence["selected_right_channel_detail"] = "derived"
+    elif negative == "present_source_block":
+        pair.evidence["selected_right_source_block_name"] = "BLOCK"
+    elif negative == "pair_coord_mismatch":
+        pair.right_coord_x = 999.0
+    elif negative == "candidate_text_insert_mismatch":
+        candidates[0].text_insert_x = 999.0
+    elif negative == "text_insert_mismatch":
+        text_by_id["T_VALUE"].insert_x = 999.0
+    elif negative == "malformed_candidate_endpoint":
+        candidates[0].endpoint_x = None
+    elif negative == "duplicate_page":
+        pages.append(pages[0])
+    elif negative == "duplicate_group":
+        groups.append(groups[0])
+    elif negative == "duplicate_line":
+        lines.append(lines[0])
+    elif negative == "duplicate_candidate":
+        candidates.append(candidates[0])
+    elif negative == "duplicate_text":
+        texts.append(text_by_id["T_VALUE"])
+    elif negative == "candidate_channel_detail":
+        candidates[0].channel_detail = "derived"
+    elif negative == "text_not_numeric_candidate":
+        text_by_id["T_VALUE"].is_numeric_candidate = False
+    elif negative == "malformed_member_list":
+        groups[0].member_line_ids = None
+    elif negative == "malformed_member_id":
+        groups[0].member_line_ids = [["L_CT"]]
+    elif negative == "candidate_distance_mismatch":
+        candidates[0].distance_x = 999.0
+    elif negative == "malformed_candidate_distance":
+        candidates[0].distance_y = "bad"
+
+    _shadow_ct_polarity_reference_ordinary_pairs(
+        [pair], pages, texts, groups, lines, candidates
+    )
+
+    assert pair.evidence.get("ordinary_pair_shadow_reason") != "ct_polarity_reference_annotation"
 
 
 @pytest.mark.parametrize(
