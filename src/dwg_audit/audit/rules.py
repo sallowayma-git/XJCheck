@@ -1781,18 +1781,23 @@ def _is_authoritative_backplate_virtual_endpoint_bridge(pair: Pair) -> bool:
     if mapping.get("row_number") is None or mapping.get("plugin_slot") is None:
         return False
 
-    row_number = str(mapping.get("row_number")).strip()
-    raw_row_number = str(mapping.get("raw_row_number")).strip()
-    middle_value = str(mapping.get("middle_value")).strip()
+    row_number = mapping.get("row_number")
+    if isinstance(row_number, bool) or not isinstance(row_number, int) or not 1 <= row_number <= 64:
+        return False
+    row_number_text = f"{row_number:02d}"
+    raw_row_text = mapping.get("raw_row_number")
+    middle_value_text = mapping.get("middle_value")
+    if not isinstance(raw_row_text, str) or not isinstance(middle_value_text, str):
+        return False
     device_instance = str(mapping.get("composite_device_instance")).strip()
     plugin_slot = str(mapping.get("plugin_slot")).strip()
     header_prefix = str(mapping.get("header_prefix")).strip()
     logical_endpoint = str(mapping.get("logical_endpoint")).strip()
-    if raw_row_number != row_number or middle_value != row_number:
+    if raw_row_text != row_number_text or middle_value_text != row_number_text:
         return False
     if header_prefix.casefold() != f"{device_instance}{plugin_slot}".casefold():
         return False
-    if logical_endpoint.casefold() != f"{header_prefix}{row_number}".casefold():
+    if logical_endpoint.casefold() != f"{header_prefix}{row_number_text}".casefold():
         return False
     if str(pair.left_value or "").strip().casefold() != logical_endpoint.casefold():
         return False

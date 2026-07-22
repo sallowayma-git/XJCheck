@@ -1065,32 +1065,36 @@ def test_rules_accept_complete_backplate_virtual_endpoint_bridge() -> None:
     assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
 
 
-def test_rules_accept_generic_backplate_virtual_endpoint_bridge() -> None:
-    table_pair = _phase177_backplate_table_pair("PT", "S2", "NJL307-11", "1-4n611")
+def test_rules_accept_zero_padded_generic_backplate_virtual_endpoint_bridge() -> None:
+    table_pair = _phase177_backplate_table_pair("PT", "S2", "NJL307-09", "1-4n609")
     table_pair.file_id = "F2"
-    table_pair.left_value = "1-4n511"
+    table_pair.left_value = "1-4n509"
     table_pair.evidence["table_mapping"].update(
         {
             "source_block_name": "GENERIC-BACKPLATE",
             "raw_header_text": "TRIP PLUGIN 2",
             "header_prefix": "1-4n5",
-            "raw_row_number": "11",
-            "middle_value": "11",
+            "row_number": 9,
+            "raw_row_number": "09",
+            "middle_value": "09",
             "semantic_notes": ["Contact 2", "Output"],
             "composite_device_instance": "1-4n",
             "plugin_slot": 5,
             "plugin_title": "TRIP PLUGIN 2",
-            "logical_endpoint": "1-4n511",
+            "logical_endpoint": "1-4n509",
         }
     )
     pairs = [
-        _phase178_strip_component_pair("PC", "S1", "1-4CLP2-2", "1-4n611"),
+        _phase178_strip_component_pair("PC", "S1", "1-4CLP2-2", "1-4n609"),
         table_pair,
     ]
     sheets = [
         SheetRecord("S1", "S1", "29 元件图.dwg", 29, "29", "ACCESSORIES", "元件接线图", "primary", "filename", True),
         SheetRecord("S2", "F2", "26 背板图.dwg", 26, "26", "REAR WIRING", "背板图", "supplemental", "filename", True),
     ]
+
+    assert len({pair.left_value for pair in pairs}) == 2
+    assert {pair.right_value for pair in pairs} == {"1-4n609"}
 
     issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
 
@@ -1129,6 +1133,18 @@ def test_rules_keep_incomplete_backplate_virtual_endpoint_bridges_visible() -> N
         "missing_device_instance": {"composite_device_instance": None},
         "mismatched_plugin_slot": {"plugin_slot": 5},
         "mismatched_middle_value": {"middle_value": "26"},
+        "mismatched_row_rendering": {"raw_row_number": "025"},
+        "overpadded_row_number": {"raw_row_number": "025", "middle_value": "025"},
+        "string_row_number": {"row_number": "25"},
+        "numeric_raw_row_number": {"raw_row_number": 25},
+        "numeric_middle_value": {"middle_value": 25},
+        "whitespace_raw_row_number": {"raw_row_number": " 25"},
+        "whitespace_row_rendering": {"raw_row_number": " 25 ", "middle_value": " 25 "},
+        "zero_row_number": {"row_number": 0, "raw_row_number": "00", "middle_value": "00"},
+        "oversized_row_number": {"row_number": 65, "raw_row_number": "65", "middle_value": "65"},
+        "mixed_raw_row_number": {"raw_row_number": "025x"},
+        "signed_raw_row_number": {"raw_row_number": "+25"},
+        "decimal_middle_value": {"middle_value": "25.0"},
         "mismatched_plugin_title": {"plugin_title": "Input"},
         "missing_semantic_notes": {"semantic_notes": []},
     }

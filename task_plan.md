@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 188 is accepted and published at `512186d` with all 13 residual issues explicitly retained. Phase 189 is now testing whether new raw producer authority exists for either a multi-port closed enclosure or a complete CT-polarity reference annotation; neither family is eligible until a full-corpus census and natural negatives prove it.
+Phase 190 is acceptance-complete locally: its exact two-digit backplate virtual-row contract removes only 23000 `PCM0082 + P0126`, with zero additions, and retains 11 fail-closed issues for the next loop. Scoped publication is the only remaining Phase190 action.
 
-The current authoritative extraction is `.tmp/phase187_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Pair IDs and persistent semantics are unchanged from Phase186.
+The current authoritative extraction is `.tmp/phase190_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Project-qualified Pair IDs and all non-evidence persistent semantics are unchanged from Phase189.
 
-The current authoritative audit is `.tmp/phase187_full_533_audit`: 13 issues (many-to-one 7, missing-side 2, cross-page 3, low-confidence 1). Root `package-lock.json` remains outside the recognition boundary and must not be modified or staged.
+The current authoritative audit is `.tmp/phase190_full_533_audit`: 11 review issues (many-to-one 6, missing-side 1, cross-page 3, low-confidence 1). Root `package-lock.json` remains outside the recognition boundary and must not be modified or staged.
 
 ## Phases
 
@@ -3155,3 +3155,42 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - CT-polarity authority must be geometry- and text-structure backed; title keywords, project names, Pair IDs, handles or fixed coordinates cannot authorize suppression.
 - Preserve GND, KLP, cross-page and low-confidence reviews; this phase targets at most one of the two remaining missing-side rows.
 - The selected CT contract is name-independent and retained only one exact full-corpus candidate: PAC `PW0001`. Full acceptance leaves 12 fail-closed issues: many-to-one `7`, missing-side `1` (`23000 PW0526`), cross-page `3`, low-confidence `1`.
+
+## Phase 190 zero-padded virtual-row loop (active)
+
+### Phase 190 recoverable errors
+
+- The packaged Windows `rg.exe` again failed to start with access denied during recovery. Continue using `Select-String` and exact `Get-Content` slices; do not repeat the blocked executable in this session.
+- The goal service correctly rejected replacing the still-active historical Phase183 goal. An independent read-only audit proved every Phase183 checklist item, acceptance gate, scoped commit and push complete at `994d0e7` / `5e9509a`; the old goal was then closed and this Phase190 goal created without redefining the ongoing residual loop.
+- The first two clean-context Phase190 audits were interrupted when the user stopped a long wait. They made no file changes; bounded replacement audits completed and supplied the authoritative 12-issue inventory.
+- The first bounded audit stayed `2 -> 2` and disproved the initial assumption that numeric comparison alone closed the target. Direct helper tracing showed the later logical-endpoint check still rebuilt `1-4n509` from canonical `9` as `1-4n59`. Preserve the exact raw/middle `09` rendering for endpoint reconstruction after proving both labels identical and numerically equal to row `9`.
+- The first direct helper probe imported `Pair` from a nonexistent `dwg_audit.audit.models` module and stopped read-only. The corrected probe uses the established `dwg_audit.domain.models` import; do not repeat the bad module path.
+- Final Sol review found that `str(...).strip()` still accepted numeric or whitespace-padded raw/middle evidence even though the producer emits exact strings. Require native `str` values with no trimming and add numeric/whitespace adversaries before the final audit/gate rerun.
+- Native PowerShell cleanup of the two exact bounded directories was policy-blocked before execution. The containment-checked Python fallback removed only `.tmp/phase190_23000_fresh` and `.tmp/phase190_23000_audit`; do not repeat the blocked command.
+- A resumed exact-section read matched all three Phase190 headings and PowerShell rejected subtraction on the resulting array. No file changed; subsequent inspection uses the unique heading list or an explicitly selected match.
+
+- [x] Recover synchronized `HEAD=0f158ef`, Phase189 authoritative artifacts, and the clean recognition boundary with only root `package-lock.json` untracked.
+- [x] Enumerate all 12 residual issue identities and group them by producer family: backplate `P=3`, ordinary `PW=2`, terminal-header `PTMR=4`, component/structured `PCM=3`.
+- [x] Run independent full-corpus census and natural-negative audits for all four families; reject ordinary PW, GND-only, simple cross-page and incomplete component-closure relaxations.
+- [x] Select the single evidence-backed slice: backplate virtual rows whose canonical numeric row is consistent but whose raw/middle labels contain leading zeros.
+- [x] Implement the exact two-digit producer contract while preserving every existing component/table/header/device/plugin/semantic/column-role guard, plus focused positive and malformed-input tests.
+- [x] Run bounded 23000 raw-DWG replay/audit and prove stable Pair identity, zero issue additions, and removal of only `PCM0082 + P0126 / 1-4n609`.
+- [x] Run full 28-project / 533-DWG fresh replay/audit, Pair persistent-identity comparison, repository gates and exact artifact cleanup.
+- [x] Update final acceptance evidence and prepare only the five scoped recognition/planning files for commit; retain all unresolved issues for the next loop.
+- [ ] Commit and push the scoped Phase190 implementation and acceptance record.
+- **Status:** acceptance-complete; scoped publication remains pending, while the overarching residual goal stays active with 11 fail-closed issues.
+
+### Phase 190 guardrails
+
+- Row equivalence mirrors the producer contract exactly: `row_number` must be a non-boolean integer in `1..64`, and raw/middle labels must both equal its two-digit `:02d` rendering. Signs, decimal points, mixed text, inconsistent padding and out-of-range values remain fail-closed.
+- Do not weaken the exact one-component/one-table cardinality, cross-sheet/file, pass/confidence, strip identity, source text identity, header reconstruction, plugin identity, semantic notes, column roles or component closure requirements.
+- `PW0526`, `PW0225`, all GND groups, WBH `KD26` / `5KLP8-1`, and all three cross-page conflicts remain explicit natural negatives unless a later independent producer contract proves them.
+- Do not key behavior to project name, Pair ID, block name, handle, fingerprint, fixed row number or terminal value.
+
+### Phase 190 acceptance
+
+- Final fresh artifact: `.tmp/phase190_full_533_fresh`; 28/28 projects, 533/533 files/sheets/valid, zero invalid/incomplete, 28 clean conclusions and 38,825 Pair rows.
+- Project-qualified Pair IDs are `0/0` delta against Phase189 and all 25 non-evidence persistent columns are unchanged. Four evidence-only rows differ in the known 31000 enclosure floating-point family: `PW0236/PW0237/PW0260/PW0261`; no Pair or audit semantic changes.
+- Final audit artifact: `.tmp/phase190_full_533_audit`; all 28 JSON/Parquet/Markdown bundles align. Issue identity is `12 -> 11`, zero additions, sole removal 23000 `PCM0082` with related `P0126` at shared endpoint `1-4n609`.
+- Final distribution is many-to-one `6`, cross-page `3`, missing-side `1`, low-confidence `1`; all 11 are review and remain active for later evidence-authority loops.
+- Focused rules gate: `120 passed`. Full repository gate: `1263 passed, 1 skipped`; compileall and diff-check pass. Only the Phase189 baseline and Phase190 full fresh/audit artifacts are retained for this loop.
