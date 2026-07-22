@@ -3146,7 +3146,7 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - [x] Run an all-38,825-Pair/raw-line census for both hypotheses and select at most one exact candidate family with explainable natural negatives: only PAC `PW0001/GW0001` qualifies the complete CT contract; 23000 `PW0526` is a natural negative because its member is LWPOLYLINE and lacks the complete motif.
 - [x] Implement only the selected producer contract with focused positive/adversarial tests; focused gate is `151 passed`, and PAC bounded replay removes only `PW0001` with zero Pair semantic drift or issue additions.
 - [x] Run bounded raw-DWG replay/audit, then full 28/533 replay/audit with Pair persistent identity and zero-addition checks: PAC `2012/2012` Pair IDs and full `38825/38825` project-qualified Pair IDs are stable; audit identity is `13 -> 12`, zero additions, one expected removal.
-- [ ] Run repository gates, update planning evidence, clean superseded artifacts, and commit/push only scoped recognition files.
+- [x] Run repository gates, update planning evidence, clean superseded artifacts, and commit/push only scoped recognition files; published as `f672145` on `master`.
 - **Status:** active; 12 residual issues remain fail-closed until the next producer contract is proven.
 
 ### Phase 189 guardrails
