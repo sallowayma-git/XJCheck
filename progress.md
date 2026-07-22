@@ -6063,3 +6063,27 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Phase190 implementation and full acceptance are complete. Next: stage only `task_plan.md`, `findings.md`, `progress.md`, `src/dwg_audit/audit/rules.py`, and `tests/unit/test_pairs_and_rules.py`, then commit/push without touching root `package-lock.json`; keep all 11 residual issues active for Phase191.
 - Published `e323db9 Generalize zero-padded backplate virtual rows` to `origin/master`. The temporary GitHub account switch to repository owner `sallowayma-git` was immediately restored to the original active account `githubSINGLE`; root `package-lock.json` remained untracked and untouched.
 - Phase190 is complete for this rule slice. The overarching optimization loop remains active, and Phase191 inherits all 11 fail-closed reviews.
+
+## 2026-07-22 Phase191 continuation
+
+- Closed the completed Phase190 goal after publication (`954,884` goal tokens; about 1h 30m elapsed) and immediately created an active Phase191 residual-recognition goal so the overarching optimization loop remains live.
+- Verified publication state before transition: `HEAD == origin/master == 775c556`; only protected untracked root `package-lock.json` remains.
+- Opened the Phase191 checklist against the 11 retained reviews. Next: run three clean-context `gpt-5.6-sol` read-only family audits, then main-thread spot-check only their decisive source/artifact anchors before selecting any code slice.
+- Completed three clean-context `gpt-5.6-sol` read-only audits with exact project/Pair/source anchors. Ordinary, WBH structured and cross-page families all lack complete producer authority and remain fail-closed; no subagent modified files or ran replay.
+- The only candidate is the four-group pure terminal-header family. Main-thread spot checks confirmed the producer emits row sequence, `说明` ownership and endpoint-column authority, but also confirmed graph admission alone is insufficient because structured table mappings bypass status gating. Next: inspect and reuse the strict authoritative-table validator, then run an exact corpus predicate census before editing rules.
+- Re-enumerated all 11 identities directly from Phase190 `issues.json`. Counts and primary/related Pair sets match the independent audits; next action remains a read-only strict-predicate census, not implementation.
+- The first strict census counted 621 complete terminal-header many-to-one groups, then stopped at WBH `PCM0101` because the issue lookup had cached only table mappings. The corrected pass loaded all Pair kinds without weakening terminal-only census filtering.
+- Corrected census passed: 621/621 groups, 1,246 Pair facts and 21 projects satisfy the strict producer predicate. At the six current many-to-one issues it accepts exactly the four pure terminal-header clusters and rejects both WBH mixed clusters. Selected this as the sole Phase191 implementation slice.
+- Located the existing incomplete terminal-only shared-endpoint regression; it will remain fail-closed and anchor the negative side of the new authoritative contract.
+- Implemented the strict all-cluster terminal-header authority helper and focused positive/adversarial tests. Initial gate passes `20 passed, 118 deselected`; no replay has started.
+- Next: independent Sol diff review for fail-open or producer mismatch, then close any findings before bounded raw-DWG replay.
+- Independent Sol review found one decisive semantic fail-open: complete row ownership still cannot equate same-named endpoint text across unrelated sheets/headers/coordinates. It also found non-finite/nonnumeric confidence hazards in the draft helper.
+- Rejected the candidate before replay and removed every Phase191 source/test edit. Existing fail-closed terminal-only regressions pass `2 passed`; Git content diff for `rules.py` and `test_pairs_and_rules.py` is empty.
+- Phase191 will close as a no-change evidence disposition: run bounded unchanged rules audit, revalidate Phase190 28/533 artifacts, run repository gates, clean the bounded output, and publish only planning evidence. All 11 issues remain active for Phase192.
+- Bounded rules-only audit completed for the four terminal-header/WBH projects. Counts are `1/1`, `1/1`, `3/3`, `2/2`; all JSON identities and full objects, Parquet row counts and Markdown reports match Phase190 exactly.
+- Next: revalidate the retained full Phase190 fresh/audit bundles and run repository gates before deleting only `.tmp/phase191_fail_closed_audit`.
+- Full retained-artifact validation passed 28 projects / 533 valid files and sheets / zero incomplete / 38,825 unique project-qualified Pair IDs / 11 issues with full report-format parity.
+- Repository gates passed `1263 passed, 1 skipped`; compileall and diff-check are clean. Only the three planning files differ from `HEAD`; `package-lock.json` remains untracked and untouched.
+- Next: delete only `.tmp/phase191_fail_closed_audit`, finalize Phase191 no-change acceptance records, and publish the docs-only disposition while leaving all 11 issues active for Phase192.
+- Native PowerShell cleanup was policy-blocked before execution. The containment-checked single-process fallback removed only `.tmp/phase191_fail_closed_audit`; `.tmp/phase190_full_533_fresh` and `.tmp/phase190_full_533_audit` remain.
+- Phase191 acceptance is complete as a no-change evidence disposition. Prepared only `task_plan.md`, `findings.md` and `progress.md` for scoped commit/push; all 11 reviews remain active for Phase192.

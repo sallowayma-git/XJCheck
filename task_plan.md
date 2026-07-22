@@ -4,7 +4,7 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 190 is accepted and its scoped implementation is published as `e323db9`. Its exact two-digit backplate virtual-row contract removes only 23000 `PCM0082 + P0126`, with zero additions; the 11 retained fail-closed issues seed Phase191 while the overarching recognition loop remains active.
+Phase 191 is an evidence-backed no-change disposition: independent review rejected the only candidate because row ownership did not prove cross-scope endpoint identity. All 11 Phase190 issues remain fail-closed inputs for Phase192, and the overarching recognition loop stays active.
 
 The current authoritative extraction is `.tmp/phase190_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Project-qualified Pair IDs and all non-evidence persistent semantics are unchanged from Phase189.
 
@@ -3195,3 +3195,42 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Final audit artifact: `.tmp/phase190_full_533_audit`; all 28 JSON/Parquet/Markdown bundles align. Issue identity is `12 -> 11`, zero additions, sole removal 23000 `PCM0082` with related `P0126` at shared endpoint `1-4n609`.
 - Final distribution is many-to-one `6`, cross-page `3`, missing-side `1`, low-confidence `1`; all 11 are review and remain active for later evidence-authority loops.
 - Focused rules gate: `120 passed`. Full repository gate: `1263 passed, 1 skipped`; compileall and diff-check pass. Only the Phase189 baseline and Phase190 full fresh/audit artifacts are retained for this loop.
+
+## Phase 191 residual authority loop (complete)
+
+### Phase 191 recoverable errors
+
+- A source slice locator used the broad `^class Pair` pattern, matched both `PairCandidate` and `Pair`, and PowerShell rejected subtraction on the resulting array. No file changed; use the anchored `^class Pair:$` pattern or a fixed line slice and do not repeat broad-match arithmetic.
+- The first strict terminal-header census correctly counted all 621 table-only many-to-one groups, then failed while evaluating WBH `PCM0101` because its lookup cache had intentionally loaded only table mappings. No artifact changed; the corrected issue-level pass loads all Pair kinds while retaining terminal-only filtering for the corpus census.
+- The first Phase190 full-artifact validator reached Markdown parity and failed because its regex expected plain `IssueCount:` while reports decorate the label with Markdown emphasis. Earlier project/completeness/Pair assertions had passed; inspect the actual header and correct only the report parser.
+- Native PowerShell exact cleanup of `.tmp/phase191_fail_closed_audit` was rejected by local policy before execution. No directory changed; use the established single-process fallback with exact leaf and resolved-parent containment checks.
+
+- [x] Publish Phase190 implementation `e323db9` and acceptance record `775c556`; verify `HEAD == origin/master` and only root `package-lock.json` remains untracked.
+- [x] Reset the active goal to Phase191 without closing the overarching recognition optimization loop.
+- [x] Enumerate the exact 11 Phase190 issue identities and independently audit terminal-header, cross-page, ordinary and WBH structured families.
+- [x] Select at most one generalized, name-independent producer contract only if full-corpus natural negatives establish a fail-closed boundary.
+- [x] Implement the selected rule/extractor slice and focused positive/adversarial coverage, or record an evidence-backed no-change disposition; independent review rejected the only candidate and all source/test edits were removed.
+- [x] Run bounded rules audit for the four terminal-header projects and prove unchanged issue identity; raw-DWG replay is unnecessary because recognition source returned exactly to `HEAD`.
+- [x] Revalidate the existing 28-project / 533-DWG Phase190 fresh/audit artifacts and repository gates without regenerating unchanged extraction; remove only the bounded Phase191 audit artifact.
+- [x] Update acceptance records and publish only scoped planning files; retain every unresolved issue for later loops.
+- **Status:** complete for this evidence-disposition slice; the overarching residual goal stays active with 11 fail-closed issues for Phase192.
+
+### Phase 191 guardrails
+
+- Preserve the exact Phase190 producer contracts and all current KLP/GND/cross-page fail-closed guards unless new independent physical ownership evidence proves a narrower family.
+- Do not key behavior to project name, filename, Pair ID, block name, handle, fingerprint, fixed row number or terminal value.
+- Root `package-lock.json` is unrelated state and must remain unmodified, unstaged and outside cleanup.
+- Subagents are read-only `gpt-5.6-sol` probes with clean context; require exact project/Pair provenance and source `file:line` anchors, then verify only decisive slices on the main thread.
+- Ordinary `PW0526/PW0225`, WBH `PCM0042/PCM0101` and cross-page `P0076/P0034/P0208` all lack producer-issued identity or complete-set closure and remain fail-closed. Do not derive authority from a short frame, candidate text equality, reciprocal-looking edges, comma siblings, repeated raw headers or source-block `-1/-2` suffixes.
+- The only Phase191 candidate was a pure terminal-header conflict cluster in which every linked Pair independently revalidated the row producer contract. Independent review rejected it because row ownership does not prove that equal endpoint text across different sheets, headers, text IDs and coordinates shares one physical/electrical scope.
+- Exact census still records 621/621 producer-valid terminal-header many-to-one groups in 21 projects (1,246 Pair facts), but this is row-level authority rather than cross-scope identity. The four residual pure groups therefore remain review alongside both WBH mixed groups.
+- The rejected helper also exposed malformed-confidence hazards: `NaN`/infinity would pass a naive `<0.95` comparison and nonnumeric strings would raise. No such helper remains in source; any later authority contract must validate finite native confidence without conversion exceptions.
+- No-change acceptance reuses Phase190 artifacts: 28 projects, 533/533 valid, zero invalid/incomplete, 28 `COMPLETE`, 38,825 unique project-qualified Pair IDs and 11 audit rows with JSON/Parquet/Markdown parity. Repository gates remain `1263 passed, 1 skipped`, compileall clean and diff-check clean.
+
+### Phase 191 acceptance
+
+- Recognition source and tests have zero content diff from `HEAD=775c556`; no raw-DWG replay was run for unchanged behavior.
+- Bounded rules audit matched Phase190 exactly for 30000, 8000/9000, PAC and WBH: issue counts `1/1/3/2`, identity delta `0/0`, full JSON equality, Parquet count equality and byte-equal Markdown.
+- Retained authoritative artifacts remain `.tmp/phase190_full_533_fresh` and `.tmp/phase190_full_533_audit`: 28/28 projects, 533/533 valid files/sheets, zero invalid/incomplete, 38,825 Pair facts and 11 review-severity issues.
+- Final distribution remains many-to-one 6, cross-page 3, missing-side 1 and low-confidence 1. All 11 remain active; Phase191 suppresses none.
+- Repository gates pass `1263 passed, 1 skipped`; compileall and diff-check pass. Cleanup removed only `.tmp/phase191_fail_closed_audit` after exact containment validation.
