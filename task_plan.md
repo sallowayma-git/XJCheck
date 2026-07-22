@@ -4,7 +4,7 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 190 is acceptance-complete locally: its exact two-digit backplate virtual-row contract removes only 23000 `PCM0082 + P0126`, with zero additions, and retains 11 fail-closed issues for the next loop. Scoped publication is the only remaining Phase190 action.
+Phase 190 is accepted and its scoped implementation is published as `e323db9`. Its exact two-digit backplate virtual-row contract removes only 23000 `PCM0082 + P0126`, with zero additions; the 11 retained fail-closed issues seed Phase191 while the overarching recognition loop remains active.
 
 The current authoritative extraction is `.tmp/phase190_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Project-qualified Pair IDs and all non-evidence persistent semantics are unchanged from Phase189.
 
@@ -3168,6 +3168,7 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Final Sol review found that `str(...).strip()` still accepted numeric or whitespace-padded raw/middle evidence even though the producer emits exact strings. Require native `str` values with no trimming and add numeric/whitespace adversaries before the final audit/gate rerun.
 - Native PowerShell cleanup of the two exact bounded directories was policy-blocked before execution. The containment-checked Python fallback removed only `.tmp/phase190_23000_fresh` and `.tmp/phase190_23000_audit`; do not repeat the blocked command.
 - A resumed exact-section read matched all three Phase190 headings and PowerShell rejected subtraction on the resulting array. No file changed; subsequent inspection uses the unique heading list or an explicitly selected match.
+- The first `git push origin master` used the active `githubSINGLE` HTTPS credential and GitHub returned 403 for the `sallowayma-git/XJCheck` remote. Both accounts remain present in the keyring; use the established temporary owner-account switch for publication and restore `githubSINGLE` immediately afterward.
 
 - [x] Recover synchronized `HEAD=0f158ef`, Phase189 authoritative artifacts, and the clean recognition boundary with only root `package-lock.json` untracked.
 - [x] Enumerate all 12 residual issue identities and group them by producer family: backplate `P=3`, ordinary `PW=2`, terminal-header `PTMR=4`, component/structured `PCM=3`.
@@ -3177,8 +3178,8 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - [x] Run bounded 23000 raw-DWG replay/audit and prove stable Pair identity, zero issue additions, and removal of only `PCM0082 + P0126 / 1-4n609`.
 - [x] Run full 28-project / 533-DWG fresh replay/audit, Pair persistent-identity comparison, repository gates and exact artifact cleanup.
 - [x] Update final acceptance evidence and prepare only the five scoped recognition/planning files for commit; retain all unresolved issues for the next loop.
-- [ ] Commit and push the scoped Phase190 implementation and acceptance record.
-- **Status:** acceptance-complete; scoped publication remains pending, while the overarching residual goal stays active with 11 fail-closed issues.
+- [x] Commit and push the scoped Phase190 implementation and acceptance record; implementation published as `e323db9` on `master`.
+- **Status:** complete for this rule slice; the overarching residual goal stays active with 11 fail-closed issues for Phase191.
 
 ### Phase 190 guardrails
 
