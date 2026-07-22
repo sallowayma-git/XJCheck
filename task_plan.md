@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 183 is accepted and published. Phase 184 has established the current HEAD full-corpus identity baseline and is selecting the next residual recognition slice; complete comma-grouped strip-component graphs remain handled by `519e6d7`, incomplete comma/KLP structures remain review, and PAC `PW0147` remains a bounded semantic review recovery.
+Phase 187 is accepted and published at `108cd00`. Phase 188 is now auditing the 13 authoritative residual issues and will select at most one producer-backed fail-closed optimization slice; unsupported single-frame, CT, cross-page, GND, KLP and cardinality structures remain review.
 
-The current authoritative extraction is `.tmp/phase184_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Stable semantic changes are confined to the expected comma-grouped 23000/27000 rows and PAC `PW0147`; the other 25 projects are exact against Phase182.
+The current authoritative extraction is `.tmp/phase187_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Pair IDs and persistent semantics are unchanged from Phase186.
 
-The current authoritative audit is `.tmp/phase184_full_533_audit`: 34 issues (many-to-one 12, missing-side 18, cross-page 3, low-confidence 1). Compared with Phase182, exact Pair IDs show two added and thirteen removed rows, but the two additions are 23000 ID shifts; content identity proves zero additions and exactly eleven removals. Other-agent desktop/performance changes and root `package-lock.json` remain outside the recognition commit boundary.
+The current authoritative audit is `.tmp/phase187_full_533_audit`: 13 issues (many-to-one 7, missing-side 2, cross-page 3, low-confidence 1). Root `package-lock.json` remains outside the recognition boundary and must not be modified or staged.
 
 ## Phases
 
@@ -3096,3 +3096,30 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Pair comparison against Phase186 is `0/0` ID delta and `0` persistent-column drift. Eight evidence-only rows differ: four intended repeated-frame annotations plus the four known 31000 closed-frame conversion canonicalization rows.
 - Final distribution is many-to-one `7`, missing-side `2`, cross-page `3`, low-confidence `1`. The 23000 single short frame and PAC CT row remain missing-side fail-closed negatives.
 - Focused page-extractor gate: `115 passed`. Full repository gate: `1221 passed, 1 skipped`; compileall and diff-check pass. Retained artifacts are the Phase186 baseline and Phase187 current full fresh/audit pairs; root `package-lock.json` remains untouched and unstaged.
+
+## Phase 188 residual evidence loop (active)
+
+- [x] Recover synchronized `HEAD=108cd00`, the Phase187 full-corpus baseline, planning state and clean recognition boundary.
+- [x] Enumerate all 13 Phase187 issue identities with project, sheet, file, Pair ID, rule, values and evidence provenance.
+- [x] Audit 23000 `PW0526` and PAC `PW0001` raw geometry independently; both lack a complete producer-owned contract and remain fail-closed.
+- [x] Census the remaining candidate families across the current 38,825 Pair facts; no exact producer-backed contract beyond existing Phase187 shadows was found.
+- [x] Record that Phase188 has no safe behavior slice: all 13 residuals remain fail-closed, and no generalized rule/test change is justified without new producer authority.
+- [x] With no behavior change, rerun bounded rules audits for 23000 and PAC; issue identities remain exact and both missing-side reviews stay visible.
+- [x] Validate the authoritative full 28-project / 533-DWG fresh and audit artifacts; manifests/completeness, Pair identity and issue identity all pass without a source change.
+- [x] Run repository tests, compileall and diff-check.
+- [x] Update planning evidence and clean only the Phase188 bounded audit artifact.
+- [x] Stage only scoped recognition/planning files, commit and push the no-behavior-change Phase188 evidence disposition.
+- **Status:** active; keep all unresolved issues available for subsequent fail-closed loops and do not mark the overarching goal complete.
+
+### Phase 188 guardrails
+
+- Do not key behavior to project name, Pair ID, handle, fingerprint, fixed row number, fixed terminal number or product-family labels.
+- Producer evidence must prove ownership, geometry, Pair/evidence identity and absence of alternatives or ambiguity before shadowing an ordinary Pair.
+- The single 23000 short frame and PAC CT line are explicit natural negatives until a broader full-corpus contract proves otherwise.
+- Preserve all three cross-page reviews, GND/KLP/cardinality structures and the low-confidence row unless separately selected and proven.
+- Root `package-lock.json`, desktop/sidecar files and unrelated planning boundaries remain untouched and unstaged.
+
+### Phase 188 recoverable errors
+
+- The first full-artifact validator proved manifest, completeness, issue parity and audit identity, then failed only in its Pair persistent-column comparison because `pair_id` was moved to the index but remained in the requested column list. Re-run only the Pair comparison with `(project, pair_id)` provenance and exclude index columns; do not repeat the already-proven checks.
+- Native PowerShell recursive cleanup of the exact Phase188 bounded-audit directory was rejected by local policy before execution. Use one containment-checked Python process for this exact `.tmp` child; do not broaden or repeat the blocked command.

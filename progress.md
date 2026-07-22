@@ -5980,3 +5980,32 @@ Three parallel read-only agents produced page-by-page dropped-instance inventori
 - Final gates: `python -m pytest -q` -> `1221 passed, 1 skipped`; `python -m compileall -q src tests` passed; `git diff --check` passed.
 - Cleanup retained `.tmp/phase186_full_533_fresh`, `.tmp/phase186_full_533_audit`, `.tmp/phase187_full_533_fresh`, and `.tmp/phase187_full_533_audit`; removed Phase185, bounded Phase187 and replay logs with containment checks.
 - Phase187 slice is acceptance-complete. The next loop inherits 13 active fail-closed issues: many-to-one `7`, missing-side `2`, cross-page `3`, low-confidence `1`.
+
+## 2026-07-22 Phase188 continuation
+
+- Ran planning-with-files session catch-up and re-read the current plan, findings and progress state.
+- Verified `master` is synchronized at `108cd00`; tracked worktree is clean and only root `package-lock.json` is untracked.
+- Corrected the stale top-level current-phase summary and opened the Phase188 evidence/replay/gate checklist.
+- The first combined documentation patch used the wrong Phase187 heading for `findings.md`; `apply_patch` rejected the full batch before changing any file. The update was split and anchored to the actual final lines.
+- Next: enumerate all 13 issue identities, then independently audit 23000 `PW0526` and PAC `PW0001` before selecting any implementation slice.
+- Completed two clean-context `gpt-5.6-sol` read-only audits. Both missing-side rows lack a complete producer-backed authority contract and remain fail-closed; no subagent modified the worktree.
+- Next: enumerate and classify the remaining 11 authoritative issue identities, then select a different narrow slice only if full-corpus evidence supports it.
+- Enumerated all 13 issue identities from the 28 `issues.json` artifacts with project provenance and nested Pair evidence. Counts and classes match Phase187 acceptance (`7/2/3/1`).
+- Marked the missing-side audit complete. The next independent probes cover the low-confidence row and the two structured many-to-one families.
+- Completed clean-context Sol audits for the low-confidence row and three non-GND structured many-to-one groups. No safe auto-pass contract was found; all four remain review.
+- Next: independently recheck the four GND/`1ID13` table groups and the three cross-page scope conflicts before deciding whether Phase188 has any implementable slice.
+- Completed the GND/`1ID13` and cross-page read-only probes. GND lacks physical identity and still needs human authority; the proposed source-block-only cross-page exemption conflicts with the established natural negatives and was rejected.
+- All 13 current issues now have an explicit fail-closed evidence disposition. Next: main-thread spot-check the decisive rule/test anchors and inspect whether a producer enhancement can add missing authority without weakening audit guards.
+- Main-thread spot checks confirmed the explicit reused-header cross-page negative test and the Phase180/181 GND/scope evidence. PAC S0005 has no broader producer family.
+- Next: test the only remaining producer hypothesis, whether an independently owned canonical `802` line can safely shadow the adjacent single closed-frame edge that reuses its exact text identity.
+- Rejected the 23000 canonical-line hypothesis: the neighboring `802` is only an unselected alternative inside a discarded wire-component mapping, while the frame has no unique CONNECT owner. No source/test code changed.
+- Phase188 evidence census is complete with no safe behavior slice. All 13 residual issues remain active; proceed with unchanged-artifact audit validation and repository hygiene gates, then keep the goal active for a future producer-authority loop.
+- Ran bounded `run-audit` replays for 23000 and PAC into `.tmp/phase188_fail_closed_audit`; both match their Phase187 issue identities exactly (`2/2` and `4/4`, zero delta).
+- Next: validate the authoritative 28-project / 533-DWG artifacts and all 13 current issue identities, then run repository gates.
+- Full artifact validation proved 28 manifests, 533 files/sheets/valid, zero invalid/incomplete, 28 clean conclusions, 38,825 Pair rows, 28 aligned audit bundles, and the expected `7/2/3/1` issue distribution. Audit identity versus Phase186 is zero additions and exactly four 8000/9000 removals.
+- The validator then failed only while selecting persistent Pair columns after moving `pair_id` into the index. The correction will use a project-qualified composite key and exclude index columns; prior checks are not rerun.
+- Corrected Pair validation passed: project-qualified Pair IDs are `0/0` delta across 38,825 rows and all 25 compared non-evidence persistent columns have zero drift.
+- Full artifact and identity acceptance is complete; only exact cleanup and repository gates remain before the scoped docs-only commit.
+- Native PowerShell cleanup of `.tmp/phase188_fail_closed_audit` was rejected before execution; no path changed. The retry uses an exact-name and resolved-parent check in one process.
+- Containment-checked Python cleanup removed only `.tmp/phase188_fail_closed_audit`; retained Phase186/187 authoritative artifacts.
+- Repository gates passed: `1221 passed, 1 skipped`, compileall clean, diff-check clean. Worktree should now contain only the three Phase188 planning-file edits plus unrelated untracked `package-lock.json`.
