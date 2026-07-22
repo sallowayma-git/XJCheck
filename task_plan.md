@@ -4,11 +4,11 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 191 is published as the no-change evidence disposition `f2aa339`. Phase 192 is active and will investigate only producer-issued physical/electrical scope for the 11 retained issues, prioritizing PAC reciprocal terminal topology and backplate device identity rather than rule-layer text equality.
+Phase 192 is published as `f1c6a09`. Phase 193 is complete as a no-change evidence disposition after rejecting its sole bounded candidate; publication is pending and the overarching optimization loop remains active with 10 retained issues.
 
-The current authoritative extraction is `.tmp/phase190_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Project-qualified Pair IDs and all non-evidence persistent semantics are unchanged from Phase189.
+The current authoritative extraction is `.tmp/phase192_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Project-qualified Pair IDs and all non-evidence persistent semantics are unchanged from Phase190.
 
-The current authoritative audit is `.tmp/phase190_full_533_audit`: 11 review issues (many-to-one 6, missing-side 1, cross-page 3, low-confidence 1). Root `package-lock.json` remains outside the recognition boundary and must not be modified or staged.
+The current authoritative audit is `.tmp/phase192_full_533_audit`: 10 review issues (many-to-one 5, missing-side 1, cross-page 3, low-confidence 1). Root `package-lock.json` remains outside the recognition boundary and must not be modified or staged.
 
 ## Phases
 
@@ -3264,3 +3264,40 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Any backplate scope enhancement must come from independently parsed device/plugin identity. Repeated raw headers and source-block `-1/-2` suffixes remain natural negatives.
 - GND audit found only table-cell `TEXT` evidence; no block, layer, continuous net or reciprocal logical endpoint authorizes a global-ground identity. Backplate pages that expose `1n REAR WIRING 1/2` identify one device across page halves, not independent scopes.
 - Root `package-lock.json` remains unrelated, unmodified and unstaged. Subagents stay clean-context, read-only `gpt-5.6-sol` probes with exact project/Pair and `file:line` output.
+
+## Phase 193 residual producer loop
+
+- [x] Publish Phase192 implementation `f1c6a09`, restore `githubSINGLE`, and reset the active phase goal without ending the overarching optimization loop.
+- [x] Audit the five retained many-to-one, three cross-page and two ordinary issues only for new producer-issued geometry/topology/scope evidence; do not repeat rejected GND/backplate text-equality hypotheses.
+- [x] Run a full-corpus natural-negative census for the selected closed-polyline producer contract; it matches exactly one retained ordinary issue and records 26 natural negatives.
+- [x] Implement and bounded-test the sole candidate, then reject it before full replay after independent review proved the contract lacks electrical-semantic exclusion; remove all source/test edits and keep `PW0526` fail-closed.
+- [x] Clean only Phase193 intermediates, run repository gates, and prepare only scoped planning files for publication.
+- **Status:** complete as a no-change evidence disposition; authoritative baseline remains Phase192 full fresh/audit with 38,825 Pairs and 10 fail-closed review issues, and the overarching optimization loop stays active.
+
+### Phase 193 guardrails
+
+- The PAC reciprocal physical-cluster quotient is closed and must not be broadened by name equality or loose separator normalization.
+- Phase192 rejected global GND identity and page-suffix/backplate title identity. Revisit those families only if a producer change creates independent physical/electrical scope, not by weakening rules.
+- Root `package-lock.json` remains protected. All subagents use clean-context `gpt-5.6-sol`, remain read-only and return exact project, Pair ID and `file:line` anchors.
+- A combined source-search batch guessed nonexistent `src/dwg_audit/report.py` and stopped before returning its other read-only results. The report writer is a package; subsequent searches use the actual package files and do not repeat that stale path.
+- A direct `PW0526` artifact probe successfully read Pair/group/member/candidate/text identity, then guessed nonexistent `findings/polylines.parquet` in the Phase192 bundle. Do not repeat that stale artifact path; polyline authority comes from the extraction result passed in memory and is verified on the new bounded replay.
+- The first closed-frame focused gate failed one positive fixture (`87 passed, 1 failed`) because the helper returned without shadowing; no source/runtime error occurred. Diagnose the exact fixture guard before repeating the gate.
+- The first bounded comparator proved Pair identity/evidence exactness, then treated integer manifest `invalid_dwg_files` as a list and stopped on `len(int)`. Aggregate the real integer schema on the corrected parity pass.
+- The unchanged-audit Parquet diagnosis used scalar `!=` on ndarray/list structured columns and raised an ambiguous truth-value error after proving columns/dtypes equal. Normalize structured cells before the corrected content comparison.
+- Native PowerShell recursive cleanup of the three exact Phase193 directories was policy-blocked before execution. Use the established single-process fallback with exact basename and resolved-parent containment checks; no artifact changed in the blocked attempt.
+
+### Phase 193 evidence selection
+
+- WBH `PCM0101/P0243` lacks complete fan-in closure (`{5KLP6-1, 5n/NTZ302A-1}` versus `{5KLP6-1, 5n601}`), and WBH `PCM0042/PTMR0066/PTMR0068` lacks exact reverse/cardinality. Both remain fail-closed.
+- The 30000 and 8000/9000 GND clusters are independent local terminal blocks with separate inserts/cells and no reciprocal identity or jumper. They remain fail-closed; no global `GND` contract is authorized.
+- Ordinary `31000 PW0225/GW0225` is a three-port shared network and remains a future multi-endpoint producer problem. Ordinary `23000 PW0526/GW0526` is the only selected slice: a single-member top-level closed four-vertex axis-aligned polyline with explicit noncontinuous linetype, a complete bbox edge, one nonnumeric interior label and no numeric labels; its selected `802` candidate lies outside the parent bbox.
+- Full-corpus tolerance census: 461 ordinary one-sided review rows -> 132 non-single-member groups, 302 non-direct-polyline groups, 27 direct-polyline candidates, 26 open-parent negatives, exactly one complete match (`23000_A/S0020/F0020/PW0526`, parent `19F5D`, member `L3404`). Its `alternative_pair_candidate_ids` is `[]` and `ambiguity_gap` is null.
+- The closed-frame candidate is rejected despite its exact current-corpus match. A real dashed closed electrical device/shield boundary can have one interior identifier such as `TC1/K1` and an external terminal number; the proposed predicate has no independent graphic-only authority. CAD extraction also discards polyline bulge, so chord geometry can falsely appear rectangular. These are semantic fail-open paths, not test hardening details.
+- Additional rejected-draft defects included unguarded bool/nonnumeric/nonfinite confidence/score fields, raw rather than effective layer linetype, malformed inverted text bbox, and nonunique/blank polyline IDs. Do not harden or publish the helper without first solving the independent electrical-semantic and bulge authority gaps.
+
+### Phase 193 acceptance
+
+- The rejected bounded implementation was never full-replayed or published. All five source/test files were restored to content-identical `HEAD=f1c6a09`; only `task_plan.md`, `findings.md` and `progress.md` remain in the scoped disposition.
+- Bounded unchanged audit for 23000_A is byte/semantic exact against Phase192 in JSON, Parquet and Markdown and retains `R-PAIR-MISSING-SIDE/PW0526/802 -> ?`.
+- Retained Phase192 artifacts revalidate at 28 projects, 533/533 valid files/sheets, zero invalid/incomplete, 28 `COMPLETE`, 38,825 unique project-qualified Pair IDs and 10 review issues with report parity. Distribution remains many-to-one 5, cross-page 3, missing-side 1 and low-confidence 1.
+- Cleanup removed only `.tmp/phase193_23000_fresh`, `.tmp/phase193_23000_audit` and `.tmp/phase193_fail_closed_audit`; Phase192 full artifacts remain. Final gates pass `1309 passed, 1 skipped`, compileall and diff-check.
