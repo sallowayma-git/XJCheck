@@ -4,7 +4,7 @@
 持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
 
 ## Current Phase
-Phase 192 is published as `f1c6a09`. Phase 193 is complete as a no-change evidence disposition after rejecting its sole bounded candidate; publication is pending and the overarching optimization loop remains active with 10 retained issues.
+Phase 193 is published as the no-change evidence disposition `e6185ab`. Phase 194 is active and investigates producer-issued multi-endpoint wire-network topology for the retained `31000 PW0225` low-confidence Pair while preserving all 10 fail-closed reviews.
 
 The current authoritative extraction is `.tmp/phase192_full_533_fresh`: 28 projects, 533/533 valid DWG, zero invalid or incomplete, and 38,825 Pair facts. Project-qualified Pair IDs and all non-evidence persistent semantics are unchanged from Phase190.
 
@@ -3301,3 +3301,43 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Bounded unchanged audit for 23000_A is byte/semantic exact against Phase192 in JSON, Parquet and Markdown and retains `R-PAIR-MISSING-SIDE/PW0526/802 -> ?`.
 - Retained Phase192 artifacts revalidate at 28 projects, 533/533 valid files/sheets, zero invalid/incomplete, 28 `COMPLETE`, 38,825 unique project-qualified Pair IDs and 10 review issues with report parity. Distribution remains many-to-one 5, cross-page 3, missing-side 1 and low-confidence 1.
 - Cleanup removed only `.tmp/phase193_23000_fresh`, `.tmp/phase193_23000_audit` and `.tmp/phase193_fail_closed_audit`; Phase192 full artifacts remain. Final gates pass `1309 passed, 1 skipped`, compileall and diff-check.
+
+## Phase 194 multi-endpoint wire-network loop (active)
+
+- [x] Publish Phase193 no-change disposition `e6185ab`, restore `githubSINGLE`, close the achieved stage goal and immediately create the active Phase194 goal.
+- [x] Audit `31000 PW0225/GW0225` raw topology, candidate ownership and current network producers; enumerate all middle/interior terminal ports omitted by endpoint-only PairBuilder.
+- [x] Run a manifest-authoritative full-corpus natural-negative census for symbol-owned ports intersecting one wire network, distinguishing true multi-endpoint nets from crossing lines, table grids, repeated text and unowned geometry.
+- [x] Select one name-independent producer contract: reciprocal terminal XDATA + unique XRECORD CONNECT binding + CONNECT-to-INSERT-origin + unique outward child LINE + at least three distinct ports uniquely intersecting one line group. Implement focused adversarial coverage next.
+- [x] Run bounded 31000 raw-DWG replay and zero-addition audit acceptance; preserve all 1,406 Pair identity/status/score fields and attach only the complete three-port membership shadow to `PW0225`.
+- [x] Run full 28-project / 533-DWG fresh replay and zero-addition audit acceptance.
+- [x] Clean only Phase194 intermediates and run final repository gates.
+- [ ] Publish only scoped recognition/planning files, then immediately reset the active optimization loop for the nine retained fail-closed issues.
+- **Status:** ready for scoped publication; Phase194 retains nine fail-closed issues for the next loop.
+
+### Phase 194 guardrails
+
+- Do not retry Phase193's rejected closed/dashed rectangle contract. `PW0526` remains review until graphic-only/electrical ownership and straight-edge/bulge authority are independently extracted.
+- A three-port net is not three pairwise electrical unions by default. Preserve all physical ports and network membership; never invent a canonical endpoint or discard competing values from text equality alone.
+- Require symbol/port ownership plus geometric intersection with one producer-issued network. Crossing lines, table rows, nearby labels and endpoint-only candidate proximity remain negatives.
+- Root `package-lock.json` stays unmodified and unstaged. All subagents use clean-context read-only `gpt-5.6-sol` and return exact project/Pair/raw handle plus `file:line` anchors.
+- The first architecture-only Sol probe disconnected before returning evidence and made no changes. Do not treat it as an audit; main-thread source review and any later smaller independent probe must use the exact producer slices already identified.
+- Two narrower clean-context Sol retries exceeded the ten-minute limit and were interrupted without repository changes. One completed child supplied exact target-DXF anchors: the three terminal XRECORDs are global dictionary entries under owner `E83`, while each INSERT also carries `LD_SYMB2_SPECIAL/装置端子` XDATA. The corpus retry returned no usable result; main-thread structured census is required before selection.
+- A read-only shadow-contract search passed `src tests` as one positional PowerShell path and failed before searching or changing files. The corrected form uses explicit `Get-ChildItem -Path src,tests`; do not repeat the positional-path form.
+- A target geometry probe successfully printed INSERT/CONNECT/child geometry, then failed only when it guessed `<project>/findings/primitive_segments.parquet`. Phase192 project artifacts use a different actual layout; locate the file before retrying the Parquet slice. No artifact changed.
+- Manifest-authoritative discovery contradicts the preliminary 368-DXF census note: 28 manifests contain 533 source/page rows and 442 distinct existing `dxf_path` values with no duplicate filename hash. Phase194 acceptance must use 442 actual converted DXFs; treat 368 as a superseded exploratory count.
+- The first manifest-scoped metadata census stopped at the first unique XRECORD match because its read-only probe unpacked the `matches` list instead of `matches[0]`. No DXF/artifact changed; rerun with only that indexing correction and the same predicate.
+- The first combined implementation patch used a stale/truncated `extraction_censuses.append(census_payload)` anchor; current code wraps file/sheet metadata around the payload. `apply_patch` rejected the complete batch before changing source. Split subsequent edits and use exact current anchors.
+- The first focused terminal-port gate was `31 passed, 1 failed` because the synthetic LINENO prefix ended in hex character `d`, merging with handle `35` into token `D35`. Real vendor records use a non-hex Chinese prefix. Correct only the fixture to include a non-hex delimiter; keep the strict production token parser.
+- The post-review focused gate was `44 passed, 2 failed`: both showed numeric string tolerance `"0.25"` was still accepted by generic float conversion. Tighten both parser and matcher numeric validators to real `int/float` only while rejecting bool; do not accept stringly typed geometry.
+- Two attempts to run the final production-parser corpus census inside the managed sandbox failed before Python start because WindowsApps `pwsh.exe` returned CreateProcess error 5. No file changed. The approved out-of-sandbox read-only run completed with the exact same script and predicate.
+- One parallel test-source read was rejected before execution because it used the old `command` key for `exec_command`; the corrected call used `cmd` and changed no files.
+
+### Phase 194 selected evidence candidate
+
+- `PW0225/GW0225` is a single top-level LINE (`3317C`) with three transformed `SYMB2_M_PWF165` virtual ports within `0.062` drawing units: INSERT/TEXT `33141/33142`, `3314E/3314F`, `3315E/3315F`, all value `932`. DXF XRECORD marks each as `装置端子` and binds CONNECTLINEHANDLE `33143/33150/33160`.
+- The middle `T1010` is numeric and producer-owned but absent from terminal candidates because `candidates.py` searches only group endpoints. It is omitted, not rejected.
+- Preliminary conservative group census covered 28 projects, 533 sheets, 38,825 Pairs and 14,233 ordinary groups. Its reported 368 converted-DXF count is superseded by manifest-authoritative discovery of 442 actual converted DXFs; the prior 30-group classification must be rerun against that exact set before selection.
+- Two same-sheet raw CONNECT crossings (`32FBD`, `32FF9`) intersect `3317C` but lack terminal INSERT/virtual-port/XRECORD ownership and are decisive negatives. Any accepted producer must require ownership metadata rather than promote geometric crossings.
+- Target DXF is `.tmp/phase192_full_533_fresh/cache/converted_dxf/F0013_3c0e5117.dxf`. Dictionary `E83` maps `LD_SYMB2LOGGEN_39/40/41` to XRECORDs `349F8/349F9/349FA`, which contain `CONNECTLINEHANDLE` values `33143/33150/33160`, terminal INSERT handles `33141/3314E/3315E`, and `装置端子`. Current source preserves the native ezdxf document but contains no `CONNECTLINEHANDLE`, XRECORD, dictionary, or XDATA consumer.
+- Manifest-authoritative metadata census: 442/442 DXFs read; 7,131 special terminal INSERTs, 6,971 reciprocal INSERT/TEXT identities, 3,484 unique resolved INSERT/XRECORD/CONNECT identities, and 1,509 strict unique physical port bindings. Of 1,491 bindings on files with line groups, 496 uniquely hit one group, 995 hit none, and zero hit multiple groups. Exactly one group has >=3 distinct strict ports: `31000/F0013/S0013/GW0225`, with the three expected INSERT/TEXT/CONNECT records. No project/value/block/handle identity participates in the predicate.
+- Post-implementation production-parser census reconfirms the exact boundary: 442/442 read, 1,509 authoritative bindings, 496 one-group hits, 995 no-group hits, 18 bindings in files without groups, zero multi-group ambiguity, and exactly one >=3-port group (`GW0225`). Focused parser/matcher/route coverage is `47 passed` after Sol hardening.

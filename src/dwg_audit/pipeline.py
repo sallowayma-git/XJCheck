@@ -81,6 +81,7 @@ def analyze_input_root(
         symbol_port_definition_proposals = getattr(
             extraction_result, "symbol_port_definition_proposals", []
         )
+        terminal_port_bindings = getattr(extraction_result, "terminal_port_bindings", [])
         if event_sink is not None:
             event_sink.emit(
                 "progress",
@@ -170,6 +171,12 @@ def analyze_input_root(
             if route_target in {"WireDiagramExtractor", "ComponentDiagramExtractor"}:
                 extractor_kwargs["blocks"] = [
                     block for block in blocks if block.sheet_id in sheet_ids
+                ]
+            if route_target == "WireDiagramExtractor":
+                extractor_kwargs["terminal_port_bindings"] = [
+                    binding
+                    for binding in terminal_port_bindings
+                    if binding.sheet_id in sheet_ids
                 ]
             extraction_result = extractor(
                 route_pages,

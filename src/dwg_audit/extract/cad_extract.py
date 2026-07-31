@@ -13,6 +13,7 @@ from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import ProjectScanResult
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import SourceFileRecord
+from dwg_audit.domain.models import TerminalPortBinding
 from dwg_audit.domain.models import TextItem
 from dwg_audit.audit.symbol_port_proposal import propose_ports_from_block
 from dwg_audit.audit.symbol_registry import definition_fingerprint_from_children
@@ -24,6 +25,7 @@ from dwg_audit.extract.document_walker import walk_document
 from dwg_audit.extract.extraction_census import build_extraction_census
 from dwg_audit.extract.primitive_normalizer import PrimitiveSegment
 from dwg_audit.extract.primitive_normalizer import normalize_document_primitives
+from dwg_audit.extract.terminal_port_bindings import extract_terminal_port_bindings
 
 _FILENAME_PAGE_PATTERN = re.compile(r"^(?P<page>\d+)\s+(?P<title>.+?)(?:\.dwg)?$", re.IGNORECASE)
 _TITLE_BLOCK_PAGE_LABELS = ("页号", "page", "sheet", "图号")
@@ -44,6 +46,7 @@ class CadExtractionResult:
     symbol_port_definition_proposals: list[dict[str, object]] = field(
         default_factory=list
     )
+    terminal_port_bindings: list[TerminalPortBinding] = field(default_factory=list)
 
     def __iter__(self):
         # Preserve the public six-value unpacking contract for legacy callers.
@@ -690,6 +693,7 @@ def extract_cad_artifacts(
     extraction_censuses: list[dict[str, object]] = []
     canonical_scenes: list[dict[str, object]] = []
     symbol_port_definition_proposals: list[dict[str, object]] = []
+    terminal_port_bindings: list[TerminalPortBinding] = []
     dxf_reader = EzdxfReader()
     reader_options = ReaderOptions()
 
@@ -832,6 +836,13 @@ def extract_cad_artifacts(
                 layout_name=sheet.layout_name,
             )
         )
+        terminal_port_bindings.extend(
+            extract_terminal_port_bindings(
+                doc,
+                sheet_id=sheet.sheet_id,
+                file_id=source.file_id,
+            )
+        )
 
         sheet_texts: list[TextItem] = []
         sheet_lines: list[LineEntity] = []
@@ -940,4 +951,5 @@ def extract_cad_artifacts(
         extraction_censuses=extraction_censuses,
         canonical_scenes=canonical_scenes,
         symbol_port_definition_proposals=symbol_port_definition_proposals,
+        terminal_port_bindings=terminal_port_bindings,
     )

@@ -142,6 +142,35 @@ class BlockRecord:
 
 
 @dataclass(slots=True)
+class TerminalPortBinding:
+    schema_version: str
+    sheet_id: str
+    file_id: str
+    insert_handle: str
+    text_handle: str
+    connect_line_handle: str
+    definition_line_handle: str
+    xrecord_handle: str
+    xrecord_owner_handle: str
+    definition_name: str
+    text_value: str
+    insert_x: float
+    insert_y: float
+    connect_start_x: float
+    connect_start_y: float
+    connect_end_x: float
+    connect_end_y: float
+    port_line_start_x: float
+    port_line_start_y: float
+    port_line_end_x: float
+    port_line_end_y: float
+    port_x: float
+    port_y: float
+    metadata_special: str = "装置端子"
+    electrical_union_eligible: bool = False
+
+
+@dataclass(slots=True)
 class PolylineRecord:
     polyline_id: str
     sheet_id: str

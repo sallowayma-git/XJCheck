@@ -24,6 +24,7 @@ from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import PairCandidate
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
+from dwg_audit.domain.models import TerminalPortBinding
 from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.ids import IdFactory
 
@@ -61,6 +62,7 @@ def extract_wire_pairs(
     *,
     blocks: list[BlockRecord] | None = None,
     classifications: dict[str, PageClassification] | None = None,
+    terminal_port_bindings: list[TerminalPortBinding] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="WireDiagramExtractor",
@@ -71,6 +73,7 @@ def extract_wire_pairs(
         blocks=blocks,
         config=config,
         classifications=classifications,
+        terminal_port_bindings=terminal_port_bindings,
     )
 
 
@@ -143,6 +146,7 @@ def _extract_pairs_for_route(
     blocks: list[BlockRecord] | None = None,
     config: dict,
     classifications: dict[str, PageClassification] | None = None,
+    terminal_port_bindings: list[TerminalPortBinding] | None = None,
 ) -> PairingExtractionResult:
     id_stem = _extractor_id_stem(executed_extractor)
     route_sheet_ids = {page.sheet_id for page in pages}
@@ -300,6 +304,12 @@ def _extract_pairs_for_route(
     _shadow_closed_tall_polyline_enclosure_ordinary_pairs(pairs, line_groups, lines, texts)
     if executed_extractor == "WireDiagramExtractor":
         _shadow_connect_multidrop_rail_ordinary_pairs(pairs, line_groups, lines)
+        _shadow_authoritative_multi_endpoint_terminal_network_pairs(
+            pairs,
+            line_groups,
+            texts,
+            terminal_port_bindings or [],
+        )
     return PairingExtractionResult(
         executed_extractor=executed_extractor,
         route_target=route_target,
@@ -1130,6 +1140,308 @@ def _shadow_connect_multidrop_rail_ordinary_pairs(
             "interior_drop_xs": sorted(round(value, 6) for value in drop_xs),
             "interior_drop_count": len(drop_xs),
         }
+
+
+def _shadow_authoritative_multi_endpoint_terminal_network_pairs(
+    pairs: list[Pair],
+    line_groups: list[LineGroup],
+    texts: list[TextItem],
+    bindings: list[TerminalPortBinding],
+    *,
+    tolerance: float = 0.25,
+) -> None:
+    """Shadow a two-end Pair only when the producer proves the full port set."""
+
+    normalized_tolerance = _finite_number(tolerance)
+    if normalized_tolerance is None or normalized_tolerance <= 0.0:
+        return
+    tolerance = normalized_tolerance
+    groups_by_scope: dict[tuple[str, str], list[LineGroup]] = defaultdict(list)
+    group_keys: set[tuple[str, str, str]] = set()
+    duplicate_group_keys: set[tuple[str, str, str]] = set()
+    for group in line_groups:
+        key = (str(group.sheet_id), str(group.file_id), str(group.line_group_id))
+        if key in group_keys:
+            duplicate_group_keys.add(key)
+        group_keys.add(key)
+        groups_by_scope[(key[0], key[1])].append(group)
+
+    bindings_by_group: dict[tuple[str, str, str], list[TerminalPortBinding]] = defaultdict(list)
+    distances_by_binding: dict[int, float] = {}
+    for binding in bindings:
+        if not _authoritative_terminal_port_binding(binding):
+            continue
+        scope = (str(binding.sheet_id), str(binding.file_id))
+        point = _finite_point(binding.port_x, binding.port_y)
+        if point is None:
+            continue
+        matches = []
+        for group in groups_by_scope.get(scope, []):
+            key = (scope[0], scope[1], str(group.line_group_id))
+            if key in duplicate_group_keys:
+                continue
+            distance = _point_to_group_distance(point, group)
+            if distance is not None and distance <= tolerance:
+                matches.append((key, distance))
+        if len(matches) != 1:
+            continue
+        key, distance = matches[0]
+        bindings_by_group[key].append(binding)
+        distances_by_binding[id(binding)] = distance
+
+    texts_by_id: dict[str, TextItem] = {}
+    duplicate_text_ids: set[str] = set()
+    for text in texts:
+        text_id = str(text.text_id or "")
+        if not text_id:
+            continue
+        if text_id in texts_by_id:
+            duplicate_text_ids.add(text_id)
+        texts_by_id[text_id] = text
+
+    groups_by_key = {
+        (str(group.sheet_id), str(group.file_id), str(group.line_group_id)): group
+        for group in line_groups
+        if (str(group.sheet_id), str(group.file_id), str(group.line_group_id))
+        not in duplicate_group_keys
+    }
+    for pair in pairs:
+        key = (str(pair.sheet_id), str(pair.file_id), str(pair.line_group_id))
+        group = groups_by_key.get(key)
+        group_bindings = bindings_by_group.get(key, [])
+        if (
+            group is None
+            or pair.pair_kind != "ordinary_pair"
+            or pair.evidence.get("ordinary_pair_eligible") is False
+            or len(group_bindings) < 3
+        ):
+            continue
+        if not _distinct_terminal_port_membership(group_bindings, tolerance=tolerance):
+            continue
+
+        left_text_id = str(pair.left_text_id or "")
+        right_text_id = str(pair.right_text_id or "")
+        if (
+            not left_text_id
+            or not right_text_id
+            or left_text_id == right_text_id
+            or left_text_id in duplicate_text_ids
+            or right_text_id in duplicate_text_ids
+        ):
+            continue
+        left_text = texts_by_id.get(left_text_id)
+        right_text = texts_by_id.get(right_text_id)
+        if left_text is None or right_text is None:
+            continue
+        if any(
+            str(text.sheet_id) != key[0] or str(text.file_id) != key[1]
+            for text in (left_text, right_text)
+        ):
+            continue
+
+        bindings_by_text_handle = {
+            str(binding.text_handle): binding for binding in group_bindings
+        }
+        left_binding = bindings_by_text_handle.get(str(left_text.handle or "").upper())
+        right_binding = bindings_by_text_handle.get(str(right_text.handle or "").upper())
+        if left_binding is None or right_binding is None or left_binding is right_binding:
+            continue
+        if (
+            _normalized_endpoint_value(left_text.text)
+            != _normalized_endpoint_value(left_binding.text_value)
+            or _normalized_endpoint_value(right_text.text)
+            != _normalized_endpoint_value(right_binding.text_value)
+            or _normalized_endpoint_value(pair.left_value)
+            != _normalized_endpoint_value(left_binding.text_value)
+            or _normalized_endpoint_value(pair.right_value)
+            != _normalized_endpoint_value(right_binding.text_value)
+        ):
+            continue
+        evidence = pair.evidence or {}
+        if (
+            str(evidence.get("line_group_id") or "") != str(pair.line_group_id)
+            or str(evidence.get("selected_left_text_id") or "") != left_text_id
+            or str(evidence.get("selected_right_text_id") or "") != right_text_id
+            or _normalized_endpoint_value(evidence.get("selected_left_raw_text"))
+            != _normalized_endpoint_value(pair.left_value)
+            or _normalized_endpoint_value(evidence.get("selected_right_raw_text"))
+            != _normalized_endpoint_value(pair.right_value)
+        ):
+            continue
+
+        selected_handles = {str(left_binding.text_handle), str(right_binding.text_handle)}
+        ports = []
+        for binding in sorted(
+            group_bindings,
+            key=lambda item: (float(item.port_x), float(item.port_y), item.insert_handle),
+        ):
+            ports.append(
+                {
+                    "insert_handle": binding.insert_handle,
+                    "text_handle": binding.text_handle,
+                    "connect_line_handle": binding.connect_line_handle,
+                    "definition_line_handle": binding.definition_line_handle,
+                    "xrecord_handle": binding.xrecord_handle,
+                    "xrecord_owner_handle": binding.xrecord_owner_handle,
+                    "definition_name": binding.definition_name,
+                    "text_value": binding.text_value,
+                    "insert_coord": [binding.insert_x, binding.insert_y],
+                    "connect_line": [
+                        [binding.connect_start_x, binding.connect_start_y],
+                        [binding.connect_end_x, binding.connect_end_y],
+                    ],
+                    "port_line": [
+                        [binding.port_line_start_x, binding.port_line_start_y],
+                        [binding.port_line_end_x, binding.port_line_end_y],
+                    ],
+                    "port_coord": [binding.port_x, binding.port_y],
+                    "distance_to_group": round(distances_by_binding[id(binding)], 6),
+                    "selected_by_ordinary_pair": binding.text_handle in selected_handles,
+                    "metadata_special": binding.metadata_special,
+                    "electrical_union_eligible": False,
+                }
+            )
+
+        pair.evidence["ordinary_pair_eligible"] = False
+        pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["ordinary_pair_shadow_reason"] = (
+            "authoritative_multi_endpoint_terminal_network"
+        )
+        pair.evidence["internal_connectivity_inferred"] = False
+        pair.evidence["electrical_union_eligible"] = False
+        pair.evidence["authoritative_multi_endpoint_terminal_network"] = {
+            "schema_version": "multi-endpoint-terminal-network-v1",
+            "binding_schema_version": "terminal-port-binding-v1",
+            "line_group_id": pair.line_group_id,
+            "line_group_member_line_ids": sorted(str(value) for value in group.member_line_ids),
+            "port_count": len(ports),
+            "ports": ports,
+            "membership_complete": True,
+            "canonical_endpoint_selected": False,
+            "pairwise_relations_emitted": False,
+            "internal_connectivity_inferred": False,
+            "electrical_union_eligible": False,
+            "ownership_contract": [
+                "reciprocal_terminal_text_xdata",
+                "unique_dictionary_xrecord",
+                "unique_connect_line_to_insert_origin",
+                "unique_definition_line_to_network_port",
+                "unique_line_group_intersection",
+            ],
+        }
+
+
+def _authoritative_terminal_port_binding(binding: TerminalPortBinding) -> bool:
+    if (
+        binding.schema_version != "terminal-port-binding-v1"
+        or binding.metadata_special != "装置端子"
+        or binding.electrical_union_eligible is not False
+    ):
+        return False
+    if (
+        not isinstance(binding.sheet_id, str)
+        or not binding.sheet_id.strip()
+        or not isinstance(binding.file_id, str)
+        or not binding.file_id.strip()
+    ):
+        return False
+    required_handles = (
+        binding.insert_handle,
+        binding.text_handle,
+        binding.connect_line_handle,
+        binding.definition_line_handle,
+        binding.xrecord_handle,
+        binding.xrecord_owner_handle,
+    )
+    if any(not isinstance(value, str) or not value.strip() for value in required_handles):
+        return False
+    if any(re.fullmatch(r"(?i)[0-9A-F]+", value.strip()) is None for value in required_handles):
+        return False
+    if not isinstance(binding.definition_name, str) or not binding.definition_name.strip():
+        return False
+    if not isinstance(binding.text_value, str) or not binding.text_value.strip():
+        return False
+    numeric_values = (
+        binding.insert_x,
+        binding.insert_y,
+        binding.connect_start_x,
+        binding.connect_start_y,
+        binding.connect_end_x,
+        binding.connect_end_y,
+        binding.port_line_start_x,
+        binding.port_line_start_y,
+        binding.port_line_end_x,
+        binding.port_line_end_y,
+        binding.port_x,
+        binding.port_y,
+    )
+    return all(_finite_number(value) is not None for value in numeric_values)
+
+
+def _distinct_terminal_port_membership(
+    bindings: list[TerminalPortBinding],
+    *,
+    tolerance: float,
+) -> bool:
+    for attribute in (
+        "insert_handle",
+        "text_handle",
+        "connect_line_handle",
+        "xrecord_handle",
+    ):
+        values = [str(getattr(binding, attribute)).upper() for binding in bindings]
+        if len(set(values)) != len(values):
+            return False
+    points = [(float(binding.port_x), float(binding.port_y)) for binding in bindings]
+    return all(
+        math.hypot(left[0] - right[0], left[1] - right[1]) > tolerance
+        for index, left in enumerate(points)
+        for right in points[index + 1 :]
+    )
+
+
+def _point_to_group_distance(
+    point: tuple[float, float],
+    group: LineGroup,
+) -> float | None:
+    start = _finite_point(group.start_x, group.start_y)
+    end = _finite_point(group.end_x, group.end_y)
+    if start is None or end is None:
+        return None
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    denominator = dx * dx + dy * dy
+    if denominator == 0.0:
+        return math.hypot(point[0] - start[0], point[1] - start[1])
+    ratio = max(
+        0.0,
+        min(
+            1.0,
+            ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy)
+            / denominator,
+        ),
+    )
+    nearest = (start[0] + ratio * dx, start[1] + ratio * dy)
+    return math.hypot(point[0] - nearest[0], point[1] - nearest[1])
+
+
+def _finite_point(x: object, y: object) -> tuple[float, float] | None:
+    normalized_x = _finite_number(x)
+    normalized_y = _finite_number(y)
+    if normalized_x is None or normalized_y is None:
+        return None
+    return normalized_x, normalized_y
+
+
+def _finite_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    normalized = float(value)
+    return normalized if math.isfinite(normalized) else None
+
+
+def _normalized_endpoint_value(value: object) -> str:
+    return re.sub(r"\s+", "", str(value or "")).casefold()
 
 
 def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
