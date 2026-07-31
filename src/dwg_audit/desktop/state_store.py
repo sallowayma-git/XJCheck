@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import zlib
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+
+_PREVIEW_GEOMETRY_SCHEMA_VERSION = 1
 
 
 def default_state_db_path() -> Path:
@@ -427,12 +431,94 @@ class DesktopStateStore:
                 offset=safe_offset,
                 filters=filters,
             )
+
         return {
             "items": [_issue_row_to_summary(row) for row in rows],
             "total": total,
             "limit": safe_limit,
             "offset": safe_offset,
         }
+
+    def replace_preview_geometries(self, run_id: str, geometries: list[dict[str, Any]]) -> None:
+        now = _now_iso()
+        rows: list[tuple[str, str, int, sqlite3.Binary, str]] = []
+        for geometry in geometries:
+            sheet_id = str(geometry.get("sheet_id") or "").strip()
+            if not sheet_id:
+                continue
+            schema_version = int(
+                geometry.get("schema_version") or _PREVIEW_GEOMETRY_SCHEMA_VERSION
+            )
+            if schema_version != _PREVIEW_GEOMETRY_SCHEMA_VERSION:
+                raise ValueError(
+                    f"unsupported preview geometry schema version: {schema_version}"
+                )
+            serialized = json.dumps(
+                geometry,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+            rows.append(
+                (
+                    run_id,
+                    sheet_id,
+                    schema_version,
+                    sqlite3.Binary(zlib.compress(serialized, level=6)),
+                    now,
+                )
+            )
+
+        with self._connect() as conn:
+            conn.execute("DELETE FROM preview_geometries WHERE run_id = ?", (run_id,))
+            conn.executemany(
+                """
+                INSERT INTO preview_geometries (
+                    run_id,
+                    sheet_id,
+                    schema_version,
+                    geometry_blob,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+
+    def load_preview_geometry(self, run_id: str, sheet_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT schema_version, geometry_blob
+                FROM preview_geometries
+                WHERE run_id = ? AND sheet_id = ?
+                LIMIT 1
+                """,
+                (run_id, sheet_id),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            schema_version = int(row["schema_version"])
+        except (TypeError, ValueError):
+            return None
+        if schema_version != _PREVIEW_GEOMETRY_SCHEMA_VERSION:
+            return None
+        try:
+            payload = json.loads(zlib.decompress(bytes(row["geometry_blob"])).decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            payload_schema_version = int(payload.get("schema_version") or schema_version)
+        except (TypeError, ValueError):
+            return None
+        if payload_schema_version != _PREVIEW_GEOMETRY_SCHEMA_VERSION:
+            return None
+        payload["run_id"] = str(run_id)
+        payload["schema_version"] = schema_version
+        payload["sheet_id"] = sheet_id
+        return payload
 
     def load_project_issues_page(
         self,
@@ -581,6 +667,7 @@ class DesktopStateStore:
                     (session_id,),
                 ).fetchall()
             ]
+            conn.execute("DELETE FROM preview_geometries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM page_findings WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM issue_summaries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             deleted = conn.execute("DELETE FROM runs WHERE session_id = ?", (session_id,)).rowcount
@@ -622,6 +709,7 @@ class DesktopStateStore:
             if not run_ids:
                 return 0
             placeholders = ",".join("?" for _ in run_ids)
+            conn.execute(f"DELETE FROM preview_geometries WHERE run_id IN ({placeholders})", run_ids)
             conn.execute(f"DELETE FROM page_findings WHERE run_id IN ({placeholders})", run_ids)
             conn.execute(f"DELETE FROM issue_summaries WHERE run_id IN ({placeholders})", run_ids)
             deleted = conn.execute(
@@ -722,6 +810,18 @@ class DesktopStateStore:
                     warnings_json TEXT NOT NULL DEFAULT '[]',
                     PRIMARY KEY (run_id, sheet_id)
                 );
+
+                CREATE TABLE IF NOT EXISTS preview_geometries (
+                    run_id TEXT NOT NULL,
+                    sheet_id TEXT NOT NULL,
+                    schema_version INTEGER NOT NULL DEFAULT 1,
+                    geometry_blob BLOB NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (run_id, sheet_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_preview_geometries_run_id
+                ON preview_geometries(run_id);
                 """
             )
             _ensure_issue_summary_columns(conn)

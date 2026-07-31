@@ -264,7 +264,7 @@ def test_render_project_preview_reads_only_rendering_frames(monkeypatch, tmp_pat
     )
 
     assert Path(preview["preview_path"]).exists()
-    assert requested == [("issues", "pages", "lines", "texts", "line_groups")]
+    assert requested == [("pages", "lines", "texts", "line_groups", "blocks")]
 
 
 def test_default_preview_cache_is_partitioned_by_pinned_run(monkeypatch, tmp_path: Path) -> None:
@@ -586,7 +586,17 @@ def _write_preview_project_output(project_dir: Path) -> None:
                 "start_y": 20.0,
                 "end_x": 90.0,
                 "end_y": 20.0,
-            }
+            },
+            {
+                "line_id": "L2",
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "start_x": 45.0,
+                "start_y": 5.0,
+                "end_x": 55.0,
+                "end_y": 5.0,
+                "source_block_name": "DEVICE-A",
+            },
         ]
     ).to_parquet(findings / "lines.parquet", index=False)
     pd.DataFrame(
@@ -601,7 +611,19 @@ def _write_preview_project_output(project_dir: Path) -> None:
                 "height": 2.5,
                 "insert_x": 15.0,
                 "insert_y": 22.0,
-            }
+            },
+            {
+                "text_id": "T2",
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "text": "LOWER-CONNECTION",
+                "normalized_text": "LOWER-CONNECTION",
+                "is_numeric_candidate": False,
+                "height": 2.5,
+                "insert_x": 45.0,
+                "insert_y": 5.0,
+                "source_block_name": "DEVICE-A",
+            },
         ]
     ).to_parquet(findings / "texts.parquet", index=False)
     pd.DataFrame(
@@ -617,6 +639,20 @@ def _write_preview_project_output(project_dir: Path) -> None:
             }
         ]
     ).to_parquet(findings / "line_groups.parquet", index=False)
+    pd.DataFrame(
+        [
+            {
+                "block_id": "B1",
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "name": "DEVICE-A",
+                "insert_x": 50.0,
+                "insert_y": 5.0,
+                "rotation": 0.0,
+                "attributes_json": "{}",
+            }
+        ]
+    ).to_parquet(findings / "blocks.parquet", index=False)
     pd.DataFrame(
         [
             {

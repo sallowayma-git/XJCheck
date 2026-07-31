@@ -14,6 +14,7 @@ from dwg_audit.desktop.lifecycle import cleanup_transient_workspaces
 from dwg_audit.desktop.lifecycle import compact_session_workspace
 from dwg_audit.desktop.lifecycle import default_preview_cache_root
 from dwg_audit.desktop.lifecycle import default_workspace_root
+from dwg_audit.desktop.preview import build_preview_geometry_payloads
 from dwg_audit.desktop.state_store import DesktopStateStore
 from dwg_audit.desktop.state_store import IssueQueryFilters
 from dwg_audit.desktop.state_store import default_state_db_path
@@ -327,7 +328,10 @@ def _store_project_run(
 ) -> dict[str, Any]:
     manifest = json.loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
     findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
-    frames = load_report_frames(project_dir, names=("pairs", "issues"))
+    frames = load_report_frames(
+        project_dir,
+        names=("pairs", "issues", "pages", "lines", "texts", "line_groups", "blocks"),
+    )
     pairs = frames.get("pairs", pd.DataFrame())
     issues = frames.get("issues", pd.DataFrame())
     issue_payload = _issue_payloads(issues)
@@ -358,6 +362,7 @@ def _store_project_run(
     )
     store.replace_issue_summaries(run_id, issue_payload)
     store.replace_page_findings(run_id, page_findings)
+    store.replace_preview_geometries(run_id, build_preview_geometry_payloads(frames))
     return {
         "run_id": run_id,
         "project_id": str(manifest["project_id"]),

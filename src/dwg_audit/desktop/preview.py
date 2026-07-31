@@ -18,8 +18,151 @@ _CANVAS_WIDTH = 960.0
 _CANVAS_HEIGHT = 540.0
 _HEADER_HEIGHT = 52.0
 _EDGE_PAD = 18.0
-_MAX_PREVIEW_LINES = 240
-_MAX_PREVIEW_TEXTS = 160
+_MAX_PREVIEW_LINES = 480
+_MAX_PREVIEW_TEXTS = 240
+_MAX_PREVIEW_BLOCKS = 80
+_PREVIEW_GEOMETRY_SCHEMA_VERSION = 1
+_PREVIEW_OVERSCAN_FACTOR = 2.1
+_PREVIEW_DOWNWARD_SHARE = 0.68
+_RETAINED_PREVIEW_LIMITS = {
+    "pages": 4,
+    "lines": 25_000,
+    "texts": 10_000,
+    "line_groups": 5_000,
+    "blocks": 5_000,
+}
+
+_PREVIEW_GEOMETRY_COLUMNS: dict[str, tuple[str, ...]] = {
+    "pages": (
+        "sheet_id",
+        "file_id",
+        "filename",
+        "sheet_no",
+        "sheet_title",
+        "extent_bbox",
+        "frame_bbox",
+        "audit_area_bbox",
+    ),
+    "lines": (
+        "line_id",
+        "sheet_id",
+        "start_x",
+        "start_y",
+        "end_x",
+        "end_y",
+        "source_block_name",
+        "layer",
+    ),
+    "texts": (
+        "text_id",
+        "sheet_id",
+        "text",
+        "normalized_text",
+        "is_numeric_candidate",
+        "height",
+        "insert_x",
+        "insert_y",
+        "source_block_name",
+    ),
+    "line_groups": (
+        "line_group_id",
+        "sheet_id",
+        "start_x",
+        "start_y",
+        "end_x",
+        "end_y",
+        "orientation",
+    ),
+    "blocks": (
+        "block_id",
+        "sheet_id",
+        "name",
+        "insert_x",
+        "insert_y",
+        "rotation",
+        "attributes_json",
+    ),
+}
+
+
+def build_preview_geometry_payloads(frames: dict[str, pd.DataFrame]) -> list[dict[str, Any]]:
+    """Project report frames into compact, per-sheet geometry retained by SQLite."""
+    sheet_ids: set[str] = set()
+    for frame_name in _PREVIEW_GEOMETRY_COLUMNS:
+        frame = frames.get(frame_name, pd.DataFrame())
+        if frame.empty or "sheet_id" not in frame.columns:
+            continue
+        sheet_ids.update(
+            value
+            for value in (str(item).strip() for item in frame["sheet_id"].tolist())
+            if value and value.lower() != "nan"
+        )
+
+    payloads: list[dict[str, Any]] = []
+    for sheet_id in sorted(sheet_ids):
+        payload: dict[str, Any] = {
+            "schema_version": _PREVIEW_GEOMETRY_SCHEMA_VERSION,
+            "sheet_id": sheet_id,
+            "entity_counts": {},
+        }
+        for frame_name, requested_columns in _PREVIEW_GEOMETRY_COLUMNS.items():
+            frame = frames.get(frame_name, pd.DataFrame())
+            if frame.empty or "sheet_id" not in frame.columns:
+                payload[frame_name] = []
+                payload["entity_counts"][frame_name] = {"total": 0, "retained": 0}
+                continue
+            sheet_frame = frame[frame["sheet_id"].astype(str) == sheet_id]
+            columns = [column for column in requested_columns if column in sheet_frame.columns]
+            projected_frame = sheet_frame.loc[:, columns]
+            retained_frame = _downsample_preview_frame(
+                projected_frame,
+                frame_name=frame_name,
+                limit=_RETAINED_PREVIEW_LIMITS[frame_name],
+            )
+            payload[frame_name] = [
+                {str(key): _normalize_jsonish(value) for key, value in row.items()}
+                for row in retained_frame.to_dict(orient="records")
+            ]
+            payload["entity_counts"][frame_name] = {
+                "total": int(len(projected_frame)),
+                "retained": int(len(retained_frame)),
+            }
+        payloads.append(payload)
+    return payloads
+
+
+def _downsample_preview_frame(
+    frame: pd.DataFrame,
+    *,
+    frame_name: str,
+    limit: int,
+) -> pd.DataFrame:
+    """Bound retained geometry while sampling across the sheet deterministically."""
+    if frame.empty or len(frame) <= limit:
+        return frame
+
+    sort_columns_by_frame = {
+        "lines": ("start_y", "start_x"),
+        "texts": ("insert_y", "insert_x"),
+        "line_groups": ("start_y", "start_x"),
+        "blocks": ("insert_y", "insert_x"),
+    }
+    sort_columns = [
+        column
+        for column in sort_columns_by_frame.get(frame_name, ())
+        if column in frame.columns
+    ]
+    ordered = frame.sort_values(sort_columns, kind="mergesort") if sort_columns else frame
+    positions = [(index * len(ordered)) // limit for index in range(limit)]
+    return ordered.iloc[positions]
+
+
+def _frames_from_preview_geometry(payload: dict[str, Any]) -> dict[str, pd.DataFrame]:
+    frames: dict[str, pd.DataFrame] = {}
+    for frame_name in _PREVIEW_GEOMETRY_COLUMNS:
+        rows = payload.get(frame_name)
+        frames[frame_name] = pd.DataFrame(rows) if isinstance(rows, list) and rows else pd.DataFrame()
+    return frames
 
 
 def render_project_preview(
@@ -47,30 +190,14 @@ def render_project_preview(
     if sqlite_issue is not None:
         issue_row = _issue_row_from_sqlite([sqlite_issue], issue_id or "")
 
-    # Lightweight path: when issue already has line geometry evidence, skip loading
-    # multi-megabyte parquet frames that freeze the desktop sidecar.
-    lightweight = issue_row is not None and _issue_has_geometry_evidence(issue_row)
-    if lightweight:
-        frames = {}
-    elif artifact_dir and artifact_dir.exists():
-        frames = load_report_frames(
-            artifact_dir,
-            names=("issues", "pages", "lines", "texts", "line_groups"),
-        )
-    else:
-        frames = {}
-
-    issues = frames.get("issues", pd.DataFrame())
-    pages = frames.get("pages", pd.DataFrame())
-    lines = frames.get("lines", pd.DataFrame())
-    texts = frames.get("texts", pd.DataFrame())
-    line_groups = frames.get("line_groups", pd.DataFrame())
-
     if issue_id:
-        if issue_row is None and not issues.empty:
-            issue_matches = issues[issues["issue_id"].astype(str) == issue_id]
-            if not issue_matches.empty:
-                issue_row = issue_matches.iloc[0]
+        if issue_row is None and artifact_dir and artifact_dir.exists():
+            issue_frames = load_report_frames(artifact_dir, names=("issues",))
+            issues = issue_frames.get("issues", pd.DataFrame())
+            if not issues.empty:
+                issue_matches = issues[issues["issue_id"].astype(str) == issue_id]
+                if not issue_matches.empty:
+                    issue_row = issue_matches.iloc[0]
         if issue_row is None:
             raise FileNotFoundError(f"No issue found for issue_id={issue_id}")
         sheet_id = sheet_id or str(issue_row.get("sheet_id") or "")
@@ -78,13 +205,48 @@ def render_project_preview(
     if not sheet_id:
         raise ValueError("sheet_id is required when issue_id is not provided.")
 
+    retained_geometry = store.load_preview_geometry(resolved_run_id, sheet_id)
+    if retained_geometry is not None:
+        frames = _frames_from_preview_geometry(retained_geometry)
+        source = "sqlite_geometry"
+        lightweight = True
+    elif sqlite_issue is not None and issue_row is not None and _issue_has_geometry_evidence(issue_row):
+        # Compatibility fallback for runs created before preview geometry was retained.
+        frames = {}
+        source = "sqlite_evidence"
+        lightweight = True
+    elif artifact_dir and artifact_dir.exists():
+        frames = load_report_frames(
+            artifact_dir,
+            names=("pages", "lines", "texts", "line_groups", "blocks"),
+        )
+        source = "artifacts"
+        lightweight = False
+    else:
+        frames = {}
+        source = "sqlite_evidence"
+        lightweight = True
+
+    pages = frames.get("pages", pd.DataFrame())
+    lines = frames.get("lines", pd.DataFrame())
+    texts = frames.get("texts", pd.DataFrame())
+    line_groups = frames.get("line_groups", pd.DataFrame())
+    blocks = frames.get("blocks", pd.DataFrame())
+
     page_row = _resolve_page_row(
         pages=pages,
         sheet_id=sheet_id,
         issue_row=issue_row,
         page_findings=page_findings,
     )
-    highlight = _resolve_highlight(issue_row, line_groups, line_group_id=line_group_id)
+    issue_sheet_id = str(issue_row.get("sheet_id") or "") if issue_row is not None else ""
+    focus_issue_row = issue_row if not issue_sheet_id or issue_sheet_id == sheet_id else None
+    highlight = _resolve_highlight(
+        issue_row,
+        line_groups,
+        line_group_id=line_group_id,
+        selected_sheet_id=sheet_id,
+    )
     line_semantics = _resolve_line_semantics(issue_row, line_groups, line_group_id=line_group_id)
 
     page_extent = (
@@ -92,7 +254,7 @@ def render_project_preview(
         or _json_bbox(page_row.get("frame_bbox"))
         or _json_bbox(page_row.get("extent_bbox"))
         or _extent_from_highlight(highlight)
-        or _extent_from_issue_evidence(issue_row)
+        or _extent_from_issue_evidence(focus_issue_row)
     )
 
     preview_root = default_preview_cache_root() / project_id / _preview_run_cache_key(resolved_run_id)
@@ -118,37 +280,51 @@ def render_project_preview(
             "cropped_to_issue": False,
             "source": "sqlite_summary",
             "lightweight": True,
+            "viewport_scale": 1.0,
+            "overscan_factor": 1.0,
         }
 
     sheet_lines = lines[lines["sheet_id"].astype(str) == sheet_id] if not lines.empty else pd.DataFrame()
     sheet_texts = texts[texts["sheet_id"].astype(str) == sheet_id] if not texts.empty else pd.DataFrame()
+    sheet_blocks = blocks[blocks["sheet_id"].astype(str) == sheet_id] if not blocks.empty else pd.DataFrame()
     if sheet_lines.empty and highlight is not None:
         sheet_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
-    if sheet_texts.empty and issue_row is not None:
-        sheet_texts = _synthetic_text_frame(issue_row, sheet_id=sheet_id)
+    if sheet_texts.empty and focus_issue_row is not None:
+        sheet_texts = _synthetic_text_frame(focus_issue_row, sheet_id=sheet_id)
 
-    focus_extent = _resolve_focus_extent(
+    precise_focus_extent = _resolve_focus_extent(
         page_extent=page_extent,
         highlight=highlight,
-        issue_row=issue_row,
+        issue_row=focus_issue_row,
         texts=sheet_texts,
+    )
+    focus_extent = (
+        _expand_focus_extent_for_pan(
+            precise_focus_extent,
+            page_extent=page_extent,
+            factor=_PREVIEW_OVERSCAN_FACTOR,
+            downward_share=_PREVIEW_DOWNWARD_SHARE,
+        )
+        if highlight is not None
+        else precise_focus_extent
     )
     visible_lines = _filter_lines_in_extent(sheet_lines, focus_extent)
     visible_texts = _filter_texts_in_extent(sheet_texts, focus_extent)
+    visible_blocks = _filter_blocks_in_extent(sheet_blocks, focus_extent)
     if visible_lines.empty and highlight is not None:
         visible_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
 
     crop_token = "issue" if highlight is not None else "sheet"
     target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}_{crop_token}.svg"
-    if len(visible_lines) > _MAX_PREVIEW_LINES:
-        visible_lines = visible_lines.iloc[:_MAX_PREVIEW_LINES].copy()
-    if len(visible_texts) > _MAX_PREVIEW_TEXTS:
-        visible_texts = visible_texts.iloc[:_MAX_PREVIEW_TEXTS].copy()
+    visible_lines = _nearest_lines(visible_lines, precise_focus_extent, _MAX_PREVIEW_LINES)
+    visible_texts = _nearest_points(visible_texts, precise_focus_extent, _MAX_PREVIEW_TEXTS)
+    visible_blocks = _nearest_points(visible_blocks, precise_focus_extent, _MAX_PREVIEW_BLOCKS)
 
     svg_text = _build_svg(
         page_row,
         visible_lines,
         visible_texts,
+        visible_blocks,
         focus_extent,
         highlight=highlight,
         issue_row=issue_row,
@@ -166,9 +342,12 @@ def render_project_preview(
         "preview_svg": svg_text,
         "artifact_dir": artifact_raw,
         "focus_bbox": list(focus_extent),
+        "initial_focus_bbox": list(precise_focus_extent),
         "cropped_to_issue": highlight is not None,
-        "source": "sqlite_evidence" if lightweight or not artifact_raw else "artifacts",
+        "source": source,
         "lightweight": lightweight,
+        "viewport_scale": _PREVIEW_OVERSCAN_FACTOR if highlight is not None else 1.0,
+        "overscan_factor": _PREVIEW_OVERSCAN_FACTOR if highlight is not None else 1.0,
     }
 
 
@@ -176,6 +355,7 @@ def _build_svg(
     page_row: pd.Series,
     lines: pd.DataFrame,
     texts: pd.DataFrame,
+    blocks: pd.DataFrame,
     extent: tuple[float, float, float, float],
     *,
     highlight: dict[str, Any] | None,
@@ -222,6 +402,23 @@ def _build_svg(
             )
         )
     svg_lines.append("</g>")
+
+    if not blocks.empty:
+        svg_lines.append('<g id="page-blocks" fill="none" stroke="#2b6f8a">')
+        for _, row in blocks.iterrows():
+            x = sx(float(row["insert_x"]))
+            y = sy(float(row["insert_y"]))
+            name = html.escape(str(row.get("name") or "").strip())
+            svg_lines.append(
+                f'<rect x="{x - 5}" y="{y - 5}" width="10" height="10" rx="2" '
+                'fill="rgba(43, 111, 138, 0.10)" stroke-width="1.5" />'
+            )
+            if name:
+                svg_lines.append(
+                    f'<text x="{x + 8}" y="{y - 7}" font-size="10" fill="#24596d" stroke="none" '
+                    f'font-family="Segoe UI, sans-serif">{name[:32]}</text>'
+                )
+        svg_lines.append("</g>")
 
     if not texts.empty:
         svg_lines.append("<g id=\"page-texts\">")
@@ -487,6 +684,37 @@ def _resolve_focus_extent(
     return _clamp_extent(crop, page_extent)
 
 
+def _expand_focus_extent_for_pan(
+    focus_extent: tuple[float, float, float, float],
+    *,
+    page_extent: tuple[float, float, float, float],
+    factor: float,
+    downward_share: float,
+) -> tuple[float, float, float, float]:
+    """Expand a precise crop for panning, with more CAD space below the issue."""
+    factor = min(max(float(factor), 1.8), 2.3)
+    downward_share = min(max(float(downward_share), 0.5), 0.8)
+    focus_min_x, focus_min_y, focus_max_x, focus_max_y = focus_extent
+    page_min_x, page_min_y, page_max_x, page_max_y = page_extent
+
+    focus_width = max(focus_max_x - focus_min_x, 1e-6)
+    focus_height = max(focus_max_y - focus_min_y, 1e-6)
+    page_width = max(page_max_x - page_min_x, 1e-6)
+    page_height = max(page_max_y - page_min_y, 1e-6)
+    target_width = min(focus_width * factor, page_width)
+    target_height = min(focus_height * factor, page_height)
+
+    extra_width = max(target_width - focus_width, 0.0)
+    extra_height = max(target_height - focus_height, 0.0)
+    crop = (
+        focus_min_x - (extra_width / 2.0),
+        focus_min_y - (extra_height * downward_share),
+        focus_max_x + (extra_width / 2.0),
+        focus_max_y + (extra_height * (1.0 - downward_share)),
+    )
+    return _fit_extent_within_page(crop, page_extent)
+
+
 def _filter_lines_in_extent(lines: pd.DataFrame, extent: tuple[float, float, float, float]) -> pd.DataFrame:
     if lines.empty:
         return lines
@@ -511,6 +739,49 @@ def _filter_texts_in_extent(texts: pd.DataFrame, extent: tuple[float, float, flo
     mask = (xs >= min_x) & (xs <= max_x) & (ys >= min_y) & (ys <= max_y)
     filtered = texts[mask]
     return filtered if not filtered.empty else texts.head(0)
+
+
+def _filter_blocks_in_extent(blocks: pd.DataFrame, extent: tuple[float, float, float, float]) -> pd.DataFrame:
+    if blocks.empty or "insert_x" not in blocks.columns or "insert_y" not in blocks.columns:
+        return blocks.head(0)
+    min_x, min_y, max_x, max_y = extent
+    xs = blocks["insert_x"].astype(float)
+    ys = blocks["insert_y"].astype(float)
+    mask = (xs >= min_x) & (xs <= max_x) & (ys >= min_y) & (ys <= max_y)
+    filtered = blocks[mask]
+    return filtered if not filtered.empty else blocks.head(0)
+
+
+def _nearest_lines(
+    lines: pd.DataFrame,
+    focus_extent: tuple[float, float, float, float],
+    limit: int,
+) -> pd.DataFrame:
+    if lines.empty or len(lines) <= limit:
+        return lines
+    center_x = (focus_extent[0] + focus_extent[2]) / 2.0
+    center_y = (focus_extent[1] + focus_extent[3]) / 2.0
+    midpoint_x = (lines["start_x"].astype(float) + lines["end_x"].astype(float)) / 2.0
+    midpoint_y = (lines["start_y"].astype(float) + lines["end_y"].astype(float)) / 2.0
+    distances = ((midpoint_x - center_x) ** 2) + ((midpoint_y - center_y) ** 2)
+    return lines.assign(_preview_distance=distances).nsmallest(limit, "_preview_distance").drop(columns="_preview_distance")
+
+
+def _nearest_points(
+    frame: pd.DataFrame,
+    focus_extent: tuple[float, float, float, float],
+    limit: int,
+) -> pd.DataFrame:
+    if frame.empty or len(frame) <= limit:
+        return frame
+    if "insert_x" not in frame.columns or "insert_y" not in frame.columns:
+        return frame.iloc[:limit].copy()
+    center_x = (focus_extent[0] + focus_extent[2]) / 2.0
+    center_y = (focus_extent[1] + focus_extent[3]) / 2.0
+    distances = ((frame["insert_x"].astype(float) - center_x) ** 2) + (
+        (frame["insert_y"].astype(float) - center_y) ** 2
+    )
+    return frame.assign(_preview_distance=distances).nsmallest(limit, "_preview_distance").drop(columns="_preview_distance")
 
 
 def _segment_intersects_bbox(
@@ -548,6 +819,30 @@ def _clamp_extent(
         min(max_x, page_max_x),
         min(max_y, page_max_y),
     )
+
+
+def _fit_extent_within_page(
+    crop: tuple[float, float, float, float],
+    page_extent: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    page_min_x, page_min_y, page_max_x, page_max_y = page_extent
+    min_x, min_y, max_x, max_y = crop
+    crop_width = min(max(max_x - min_x, 1e-6), max(page_max_x - page_min_x, 1e-6))
+    crop_height = min(max(max_y - min_y, 1e-6), max(page_max_y - page_min_y, 1e-6))
+
+    if min_x < page_min_x:
+        min_x = page_min_x
+        max_x = min_x + crop_width
+    elif max_x > page_max_x:
+        max_x = page_max_x
+        min_x = max_x - crop_width
+    if min_y < page_min_y:
+        min_y = page_min_y
+        max_y = min_y + crop_height
+    elif max_y > page_max_y:
+        max_y = page_max_y
+        min_y = max_y - crop_height
+    return _clamp_extent((min_x, min_y, max_x, max_y), page_extent)
 
 
 def _extent_span(extent: tuple[float, float, float, float]) -> float:
@@ -707,6 +1002,7 @@ def _resolve_highlight(
     line_groups: pd.DataFrame,
     *,
     line_group_id: str | None = None,
+    selected_sheet_id: str | None = None,
 ) -> dict[str, Any] | None:
     if line_group_id and not line_groups.empty:
         matches = line_groups[line_groups["line_group_id"].astype(str) == line_group_id]
@@ -717,6 +1013,9 @@ def _resolve_highlight(
                 "end": (float(row["end_x"]), float(row["end_y"])),
             }
     if issue_row is None:
+        return None
+    issue_sheet_id = str(issue_row.get("sheet_id") or "")
+    if selected_sheet_id and issue_sheet_id and issue_sheet_id != selected_sheet_id:
         return None
     evidence = _decode_jsonish(issue_row.get("evidence"))
     if isinstance(evidence, dict):
@@ -788,12 +1087,22 @@ def _decode_jsonish(value: object) -> Any:
 
 
 def _normalize_jsonish(value: Any) -> Any:
-    if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
-        value = value.tolist()
     if isinstance(value, dict):
         return {str(key): _normalize_jsonish(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_normalize_jsonish(item) for item in value]
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
+        return _normalize_jsonish(value.tolist())
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(value, "item") and not isinstance(value, (str, bytes, bytearray)):
+        try:
+            return value.item()
+        except (TypeError, ValueError):
+            pass
     return value
 
 

@@ -921,6 +921,30 @@
   display: grid;
   place-items: center;
   overflow: hidden;
+  position: relative;
+}
+
+.preview-shell.is-pannable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.preview-shell.is-dragging {
+  cursor: grabbing;
+}
+
+.preview-shell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.preview-pan-layer {
+  display: grid;
+  place-items: center;
+  transform-origin: center;
+  will-change: transform;
+  pointer-events: none;
 }
 
 .preview-image {
@@ -932,6 +956,23 @@
   background: #fffdf8;
   display: block;
   image-rendering: auto;
+  pointer-events: none;
+  user-select: none;
+}
+
+.preview-pan-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  z-index: 2;
+  padding: 3px 6px;
+  border: 1px solid rgba(70, 63, 51, 0.22);
+  border-radius: 3px;
+  background: rgba(247, 244, 238, 0.88);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.2;
+  pointer-events: none;
 }
 
 .preview-empty {

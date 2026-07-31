@@ -137,9 +137,12 @@ export type PreviewPayload = {
   preview_src: string | null
   artifact_dir?: string
   focus_bbox?: number[]
+  initial_focus_bbox?: number[]
   cropped_to_issue?: boolean
   source?: string
   lightweight?: boolean
+  viewport_scale?: number
+  overscan_factor?: number
 }
 
 export type AnalyzeSessionRequest = {

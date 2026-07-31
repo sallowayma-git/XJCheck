@@ -4,7 +4,12 @@ import os
 import time
 from pathlib import Path
 
+import pandas as pd
+
+from dwg_audit.desktop import preview as preview_module
 from dwg_audit.desktop.lifecycle import cleanup_stale_workspaces
+from dwg_audit.desktop.preview import _expand_focus_extent_for_pan
+from dwg_audit.desktop.preview import build_preview_geometry_payloads
 from dwg_audit.desktop.preview import render_project_preview
 from dwg_audit.desktop.sidecar import cleanup_transient_workspaces
 from dwg_audit.desktop.sidecar import compact_session_workspace
@@ -195,6 +200,138 @@ def test_delete_project_record_removes_sqlite_and_local_artifacts(tmp_path: Path
     assert not preview_dir.exists()
     assert list_recent_projects(state_db_path=state_db) == []
     assert load_project_result(project_id="demo-project", state_db_path=state_db) is None
+
+
+def test_expand_focus_extent_for_pan_adds_more_context_below() -> None:
+    focus = (80.0, 40.0, 120.0, 60.0)
+    expanded = _expand_focus_extent_for_pan(
+        focus,
+        page_extent=(0.0, 0.0, 200.0, 100.0),
+        factor=2.1,
+        downward_share=0.68,
+    )
+
+    assert round((expanded[2] - expanded[0]) / (focus[2] - focus[0]), 2) == 2.1
+    assert round((expanded[3] - expanded[1]) / (focus[3] - focus[1]), 2) == 2.1
+    assert focus[1] - expanded[1] > expanded[3] - focus[3]
+
+
+def test_preview_geometry_payload_is_bounded_and_reports_original_count(monkeypatch) -> None:
+    monkeypatch.setitem(preview_module._RETAINED_PREVIEW_LIMITS, "lines", 3)
+    frames = {
+        "lines": pd.DataFrame(
+            [
+                {
+                    "line_id": f"L{index}",
+                    "sheet_id": "S1",
+                    "start_x": float(index),
+                    "start_y": float(index),
+                    "end_x": float(index + 1),
+                    "end_y": float(index),
+                }
+                for index in range(6)
+            ]
+        )
+    }
+
+    payload = build_preview_geometry_payloads(frames)[0]
+
+    assert [row["line_id"] for row in payload["lines"]] == ["L0", "L2", "L4"]
+    assert payload["entity_counts"]["lines"] == {"total": 6, "retained": 3}
+
+
+def test_preview_geometry_survives_compaction_and_is_purged_with_run(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace_root = tmp_path / "workspace"
+    session_id = "session-geometry"
+    run_id = f"{session_id}:demo-project"
+    artifact_dir = workspace_root / session_id / "demo_project"
+    artifact_dir.mkdir(parents=True)
+
+    store = DesktopStateStore(state_db)
+    _record_demo_run(
+        store,
+        run_id=run_id,
+        session_id=session_id,
+        artifact_dir=str(artifact_dir),
+    )
+    store.replace_preview_geometries(
+        run_id,
+        [{"schema_version": 1, "sheet_id": "S1", "pages": [], "lines": [], "texts": [], "line_groups": [], "blocks": []}],
+    )
+
+    compact_session_workspace(session_id=session_id, workspace_root=workspace_root, state_db_path=state_db)
+
+    assert store.load_preview_geometry(run_id, "S1") is not None
+    assert store.purge_project("demo-project") == 1
+    assert store.load_preview_geometry(run_id, "S1") is None
+
+
+def test_render_project_preview_uses_retained_geometry_without_artifacts(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    run_id = "session-geometry:demo-project"
+    _record_demo_run(
+        store,
+        run_id=run_id,
+        session_id="session-geometry",
+        artifact_dir="",
+    )
+    store.replace_preview_geometries(
+        run_id,
+        [
+            {
+                "schema_version": 1,
+                "sheet_id": "S1",
+                "pages": [
+                    {
+                        "sheet_id": "S1",
+                        "filename": "01.dwg",
+                        "sheet_no": "01",
+                        "sheet_title": "Demo Sheet",
+                        "extent_bbox": [0.0, 0.0, 120.0, 80.0],
+                        "frame_bbox": [0.0, 0.0, 120.0, 80.0],
+                        "audit_area_bbox": [0.0, 0.0, 120.0, 80.0],
+                    }
+                ],
+                "lines": [
+                    {"line_id": "L1", "sheet_id": "S1", "start_x": 10.0, "start_y": 20.0, "end_x": 90.0, "end_y": 20.0},
+                    {"line_id": "L2", "sheet_id": "S1", "start_x": 45.0, "start_y": 5.0, "end_x": 55.0, "end_y": 5.0},
+                ],
+                "texts": [
+                    {
+                        "text_id": "T-neighbor",
+                        "sheet_id": "S1",
+                        "text": "LOWER-CONNECTION",
+                        "normalized_text": "LOWER-CONNECTION",
+                        "is_numeric_candidate": False,
+                        "height": 2.5,
+                        "insert_x": 45.0,
+                        "insert_y": 5.0,
+                    }
+                ],
+                "line_groups": [],
+                "blocks": [
+                    {"block_id": "B1", "sheet_id": "S1", "name": "DEVICE-A", "insert_x": 50.0, "insert_y": 5.0}
+                ],
+            }
+        ],
+    )
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    svg = Path(preview["preview_path"]).read_text(encoding="utf-8")
+    assert preview["source"] == "sqlite_geometry"
+    assert preview["viewport_scale"] == 2.1
+    assert preview["overscan_factor"] == 2.1
+    assert "LOWER-CONNECTION" in svg
+    assert 'id="page-blocks"' in svg
+    assert "DEVICE-A" in svg
 
 
 def test_render_project_preview_uses_sqlite_evidence_without_artifacts(tmp_path: Path) -> None:

@@ -3314,6 +3314,10 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - [ ] Publish only scoped recognition/planning files, then immediately reset the active optimization loop for the nine retained fail-closed issues.
 - **Status:** ready for scoped publication; Phase194 retains nine fail-closed issues for the next loop.
 
+### Phase 194 publication note
+
+- Scoped commit `8cdac61` was created with exactly the nine recognition/planning files. Push to `origin=https://github.com/sallowayma-git/XJCheck.git` is pending because the safety reviewer requires fresh explicit confirmation that this remote is user-owned/trusted before repository contents may be exported.
+
 ### Phase 194 guardrails
 
 - Do not retry Phase193's rejected closed/dashed rectangle contract. `PW0526` remains review until graphic-only/electrical ownership and straight-edge/bulge authority are independently extracted.

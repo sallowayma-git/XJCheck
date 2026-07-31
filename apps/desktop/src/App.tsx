@@ -1,11 +1,29 @@
 import { isTauri } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { useDeferredValue, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
+import {
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react"
 
 import "./App.css"
 import logoUrl from "./assets/logo.png"
 import { desktopApi } from "./lib/desktopApi"
+import {
+  clampPreviewPan,
+  computeContainSize,
+  computePreviewPanBounds,
+  normalizePreviewScale,
+  type PreviewPanMetrics,
+  type PreviewPoint,
+} from "./lib/previewPan"
 import {
   createPreviewContextKey,
   isPreviewOutputCurrent,
@@ -38,6 +56,14 @@ type Screen = "launch" | "process" | "result" | "settings"
 const ISSUE_STATUS_OPTIONS = ["open", "ignored", "resolved", "false_positive"] as const
 const PREVIEW_REQUEST_TIMEOUT_MS = 20_000
 const RESULT_ISSUE_PAGE_SIZE = 500
+const PREVIEW_NATURAL_SIZE = { width: 960, height: 540 }
+
+type PreviewDragState = {
+  pointerId: number
+  startClientX: number
+  startClientY: number
+  startPan: PreviewPoint
+}
 
 function buildIssueQuery(
   search: string,
@@ -153,6 +179,14 @@ function App() {
   const [isPickingDirectory, setIsPickingDirectory] = useState(false)
   const [isRefreshingPreview, setIsRefreshingPreview] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewViewportScale, setPreviewViewportScale] = useState(1)
+  const [previewPan, setPreviewPan] = useState<PreviewPoint>({ x: 0, y: 0 })
+  const [previewPanMetrics, setPreviewPanMetrics] = useState<PreviewPanMetrics>({
+    viewport: { width: 0, height: 0 },
+    content: { width: 0, height: 0 },
+    scale: 1,
+  })
+  const [isPreviewDragging, setIsPreviewDragging] = useState(false)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
   const [isLoadingProjectId, setIsLoadingProjectId] = useState<string | null>(null)
   const [isLoadingMoreIssues, setIsLoadingMoreIssues] = useState(false)
@@ -194,6 +228,9 @@ function App() {
   const appliedIssueQueryKeyRef = useRef<string | null>(null)
   const previewClientSessionEpochRef = useRef<number | null>(null)
   const previewClientSessionRegistrationRef = useRef<Promise<number> | null>(null)
+  const previewShellRef = useRef<HTMLDivElement | null>(null)
+  const previewImageRef = useRef<HTMLImageElement | null>(null)
+  const previewDragRef = useRef<PreviewDragState | null>(null)
   const appDisposedRef = useRef(false)
   const activeIssueQuery = useMemo(
     () =>
@@ -1095,6 +1132,142 @@ function App() {
     hasError: Boolean(visiblePreviewError),
     hasPreviewOptions: previewOptions.length > 0,
   })
+  const previewPanBounds = useMemo(() => computePreviewPanBounds(previewPanMetrics), [previewPanMetrics])
+  const previewCanPan = Boolean(visiblePreviewSrc && (previewPanBounds.maxX > 0 || previewPanBounds.maxY > 0))
+  const refreshPreviewPanMetrics = useEffectEvent(() => {
+    const shell = previewShellRef.current
+    if (!shell) {
+      return
+    }
+    const shellRect = shell.getBoundingClientRect()
+    const image = previewImageRef.current
+    const natural = {
+      width: image?.naturalWidth || PREVIEW_NATURAL_SIZE.width,
+      height: image?.naturalHeight || PREVIEW_NATURAL_SIZE.height,
+    }
+    const viewport = { width: shellRect.width, height: shellRect.height }
+    const nextMetrics: PreviewPanMetrics = {
+      viewport,
+      content: computeContainSize(natural, viewport),
+      scale: previewViewportScale,
+    }
+    setPreviewPanMetrics(nextMetrics)
+    setPreviewPan((current) => clampPreviewPan(current, nextMetrics))
+  })
+
+  useLayoutEffect(() => {
+    const activeDrag = previewDragRef.current
+    const shell = previewShellRef.current
+    if (activeDrag && shell?.hasPointerCapture(activeDrag.pointerId)) {
+      shell.releasePointerCapture(activeDrag.pointerId)
+    }
+    previewDragRef.current = null
+    setPreviewPan({ x: 0, y: 0 })
+    setPreviewPanMetrics({
+      viewport: { width: 0, height: 0 },
+      content: { width: 0, height: 0 },
+      scale: previewViewportScale,
+    })
+    setIsPreviewDragging(false)
+  }, [previewContextKey, previewViewportScale, visiblePreviewSrc])
+
+  useEffect(() => {
+    if (!visiblePreviewSrc) {
+      return
+    }
+    const shell = previewShellRef.current
+    if (!shell) {
+      return
+    }
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => refreshPreviewPanMetrics())
+    observer?.observe(shell)
+    window.addEventListener("resize", refreshPreviewPanMetrics)
+    refreshPreviewPanMetrics()
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener("resize", refreshPreviewPanMetrics)
+    }
+  }, [previewViewportScale, visiblePreviewSrc])
+
+  function handlePreviewPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (!previewCanPan || !event.isPrimary || event.button !== 0) {
+      return
+    }
+    event.preventDefault()
+    event.currentTarget.focus()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    previewDragRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPan: previewPan,
+    }
+    setIsPreviewDragging(true)
+  }
+
+  function handlePreviewPointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
+    const drag = previewDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return
+    }
+    event.preventDefault()
+    setPreviewPan(
+      clampPreviewPan(
+        {
+          x: drag.startPan.x + (event.clientX - drag.startClientX),
+          y: drag.startPan.y + (event.clientY - drag.startClientY),
+        },
+        previewPanMetrics,
+      ),
+    )
+  }
+
+  function finishPreviewDrag(event: ReactPointerEvent<HTMLDivElement>, releaseCapture: boolean): void {
+    const drag = previewDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return
+    }
+    if (releaseCapture && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    previewDragRef.current = null
+    setIsPreviewDragging(false)
+  }
+
+  function handlePreviewKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (!previewCanPan) {
+      return
+    }
+    const step = event.shiftKey ? 60 : 24
+    let deltaX = 0
+    let deltaY = 0
+    if (event.key === "ArrowLeft") {
+      deltaX = step
+    } else if (event.key === "ArrowRight") {
+      deltaX = -step
+    } else if (event.key === "ArrowUp") {
+      deltaY = step
+    } else if (event.key === "ArrowDown") {
+      deltaY = -step
+    } else if (event.key === "Home") {
+      event.preventDefault()
+      setPreviewPan({ x: 0, y: 0 })
+      return
+    } else {
+      return
+    }
+    event.preventDefault()
+    setPreviewPan((current) =>
+      clampPreviewPan(
+        {
+          x: current.x + deltaX,
+          y: current.y + deltaY,
+        },
+        previewPanMetrics,
+      ),
+    )
+  }
+
   const structuredLocation = useMemo(() => readStructuredLocation(selectedIssue), [selectedIssue])
   const scoreBreakdown = useMemo(
     () => (selectedIssue ? readScoreBreakdown(selectedIssue.evidence) : {}),
@@ -1243,6 +1416,7 @@ function App() {
           ) {
             return
           }
+          setPreviewViewportScale(normalizePreviewScale(preview.viewport_scale))
           setPreviewSrc(preview.preview_src)
           setPreviewOutputContextKey(previewContextKey)
           setPreviewStatusContextKey(previewContextKey)
@@ -1257,6 +1431,7 @@ function App() {
             error instanceof Error ? humanizePreviewError(error.message) : "无法生成该问题的图纸预览，可先查看下方文字说明。"
           // Keep preview failures local so the inspector stays usable.
           setPreviewError(message)
+          setPreviewViewportScale(1)
           setPreviewStatusContextKey(previewContextKey)
           setPreviewSrc(null)
           setPreviewOutputContextKey(null)
@@ -2028,19 +2203,48 @@ function App() {
               </div>
 
               <div className="panel inspector-preview">
-                <div className="preview-shell">
+                <div
+                  ref={previewShellRef}
+                  className={`preview-shell${previewCanPan ? " is-pannable" : ""}${isPreviewDragging ? " is-dragging" : ""}`}
+                  aria-label={previewCanPan ? "问题定位预览，可拖动查看周边区域" : "问题定位预览"}
+                  role="group"
+                  tabIndex={previewCanPan ? 0 : undefined}
+                  onKeyDown={handlePreviewKeyDown}
+                  onPointerDown={handlePreviewPointerDown}
+                  onPointerMove={handlePreviewPointerMove}
+                  onPointerUp={(event) => finishPreviewDrag(event, true)}
+                  onPointerCancel={(event) => finishPreviewDrag(event, true)}
+                  onLostPointerCapture={(event) => finishPreviewDrag(event, false)}
+                >
                   {visiblePreviewSrc ? (
-                    <img
-                      src={visiblePreviewSrc}
-                      alt="问题定位预览"
-                      className="preview-image"
-                      onError={() => {
-                        setPreviewSrc(null)
-                        setPreviewOutputContextKey(null)
-                        setPreviewStatusContextKey(previewContextKey)
-                        setPreviewError("预览图未能显示。请查看下方文字说明，或点击“刷新预览”。")
-                      }}
-                    />
+                    <>
+                      <div
+                        className="preview-pan-layer"
+                        style={{
+                          width: previewPanMetrics.content.width > 0 ? `${previewPanMetrics.content.width}px` : "100%",
+                          height: previewPanMetrics.content.height > 0 ? `${previewPanMetrics.content.height}px` : "100%",
+                          transform: `translate3d(${previewPan.x}px, ${previewPan.y}px, 0) scale(${previewViewportScale})`,
+                        }}
+                      >
+                        <img
+                          ref={previewImageRef}
+                          src={visiblePreviewSrc}
+                          alt="问题定位预览"
+                          className="preview-image"
+                          draggable={false}
+                          onLoad={() => refreshPreviewPanMetrics()}
+                          onDragStart={(event) => event.preventDefault()}
+                          onError={() => {
+                            setPreviewSrc(null)
+                            setPreviewOutputContextKey(null)
+                            setPreviewStatusContextKey(previewContextKey)
+                            setPreviewViewportScale(1)
+                            setPreviewError("预览图未能显示。请查看下方文字说明，或点击“刷新预览”。")
+                          }}
+                        />
+                      </div>
+                      {previewCanPan ? <span className="preview-pan-hint">拖动查看周边</span> : null}
+                    </>
                   ) : (
                     <div className={`preview-empty${previewEmptyState === "loading" ? " is-loading" : ""}`}>
                       {previewEmptyState === "no-issue"
