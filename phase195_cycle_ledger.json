@@ -1,0 +1,607 @@
+{
+  "schema_version": "1.0",
+  "corpus": "F:\\workspace\\XJToolkit\\test\\正式典设",
+  "termination_condition": "explicit_user_pause_or_stop_only",
+  "loop_states": [
+    "DISCOVER_CORPUS",
+    "BASELINE_REPLAY",
+    "VISUAL_REVIEW_QUEUE",
+    "EVIDENCE_CLUSTER",
+    "PARALLEL_PROBES",
+    "SELECT_ONE_SLICE",
+    "IMPLEMENT",
+    "FOCUSED_TESTS",
+    "BOUNDED_REPLAY",
+    "IDENTITY_AUDIT",
+    "ACCEPT_SLICE_OR_REJECT_AND_RECORD",
+    "REGRESSION_REPLAY",
+    "VISUAL_RECHECK",
+    "NEXT_CLUSTER"
+  ],
+  "cycles": [
+    {
+      "cycle_id": "195-01",
+      "selected_cluster": "component_diagrams/strip_endpoint_boundary_ampersand",
+      "baseline_artifact": ".tmp/phase195_formal_gj73_single_fresh",
+      "code_files": [
+        "src/dwg_audit/audit/component_diagrams.py"
+      ],
+      "test_files": [
+        "tests/unit/test_component_diagrams.py"
+      ],
+      "bounded_replay_roots": [
+        ".tmp/phase195_formal_gj73_single_fresh2",
+        ".tmp/phase195_formal_gj73_single_audit2"
+      ],
+      "identity_delta": {
+        "pair_additions": 28,
+        "semantic_deletions": 0,
+        "issue_count_before": 3,
+        "issue_count_after": 0,
+        "issue_additions": 0
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_formal_gj73_single_visual2/crops/PCM0027.png",
+        ".tmp/phase195_formal_gj73_single_visual2/crops/PCM0034.png",
+        ".tmp/phase195_formal_gj73_single_visual2/crops/PCK0001.png"
+      ],
+      "disposition": "ACCEPT_SLICE"
+    },
+    {
+      "cycle_id": "195-02",
+      "selected_cluster": "rules/schematic_small_port_duplicate",
+      "baseline_artifact": ".tmp/phase195_formal_full_audit",
+      "code_files": [
+        "src/dwg_audit/audit/rules.py"
+      ],
+      "test_files": [
+        "tests/unit/test_pairs_and_rules.py"
+      ],
+      "bounded_replay_roots": [
+        ".tmp/phase195_formal_dup_p003_fresh",
+        ".tmp/phase195_formal_dup_p003_audit"
+      ],
+      "identity_delta": {
+        "pair_rows_before": 523,
+        "pair_rows_after": 523,
+        "pair_field_drift": 0,
+        "issue_count_before": 334,
+        "issue_count_after": 333,
+        "issue_additions": 0
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_formal_dup_p003_visual/crops/PCS0001.png",
+        ".tmp/phase195_formal_dup_p003_visual/crops/PAB0001.png"
+      ],
+      "disposition": "ACCEPT_SLICE"
+    },
+    {
+      "cycle_id": "195-03",
+      "selected_cluster": "rules/same_sheet_kk_small_port_alias",
+      "baseline_artifact": ".tmp/phase195_formal_full_audit2",
+      "code_files": [
+        "src/dwg_audit/audit/rules.py"
+      ],
+      "test_files": [
+        "tests/unit/test_pairs_and_rules.py"
+      ],
+      "bounded_replay_roots": [
+        ".tmp/phase195_formal_p040_fresh3",
+        ".tmp/phase195_formal_p040_audit3"
+      ],
+      "identity_delta": {
+        "pair_rows_before": 1800,
+        "pair_rows_after": 1800,
+        "pair_field_drift": 0,
+        "issue_count_before": 333,
+        "issue_count_after": 331,
+        "issue_additions": 0
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_formal_p040_visual3/crops/PCK0017.png",
+        ".tmp/phase195_formal_p040_visual3/crops/PCK0018.png"
+      ],
+      "disposition": "ACCEPT_SLICE"
+    },
+    {
+      "cycle_id": "195-04",
+      "selected_cluster": "candidates/schematic_ud_numeric_peer",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh + .tmp/phase195_formal_full_audit3",
+      "code_files": [
+        "src/dwg_audit/audit/candidates.py"
+      ],
+      "test_files": [
+        "tests/unit/test_terminal_candidates.py"
+      ],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c04_ud_p041_fresh",
+        ".tmp/phase195_c04_ud_p041_audit",
+        ".tmp/phase195_c04_ud_p042_fresh",
+        ".tmp/phase195_c04_ud_p042_audit",
+        ".tmp/phase195_c04_ud_p043_fresh",
+        ".tmp/phase195_c04_ud_p043_audit",
+        ".tmp/phase195_c04_ud_p044_fresh",
+        ".tmp/phase195_c04_ud_p044_audit"
+      ],
+      "full_replay_roots": [
+        ".tmp/phase195_formal_full_fresh4",
+        ".tmp/phase195_formal_full_audit4"
+      ],
+      "control_replay_roots": [
+        ".tmp/phase195_c04_control_533_fresh",
+        ".tmp/phase195_c04_control_533_audit"
+      ],
+      "identity_delta": {
+        "formal_projects": 49,
+        "formal_valid_dwg": 1212,
+        "formal_pair_rows_before": 88265,
+        "formal_pair_rows_after": 88265,
+        "intended_pair_semantic_changes": 32,
+        "unrelated_conversion_evidence_jitters": 4,
+        "issue_count_before": 331,
+        "issue_count_after": 299,
+        "issue_additions": 0,
+        "retained_issue_objects_exact": 299,
+        "control_projects": 28,
+        "control_valid_dwg": 533,
+        "control_issue_count_before": 9,
+        "control_issue_count_after": 9,
+        "control_issue_identity_exact": true
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_c04_ud_visual_baseline/p041_S0006_UD_expected.png",
+        ".tmp/phase195_c04_ud_p041_visual/p041_S0006_UD_current.png"
+      ],
+      "gates": {
+        "focused_tests": "3 passed, 64 deselected",
+        "candidate_module_tests": "67 passed",
+        "full_tests": "1383 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass"
+      },
+      "disposition": "ACCEPT_SLICE"
+    },
+    {
+      "cycle_id": "195-05",
+      "selected_cluster": "rules/strip_two_port_endpoint_bridge_backplate_chain",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit4",
+      "code_files": [
+        "src/dwg_audit/audit/rules.py",
+        "src/dwg_audit/report/rerun.py"
+      ],
+      "test_files": [
+        "tests/unit/test_pairs_and_rules.py",
+        "tests/unit/test_rerun_audit.py"
+      ],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c05_p039_fresh",
+        ".tmp/phase195_c05_p039_audit3"
+      ],
+      "full_replay_roots": [
+        ".tmp/phase195_formal_full_fresh4",
+        ".tmp/phase195_formal_full_audit5"
+      ],
+      "control_replay_roots": [
+        ".tmp/phase195_c04_control_533_fresh",
+        ".tmp/phase195_c05_control_533_audit2"
+      ],
+      "identity_delta": {
+        "bounded_valid_dwg": 30,
+        "bounded_pair_rows_before": 2635,
+        "bounded_pair_rows_after": 2635,
+        "bounded_pair_field_drift": 0,
+        "bounded_issue_count_before": 15,
+        "bounded_issue_count_after": 13,
+        "formal_projects": 49,
+        "formal_valid_dwg": 1212,
+        "formal_pair_rows": 88265,
+        "formal_issue_count_before": 299,
+        "formal_issue_count_after": 297,
+        "issue_additions": 0,
+        "retained_issue_object_drift": 0,
+        "control_projects": 28,
+        "control_valid_dwg": 533,
+        "control_pair_rows": 38826,
+        "control_issue_count_before": 9,
+        "control_issue_count_after": 9,
+        "control_issue_identity_exact": true
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_c05_p039_visual2/S0025_endpoint_bridges.png",
+        ".tmp/phase195_c05_p039_visual2/S0022_P0179_backplate.png",
+        ".tmp/phase195_c05_p039_visual2/S0023_P0282_backplate.png"
+      ],
+      "gates": {
+        "rules_tests": "186 passed",
+        "rules_and_rerun_tests": "188 passed",
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass"
+      },
+      "recoverable_errors": [
+        "implementation review probe exceeded ten minutes and was interrupted without output",
+        "bounded audits 1 and 2 exposed omitted persisted Pair score fields; audit3 is authoritative",
+        "first visual set had insufficient contrast; visual2 is authoritative",
+        "first control runner found no direct findings directories and invoked zero audits",
+        "first parity counter used columns=[] and was rerun with stable key columns"
+      ],
+      "disposition": "ACCEPT_SLICE"
+    },
+    {
+      "cycle_id": "195-06",
+      "selected_cluster": "rules/strip_two_port_component_table_shared_endpoint",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c06_nochange_audit"
+      ],
+      "identity_delta": {
+        "p038_issue_count_before": 2,
+        "p038_issue_count_after": 2,
+        "p039_issue_count_before": 13,
+        "p039_issue_count_after": 13,
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "json_parquet_markdown_runtime_byte_exact": true,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass"
+      },
+      "recoverable_errors": [
+        "raw/visual and corpus-census probes exceeded ten minutes and were interrupted without usable output",
+        "bundled rg.exe helper search failed to start with Windows Access denied",
+        "helper search assumed a nonexistent repository scripts directory",
+        "first PowerShell JSON-shape script piped a foreach block and failed at parse time"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-07",
+      "selected_cluster": "audit/missing_side_structural_clusters",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c07_nochange_audit"
+      ],
+      "identity_delta": {
+        "bounded_projects": 9,
+        "target_missing_side_issues_before": 18,
+        "target_missing_side_issues_after": 18,
+        "compared_audit_files": 36,
+        "byte_exact_audit_files": 36,
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_c07_visual/p025_802_closed_frame.png",
+        ".tmp/phase195_c07_visual/p040_612_device_inputs.png",
+        ".tmp/phase195_c07_visual/p041_110_419_closed_frames.png",
+        ".tmp/phase195_c07_visual/p041_213_internal_pin.png",
+        ".tmp/phase195_c07_visual/p010_201_internal_pin.png"
+      ],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass"
+      },
+      "recoverable_errors": [
+        "first representative Pair JSON script piped a foreach block and failed at parse time",
+        "findings.json does not embed Pair rows; authoritative verification moved to pairs.parquet",
+        "first visual renderer used an unavailable RenderContext background setter and produced no images"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-08",
+      "selected_cluster": "audit/p003_component_internal_pin_low_confidence",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c08_p003_nochange_audit",
+        ".tmp/phase195_c08_grid_nochange_audit"
+      ],
+      "identity_delta": {
+        "bounded_projects": 7,
+        "p003_target_issue_count_before": 4,
+        "p003_target_issue_count_after": 4,
+        "component_grid_target_issue_count_before": 207,
+        "component_grid_target_issue_count_after": 207,
+        "compared_audit_files": 28,
+        "byte_exact_audit_files": 28,
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass"
+      },
+      "recoverable_errors": [
+        "initial audit command used the wrong findings path; no artifact was created and the manifest-authoritative -/findings path was used on retry",
+        "first PowerShell hash comparison piped a foreach block and failed at parse time; corrected comparison was byte-exact",
+        "bundled rg.exe failed to start with Windows Access denied; native PowerShell search was used",
+        "the first focused structural-shadow tests omitted required TerminalCandidate distance fields; only the fixture failed and was corrected",
+        "a focused structural shadow passed tests but was rejected because it depended on TSB-14 name, virtual segment index 56 and exact dimensions; all draft source/tests were removed before replay"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-09",
+      "selected_cluster": "audit/p039_p044_repeated_low_confidence",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c09_nochange_audit"
+      ],
+      "identity_delta": {
+        "bounded_projects": 6,
+        "bounded_issue_counts_before": {
+          "p039": 13,
+          "p040": 9,
+          "p041": 9,
+          "p042": 9,
+          "p043": 9,
+          "p044": 9
+        },
+        "bounded_issue_counts_after": {
+          "p039": 13,
+          "p040": 9,
+          "p041": 9,
+          "p042": 9,
+          "p043": 9,
+          "p044": 9
+        },
+        "target_low_confidence_rows": 39,
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "compared_audit_files": 24,
+        "byte_exact_audit_files": 24,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass"
+      },
+      "recoverable_errors": [
+        "one initial probe dispatch was malformed and was corrected without file changes",
+        "raw/visual, code-contract and corrected full-corpus probes all supplied independent exact Pair, text, line and file:line evidence",
+        "full-corpus natural same-text and CONNECT-rail census was used as the adversarial boundary; no broad same-text suppression was attempted"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-10",
+      "selected_cluster": "audit/p017_p021_remaining_low_confidence",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c10_visual",
+        ".tmp/phase195_c10_nochange_audit"
+      ],
+      "identity_delta": {
+        "bounded_projects": 2,
+        "target_low_confidence_rows": 5,
+        "bounded_issue_counts_before": {
+          "p017": 9,
+          "p021": 9
+        },
+        "bounded_issue_counts_after": {
+          "p017": 9,
+          "p021": 9
+        },
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "compared_audit_files": 8,
+        "byte_exact_audit_files": 8,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_c10_visual/p017_PT0358.png",
+        ".tmp/phase195_c10_visual/p021_PT0002.png",
+        ".tmp/phase195_c10_visual/p017_PC0088.png",
+        ".tmp/phase195_c10_visual/p021_PC0137.png"
+      ],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass"
+      },
+      "recoverable_errors": [
+        "the first broad horizontal-length census was too large and truncated output; the corrected probe was scoped to exact issue IDs",
+        "DXF renderer emitted inverted vendor text orientation, but line/frame ownership and normalized Pair coordinates remained clear; crops are retained as supporting visual evidence"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-11",
+      "selected_cluster": "audit/cross_page_conflicts",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c11_nochange_audit"
+      ],
+      "identity_delta": {
+        "bounded_projects": 5,
+        "target_issue_count_before": 5,
+        "target_issue_count_after": 5,
+        "compared_audit_files": 20,
+        "byte_exact_audit_files": 20,
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass with existing CRLF normalization warnings"
+      },
+      "recoverable_errors": [
+        "first combined PowerShell parity/count command failed at parse time because a foreach statement block was piped directly; corrected script assigned rows before formatting",
+        "no source or test files changed"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-12",
+      "selected_cluster": "audit/many_to_one_structural_families",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c12_visual",
+        ".tmp/phase195_c12_nochange_audit"
+      ],
+      "identity_delta": {
+        "bounded_projects": 7,
+        "target_many_to_one_rows": 13,
+        "bounded_issue_counts_before": {
+          "p006": 1,
+          "p014": 4,
+          "p015": 2,
+          "p021": 36,
+          "p038": 2,
+          "p039": 13,
+          "p040": 9
+        },
+        "bounded_issue_counts_after": {
+          "p006": 1,
+          "p014": 4,
+          "p015": 2,
+          "p021": 36,
+          "p038": 2,
+          "p039": 13,
+          "p040": 9
+        },
+        "compared_audit_files": 28,
+        "byte_exact_audit_files": 28,
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_c12_visual/p006_PTMR0337.png",
+        ".tmp/phase195_c12_visual/p014_PTMR0130.png",
+        ".tmp/phase195_c12_visual/p014_PTMR0139.png",
+        ".tmp/phase195_c12_visual/p014_PTMR0198.png",
+        ".tmp/phase195_c12_visual/p015_PTMR0098.png",
+        ".tmp/phase195_c12_visual/p021_PTMR0098.png",
+        ".tmp/phase195_c12_visual/p040_PTMR0225.png",
+        ".tmp/phase195_c12_visual/p040_PTMR0263.png"
+      ],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass with existing CRLF normalization warnings"
+      },
+      "recoverable_errors": [
+        "initial local evidence query assumed p038/p039 findings were directly under project/findings; corrected to the nested project bundle paths",
+        "initial multi-project PowerShell count command repeated the foreach-pipeline parse error; corrected by assigning output before formatting",
+        "matplotlib visual export emitted missing-CJK-glyph warnings; ASCII identifiers, geometry and highlighted endpoint values remain readable"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-13",
+      "selected_cluster": "discovery/unrecognized_number_group_census/orphan_numeric_text_vs_component_port_evidence",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [],
+      "test_files": [],
+      "bounded_replay_roots": [
+        ".tmp/phase195_c13_nochange_audit"
+      ],
+      "identity_delta": {
+        "formal_projects": 49,
+        "formal_valid_dwg": 1212,
+        "numeric_like_orphan_text_rows": 46047,
+        "evidence_backed_orphan_rows": 406,
+        "pure_no_evidence_orphan_rows": 45641,
+        "bounded_projects": 1,
+        "bounded_issue_count_before": 13,
+        "bounded_issue_count_after": 13,
+        "compared_audit_files": 4,
+        "byte_exact_audit_files": 4,
+        "issue_additions": 0,
+        "issue_removals": 0,
+        "retained_issue_object_drift": 0,
+        "formal_issue_count": 297,
+        "control_issue_count": 9
+      },
+      "visual_evidence_refs": [
+        ".tmp/phase195_c04_many_exact_visual/p039_PCB0001_3-2n221_composite.png"
+      ],
+      "evidence_refs": [
+        ".tmp/phase195_formal_full_fresh4/p039/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH/findings/pairs.parquet",
+        ".tmp/phase195_formal_full_fresh4/p039/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH/findings/texts.parquet",
+        ".tmp/phase195_formal_full_fresh4/p039/WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH/findings/terminal_candidates.parquet",
+        "src/dwg_audit/audit/component_diagrams.py:87-204",
+        "src/dwg_audit/audit/component_diagrams.py:1168-1318",
+        "src/dwg_audit/audit/candidates.py:305-316",
+        "src/dwg_audit/audit/candidates.py:1851-1875",
+        "src/dwg_audit/audit/pairs.py:46-80",
+        "tests/unit/test_component_diagrams.py:118-142",
+        "tests/unit/test_component_diagrams.py:463-519"
+      ],
+      "gates": {
+        "full_tests": "1387 passed, 1 skipped",
+        "compileall": "pass",
+        "diff_check": "pass with existing CRLF normalization warnings"
+      },
+      "recoverable_errors": [
+        "initial parallel probe payload was malformed at dispatch; no files changed and the corrected probe returned independent evidence"
+      ],
+      "disposition": "NO_SAFE_CHANGE"
+    }
+  ],
+  "current": {
+    "cycle_id": "195-14",
+    "state": "EVIDENCE_CLUSTER",
+    "selected_cluster": "discovery/repeated_grid_stub_missing_left_alphanumeric_designators",
+    "selected_issue_refs": [],
+    "subcluster_dispositions": {
+      "p039-p044/repeated_low_confidence": "NO_SAFE_CHANGE",
+      "p017-p021/remaining_low_confidence": "NO_SAFE_CHANGE",
+      "p008-p020/cross_page_conflicts": "NO_SAFE_CHANGE",
+      "remaining_many_to_one_structural_families": "NO_SAFE_CHANGE"
+      ,"orphan_numeric_text_vs_component_port_evidence": "NO_SAFE_CHANGE"
+    },
+    "authoritative_fresh": ".tmp/phase195_formal_full_fresh4",
+    "authoritative_audit": ".tmp/phase195_formal_full_audit5",
+    "remaining_issue_count": 297,
+    "remaining_issue_distribution": {
+      "R-PAIR-LOW-CONFIDENCE": 261,
+      "R-PAIR-MISSING-SIDE": 18,
+      "R-MANY-TO-ONE": 13,
+      "R-CROSS-PAGE-CONFLICT": 5
+    }
+  }
+}

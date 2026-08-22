@@ -396,6 +396,101 @@ def test_build_terminal_candidates_maps_compact_yd_and_ld_signal_endpoints() -> 
     assert all(pair.evidence["ordinary_pair_eligible"] is False for pair in by_group.values())
 
 
+def test_build_terminal_candidates_maps_compact_ud_with_authoritative_numeric_peer() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S1", "F1", 10.0, 40.0, 50.0, 40.0, 40.0, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "06 交流回路图.dwg", 6, "06", "CT AND VT INPUT", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "MTEXT", "1UD10", "1UD10", False, "DIM", 0.0, 2.5, 9.0, 22.0, 7.0, 20.0, 18.0, 24.0),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "719", "719", True, "DIM", 0.0, 2.5, 51.0, 21.0, 49.0, 19.0, 57.0, 23.0),
+        TextItem("T3", "S1", "F1", "H3", "MTEXT", "1UD16", "1UD16", False, "DIM", 0.0, 2.5, 9.0, 42.0, 7.0, 40.0, 18.0, 44.0),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "201", "201", True, "DIM", 0.0, 2.5, 51.0, 41.0, 49.0, 39.0, 57.0, 43.0),
+        TextItem("T5", "S1", "F1", "H5", "TEXT", "204", "204", True, "DIM", 0.0, 2.5, 64.0, 41.0, 62.0, 39.0, 70.0, 43.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    ud_candidates = {item.text_id: item for item in candidates if item.text_id in {"T1", "T3"}}
+    assert all(item.status == "accepted" for item in ud_candidates.values())
+    assert all(item.channel == "wire_logic_endpoint_channel" for item in ud_candidates.values())
+    by_group = {pair.line_group_id: pair for pair in pairs}
+    assert (by_group["G1"].left_value, by_group["G1"].right_value) == ("1UD10", "719")
+    assert (by_group["G2"].left_value, by_group["G2"].right_value) == ("1UD16", "201")
+    assert all(pair.status == "pass" for pair in by_group.values())
+    assert all(pair.pair_kind == "wire_component_mapping" for pair in by_group.values())
+
+
+def test_build_terminal_candidates_rejects_ud_without_clear_high_confidence_numeric_peer() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S1", "F1", 10.0, 40.0, 50.0, 40.0, 40.0, 0.85, ["L2"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G3", "S1", "F1", 10.0, 60.0, 50.0, 60.0, 40.0, 0.85, ["L3"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G4", "S1", "F1", 10.0, 80.0, 50.0, 80.0, 40.0, 0.85, ["L4"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "06 交流回路图.dwg", 6, "06", "CT AND VT INPUT", "二次原理图", "primary", "filename", True)
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "MTEXT", "1UD20", "1UD20", False, "DIM", 0.0, 2.5, 9.0, 22.0, 7.0, 20.0, 18.0, 24.0),
+        TextItem("T2", "S1", "F1", "H2", "MTEXT", "1UD18", "1UD18", False, "DIM", 0.0, 2.5, 9.0, 42.0, 7.0, 40.0, 18.0, 44.0),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "207", "207", True, "DIM", 0.0, 2.5, 51.0, 41.0, 49.0, 39.0, 57.0, 43.0),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "210", "210", True, "DIM", 0.0, 2.5, 52.0, 41.0, 50.0, 39.0, 58.0, 43.0),
+        TextItem("T5", "S1", "F1", "H5", "MTEXT", "1UD15", "1UD15", False, "DIM", 0.0, 2.5, 9.0, 62.0, 7.0, 60.0, 18.0, 64.0),
+        TextItem("T6", "S1", "F1", "H6", "TEXT", "724", "724", True, "DIM", 0.0, 2.5, 65.0, 61.0, 63.0, 59.0, 71.0, 63.0),
+        TextItem("T7", "S1", "F1", "H7", "MTEXT", "1UD14", "1UD14", False, "DIM", 0.0, 2.5, 9.0, 86.0, 7.0, 84.0, 18.0, 88.0),
+        TextItem("T8", "S1", "F1", "H8", "TEXT", "723", "723", True, "DIM", 0.0, 2.5, 51.0, 81.0, 49.0, 79.0, 57.0, 83.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    reasons = {
+        item.text_id: item.rejection_reason
+        for item in candidates
+        if item.text_id in {"T1", "T2", "T5", "T7"} and item.side == "left"
+    }
+    assert reasons == {
+        "T1": "schematic_ud_missing_numeric_peer",
+        "T2": "schematic_ud_ambiguous_numeric_peer",
+        "T5": "schematic_ud_low_confidence_numeric_peer",
+        "T7": "schematic_logic_endpoint_out_of_row",
+    }
+    assert all(
+        item.channel == "noise_channel"
+        for item in candidates
+        if item.text_id in {"T1", "T2", "T5", "T7"} and item.side == "left"
+    )
+
+
+def test_build_terminal_candidates_keeps_malformed_and_out_of_scope_ud_rejected() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),
+        LineGroup("G2", "S2", "F2", 10.0, 40.0, 50.0, 40.0, 40.0, 0.85, ["L2"], ["CONNECT"], orientation="grid"),
+        LineGroup("G3", "S3", "F3", 10.0, 60.0, 50.0, 60.0, 40.0, 0.85, ["L3"], ["CONNECT"], orientation="horizontal"),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "06 交流回路图.dwg", 6, "06", "CT AND VT INPUT", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "07 交流回路图.dwg", 7, "07", "CT INPUT", "二次原理图", "primary", "filename", True),
+        SheetRecord("S3", "F3", "16 元件接线图.dwg", 16, "16", "ACCESSORIES WIRING", "元件接线图", "primary", "filename", True),
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "MTEXT", "1UD7~8", "1UD7~8", False, "DIM", 0.0, 2.5, 9.0, 22.0, 7.0, 20.0, 20.0, 24.0),
+        TextItem("T2", "S2", "F2", "H2", "MTEXT", "1UD10", "1UD10", False, "DIM", 0.0, 2.5, 9.0, 42.0, 7.0, 40.0, 18.0, 44.0),
+        TextItem("T3", "S3", "F3", "H3", "MTEXT", "1UD10", "1UD10", False, "DIM", 0.0, 2.5, 9.0, 62.0, 7.0, 60.0, 18.0, 64.0),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+
+    scoped = [item for item in candidates if item.text_id in {"T1", "T2", "T3"}]
+    assert scoped
+    assert all(item.status == "rejected" for item in scoped)
+    assert all(item.channel != "wire_logic_endpoint_channel" for item in scoped)
+
+
 def test_build_terminal_candidates_rejects_compact_xd_endpoint_from_adjacent_row() -> None:
     line_groups = [
         LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),

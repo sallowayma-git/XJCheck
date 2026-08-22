@@ -382,11 +382,18 @@ def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:
     for pair in context.pairs:
         if pair.status == "discard":
             continue
-        if not _ordinary_pair_eligible(pair):
+        if (
+            not _ordinary_pair_eligible(pair)
+            and pair.pair_kind != "component_mapping"
+        ):
             continue
         if not pair.left_value or not pair.right_value:
             continue
-        if pair.confidence >= context.high_threshold and pair.status == "pass":
+        if (
+            _is_native_finite_number(pair.confidence)
+            and pair.confidence >= context.high_threshold
+            and pair.status == "pass"
+        ):
             continue
         issues.append(
             context.issue_factory.build(
@@ -1319,6 +1326,10 @@ def _is_authoritative_structured_cardinality_group(linked_pairs: list[Pair]) -> 
         linked_pairs
     ) or _is_authoritative_schematic_kk_component_duplicate(
         linked_pairs
+    ) or _is_authoritative_schematic_small_port_component_duplicate(
+        linked_pairs
+    ) or _is_authoritative_same_sheet_kk_small_port_alias(
+        linked_pairs
     ) or _is_authoritative_schematic_inline_backplate_endpoint_group(linked_pairs)
 
 
@@ -1418,6 +1429,185 @@ def _is_authoritative_schematic_kk_component_duplicate(linked_pairs: list[Pair])
     )
 
 
+def _is_authoritative_schematic_small_port_component_duplicate(
+    linked_pairs: list[Pair],
+) -> bool:
+    """Accept an exact schematic/small-port description of one component port.
+
+    The schematic and small-port extractors describe the same independent port
+    in different sheet roles.  Suppression is comparison-only: it requires two
+    distinct sheets and complete block/text/line provenance on the small-port
+    side, so a bare submode or component body can never hide a duplicate.
+    """
+
+    if len(linked_pairs) != 2 or len({str(pair.sheet_id or "") for pair in linked_pairs}) != 2:
+        return False
+    schematic_identities = [
+        identity
+        for pair in linked_pairs
+        if (identity := _authoritative_schematic_inline_component_identity(pair)) is not None
+    ]
+    small_port_identities = [
+        identity
+        for pair in linked_pairs
+        if (identity := _authoritative_small_port_component_identity(pair)) is not None
+    ]
+    return (
+        len(schematic_identities) == 1
+        and len(small_port_identities) == 1
+        and schematic_identities[0] == small_port_identities[0]
+    )
+
+
+def _is_authoritative_same_sheet_kk_small_port_alias(
+    linked_pairs: list[Pair],
+) -> bool:
+    """Accept two extractor views of one same-sheet KK2P physical port.
+
+    The KK extractor may use a hidden parent/body label while the small-port
+    extractor uses the visible device label.  This is comparison-only: the
+    two Pair facts remain intact and no electrical connectivity is inferred.
+    Every physical anchor must be shared by both facts; missing or malformed
+    provenance deliberately keeps the many-to-one review visible.
+    """
+
+    if len(linked_pairs) != 2:
+        return False
+    sheet_ids = {str(pair.sheet_id or "").strip() for pair in linked_pairs}
+    file_ids = {str(pair.file_id or "").strip() for pair in linked_pairs}
+    if len(sheet_ids) != 1 or "" in sheet_ids or len(file_ids) != 1 or "" in file_ids:
+        return False
+
+    kk_pairs: list[Pair] = []
+    small_pairs: list[Pair] = []
+    for pair in linked_pairs:
+        evidence = pair.evidence or {}
+        if (
+            pair.pair_kind != "component_mapping"
+            or pair.status != "pass"
+            or not _is_native_finite_number(pair.confidence)
+            or pair.confidence < 0.95
+            or evidence.get("source") != "component_mapping"
+        ):
+            return False
+        submode = evidence.get("component_submode")
+        if submode == "kk_multi_port_component":
+            kk_pairs.append(pair)
+        elif submode == "small_port_box_component":
+            small_pairs.append(pair)
+        else:
+            return False
+    if len(kk_pairs) != 1 or len(small_pairs) != 1:
+        return False
+
+    kk_pair = kk_pairs[0]
+    small_pair = small_pairs[0]
+    kk_identity = _authoritative_kk_component_identity(kk_pair)
+    small_identity = _authoritative_small_port_component_identity(small_pair)
+    if kk_identity is None or small_identity is None:
+        return False
+    # This contract is specifically for different visible/hidden body labels;
+    # same semantic identity must continue through the ordinary duplicate rule.
+    if (
+        kk_identity[0] == small_identity[0]
+        or kk_identity[1] != small_identity[1]
+        or kk_identity[2] != small_identity[2]
+        or kk_pair.left_value == small_pair.left_value
+    ):
+        return False
+
+    kk_evidence = kk_pair.evidence or {}
+    small_evidence = small_pair.evidence or {}
+
+    def _strict_coord(value: object) -> tuple[float, float] | None:
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            return None
+        if not all(_is_native_finite_number(item) for item in value):
+            return None
+        return float(value[0]), float(value[1])
+
+    def _pair_coord(pair: Pair, *, left: bool) -> tuple[float, float] | None:
+        values = (
+            (pair.left_coord_x, pair.left_coord_y)
+            if left
+            else (pair.right_coord_x, pair.right_coord_y)
+        )
+        return _strict_coord(values)
+
+    def _supporting_ids(evidence: dict[str, object]) -> tuple[str, ...] | None:
+        values = evidence.get("supporting_line_ids")
+        if not isinstance(values, (list, tuple)) or not values:
+            return None
+        if not all(isinstance(value, str) and value.strip() for value in values):
+            return None
+        return tuple(values)
+
+    # Both extractors must point at exactly the same block, port text, endpoint
+    # text, line group and raw endpoint spelling.
+    if any(
+        not kk_evidence.get(key)
+        or kk_evidence.get(key) != small_evidence.get(key)
+        for key in (
+            "component_block_id",
+            "component_block_name",
+            "component_port_text_id",
+            "external_endpoint_text_id",
+            "line_group_id",
+            "external_endpoint_raw",
+        )
+    ):
+        return False
+    if kk_evidence.get("component_port") != small_evidence.get("component_port"):
+        return False
+    if kk_evidence.get("external_endpoint") != small_evidence.get("external_endpoint"):
+        return False
+    if (
+        str(kk_pair.line_group_id or "") != str(kk_evidence.get("line_group_id") or "")
+        or str(small_pair.line_group_id or "")
+        != str(small_evidence.get("line_group_id") or "")
+        or kk_pair.left_text_id != kk_evidence.get("component_port_text_id")
+        or small_pair.left_text_id != small_evidence.get("component_port_text_id")
+        or kk_pair.right_text_id != kk_evidence.get("external_endpoint_text_id")
+        or small_pair.right_text_id != small_evidence.get("external_endpoint_text_id")
+    ):
+        return False
+    if _supporting_ids(kk_evidence) != _supporting_ids(small_evidence):
+        return False
+
+    block_coords = {
+        _strict_coord(kk_evidence.get("component_block_coord")),
+        _strict_coord(small_evidence.get("component_block_coord")),
+    }
+    if None in block_coords or len(block_coords) != 1:
+        return False
+    for pair, evidence in ((kk_pair, kk_evidence), (small_pair, small_evidence)):
+        if (
+            _strict_coord(evidence.get("component_port_coord"))
+            != _pair_coord(pair, left=True)
+            or _strict_coord(evidence.get("external_endpoint_coord"))
+            != _pair_coord(pair, left=False)
+        ):
+            return False
+
+    bbox = small_evidence.get("component_instance_bbox")
+    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+        return False
+    if not all(_is_native_finite_number(value) for value in bbox):
+        return False
+    min_x, min_y, max_x, max_y = map(float, bbox)
+    if min_x >= max_x or min_y >= max_y:
+        return False
+    for coordinate in (
+        _strict_coord(small_evidence.get("component_port_coord")),
+        _strict_coord(small_evidence.get("external_endpoint_coord")),
+    ):
+        if coordinate is None or not (
+            min_x <= coordinate[0] <= max_x and min_y <= coordinate[1] <= max_y
+        ):
+            return False
+    return True
+
+
 def _is_authoritative_schematic_inline_backplate_endpoint_group(
     linked_pairs: list[Pair],
 ) -> bool:
@@ -1507,6 +1697,34 @@ def _authoritative_kk_component_identity(pair: Pair) -> tuple[str, str, str] | N
             "component_port_text_id",
             "component_block_id",
             "component_block_name",
+            "external_endpoint_text_id",
+            "line_group_id",
+            "supporting_line_ids",
+        ),
+    )
+
+
+def _authoritative_small_port_component_identity(
+    pair: Pair,
+) -> tuple[str, str, str] | None:
+    evidence = pair.evidence or {}
+    if (
+        pair.pair_kind != "component_mapping"
+        or pair.status != "pass"
+        or float(pair.confidence or 0.0) < 0.95
+        or evidence.get("source") != "component_mapping"
+        or evidence.get("component_submode") != "small_port_box_component"
+        or evidence.get("endpoint_side") not in {"top", "bottom", "left", "right"}
+    ):
+        return None
+    return _authoritative_component_port_identity(
+        pair,
+        required_evidence=(
+            "component_body_text_id",
+            "component_port_text_id",
+            "component_block_id",
+            "component_block_name",
+            "component_instance_bbox",
             "external_endpoint_text_id",
             "line_group_id",
             "supporting_line_ids",
@@ -1668,6 +1886,302 @@ def _authoritative_component_port_identity(
     )
 
 
+def _matches_exact_pair_coordinate(
+    value: object,
+    pair_x: object,
+    pair_y: object,
+) -> bool:
+    return bool(
+        isinstance(value, (list, tuple))
+        and len(value) == 2
+        and all(_is_native_finite_number(item) for item in value)
+        and _is_native_finite_number(pair_x)
+        and _is_native_finite_number(pair_y)
+        and value[0] == pair_x
+        and value[1] == pair_y
+    )
+
+
+def _has_exact_unit_scores(pair: Pair, evidence: dict[str, object]) -> bool:
+    score_breakdown = evidence.get("score_breakdown")
+    if not isinstance(score_breakdown, dict):
+        return False
+    for field in ("left_score", "right_score", "wire_score"):
+        pair_score = getattr(pair, field)
+        evidence_score = score_breakdown.get(field)
+        if (
+            not _is_native_finite_number(pair_score)
+            or not _is_native_finite_number(evidence_score)
+            or pair_score != 1.0
+            or evidence_score != pair_score
+        ):
+            return False
+    return pair.ambiguity_gap is None and score_breakdown.get("ambiguity_gap") is None
+
+
+def _authoritative_strip_endpoint_bridge_identity(
+    pair: Pair,
+) -> tuple[str, str] | None:
+    """Return the device scope and endpoint for a complete vertical ZK-to-n bridge."""
+
+    evidence = pair.evidence
+    if not isinstance(evidence, dict):
+        return None
+    if (
+        pair.pair_kind != "component_mapping"
+        or pair.status != "pass"
+        or pair.confidence_bucket != "high"
+        or not _is_native_finite_number(pair.confidence)
+        or pair.confidence < 0.95
+        or pair.confidence > 1.0
+        or pair.selected_pair_candidate_id is not None
+        or pair.left_candidate_id is not None
+        or pair.right_candidate_id is not None
+        or pair.alternative_pair_candidate_ids != []
+        or evidence.get("source") != "component_mapping"
+        or evidence.get("pair_kind") != "component_mapping"
+        or evidence.get("component_submode") != "strip_two_port_endpoint_bridge"
+        or evidence.get("line_orientation") != "strip_two_port_endpoint_bridge_vertical"
+        or evidence.get("left_side_label") != "top_endpoint"
+        or evidence.get("right_side_label") != "bottom_endpoint"
+        or evidence.get("top_port") != "1"
+        or evidence.get("bottom_port") != "2"
+    ):
+        return None
+
+    required_text = (
+        "component_block_name",
+        "top_port_text_id",
+        "bottom_port_text_id",
+        "top_endpoint",
+        "top_endpoint_raw",
+        "top_endpoint_text_id",
+        "bottom_endpoint",
+        "bottom_endpoint_raw",
+        "bottom_endpoint_text_id",
+        "logical_endpoint",
+        "external_endpoint",
+        "line_group_id",
+    )
+    if any(
+        not isinstance(evidence.get(field), str)
+        or not evidence[field]
+        or evidence[field] != evidence[field].strip()
+        for field in required_text
+    ):
+        return None
+    text_ids = {
+        evidence["top_port_text_id"],
+        evidence["bottom_port_text_id"],
+        evidence["top_endpoint_text_id"],
+        evidence["bottom_endpoint_text_id"],
+    }
+    supporting_line_ids = evidence.get("supporting_line_ids")
+    if (
+        len(text_ids) != 4
+        or not isinstance(pair.line_group_id, str)
+        or not pair.line_group_id
+        or pair.line_group_id != evidence["line_group_id"]
+        or not isinstance(supporting_line_ids, (list, tuple))
+        or not supporting_line_ids
+        or any(
+            not isinstance(line_id, str) or not line_id or line_id != line_id.strip()
+            for line_id in supporting_line_ids
+        )
+        or len(set(supporting_line_ids)) != len(supporting_line_ids)
+    ):
+        return None
+    for coordinate_key in (
+        "top_port_coord",
+        "bottom_port_coord",
+    ):
+        coordinate = evidence.get(coordinate_key)
+        if (
+            not isinstance(coordinate, (list, tuple))
+            or len(coordinate) != 2
+            or not all(_is_native_finite_number(item) for item in coordinate)
+        ):
+            return None
+    if (
+        not _matches_exact_pair_coordinate(
+            evidence.get("top_endpoint_coord"),
+            pair.left_coord_x,
+            pair.left_coord_y,
+        )
+        or not _matches_exact_pair_coordinate(
+            evidence.get("bottom_endpoint_coord"),
+            pair.right_coord_x,
+            pair.right_coord_y,
+        )
+        or pair.left_text_id != evidence["top_endpoint_text_id"]
+        or pair.right_text_id != evidence["bottom_endpoint_text_id"]
+        or pair.left_value != evidence["top_endpoint"]
+        or pair.left_value != evidence["top_endpoint_raw"]
+        or pair.left_value != evidence["logical_endpoint"]
+        or pair.right_value != evidence["bottom_endpoint"]
+        or pair.right_value != evidence["bottom_endpoint_raw"]
+        or pair.right_value != evidence["external_endpoint"]
+        or not _has_exact_unit_scores(pair, evidence)
+    ):
+        return None
+
+    top_match = re.fullmatch(
+        r"(?P<prefix>\d+-\d+)ZK-(?P<port>\d+)",
+        pair.left_value,
+        flags=re.IGNORECASE,
+    )
+    bottom_match = re.fullmatch(
+        r"(?P<prefix>\d+-\d+)n(?P<number>\d{3,})",
+        pair.right_value,
+        flags=re.IGNORECASE,
+    )
+    if (
+        top_match is None
+        or bottom_match is None
+        or top_match.group("prefix").casefold() != bottom_match.group("prefix").casefold()
+    ):
+        return None
+    return bottom_match.group("prefix").upper(), pair.right_value.upper()
+
+
+def _authoritative_pluginless_backplate_endpoint_identity(
+    pair: Pair,
+) -> tuple[str, str] | None:
+    """Return the device instance and endpoint for one complete pluginless table row."""
+
+    evidence = pair.evidence
+    if not isinstance(evidence, dict):
+        return None
+    if (
+        pair.pair_kind != "table_mapping"
+        or pair.status != "pass"
+        or pair.confidence_bucket != "high"
+        or not _is_native_finite_number(pair.confidence)
+        or pair.confidence < 0.95
+        or pair.confidence > 1.0
+        or pair.selected_pair_candidate_id is not None
+        or pair.left_candidate_id is not None
+        or pair.right_candidate_id is not None
+        or pair.alternative_pair_candidate_ids != []
+        or pair.line_group_id not in {None, "nan"}
+        or evidence.get("source") != "table_mapping"
+        or evidence.get("pair_kind") != "table_mapping"
+        or evidence.get("line_orientation") != "table"
+        or evidence.get("left_side_label") != "logical_endpoint"
+        or evidence.get("right_side_label") != "right_endpoint"
+        or evidence.get("row_band_id") is not None
+        or not _is_authoritative_table_mapping_group([pair])
+        or not _has_exact_unit_scores(pair, evidence)
+    ):
+        return None
+    mapping = _table_mapping_evidence(pair)
+    if (
+        mapping.get("mapping_mode") != "backplate_virtual_table"
+        or mapping.get("plugin_slot") is not None
+        or mapping.get("plugin_title") is not None
+        or mapping.get("column_key") is not None
+        or mapping.get("left_value") is not None
+        or mapping.get("left_text_id") is not None
+        or mapping.get("left_coord") is not None
+    ):
+        return None
+
+    required_text = (
+        "filename",
+        "source_block_name",
+        "header_prefix",
+        "raw_header_text",
+        "header_text_id",
+        "raw_row_number",
+        "middle_value",
+        "middle_text_id",
+        "logical_endpoint",
+        "right_value",
+        "right_text_id",
+        "composite_device_instance",
+    )
+    if any(
+        not isinstance(mapping.get(field), str)
+        or not mapping[field]
+        or mapping[field] != mapping[field].strip()
+        for field in required_text
+    ):
+        return None
+    row_number = mapping.get("row_number")
+    if type(row_number) is not int or not 1 <= row_number <= 64:
+        return None
+    row_text = f"{row_number:02d}"
+    header_prefix = mapping["header_prefix"]
+    raw_header_text = mapping["raw_header_text"]
+    device_instance = mapping["composite_device_instance"]
+    device_match = re.fullmatch(r"(?P<prefix>\d+-\d+)n", device_instance, flags=re.IGNORECASE)
+    header_suffix = raw_header_text[len(header_prefix) :] if raw_header_text.startswith(header_prefix) else ""
+    if (
+        device_match is None
+        or re.fullmatch(r"[0-9A-Za-z]+", header_prefix) is None
+        or mapping["raw_row_number"] != row_text
+        or mapping["middle_value"] != row_text
+        or mapping["logical_endpoint"].casefold()
+        != f"{device_instance}/{header_prefix}-{row_text}".casefold()
+        or raw_header_text != header_prefix
+        and not (
+            len(header_suffix) >= 3
+            and header_suffix[0] in "(（"
+            and header_suffix[-1] in ")）"
+        )
+    ):
+        return None
+    if (
+        mapping.get("sheet_id") != pair.sheet_id
+        or evidence.get("filename") != mapping["filename"]
+        or evidence.get("sheet_no") != mapping.get("sheet_no")
+        or pair.left_value != mapping["logical_endpoint"]
+        or pair.right_value != mapping["right_value"]
+        or pair.left_text_id != mapping["middle_text_id"]
+        or pair.right_text_id != mapping["right_text_id"]
+        or len({mapping["header_text_id"], mapping["middle_text_id"], mapping["right_text_id"]}) != 3
+        or not _matches_exact_pair_coordinate(
+            mapping.get("middle_coord"),
+            pair.left_coord_x,
+            pair.left_coord_y,
+        )
+        or not _matches_exact_pair_coordinate(
+            mapping.get("right_coord"),
+            pair.right_coord_x,
+            pair.right_coord_y,
+        )
+    ):
+        return None
+    header_coord = mapping.get("header_coord")
+    semantic_notes = mapping.get("semantic_notes")
+    if (
+        not isinstance(header_coord, (list, tuple))
+        or len(header_coord) != 2
+        or not all(_is_native_finite_number(value) for value in header_coord)
+        or not isinstance(semantic_notes, list)
+        or not semantic_notes
+        or any(
+            not isinstance(note, str) or not note or note != note.strip()
+            for note in semantic_notes
+        )
+        or mapping.get("column_roles")
+        != {
+            "left": "virtual_row_number",
+            "middle": "virtual_row_number",
+            "right": "external_terminal_endpoint",
+        }
+    ):
+        return None
+    right_match = re.fullmatch(
+        rf"{re.escape(device_instance)}(?P<number>\d{{3,}})",
+        pair.right_value,
+        flags=re.IGNORECASE,
+    )
+    if right_match is None:
+        return None
+    return device_instance.upper(), pair.right_value.upper()
+
+
 def _is_authoritative_component_table_cross_diagram_endpoint_group(
     linked_pairs: list[Pair],
     all_pairs: list[Pair],
@@ -1680,7 +2194,11 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
     remains visible because it may represent a real same-sheet branch.
     """
 
-    if len(linked_pairs) != 2:
+    if (
+        len(linked_pairs) != 2
+        or any(not isinstance(pair.pair_id, str) or not pair.pair_id for pair in linked_pairs)
+        or len({pair.pair_id for pair in linked_pairs}) != len(linked_pairs)
+    ):
         return False
     component_pairs = [pair for pair in linked_pairs if pair.pair_kind == "component_mapping"]
     table_pairs = [pair for pair in linked_pairs if pair.pair_kind == "table_mapping"]
@@ -1688,16 +2206,36 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
         return False
     component_pair = component_pairs[0]
     table_pair = table_pairs[0]
+    scope_ids = (
+        component_pair.sheet_id,
+        table_pair.sheet_id,
+        component_pair.file_id,
+        table_pair.file_id,
+    )
     if (
-        component_pair.sheet_id == table_pair.sheet_id
-        or not str(component_pair.file_id or "").strip()
-        or not str(table_pair.file_id or "").strip()
-        or component_pair.file_id == table_pair.file_id
+        any(
+            not isinstance(scope_id, str)
+            or not scope_id
+            or scope_id != scope_id.strip()
+            for scope_id in scope_ids
+        )
+        or component_pair.sheet_id.casefold() == table_pair.sheet_id.casefold()
+        or component_pair.file_id.casefold() == table_pair.file_id.casefold()
     ):
         return False
-    if component_pair.status != "pass" or float(component_pair.confidence or 0.0) < 0.95:
+    if (
+        component_pair.status != "pass"
+        or not _is_native_finite_number(component_pair.confidence)
+        or component_pair.confidence < 0.95
+        or component_pair.confidence > 1.0
+    ):
         return False
-    if table_pair.status != "pass" or float(table_pair.confidence or 0.0) < 0.95:
+    if (
+        table_pair.status != "pass"
+        or not _is_native_finite_number(table_pair.confidence)
+        or table_pair.confidence < 0.95
+        or table_pair.confidence > 1.0
+    ):
         return False
     if any(str(pair.right_value or "") != str(shared_value or "") for pair in linked_pairs):
         return False
@@ -1707,7 +2245,16 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
         or str(evidence.get("recognition_mode") or "").startswith("geometry_owned_")
     )
     geometry_owned_identity = _authoritative_geometry_owned_component_identity(component_pair)
-    if geometry_signal:
+    endpoint_bridge_identity = _authoritative_strip_endpoint_bridge_identity(component_pair)
+    if endpoint_bridge_identity is not None:
+        table_identity = _authoritative_pluginless_backplate_endpoint_identity(table_pair)
+        if table_identity != (
+            f"{endpoint_bridge_identity[0]}N",
+            endpoint_bridge_identity[1],
+        ):
+            return False
+        component_identity = endpoint_bridge_identity
+    elif geometry_signal:
         component_identity = geometry_owned_identity
     else:
         component_identity = _authoritative_kk_component_identity(
@@ -1735,7 +2282,9 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
         if (
             pair.pair_kind == "component_mapping"
             and pair.status == "pass"
-            and float(pair.confidence or 0.0) >= 0.95
+            and _is_native_finite_number(pair.confidence)
+            and pair.confidence >= 0.95
+            and pair.confidence <= 1.0
             and (pair.evidence or {}).get("source") == "component_mapping"
             and _terminal_endpoint_identity(pair.left_value)
             == _terminal_endpoint_identity(shared_value)

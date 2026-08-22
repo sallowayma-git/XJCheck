@@ -445,6 +445,11 @@ def _pair(row: pd.Series) -> Pair:
         left_coord_y=_nullable_float(row.get("left_coord_y")),
         right_coord_x=_nullable_float(row.get("right_coord_x")),
         right_coord_y=_nullable_float(row.get("right_coord_y")),
+        pair_key=_nullable_str(row.get("pair_key")),
+        left_score=_nullable_float(row.get("left_score")),
+        right_score=_nullable_float(row.get("right_score")),
+        wire_score=_nullable_float(row.get("wire_score")),
+        ambiguity_gap=_nullable_float(row.get("ambiguity_gap")),
         pair_kind=_nullable_str(row.get("pair_kind")) or "ordinary_pair",
     )
 

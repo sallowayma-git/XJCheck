@@ -78,6 +78,11 @@ def _sample_frames() -> dict[str, pd.DataFrame]:
                     "left_coord_y": 20.0,
                     "right_coord_x": 40.0,
                     "right_coord_y": 20.0,
+                    "pair_key": "101->201",
+                    "left_score": 0.96,
+                    "right_score": 0.95,
+                    "wire_score": 0.94,
+                    "ambiguity_gap": 0.2,
                 }
             ]
         ),
@@ -161,6 +166,11 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
         assert [pair.pair_id for pair in pairs] == ["P0001"]
         assert pairs[0].left_text_id == "T0001"
         assert pairs[0].left_coord_x == 10.0
+        assert pairs[0].pair_key == "101->201"
+        assert pairs[0].left_score == 0.96
+        assert pairs[0].right_score == 0.95
+        assert pairs[0].wire_score == 0.94
+        assert pairs[0].ambiguity_gap == 0.2
         assert [candidate.candidate_id for candidate in terminal_candidates] == ["C0001"]
         assert terminal_candidates[0].text_insert_x == 10.0
         assert terminal_candidates[0].vertical_alignment_score == 1.0

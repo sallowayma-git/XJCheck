@@ -1,0 +1,48 @@
+# Progress
+
+- 2026-07-31: Started read-only investigation. Preserved existing root planning files and unrelated worktree changes.
+- 2026-07-31: Initial default subagent dispatch failed because inherited `ultra` reasoning is unsupported by the locked subagent model; will retry with explicit `low` reasoning.
+- 2026-07-31: Parallel read-only audits located the React result preview, Tauri/Python rendering pipeline, lifecycle/cancellation controls, layout constraints, and current test coverage.
+- 2026-07-31: Recorded preliminary conclusion that front-end-only pan is low-cost while drag-triggered backend rerender is high-cost.
+- 2026-07-31: Local `rg` verification was unavailable due to an access-denied launch error; switched to PowerShell searches.
+- 2026-07-31: Main-agent spot-check confirmed the React context gating, request cancellation, `<img>` error behavior, and payload normalization reported by parallel audits.
+- 2026-07-31: Verified that the backend filters content to a tight issue crop before emitting SVG; a front-end transform alone cannot reveal omitted neighboring geometry.
+- 2026-07-31: Verified data-URL cache busting is safe and that CAD coordinates are flattened into a fixed SVG viewport before reaching the client.
+- 2026-07-31: Verified sidecar process/thread behavior and the absence of a dedicated viewer dependency in the desktop package.
+- 2026-07-31: Verified context-key gating is intentional and covered only at helper level; actual SVG painting is not covered by the current desktop tests.
+- 2026-07-31: Existing desktop helper tests (16) and targeted Python preview tests (2) pass; packaged WebView image painting remains untested.
+- 2026-07-31: Configuration audit ruled out an obvious CSP/asset-scope block; recorded payload-shape and WebView-runtime candidates for follow-up.
+- 2026-07-31: Verified the Python CLI emits `preview_svg`/`preview_path` only, so normal responses choose the inline data-SVG branch; raw-path `preview_src` is not the standard failure mode.
+- 2026-07-31: Verified cache location and cleanup behavior; no retained preview SVGs were present inside the repository workspace.
+- 2026-07-31: Confirmed the local preview cache is absent and identified recent commits that touched result/preview lifecycle code for regression-oriented review.
+- 2026-07-31: A parallel two-command reread hit a Windows child-process access error; will use simple sequential reads.
+- 2026-07-31: Git history audit found no definite SVG-loss regression and narrowed runtime validation to session/context/ownership timing.
+- 2026-07-31: Completed assessment and recommendation. No product source files were changed; only scoped investigation records were added.
+- 2026-07-31: User authorized implementation with 1.8-2.3x backend context, downward-biased initial framing, bounded Pointer Events dragging, pointer capture, CSS transforms, and reset on issue changes.
+- 2026-07-31: Session catchup completed; existing unrelated audit/extraction worktree changes will be preserved.
+- 2026-07-31: Parallel exploration found that SQLite lightweight previews lack neighboring geometry and that current `<img>` layout has zero draggable overflow; implementation must address both, not only multiply the crop bbox.
+- 2026-07-31: Confirmed session compaction can delete all report artifacts immediately after storing summaries, making a persistent compact preview-geometry source necessary if compaction is the desktop default.
+- 2026-07-31: Verified `compact_after_store=True` is the default; surrounding preview geometry must survive outside the deleted session workspace.
+- 2026-07-31: Chosen implementation direction: persist minimal per-sheet preview geometry in SQLite, render lines/texts plus block insertion markers, expand/down-bias the focus extent, then add a 2.1x bounded front-end pan layer.
+- 2026-07-31: Began main-agent source review; full combined output was truncated, so remaining exact edit surfaces will be read in focused chunks.
+- 2026-07-31: Verified exact state-store write/load/purge/schema patterns for adding persistent per-sheet preview geometry.
+- 2026-07-31: Verified exact React state/effect/JSX/CSS/type surfaces and the standalone TypeScript helper-test pattern for bounded pan.
+- 2026-07-31: Located the exact App ref area and existing sidecar preview fixtures/tests for implementation and regression coverage.
+- 2026-07-31: Exact edit surfaces are confirmed; backend implementation phase started.
+- 2026-07-31: Added compressed per-run/per-sheet preview geometry storage, sidecar persistence before compaction, artifact/SQLite geometry loading, block markers, nearest-entity caps, 2.1x overscan metadata, and CAD-downward-biased extent expansion.
+- 2026-07-31: First backend regression run passed 13/15; one test needs the new block frame expectation, while one revealed missing page metadata in the artifact fallback and is under investigation.
+- 2026-07-31: Fixed artifact fallback ownership: only issues actually loaded from SQLite may enter the synthetic evidence-only path. The previously failing SVG metadata test now passes.
+- 2026-07-31: A combined test patch failed context verification without changing files; switching to smaller exact patches.
+- 2026-07-31: Added focused backend tests for downward 2.1x expansion, compressed geometry survival/purge, SQLite-only device/connection rendering, block markers, and updated artifact frame expectations/fixtures.
+- 2026-07-31: Backend regression suite passes 18/18; backend phase complete and front-end bounded drag phase started.
+- 2026-07-31: Added preview pan sizing/clamping helpers and tests, preview scale metadata types, React pointer capture handlers, resize-aware contain metrics, context/source reset, bounded CSS transforms, drag affordance, and native-drag suppression.
+- 2026-07-31: Front-end typecheck and lint pass. Helper tests passed 19/20; the only failure is a negative-zero normalization edge case.
+- 2026-07-31: Front-end helper tests now pass 20/20. Backend rerun passed 17/18; the lone failure was an invalid assertion against a summary-only fixture, not product behavior.
+- 2026-07-31: Independent review found one critical pagination regression plus bounded-storage, schema-version, stale-metrics, and keyboard-accessibility gaps; remediation started before final verification.
+- 2026-07-31：已修复独立复核发现的 `list_issue_summaries_page` 返回值错位问题，并为持久化预览几何增加 schema version 写入/读取校验。
+- 2026-07-31：尝试使用 `rg` 定位预览代码时再次遇到 WindowsApps 内置 `rg.exe` 拒绝访问；后续继续使用 PowerShell `Select-String`/`Get-Content`。
+- 2026-07-31：持久化预览几何增加逐图纸实体上限和按空间顺序的确定性均匀采样；同时避免在用户切到关联图纸时错误沿用原问题图纸的坐标证据。
+- 2026-07-31：前端拖动补齐切换上下文时同步清空旧尺寸、方向键/Home 键操作和焦点样式；Pointer Events、pointer capture、CSS transform 与边界限制实现完成，进入回归验证。
+- 2026-07-31：首轮回归通过（后端 18 项、前端 20 项、TypeScript check）；lint 发现 `useLayoutEffect` 缺少 `previewViewportScale` 依赖，已补齐并待复跑。
+- 2026-07-31：lint 与 TypeScript 复跑无告警；预览几何读取对损坏/不支持的 schema version 安全降级，并新增资源上限的确定性采样测试。
+- 2026-07-31：最终验证完成：完整 Python 单元测试 `1329 passed, 1 skipped`，前端测试 `20 passed`，TypeScript、lint、生产构建和 `git diff --check` 全部通过。

@@ -961,7 +961,11 @@ def _nearest_supporting_vertical_group(
 
 
 def _clean_external_endpoint(value: str | None) -> str:
-    return str(value or "").strip().lstrip("&").strip()
+    # ``&`` is a decorative boundary marker in the source drawings.  Trim it
+    # only at the boundaries after the endpoint text has already been selected
+    # by the geometry/row-scoped caller; interior ``&`` remains invalidated by
+    # the endpoint grammar below.  Keep the original text in pair evidence.
+    return str(value or "").strip().strip("&").strip()
 
 
 def _clean_small_port_external_endpoint(value: str | None) -> str:

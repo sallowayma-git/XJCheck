@@ -28,6 +28,7 @@ _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN = re.compile(
     r"^\d+(?:XD|YD|LD)\d+$",
     re.IGNORECASE,
 )
+_SCHEMATIC_UD_ENDPOINT_PATTERN = re.compile(r"^\d+UD\d+$", re.IGNORECASE)
 _SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN = re.compile(
     r"^\d+Q\d+D\d+(?:~\d+)?$",
     re.IGNORECASE,
@@ -39,6 +40,7 @@ _SCHEMATIC_TERMINAL_RANGE_PATTERN = re.compile(
 _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
     r"^(?:"
     r"\d+(?:XD|YD|LD)\d+"
+    r"|\d+UD\d+"
     r"|\d+Q\d+D\d+(?:~\d+)?"
     r"|[13]-21[A-Z]{2,4}\d{1,3}"
     r"|\d+-\d+(?:[A-Z]\d+[A-Z]\d+|[A-Z]{2,4}\d+)(?:~\d+(?:[A-Z]\d+)?)?"
@@ -47,6 +49,9 @@ _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
 )
 _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_X = 4.0
 _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_MAX_DISTANCE_Y = 4.0
+# Pair candidates weight each endpoint by 0.45. Requiring this gap keeps a
+# competing numeric peer from clearing the Pair-level 0.08 ambiguity gate.
+_SCHEMATIC_UD_NUMERIC_MIN_SCORE_GAP = 0.18
 _SCHEMATIC_Q_DEVICE_ENDPOINT_MAX_LINE_LENGTH = 50.0
 _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MAX_ROW_DELTA = 6.0
 _SCHEMATIC_Q_DEVICE_SHARED_ANCHOR_MIN_OVERLAP_RATIO = 0.35
@@ -405,6 +410,7 @@ def build_terminal_candidates(
     _apply_terminal_row_number_local_numeric_filter(results, group_map, sheet_map)
     _apply_terminal_semantic_row_local_numeric_filter(results, group_map, sheet_map)
     _prefer_derived_numeric_on_vertical_component_page(results, group_map, sheet_map)
+    _apply_schematic_ud_numeric_peer_contract(results, group_map, sheet_map, config)
     _assign_candidate_ranks(results)
     return results
 
@@ -1048,6 +1054,68 @@ def _prefer_q_device_mapping_numeric_anchor(
             candidate.channel_detail = reason
 
 
+def _apply_schematic_ud_numeric_peer_contract(
+    candidates: list[TerminalCandidate],
+    group_map: dict[str, LineGroup],
+    sheet_map: dict[str, SheetRecord],
+    config: dict,
+) -> None:
+    high_threshold = float(config.get("confidence", {}).get("high_threshold", 0.92))
+    by_group: dict[str, list[TerminalCandidate]] = defaultdict(list)
+    for candidate in candidates:
+        by_group[candidate.line_group_id].append(candidate)
+
+    for candidate in candidates:
+        if (
+            candidate.status != "accepted"
+            or candidate.channel != _CHANNEL_WIRE_LOGIC_ENDPOINT
+            or candidate.channel_detail != "schematic_wire_logic_endpoint"
+            or not _SCHEMATIC_UD_ENDPOINT_PATTERN.fullmatch((candidate.value or "").strip())
+        ):
+            continue
+
+        group = group_map.get(candidate.line_group_id)
+        sheet = sheet_map.get(candidate.sheet_id)
+        reason: str | None = None
+        if (
+            group is None
+            or sheet is None
+            or sheet.sheet_category != "二次原理图"
+            or group.orientation != "horizontal"
+        ):
+            reason = "schematic_ud_endpoint_out_of_scope"
+        else:
+            numeric_by_text: dict[tuple[str, str], TerminalCandidate] = {}
+            for peer in by_group[candidate.line_group_id]:
+                if (
+                    peer.status != "accepted"
+                    or peer.side == candidate.side
+                    or peer.channel != _CHANNEL_TERMINAL_NUMERIC
+                    or not peer.value
+                ):
+                    continue
+                key = (peer.text_id, peer.value)
+                previous = numeric_by_text.get(key)
+                if previous is None or peer.score > previous.score:
+                    numeric_by_text[key] = peer
+            numeric_peers = sorted(numeric_by_text.values(), key=lambda item: item.score, reverse=True)
+            if not numeric_peers:
+                reason = "schematic_ud_missing_numeric_peer"
+            elif numeric_peers[0].score < high_threshold:
+                reason = "schematic_ud_low_confidence_numeric_peer"
+            elif (
+                len(numeric_peers) > 1
+                and numeric_peers[0].score - numeric_peers[1].score
+                < _SCHEMATIC_UD_NUMERIC_MIN_SCORE_GAP
+            ):
+                reason = "schematic_ud_ambiguous_numeric_peer"
+
+        if reason is not None:
+            _reject_candidate(candidate, reason)
+            candidate.score = 0.0
+            candidate.channel = _CHANNEL_NOISE
+
+
 def _near_overlapping_horizontal_groups(first: LineGroup, second: LineGroup) -> bool:
     if first.orientation != "horizontal" or second.orientation != "horizontal":
         return False
@@ -1412,6 +1480,8 @@ def _candidate_wire_logic_endpoint_value(
     if orientation not in {"horizontal", _ORIENTATION_GRID}:
         return None
     normalized = text.normalized_text.strip()
+    if _SCHEMATIC_UD_ENDPOINT_PATTERN.fullmatch(normalized) and orientation != "horizontal":
+        return None
     if not _WIRE_LOGIC_ENDPOINT_PATTERN.fullmatch(normalized):
         return None
     return normalized
@@ -1421,6 +1491,7 @@ def _compact_device_endpoint_out_of_row(value: str, dx: float, dy: float) -> boo
     normalized = value.strip()
     if not (
         _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN.fullmatch(normalized)
+        or _SCHEMATIC_UD_ENDPOINT_PATTERN.fullmatch(normalized)
         or _SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN.fullmatch(normalized)
     ):
         return False

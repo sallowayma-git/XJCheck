@@ -4,6 +4,7 @@ import pytest
 
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.rules import build_issues
+from dwg_audit.audit.rules import _is_authoritative_component_table_cross_diagram_endpoint_group
 from dwg_audit.audit.rules import _is_authoritative_terminal_header_reciprocal_physical_cluster_group
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -357,6 +358,175 @@ def _phase178_strip_component_pair(
     )
 
 
+def _phase195_strip_endpoint_bridge_pair(
+    pair_id: str = "PCB",
+    *,
+    prefix: str = "3-2",
+    sheet_id: str = "S1",
+    file_id: str = "F1",
+) -> Pair:
+    top_endpoint = f"{prefix}ZK-4"
+    bottom_endpoint = f"{prefix}n221"
+    evidence = {
+        "source": "component_mapping",
+        "pair_kind": "component_mapping",
+        "component_submode": "strip_two_port_endpoint_bridge",
+        "filename": "component.dwg",
+        "sheet_no": "1",
+        "sheet_order": 1,
+        "sheet_title": "TERMINAL BLOCKS WIRING",
+        "component_block_name": "GENERIC-TWO-PORT",
+        "top_port": "1",
+        "top_port_text_id": f"TOP-PORT-{pair_id}",
+        "top_port_coord": [15.0, 15.0],
+        "bottom_port": "2",
+        "bottom_port_text_id": f"BOTTOM-PORT-{pair_id}",
+        "bottom_port_coord": [15.0, 5.0],
+        "top_endpoint": top_endpoint,
+        "top_endpoint_raw": top_endpoint,
+        "top_endpoint_text_id": f"TOP-END-{pair_id}",
+        "top_endpoint_coord": [10.0, 20.0],
+        "bottom_endpoint": bottom_endpoint,
+        "bottom_endpoint_raw": bottom_endpoint,
+        "bottom_endpoint_text_id": f"BOTTOM-END-{pair_id}",
+        "bottom_endpoint_coord": [10.0, 0.0],
+        "logical_endpoint": top_endpoint,
+        "external_endpoint": bottom_endpoint,
+        "line_group_id": f"G-{pair_id}",
+        "supporting_line_ids": [f"L-{pair_id}"],
+        "line_orientation": "strip_two_port_endpoint_bridge_vertical",
+        "left_side_label": "top_endpoint",
+        "right_side_label": "bottom_endpoint",
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_id,
+        line_group_id=f"G-{pair_id}",
+        sheet_id=sheet_id,
+        file_id=file_id,
+        selected_pair_candidate_id=None,
+        left_value=top_endpoint,
+        right_value=bottom_endpoint,
+        confidence=0.95,
+        status="pass",
+        rationale="strict endpoint bridge",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=f"TOP-END-{pair_id}",
+        right_text_id=f"BOTTOM-END-{pair_id}",
+        left_coord_x=10.0,
+        left_coord_y=20.0,
+        right_coord_x=10.0,
+        right_coord_y=0.0,
+        pair_key=f"{top_endpoint}->{bottom_endpoint}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="component_mapping",
+    )
+
+
+def _phase195_pluginless_backplate_pair(
+    pair_id: str = "PT",
+    *,
+    prefix: str = "3-2",
+    sheet_id: str = "S2",
+    file_id: str = "F2",
+) -> Pair:
+    device_instance = f"{prefix}n"
+    row_number = 23
+    row_text = "23"
+    header_prefix = "NCZ344A"
+    logical_endpoint = f"{device_instance}/{header_prefix}-{row_text}"
+    right_value = f"{device_instance}221"
+    evidence = {
+        "source": "table_mapping",
+        "pair_kind": "table_mapping",
+        "filename": "backplate.dwg",
+        "sheet_no": "2",
+        "sheet_order": 2,
+        "sheet_title": "REAR WIRING",
+        "line_orientation": "table",
+        "row_band_id": None,
+        "left_side_label": "logical_endpoint",
+        "right_side_label": "right_endpoint",
+        "table_mapping": {
+            "mapping_mode": "backplate_virtual_table",
+            "sheet_id": sheet_id,
+            "filename": "backplate.dwg",
+            "sheet_no": "2",
+            "source_block_name": "GENERIC-BACKPLATE",
+            "header_prefix": header_prefix,
+            "raw_header_text": f"{header_prefix}(optional)",
+            "header_text_id": f"HEADER-{pair_id}",
+            "header_coord": [60.0, 80.0],
+            "row_number": row_number,
+            "raw_row_number": row_text,
+            "middle_value": row_text,
+            "middle_text_id": f"MIDDLE-{pair_id}",
+            "middle_coord": [60.0, 50.0],
+            "logical_endpoint": logical_endpoint,
+            "left_value": None,
+            "right_value": right_value,
+            "left_text_id": None,
+            "right_text_id": f"RIGHT-{pair_id}",
+            "left_coord": None,
+            "right_coord": [40.0, 50.0],
+            "row_number_sequence_valid": True,
+            "semantic_notes": ["output contact"],
+            "composite_device_instance": device_instance,
+            "plugin_slot": None,
+            "plugin_title": None,
+            "column_key": None,
+            "column_roles": {
+                "left": "virtual_row_number",
+                "middle": "virtual_row_number",
+                "right": "external_terminal_endpoint",
+            },
+        },
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_id,
+        line_group_id=None,
+        sheet_id=sheet_id,
+        file_id=file_id,
+        selected_pair_candidate_id=None,
+        left_value=logical_endpoint,
+        right_value=right_value,
+        confidence=0.95,
+        status="pass",
+        rationale="strict pluginless backplate row",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=f"MIDDLE-{pair_id}",
+        right_text_id=f"RIGHT-{pair_id}",
+        left_coord_x=60.0,
+        left_coord_y=50.0,
+        right_coord_x=40.0,
+        right_coord_y=50.0,
+        pair_key=f"{logical_endpoint}->{right_value}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="table_mapping",
+    )
+
+
 def _phase184_geometry_owned_component_pair(
     pair_id: str,
     sheet_id: str,
@@ -483,6 +653,260 @@ def test_rules_accept_exact_schematic_kk_component_cross_diagram_duplicate() -> 
     issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
 
     assert not any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+
+def _phase195_small_port_component_pair(
+    pair_id: str,
+    sheet_id: str,
+    logical_endpoint: str,
+    endpoint: str,
+    *,
+    overrides: dict[str, object] | None = None,
+) -> Pair:
+    body, port = logical_endpoint.rsplit("-", 1)
+    evidence = {
+        "source": "component_mapping",
+        "component_submode": "small_port_box_component",
+        "component_body": body,
+        "component_body_text_id": f"BODY-{pair_id}",
+        "component_port": port,
+        "component_port_text_id": f"PORT-{pair_id}",
+        "component_block_id": f"BLOCK-{pair_id}",
+        "component_block_name": "KK1P",
+        "component_instance_bbox": [0.0, 0.0, 10.0, 20.0],
+        "external_endpoint": endpoint,
+        "external_endpoint_text_id": f"END-{pair_id}",
+        "logical_endpoint": logical_endpoint,
+        "endpoint_side": "top",
+        "line_group_id": f"LG-{pair_id}",
+        "supporting_line_ids": [f"LINE-{pair_id}"],
+    }
+    for key, value in (overrides or {}).items():
+        evidence[key] = value
+    return Pair(
+        pair_id,
+        evidence["line_group_id"],
+        sheet_id,
+        sheet_id,
+        None,
+        logical_endpoint,
+        endpoint,
+        0.97,
+        "pass",
+        "small port component",
+        [],
+        "high",
+        evidence,
+        left_text_id=evidence["component_port_text_id"],
+        right_text_id=evidence["external_endpoint_text_id"],
+        pair_kind="component_mapping",
+    )
+
+
+def test_rules_accept_exact_schematic_small_port_component_cross_diagram_duplicate() -> None:
+    pairs = [
+        _phase177_schematic_inline_pair("PS", "S1", "AK-1", "JD1"),
+        _phase195_small_port_component_pair("PK", "S2", "AK-1", "JD1"),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "04 原理图.dwg", 4, "04", "SCHEMATIC", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "11 元件图.dwg", 11, "11", "ACCESSORIES", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"component_submode": "unknown_component"},
+        {"component_block_name": None},
+        {"line_group_id": None},
+        {"supporting_line_ids": []},
+        {"endpoint_side": "diagonal"},
+    ],
+)
+def test_rules_keep_schematic_small_port_duplicate_visible_without_complete_identity(
+    overrides: dict[str, object],
+) -> None:
+    pairs = [
+        _phase177_schematic_inline_pair("PS", "S1", "AK-1", "JD1"),
+        _phase195_small_port_component_pair("PK", "S2", "AK-1", "JD1", overrides=overrides),
+    ]
+    sheets = [
+        SheetRecord("S1", "S1", "04 原理图.dwg", 4, "04", "SCHEMATIC", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "S2", "11 元件图.dwg", 11, "11", "ACCESSORIES", "元件接线图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+
+def _phase195_same_sheet_kk_small_alias_pair(
+    pair_id: str,
+    submode: str,
+    body: str,
+    port: str,
+    endpoint: str,
+    *,
+    body_text_id: str,
+    port_text_id: str,
+    endpoint_text_id: str,
+    overrides: dict[str, object] | None = None,
+) -> Pair:
+    evidence: dict[str, object] = {
+        "source": "component_mapping",
+        "component_submode": submode,
+        "component_body": body,
+        "component_body_text_id": body_text_id,
+        "component_body_coord": [220.0, 280.0],
+        "component_port": port,
+        "component_port_text_id": port_text_id,
+        "component_port_coord": [200.0, 260.0],
+        "component_block_id": "B1022",
+        "component_block_name": "KK2P",
+        "component_block_coord": [207.5, 250.0],
+        "component_instance_bbox": [193.0, 258.0, 224.0, 279.0],
+        "external_endpoint": endpoint,
+        "external_endpoint_raw": f"& {endpoint}",
+        "external_endpoint_text_id": endpoint_text_id,
+        "external_endpoint_coord": [198.0, 267.0],
+        "logical_endpoint": f"{body}-{port}",
+        "endpoint_side": "top",
+        "line_group_id": "GC0042",
+        "supporting_line_ids": ["L4061", "L4063"],
+    }
+    evidence.update(overrides or {})
+    return Pair(
+        pair_id,
+        "GC0042",
+        "S0018",
+        "F0018",
+        None,
+        evidence["logical_endpoint"],
+        endpoint,
+        0.95,
+        "pass",
+        "component mapping",
+        [],
+        "high",
+        evidence,
+        left_text_id=port_text_id,
+        right_text_id=endpoint_text_id,
+        left_coord_x=200.0,
+        left_coord_y=260.0,
+        right_coord_x=198.0,
+        right_coord_y=267.0,
+        pair_kind="component_mapping",
+    )
+
+
+def _phase195_same_sheet_kk_small_alias_pairs(
+    *,
+    kk_overrides: dict[str, object] | None = None,
+    small_overrides: dict[str, object] | None = None,
+    port: str = "1",
+    endpoint: str = "JD8",
+) -> list[Pair]:
+    port_text_id = "T2850" if port == "1" else "T2851"
+    endpoint_text_id = "T3048" if endpoint == "JD8" else "T3050"
+    return [
+        _phase195_same_sheet_kk_small_alias_pair(
+            "PCK",
+            "kk_multi_port_component",
+            "2-1n",
+            port,
+            endpoint,
+            body_text_id="T2768",
+            port_text_id=port_text_id,
+            endpoint_text_id=endpoint_text_id,
+            overrides=kk_overrides,
+        ),
+        _phase195_same_sheet_kk_small_alias_pair(
+            "PCS",
+            "small_port_box_component",
+            "KZKK",
+            port,
+            endpoint,
+            body_text_id="T2855",
+            port_text_id=port_text_id,
+            endpoint_text_id=endpoint_text_id,
+            overrides=small_overrides,
+        ),
+    ]
+
+
+def test_rules_accept_same_sheet_kk_small_physical_alias_without_union() -> None:
+    pairs = _phase195_same_sheet_kk_small_alias_pairs()
+    sheets = [
+        SheetRecord(
+            "S0018", "F0018", "18 元件接线图1.dwg", 18, "18", "TERMINAL BLOCKS WIRING",
+            "元件接线图", "supplemental", "filename", True,
+        )
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert issues == []
+    assert not any(issue.rule_id == "R-DUPLICATE-PAIR" for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "kk_overrides,small_overrides",
+    [
+        ({"component_block_id": "OTHER"}, None),
+        (None, {"component_block_name": "KK3P"}),
+        (None, {"component_port_text_id": "OTHER"}),
+        (None, {"external_endpoint_coord": [199.0, 267.0]}),
+        (None, {"line_group_id": "OTHER"}),
+        (None, {"supporting_line_ids": []}),
+        (None, {"component_instance_bbox": None}),
+        (None, {"endpoint_side": "diagonal"}),
+    ],
+)
+def test_rules_keep_same_sheet_kk_small_alias_visible_without_complete_provenance(
+    kk_overrides: dict[str, object] | None,
+    small_overrides: dict[str, object] | None,
+) -> None:
+    pairs = _phase195_same_sheet_kk_small_alias_pairs(
+        kk_overrides=kk_overrides,
+        small_overrides=small_overrides,
+    )
+    sheets = [
+        SheetRecord(
+            "S0018", "F0018", "18 元件接线图1.dwg", 18, "18", "TERMINAL BLOCKS WIRING",
+            "元件接线图", "supplemental", "filename", True,
+        )
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_same_sheet_kk_small_alias_when_port_anchor_differs() -> None:
+    pairs = _phase195_same_sheet_kk_small_alias_pairs(port="1", endpoint="JD8")
+    pairs[1].evidence["component_port"] = "3"
+    pairs[1].left_value = "KZKK-3"
+    pairs[1].left_text_id = "T2851"
+    pairs[1].evidence["component_port_text_id"] = "T2851"
+    pairs[1].evidence["component_port_coord"] = [215.0, 260.0]
+    pairs[1].left_coord_x = 215.0
+    pairs[1].left_coord_y = 260.0
+
+    sheets = [
+        SheetRecord(
+            "S0018", "F0018", "18 元件接线图1.dwg", 18, "18", "TERMINAL BLOCKS WIRING",
+            "元件接线图", "supplemental", "filename", True,
+        )
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
 
 
 def test_rules_accept_schematic_inline_backplate_table_endpoint_join() -> None:
@@ -1064,6 +1488,128 @@ def test_rules_accept_complete_backplate_virtual_endpoint_bridge() -> None:
     issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
 
     assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_accept_complete_strip_endpoint_bridge_backplate_chain() -> None:
+    pairs = [
+        _phase195_strip_endpoint_bridge_pair(),
+        _phase195_pluginless_backplate_pair(),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "component.dwg", 1, "1", "TERMINALS", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "backplate.dwg", 2, "2", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+def test_rules_keep_incomplete_strip_endpoint_bridge_backplate_chains_visible() -> None:
+    def fresh_pairs() -> list[Pair]:
+        return [
+            _phase195_strip_endpoint_bridge_pair(),
+            _phase195_pluginless_backplate_pair(),
+        ]
+
+    variants: dict[str, list[Pair]] = {}
+
+    pairs = fresh_pairs()
+    pairs[0].evidence["supporting_line_ids"] = []
+    variants["missing_support_line"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[0].evidence["top_endpoint_coord"] = [10.0, 21.0]
+    variants["component_coordinate_mismatch"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[0].evidence["score_breakdown"]["wire_score"] = 0.9
+    variants["component_score_mismatch"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[0].left_value = "1-2ZK-4"
+    pairs[0].evidence["top_endpoint"] = "1-2ZK-4"
+    pairs[0].evidence["top_endpoint_raw"] = "1-2ZK-4"
+    pairs[0].evidence["logical_endpoint"] = "1-2ZK-4"
+    variants["component_prefix_mismatch"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].evidence["table_mapping"]["header_coord"] = None
+    variants["missing_header_coordinate"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].evidence["table_mapping"]["right_coord"] = [41.0, 50.0]
+    variants["table_coordinate_mismatch"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].evidence["table_mapping"]["raw_row_number"] = "023"
+    variants["table_row_rendering_mismatch"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].evidence["table_mapping"]["composite_device_instance"] = "1-2n"
+    variants["table_device_scope_mismatch"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].evidence["table_mapping"]["semantic_notes"] = []
+    variants["missing_table_semantics"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].confidence = float("nan")
+    variants["non_finite_table_confidence"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].file_id = "F1"
+    variants["same_file"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].file_id = " f1 "
+    variants["noncanonical_same_file"] = pairs
+
+    pairs = fresh_pairs()
+    pairs[1].pair_id = pairs[0].pair_id
+    variants["duplicate_pair_id"] = pairs
+
+    pairs = fresh_pairs()
+    pairs.append(_phase195_strip_endpoint_bridge_pair("PCB-EXTRA"))
+    variants["extra_pair"] = pairs
+
+    for name, pairs in variants.items():
+        assert not _is_authoritative_component_table_cross_diagram_endpoint_group(
+            pairs,
+            pairs,
+            shared_value="3-2n221",
+        ), name
+
+    review_pairs = variants["table_row_rendering_mismatch"]
+    sheets = [
+        SheetRecord("S1", "F1", "component.dwg", 1, "1", "TERMINALS", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "backplate.dwg", 2, "2", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+    issues = build_issues(review_pairs, [], sheets, DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
+
+
+@pytest.mark.parametrize("confidence", [0.9, float("nan")])
+def test_rules_keep_low_confidence_strip_endpoint_bridges_visible(
+    confidence: float,
+) -> None:
+    pairs = [
+        _phase195_strip_endpoint_bridge_pair(),
+        _phase195_pluginless_backplate_pair(),
+    ]
+    pairs[0].confidence = confidence
+    sheets = [
+        SheetRecord("S1", "F1", "component.dwg", 1, "1", "TERMINALS", "元件接线图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "backplate.dwg", 2, "2", "REAR WIRING", "背板图", "supplemental", "filename", True),
+    ]
+
+    issues = build_issues(pairs, [], sheets, DEFAULT_CONFIG)
+
+    assert any(
+        issue.rule_id == "R-PAIR-LOW-CONFIDENCE"
+        and issue.primary_pair_id == "PCB"
+        for issue in issues
+    )
 
 
 def test_rules_accept_zero_padded_generic_backplate_virtual_endpoint_bridge() -> None:
