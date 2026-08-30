@@ -597,12 +597,7 @@
         "tests/unit/test_series_chains.py"
       ],
       "bounded_replay_roots": [
-        ".tmp/tsb_takeover_p016_final",
-        ".tmp/tsb_takeover_p017_final",
-        ".tmp/tsb_takeover_p018_final",
-        ".tmp/tsb_takeover_p019_final",
-        ".tmp/tsb_takeover_p020_final",
-        ".tmp/tsb_takeover_p021_final"
+        ".tmp/tsb_full_replay"
       ],
       "identity_delta": {
         "formal_projects": 49,
@@ -638,7 +633,8 @@
         "compileall": "pass",
         "git_diff_check": "pass (CRLF warnings only)",
         "corpus_census": "detector fires only on the 11 known TSB sheets in p016-p021; zero other projects affected",
-        "visual_adversarial_audit": "6 strip crops read visually across p016/p017/p018/p020/p021 - all match extraction exactly, including the single-sided row skip (p017 TF1 1I1D4* right-only row unpaired); 5 random control component pages (p005/p006/p008/p011/p012) fire 0 strips; pin-block INSERT count equals detected strips on all 11 TSB sheets (12/4/16/5); 7 grid-letter label thefts recovered (grammar gate moved before pairing), zero dropped rows remain"
+        "visual_adversarial_audit": "6 strip crops read visually across p016/p017/p018/p020/p021 - all match extraction exactly, including the single-sided row skip (p017 TF1 1I1D4* right-only row unpaired); 5 random control component pages (p005/p006/p008/p011/p012) fire 0 strips; pin-block INSERT count equals detected strips on all 11 TSB sheets (12/4/16/5); 7 grid-letter label thefts recovered (grammar gate moved before pairing), zero dropped rows remain",
+        "full_corpus_replay": "49/49 projects replayed with the new code: 43 non-TSB projects issue-identical to baseline (0 strips, 0 chains), 6 TSB projects 214->4 with 425 pairs and 40 chains; corpus issues 297->87. p042 initially showed one transient DWG conversion failure (R-DATA-INCOMPLETE-EXTRACTION), clean retry reproduced the baseline 9->9; removed from the total."
       },
       "recoverable_errors": [
         "first detector run detected 0 strips on p016-p019/p021: instance-label gap cap 3.0 pitches rejected the taller label rows (3.47-3.77 pitches) used on 元件接线图3/4 pages; raised to 4.0 pitches (inter-strip spacing ~31 units keeps the window unambiguous)",
@@ -661,9 +657,13 @@
   ],
   "current": {
     "cycle_id": "195-14",
-    "state": "AUDIT_CLOSED_AND_PUSHED",
-    "pushed_commit": "f51b26c",
-    "audit": "three-subagent audit passed (full-chain diff / visual reading / cross-domain adversarial); hardening applied",
-    "next": "full 49-project replay for the new formal baseline, then temp-artifact cleanup"
+    "state": "BASELINE_REBASED_AND_PUSHED",
+    "pushed_commits": [
+      "f51b26c",
+      "858c723"
+    ],
+    "formal_baseline": ".tmp/tsb_full_replay (supersedes .tmp/phase195_formal_full_fresh4; audit-layer history remains in .tmp/phase195_formal_full_audit5)",
+    "corpus_issue_count": 87,
+    "next": "continue the loop with the p012/p013 alphanumeric-designator cluster"
   }
 }
