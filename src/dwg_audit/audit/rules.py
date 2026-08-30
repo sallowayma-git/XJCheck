@@ -12,6 +12,7 @@ from dwg_audit.audit.rule_base import RuleContext
 from dwg_audit.audit.issue_triage import classify_and_group_issues
 from dwg_audit.audit.rule_base import cluster_issues
 from dwg_audit.audit.rule_base import select_rules
+from dwg_audit.audit.series_chains import is_cross_view_terminal_series_chain
 from dwg_audit.domain.models import Issue
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -848,6 +849,11 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
             first = linked_pairs[0]
+            if is_cross_view_terminal_series_chain(linked_pairs):
+                # Producer-owned series junction (wire -> terminal -> component
+                # port); the chain auditor owns this group and records it in
+                # series_chains.json, so it is not a many-to-one conflict.
+                continue
             if _is_page_local_numeric_three_column_many_to_one_group(
                 linked_pairs,
                 right_value,

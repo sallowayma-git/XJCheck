@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from dataclasses import dataclass
+
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -367,6 +369,457 @@ def extract_small_port_box_component_pairs(
                     )
                 )
     return pairs, consumed_group_ids
+
+
+_TERMINAL_STRIP_PIN_PATTERN = re.compile(r"^\d{1,3}$")
+_TERMINAL_STRIP_INSTANCE_LABEL_PATTERN = re.compile(r"^[A-Za-z]{1,6}\d*$")
+_TERMINAL_STRIP_DECORATION_CLEAN_PATTERN = re.compile(r"^[&*]\s*|\s*[&*]$")
+_TERMINAL_STRIP_MIN_PIN_ROWS = 8
+_TERMINAL_STRIP_PIN_COLUMN_X_TOL = 2.5
+_TERMINAL_STRIP_PIN_COLUMN_SPLIT_Y_GAP = 12.0
+_TERMINAL_STRIP_PITCH_MIN = 2.5
+_TERMINAL_STRIP_PITCH_MAX = 8.0
+_TERMINAL_STRIP_PITCH_UNIFORM_TOL = 0.2
+_TERMINAL_STRIP_COLUMN_GAP_MIN = 6.0
+_TERMINAL_STRIP_COLUMN_GAP_MAX = 14.0
+_TERMINAL_STRIP_ROW_ALIGN_TOL = 1.0
+_TERMINAL_STRIP_INSTANCE_LABEL_MIN_PITCHES = 0.5
+_TERMINAL_STRIP_INSTANCE_LABEL_MAX_PITCHES = 4.0
+_TERMINAL_STRIP_FLANK_X_TOL = 4.0
+_TERMINAL_STRIP_FLANK_COVER_TOL = 1.0
+_TERMINAL_STRIP_LABEL_Y_TOL = 1.5
+_TERMINAL_STRIP_LABEL_X_REACH = 25.0
+_TERMINAL_STRIP_PIN_RADIUS = 1.0
+
+
+def extract_terminal_strip_lattice_pairs(
+    pages: list[SheetRecord],
+    texts: list[TextItem],
+    line_groups: list[LineGroup],
+    *,
+    pair_id_factory: IdFactory | None = None,
+) -> tuple[list[Pair], set[str]]:
+    """Recover terminal-strip row mappings on component diagrams.
+
+    Detection is structural: a two-column numeric pin lattice with uniform row
+    pitch, an instance label above the lattice and flanking vertical border
+    groups. Block names are observed as evidence only, never used as a gate,
+    so renamed strip blocks with the same structure are recognized equally.
+    """
+
+    pair_ids = pair_id_factory or IdFactory("PCM")
+    texts_by_sheet: dict[str, list[TextItem]] = {}
+    for text in texts:
+        texts_by_sheet.setdefault(text.sheet_id, []).append(text)
+    groups_by_sheet: dict[str, list[LineGroup]] = {}
+    for group in line_groups:
+        groups_by_sheet.setdefault(group.sheet_id, []).append(group)
+
+    pairs: list[Pair] = []
+    consumed_group_ids: set[str] = set()
+    for page in pages:
+        if not _supports_strip_two_port_component(page):
+            continue
+        sheet_texts = texts_by_sheet.get(page.sheet_id, [])
+        sheet_groups = groups_by_sheet.get(page.sheet_id, [])
+        strips = _detect_terminal_strips(sheet_texts, sheet_groups)
+        for strip in strips:
+            consumed_group_ids.update(group.line_group_id for group in strip.flank_groups)
+            for left_label, right_label in strip.paired_row_labels:
+                left_value = _clean_terminal_strip_label_value(left_label.normalized_text)
+                right_value = _clean_terminal_strip_label_value(right_label.normalized_text)
+                if not _is_valid_external_endpoint(left_value):
+                    continue
+                if not _is_valid_external_endpoint(right_value):
+                    continue
+                pairs.append(
+                    _build_terminal_strip_pair(
+                        page=page,
+                        strip=strip,
+                        left_label=left_label,
+                        right_label=right_label,
+                        left_value=left_value,
+                        right_value=right_value,
+                        pair_ids=pair_ids,
+                    )
+                )
+    return pairs, consumed_group_ids
+
+
+@dataclass(slots=True)
+class _TerminalStrip:
+    instance_label: TextItem | None
+    block_names: set[str]
+    pin_rows: list[tuple[TextItem, TextItem]]
+    left_edge_x: float
+    right_edge_x: float
+    top_y: float
+    bottom_y: float
+    pitch: float
+    flank_groups: list[LineGroup]
+    paired_row_labels: list[tuple[TextItem, TextItem]]
+
+
+def _detect_terminal_strips(
+    sheet_texts: list[TextItem],
+    sheet_groups: list[LineGroup],
+) -> list[_TerminalStrip]:
+    sides = _terminal_strip_pin_sides(sheet_texts)
+    strips: list[_TerminalStrip] = []
+    used_side_ids: set[int] = set()
+    for left_index, left_side in enumerate(sides):
+        if left_index in used_side_ids:
+            continue
+        right_index = _matching_terminal_strip_side(sides, left_side, used_side_ids, left_index)
+        if right_index is None:
+            continue
+        right_side = sides[right_index]
+        left_edge_x = min(text.bbox_min_x for text in left_side) - _TERMINAL_STRIP_PIN_RADIUS
+        right_edge_x = max(text.bbox_max_x for text in right_side) + _TERMINAL_STRIP_PIN_RADIUS
+        top_y = max(max(text.insert_y for text in left_side), max(text.insert_y for text in right_side))
+        bottom_y = min(min(text.insert_y for text in left_side), min(text.insert_y for text in right_side))
+        pitch = _terminal_strip_row_pitch([text.insert_y for text in left_side])
+        instance_label = _terminal_strip_instance_label(sheet_texts, left_side, right_side, top_y, pitch)
+        if instance_label is None:
+            continue
+        flank_groups = _terminal_strip_flank_groups(
+            sheet_groups,
+            left_edge_x=left_edge_x,
+            right_edge_x=right_edge_x,
+            top_y=top_y,
+            bottom_y=bottom_y,
+        )
+        left_frame_x = [
+            group.start_x
+            for group in flank_groups
+            if group.start_x < (left_edge_x + right_edge_x) / 2
+        ]
+        right_frame_x = [
+            group.start_x
+            for group in flank_groups
+            if group.start_x >= (left_edge_x + right_edge_x) / 2
+        ]
+        if not left_frame_x or not right_frame_x:
+            continue
+        paired_row_labels = _terminal_strip_paired_row_labels(
+            sheet_texts,
+            left_frame_x=max(left_frame_x),
+            right_frame_x=min(right_frame_x),
+            top_y=top_y,
+            bottom_y=bottom_y,
+            pitch=pitch,
+            instance_label=instance_label,
+        )
+        pin_rows = _terminal_strip_pin_rows(left_side, right_side)
+        block_names = {
+            text.source_block_name
+            for text in [*left_side, *right_side]
+            if text.source_block_name
+        }
+        used_side_ids.add(right_index)
+        strips.append(
+            _TerminalStrip(
+                instance_label=instance_label,
+                block_names=block_names,
+                pin_rows=pin_rows,
+                left_edge_x=left_edge_x,
+                right_edge_x=right_edge_x,
+                top_y=top_y,
+                bottom_y=bottom_y,
+                pitch=pitch,
+                flank_groups=flank_groups,
+                paired_row_labels=paired_row_labels,
+            )
+        )
+        used_side_ids.add(left_index)
+    return strips
+
+
+def _terminal_strip_pin_sides(texts: list[TextItem]) -> list[list[TextItem]]:
+    pin_texts = [
+        text
+        for text in texts
+        if text.source_block_name
+        and text.is_numeric_candidate
+        and _TERMINAL_STRIP_PIN_PATTERN.fullmatch(text.normalized_text or "")
+    ]
+    columns = _cluster_texts_by_x(pin_texts, _TERMINAL_STRIP_PIN_COLUMN_X_TOL)
+    sides: list[list[TextItem]] = []
+    for column in columns:
+        segments = _split_column_into_row_segments(column)
+        for segment in segments:
+            if len(segment) < _TERMINAL_STRIP_MIN_PIN_ROWS:
+                continue
+            pitch = _terminal_strip_row_pitch([text.insert_y for text in segment])
+            if not _TERMINAL_STRIP_PITCH_MIN <= pitch <= _TERMINAL_STRIP_PITCH_MAX:
+                continue
+            if not _terminal_strip_pitch_uniform([text.insert_y for text in segment], pitch):
+                continue
+            sides.append(sorted(segment, key=lambda text: (-text.insert_y, text.text_id)))
+    return sides
+
+
+def _cluster_texts_by_x(texts: list[TextItem], tolerance: float) -> list[list[TextItem]]:
+    ordered = sorted(texts, key=lambda text: (text.insert_x, text.text_id))
+    clusters: list[list[TextItem]] = []
+    for text in ordered:
+        if clusters and abs(text.insert_x - clusters[-1][-1].insert_x) <= tolerance:
+            clusters[-1].append(text)
+        else:
+            clusters.append([text])
+    return clusters
+
+
+def _split_column_into_row_segments(column: list[TextItem]) -> list[list[TextItem]]:
+    ordered = sorted(column, key=lambda text: (-text.insert_y, text.text_id))
+    segments: list[list[TextItem]] = [[ordered[0]]]
+    for text in ordered[1:]:
+        gap = segments[-1][-1].insert_y - text.insert_y
+        if gap > _TERMINAL_STRIP_PIN_COLUMN_SPLIT_Y_GAP:
+            segments.append([text])
+        else:
+            segments[-1].append(text)
+    return segments
+
+
+def _terminal_strip_row_pitch(ys: list[float]) -> float:
+    ordered = sorted(ys, reverse=True)
+    diffs = [above - below for above, below in zip(ordered, ordered[1:])]
+    if not diffs:
+        return 0.0
+    return sorted(diffs)[len(diffs) // 2]
+
+
+def _terminal_strip_pitch_uniform(ys: list[float], pitch: float) -> bool:
+    ordered = sorted(ys, reverse=True)
+    diffs = [above - below for above, below in zip(ordered, ordered[1:])]
+    return all(abs(diff - pitch) <= _TERMINAL_STRIP_PITCH_UNIFORM_TOL * pitch for diff in diffs)
+
+
+def _matching_terminal_strip_side(
+    sides: list[list[TextItem]],
+    left_side: list[TextItem],
+    used_side_ids: set[int],
+    left_index: int,
+) -> int | None:
+    left_mean_x = sum(text.insert_x for text in left_side) / len(left_side)
+    best_index: int | None = None
+    best_gap = float("inf")
+    for index, side in enumerate(sides):
+        if index == left_index or index in used_side_ids:
+            continue
+        gap = sum(text.insert_x for text in side) / len(side) - left_mean_x
+        if not _TERMINAL_STRIP_COLUMN_GAP_MIN <= gap <= _TERMINAL_STRIP_COLUMN_GAP_MAX:
+            continue
+        if len(side) != len(left_side):
+            continue
+        if not _terminal_strip_rows_aligned(left_side, side):
+            continue
+        if gap < best_gap:
+            best_gap = gap
+            best_index = index
+    return best_index
+
+
+def _terminal_strip_rows_aligned(left_side: list[TextItem], right_side: list[TextItem]) -> bool:
+    left_rows = sorted((text.insert_y for text in left_side), reverse=True)
+    right_rows = sorted((text.insert_y for text in right_side), reverse=True)
+    return all(
+        abs(left_y - right_y) <= _TERMINAL_STRIP_ROW_ALIGN_TOL
+        for left_y, right_y in zip(left_rows, right_rows)
+    )
+
+
+def _terminal_strip_pin_rows(left_side: list[TextItem], right_side: list[TextItem]) -> list[tuple[TextItem, TextItem]]:
+    rights_by_row = [
+        text
+        for text in sorted(right_side, key=lambda item: -item.insert_y)
+    ]
+    lefts_by_row = sorted(left_side, key=lambda item: -item.insert_y)
+    rows: list[tuple[TextItem, TextItem]] = []
+    for left, right in zip(lefts_by_row, rights_by_row):
+        if abs(left.insert_y - right.insert_y) <= _TERMINAL_STRIP_ROW_ALIGN_TOL:
+            rows.append((left, right))
+    return rows
+
+
+def _terminal_strip_instance_label(
+    texts: list[TextItem],
+    left_side: list[TextItem],
+    right_side: list[TextItem],
+    top_y: float,
+    pitch: float,
+) -> TextItem | None:
+    min_x = min(text.insert_x for text in left_side)
+    max_x = max(text.insert_x for text in right_side)
+    candidates = []
+    for text in texts:
+        if text.is_numeric_candidate:
+            continue
+        if not _TERMINAL_STRIP_INSTANCE_LABEL_PATTERN.fullmatch(text.normalized_text or ""):
+            continue
+        if not min_x - 3.0 <= text.insert_x <= max_x + 3.0:
+            continue
+        gap = text.insert_y - top_y
+        if not _TERMINAL_STRIP_INSTANCE_LABEL_MIN_PITCHES * pitch <= gap <= _TERMINAL_STRIP_INSTANCE_LABEL_MAX_PITCHES * pitch:
+            continue
+        candidates.append(text)
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda text: (abs(text.insert_y - top_y), text.text_id))[0]
+
+
+def _terminal_strip_flank_groups(
+    sheet_groups: list[LineGroup],
+    *,
+    left_edge_x: float,
+    right_edge_x: float,
+    top_y: float,
+    bottom_y: float,
+) -> list[LineGroup]:
+    flanks: list[LineGroup] = []
+    for group in sheet_groups:
+        if group.orientation != "vertical":
+            continue
+        if not (
+            left_edge_x - _TERMINAL_STRIP_FLANK_X_TOL <= group.start_x <= left_edge_x + 1.0
+            or right_edge_x - 1.0 <= group.start_x <= right_edge_x + _TERMINAL_STRIP_FLANK_X_TOL
+        ):
+            continue
+        group_top = max(group.start_y, group.end_y)
+        group_bottom = min(group.start_y, group.end_y)
+        if group_bottom > bottom_y - _TERMINAL_STRIP_FLANK_COVER_TOL:
+            continue
+        if group_top < top_y + _TERMINAL_STRIP_FLANK_COVER_TOL:
+            continue
+        flanks.append(group)
+    return flanks
+
+
+def _terminal_strip_paired_row_labels(
+    sheet_texts: list[TextItem],
+    *,
+    left_frame_x: float,
+    right_frame_x: float,
+    top_y: float,
+    bottom_y: float,
+    pitch: float,
+    instance_label: TextItem,
+) -> list[tuple[TextItem, TextItem]]:
+    left_labels: list[TextItem] = []
+    right_labels: list[TextItem] = []
+    for text in sheet_texts:
+        if text is instance_label:
+            continue
+        if not (bottom_y - 0.75 * pitch <= text.insert_y <= top_y + 0.75 * pitch):
+            continue
+        center_x = (text.bbox_min_x + text.bbox_max_x) / 2
+        # Grammar-gate before pairing so junk labels (e.g. sheet-grid letters)
+        # cannot consume a valid partner label of a real row.
+        if not _is_valid_external_endpoint(_clean_terminal_strip_label_value(text.normalized_text)):
+            continue
+        if center_x < left_frame_x:
+            if left_frame_x - center_x <= _TERMINAL_STRIP_LABEL_X_REACH:
+                left_labels.append(text)
+        elif center_x > right_frame_x:
+            if center_x - right_frame_x <= _TERMINAL_STRIP_LABEL_X_REACH:
+                right_labels.append(text)
+    rows: list[tuple[TextItem, TextItem]] = []
+    used_right_ids: set[str] = set()
+    for left in sorted(left_labels, key=lambda text: (-text.insert_y, text.text_id)):
+        if _clean_terminal_strip_label_value(left.normalized_text) == "":
+            continue
+        candidates = [
+            right
+            for right in right_labels
+            if right.text_id not in used_right_ids
+            and abs(right.insert_y - left.insert_y) <= _TERMINAL_STRIP_LABEL_Y_TOL
+            and _clean_terminal_strip_label_value(right.normalized_text) != ""
+        ]
+        if len(candidates) != 1:
+            continue
+        used_right_ids.add(candidates[0].text_id)
+        rows.append((left, candidates[0]))
+    return rows
+
+
+def _clean_terminal_strip_label_value(value: str | None) -> str:
+    cleaned = (value or "").strip()
+    return _TERMINAL_STRIP_DECORATION_CLEAN_PATTERN.sub("", cleaned).strip()
+
+
+def _build_terminal_strip_pair(
+    *,
+    page: SheetRecord,
+    strip: _TerminalStrip,
+    left_label: TextItem,
+    right_label: TextItem,
+    left_value: str,
+    right_value: str,
+    pair_ids: IdFactory,
+) -> Pair:
+    support_group = strip.flank_groups[0]
+    instance_name = strip.instance_label.normalized_text if strip.instance_label else None
+    evidence = {
+        "source": "component_mapping",
+        "pair_kind": "component_mapping",
+        "component_submode": "terminal_strip_lattice",
+        "filename": page.filename,
+        "sheet_no": page.sheet_no,
+        "sheet_order": page.sheet_order,
+        "sheet_title": page.sheet_title,
+        "terminal_strip_instance": instance_name,
+        "terminal_strip_instance_text_id": strip.instance_label.text_id if strip.instance_label else None,
+        "terminal_strip_block_names": sorted(strip.block_names),
+        "terminal_strip_row_y": left_label.insert_y,
+        "terminal_strip_pin_row_count": len(strip.pin_rows),
+        "left_terminal_raw": left_label.normalized_text,
+        "left_terminal": left_value,
+        "left_terminal_text_id": left_label.text_id,
+        "left_terminal_coord": [left_label.insert_x, left_label.insert_y],
+        "right_terminal_raw": right_label.normalized_text,
+        "right_terminal": right_value,
+        "right_terminal_text_id": right_label.text_id,
+        "right_terminal_coord": [right_label.insert_x, right_label.insert_y],
+        "left_side_label": "circuit_wire",
+        "right_side_label": "device_terminal",
+        "line_group_id": support_group.line_group_id,
+        "supporting_line_ids": support_group.member_line_ids,
+        "line_orientation": "terminal_strip_lattice_row",
+        "score_breakdown": {
+            "left_score": 1.0,
+            "right_score": 1.0,
+            "wire_score": 1.0,
+            "ambiguity_gap": None,
+        },
+    }
+    return Pair(
+        pair_id=pair_ids.next(),
+        line_group_id=support_group.line_group_id,
+        sheet_id=page.sheet_id,
+        file_id=page.file_id,
+        selected_pair_candidate_id=None,
+        left_value=left_value,
+        right_value=right_value,
+        confidence=_PAIR_CONFIDENCE,
+        status="pass",
+        rationale="Terminal-strip lattice row mapping: structural strip detection paired row labels.",
+        alternative_pair_candidate_ids=[],
+        confidence_bucket="high",
+        evidence=evidence,
+        left_text_id=left_label.text_id,
+        right_text_id=right_label.text_id,
+        left_coord_x=left_label.insert_x,
+        left_coord_y=left_label.insert_y,
+        right_coord_x=right_label.insert_x,
+        right_coord_y=right_label.insert_y,
+        pair_key=f"{left_value}->{right_value}",
+        left_score=1.0,
+        right_score=1.0,
+        wire_score=1.0,
+        ambiguity_gap=None,
+        pair_kind="component_mapping",
+    )
 
 
 def _supports_strip_two_port_component(page: SheetRecord) -> bool:

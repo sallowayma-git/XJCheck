@@ -2,6 +2,9 @@ from dwg_audit.audit.component_diagrams import extract_kk_multi_port_component_p
 from dwg_audit.audit.component_diagrams import extract_small_port_box_component_pairs
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_endpoint_bridge_pairs
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
+from dataclasses import replace
+
+from dwg_audit.audit.component_diagrams import extract_terminal_strip_lattice_pairs
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import SheetRecord
@@ -834,3 +837,200 @@ def test_extract_small_port_box_component_pairs_requires_plain_mark_body() -> No
 
     assert pairs == []
     assert consumed == set()
+
+
+def _make_terminal_strip_page(
+    *,
+    block_name: str = "TSB-14",
+    instance_label: str = "TF6",
+    row_count: int = 14,
+    labelled_rows: int = 14,
+    left_values: list[str] | None = None,
+    right_values: list[str] | None = None,
+) -> tuple[SheetRecord, list[TextItem], list[LineGroup]]:
+    """Build one structurally detected terminal strip with two pin columns."""
+
+    sheet = _make_sheet()
+    texts: list[TextItem] = []
+    top_pin_y = 265.29
+    pitch = 5.0
+    for row in range(row_count):
+        pin_y = round(top_pin_y - row * pitch, 3)
+        label_y = round(pin_y - 0.66, 3)
+        texts.append(
+            _make_text(
+                f"PL{row}",
+                str(row * 2 + 1),
+                60.73,
+                pin_y,
+                layer="0",
+                source_block_name=block_name,
+                bbox=(60.73, pin_y - 0.7, 62.13, pin_y + 0.7),
+            )
+        )
+        texts.append(
+            _make_text(
+                f"PR{row}",
+                str(row * 2 + 2),
+                70.63,
+                round(pin_y - 0.055, 3),
+                layer="0",
+                source_block_name=block_name,
+                bbox=(70.63, pin_y - 0.7, 72.03, pin_y + 0.7),
+            )
+        )
+        if row < labelled_rows:
+            left_raw = (left_values or [f"& 1n30{row:02d}" for row in range(14)])[row]
+            right_raw = (right_values or [f"1KB{row + 1} &" for row in range(14)])[row]
+            texts.append(
+                _make_text(
+                    f"LL{row}",
+                    left_raw,
+                    46.03,
+                    label_y,
+                    bbox=(46.03, label_y - 1.25, 60.91, label_y + 1.25),
+                )
+            )
+            texts.append(
+                _make_text(
+                    f"LR{row}",
+                    right_raw,
+                    75.05,
+                    label_y,
+                    bbox=(75.05, label_y - 1.25, 89.93, label_y + 1.25),
+                )
+            )
+    texts.append(_make_text("INST", instance_label, 64.5, top_pin_y + 12.31, bbox=(62.5, top_pin_y + 10.8, 66.5, top_pin_y + 13.8)))
+    frame_top = top_pin_y + 3.34
+    frame_bottom = top_pin_y - (row_count - 1) * pitch - 1.63
+    groups = [
+        _make_vertical_group("GCL", x=58.71, start_y=frame_top, end_y=frame_bottom),
+        _make_vertical_group("GCR", x=73.71, start_y=frame_top, end_y=frame_bottom),
+    ]
+    return sheet, texts, groups
+
+
+def test_extract_terminal_strip_lattice_pairs_builds_strip_row_mappings() -> None:
+    sheet, texts, groups = _make_terminal_strip_page(
+        left_values=[f"& 1n30{row:02d}" if row % 3 else f"* 1n30{row:02d}" for row in range(14)],
+        right_values=[f"1UD{row + 1} &" for row in range(14)],
+    )
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert {group.line_group_id for group in groups} == consumed
+    assert len(pairs) == 14
+    assert all(pair.pair_kind == "component_mapping" for pair in pairs)
+    assert all(pair.status == "pass" for pair in pairs)
+    assert (pairs[0].left_value, pairs[0].right_value) == ("1n3000", "1UD1")
+    assert (pairs[3].left_value, pairs[3].right_value) == ("1n3003", "1UD4")
+    assert pairs[0].evidence["terminal_strip_instance"] == "TF6"
+    assert pairs[0].evidence["terminal_strip_block_names"] == ["TSB-14"]
+    assert pairs[0].evidence["left_terminal_raw"] == "* 1n3000"
+    assert pairs[0].evidence["right_terminal_raw"] == "1UD1 &"
+    assert pairs[1].evidence["left_terminal_raw"] == "& 1n3001"
+    assert pairs[0].pair_key == "1n3000->1UD1"
+
+
+def test_extract_terminal_strip_lattice_pairs_recognizes_renamed_block_structure() -> None:
+    sheet, texts, groups = _make_terminal_strip_page(
+        block_name="CSB-08",
+        instance_label="CS2",
+        row_count=10,
+        labelled_rows=10,
+        left_values=[f"& 1n41{row:02d}" for row in range(10)],
+        right_values=[f"1CC{row + 1} &" for row in range(10)],
+    )
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert len(pairs) == 10
+    assert consumed == {"GCL", "GCR"}
+    assert pairs[0].evidence["terminal_strip_instance"] == "CS2"
+    assert pairs[0].evidence["terminal_strip_block_names"] == ["CSB-08"]
+    assert (pairs[0].left_value, pairs[0].right_value) == ("1n4100", "1CC1")
+
+
+def test_extract_terminal_strip_lattice_pairs_skips_unlabelled_and_one_sided_rows() -> None:
+    sheet, texts, groups = _make_terminal_strip_page(
+        row_count=14,
+        labelled_rows=10,
+        left_values=[f"& 1n30{row:02d}" for row in range(14)],
+        right_values=[f"1UD{row + 1} &" for row in range(14)],
+    )
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert len(pairs) == 10
+    assert consumed == {"GCL", "GCR"}
+    assert all(pair.left_coord_y >= texts[0].insert_y - 5.0 * 10 for pair in pairs)
+
+
+def test_extract_terminal_strip_lattice_pairs_requires_instance_label() -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    texts = [text for text in texts if text.text_id != "INST"]
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert pairs == []
+    assert consumed == set()
+
+
+def test_extract_terminal_strip_lattice_pairs_requires_flanking_border_groups() -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, [])
+
+    assert pairs == []
+    assert consumed == set()
+
+
+def test_extract_terminal_strip_lattice_pairs_rejects_short_pin_lattice() -> None:
+    sheet, texts, groups = _make_terminal_strip_page(row_count=6, labelled_rows=6)
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert pairs == []
+    assert consumed == set()
+
+
+def test_extract_terminal_strip_lattice_pairs_skips_rows_failing_endpoint_grammar() -> None:
+    sheet, texts, groups = _make_terminal_strip_page(
+        left_values=[f"& 1n30{row:02d}" for row in range(14)],
+        right_values=[("DC output 0~5V" if row == 0 else f"1UD{row + 1} &") for row in range(14)],
+    )
+
+    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert len(pairs) == 13
+    assert all(pair.right_value != "DC output 0~5V" for pair in pairs)
+
+
+def test_extract_terminal_strip_lattice_pairs_ignores_other_routes() -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    sheet = replace(
+        sheet,
+        sheet_category="二次原理图",
+        page_subtype="grid_heavy_wire_diagram",
+        route_target="WireDiagramExtractor",
+    )
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert pairs == []
+    assert consumed == set()
+
+
+def test_extract_terminal_strip_lattice_pairs_skips_ambiguous_row_labels() -> None:
+    sheet, texts, groups = _make_terminal_strip_page(
+        left_values=[f"& 1n30{row:02d}" for row in range(14)],
+        right_values=[f"1UD{row + 1} &" for row in range(14)],
+    )
+    row_zero_label_y = next(text.insert_y for text in texts if text.text_id == "LR0")
+    ambiguous = _make_text("LRDUP", "1UD1 &", 76.0, row_zero_label_y, bbox=(76.0, 263.0, 90.0, 266.0))
+    texts.append(ambiguous)
+
+    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+
+    assert len(pairs) == 13
+    assert all(pair.right_value != "1UD1" or pair.left_value != "1n3000" for pair in pairs)

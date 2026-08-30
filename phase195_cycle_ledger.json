@@ -580,28 +580,89 @@
         "initial parallel probe payload was malformed at dispatch; no files changed and the corrected probe returned independent evidence"
       ],
       "disposition": "NO_SAFE_CHANGE"
+    },
+    {
+      "cycle_id": "195-14",
+      "selected_cluster": "user-directed/component_diagram_tsb_terminal_strip_unrecognized_grid",
+      "baseline_artifact": ".tmp/phase195_formal_full_fresh4 + .tmp/phase195_formal_full_audit5",
+      "code_files": [
+        "src/dwg_audit/audit/component_diagrams.py",
+        "src/dwg_audit/audit/page_extractors.py",
+        "src/dwg_audit/audit/series_chains.py",
+        "src/dwg_audit/audit/rules.py",
+        "src/dwg_audit/report/rerun.py"
+      ],
+      "test_files": [
+        "tests/unit/test_component_diagrams.py",
+        "tests/unit/test_series_chains.py"
+      ],
+      "bounded_replay_roots": [
+        ".tmp/tsb_takeover_p016_final",
+        ".tmp/tsb_takeover_p017_final",
+        ".tmp/tsb_takeover_p018_final",
+        ".tmp/tsb_takeover_p019_final",
+        ".tmp/tsb_takeover_p020_final",
+        ".tmp/tsb_takeover_p021_final"
+      ],
+      "identity_delta": {
+        "formal_projects": 49,
+        "formal_valid_dwg": 1212,
+        "tsb_project_count": 6,
+        "tsb_sheet_count": 11,
+        "detected_strips_corpus_wide": 105,
+        "wrong_review_rows_before": 210,
+        "terminal_strip_pairs_after": 425,
+        "bounded_issue_count_before": 214,
+        "bounded_issue_count_after": 4,
+        "new_cross_view_many_to_one_reviews": 38,
+        "out_of_scope_residual_issues": 4,
+        "formal_issue_count_before": 297,
+        "projected_formal_issue_count_after": 87,
+        "recovered_false_negative_rows": 7,
+        "series_chain_junctions": 40,
+        "residual_out_of_scope_issues": 4
+      },
+      "visual_evidence_refs": [
+        ".tmp/tsb_takeover_visual/F0026_full.png",
+        ".tmp/tsb_takeover_visual/F0026_strip1_TF_top.png",
+        ".tmp/tsb_takeover_visual/F0026_strip_TF6.png"
+      ],
+      "evidence_refs": [
+        "src/dwg_audit/audit/component_diagrams.py:extract_terminal_strip_lattice_pairs",
+        "src/dwg_audit/audit/page_extractors.py:ComponentDiagramExtractor_block",
+        "tests/unit/test_component_diagrams.py:terminal_strip_tests",
+        ".tmp/tsb_takeover_visual/corpus_census.py"
+      ],
+      "gates": {
+        "unit_tests": "1412 passed, 1 skipped",
+        "compileall": "pass",
+        "git_diff_check": "pass (CRLF warnings only)",
+        "corpus_census": "detector fires only on the 11 known TSB sheets in p016-p021; zero other projects affected",
+        "visual_adversarial_audit": "6 strip crops read visually across p016/p017/p018/p020/p021 - all match extraction exactly, including the single-sided row skip (p017 TF1 1I1D4* right-only row unpaired); 5 random control component pages (p005/p006/p008/p011/p012) fire 0 strips; pin-block INSERT count equals detected strips on all 11 TSB sheets (12/4/16/5); 7 grid-letter label thefts recovered (grammar gate moved before pairing), zero dropped rows remain"
+      },
+      "recoverable_errors": [
+        "first detector run detected 0 strips on p016-p019/p021: instance-label gap cap 3.0 pitches rejected the taller label rows (3.47-3.77 pitches) used on 元件接线图3/4 pages; raised to 4.0 pitches (inter-strip spacing ~31 units keeps the window unambiguous)",
+        "first pin-column clustering merged page-level strip-number texts (59/65/71) into pin columns and broke row segmentation; pins now require a non-null source_block_name (any block, name-agnostic)",
+        "bbox-edge label classification missed labels whose bbox crosses the frame border; switched to bbox-center classification against flank-derived frame lines"
+      ],
+      "disposition": {
+        "status": "ACCEPTED_CHANGE",
+        "note": "210 wrong TSB-grid review rows replaced by 425 structural pass mappings; the long-chain business record (series_chains.json) now owns cross-view device-terminal junctions (40 chains: circuit_side + component_side with schematic/KK corroboration + chart_side terminal_header_table continuations). M2O rule hands those groups to the chain auditor. Residual bounded issues (4) are pre-existing out-of-scope families (2 屏端子图 low-conf, 1 NCK305 cross-page, 1 baseline GND many-to-one). Backplate virtual-table rows are explicitly excluded from chains."
+      },
+      "bounded_replay_audit_roots": [
+        ".tmp/tsb_takeover_p016_final_audit",
+        ".tmp/tsb_takeover_p017_final_audit",
+        ".tmp/tsb_takeover_p018_final_audit",
+        ".tmp/tsb_takeover_p019_final_audit",
+        ".tmp/tsb_takeover_p020_final_audit",
+        ".tmp/tsb_takeover_p021_final_audit"
+      ]
     }
   ],
   "current": {
     "cycle_id": "195-14",
-    "state": "EVIDENCE_CLUSTER",
-    "selected_cluster": "discovery/repeated_grid_stub_missing_left_alphanumeric_designators",
-    "selected_issue_refs": [],
-    "subcluster_dispositions": {
-      "p039-p044/repeated_low_confidence": "NO_SAFE_CHANGE",
-      "p017-p021/remaining_low_confidence": "NO_SAFE_CHANGE",
-      "p008-p020/cross_page_conflicts": "NO_SAFE_CHANGE",
-      "remaining_many_to_one_structural_families": "NO_SAFE_CHANGE"
-      ,"orphan_numeric_text_vs_component_port_evidence": "NO_SAFE_CHANGE"
-    },
-    "authoritative_fresh": ".tmp/phase195_formal_full_fresh4",
-    "authoritative_audit": ".tmp/phase195_formal_full_audit5",
-    "remaining_issue_count": 297,
-    "remaining_issue_distribution": {
-      "R-PAIR-LOW-CONFIDENCE": 261,
-      "R-PAIR-MISSING-SIDE": 18,
-      "R-MANY-TO-ONE": 13,
-      "R-CROSS-PAGE-CONFLICT": 5
-    }
+    "state": "IMPLEMENTATION_ACCEPTED",
+    "selected_cluster": "user-directed/component_diagram_tsb_terminal_strip_unrecognized_grid",
+    "next": "full 49-project replay to re-baseline formal_full artifacts, then commit and continue the loop"
   }
 }

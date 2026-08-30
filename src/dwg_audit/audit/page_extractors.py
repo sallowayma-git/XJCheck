@@ -241,6 +241,16 @@ def _extract_pairs_for_route(
             )
             component_pairs.extend(small_port_pairs)
             consumed_group_ids.update(small_port_consumed_group_ids)
+        terminal_strip_extractor = getattr(component_diagrams, "extract_terminal_strip_lattice_pairs", None)
+        if callable(terminal_strip_extractor):
+            terminal_strip_pairs, terminal_strip_consumed_group_ids = terminal_strip_extractor(
+                pages,
+                texts,
+                line_groups,
+                pair_id_factory=IdFactory(f"P{id_stem}N"),
+            )
+            component_pairs.extend(terminal_strip_pairs)
+            consumed_group_ids.update(terminal_strip_consumed_group_ids)
         panel_table_pairs, panel_table_mappings, panel_consumed_group_ids = (
             extract_component_panel_port_table_pairs(
                 texts,

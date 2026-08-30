@@ -24,6 +24,8 @@ from dwg_audit.audit.audit_v2 import build_audit_v2_issue_clusters
 from dwg_audit.audit.audit_v2 import summarize_audit_v2
 from dwg_audit.audit.failure_queue import build_failure_queue
 from dwg_audit.audit.failure_queue import summarize_failure_queue
+from dwg_audit.audit.series_chains import build_terminal_series_chains
+from dwg_audit.audit.series_chains import summarize_terminal_series_chains
 from dwg_audit.services.issue_diagnostics import write_issue_root_cause_audit
 from dwg_audit.utils.config import resolve_report_formats
 from dwg_audit.utils.config import resolve_runtime_profile
@@ -45,6 +47,7 @@ _AUDIT_COPY_NAMES = (
     "audit_v2_summary.json",
     "failure_queue.parquet",
     "failure_queue_summary.json",
+    "series_chains.json",
     "runtime_profile.json",
 )
 
@@ -210,6 +213,18 @@ def rerun_audit_from_findings(
         )
     else:
         issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
+    series_chains = build_terminal_series_chains(pairs)
+    (audit_dir / "series_chains.json").write_text(
+        json.dumps(
+            {
+                **summarize_terminal_series_chains(series_chains),
+                "chains": series_chains,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     if profile != "production":
         issue_witnesses, issue_witness_summary = _build_issue_witness_frame(
             project_dir, issues_frame
