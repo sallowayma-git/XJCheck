@@ -3393,9 +3393,40 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - Guardrails: do not gate on block names; do not guess values for unlabeled rows; do not widen the endpoint grammar without a new negative-sample replay; the 38 new cross-view many-to-one reviews (KK port x strip row sharing a device terminal) stay review until the user picks between fail-closed review and a comparison-only exemption mirroring `_is_authoritative_inline_component_cross_diagram_correspondence`.
 - Next actions after the user decision: optionally add the M2O exemption with adversarial tests, run the full 49-project replay to re-baseline `formal_full_fresh/audit` artifacts, commit the slice, and continue the loop with the remaining p012/p013 alphanumeric-designator cluster.
 
+## Phase 196: Post-completion adversarial audit (2026-08-31)
+
+- [x] Read the referenced Codex task and its linked local session evidence
+- [x] Preserve the existing Phase 195 project ledger and establish the current clean-tree baseline
+- [x] Run concurrent independent audits across architecture, recognition correctness, persistence/concurrency, security/input boundaries, and tests/replay evidence
+- [x] Reproduce and primary-review every material finding
+- [ ] Deliver findings-first report; keep business-source code unchanged
+- **Status:** in_progress; resumed on 2026-09-05 for bounded independent verification and final evidence reconciliation.
+- Audit probe error: six default read-only agents remained `running` for more than ten minutes with no usable message; all were closed and the main-thread audit is the fallback.
+- Main-thread inspection error: a PowerShell loop used the reserved read-only `$PID` variable as a loop variable and stopped before reading selected logs; use a task-specific variable name on retry.
+- Six second-round probes were also stopped after the ten-minute limit without usable output; no agent result was used. Main-thread verification completed the cited fixtures and current artifact recomputation.
+- A third six-agent batch also returned no usable messages and was closed; no conclusion is attributed to those agents. The current user instruction sets a 20-minute intervention limit and supersedes historical timeout/override text for this audit.
+
 ## Phase 195 cycle 195-14 closure (2026-08-30)
 
 - User verdict on the cross-view junctions: a bare exemption is not acceptable. The long-chain business record now exists (`series_chains.py` + `series_chains.json` artifact): the many-to-one rule delegates device-terminal junction groups to the chain auditor, which persists circuit_side / component_side / chart_side members with corroboration semantics as first-class audit evidence.
 - Red line enforced and verified: no real terminal pairing may be missed. The grid-letter label theft (7 rows) was found by a per-row label-vs-pair diff and fixed by gating label grammar before pairing; visual crops confirm every visible labeled row is extracted and single-sided rows stay unpaired rather than guessed.
 - Guardrails for the next loop: backplate_virtual_table rows never join chains (scope-review family stays independent); chain membership requires pass >=0.95 producer-issued facts; unknown future producer submodes fall back to the visible M2O review until they are added with adversarial coverage.
 - Before commit: run the full 49-project replay to re-baseline formal artifacts, then commit the slice as one scoped change.
+
+## Phase 196 remediation and visual recognition loop (2026-09-05)
+
+- User now authorizes engine fixes and repeated recognition/visual-review cycles. The earlier audit-only boundary is superseded for this work; preserve unrelated changes and historical evidence.
+- Goal: close reproducible recognition, chain, and evidence-delivery defects; then keep comparing engine number groups with independent visual readings across the manifest-authoritative corpus. One accepted slice does not close the loop.
+- State machine: BASELINE -> VISUAL_REVIEW -> EVIDENCE_CLUSTER -> IMPLEMENT -> FOCUSED_TESTS -> BOUNDED_REPLAY -> IDENTITY_AUDIT -> INDEPENDENT_AUDIT -> ACCEPT_OR_REJECT -> NEXT_CLUSTER.
+- Authority at start: HEAD 7ab32ad / implementation f51b26c; current .tmp/tsb_full_replay has 49 projects, 1212 valid DWGs, 88690 pairs, 425 strip mappings, 40 chains / 90 members / 0 continuations, and 87 issues. The old replay summary is stale (88) and its baseline directory was removed; do not run that driver.
+- Cycle 196-01: terminal-strip physical row ownership, symmetric label ambiguity, bounded flank geometry, and empty-strip consumption. Preserve all visually confirmed mappings and renamed-block recognition; reject unsupported extra wires/rows.
+- Cycle 196-02: full-group series-chain adjudication, circuit cardinality, independent scope/provenance, allowed continuations, and nullable artifact identity.
+- Cycle 196-03: retain and expose complementary chain evidence through desktop persistence and reports, with round-trip regression tests.
+- Later cycles: fresh project replay, per-page recognition review and structural clustering, including retained p012/p013 number-group gaps. Uncertain cases enter a human queue with source file, CAD bbox, crop link, expected alternatives, and exact Pair/text/group IDs.
+- Gates: independently read original/rendered geometry before using detector output; focused positive/adversarial tests; bounded source replay; exact qualified Pair/issue identity diff; counts and references agree across artifacts; full affected-corpus/control replay after acceptance. Never accept solely from issue-count reduction.
+- Subagents are read-only default probes with no copied history (tool equivalent fork_context=false). Latest user instruction: at most TWO concurrent from the next batch; main thread waits until all finish and closes each completed probe immediately. Intervene at 20 minutes.
+- [x] Recover audit evidence and authorize the iterative remediation objective.
+- [x] Establish isolated replay index, visual oracle, and exact Cycle 196-01 evidence.
+- [x] Implement, replay, and independently audit Cycle 196-01.
+- [ ] Execute subsequent cycles and full regression gates; retain unresolved semantic questions.
+- **Status:** in_progress; Cycle 196-02 / EVIDENCE_CLUSTER. Cycle 196-01 accepted after revision 3 independent gates.

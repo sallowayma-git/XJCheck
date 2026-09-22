@@ -7,6 +7,7 @@ import pandas as pd
 
 from dwg_audit.domain.models import Issue
 from dwg_audit.report.rerun import rerun_audit_from_findings
+from dwg_audit.report.rerun import _pair
 
 
 def _sample_frames() -> dict[str, pd.DataFrame]:
@@ -147,6 +148,24 @@ def _write_report_stubs(project_dir: Path) -> None:
     (audit_dir / "audit_report.md").write_text("# Audit Report\n", encoding="utf-8")
     (audit_dir / "audit_report.html").write_text("<html><body>report</body></html>", encoding="utf-8")
     (audit_dir / "issues.xlsx").write_bytes(b"xlsx")
+
+
+def test_pair_loader_preserves_nullable_line_group_identity() -> None:
+    pair = _pair(pd.Series({
+        "pair_id": "P0001",
+        "line_group_id": float("nan"),
+        "sheet_id": "S0001",
+        "file_id": "F0001",
+        "left_value": "UD-1",
+        "right_value": "1UD1",
+        "confidence": 0.95,
+        "status": "pass",
+        "rationale": "table fact",
+        "evidence": json.dumps({"source": "table_mapping"}),
+        "pair_kind": "table_mapping",
+    }))
+
+    assert pair.line_group_id is None
 
 
 def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monkeypatch) -> None:

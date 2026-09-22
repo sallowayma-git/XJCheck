@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import re
+from math import isfinite
 
 from dataclasses import dataclass
 
 from dwg_audit.domain.models import BlockRecord
+from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
@@ -387,7 +389,8 @@ _TERMINAL_STRIP_INSTANCE_LABEL_MIN_PITCHES = 0.5
 _TERMINAL_STRIP_INSTANCE_LABEL_MAX_PITCHES = 4.0
 _TERMINAL_STRIP_FLANK_X_TOL = 4.0
 _TERMINAL_STRIP_FLANK_COVER_TOL = 1.0
-_TERMINAL_STRIP_LABEL_Y_TOL = 1.5
+_TERMINAL_STRIP_FLANK_MAX_PITCHES = 1.0
+_TERMINAL_STRIP_LABEL_ROW_MAX_PITCHES = 0.2
 _TERMINAL_STRIP_LABEL_X_REACH = 25.0
 _TERMINAL_STRIP_PIN_RADIUS = 1.0
 
@@ -397,35 +400,58 @@ def extract_terminal_strip_lattice_pairs(
     texts: list[TextItem],
     line_groups: list[LineGroup],
     *,
+    lines: list[LineEntity] | None = None,
+    consumption_evidence: dict[str, dict[str, object]] | None = None,
     pair_id_factory: IdFactory | None = None,
 ) -> tuple[list[Pair], set[str]]:
     """Recover terminal-strip row mappings on component diagrams.
 
     Detection is structural: a two-column numeric pin lattice with uniform row
     pitch, an instance label above the lattice and flanking vertical border
-    groups. Block names are observed as evidence only, never used as a gate,
-    so renamed strip blocks with the same structure are recognized equally.
+    groups. Pin and border geometry must share an INSERT owner. No particular
+    block name is required, so renamed blocks retain the same recognition.
     """
 
     pair_ids = pair_id_factory or IdFactory("PCM")
-    texts_by_sheet: dict[str, list[TextItem]] = {}
+    texts_by_sheet: dict[tuple[str, str], list[TextItem]] = {}
     for text in texts:
-        texts_by_sheet.setdefault(text.sheet_id, []).append(text)
-    groups_by_sheet: dict[str, list[LineGroup]] = {}
+        texts_by_sheet.setdefault((text.sheet_id, text.file_id), []).append(text)
+    groups_by_sheet: dict[tuple[str, str], list[LineGroup]] = {}
     for group in line_groups:
-        groups_by_sheet.setdefault(group.sheet_id, []).append(group)
+        groups_by_sheet.setdefault((group.sheet_id, group.file_id), []).append(group)
+    lines_by_sheet: dict[tuple[str, str], list[LineEntity]] = {}
+    for line in lines or []:
+        lines_by_sheet.setdefault((line.sheet_id, line.file_id), []).append(line)
 
     pairs: list[Pair] = []
     consumed_group_ids: set[str] = set()
     for page in pages:
         if not _supports_strip_two_port_component(page):
             continue
-        sheet_texts = texts_by_sheet.get(page.sheet_id, [])
-        sheet_groups = groups_by_sheet.get(page.sheet_id, [])
-        strips = _detect_terminal_strips(sheet_texts, sheet_groups)
+        scope = (page.sheet_id, page.file_id)
+        sheet_texts = texts_by_sheet.get(scope, [])
+        sheet_groups = groups_by_sheet.get(scope, [])
+        strips = _detect_terminal_strips(sheet_texts, sheet_groups, lines=lines_by_sheet.get(scope, []))
         for strip in strips:
             consumed_group_ids.update(group.line_group_id for group in strip.flank_groups)
-            for left_label, right_label in strip.paired_row_labels:
+            if consumption_evidence is not None:
+                border_evidence = {
+                    "source": "terminal_strip_lattice",
+                    "sheet_id": page.sheet_id,
+                    "file_id": page.file_id,
+                    "insert_handle": strip.insert_handle,
+                    "block_names": sorted(strip.block_names),
+                    "instance_text_id": strip.instance_label.text_id if strip.instance_label else None,
+                    "pin_row_text_ids": [[left.text_id, right.text_id] for left, right in strip.pin_rows],
+                    "pitch": strip.pitch,
+                    "flank_group_ids": [group.line_group_id for group in strip.flank_groups],
+                    "flank_line_ids": [line_id for group in strip.flank_groups for line_id in group.member_line_ids],
+                    "bbox": [strip.flank_groups[0].start_x, min(strip.flank_groups[0].start_y, strip.flank_groups[0].end_y),
+                             strip.flank_groups[1].start_x, max(strip.flank_groups[0].start_y, strip.flank_groups[0].end_y)],
+                }
+                for group in strip.flank_groups:
+                    consumption_evidence[group.line_group_id] = border_evidence
+            for row_index, left_label, right_label in strip.paired_row_labels:
                 left_value = _clean_terminal_strip_label_value(left_label.normalized_text)
                 right_value = _clean_terminal_strip_label_value(right_label.normalized_text)
                 if not _is_valid_external_endpoint(left_value):
@@ -436,6 +462,7 @@ def extract_terminal_strip_lattice_pairs(
                     _build_terminal_strip_pair(
                         page=page,
                         strip=strip,
+                        row_index=row_index,
                         left_label=left_label,
                         right_label=right_label,
                         left_value=left_value,
@@ -450,6 +477,7 @@ def extract_terminal_strip_lattice_pairs(
 class _TerminalStrip:
     instance_label: TextItem | None
     block_names: set[str]
+    insert_handle: str
     pin_rows: list[tuple[TextItem, TextItem]]
     left_edge_x: float
     right_edge_x: float
@@ -457,13 +485,18 @@ class _TerminalStrip:
     bottom_y: float
     pitch: float
     flank_groups: list[LineGroup]
-    paired_row_labels: list[tuple[TextItem, TextItem]]
+    paired_row_labels: list[tuple[int, TextItem, TextItem]]
 
 
 def _detect_terminal_strips(
     sheet_texts: list[TextItem],
     sheet_groups: list[LineGroup],
+    *,
+    lines: list[LineEntity] | None = None,
 ) -> list[_TerminalStrip]:
+    line_by_id = {line.line_id: line for line in lines or []}
+    if len(line_by_id) != len(lines or []):
+        return []
     sides = _terminal_strip_pin_sides(sheet_texts)
     strips: list[_TerminalStrip] = []
     used_side_ids: set[int] = set()
@@ -474,6 +507,9 @@ def _detect_terminal_strips(
         if right_index is None:
             continue
         right_side = sides[right_index]
+        insert_handle = _terminal_strip_pin_owner([*left_side, *right_side])
+        if insert_handle is None:
+            continue
         left_edge_x = min(text.bbox_min_x for text in left_side) - _TERMINAL_STRIP_PIN_RADIUS
         right_edge_x = max(text.bbox_max_x for text in right_side) + _TERMINAL_STRIP_PIN_RADIUS
         top_y = max(max(text.insert_y for text in left_side), max(text.insert_y for text in right_side))
@@ -488,6 +524,10 @@ def _detect_terminal_strips(
             right_edge_x=right_edge_x,
             top_y=top_y,
             bottom_y=bottom_y,
+            pitch=pitch,
+            insert_handle=insert_handle,
+            source_block_name=left_side[0].source_block_name,
+            line_by_id=line_by_id,
         )
         left_frame_x = [
             group.start_x
@@ -499,8 +539,9 @@ def _detect_terminal_strips(
             for group in flank_groups
             if group.start_x >= (left_edge_x + right_edge_x) / 2
         ]
-        if not left_frame_x or not right_frame_x:
+        if len(left_frame_x) != 1 or len(right_frame_x) != 1:
             continue
+        pin_rows = _terminal_strip_pin_rows(left_side, right_side)
         paired_row_labels = _terminal_strip_paired_row_labels(
             sheet_texts,
             left_frame_x=max(left_frame_x),
@@ -509,8 +550,8 @@ def _detect_terminal_strips(
             bottom_y=bottom_y,
             pitch=pitch,
             instance_label=instance_label,
+            pin_rows=pin_rows,
         )
-        pin_rows = _terminal_strip_pin_rows(left_side, right_side)
         block_names = {
             text.source_block_name
             for text in [*left_side, *right_side]
@@ -521,6 +562,7 @@ def _detect_terminal_strips(
             _TerminalStrip(
                 instance_label=instance_label,
                 block_names=block_names,
+                insert_handle=insert_handle,
                 pin_rows=pin_rows,
                 left_edge_x=left_edge_x,
                 right_edge_x=right_edge_x,
@@ -540,10 +582,21 @@ def _terminal_strip_pin_sides(texts: list[TextItem]) -> list[list[TextItem]]:
         text
         for text in texts
         if text.source_block_name
+        and _terminal_strip_insert_handle(text.handle)
+        and _terminal_strip_text_geometry_valid(text)
         and text.is_numeric_candidate
         and _TERMINAL_STRIP_PIN_PATTERN.fullmatch(text.normalized_text or "")
     ]
-    columns = _cluster_texts_by_x(pin_texts, _TERMINAL_STRIP_PIN_COLUMN_X_TOL)
+    column_order = {
+        text.text_id: index
+        for index, column in enumerate(_cluster_texts_by_x(pin_texts, _TERMINAL_STRIP_PIN_COLUMN_X_TOL))
+        for text in column
+    }
+    by_owner: dict[tuple[str | None, str | None], list[TextItem]] = {}
+    for text in pin_texts:
+        by_owner.setdefault((_terminal_strip_insert_handle(text.handle), text.source_block_name), []).append(text)
+    columns = [column for owned in by_owner.values()
+               for column in _cluster_texts_by_x(owned, _TERMINAL_STRIP_PIN_COLUMN_X_TOL)]
     sides: list[list[TextItem]] = []
     for column in columns:
         segments = _split_column_into_row_segments(column)
@@ -556,7 +609,8 @@ def _terminal_strip_pin_sides(texts: list[TextItem]) -> list[list[TextItem]]:
             if not _terminal_strip_pitch_uniform([text.insert_y for text in segment], pitch):
                 continue
             sides.append(sorted(segment, key=lambda text: (-text.insert_y, text.text_id)))
-    return sides
+    # Keep tolerance-cluster ordering stable for Pair IDs, without merging owners.
+    return sorted(sides, key=lambda side: (column_order[side[0].text_id], -side[0].insert_y, side[0].text_id))
 
 
 def _cluster_texts_by_x(texts: list[TextItem], tolerance: float) -> list[list[TextItem]]:
@@ -605,6 +659,9 @@ def _matching_terminal_strip_side(
     left_mean_x = sum(text.insert_x for text in left_side) / len(left_side)
     best_index: int | None = None
     best_gap = float("inf")
+    owner = _terminal_strip_pin_owner(left_side)
+    if owner is None:
+        return None
     for index, side in enumerate(sides):
         if index == left_index or index in used_side_ids:
             continue
@@ -612,6 +669,8 @@ def _matching_terminal_strip_side(
         if not _TERMINAL_STRIP_COLUMN_GAP_MIN <= gap <= _TERMINAL_STRIP_COLUMN_GAP_MAX:
             continue
         if len(side) != len(left_side):
+            continue
+        if _terminal_strip_pin_owner([*left_side, *side]) != owner:
             continue
         if not _terminal_strip_rows_aligned(left_side, side):
             continue
@@ -654,6 +713,8 @@ def _terminal_strip_instance_label(
     max_x = max(text.insert_x for text in right_side)
     candidates = []
     for text in texts:
+        if not _terminal_strip_text_geometry_valid(text):
+            continue
         if text.is_numeric_candidate:
             continue
         if not _TERMINAL_STRIP_INSTANCE_LABEL_PATTERN.fullmatch(text.normalized_text or ""):
@@ -669,6 +730,71 @@ def _terminal_strip_instance_label(
     return sorted(candidates, key=lambda text: (abs(text.insert_y - top_y), text.text_id))[0]
 
 
+def _terminal_strip_insert_handle(handle: str) -> str | None:
+    parent, separator, child = str(handle or "").rpartition(":VIRTUAL:")
+    return parent if separator and parent and child.split(":")[0].isdigit() else None
+
+
+def _terminal_strip_pin_owner(pins: list[TextItem]) -> str | None:
+    owners = {(_terminal_strip_insert_handle(pin.handle), pin.source_block_name) for pin in pins}
+    if len(owners) != 1:
+        return None
+    owner, block_name = next(iter(owners))
+    return owner if owner and block_name else None
+
+
+def _terminal_strip_text_geometry_valid(text: TextItem) -> bool:
+    return (
+        all(isfinite(value) for value in (text.insert_x, text.insert_y, text.bbox_min_x,
+                                         text.bbox_min_y, text.bbox_max_x, text.bbox_max_y))
+        and text.bbox_min_x <= text.bbox_max_x
+        and text.bbox_min_y <= text.bbox_max_y
+    )
+
+
+def _terminal_strip_flank_members_match(
+    group: LineGroup,
+    line_by_id: dict[str, LineEntity],
+    insert_handle: str,
+    source_block_name: str | None,
+) -> bool:
+    if not group.member_line_ids or len(set(group.member_line_ids)) != len(group.member_line_ids):
+        return False
+    coords = (group.start_x, group.start_y, group.end_x, group.end_y)
+    if not all(isfinite(value) for value in coords) or abs(group.start_x - group.end_x) > 1e-6:
+        return False
+    intervals = []
+    layers = set()
+    for line_id in group.member_line_ids:
+        line = line_by_id.get(line_id)
+        if line is None or (line.sheet_id, line.file_id) != (group.sheet_id, group.file_id):
+            return False
+        if _terminal_strip_insert_handle(line.handle) != insert_handle or line.source_block_name != source_block_name:
+            return False
+        if line.layer.upper() != "BORDER":
+            return False
+        layers.add(line.layer)
+        coords = (line.start_x, line.start_y, line.end_x, line.end_y)
+        if not all(isfinite(value) for value in coords):
+            return False
+        if max(abs(group.start_x - line.start_x), abs(group.start_x - line.end_x)) > 1e-6:
+            return False
+        bottom, top = sorted((line.start_y, line.end_y))
+        if top - bottom <= 1e-6:
+            return False
+        intervals.append((bottom, top))
+    if layers != set(group.layer_hints):
+        return False
+    intervals.sort()
+    # A merged group is a border only if its physical members form one edge.
+    if any(abs(lower[1] - upper[0]) > 1e-6 for lower, upper in zip(intervals, intervals[1:])):
+        return False
+    return (
+        abs(intervals[0][0] - min(group.start_y, group.end_y)) <= 1e-6
+        and abs(intervals[-1][1] - max(group.start_y, group.end_y)) <= 1e-6
+    )
+
+
 def _terminal_strip_flank_groups(
     sheet_groups: list[LineGroup],
     *,
@@ -676,10 +802,16 @@ def _terminal_strip_flank_groups(
     right_edge_x: float,
     top_y: float,
     bottom_y: float,
+    pitch: float,
+    insert_handle: str,
+    source_block_name: str | None,
+    line_by_id: dict[str, LineEntity],
 ) -> list[LineGroup]:
     flanks: list[LineGroup] = []
     for group in sheet_groups:
         if group.orientation != "vertical":
+            continue
+        if not _terminal_strip_flank_members_match(group, line_by_id, insert_handle, source_block_name):
             continue
         if not (
             left_edge_x - _TERMINAL_STRIP_FLANK_X_TOL <= group.start_x <= left_edge_x + 1.0
@@ -692,8 +824,10 @@ def _terminal_strip_flank_groups(
             continue
         if group_top < top_y + _TERMINAL_STRIP_FLANK_COVER_TOL:
             continue
+        if max(group_top - top_y, bottom_y - group_bottom) > _TERMINAL_STRIP_FLANK_MAX_PITCHES * pitch:
+            continue
         flanks.append(group)
-    return flanks
+    return sorted(flanks, key=lambda group: (group.start_x, group.line_group_id))
 
 
 def _terminal_strip_paired_row_labels(
@@ -705,11 +839,14 @@ def _terminal_strip_paired_row_labels(
     bottom_y: float,
     pitch: float,
     instance_label: TextItem,
-) -> list[tuple[TextItem, TextItem]]:
-    left_labels: list[TextItem] = []
-    right_labels: list[TextItem] = []
+    pin_rows: list[tuple[TextItem, TextItem]],
+) -> list[tuple[int, TextItem, TextItem]]:
+    left_labels: dict[int, list[TextItem]] = {}
+    right_labels: dict[int, list[TextItem]] = {}
     for text in sheet_texts:
         if text is instance_label:
+            continue
+        if not _terminal_strip_text_geometry_valid(text):
             continue
         if not (bottom_y - 0.75 * pitch <= text.insert_y <= top_y + 0.75 * pitch):
             continue
@@ -718,29 +855,19 @@ def _terminal_strip_paired_row_labels(
         # cannot consume a valid partner label of a real row.
         if not _is_valid_external_endpoint(_clean_terminal_strip_label_value(text.normalized_text)):
             continue
-        if center_x < left_frame_x:
-            if left_frame_x - center_x <= _TERMINAL_STRIP_LABEL_X_REACH:
-                left_labels.append(text)
-        elif center_x > right_frame_x:
-            if center_x - right_frame_x <= _TERMINAL_STRIP_LABEL_X_REACH:
-                right_labels.append(text)
-    rows: list[tuple[TextItem, TextItem]] = []
-    used_right_ids: set[str] = set()
-    for left in sorted(left_labels, key=lambda text: (-text.insert_y, text.text_id)):
-        if _clean_terminal_strip_label_value(left.normalized_text) == "":
+        if left_frame_x - _TERMINAL_STRIP_LABEL_X_REACH <= center_x < left_frame_x:
+            labels, pin_side = left_labels, 0
+        elif right_frame_x < center_x <= right_frame_x + _TERMINAL_STRIP_LABEL_X_REACH:
+            labels, pin_side = right_labels, 1
+        else:
             continue
-        candidates = [
-            right
-            for right in right_labels
-            if right.text_id not in used_right_ids
-            and abs(right.insert_y - left.insert_y) <= _TERMINAL_STRIP_LABEL_Y_TOL
-            and _clean_terminal_strip_label_value(right.normalized_text) != ""
-        ]
-        if len(candidates) != 1:
-            continue
-        used_right_ids.add(candidates[0].text_id)
-        rows.append((left, candidates[0]))
-    return rows
+        matches = [index for index, pins in enumerate(pin_rows)
+                   if abs(text.insert_y - pins[pin_side].insert_y) <= _TERMINAL_STRIP_LABEL_ROW_MAX_PITCHES * pitch]
+        if len(matches) == 1:
+            labels.setdefault(matches[0], []).append(text)
+    # Both sides must have a unique physical label on the same pin row.
+    return [(index, left_labels[index][0], right_labels[index][0]) for index in range(len(pin_rows))
+            if len(left_labels.get(index, [])) == 1 and len(right_labels.get(index, [])) == 1]
 
 
 def _clean_terminal_strip_label_value(value: str | None) -> str:
@@ -752,6 +879,7 @@ def _build_terminal_strip_pair(
     *,
     page: SheetRecord,
     strip: _TerminalStrip,
+    row_index: int,
     left_label: TextItem,
     right_label: TextItem,
     left_value: str,
@@ -760,6 +888,7 @@ def _build_terminal_strip_pair(
 ) -> Pair:
     support_group = strip.flank_groups[0]
     instance_name = strip.instance_label.normalized_text if strip.instance_label else None
+    left_pin, right_pin = strip.pin_rows[row_index]
     evidence = {
         "source": "component_mapping",
         "pair_kind": "component_mapping",
@@ -771,6 +900,13 @@ def _build_terminal_strip_pair(
         "terminal_strip_instance": instance_name,
         "terminal_strip_instance_text_id": strip.instance_label.text_id if strip.instance_label else None,
         "terminal_strip_block_names": sorted(strip.block_names),
+        "terminal_strip_insert_handle": strip.insert_handle,
+        "terminal_strip_pin_row": row_index + 1,
+        "terminal_strip_pitch": strip.pitch,
+        "terminal_strip_left_pin": {"text_id": left_pin.text_id, "value": left_pin.normalized_text, "coord": [left_pin.insert_x, left_pin.insert_y], "handle": left_pin.handle},
+        "terminal_strip_right_pin": {"text_id": right_pin.text_id, "value": right_pin.normalized_text, "coord": [right_pin.insert_x, right_pin.insert_y], "handle": right_pin.handle},
+        "terminal_strip_flank_group_ids": [group.line_group_id for group in strip.flank_groups],
+        "terminal_strip_flank_line_ids": [line_id for group in strip.flank_groups for line_id in group.member_line_ids],
         "terminal_strip_row_y": left_label.insert_y,
         "terminal_strip_pin_row_count": len(strip.pin_rows),
         "left_terminal_raw": left_label.normalized_text,

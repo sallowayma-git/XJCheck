@@ -242,11 +242,14 @@ def _extract_pairs_for_route(
             component_pairs.extend(small_port_pairs)
             consumed_group_ids.update(small_port_consumed_group_ids)
         terminal_strip_extractor = getattr(component_diagrams, "extract_terminal_strip_lattice_pairs", None)
+        terminal_strip_borders: dict[str, dict[str, object]] = {}
         if callable(terminal_strip_extractor):
             terminal_strip_pairs, terminal_strip_consumed_group_ids = terminal_strip_extractor(
                 pages,
                 texts,
                 line_groups,
+                lines=lines,
+                consumption_evidence=terminal_strip_borders,
                 pair_id_factory=IdFactory(f"P{id_stem}N"),
             )
             component_pairs.extend(terminal_strip_pairs)
@@ -263,8 +266,8 @@ def _extract_pairs_for_route(
         component_pairs.extend(panel_table_pairs)
         consumed_group_ids.update(panel_consumed_group_ids)
         table_mappings.extend(panel_table_mappings)
+        _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids, terminal_strip_borders=terminal_strip_borders)
         if component_pairs:
-            _mark_consumed_component_ordinary_pairs(pairs, consumed_group_ids)
             pairs.extend(component_pairs)
             mark_component_mapping_endpoint_covered_ordinary_pairs(pairs, component_pairs)
         # Device-panel silkscreen pin lattices (HMC HD/BCD grids) stay as graph
@@ -342,7 +345,12 @@ def _extractor_id_stem(executed_extractor: str) -> str:
     return mapping.get(executed_extractor, "X")
 
 
-def _mark_consumed_component_ordinary_pairs(pairs: list[Pair], consumed_group_ids: set[str]) -> None:
+def _mark_consumed_component_ordinary_pairs(
+    pairs: list[Pair],
+    consumed_group_ids: set[str],
+    *,
+    terminal_strip_borders: dict[str, dict[str, object]] | None = None,
+) -> None:
     for pair in pairs:
         if pair.line_group_id not in consumed_group_ids:
             continue
@@ -350,9 +358,14 @@ def _mark_consumed_component_ordinary_pairs(pairs: list[Pair], consumed_group_id
             continue
         pair.status = "discard"
         pair.confidence_bucket = "low"
-        pair.rationale = "Covered by component_mapping from ComponentDiagramExtractor."
         pair.evidence["ordinary_pair_eligible"] = False
-        pair.evidence["covered_by_component_mapping"] = True
+        border = (terminal_strip_borders or {}).get(pair.line_group_id)
+        if border is not None:
+            pair.rationale = "Structural terminal-strip border, not an electrical wire."
+            pair.evidence["terminal_strip_border"] = dict(border)
+        else:
+            pair.rationale = "Covered by component_mapping from ComponentDiagramExtractor."
+            pair.evidence["covered_by_component_mapping"] = True
 
 
 def _component_mapping_endpoint_keys(component_pairs: list[Pair]) -> set[tuple[str, str]]:

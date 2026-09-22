@@ -440,7 +440,7 @@ def _line_group(row: pd.Series) -> LineGroup:
 def _pair(row: pd.Series) -> Pair:
     return Pair(
         pair_id=str(row["pair_id"]),
-        line_group_id=str(row["line_group_id"]),
+        line_group_id=_nullable_str(row.get("line_group_id")),
         sheet_id=str(row["sheet_id"]),
         file_id=str(row["file_id"]),
         selected_pair_candidate_id=_nullable_str(row.get("selected_pair_candidate_id")),

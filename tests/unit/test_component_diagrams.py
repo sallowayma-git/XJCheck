@@ -4,8 +4,11 @@ from dwg_audit.audit.component_diagrams import extract_strip_two_port_endpoint_b
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
 from dataclasses import replace
 
+import pytest
+
 from dwg_audit.audit.component_diagrams import extract_terminal_strip_lattice_pairs
 from dwg_audit.domain.models import BlockRecord
+from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
@@ -907,7 +910,26 @@ def _make_terminal_strip_page(
         _make_vertical_group("GCL", x=58.71, start_y=frame_top, end_y=frame_bottom),
         _make_vertical_group("GCR", x=73.71, start_y=frame_top, end_y=frame_bottom),
     ]
+    for index, text in enumerate(texts):
+        if text.source_block_name:
+            text.handle = f"STRIP:VIRTUAL:{index}"
+    for group in groups:
+        group.layer_hints = ["BORDER"]
+        group.member_line_ids = [f"L-{group.line_group_id}"]
     return sheet, texts, groups
+
+
+def _make_terminal_strip_lines(texts: list[TextItem], groups: list[LineGroup]) -> list[LineEntity]:
+    block_name = next(text.source_block_name for text in texts if text.source_block_name)
+    return [LineEntity(
+        line_id=group.member_line_ids[0], sheet_id=group.sheet_id, file_id=group.file_id,
+        handle=f"STRIP:VIRTUAL:{100 + index}:0", source_entity_type="LWPOLYLINE",
+        layer=group.layer_hints[0], start_x=group.start_x, start_y=group.start_y,
+        end_x=group.end_x, end_y=group.end_y, length=group.length, angle_deg=90.0,
+        bbox_min_x=group.start_x, bbox_max_x=group.end_x,
+        bbox_min_y=min(group.start_y, group.end_y), bbox_max_y=max(group.start_y, group.end_y),
+        source_block_name=block_name,
+    ) for index, group in enumerate(groups)]
 
 
 def test_extract_terminal_strip_lattice_pairs_builds_strip_row_mappings() -> None:
@@ -916,7 +938,7 @@ def test_extract_terminal_strip_lattice_pairs_builds_strip_row_mappings() -> Non
         right_values=[f"1UD{row + 1} &" for row in range(14)],
     )
 
-    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert {group.line_group_id for group in groups} == consumed
     assert len(pairs) == 14
@@ -942,7 +964,7 @@ def test_extract_terminal_strip_lattice_pairs_recognizes_renamed_block_structure
         right_values=[f"1CC{row + 1} &" for row in range(10)],
     )
 
-    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert len(pairs) == 10
     assert consumed == {"GCL", "GCR"}
@@ -959,7 +981,7 @@ def test_extract_terminal_strip_lattice_pairs_skips_unlabelled_and_one_sided_row
         right_values=[f"1UD{row + 1} &" for row in range(14)],
     )
 
-    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert len(pairs) == 10
     assert consumed == {"GCL", "GCR"}
@@ -970,7 +992,7 @@ def test_extract_terminal_strip_lattice_pairs_requires_instance_label() -> None:
     sheet, texts, groups = _make_terminal_strip_page()
     texts = [text for text in texts if text.text_id != "INST"]
 
-    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert pairs == []
     assert consumed == set()
@@ -988,7 +1010,7 @@ def test_extract_terminal_strip_lattice_pairs_requires_flanking_border_groups() 
 def test_extract_terminal_strip_lattice_pairs_rejects_short_pin_lattice() -> None:
     sheet, texts, groups = _make_terminal_strip_page(row_count=6, labelled_rows=6)
 
-    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert pairs == []
     assert consumed == set()
@@ -1000,7 +1022,7 @@ def test_extract_terminal_strip_lattice_pairs_skips_rows_failing_endpoint_gramma
         right_values=[("DC output 0~5V" if row == 0 else f"1UD{row + 1} &") for row in range(14)],
     )
 
-    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert len(pairs) == 13
     assert all(pair.right_value != "DC output 0~5V" for pair in pairs)
@@ -1015,7 +1037,7 @@ def test_extract_terminal_strip_lattice_pairs_ignores_other_routes() -> None:
         route_target="WireDiagramExtractor",
     )
 
-    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert pairs == []
     assert consumed == set()
@@ -1030,7 +1052,209 @@ def test_extract_terminal_strip_lattice_pairs_skips_ambiguous_row_labels() -> No
     ambiguous = _make_text("LRDUP", "1UD1 &", 76.0, row_zero_label_y, bbox=(76.0, 263.0, 90.0, 266.0))
     texts.append(ambiguous)
 
-    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups)
+    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
 
     assert len(pairs) == 13
     assert all(pair.right_value != "1UD1" or pair.left_value != "1n3000" for pair in pairs)
+
+
+@pytest.mark.parametrize("duplicate_id", ["AA_LEFT_DUP", "ZZ_LEFT_DUP"])
+def test_terminal_strip_rejects_left_ambiguity_regardless_of_text_id(duplicate_id: str) -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    original = next(text for text in texts if text.text_id == "LL0")
+    texts.append(replace(original, text_id=duplicate_id, normalized_text="1n9999"))
+
+    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
+
+    assert len(pairs) == 13
+    assert all(pair.right_text_id != "LR0" for pair in pairs)
+
+
+def test_terminal_strip_rejects_paired_labels_between_pin_rows() -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    for text_id in ("LL0", "LR0"):
+        original = next(text for text in texts if text.text_id == text_id)
+        texts.append(replace(original, text_id=f"{text_id}-EXTRA", insert_y=262.79))
+
+    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
+
+    assert len(pairs) == 14
+    assert all(not pair.left_text_id.endswith("-EXTRA") for pair in pairs)
+
+
+def test_terminal_strip_does_not_consume_nearby_long_wire() -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    wire = _make_vertical_group("WIRE", x=56, start_y=1000, end_y=-1000)
+    wire.layer_hints = ["BORDER"]
+    groups = [wire, *groups]
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
+
+    assert len(pairs) == 14
+    assert consumed == {"GCL", "GCR"}
+    assert all(pair.line_group_id != "WIRE" for pair in pairs)
+
+
+@pytest.mark.parametrize("mutation", ["owner", "block", "layer", "missing", "scope", "extra_member", "slanted", "too_long"])
+def test_terminal_strip_requires_physical_border_ownership(mutation: str) -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    lines = _make_terminal_strip_lines(texts, groups)
+    if mutation == "owner":
+        lines[0].handle = "NEIGHBOR:VIRTUAL:10"
+    elif mutation == "block":
+        lines[0].source_block_name = "OTHER"
+    elif mutation == "layer":
+        lines[0].layer = "CONNECT"
+        groups[0].layer_hints = ["CONNECT"]
+    elif mutation == "missing":
+        lines = []
+    elif mutation == "scope":
+        lines[0].file_id = "OTHER_FILE"
+    elif mutation == "extra_member":
+        groups[0].member_line_ids.append("UNRESOLVED")
+    elif mutation == "slanted":
+        groups[0].end_x += 0.5
+        lines[0].end_x += 0.5
+    elif mutation == "too_long":
+        groups[0].start_y += 10
+        lines[0].start_y += 10
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=lines)
+
+    assert pairs == []
+    assert consumed == set()
+
+
+def test_terminal_strip_cannot_join_pin_columns_from_different_instances() -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    lines = _make_terminal_strip_lines(texts, groups)
+    for text in texts:
+        if text.text_id.startswith("PR"):
+            text.handle = text.handle.replace("STRIP:", "NEIGHBOR:")
+
+    assert extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=lines) == ([], set())
+
+
+@pytest.mark.parametrize("scale", [0.8, 1.0, 1.2])
+@pytest.mark.parametrize("block_name", ["CSB-08", "ASB-CUSTOM"])
+def test_terminal_strip_row_identity_survives_translation_scale_and_renaming(scale: float, block_name: str) -> None:
+    sheet, texts, groups = _make_terminal_strip_page(block_name=block_name)
+    for text in texts:
+        for name in ("insert_x", "bbox_min_x", "bbox_max_x"):
+            setattr(text, name, getattr(text, name) * scale + 100)
+        for name in ("insert_y", "bbox_min_y", "bbox_max_y"):
+            setattr(text, name, getattr(text, name) * scale - 80)
+    for group in groups:
+        for name in ("start_x", "end_x"):
+            setattr(group, name, getattr(group, name) * scale + 100)
+        for name in ("start_y", "end_y"):
+            setattr(group, name, getattr(group, name) * scale - 80)
+        group.length *= scale
+    lines = _make_terminal_strip_lines(texts, groups)
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], list(reversed(texts)), list(reversed(groups)), lines=lines)
+
+    assert len(pairs) == 14
+    assert consumed == {"GCL", "GCR"}
+    for index, pair in enumerate(pairs):
+        assert pair.evidence["terminal_strip_pin_row"] == index + 1
+        assert pair.evidence["terminal_strip_left_pin"]["text_id"] == f"PL{index}"
+        assert pair.evidence["terminal_strip_right_pin"]["text_id"] == f"PR{index}"
+        assert pair.evidence["terminal_strip_insert_handle"] == "STRIP"
+        assert pair.line_group_id == "GCL"
+
+
+@pytest.mark.parametrize("labelled_rows", [0, 14])
+def test_terminal_strip_route_consumes_only_owned_borders_even_without_mappings(monkeypatch, labelled_rows: int) -> None:
+    from dwg_audit.audit import page_extractors as pe
+    from dwg_audit.audit.rules import build_issues
+    from dwg_audit.domain.models import Pair
+    from dwg_audit.utils.config import DEFAULT_CONFIG
+
+    sheet, texts, groups = _make_terminal_strip_page(labelled_rows=labelled_rows)
+    lines = _make_terminal_strip_lines(texts, groups)
+    wire = _make_vertical_group("WIRE", x=56, start_y=1000, end_y=-1000)
+    groups.append(wire)
+    ordinary = [Pair(
+        f"ORD-{group_id}", group_id, sheet.sheet_id, sheet.file_id, None,
+        "8801", None, 0.8, "review", "one-sided wire", confidence_bucket="review",
+    ) for group_id in ("GCL", "GCR", "WIRE")]
+    monkeypatch.setattr(pe, "build_line_groups", lambda *args, **kwargs: groups)
+    monkeypatch.setattr(pe, "build_terminal_candidates", lambda *args, **kwargs: [])
+    monkeypatch.setattr(pe, "build_pairs", lambda *args, **kwargs: ([], list(ordinary)))
+
+    result = pe.extract_component_pairs([sheet], texts, lines, DEFAULT_CONFIG)
+
+    assert [pair.status for pair in ordinary] == ["discard", "discard", "review"]
+    for pair in ordinary[:2]:
+        assert pair.evidence.get("covered_by_component_mapping") is not True
+        border = pair.evidence["terminal_strip_border"]
+        assert border["insert_handle"] == "STRIP"
+        assert border["flank_group_ids"] == ["GCL", "GCR"]
+        assert border["pin_row_text_ids"] == [[f"PL{i}", f"PR{i}"] for i in range(14)]
+    assert sum(pair.pair_kind == "component_mapping" for pair in result.pairs) == labelled_rows
+    issues = build_issues(result.pairs, [], [sheet], DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-PAIR-MISSING-SIDE" and issue.pair_id == "ORD-WIRE" for issue in issues)
+
+
+@pytest.mark.parametrize("gap", [0.0, 0.5])
+def test_terminal_strip_validates_contiguous_segmented_border(gap: float) -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    lines = _make_terminal_strip_lines(texts, groups)
+    left = lines[0]
+    middle = (left.start_y + left.end_y) / 2
+    pieces = [
+        replace(left, line_id="SEGMENT1", end_y=middle, length=left.start_y - middle),
+        replace(left, line_id="SEGMENT2", handle="STRIP:VIRTUAL:101:1", start_y=middle - gap, length=middle - gap - left.end_y),
+    ]
+    groups[0].member_line_ids = [line.line_id for line in pieces]
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=[*pieces, lines[1]])
+
+    if gap:
+        assert (pairs, consumed) == ([], set())
+    else:
+        assert len(pairs) == 14
+        assert consumed == {"GCL", "GCR"}
+        from dwg_audit.audit.line_groups import build_line_groups
+        from dwg_audit.utils.config import DEFAULT_CONFIG
+
+        sheet.audit_area_bbox = (0, 0, 200, 400)
+        physical_lines = [*pieces, lines[1]]
+        rebuilt = build_line_groups(physical_lines, [sheet], DEFAULT_CONFIG, texts)
+        assert any(set(group.member_line_ids) == {"SEGMENT1", "SEGMENT2"} for group in rebuilt)
+        rebuilt_pairs, rebuilt_consumed = extract_terminal_strip_lattice_pairs([sheet], texts, rebuilt, lines=physical_lines)
+        assert len(rebuilt_pairs) == 14
+        assert len(rebuilt_consumed) == 2
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_terminal_strip_rejects_nonfinite_external_label_geometry(value: float) -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    next(text for text in texts if text.text_id == "LL0").insert_x = value
+
+    pairs, _ = extract_terminal_strip_lattice_pairs([sheet], texts, groups, lines=_make_terminal_strip_lines(texts, groups))
+
+    assert len(pairs) == 13
+    assert all(pair.left_text_id != "LL0" for pair in pairs)
+
+
+def test_terminal_strip_separates_stacked_instances_before_pin_clustering() -> None:
+    sheet, texts, groups = _make_terminal_strip_page()
+    second_texts = [replace(
+        text, text_id=f"SECOND-{text.text_id}", handle=text.handle.replace("STRIP", "OTHER"),
+        insert_x=text.insert_x - 1e-12,
+        insert_y=text.insert_y - 75, bbox_min_y=text.bbox_min_y - 75, bbox_max_y=text.bbox_max_y - 75,
+    ) for text in texts]
+    second_groups = [replace(
+        group, line_group_id=f"SECOND-{group.line_group_id}", member_line_ids=[f"SECOND-{group.member_line_ids[0]}"],
+        start_y=group.start_y - 75, end_y=group.end_y - 75,
+    ) for group in groups]
+    second_lines = [replace(line, handle=line.handle.replace("STRIP", "OTHER")) for line in _make_terminal_strip_lines(second_texts, second_groups)]
+    lines = [*_make_terminal_strip_lines(texts, groups), *second_lines]
+
+    pairs, consumed = extract_terminal_strip_lattice_pairs([sheet], [*texts, *second_texts], [*groups, *second_groups], lines=lines)
+
+    assert len(pairs) == 28
+    assert len(consumed) == 4
+    assert [pair.left_text_id for pair in pairs[:14]] == [f"LL{i}" for i in range(14)]
