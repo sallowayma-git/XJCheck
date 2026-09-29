@@ -331,6 +331,90 @@ def test_build_terminal_candidates_accepts_schematic_logic_endpoint_mapping() ->
     assert pair.evidence["ordinary_pair_eligible"] is False
 
 
+def test_build_terminal_candidates_maps_i_d_endpoint_and_rejects_neighbor_row() -> None:
+    line_groups = [
+        LineGroup(
+            line_group_id="G1",
+            sheet_id="S1",
+            file_id="F1",
+            start_x=102.5,
+            start_y=50.0,
+            end_x=127.5,
+            end_y=50.0,
+            length=25.0,
+            wire_candidate_score=0.85,
+            member_line_ids=["L1"],
+            layer_hints=["CONNECT"],
+            orientation="grid",
+        )
+    ]
+    sheets = [
+        SheetRecord(
+            "S1",
+            "F1",
+            "07 交流电流回路1.dwg",
+            7,
+            "07",
+            "CT INPUT 1",
+            "二次原理图",
+            "primary",
+            "filename",
+            True,
+        )
+    ]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "MTEXT", "1I6D3", "1I6D3", False, "DIM", 0.0, 3.0, 100.0, 52.0, 100.0, 50.95, 109.3, 54.4),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "2211", "2211", True, "DIM", 0.0, 2.5, 125.625, 50.632793, 125.625, 49.757793, 131.825, 52.632793),
+        TextItem("T3", "S1", "F1", "H3", "MTEXT", "1I6D4", "1I6D4", False, "DIM", 0.0, 3.0, 100.0, 42.0, 100.0, 40.95, 109.3, 44.4),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    same_row = next(item for item in candidates if item.text_id == "T1")
+    neighbor_row = next(item for item in candidates if item.text_id == "T3")
+    assert same_row.status == "accepted"
+    assert same_row.value == "1I6D3"
+    assert same_row.channel == "wire_logic_endpoint_channel"
+    assert neighbor_row.status == "rejected"
+    assert neighbor_row.rejection_reason == "schematic_logic_endpoint_out_of_row"
+    assert len(pairs) == 1
+    assert (pairs[0].left_value, pairs[0].right_value) == ("1I6D3", "2211")
+    assert pairs[0].pair_kind == "wire_component_mapping"
+
+
+def test_build_terminal_candidates_maps_fd_endpoint_and_rejects_neighbor_row() -> None:
+    line_groups = [
+        LineGroup("G1", "S1", "F1", 277.5, 47.5, 302.5, 47.5, 25.0, 0.85, ["L1"], ["CONNECT"], orientation="grid"),
+        LineGroup("G2", "S1", "F1", 277.5, 57.5, 302.5, 57.5, 25.0, 0.85, ["L2"], ["CONNECT"], orientation="grid"),
+    ]
+    sheets = [SheetRecord("S1", "F1", "12 contact input.dwg", 12, "12", "Contact inputs", "二次原理图", "primary", "filename", True)]
+    texts = [
+        TextItem("T1", "S1", "F1", "H1", "TEXT", "5FD32", "5FD32", False, "DIM", 0.0, 2.5, 274.995, 49.62, 274.995, 48.745, 283.0, 51.62),
+        TextItem("T2", "S1", "F1", "H2", "TEXT", "502", "502", True, "DIM", 0.0, 2.5, 300.622905, 48.157933, 300.622905, 47.282933, 305.272905, 50.157933),
+        TextItem("T3", "S1", "F1", "H3", "TEXT", "5FD31", "5FD31", False, "DIM", 0.0, 2.5, 274.995, 59.62, 274.995, 58.745, 283.0, 61.62),
+        TextItem("T4", "S1", "F1", "H4", "TEXT", "501", "501", True, "DIM", 0.0, 2.5, 300.622905, 58.157933, 300.622905, 57.282933, 305.272905, 60.157933),
+    ]
+
+    candidates = build_terminal_candidates(line_groups, texts, DEFAULT_CONFIG, sheets)
+    _, pairs = build_pairs(line_groups, candidates, sheets, DEFAULT_CONFIG)
+
+    fd32 = next(item for item in candidates if item.text_id == "T1" and item.line_group_id == "G1")
+    fd32_on_neighbor = next(item for item in candidates if item.text_id == "T1" and item.line_group_id == "G2")
+    fd31 = next(item for item in candidates if item.text_id == "T3" and item.line_group_id == "G2")
+    assert fd32.status == "accepted"
+    assert fd32.value == "5FD32"
+    assert fd32_on_neighbor.status == "rejected"
+    assert fd32_on_neighbor.rejection_reason == "schematic_logic_endpoint_out_of_row"
+    assert fd31.status == "accepted"
+    assert any(
+        pair.line_group_id == "G1"
+        and (pair.left_value, pair.right_value) == ("5FD32", "502")
+        and pair.pair_kind == "wire_component_mapping"
+        for pair in pairs
+    )
+
+
 def test_build_terminal_candidates_maps_compact_xd_endpoints_in_both_directions() -> None:
     line_groups = [
         LineGroup("G1", "S1", "F1", 10.0, 20.0, 50.0, 20.0, 40.0, 0.85, ["L1"], ["CONNECT"], orientation="horizontal"),

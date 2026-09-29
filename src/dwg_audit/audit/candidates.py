@@ -21,14 +21,15 @@ _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT = "schematic_semantic_endpoint_channel"
 _CHANNEL_CONTINUATION = "continuation_channel"
 _CHANNEL_SEMANTIC = "semantic_channel"
 _CHANNEL_NOISE = "noise_channel"
-# Central, telecontrol, and recorder signal-output terminals share the same
-# compact line-end geometry. Other *D device families remain on their dedicated
-# component paths so a nearby label cannot create an ordinary wire mapping.
+# Explicit schematic endpoint grammars share compact line-end geometry. Other
+# *D device families stay on dedicated component paths, not ordinary wire mappings.
 _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN = re.compile(
     r"^\d+(?:XD|YD|LD)\d+$",
     re.IGNORECASE,
 )
 _SCHEMATIC_UD_ENDPOINT_PATTERN = re.compile(r"^\d+UD\d+$", re.IGNORECASE)
+_SCHEMATIC_I_D_ENDPOINT_PATTERN = re.compile(r"^\d+I\d+D\d+$", re.IGNORECASE)
+_SCHEMATIC_FD_ENDPOINT_PATTERN = re.compile(r"^\d+FD\d+$", re.IGNORECASE)
 _SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN = re.compile(
     r"^\d+Q\d+D\d+(?:~\d+)?$",
     re.IGNORECASE,
@@ -41,6 +42,8 @@ _WIRE_LOGIC_ENDPOINT_PATTERN = re.compile(
     r"^(?:"
     r"\d+(?:XD|YD|LD)\d+"
     r"|\d+UD\d+"
+    r"|\d+I\d+D\d+"
+    r"|\d+FD\d+"
     r"|\d+Q\d+D\d+(?:~\d+)?"
     r"|[13]-21[A-Z]{2,4}\d{1,3}"
     r"|\d+-\d+(?:[A-Z]\d+[A-Z]\d+|[A-Z]{2,4}\d+)(?:~\d+(?:[A-Z]\d+)?)?"
@@ -1492,6 +1495,8 @@ def _compact_device_endpoint_out_of_row(value: str, dx: float, dy: float) -> boo
     if not (
         _SCHEMATIC_COMPACT_DEVICE_ENDPOINT_PATTERN.fullmatch(normalized)
         or _SCHEMATIC_UD_ENDPOINT_PATTERN.fullmatch(normalized)
+        or _SCHEMATIC_I_D_ENDPOINT_PATTERN.fullmatch(normalized)
+        or _SCHEMATIC_FD_ENDPOINT_PATTERN.fullmatch(normalized)
         or _SCHEMATIC_Q_DEVICE_ENDPOINT_PATTERN.fullmatch(normalized)
     ):
         return False
