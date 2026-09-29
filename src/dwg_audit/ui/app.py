@@ -536,7 +536,13 @@ def main() -> None:
             st.info("No project selected.")
         else:
             audit_dir = selected / "audit"
-            for filename in ("audit_report.md", "audit_report.html", "issues.json", "issues.xlsx"):
+            for filename in (
+                "audit_report.md",
+                "audit_report.html",
+                "issues.json",
+                "issues.xlsx",
+                "series_chains.json",
+            ):
                 path = audit_dir / filename
                 if not path.exists():
                     continue

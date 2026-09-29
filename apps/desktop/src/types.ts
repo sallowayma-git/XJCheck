@@ -76,6 +76,14 @@ export type ProjectResult = {
   run: ProjectRun
   issues: IssueSummary[]
   page_findings: PageFindingSummary[]
+  series_chains: SeriesChainReport | null
+}
+
+export type SeriesChainReport = {
+  chain_count: number
+  continuation_count: number
+  chains: Array<Record<string, unknown>>
+  [key: string]: unknown
 }
 
 export type ProjectSummary = {

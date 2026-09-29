@@ -65,9 +65,15 @@ class DesktopStateStore:
         pair_count: int,
         issue_count: int,
         metadata: dict[str, Any] | None = None,
+        series_chains: dict[str, Any] | None = None,
     ) -> None:
         now = _now_iso()
         payload = json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
+        series_chains_payload = (
+            json.dumps(series_chains, ensure_ascii=False, sort_keys=True)
+            if series_chains is not None
+            else None
+        )
         with self._connect() as conn:
             conn.execute(
                 """
@@ -84,8 +90,9 @@ class DesktopStateStore:
                     sheet_count,
                     pair_count,
                     issue_count,
-                    metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    metadata_json,
+                    series_chains_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(run_id) DO UPDATE SET
                     project_id=excluded.project_id,
                     project_name=excluded.project_name,
@@ -96,7 +103,8 @@ class DesktopStateStore:
                     sheet_count=excluded.sheet_count,
                     pair_count=excluded.pair_count,
                     issue_count=excluded.issue_count,
-                    metadata_json=excluded.metadata_json
+                    metadata_json=excluded.metadata_json,
+                    series_chains_json=excluded.series_chains_json
                 """,
                 (
                     run_id,
@@ -112,6 +120,7 @@ class DesktopStateStore:
                     pair_count,
                     issue_count,
                     payload,
+                    series_chains_payload,
                 ),
             )
 
@@ -319,6 +328,11 @@ class DesktopStateStore:
         return {
             "run": _row_to_run(run_row),
             "issues": [_issue_row_to_summary(row) for row in issue_rows],
+            "series_chains": (
+                json.loads(run_row["series_chains_json"])
+                if run_row["series_chains_json"]
+                else None
+            ),
             "page_findings": [
                 {
                     "sheet_id": row["sheet_id"],
@@ -747,7 +761,8 @@ class DesktopStateStore:
                     sheet_count INTEGER NOT NULL,
                     pair_count INTEGER NOT NULL,
                     issue_count INTEGER NOT NULL,
-                    metadata_json TEXT NOT NULL
+                    metadata_json TEXT NOT NULL,
+                    series_chains_json TEXT
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_runs_project_id_updated_at
@@ -824,6 +839,11 @@ class DesktopStateStore:
                 ON preview_geometries(run_id);
                 """
             )
+            run_columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(runs)").fetchall()
+            }
+            if "series_chains_json" not in run_columns:
+                conn.execute("ALTER TABLE runs ADD COLUMN series_chains_json TEXT")
             _ensure_issue_summary_columns(conn)
             conn.executescript(
                 """

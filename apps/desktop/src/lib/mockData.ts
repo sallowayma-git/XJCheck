@@ -206,6 +206,27 @@ const mockProjectResults: Record<string, ProjectResult> = {
       },
     },
     issues: mockIssues,
+    series_chains: {
+      schema_version: "1.0",
+      chain_count: 1,
+      continuation_count: 0,
+      chains: [
+        {
+          junction_kind: "device_terminal_series",
+          junction_value: "1UD1",
+          member_count: 1,
+          members: [
+            {
+              pair_id: "PCK0002",
+              sheet_id: "S0019",
+              filename: "19 元件接线图1.dwg",
+              role: "component_side",
+            },
+          ],
+          continuations: [],
+        },
+      ],
+    },
     page_findings: [
       {
         sheet_id: "S0005",

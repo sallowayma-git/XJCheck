@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from dwg_audit.desktop import preview as preview_module
+from dwg_audit.desktop import sidecar as sidecar_module
 from dwg_audit.desktop.lifecycle import cleanup_stale_workspaces
 from dwg_audit.desktop.preview import _expand_focus_extent_for_pan
 from dwg_audit.desktop.preview import build_preview_geometry_payloads
@@ -55,7 +57,15 @@ def _issue_payload(**overrides):
     return base
 
 
-def _record_demo_run(store: DesktopStateStore, *, run_id: str, session_id: str, artifact_dir: str, issue=None) -> None:
+def _record_demo_run(
+    store: DesktopStateStore,
+    *,
+    run_id: str,
+    session_id: str,
+    artifact_dir: str,
+    issue=None,
+    series_chains=None,
+) -> None:
     store.record_run(
         run_id=run_id,
         session_id=session_id,
@@ -68,6 +78,7 @@ def _record_demo_run(store: DesktopStateStore, *, run_id: str, session_id: str, 
         pair_count=1,
         issue_count=1,
         metadata={"demo": True},
+        series_chains=series_chains,
     )
     store.replace_issue_summaries(run_id, [issue or _issue_payload()])
 
@@ -86,6 +97,7 @@ def test_compact_session_workspace_removes_conversion_dir_and_keeps_sqlite(tmp_p
         run_id=f"{session_id}:demo-project",
         session_id=session_id,
         artifact_dir=str(artifact_dir),
+        series_chains={"chain_count": 1, "chains": [{"junction_value": "1UD1"}]},
     )
 
     result = compact_session_workspace(
@@ -100,7 +112,42 @@ def test_compact_session_workspace_removes_conversion_dir_and_keeps_sqlite(tmp_p
     loaded = load_project_result(project_id="demo-project", state_db_path=state_db)
     assert loaded is not None
     assert loaded["issues"][0]["issue_id"] == "I1"
+    assert loaded["series_chains"] == {"chain_count": 1, "chains": [{"junction_value": "1UD1"}]}
     assert str(loaded["run"].get("artifact_dir") or "") == ""
+
+
+def test_store_project_run_keeps_chain_json_for_desktop_result(tmp_path: Path, monkeypatch) -> None:
+    project_dir = tmp_path / "project"
+    findings_dir = project_dir / "findings"
+    audit_dir = project_dir / "audit"
+    findings_dir.mkdir(parents=True)
+    audit_dir.mkdir()
+    (project_dir / "manifest.json").write_text(
+        json.dumps({"project_id": "demo-project", "project_name": "Demo Project", "sheet_count": 1}),
+        encoding="utf-8",
+    )
+    (findings_dir / "findings.json").write_text(
+        json.dumps({"page_findings": [], "page_findings_count": 0}),
+        encoding="utf-8",
+    )
+    chain_report = {"chain_count": 1, "continuation_count": 0, "chains": [{"junction_value": "1UD1"}]}
+    (audit_dir / "series_chains.json").write_text(json.dumps(chain_report), encoding="utf-8")
+    empty_frames = {name: pd.DataFrame() for name in ("pairs", "issues", "pages", "lines", "texts", "line_groups", "blocks")}
+    monkeypatch.setattr(sidecar_module, "load_report_frames", lambda *_args, **_kwargs: empty_frames)
+    monkeypatch.setattr(sidecar_module, "build_preview_geometry_payloads", lambda _frames: [])
+
+    store = DesktopStateStore(tmp_path / "desktop_state.db")
+    sidecar_module._store_project_run(
+        store,
+        session_id="session-chain",
+        project_dir=project_dir,
+        input_root=tmp_path,
+        include_audit=True,
+    )
+
+    loaded = store.load_latest_project_result("demo-project")
+    assert loaded is not None
+    assert loaded["series_chains"] == chain_report
 
 
 def test_cleanup_transient_workspaces_clears_sessions_and_preview_cache(tmp_path: Path) -> None:

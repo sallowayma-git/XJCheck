@@ -558,6 +558,7 @@ function normalizeProjectResult(result: ProjectResult): ProjectResult {
           warnings: Array.isArray(pageFinding.warnings) ? pageFinding.warnings.map(String) : [],
         }))
       : [],
+    series_chains: result.series_chains ?? null,
   }
 }
 

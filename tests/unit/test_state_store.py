@@ -57,6 +57,7 @@ def test_state_store_migrates_legacy_issue_summary_schema(tmp_path: Path) -> Non
         pair_count=2,
         issue_count=1,
         metadata={"demo": True},
+        series_chains={"chain_count": 1, "chains": [{"junction_value": "1UD1"}]},
     )
     store.replace_issue_summaries(
         "session-a:demo-project",
@@ -99,6 +100,7 @@ def test_state_store_migrates_legacy_issue_summary_schema(tmp_path: Path) -> Non
     assert issue["one_to_many_classification"] == "review"
     assert issue["related_pair_ids"] == ["P2"]
     assert issue["evidence_refs"] == [{"pair_id": "P1", "filename": "01.dwg", "sheet_no": "01"}]
+    assert loaded["series_chains"] == {"chain_count": 1, "chains": [{"junction_value": "1UD1"}]}
 
 
 def test_state_store_list_issue_summaries_page_paginates_large_runs(tmp_path: Path) -> None:

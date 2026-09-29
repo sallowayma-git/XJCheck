@@ -336,6 +336,12 @@ def _store_project_run(
     issues = frames.get("issues", pd.DataFrame())
     issue_payload = _issue_payloads(issues)
     page_findings = findings_payload.get("page_findings", [])
+    series_chains_path = project_dir / "audit" / "series_chains.json"
+    series_chains = (
+        json.loads(series_chains_path.read_text(encoding="utf-8"))
+        if include_audit and series_chains_path.exists()
+        else None
+    )
     run_id = f"{session_id}:{manifest['project_id']}"
     metadata = {
         "include_audit": include_audit,
@@ -359,6 +365,7 @@ def _store_project_run(
         pair_count=int(len(pairs)),
         issue_count=int(len(issues)),
         metadata=metadata,
+        series_chains=series_chains,
     )
     store.replace_issue_summaries(run_id, issue_payload)
     store.replace_page_findings(run_id, page_findings)

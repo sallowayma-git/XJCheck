@@ -1872,6 +1872,24 @@ function App() {
                   {summaryProject?.project_name ?? "未加载项目"}
                 </span>
               </div>
+              {result?.series_chains && (
+                <div className="section-heading">
+                  <h3>串联链证据</h3>
+                  <span>
+                    {result.series_chains.chain_count} 条链 · {result.series_chains.continuation_count} 个延续
+                  </span>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => {
+                      const projectId = result.run.project_id.replace(/[^A-Za-z0-9._-]+/g, "_") || "project"
+                      downloadJsonFile(`series_chains_${projectId}.json`, result.series_chains)
+                    }}
+                  >
+                    下载 JSON
+                  </button>
+                </div>
+              )}
               <div className="handling-chip-row" aria-label="问题处理分桶">
                 <button
                   type="button"
@@ -3505,6 +3523,18 @@ function formatConfidence(value: number): string {
   }
   const ratio = value > 1 ? value / 100 : value
   return `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`
+}
+
+function downloadJsonFile(fileName: string, payload: unknown): void {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
 function humanizePreviewError(message: string): string {
