@@ -168,6 +168,26 @@ def test_pair_loader_preserves_nullable_line_group_identity() -> None:
     assert pair.line_group_id is None
 
 
+def test_pair_loader_preserves_pandas_missing_scope_and_nullable_group_ids() -> None:
+    pair = _pair(pd.Series({
+        "pair_id": "P0002",
+        "line_group_id": pd.NA,
+        "sheet_id": float("nan"),
+        "file_id": pd.NA,
+        "left_value": "UD-1",
+        "right_value": "1UD1",
+        "confidence": 0.95,
+        "status": "pass",
+        "rationale": "table fact",
+        "evidence": json.dumps({"source": "table_mapping"}),
+        "pair_kind": "table_mapping",
+    }))
+
+    assert pair.line_group_id is None
+    assert pair.sheet_id == ""
+    assert pair.file_id == ""
+
+
 def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monkeypatch) -> None:
     project_dir = tmp_path / "project"
     frames = _sample_frames()

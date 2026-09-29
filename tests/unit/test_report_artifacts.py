@@ -23,6 +23,7 @@ from dwg_audit.extract.primitive_normalizer import PRIMITIVE_SCHEMA_VERSION
 from dwg_audit.extract.primitive_normalizer import PrimitiveSegment
 from dwg_audit.readers import ReaderRun
 from dwg_audit.report.artifacts import load_report_frames
+from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import write_audit_outputs
 from dwg_audit.report.artifacts import write_project_artifacts
 from dwg_audit.report.rerun import rerun_audit_from_findings
@@ -53,6 +54,77 @@ def test_load_report_frames_reads_only_requested_frames(monkeypatch, tmp_path: P
 
     assert set(frames) == {"pairs", "issues"}
     assert reads == ["pairs.parquet", "issues.parquet"]
+
+
+def test_series_chain_members_are_included_in_exported_reports(tmp_path: Path) -> None:
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir()
+    (audit_dir / "series_chains.json").write_text(
+        json.dumps(
+            {
+                "chain_count": 1,
+                "continuation_count": 1,
+                "chains": [
+                    {
+                        "junction_kind": "device_terminal_series",
+                        "junction_value": "1UD1",
+                        "member_count": 1,
+                        "continuation_count": 1,
+                        "members": [
+                            {
+                                "pair_id": "PCK0002",
+                                "sheet_id": "S0019",
+                                "filename": "19 元件接线图1.dwg",
+                                "role": "component_side",
+                                "left_value": "1ZKK1-2",
+                                "right_text_id": "T3655",
+                                "producer_evidence": {"source": "component_mapping"},
+                            }
+                        ],
+                        "continuations": [
+                            {
+                                "pair_id": "PCK0003",
+                                "sheet_id": "S0020",
+                                "filename": "20 元件接线图2.dwg",
+                                "role": "component_side",
+                                "left_value": "1UD1",
+                                "junction_value": "1XD14-1",
+                                "producer_evidence": {"source": "component_mapping"},
+                            }
+                        ],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "manifest.json").write_text(json.dumps({"project_name": "Demo Project"}), encoding="utf-8")
+
+    frames = load_report_frames(tmp_path, names=("series_chain_members",))
+    members = frames["series_chain_members"]
+    assert len(members) == 2
+    assert set(members["pair_id"]) == {"PCK0002", "PCK0003"}
+    assert members.loc[members["chain_record_type"] == "member", "producer_evidence"].iloc[0] == '{"source": "component_mapping"}'
+    continuation = members.loc[members["chain_record_type"] == "continuation"].iloc[0]
+    assert continuation["junction_value"] == "1UD1"
+    assert continuation["continuation_junction_value"] == "1XD14-1"
+
+    export_existing_reports(tmp_path, formats=("md", "html", "xlsx"))
+
+    markdown = (audit_dir / "audit_report.md").read_text(encoding="utf-8")
+    html = (audit_dir / "audit_report.html").read_text(encoding="utf-8")
+    assert "SeriesChainCount: `1`" in markdown
+    assert "SeriesChainMemberCount: `1`" in markdown
+    assert "SeriesChainContinuationCount: `1`" in markdown
+    assert "series_chain_members" in html
+    assert "PCK0002" in html
+    assert "PCK0003" in html
+    assert "continuation" in html
+    workbook = pd.ExcelFile(audit_dir / "issues.xlsx")
+    assert "series_chain_members" in workbook.sheet_names
+    exported_members = pd.read_excel(audit_dir / "issues.xlsx", sheet_name="series_chain_members")
+    assert set(exported_members["pair_id"]) == {"PCK0002", "PCK0003"}
 
 
 def test_production_writer_short_circuits_shadow_artifacts(monkeypatch, tmp_path: Path) -> None:
@@ -122,6 +194,7 @@ def test_production_writer_short_circuits_shadow_artifacts(monkeypatch, tmp_path
     assert "wire_networks.parquet" not in payload["artifacts"]["findings"]
     assert "issue_root_cause_audit.json" not in payload["artifacts"]["audit"]
     assert "audit_report.html" in payload["artifacts"]["audit"]
+    assert "series_chains.json" in payload["artifacts"]["audit"]
     assert "audit_report.md" not in payload["artifacts"]["audit"]
     assert not (findings_dir / "blocks.parquet").exists()
     assert not (findings_dir / "old_diagnostic.json").exists()

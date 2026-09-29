@@ -213,7 +213,12 @@ def rerun_audit_from_findings(
         )
     else:
         issues_frame = write_issue_root_cause_audit(project_dir, frames, _issue_frame(issues))
-    series_chains = build_terminal_series_chains(pairs)
+    series_chains = build_terminal_series_chains(
+        pairs,
+        high_confidence_threshold=float(
+            config.get("confidence", {}).get("high_threshold", 0.92)
+        ),
+    )
     (audit_dir / "series_chains.json").write_text(
         json.dumps(
             {
@@ -441,8 +446,8 @@ def _pair(row: pd.Series) -> Pair:
     return Pair(
         pair_id=str(row["pair_id"]),
         line_group_id=_nullable_str(row.get("line_group_id")),
-        sheet_id=str(row["sheet_id"]),
-        file_id=str(row["file_id"]),
+        sheet_id=_nullable_str(row.get("sheet_id")) or "",
+        file_id=_nullable_str(row.get("file_id")) or "",
         selected_pair_candidate_id=_nullable_str(row.get("selected_pair_candidate_id")),
         left_value=_nullable_str(row.get("left_value")),
         right_value=_nullable_str(row.get("right_value")),
@@ -500,7 +505,7 @@ def _terminal_candidate(row: pd.Series) -> TerminalCandidate:
 
 
 def _nullable_str(value: object) -> str | None:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
+    if value is None or (pd.api.types.is_scalar(value) and pd.isna(value)):
         return None
     text = str(value)
     return None if text == "None" else text

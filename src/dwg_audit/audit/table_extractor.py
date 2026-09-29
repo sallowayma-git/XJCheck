@@ -1212,6 +1212,37 @@ def _build_terminal_header_table_mappings(
         for header in terminal_headers
         if terminal_header_identities[header.text_id][1] is None
     ]
+    shared_rows_by_header: dict[str, list[list[TextItem]]] = {}
+    shared_row_endpoint_sides: dict[tuple[str, str], str] = {}
+    bracketed_header_pairs: set[tuple[str, str]] = set()
+    for lower_header in regular_terminal_headers:
+        if _find_terminal_header_shuoming(lower_header, shuoming_labels) is None:
+            continue
+        rows_above = _collect_terminal_header_rows_above(
+            lower_header,
+            row_numbers,
+            terminal_headers,
+        )
+        if len(rows_above) < 2:
+            continue
+        row_ids_above = [row.text_id for row in rows_above]
+        for upper_header in regular_terminal_headers:
+            if upper_header.insert_y <= lower_header.insert_y:
+                continue
+            rows_below_upper = _collect_terminal_header_rows(
+                upper_header,
+                row_numbers,
+                regular_terminal_headers,
+            )
+            if [row.text_id for row in rows_below_upper] != row_ids_above:
+                continue
+            shared_rows_by_header.setdefault(lower_header.text_id, []).append(rows_above)
+            bracketed_header_pairs.add((upper_header.text_id, lower_header.text_id))
+            for row in rows_above:
+                shared_row_endpoint_sides[(upper_header.text_id, row.text_id)] = "right"
+                shared_row_endpoint_sides[(lower_header.text_id, row.text_id)] = "left"
+            break
+
     mappings: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     for header in sorted(terminal_headers, key=lambda item: (-item.insert_y, item.insert_x, item.text_id)):
@@ -1233,18 +1264,21 @@ def _build_terminal_header_table_mappings(
                 ownership_headers,
                 continuation_from_row=continuation_from_row,
             )
-        if not ordered_rows:
-            continue
+        ordered_row_groups = [ordered_rows] if ordered_rows else []
+        ordered_row_groups.extend(shared_rows_by_header.get(header.text_id, []))
+        rows_to_map = [
+            row
+            for row_group in ordered_row_groups
+            if _terminal_header_group_has_structure(
+                row_group,
+                endpoints,
+                has_shuoming=shuoming is not None,
+                has_explicit_continuation=continuation_from_row is not None,
+            )
+            for row in row_group
+        ]
 
-        if not _terminal_header_group_has_structure(
-            ordered_rows,
-            endpoints,
-            has_shuoming=shuoming is not None,
-            has_explicit_continuation=continuation_from_row is not None,
-        ):
-            continue
-
-        for row in ordered_rows:
+        for row in rows_to_map:
             row_number = int(row.normalized_text)
             row_endpoints = [
                 endpoint
@@ -1253,8 +1287,10 @@ def _build_terminal_header_table_mappings(
                     endpoint,
                     row,
                     header,
-                    ownership_headers,
+                    terminal_headers,
                     row_numbers,
+                    shared_row_endpoint_sides,
+                    bracketed_header_pairs,
                 )
             ]
             if not row_endpoints:
@@ -2265,6 +2301,35 @@ def _collect_terminal_header_rows(
     return max(candidates, key=len)
 
 
+def _collect_terminal_header_rows_above(
+    header: TextItem,
+    row_numbers: list[TextItem],
+    terminal_headers: list[TextItem],
+) -> list[TextItem]:
+    """Collect a row run between this header and the nearest header above it."""
+
+    upper_headers = [
+        other
+        for other in terminal_headers
+        if other.text_id != header.text_id
+        and other.insert_y > header.insert_y
+        and abs(other.insert_x - header.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+    ]
+    if not upper_headers:
+        return []
+    nearest_upper_y = min(other.insert_y for other in upper_headers)
+    rows_between = [
+        row
+        for row in row_numbers
+        if 0.0 < row.insert_y - header.insert_y <= _TERMINAL_HEADER_ROW_Y_SPAN
+        and row.insert_y < nearest_upper_y
+        and abs(row.insert_x - header.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+    ]
+    return _take_leading_consecutive_terminal_rows(
+        sorted(rows_between, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
+    )
+
+
 def _take_leading_consecutive_terminal_rows(rows: list[TextItem]) -> list[TextItem]:
     """Keep only the leading 1..N run so a restarted strip cannot pollute the group."""
     taken: list[TextItem] = []
@@ -2437,22 +2502,56 @@ def _terminal_header_endpoint_owned_by_row(
     header: TextItem,
     terminal_headers: list[TextItem],
     row_numbers: list[TextItem],
+    shared_row_endpoint_sides: dict[tuple[str, str], str],
+    bracketed_header_pairs: set[tuple[str, str]],
 ) -> bool:
     """Own an endpoint without stealing a different-number neighboring row."""
 
+    shared_side = shared_row_endpoint_sides.get((header.text_id, row.text_id))
+    if shared_side is not None:
+        endpoint_side = "left" if endpoint.insert_x < row.insert_x else "right"
+        if endpoint_side != shared_side:
+            return False
+
     current_distance = abs(endpoint.insert_x - header.insert_x)
-    closer_peers = [
-        peer
-        for peer in terminal_headers
-        if peer.text_id != header.text_id
-        and abs(peer.insert_x - header.insert_x) > 1.0
-        and abs(endpoint.insert_x - peer.insert_x) + 1e-6 < current_distance
-        and any(
+    closer_peers: list[TextItem] = []
+    for peer in terminal_headers:
+        if peer.text_id == header.text_id or abs(peer.insert_x - header.insert_x) <= 1.0:
+            continue
+        # The upper member of a bracket pair must not compete for a separate
+        # row run below the lower header; that run belongs to the lower table.
+        if row.insert_y < header.insert_y and (peer.text_id, header.text_id) in bracketed_header_pairs:
+            continue
+        # A stacked table on the opposite side of this row does not own it
+        # merely because its row-number column shares the same X position.
+        if (peer.insert_y - row.insert_y) * (header.insert_y - row.insert_y) < 0.0:
+            continue
+        if abs(endpoint.insert_x - peer.insert_x) + 1e-6 >= current_distance:
+            continue
+
+        peer_identity = _terminal_header_identity(
+            peer.normalized_text,
+            allow_continuation=True,
+        )
+        continuation_from_row = peer_identity[1] if peer_identity is not None else None
+        peer_rows = (
+            _collect_terminal_header_continuation_rows(
+                peer,
+                row_numbers,
+                terminal_headers,
+                continuation_from_row=continuation_from_row,
+            )
+            if continuation_from_row is not None
+            else row_numbers
+        )
+        peer_has_row_here = any(
             abs(candidate.insert_x - peer.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
             and abs(candidate.insert_y - row.insert_y) <= _TERMINAL_HEADER_ENDPOINT_Y_TOL
-            for candidate in row_numbers
+            for candidate in peer_rows
         )
-    ]
+        if peer_has_row_here:
+            closer_peers.append(peer)
+
     if not closer_peers:
         return True
 
@@ -2467,12 +2566,23 @@ def _terminal_header_endpoint_owned_by_row(
         closer_peers,
         key=lambda peer: (abs(endpoint.insert_x - peer.insert_x), peer.text_id),
     )
-    return any(
-        candidate.normalized_text == row.normalized_text
+    same_number_peer_rows = [
+        candidate
+        for candidate in row_numbers
+        if candidate.text_id != row.text_id
+        and candidate.normalized_text == row.normalized_text
         and abs(candidate.insert_x - nearest_peer.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
         and abs(candidate.insert_y - row.insert_y) <= _TERMINAL_HEADER_ENDPOINT_Y_TOL
-        for candidate in row_numbers
+    ]
+    if not same_number_peer_rows:
+        # A stacked header can share this exact row-number text; only a
+        # separate same-row number in the neighboring panel competes for it.
+        return abs(row.insert_x - nearest_peer.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
+    nearest_peer_row = min(
+        same_number_peer_rows,
+        key=lambda candidate: (abs(endpoint.insert_x - candidate.insert_x), candidate.text_id),
     )
+    return abs(endpoint.insert_x - row.insert_x) < abs(endpoint.insert_x - nearest_peer_row.insert_x)
 
 
 def _endpoint_beyond_shuoming_column(

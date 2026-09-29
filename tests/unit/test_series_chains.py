@@ -74,6 +74,10 @@ def _pair(
                 "column_roles": {"left": "empty", "middle": "row_number", "right": "terminal_endpoint"},
             },
         }
+        pair.left_text_id = pair.evidence["table_mapping"]["middle_text_id"]
+        pair.left_coord_x, pair.left_coord_y = pair.evidence["table_mapping"]["middle_coord"]
+        pair.right_text_id = pair.evidence["table_mapping"]["right_text_id"]
+        pair.right_coord_x, pair.right_coord_y = pair.evidence["table_mapping"]["right_coord"]
         return pair
     if submode == "terminal_strip_lattice":
         pair.evidence.update({
@@ -218,6 +222,18 @@ def test_series_chain_rejects_same_physical_scope_and_keeps_conflict_visible() -
     assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
 
 
+def test_series_chain_rejects_missing_scope_identity() -> None:
+    strip = _strip_pair("PT1", "S26", "1n2001", "1UD1")
+    component = _pair("PK1", "S23", "1ZKK1-2", "1UD1")
+    strip.sheet_id = float("nan")
+    strip.file_id = "F1"
+    component.sheet_id = float("nan")
+    component.file_id = "F2"
+
+    assert not is_cross_view_terminal_series_chain([strip, component])
+    assert build_terminal_series_chains([strip, component]) == []
+
+
 def test_series_chain_requires_at_least_one_strip_member() -> None:
     pairs = [
         _strip_pair("PT1", "S26", "1n2001", "1UD1"),
@@ -326,7 +342,7 @@ def test_series_chain_rejects_unrelated_continuation_producer() -> None:
     assert chains[0]["continuations"] == []
 
 
-def test_series_chain_rejects_incomplete_allowed_continuation() -> None:
+def test_series_chain_keeps_known_continuation_without_text_identity_checks() -> None:
     pairs = [
         _strip_pair("PT1", "S26", "1n2001", "1UD1"),
         _pair("PK1", "S23", "1ZKK1-2", "1UD1"),
@@ -337,18 +353,49 @@ def test_series_chain_rejects_incomplete_allowed_continuation() -> None:
     chains = build_terminal_series_chains(pairs)
 
     assert len(chains) == 1
-    assert chains[0]["continuation_count"] == 0
+    assert chains[0]["continuation_count"] == 1
+    assert chains[0]["continuations"][0]["pair_id"] == "PK2"
 
 
-def test_series_chain_requires_complete_member_evidence() -> None:
+def test_series_chain_uses_pair_kind_for_known_continuation() -> None:
+    pairs = [
+        _strip_pair("PT1", "S26", "1n2001", "1UD1"),
+        _pair("PK1", "S23", "1ZKK1-2", "1UD1"),
+        _pair("PB1", "S2", "1UD1", "1XD14-1", submode="strip_two_port_endpoint_bridge"),
+    ]
+    pairs[2].evidence.pop("pair_kind")
+
+    chains = build_terminal_series_chains(pairs)
+
+    assert len(chains) == 1
+    assert chains[0]["continuation_count"] == 1
+    assert chains[0]["continuations"][0]["pair_id"] == "PB1"
+
+
+def test_series_chain_uses_producer_kind_without_rechecking_geometry_evidence() -> None:
     pairs = [
         _strip_pair("PT1", "S26", "1n2001", "1UD1"),
         _pair("PK1", "S23", "1ZKK1-2", "1UD1"),
     ]
+    del pairs[0].evidence["terminal_strip_left_pin"]["handle"]
+    del pairs[0].evidence["terminal_strip_left_pin"]["value"]
     pairs[1].evidence.pop("component_port_text_id")
 
-    assert not is_cross_view_terminal_series_chain(pairs)
+    chains = build_terminal_series_chains(pairs)
+    assert len(chains) == 1
+    assert chains[0]["member_count"] == 2
+
+
+def test_series_chain_builder_rejects_valid_subset_when_unknown_claim_shares_junction() -> None:
+    pairs = [
+        _strip_pair("PT1", "S26", "1n2001", "1UD1"),
+        _pair("PK1", "S23", "1ZKK1-2", "1UD1"),
+        _pair("PU1", "S24", "2KLP2-1", "1UD1", submode="component_prefixed_signal_circuit"),
+    ]
+
     assert build_terminal_series_chains(pairs) == []
+    issues = build_issues(pairs, [], [_sheet("S23"), _sheet("S24"), _sheet("S26")], _DEFAULT_TEST_CONFIG)
+    assert any(issue.rule_id == "R-MANY-TO-ONE" for issue in issues)
 
 
 def test_series_chain_builder_ignores_unrelated_producers() -> None:
@@ -430,6 +477,22 @@ def test_series_chain_includes_terminal_chart_side_member() -> None:
     assert chain["members"][1]["role"] == "chart_side"
     sheets = [_sheet("S26"), _sheet("S29")]
     assert not any(issue.rule_id == "R-MANY-TO-ONE" for issue in build_issues(pairs, [], sheets, _DEFAULT_TEST_CONFIG))
+
+
+def test_series_chain_uses_left_or_right_terminal_chart_column() -> None:
+    strip = _strip_pair("PT1", "S26", "1n2006", "1UD10")
+    chart = _terminal_chart_pair("PTB1", "S29", "UD-10", "1UD10")
+    chart.evidence["table_mapping"].update({
+        "left_value": "1UD10",
+        "left_text_id": "PTB1-ENDPOINT",
+        "left_coord": [30.0, 20.0],
+        "column_roles": {"left": "terminal_endpoint", "middle": "row_number", "right": "empty"},
+    })
+
+    chains = build_terminal_series_chains([strip, chart])
+
+    assert len(chains) == 1
+    assert chains[0]["chart_side_values"] == ["UD-10"]
 
 
 def test_series_chain_rejects_backplate_virtual_table_member() -> None:

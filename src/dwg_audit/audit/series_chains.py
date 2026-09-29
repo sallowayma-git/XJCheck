@@ -25,6 +25,7 @@ _PORT_OWNER_SUBMODES = {
 }
 _CHAIN_SUBMODES = _PORT_OWNER_SUBMODES | {TERMINAL_STRIP_SUBMODE}
 _CHAIN_MIN_CONFIDENCE = 0.95
+_DEFAULT_MANY_TO_ONE_THRESHOLD = 0.92
 _CHAIN_SCHEMA_VERSION = "1.0"
 # The schematic-inline view and the KK/small-port views may describe the very
 # same port-to-terminal fact; that is cross-view corroboration (mirroring the
@@ -40,27 +41,35 @@ _CORROBORATION_SUBMODE_PAIRS = {
 _CHAIN_TABLE_MAPPING_MODE = "terminal_header_table"
 
 
+def _pair_evidence(pair: Pair) -> dict:
+    return pair.evidence or {}
+
+
 def _table_chain_eligible(pair: Pair) -> bool:
-    evidence = pair.evidence or {}
+    evidence = _pair_evidence(pair)
     if evidence.get("source") != "table_mapping":
         return False
     mapping = evidence.get("table_mapping") or {}
+    mapping_source = mapping.get("source")
+    roles = mapping.get("column_roles") or {}
+    endpoint_sides = [
+        side for side in ("left", "right")
+        if roles.get(side) == "terminal_endpoint"
+    ]
+    if len(endpoint_sides) != 1:
+        return False
+    endpoint_side = endpoint_sides[0]
     return (
         mapping.get("mapping_mode") == _CHAIN_TABLE_MAPPING_MODE
-        and mapping.get("source") in {None, "table_mapping"}
+        and (mapping_source is None or mapping_source == "table_mapping")
         and str(mapping.get("sheet_id") or "") == str(pair.sheet_id or "")
         and str(mapping.get("logical_endpoint") or "") == str(pair.left_value or "")
-        and str(mapping.get("right_value") or "") == str(pair.right_value or "")
+        and str(mapping.get(f"{endpoint_side}_value") or "") == str(pair.right_value or "")
         and mapping.get("row_number_sequence_valid") is True
         and bool(mapping.get("header_prefix"))
         and bool(mapping.get("header_text_id"))
         and bool(mapping.get("middle_text_id"))
         and mapping.get("row_number") is not None
-        and isinstance(mapping.get("column_roles"), dict)
-        and (
-            mapping["column_roles"].get("left") == "terminal_endpoint"
-            or mapping["column_roles"].get("right") == "terminal_endpoint"
-        )
     )
 
 
@@ -79,174 +88,46 @@ def _is_chain_member(pair: Pair) -> bool:
     if not str(pair.left_value or "").strip() or not str(pair.right_value or "").strip():
         return False
     if pair.pair_kind == "table_mapping":
-        return _table_chain_eligible(pair) and _has_complete_table_chain_evidence(pair)
+        return _table_chain_eligible(pair)
     if pair.pair_kind != "component_mapping":
         return False
-    evidence = pair.evidence or {}
+    evidence = _pair_evidence(pair)
     if evidence.get("source") != "component_mapping":
         return False
+    submode = evidence.get("component_submode")
     return (
-        evidence.get("component_submode") in _CHAIN_SUBMODES
-        and _has_complete_component_chain_evidence(pair)
+        isinstance(submode, str)
+        and submode in _CHAIN_SUBMODES
+    )
+
+
+def _is_many_to_one_claim(pair: Pair, high_threshold: float) -> bool:
+    """Mirror the right-side rule's eligible claims before chain adjudication."""
+
+    if not pair.left_value or not pair.right_value:
+        return False
+    evidence = _pair_evidence(pair)
+    source = evidence.get("source")
+    if source == "table_mapping" or pair.pair_kind == "table_mapping":
+        # The many-to-one rule admits structured table rows independently of
+        # their score/status; chain recognition decides whether they fit.
+        return True
+    if source != "component_mapping" and pair.pair_kind != "component_mapping":
+        if pair.pair_kind != "ordinary_pair" or evidence.get("ordinary_pair_eligible") is False:
+            return False
+    confidence = pair.confidence
+    native_finite_confidence = type(confidence) is int or (
+        type(confidence) is float and math.isfinite(confidence)
+    )
+    return (
+        native_finite_confidence
+        and confidence >= high_threshold
+        and (pair.status == "pass" or pair.confidence_bucket == "high")
     )
 
 
 def _nonempty_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
-
-
-def _finite_coordinate(value: object) -> bool:
-    return (
-        isinstance(value, (list, tuple))
-        and len(value) == 2
-        and all(isinstance(item, (int, float)) and not isinstance(item, bool) and math.isfinite(float(item)) for item in value)
-    )
-
-
-def _pair_coordinate_matches(value: object, x: object, y: object) -> bool:
-    return _finite_coordinate(value) and isinstance(x, (int, float)) and isinstance(y, (int, float)) and not isinstance(x, bool) and not isinstance(y, bool) and math.isfinite(float(x)) and math.isfinite(float(y)) and float(value[0]) == float(x) and float(value[1]) == float(y)
-
-
-def _complete_component_identity(pair: Pair, evidence: dict) -> bool:
-    return (
-        evidence.get("source") == "component_mapping"
-        and evidence.get("pair_kind") == "component_mapping"
-        and _nonempty_text(evidence.get("component_body"))
-        and _nonempty_text(evidence.get("component_port"))
-        and _nonempty_text(evidence.get("component_body_text_id"))
-        and _nonempty_text(evidence.get("component_port_text_id"))
-        and _nonempty_text(evidence.get("external_endpoint"))
-        and _nonempty_text(evidence.get("external_endpoint_raw"))
-        and _nonempty_text(evidence.get("external_endpoint_text_id"))
-        and _nonempty_text(evidence.get("logical_endpoint"))
-        and str(evidence["logical_endpoint"]).strip() == str(pair.left_value).strip()
-        and str(evidence["external_endpoint"]).strip() == str(pair.right_value).strip()
-        and str(pair.left_text_id or "").strip() == str(evidence["component_port_text_id"]).strip()
-        and str(pair.right_text_id or "").strip() == str(evidence["external_endpoint_text_id"]).strip()
-        and _pair_coordinate_matches(evidence.get("component_port_coord"), pair.left_coord_x, pair.left_coord_y)
-        and _pair_coordinate_matches(evidence.get("external_endpoint_coord"), pair.right_coord_x, pair.right_coord_y)
-    )
-
-
-def _has_complete_component_chain_evidence(pair: Pair) -> bool:
-    evidence = pair.evidence or {}
-    submode = evidence.get("component_submode")
-    if submode == TERMINAL_STRIP_SUBMODE:
-        left_pin = evidence.get("terminal_strip_left_pin")
-        right_pin = evidence.get("terminal_strip_right_pin")
-        flank_groups = evidence.get("terminal_strip_flank_group_ids")
-        flank_lines = evidence.get("terminal_strip_flank_line_ids")
-        return (
-            evidence.get("source") == "component_mapping"
-            and evidence.get("pair_kind") == "component_mapping"
-            and _nonempty_text(evidence.get("terminal_strip_instance"))
-            and _nonempty_text(evidence.get("terminal_strip_instance_text_id"))
-            and isinstance(evidence.get("terminal_strip_block_names"), list)
-            and bool(evidence["terminal_strip_block_names"])
-            and _nonempty_text(evidence.get("terminal_strip_insert_handle"))
-            and isinstance(evidence.get("terminal_strip_pin_row"), int)
-            and evidence["terminal_strip_pin_row"] >= 1
-            and isinstance(evidence.get("terminal_strip_pin_row_count"), int)
-            and evidence["terminal_strip_pin_row_count"] >= evidence["terminal_strip_pin_row"]
-            and isinstance(evidence.get("terminal_strip_pitch"), (int, float))
-            and math.isfinite(float(evidence["terminal_strip_pitch"]))
-            and evidence["terminal_strip_pitch"] > 0
-            and isinstance(left_pin, dict)
-            and isinstance(right_pin, dict)
-            and _nonempty_text(left_pin.get("text_id"))
-            and _nonempty_text(right_pin.get("text_id"))
-            and _finite_coordinate(left_pin.get("coord"))
-            and _finite_coordinate(right_pin.get("coord"))
-            and _nonempty_text(evidence.get("left_terminal_text_id"))
-            and _nonempty_text(evidence.get("right_terminal_text_id"))
-            and _pair_coordinate_matches(evidence.get("left_terminal_coord"), pair.left_coord_x, pair.left_coord_y)
-            and _pair_coordinate_matches(evidence.get("right_terminal_coord"), pair.right_coord_x, pair.right_coord_y)
-            and str(evidence.get("left_terminal") or "") == str(pair.left_value or "")
-            and str(evidence.get("right_terminal") or "") == str(pair.right_value or "")
-            and _nonempty_text(evidence.get("line_group_id"))
-            and pair.line_group_id == evidence.get("line_group_id")
-            and isinstance(evidence.get("supporting_line_ids"), list)
-            and bool(evidence["supporting_line_ids"])
-            and isinstance(flank_groups, list)
-            and len(flank_groups) >= 2
-            and isinstance(flank_lines, list)
-            and len(flank_lines) >= 2
-        )
-    if submode not in _PORT_OWNER_SUBMODES:
-        return False
-    if submode == "strip_two_port_endpoint_bridge":
-        return _has_complete_endpoint_bridge_evidence(pair)
-    if not _complete_component_identity(pair, evidence):
-        return False
-    if submode == "inline_two_port_component":
-        return (
-            evidence.get("mapping_mode") == "schematic_inline_two_port"
-            and evidence.get("recognition_mode") == "geometry_insert_backed_inline_two_port"
-            and evidence.get("internal_connectivity_inferred") is False
-            and evidence.get("electrical_union_eligible") is False
-            and evidence.get("ordinary_pair_eligible") is False
-            and _nonempty_text(evidence.get("component_block_name"))
-            and _nonempty_text(evidence.get("component_block_handle"))
-        )
-    common = (
-        _nonempty_text(evidence.get("component_block_name"))
-        and _nonempty_text(evidence.get("line_group_id"))
-        and pair.line_group_id == evidence.get("line_group_id")
-        and isinstance(evidence.get("supporting_line_ids"), list)
-        and bool(evidence["supporting_line_ids"])
-        and evidence.get("left_side_label") == "component_port"
-        and evidence.get("right_side_label") == "external_endpoint"
-    )
-    if submode == "kk_multi_port_component":
-        return common and _nonempty_text(evidence.get("component_block_id"))
-    if submode == "small_port_box_component":
-        bbox = evidence.get("component_instance_bbox")
-        return common and evidence.get("endpoint_side") in {"top", "bottom", "left", "right"} and isinstance(bbox, (list, tuple)) and len(bbox) == 4 and all(isinstance(item, (int, float)) and math.isfinite(float(item)) for item in bbox)
-    if submode == "strip_two_port_component":
-        return common and evidence.get("endpoint_side") in {"top", "bottom", "left", "right"} and str(evidence.get("external_endpoint_split") or "") == str(pair.right_value or "")
-    return False
-
-
-def _has_complete_endpoint_bridge_evidence(pair: Pair) -> bool:
-    evidence = pair.evidence or {}
-    required = ("component_block_name", "top_port", "bottom_port", "top_endpoint", "top_endpoint_raw", "top_endpoint_text_id", "bottom_endpoint", "bottom_endpoint_raw", "bottom_endpoint_text_id", "logical_endpoint", "external_endpoint", "line_group_id")
-    return (
-        all(_nonempty_text(evidence.get(key)) for key in required)
-        and evidence.get("line_orientation") == "strip_two_port_endpoint_bridge_vertical"
-        and evidence.get("left_side_label") == "top_endpoint"
-        and evidence.get("right_side_label") == "bottom_endpoint"
-        and evidence.get("top_port") == "1"
-        and evidence.get("bottom_port") == "2"
-        and evidence.get("top_endpoint") == pair.left_value
-        and evidence.get("bottom_endpoint") == pair.right_value
-        and evidence.get("logical_endpoint") == pair.left_value
-        and evidence.get("external_endpoint") == pair.right_value
-        and pair.left_text_id == evidence.get("top_endpoint_text_id")
-        and pair.right_text_id == evidence.get("bottom_endpoint_text_id")
-        and _pair_coordinate_matches(evidence.get("top_endpoint_coord"), pair.left_coord_x, pair.left_coord_y)
-        and _pair_coordinate_matches(evidence.get("bottom_endpoint_coord"), pair.right_coord_x, pair.right_coord_y)
-        and isinstance(evidence.get("supporting_line_ids"), list)
-        and bool(evidence["supporting_line_ids"])
-        and pair.line_group_id == evidence.get("line_group_id")
-    )
-
-
-def _has_complete_table_chain_evidence(pair: Pair) -> bool:
-    evidence = pair.evidence or {}
-    mapping = evidence.get("table_mapping")
-    if not isinstance(mapping, dict):
-        return False
-    return (
-        _nonempty_text(evidence.get("filename"))
-        and _nonempty_text(evidence.get("sheet_no"))
-        and _nonempty_text(pair.left_text_id)
-        and _nonempty_text(pair.right_text_id)
-        and _finite_coordinate([pair.left_coord_x, pair.left_coord_y])
-        and _finite_coordinate([pair.right_coord_x, pair.right_coord_y])
-        and _finite_coordinate(mapping.get("middle_coord"))
-        and _finite_coordinate(mapping.get("header_coord"))
-        and _finite_coordinate(mapping.get("right_coord"))
-    )
 
 
 def _left_value_claim_is_corroborated(members: list[Pair]) -> bool:
@@ -255,7 +136,7 @@ def _left_value_claim_is_corroborated(members: list[Pair]) -> bool:
     if len(members) != 2:
         return False
     submodes = frozenset(
-        str((pair.evidence or {}).get("component_submode")) for pair in members
+        str(_pair_evidence(pair).get("component_submode")) for pair in members
     )
     if submodes not in _CORROBORATION_SUBMODE_PAIRS:
         return False
@@ -268,15 +149,17 @@ def is_cross_view_terminal_series_chain(linked_pairs: list[Pair]) -> bool:
 
     if len(linked_pairs) < 2:
         return False
-    scopes = [(str(pair.sheet_id or "").strip(), str(pair.file_id or "").strip()) for pair in linked_pairs]
-    if any(not sheet_id or not file_id for sheet_id, file_id in scopes) or len(set(scopes)) != len(scopes):
+    if any(not _nonempty_text(pair.sheet_id) or not _nonempty_text(pair.file_id) for pair in linked_pairs):
+        return False
+    scopes = [(pair.sheet_id.strip(), pair.file_id.strip()) for pair in linked_pairs]
+    if len(set(scopes)) != len(scopes):
         return False
     if not all(_is_chain_member(pair) for pair in linked_pairs):
         return False
     strip_members = [
         pair
         for pair in linked_pairs
-        if (pair.evidence or {}).get("component_submode") == TERMINAL_STRIP_SUBMODE
+        if _pair_evidence(pair).get("component_submode") == TERMINAL_STRIP_SUBMODE
     ]
     if not strip_members:
         return False
@@ -301,7 +184,11 @@ def is_cross_view_terminal_series_chain(linked_pairs: list[Pair]) -> bool:
     return distinct_claims >= 2
 
 
-def build_terminal_series_chains(pairs: list[Pair]) -> list[dict]:
+def build_terminal_series_chains(
+    pairs: list[Pair],
+    *,
+    high_confidence_threshold: float = _DEFAULT_MANY_TO_ONE_THRESHOLD,
+) -> list[dict]:
     """Build one record per terminal series junction across all producer views.
 
     Members referencing the same junction value are collected regardless of
@@ -311,7 +198,7 @@ def build_terminal_series_chains(pairs: list[Pair]) -> list[dict]:
 
     members_by_junction: dict[str, list[Pair]] = defaultdict(list)
     for pair in pairs:
-        if _is_chain_member(pair):
+        if _is_many_to_one_claim(pair, high_confidence_threshold):
             members_by_junction[str(pair.right_value)].append(pair)
     chains: list[dict] = []
     for junction in sorted(members_by_junction):
@@ -338,14 +225,15 @@ def build_terminal_series_chains(pairs: list[Pair]) -> list[dict]:
                     {
                         str(pair.left_value)
                         for pair in members
-                        if (pair.evidence or {}).get("component_submode") == TERMINAL_STRIP_SUBMODE
+                        if _pair_evidence(pair).get("component_submode") == TERMINAL_STRIP_SUBMODE
                     }
                 ),
                 "component_side_values": sorted(
                     {
                         str(pair.left_value)
                         for pair in members
-                        if (pair.evidence or {}).get("component_submode") in _PORT_OWNER_SUBMODES
+                        if isinstance(_pair_evidence(pair).get("component_submode"), str)
+                        and _pair_evidence(pair).get("component_submode") in _PORT_OWNER_SUBMODES
                     }
                 ),
                 "chart_side_values": sorted(
@@ -363,7 +251,7 @@ def build_terminal_series_chains(pairs: list[Pair]) -> list[dict]:
 
 
 def _chain_member_record(pair: Pair, junction_value: str) -> dict:
-    evidence = pair.evidence or {}
+    evidence = _pair_evidence(pair)
     submode = evidence.get("component_submode")
     if pair.pair_kind == "table_mapping":
         role = "chart_side"

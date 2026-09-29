@@ -3038,6 +3038,7 @@ def _build_findings_payload(
     audit_artifacts = [
         "issues.parquet",
         "issues.json",
+        "series_chains.json",
         *selected_report_artifacts,
         "topology_shadow_report.json",
         "topology_shadow_report.md",
@@ -3052,6 +3053,7 @@ def _build_findings_payload(
         audit_artifacts = [
             "issues.parquet",
             "issues.json",
+            "series_chains.json",
             *selected_report_artifacts,
             "runtime_profile.json",
         ]
@@ -3768,6 +3770,22 @@ def _write_reports(
     if "md" in selected_formats:
         issues = report_frames["issues"]
         pairs = report_frames["pairs"]
+        chain_members = report_frames.get("series_chain_members", pd.DataFrame())
+        chain_count = (
+            int(chain_members["chain_id"].nunique())
+            if not chain_members.empty and "chain_id" in chain_members.columns
+            else 0
+        )
+        chain_member_count = (
+            int((chain_members["chain_record_type"] == "member").sum())
+            if not chain_members.empty and "chain_record_type" in chain_members.columns
+            else 0
+        )
+        chain_continuation_count = (
+            int((chain_members["chain_record_type"] == "continuation").sum())
+            if not chain_members.empty and "chain_record_type" in chain_members.columns
+            else 0
+        )
         review_pairs = _review_pair_rows(pairs)
         markdown_lines = [
             "# Audit Report",
@@ -3782,6 +3800,9 @@ def _write_reports(
             f"- PairStatusCounts: `{json.dumps(_frame_value_counts(pairs, 'status'), ensure_ascii=False, sort_keys=True)}`",
             f"- PairConfidenceBuckets: `{json.dumps(_frame_value_counts(pairs, 'confidence_bucket'), ensure_ascii=False, sort_keys=True)}`",
             f"- ReviewPairs: `{len(review_pairs)}`",
+            f"- SeriesChainCount: `{chain_count}`",
+            f"- SeriesChainMemberCount: `{chain_member_count}`",
+            f"- SeriesChainContinuationCount: `{chain_continuation_count}`",
             "",
             "## 待复核 Pair",
             "",
@@ -3839,6 +3860,39 @@ def load_report_frames(
     if "issues" in requested:
         issue_path = audit_dir / "issues.parquet"
         frames["issues"] = pd.read_parquet(issue_path) if issue_path.exists() else pd.DataFrame()
+    if "series_chain_members" in requested:
+        chain_path = audit_dir / "series_chains.json"
+        members = []
+        if chain_path.exists():
+            chain_report = json.loads(chain_path.read_text(encoding="utf-8"))
+            for chain_index, chain in enumerate(chain_report.get("chains", []), start=1):
+                if not isinstance(chain, dict):
+                    continue
+                for record_type in ("members", "continuations"):
+                    for member in chain.get(record_type, []):
+                        if not isinstance(member, dict):
+                            continue
+                        row = {
+                            "chain_id": f"C{chain_index:04d}",
+                            "chain_record_type": record_type[:-1],
+                            "junction_kind": chain.get("junction_kind"),
+                            "junction_value": chain.get("junction_value"),
+                            "chain_member_count": chain.get("member_count"),
+                            "chain_continuation_count": chain.get("continuation_count"),
+                        }
+                        row.update(
+                            {
+                                key: json.dumps(value, ensure_ascii=False, sort_keys=True)
+                                if isinstance(value, (dict, list))
+                                else value
+                                for key, value in member.items()
+                            }
+                        )
+                        row["junction_value"] = chain.get("junction_value")
+                        if record_type == "continuations":
+                            row["continuation_junction_value"] = member.get("junction_value")
+                        members.append(row)
+        frames["series_chain_members"] = pd.DataFrame(members)
     return frames
 
 
@@ -3847,7 +3901,10 @@ def export_existing_reports(
     formats: list[str] | tuple[str, ...] | set[str] | str | None = None,
 ) -> None:
     manifest = json.loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
-    frames = load_report_frames(project_dir, names=("issues", "pairs", "source_files"))
+    frames = load_report_frames(
+        project_dir,
+        names=("issues", "pairs", "source_files", "series_chain_members"),
+    )
     files = frames.get("source_files", pd.DataFrame())
     pairs = frames.get("pairs", pd.DataFrame())
     low_conf = pairs[pairs["status"] != "pass"] if not pairs.empty and "status" in pairs.columns else pd.DataFrame()
@@ -3859,6 +3916,7 @@ def export_existing_reports(
             "pairs": pairs,
             "low_confidence_pairs": low_conf,
             "files": files,
+            "series_chain_members": frames.get("series_chain_members", pd.DataFrame()),
         },
         formats=formats,
     )

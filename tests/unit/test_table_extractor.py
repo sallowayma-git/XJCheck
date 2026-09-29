@@ -932,6 +932,218 @@ def test_extract_terminal_header_table_pairs_keeps_same_port_left_and_right_fano
     assert all(pair.pair_kind == "table_mapping" for pair in pairs)
 
 
+def test_stacked_header_below_row_does_not_steal_terminal_endpoint() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 220.0, 260.0))
+    sheet.sheet_category = "屏端子图"
+    texts = [
+        _make_text("H_UD", 100.0, 230.0, "UD"),
+        _make_text("SH_UD", 135.0, 230.0, "说明"),
+        # A separate strip below is slightly closer to the left endpoints in X.
+        _make_text("H_1I1D", 98.5, 170.0, "1I1D"),
+        *[
+            _make_text(f"LOW_R{row}", 100.0, 160.0 - 5.0 * (row - 1), str(row), is_numeric_candidate=True)
+            for row in range(1, 4)
+        ],
+        *[
+            _make_text(f"LOW_E{row}", 120.0, 160.0 - 5.0 * (row - 1), f"1n10{row}")
+            for row in range(1, 4)
+        ],
+        *[
+            _make_text(f"R{row}", 100.0, 220.0 - 5.0 * (row - 1), str(row), is_numeric_candidate=True)
+            for row in range(1, 4)
+        ],
+        *[
+            _make_text(f"E{row}", 80.0, 220.0 - 5.0 * (row - 1), f"1ZKK1-{2 * row - 1}")
+            for row in range(1, 4)
+        ],
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert {
+        ("UD-1", "1ZKK1-1"),
+        ("UD-2", "1ZKK1-3"),
+        ("UD-3", "1ZKK1-5"),
+    } <= pair_values
+    assert {
+        ("1I1D-1", "1n101"),
+        ("1I1D-2", "1n102"),
+        ("1I1D-3", "1n103"),
+    } <= pair_values
+
+
+def test_continuation_header_owns_endpoint_when_other_table_shares_the_row() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    texts = [
+        _make_text("U3D_HEADER", 176.75, 276.0, "U3D"),
+        _make_text("U3D_DESCRIPTION", 137.5, 276.25, "说明"),
+        _make_text("I1D_CONTINUATION", 260.75, 276.0, "上接1I1D6"),
+        _make_text("I1D_DESCRIPTION", 227.5, 276.25, "说明"),
+        _make_text("U3D_E1", 153.5, 241.0, "1ZKK3-1"),
+        _make_text("U3D_R1", 176.75, 241.0, "1", is_numeric_candidate=True),
+        _make_text("U3D_E2", 153.5, 236.0, "1ZKK3-3"),
+        _make_text("U3D_R2", 176.75, 236.0, "2", is_numeric_candidate=True),
+        *[
+            _make_text(
+                f"I1D_R{row}",
+                266.0,
+                266.0 - 5.0 * (row - 7),
+                str(row),
+                is_numeric_candidate=True,
+            )
+            for row in range(7, 14)
+        ],
+        _make_text("I1D_E7", 273.5, 266.0, "TF1-7"),
+        _make_text("I1D_E9", 243.5, 256.0, "TF1-10"),
+        _make_text("I1D_E12", 243.5, 241.0, "TF1-14"),
+        _make_text("I1D_E13", 243.5, 236.0, "TF1-16"),
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert {
+        ("U3D-1", "1ZKK3-1"),
+        ("U3D-2", "1ZKK3-3"),
+        ("1I1D-12", "TF1-14"),
+        ("1I1D-13", "TF1-16"),
+    } <= pair_values
+    assert ("U3D-1", "TF1-14") not in pair_values
+    assert ("U3D-2", "TF1-16") not in pair_values
+
+
+def test_bracketing_terminal_headers_split_shared_rows_by_side_and_keep_lower_rows() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 220.0, 150.0))
+    sheet.sheet_category = "屏端子图"
+    texts = [
+        _make_text("TOP_HEADER", 100.0, 130.0, "KD"),
+        _make_text("TOP_DESCRIPTION", 65.0, 130.0, "说明"),
+        _make_text("SHARED_R1", 100.0, 120.0, "1", is_numeric_candidate=True),
+        _make_text("SHARED_L1", 80.0, 120.0, "1CLP1-1"),
+        _make_text("SHARED_RIGHT1", 120.0, 120.0, "1Q4D8"),
+        _make_text("SHARED_R2", 100.0, 115.0, "2", is_numeric_candidate=True),
+        _make_text("SHARED_L2", 80.0, 115.0, "2C1LP1-1"),
+        _make_text("SHARED_RIGHT2", 120.0, 115.0, "2Q4D8"),
+        _make_text("SHARED_R3", 100.0, 110.0, "3", is_numeric_candidate=True),
+        _make_text("SHARED_L3", 80.0, 110.0, "2n121"),
+        _make_text("SHARED_RIGHT3", 120.0, 110.0, "1CLP3-1"),
+        _make_text("BOTTOM_HEADER", 100.0, 100.0, "1YD"),
+        _make_text("BOTTOM_DESCRIPTION", 65.0, 100.0, "说明"),
+        _make_text("LOWER_R1", 100.0, 90.0, "1", is_numeric_candidate=True),
+        _make_text("LOWER_L1", 80.0, 90.0, "1n108"),
+        _make_text("LOWER_RIGHT1", 120.0, 90.0, "2GD5"),
+        _make_text("LOWER_R2", 100.0, 85.0, "2", is_numeric_candidate=True),
+        _make_text("LOWER_L2", 80.0, 85.0, "1n429"),
+        _make_text("LOWER_RIGHT2", 120.0, 85.0, "1n210"),
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert {
+        ("KD-1", "1Q4D8"),
+        ("KD-2", "2Q4D8"),
+        ("KD-3", "1CLP3-1"),
+    } <= pair_values
+    assert {
+        ("1YD-1", "1CLP1-1"),
+        ("1YD-2", "2C1LP1-1"),
+        ("1YD-3", "2n121"),
+    } <= pair_values
+    assert not {
+        ("KD-1", "1CLP1-1"),
+        ("KD-2", "2C1LP1-1"),
+        ("KD-3", "2n121"),
+        ("1YD-1", "1Q4D8"),
+        ("1YD-2", "2Q4D8"),
+        ("1YD-3", "1CLP3-1"),
+    } & pair_values
+    assert {
+        ("1YD-1", "1n108"),
+        ("1YD-1", "2GD5"),
+        ("1YD-2", "1n429"),
+        ("1YD-2", "1n210"),
+    } <= pair_values
+
+
+def test_bracketed_side_split_does_not_steal_neighbor_panel_endpoints() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 320.0, 280.0))
+    sheet.sheet_category = "屏端子图"
+    texts = [
+        _make_text("LEFT_TOP", 90.0, 276.0, "1ID"),
+        _make_text("LEFT_TOP_NOTE", 50.0, 276.25, "说明"),
+        _make_text("LEFT_BOTTOM", 90.0, 200.0, "1-2UD"),
+        _make_text("LEFT_BOTTOM_NOTE", 50.0, 200.25, "说明"),
+        _make_text("CENTER_TOP", 185.0, 276.0, "3-2UD"),
+        _make_text("CENTER_TOP_NOTE", 145.0, 276.25, "说明"),
+        _make_text("CENTER_BOTTOM", 185.0, 210.0, "3-2ID"),
+        _make_text("CENTER_BOTTOM_NOTE", 145.0, 210.25, "说明"),
+        _make_text("RIGHT_TOP", 280.0, 276.0, "1-4QD"),
+        _make_text("RIGHT_TOP_NOTE", 240.0, 276.25, "说明"),
+    ]
+    for row_number, y in ((1, 266.0), (2, 261.0), (3, 256.0)):
+        texts.extend([
+            _make_text(f"LEFT_ROW_{row_number}", 90.0, y, str(row_number), is_numeric_candidate=True),
+            _make_text(f"LEFT_ENDPOINT_{row_number}", 66.0, y, f"1n{700 + row_number}"),
+            _make_text(f"CENTER_ROW_{row_number}", 185.0, y, str(row_number), is_numeric_candidate=True),
+            _make_text(f"CENTER_ENDPOINT_{row_number}", 161.0, y, f"3-2ZKK-{2 * row_number - 1}"),
+            _make_text(f"RIGHT_ROW_{row_number}", 280.0, y, str(row_number), is_numeric_candidate=True),
+            _make_text(f"RIGHT_LEFT_{row_number}", 256.0, y, f"1-2n{212 + row_number}"),
+            _make_text(f"RIGHT_RIGHT_{row_number}", 286.0, y, f"1-4DK-{2 + row_number}"),
+        ])
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+
+    assert {("1-2UD-1", "1n701"), ("1-2UD-3", "1n703")} <= pair_values
+    assert {("3-2ID-1", "3-2ZKK-1"), ("3-2ID-3", "3-2ZKK-5")} <= pair_values
+    assert {("1-4QD-1", "1-2n213"), ("1-4QD-1", "1-4DK-3")} <= pair_values
+    assert ("1ID-1", "3-2ZKK-1") not in pair_values
+    assert ("3-2UD-1", "1-2n213") not in pair_values
+    assert ("3-2UD-1", "3-2ZKK-1") not in pair_values
+
+
+def test_bracketed_lower_header_keeps_separate_left_endpoint_rows() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 220.0, 150.0))
+    sheet.sheet_category = "屏端子图"
+    texts = [
+        _make_text("TOP_HEADER", 98.5, 130.0, "1-7UD"),
+        _make_text("TOP_DESCRIPTION", 63.5, 130.0, "说明"),
+        _make_text("SHARED_R1", 100.0, 120.0, "1", is_numeric_candidate=True),
+        _make_text("SHARED_L1", 80.0, 120.0, "1ZKK1-1"),
+        _make_text("SHARED_RIGHT1", 120.0, 120.0, "1Q4D8"),
+        _make_text("SHARED_R2", 100.0, 115.0, "2", is_numeric_candidate=True),
+        _make_text("SHARED_L2", 80.0, 115.0, "1ZKK1-2"),
+        _make_text("SHARED_RIGHT2", 120.0, 115.0, "1Q4D9"),
+        _make_text("SHARED_R3", 100.0, 110.0, "3", is_numeric_candidate=True),
+        _make_text("SHARED_L3", 80.0, 110.0, "1ZKK1-3"),
+        _make_text("SHARED_RIGHT3", 120.0, 110.0, "1Q4D10"),
+        _make_text("BOTTOM_HEADER", 100.0, 100.0, "U3D"),
+        _make_text("BOTTOM_DESCRIPTION", 65.0, 100.0, "说明"),
+        _make_text("LOWER_R1", 100.0, 90.0, "1", is_numeric_candidate=True),
+        _make_text("LOWER_L1", 80.0, 90.0, "1ZKK3-1"),
+        _make_text("LOWER_R2", 100.0, 85.0, "2", is_numeric_candidate=True),
+        _make_text("LOWER_R3", 100.0, 80.0, "3", is_numeric_candidate=True),
+        _make_text("LOWER_L3", 80.0, 80.0, "1ZKK3-3"),
+    ]
+
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet])
+
+    pair_values = {(pair.left_value, pair.right_value) for pair in pairs}
+    assert {
+        ("1-7UD-1", "1Q4D8"),
+        ("1-7UD-2", "1Q4D9"),
+        ("1-7UD-3", "1Q4D10"),
+        ("U3D-1", "1ZKK1-1"),
+        ("U3D-2", "1ZKK1-2"),
+        ("U3D-3", "1ZKK1-3"),
+        ("U3D-1", "1ZKK3-1"),
+        ("U3D-3", "1ZKK3-3"),
+    } <= pair_values
+
+
 def test_extract_terminal_header_table_pairs_excludes_semantic_endpoint_labels() -> None:
     sheet = _make_sheet(audit_area_bbox=(0.0, 0.0, 260.0, 280.0))
     sheet.sheet_category = "屏端子图"
