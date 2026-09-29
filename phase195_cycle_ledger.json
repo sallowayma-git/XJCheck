@@ -653,17 +653,68 @@
         ".tmp/tsb_takeover_p020_final_audit",
         ".tmp/tsb_takeover_p021_final_audit"
       ]
+    },
+    {
+      "cycle_id": "195-15",
+      "selected_cluster": "recognition/i-d-fd_wire_logic_endpoint_grammars (the p012/p013 alphanumeric-designator cluster promised by 195-14 next-pointer)",
+      "baseline_artifact": ".tmp/tsb_full_replay (87-issue corpus baseline)",
+      "code_files": [
+        "src/dwg_audit/audit/candidates.py",
+        "tests/unit/test_terminal_candidates.py"
+      ],
+      "test_files": [
+        "tests/unit/test_terminal_candidates.py"
+      ],
+      "identity_delta": {
+        "corpus_i_d_missing_left_before": 621,
+        "corpus_i_d_missing_left_after": 0,
+        "p012_missing_left_review": "120 -> 71",
+        "p013_missing_left_review": "209 -> 160",
+        "p012_f0007_f0008_wire_component_pairs": 98,
+        "p034_fd_pairs": 2,
+        "p040_fd_pairs": 8,
+        "fd_rollout_projects": 10,
+        "fd_accepted_candidate_rows": 218,
+        "pair_kind_before": "semantic_mapping review 0.504 (? -> numeric)",
+        "pair_kind_after": "wire_component_mapping review 0.9061 (I-D/FD -> numeric)"
+      },
+      "visual_evidence_refs": [
+        ".tmp/c19515_visual/p013_F0021_header_stack.png",
+        ".tmp/c19515_visual/p012_F0020_bracket_stack.png",
+        ".tmp/phase196_recognition_p012_f0007_view1/crop.png",
+        ".tmp/phase196_recognition_p012_f0007_montage1/new_id_mappings.png",
+        ".tmp/phase196_recognition_p034_f0012_view1.png",
+        ".tmp/phase196_recognition_p040_f0011_view1.png"
+      ],
+      "evidence_refs": [
+        "src/dwg_audit/audit/candidates.py:31-32,41-44,1495-1499",
+        "tests/unit/test_terminal_candidates.py (I-D positive + neighbor-row negative; FD positive + neighbor-row negative)",
+        ".tmp/audit_c19515/ (independent visual adversarial audit: 49/49 I-D + 33/33 FD MATCH, negative rejection verified, baseline 49/49 right-value identity)"
+      ],
+      "gates": {
+        "full_test_suite": "1460 passed, 1 skipped",
+        "bounded_replay": "p012/p013 fresh analyze+audit: issue layer unchanged (1->1 same rule, 0->0), chains 0",
+        "visual_adversarial": "independent subagent audit all MATCH; negative rows correctly rejected; their true rows carry no numeric partner so no missed pairing",
+        "baseline_compare": "49/49 right_value + right_text_id identical to tsb_full_replay baseline; zero drift"
+      },
+      "adjacent_verified_changes": {
+        "note": "The same working tree carries interdependent Phase 196 continuation work committed in separate scoped commits: series-chain recognition rewrite (mirrors M2O claim eligibility, consumes terminal-header column_roles, threshold passthrough in rerun), report export of series_chain_members, bracketed terminal-header side ownership (196-04, user convention upper->right / lower->left re-verified visually on p013/F0021 and p012/F0020 with right-value coverage 100% preserved and 57 double-claims deduplicated), and desktop persistence/export of series chains."
+      },
+      "recoverable_errors": [
+        "the earlier corpus census scripts silently skipped projects whose formal layout is pXXX/<name>/ instead of pXXX/project/; the 49/49 full replay closed that gap",
+        "table_mapping re-attribution on p012/p013 terminal sheets initially looked like a loss (165/190 rows); value-level accounting proved right-value coverage is 100% preserved and the delta is deduplication of double-claimed rows plus convention-correct header re-attribution (visually adjudicated)"
+      ],
+      "disposition": {
+        "status": "ACCEPTED_CHANGE",
+        "note": "I-D/FD wire-logic endpoint grammars accepted after focused tests, bounded replay, and an independent visual adversarial audit. New pairs stay review at 0.9061 (fail-closed); the numeric right sides are unchanged from the baseline."
+      }
     }
   ],
   "current": {
-    "cycle_id": "195-14",
-    "state": "BASELINE_REBASED_AND_PUSHED",
-    "pushed_commits": [
-      "f51b26c",
-      "858c723"
-    ],
-    "formal_baseline": ".tmp/tsb_full_replay (supersedes .tmp/phase195_formal_full_fresh4; audit-layer history remains in .tmp/phase195_formal_full_audit5)",
+    "cycle_id": "195-15",
+    "state": "ACCEPTED_AND_PUSHED",
+    "formal_baseline": ".tmp/tsb_full_replay",
     "corpus_issue_count": 87,
-    "next": "continue the loop with the p012/p013 alphanumeric-designator cluster"
+    "note": "Phase 196 recognition track continues per the 2026-09-23 user direction; pending user adjudications: p030/S0033 (1n605/1n606 -> JD and 1-4Q2D), p029/S0035 (1ZKK4-1 -> 1-7UD-3 and U3D-9), p012/F0012 1C..D1/D4."
   }
 }

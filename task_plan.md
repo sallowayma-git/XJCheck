@@ -1,12 +1,14 @@
 # Task Plan: XJToolkit DWG Audit MVP Closure
 
 ## Goal
-持续循环优化 XJToolkit V2 的 DWG 抽取、页型/符号识别、跨页审核及错误分层聚类全链路：以 `test/` 当前全部 533 张 DWG 为回归集，逐簇定位并泛化修复误报、漏报和无法抽取问题；每轮执行原图复核、引擎代码修改、正负测试、单页/受影响套图 replay、全量回归与临时产物清理，确保正确图纸不误报且真正错误不被放过。
+持续修复 XJToolkit DWG 识别与审计引擎：以 `test/正式典设` 的 49 项目/1,212 张 DWG 为主集，以另外 4 个项目的 533 张 DWG 为回归控制；持续发现实际误识别/漏识别，逐图看图确认，按具体规律修改并重跑、复核，不以单轮通过结束，直到用户暂停或约定目标全部通过。
 
 ## Current Phase
-Phase 195 is active. It targets the newly supplied `test/正式典设` corpus: establish a fresh manifest-authoritative baseline, inventory unreadable/under-recognized drawings and number groups, then run bounded evidence probes and one fail-closed optimization loop before any full-corpus claim. Phase 194 remains published as the prior producer-owned multi-endpoint contract; do not assume its nine retained reviews are resolved.
+Phase 196 remains active. Follow the user's 2026-09-23 direction: prioritize recognition behavior and direct visual comparison; do not add security-style hash/time/reference-integrity machinery or elaborate acceptance gates. Desktop persistence/export of existing chain data is implemented; report export now includes continuations. Removed redundant producer-evidence consistency checks from series-chain recognition while retaining producer kind, known mapping type, cross-view scope, and whole-junction business behavior. On the 49-project corpus the chain output remains 40 chains/90 members. Historical phase notes below are context, not new mandatory gates.
 
-### Phase 195 goal contract
+Current next action: p038/S0027 and p023/S0019 have been replayed and visually checked; no further source change is indicated on those pages. User adjudication is pending for p030/S0033 (`1n605/1n606` each map to both JD and `1-4Q2D`) and p029/S0035 (`1ZKK4-1` maps to both `1-7UD-3` and `U3D-9`); source crops and exact CAD coordinates have been sent. Do not alter these relations until the user resolves ownership. Then continue with the next independently visible mismatch in the current replay output. Keep work focused on recognition and direct visual comparison, without security-style checks or elaborate gates. Inline-FD-number and p012/F0012 `1C…D1/D4` also remain pending adjudication.
+
+### Phase 195 historical goal contract (superseded by Phase 196)
 - Corpus: `F:\workspace\XJToolkit\test\正式典设` only for the first baseline; preserve the existing `test/` corpus as a separate regression control.
 - Target: identify which sheets/files and number groups are not recognized, distinguish producer/extraction omissions from candidate/rule/audit issues, and improve only a structure-backed slice.
 - Target is intentionally persistent and unattended: keep running this loop, cycle after cycle, until the user explicitly pauses/stops it. A cycle may end with “no safe change” and immediately select the next cluster; that is not task completion. Never declare the overall goal complete merely because one slice or one project passes.
@@ -3429,4 +3431,6 @@ All 45 remaining issues are retained as fail-closed objects for the next evidenc
 - [x] Establish isolated replay index, visual oracle, and exact Cycle 196-01 evidence.
 - [x] Implement, replay, and independently audit Cycle 196-01.
 - [ ] Execute subsequent cycles and full regression gates; retain unresolved semantic questions.
-- **Status:** in_progress; Cycle 196-02 / EVIDENCE_CLUSTER. Cycle 196-01 accepted after revision 3 independent gates.
+- **Status:** in_progress; Cycle 196-02 / final INDEPENDENT_AUDIT (candidate7). Cycle 196-01 accepted after revision 3 independent gates.
+- Cycle 196-02 adversarial red gate found partial chain construction when an invalid high-confidence claim shared a junction with otherwise-valid members, nullable scope identities surviving Pair loading, and incomplete nested table/bridge evidence being accepted. Current fixes are in series_chains.py and rerun.py; focused gates are in test_series_chains.py and test_rerun_audit.py.
+- Verification: focused chain/rerun suite 34 passed; full suite 1,455 passed / 1 skipped; compileall and git diff --check pass. Candidate7 isolated audit replay has 14,682 Pairs, 17 issues, 40 chains / 90 members; its audit artifacts are byte-identical to candidate6 and Pair/artifact gates pass. Two final independent reviewers remain.
