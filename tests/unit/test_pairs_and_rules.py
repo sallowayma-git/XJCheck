@@ -6,11 +6,97 @@ from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.rules import build_issues
 from dwg_audit.audit.rules import _is_authoritative_component_table_cross_diagram_endpoint_group
 from dwg_audit.audit.rules import _is_authoritative_terminal_header_reciprocal_physical_cluster_group
+from dwg_audit.audit.rules import _is_authoritative_terminal_strip_backplate_attachment_group
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.utils.config import DEFAULT_CONFIG
+
+
+@pytest.mark.parametrize("damage", [None, "missing_mapping", "different_wire", "different_pin", "different_page"])
+def test_physical_wire_endpoint_review_requires_a_proved_replacement(damage):
+    proof = {"source": "reciprocal_cad_label_and_terminal_geometry"}
+    original = Pair("P", "G", "S1", "F1", None, "612", "WD5", .7, "review", "ambiguous", [], "review",
+                    {"component_submode": "schematic_wire_logic_endpoint", "logical_endpoint_text_id": "WD",
+                     "selected_right_physical_endpoint": proof, "external_lead_mapping_pair_id": "MAP"},
+                    left_text_id="PIN", right_text_id="WD", pair_kind="wire_component_mapping")
+    mapping = Pair("MAP", None, "S1", "F1", None, "7n612", "WD5", .98, "pass", "proved", [], "high",
+                   {"component_submode": "explicit_external_device_lead", "source_line_ids": ["LEAD"],
+                    "physical_endpoint": proof, "internal_connectivity_inferred": False, "electrical_union_eligible": False},
+                   left_text_id="PIN", right_text_id="WD", pair_kind="wire_component_mapping")
+    if damage == "different_wire":
+        mapping.evidence["source_line_ids"] = ["OTHER"]
+    elif damage == "different_pin":
+        mapping.left_text_id = "OTHER"
+    elif damage == "different_page":
+        mapping.sheet_id = "S2"
+    group = LineGroup("G", "S1", "F1", 0, 0, 20, 0, 20, .8, ["LEAD"], ["CONNECT"])
+    sheet = SheetRecord("S1", "F1", "a.dwg", 1, "1", "A", "二次原理图", "primary", "filename", True)
+    pairs = [original] if damage == "missing_mapping" else [original, mapping]
+    issues = build_issues(pairs, [group], [sheet], DEFAULT_CONFIG)
+    assert any(i.rule_id == "R-PAIR-LOW-CONFIDENCE" for i in issues) == bool(damage)
+
+
+def test_unresolved_cad_owned_wire_annotation_remains_a_review_after_kind_change():
+    pair = Pair("P", "G", "S1", "F1", None, "612", None, .33, "review", "missing", [], "review",
+                {"source": "wire_component_mapping", "component_submode": "schematic_wire_logic_annotation",
+                 "semantic_mapping_missing_side": "right", "logical_endpoint_text_id": "WD"},
+                pair_kind="wire_component_mapping")
+    candidate = TerminalCandidate("C", "G", "S1", "F1", "left", "WD", "WD5", "WD5", .99,
+                                  "accepted", None, 0, 0, 0, 0,
+                                  physical_endpoint_evidence={"source": "reciprocal_cad_label_and_terminal_geometry"})
+    sheet = SheetRecord("S1","F1","a.dwg",1,"1","A","二次原理图","primary","filename",True)
+    issues = build_issues([pair], [], [sheet], DEFAULT_CONFIG, [candidate])
+    assert any(i.rule_id=="R-PAIR-MISSING-SIDE" for i in issues)
+    pair.evidence["external_lead_mapping_pair_id"] = "PROVED_EXTERNAL_MAPPING"
+    assert any(i.rule_id=="R-PAIR-MISSING-SIDE" for i in build_issues([pair], [], [sheet], DEFAULT_CONFIG, [candidate]))
+    pair.left_text_id = "PIN"
+    mapping = Pair("PROVED_EXTERNAL_MAPPING", None, "S1", "F1", None, "7n612", "WD5", .98, "pass", "proved", [], "high",
+                   {"component_submode":"explicit_external_device_lead", "source_line_ids":["LEAD"],
+                    "physical_endpoint":{"source":"reciprocal_cad_label_and_terminal_geometry"},
+                    "internal_connectivity_inferred":False,"electrical_union_eligible":False},
+                   left_text_id="PIN",right_text_id="WD",pair_kind="wire_component_mapping")
+    group = LineGroup("G","S1","F1",0,0,15,0,15,.9,["LEAD"],["CONNECT"])
+    assert not any(i.rule_id=="R-PAIR-MISSING-SIDE" for i in build_issues([pair,mapping], [group], [sheet], DEFAULT_CONFIG, [candidate]))
+
+
+@pytest.mark.parametrize("damage", [None, "wrong_contact", "wrong_owner", "same_text", "missing_flank", "ambiguous_slot", "different_source", "third_claim"])
+def test_backplate_attachment_matches_only_the_owned_left_strip_contact(damage):
+    strip = Pair("STRIP", "G", "S1", "F1", None, "7n2001", "7UD1", .98, "pass", "strip", [], "high",
+        {"source": "component_mapping", "component_submode": "terminal_strip_lattice",
+         "terminal_strip_instance": "7TF", "terminal_strip_insert_handle": "OWNER",
+         "terminal_strip_instance_text_id": "INSTANCE", "terminal_strip_flank_line_ids": ["FLANK"],
+         "left_terminal": "7n2001", "right_terminal": "7UD1",
+         "left_terminal_text_id": "LEFT", "right_terminal_text_id": "RIGHT",
+         "terminal_strip_left_pin": {"handle": "OWNER:VIRTUAL:1", "text_id": "PIN1", "value": "1"},
+         "terminal_strip_right_pin": {"handle": "OWNER:VIRTUAL:2", "text_id": "PIN2", "value": "2"}},
+         left_text_id="LEFT", right_text_id="RIGHT", pair_kind="component_mapping")
+    table = Pair("TABLE", None, "S2", "F2", None, "7n2001", "7TF-1", .98, "pass", "table", [], "high",
+        {"source": "table_mapping", "table_mapping": {
+            "mapping_mode": "backplate_virtual_table", "sheet_id": "S2", "logical_endpoint": "7n2001",
+            "right_value": "7TF-1", "right_text_id": "ATTACHMENT", "row_number_sequence_valid": True,
+            "header_prefix": "7n20", "header_text_id": "HEADER", "middle_text_id": "ROW",
+            "row_number": 1, "source_block_name": "BACKPLATE", "plugin_slot_authority": "same_row_model_and_slot",
+            "column_roles": {"middle": "virtual_row_number", "right": "external_terminal_endpoint"}}},
+        pair_kind="table_mapping")
+    pairs = [strip, table]
+    if damage == "wrong_contact":
+        table.right_value = table.evidence["table_mapping"]["right_value"] = "7TF-2"
+    elif damage == "wrong_owner":
+        strip.evidence["terminal_strip_left_pin"]["handle"] = "OTHER:VIRTUAL:1"
+    elif damage == "same_text":
+        strip.right_text_id = strip.left_text_id
+        strip.evidence["right_terminal_text_id"] = strip.left_text_id
+    elif damage == "missing_flank":
+        strip.evidence["terminal_strip_flank_line_ids"] = []
+    elif damage == "ambiguous_slot":
+        table.evidence["table_mapping"]["plugin_slot_authority"] = None
+    elif damage == "different_source":
+        table.left_value = table.evidence["table_mapping"]["logical_endpoint"] = "7n2002"
+    elif damage == "third_claim":
+        pairs.append(deepcopy(strip))
+    assert _is_authoritative_terminal_strip_backplate_attachment_group(pairs) == (damage is None)
 
 
 def test_build_pairs_marks_missing_side_as_review() -> None:
@@ -2233,7 +2319,6 @@ def test_rules_reject_terminal_reciprocal_cluster_with_untrusted_linked_fact(
         "semantic_separator_target",
         "semantic_underscore_target",
         "semantic_dot_target",
-        "only_two_linked_pairs",
         "only_one_physical_cluster",
         "extra_reciprocal_pair",
     ],
@@ -2296,8 +2381,6 @@ def test_rules_reject_incomplete_terminal_reciprocal_cluster_quotient(
         }[case]
         first_reciprocal.right_value = target
         first_mapping["left_value"] = target
-    elif case == "only_two_linked_pairs":
-        pairs.pop(2)
     elif case == "only_one_physical_cluster":
         linked = pairs[0]
         linked_mapping = linked.evidence["table_mapping"]
@@ -2324,6 +2407,20 @@ def test_rules_reject_incomplete_terminal_reciprocal_cluster_quotient(
             pairs[:3], pairs, "BUS-X13"
         )
         return
+    assert _phase192_terminal_many_to_one_visible(pairs)
+
+
+def test_complete_two_source_reciprocal_row_accepts_different_terminal_numbers() -> None:
+    pairs = _phase192_terminal_reciprocal_cluster_pairs()
+    pairs.pop(2)
+    assert not _phase192_terminal_many_to_one_visible(pairs)
+    # One source may appear on a continuation page. The reciprocal physical
+    # row still has to name every source; no port-to-port union is inferred.
+    pairs[1].sheet_id = "S17"
+    pairs[1].file_id = "F17"
+    pairs[1].evidence["table_mapping"]["sheet_id"] = "S17"
+    assert not _phase192_terminal_many_to_one_visible(pairs)
+    pairs.pop()
     assert _phase192_terminal_many_to_one_visible(pairs)
 
 
@@ -5378,8 +5475,8 @@ def test_build_pairs_discards_same_virtual_text_stub_on_horizontal_component_pag
     pair = pairs[0]
     assert pair.status == "discard"
     assert pair.rationale == "self_pair_from_same_virtual_text"
-    assert pair.evidence["selected_left_source_block_name"] == "KK1P"
-    assert pair.evidence["selected_right_source_block_name"] == "KK1P"
+    assert pair.left_text_id is None and pair.right_text_id is None
+    assert {d["reason"] for d in pair.evidence["text_identity_decisions"]} == {"text_identity_ambiguous_endpoint"}
 
 
 def test_build_pairs_discards_same_block_single_digit_internal_pin_pair_on_horizontal_component_page() -> None:

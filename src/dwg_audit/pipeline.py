@@ -82,6 +82,7 @@ def analyze_input_root(
             extraction_result, "symbol_port_definition_proposals", []
         )
         terminal_port_bindings = getattr(extraction_result, "terminal_port_bindings", [])
+        superworks = getattr(extraction_result, "superworks", None)
         if event_sink is not None:
             event_sink.emit(
                 "progress",
@@ -222,6 +223,12 @@ def analyze_input_root(
             )
         pairs.extend(table_pairs)
 
+        from dwg_audit.audit.superworks_extractor import extract_superworks_pairs
+        pairs, table_mappings, superworks_supersession = extract_superworks_pairs(
+            superworks, pages=audit_pages, texts=audit_texts, lines=audit_lines,
+            line_groups=line_groups, pairs=pairs, table_mappings=table_mappings,
+        )
+
         # Some accessory/backplate pages are primarily routed as Table or Wire
         # even though they contain repeated component instances.  Recover only
         # geometry-owned components outside the normal Component route.
@@ -325,6 +332,8 @@ def analyze_input_root(
             extraction_censuses=extraction_censuses,
             canonical_scenes=canonical_scenes,
             symbol_port_definition_proposals=symbol_port_definition_proposals,
+            superworks=superworks,
+            superworks_supersession=superworks_supersession,
         )
         # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
         artifacts_page_classifications = classifications

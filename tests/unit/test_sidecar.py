@@ -264,7 +264,7 @@ def test_render_project_preview_reads_only_rendering_frames(monkeypatch, tmp_pat
     )
 
     assert Path(preview["preview_path"]).exists()
-    assert requested == [("pages", "lines", "texts", "line_groups", "blocks")]
+    assert requested == [("pages", "lines", "texts", "line_groups", "blocks", "primitive_segments", "pairs", "sw_ports", "sw_part_instances")]
 
 
 def test_default_preview_cache_is_partitioned_by_pinned_run(monkeypatch, tmp_path: Path) -> None:

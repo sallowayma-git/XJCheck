@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -21,18 +22,25 @@ _EDGE_PAD = 18.0
 _MAX_PREVIEW_LINES = 480
 _MAX_PREVIEW_TEXTS = 240
 _MAX_PREVIEW_BLOCKS = 80
-_PREVIEW_GEOMETRY_SCHEMA_VERSION = 1
+_PREVIEW_GEOMETRY_SCHEMA_VERSION = 2
 _PREVIEW_OVERSCAN_FACTOR = 2.1
 _PREVIEW_DOWNWARD_SHARE = 0.68
 _RETAINED_PREVIEW_LIMITS = {
     "pages": 4,
-    "lines": 25_000,
-    "texts": 10_000,
+    "lines": None,
+    "texts": None,
+    "primitive_segments": None,
     "line_groups": 5_000,
     "blocks": 5_000,
+    "sw_ports": None,
+    "sw_part_instances": None,
+    "pairs": None,
 }
 
 _PREVIEW_GEOMETRY_COLUMNS: dict[str, tuple[str, ...]] = {
+    "sw_part_instances": ("record_id", "sheet_id", "insert_handle", "ports"),
+    "pairs": ("pair_id", "sheet_id", "line_group_id", "left_value", "right_value", "status", "pair_kind", "evidence"),
+    "sw_ports": ("record_id", "sheet_id", "symbol_id", "insert_handle", "port_number", "start_x", "start_y", "end_x", "end_y", "endpoint_identity", "validation", "reason_codes"),
     "pages": (
         "sheet_id",
         "file_id",
@@ -63,6 +71,8 @@ _PREVIEW_GEOMETRY_COLUMNS: dict[str, tuple[str, ...]] = {
         "insert_x",
         "insert_y",
         "source_block_name",
+        "text_geometry_json",
+        "bbox_min_x", "bbox_min_y", "bbox_max_x", "bbox_max_y",
     ),
     "line_groups": (
         "line_group_id",
@@ -81,6 +91,11 @@ _PREVIEW_GEOMETRY_COLUMNS: dict[str, tuple[str, ...]] = {
         "insert_y",
         "rotation",
         "attributes_json",
+    ),
+    "primitive_segments": (
+        "primitive_id", "sheet_id", "entity_handle", "parent_handle",
+        "primitive_kind", "world_geometry_json", "preview_geometry_json", "visible",
+        "source_status", "nested_path", "bbox_min_x", "bbox_min_y", "bbox_max_x", "bbox_max_y",
     ),
 }
 
@@ -135,10 +150,10 @@ def _downsample_preview_frame(
     frame: pd.DataFrame,
     *,
     frame_name: str,
-    limit: int,
+    limit: int | None,
 ) -> pd.DataFrame:
     """Bound retained geometry while sampling across the sheet deterministically."""
-    if frame.empty or len(frame) <= limit:
+    if limit is None or frame.empty or len(frame) <= limit:
         return frame
 
     sort_columns_by_frame = {
@@ -218,7 +233,7 @@ def render_project_preview(
     elif artifact_dir and artifact_dir.exists():
         frames = load_report_frames(
             artifact_dir,
-            names=("pages", "lines", "texts", "line_groups", "blocks"),
+            names=("pages", "lines", "texts", "line_groups", "blocks", "primitive_segments", "pairs", "sw_ports", "sw_part_instances"),
         )
         source = "artifacts"
         lightweight = False
@@ -232,7 +247,22 @@ def render_project_preview(
     texts = frames.get("texts", pd.DataFrame())
     line_groups = frames.get("line_groups", pd.DataFrame())
     blocks = frames.get("blocks", pd.DataFrame())
+    primitives = frames.get("primitive_segments", pd.DataFrame())
+    # A selected line can represent a passed pair with no audit issue. Retain its
+    # source evidence so the same port overlay works after the DXF cache is removed.
+    if issue_row is None and line_group_id:
+        pair_frame = frames.get("pairs", pd.DataFrame())
+        if not pair_frame.empty and "line_group_id" in pair_frame.columns:
+            selected_pairs = pair_frame[(pair_frame["sheet_id"].astype(str) == sheet_id)
+                                        & (pair_frame["line_group_id"].astype(str) == str(line_group_id))]
+            if len(selected_pairs) == 1:
+                pair = selected_pairs.iloc[0]
+                proof = _decode_jsonish(pair.get("evidence")) or {}
+                if proof.get("source") == "superworks":
+                    issue_row = pd.Series({"sheet_id": sheet_id, "left_value": pair.get("left_value"),
+                                           "right_value": pair.get("right_value"), "evidence": {"pair_evidence": proof}})
 
+    issue_row = _with_superworks_display_ports(issue_row, frames)
     page_row = _resolve_page_row(
         pages=pages,
         sheet_id=sheet_id,
@@ -250,8 +280,7 @@ def render_project_preview(
     line_semantics = _resolve_line_semantics(issue_row, line_groups, line_group_id=line_group_id)
 
     page_extent = (
-        _json_bbox(page_row.get("audit_area_bbox"))
-        or _json_bbox(page_row.get("frame_bbox"))
+        _json_bbox(page_row.get("frame_bbox"))
         or _json_bbox(page_row.get("extent_bbox"))
         or _extent_from_highlight(highlight)
         or _extent_from_issue_evidence(focus_issue_row)
@@ -287,6 +316,7 @@ def render_project_preview(
     sheet_lines = lines[lines["sheet_id"].astype(str) == sheet_id] if not lines.empty else pd.DataFrame()
     sheet_texts = texts[texts["sheet_id"].astype(str) == sheet_id] if not texts.empty else pd.DataFrame()
     sheet_blocks = blocks[blocks["sheet_id"].astype(str) == sheet_id] if not blocks.empty else pd.DataFrame()
+    sheet_primitives = primitives[primitives["sheet_id"].astype(str) == sheet_id] if not primitives.empty else pd.DataFrame()
     if sheet_lines.empty and highlight is not None:
         sheet_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
     if sheet_texts.empty and focus_issue_row is not None:
@@ -316,9 +346,7 @@ def render_project_preview(
 
     crop_token = "issue" if highlight is not None else "sheet"
     target_path = target_dir / f"{sheet_id}_{issue_id or 'sheet'}_{crop_token}.svg"
-    visible_lines = _nearest_lines(visible_lines, precise_focus_extent, _MAX_PREVIEW_LINES)
-    visible_texts = _nearest_points(visible_texts, precise_focus_extent, _MAX_PREVIEW_TEXTS)
-    visible_blocks = _nearest_points(visible_blocks, precise_focus_extent, _MAX_PREVIEW_BLOCKS)
+    visible_primitives = _filter_primitives_in_extent(sheet_primitives, focus_extent)
 
     svg_text = _build_svg(
         page_row,
@@ -330,6 +358,7 @@ def render_project_preview(
         issue_row=issue_row,
         line_semantics=line_semantics,
         cropped=highlight is not None,
+        primitives=visible_primitives,
     )
     target_path.write_text(svg_text, encoding="utf-8")
 
@@ -351,6 +380,28 @@ def render_project_preview(
     }
 
 
+def _with_superworks_display_ports(issue_row, frames):
+    """Resolve component display points from retained facts, without altering claims."""
+    if issue_row is None:
+        return None
+    evidence = _decode_jsonish(issue_row.get("evidence")) or {}
+    proof = evidence.get("pair_evidence", evidence)
+    sw = proof.get("superworks") or {}
+    parts = frames.get("sw_part_instances", pd.DataFrame())
+    if not sw.get("part_id") or parts.empty:
+        return issue_row
+    matching = parts[parts["record_id"].astype(str) == str(sw["part_id"])]
+    if len(matching) != 1:
+        return issue_row
+    ports = _decode_jsonish(matching.iloc[0].get("ports")) or []
+    display = [{"port_id":p["record_id"], "port_number":p["port_number"],
+                "start":[p["start_x"],p["start_y"]], "end":[p["end_x"],p["end_y"]]}
+               for p in ports if str(p.get("port_number")) == str(sw.get("port_number"))]
+    row = issue_row.copy()
+    row["evidence"] = {**evidence, "pair_evidence":{**proof, "superworks":{**sw, "display_ports":display}}}
+    return row
+
+
 def _build_svg(
     page_row: pd.Series,
     lines: pd.DataFrame,
@@ -362,6 +413,7 @@ def _build_svg(
     issue_row: pd.Series | None,
     line_semantics: dict[str, str] | None,
     cropped: bool,
+    primitives: pd.DataFrame | None = None,
 ) -> str:
     transform = _make_view_transform(extent)
     tx = transform["tx"]
@@ -393,6 +445,15 @@ def _build_svg(
         "<g id=\"page-lines\" stroke=\"#2b2b2b\" fill=\"none\">",
     ]
 
+    if primitives is not None and not primitives.empty:
+        svg_lines.append('</g>')
+        svg_lines.extend(_render_primitives(primitives, sx, sy, scale))
+        svg_lines.append('<g id="legacy-empty">')
+        lines, texts, blocks = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    else:
+        svg_lines.append('<metadata id="preview-diagnostics">ORIGINAL_SYMBOL_GEOMETRY_UNAVAILABLE</metadata>')
+        svg_lines.append('<text x="14" y="510" fill="#745716" stroke="none" font-size="11">原图符号几何未保留，当前为简化证据预览</text>')
+
     for _, row in lines.iterrows():
         svg_lines.append(
             (
@@ -410,13 +471,13 @@ def _build_svg(
             y = sy(float(row["insert_y"]))
             name = html.escape(str(row.get("name") or "").strip())
             svg_lines.append(
-                f'<rect x="{x - 5}" y="{y - 5}" width="10" height="10" rx="2" '
+                f'<rect data-diagnostic="BLOCK_GEOMETRY_UNAVAILABLE" x="{x - 5}" y="{y - 5}" width="10" height="10" rx="2" '
                 'fill="rgba(43, 111, 138, 0.10)" stroke-width="1.5" />'
             )
             if name:
                 svg_lines.append(
                     f'<text x="{x + 8}" y="{y - 7}" font-size="10" fill="#24596d" stroke="none" '
-                    f'font-family="Segoe UI, sans-serif">{name[:32]}</text>'
+                    f'font-family="Segoe UI, sans-serif">符号几何缺失: {name[:32]}</text>'
                 )
         svg_lines.append("</g>")
 
@@ -426,9 +487,13 @@ def _build_svg(
             text = html.escape(str(row.get("normalized_text") or row.get("text") or ""))
             if not text:
                 continue
+            geometry = _decode_jsonish(row.get("text_geometry_json"))
+            if isinstance(geometry, dict) and geometry.get("corners"):
+                svg_lines.extend(_render_cad_text(geometry, sx, sy, scale, str(row.get("text_id") or "")))
+                continue
             is_numeric = bool(row.get("is_numeric_candidate"))
             fill = "#111111" if is_numeric else "#5b5b5b"
-            opacity = "0.98" if is_numeric else "0.72"
+            opacity = "0.98"
             world_height = float(row.get("height") or 2.5)
             font_size = max(11.0, min(world_height * scale * 1.15, 28.0))
             if is_numeric:
@@ -466,10 +531,10 @@ def _build_svg(
                 ),
                 (
                     f"<line x1=\"{sx(start[0])}\" y1=\"{sy(start[1])}\" x2=\"{sx(end[0])}\" y2=\"{sy(end[1])}\" "
-                    f"stroke=\"#b02d20\" stroke-width=\"{round(highlight_stroke + 0.6, 2)}\" />"
+                    f"stroke=\"#b02d20\" stroke-dasharray=\"5 4\" opacity=\"0.45\" stroke-width=\"1.5\" />"
                 ),
-                f"<circle cx=\"{sx(start[0])}\" cy=\"{sy(start[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"#b02d20\" />",
-                f"<circle cx=\"{sx(end[0])}\" cy=\"{sy(end[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"#b02d20\" />",
+                f"<circle cx=\"{sx(start[0])}\" cy=\"{sy(start[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"none\" stroke=\"#b02d20\" />",
+                f"<circle cx=\"{sx(end[0])}\" cy=\"{sy(end[1])}\" r=\"{round(endpoint_r, 2)}\" fill=\"none\" stroke=\"#b02d20\" />",
             ]
         )
         if issue_row is not None:
@@ -478,20 +543,36 @@ def _build_svg(
             if left_label:
                 svg_lines.append(
                     (
-                        f"<text x=\"{sx(start[0]) + 8}\" y=\"{sy(start[1]) - 8}\" "
+                        f"<text x=\"14\" y=\"528\" "
                         f"font-size=\"14\" fill=\"#8a1f16\" font-weight=\"700\" "
-                        f"font-family=\"Segoe UI, sans-serif\">{left_label}</text>"
+                        f"font-family=\"Segoe UI, sans-serif\">识别左端: {left_label}</text>"
                     )
                 )
             if right_label:
                 svg_lines.append(
                     (
-                        f"<text x=\"{sx(end[0]) + 8}\" y=\"{sy(end[1]) - 8}\" "
+                        f"<text x=\"400\" y=\"528\" "
                         f"font-size=\"14\" fill=\"#8a1f16\" font-weight=\"700\" "
-                        f"font-family=\"Segoe UI, sans-serif\">{right_label}</text>"
+                        f"font-family=\"Segoe UI, sans-serif\">识别右端: {right_label}</text>"
                     )
                 )
         svg_lines.append("</g>")
+
+    if issue_row is not None:
+        evidence = _decode_jsonish(issue_row.get("evidence")) or {}
+        pair_evidence = evidence.get("pair_evidence", evidence) if isinstance(evidence, dict) else {}
+        sw = pair_evidence.get("superworks") or {}
+        if sw:
+            svg_lines.append('<g id="superworks-ports" fill="none" stroke="#167a74" stroke-width="2">')
+            port_groups=[(sw.get(side) or {}).get("ports", []) for side in ("left", "right")]
+            port_groups.append(sw.get("display_ports", []))
+            for ports in port_groups:
+                for port in ports:
+                    a, b = port.get("start"), port.get("end")
+                    if _is_point_pair(a) and _is_point_pair(b):
+                        x, y = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+                        svg_lines.append(f'<circle data-sw-port="{html.escape(str(port.get("port_id") or ""))}" cx="{sx(x)}" cy="{sy(y)}" r="6"><title>superworks / {html.escape(str(port.get("port_number") or ""))}</title></circle>')
+            svg_lines.append('</g>')
 
     title = html.escape(str(page_row.get("sheet_title") or page_row.get("filename") or "图纸预览"))
     subtitle_parts: list[str] = []
@@ -506,7 +587,7 @@ def _build_svg(
         left_value = issue_row.get("left_value")
         right_value = issue_row.get("right_value")
         if left_value not in (None, "") or right_value not in (None, ""):
-            subtitle_parts.append(f"端子 {left_value or '?'} → {right_value or '?'}")
+            subtitle_parts.append(f"识别结果 {left_value or '?'} → {right_value or '?'}")
         rule_label = _humanize_rule_id(str(issue_row.get("rule_id") or ""))
         if rule_label:
             subtitle_parts.append(rule_label)
@@ -533,6 +614,95 @@ def _build_svg(
         ]
     )
     return "\n".join(svg_lines) + "\n"
+
+
+def _render_cad_text(geometry, sx, sy, scale, identity):
+    origin = geometry["top_left"]
+    ux, uy = geometry["axis_x"], geometry["axis_down"]
+    matrix = f'{ux[0]*scale},{-ux[1]*scale},{uy[0]*scale},{-uy[1]*scale},{sx(origin[0])},{sy(origin[1])}'
+    lines = geometry.get("lines") or []
+    height = geometry.get("line_height", geometry["height"] / max(len(lines), 1))
+    spacing = geometry.get("line_spacing", height)
+    widths = geometry.get("line_widths") or [geometry["width"]]*len(lines)
+    result = [f'<g data-source="cad-text" data-identity="{html.escape(identity)}" transform="matrix({matrix})">']
+    for index, line in enumerate(lines):
+        result.append(f'<text x="0" y="{index*spacing}" dominant-baseline="text-before-edge" '
+                      f'font-size="{height*0.85}" textLength="{widths[index]}" lengthAdjust="spacingAndGlyphs" '
+                      f'fill="#111" stroke="none" font-family="Arial, Microsoft YaHei, sans-serif">{html.escape(line)}</text>')
+    result.append('</g>')
+    return result
+
+
+def _render_primitives(primitives, sx, sy, scale):
+    result = ['<g id="cad-primitives" data-source="original-cad" stroke="#343434" stroke-width="1.4" fill="none">']
+    unsupported = []
+    for _, row in primitives.iterrows():
+        if row.get("visible") is False or row.get("visible") == False:
+            continue
+        kind = row["primitive_kind"]
+        geometry = _decode_jsonish(row.get("world_geometry_json")) or {}
+        preview = _decode_jsonish(row.get("preview_geometry_json")) or {}
+        identity = html.escape(str(row.get("primitive_id") or ""))
+        attr = f'data-primitive="{identity}" data-kind="{kind}"'
+        if kind == "INSERT":
+            continue
+        if kind == "LINE":
+            a, b = geometry["start"], geometry["end"]
+            result.append(f'<line {attr} x1="{sx(a[0])}" y1="{sy(a[1])}" x2="{sx(b[0])}" y2="{sy(b[1])}"/>')
+        elif kind == "CIRCLE":
+            center = geometry["center"]
+            result.append(f'<circle {attr} cx="{sx(center[0])}" cy="{sy(center[1])}" r="{geometry["radius"]*scale}"/>')
+        elif kind in {"ARC", "ELLIPSE"}:
+            center = geometry["center"]
+            if kind == "ARC":
+                start = math.radians(geometry["start_angle"])
+                sweep = math.radians((geometry["end_angle"]-geometry["start_angle"]) % 360)
+                axis = [geometry["radius"], 0]
+                normal = [0, geometry["radius"]]
+            else:
+                start = geometry["start_param"]
+                sweep = (geometry["end_param"]-start) % (2*math.pi) or 2*math.pi
+                axis = geometry["major_axis"]
+                normal = [-axis[1]*geometry["ratio"], axis[0]*geometry["ratio"]]
+            axis = preview.get("curve_axis_x", axis)
+            normal = preview.get("curve_axis_y", normal)
+            points = []
+            for index in range(97):
+                angle = start + sweep*index/96
+                points.append(f'{sx(center[0]+axis[0]*math.cos(angle)+normal[0]*math.sin(angle))},{sy(center[1]+axis[1]*math.cos(angle)+normal[1]*math.sin(angle))}')
+            result.append(f'<polyline {attr} points="{" ".join(points)}"/>')
+        elif kind == "HATCH" and preview.get("rings"):
+            paths = []
+            for ring in preview["rings"]:
+                if ring:
+                    paths.append('M '+' L '.join(f'{sx(p[0])},{sy(p[1])}' for p in ring)+' Z')
+            result.append(f'<path {attr} d="{" ".join(paths)}" fill="#343434" fill-rule="evenodd" stroke="none"/>')
+        elif kind in {"TEXT", "MTEXT", "ATTRIB", "ATTDEF"} and preview.get("corners"):
+            result.extend(_render_cad_text(preview, sx, sy, scale, identity))
+        else:
+            unsupported.append({"primitive_id": row.get("primitive_id"), "kind": kind, "reason": preview.get("diagnostic") or "PREVIEW_PRIMITIVE_UNSUPPORTED"})
+    result.append('</g>')
+    if unsupported:
+        result.append(f'<metadata id="preview-diagnostics">{html.escape(json.dumps(unsupported, ensure_ascii=False))}</metadata>')
+        result.append(f'<text x="14" y="510" fill="#745716" font-size="11">预览未绘制 {len(unsupported)} 个图元，诊断已保留</text>')
+    return result
+
+
+def _filter_primitives_in_extent(primitives, extent):
+    if primitives.empty:
+        return primitives
+    def keep(row):
+        preview = _decode_jsonish(row.get("preview_geometry_json")) or {}
+        points = preview.get("corners") or [p for ring in preview.get("rings", []) for p in ring]
+        if points:
+            bounds = (min(p[0] for p in points), min(p[1] for p in points), max(p[0] for p in points), max(p[1] for p in points))
+        else:
+            bounds = tuple(row.get(k) for k in ("bbox_min_x", "bbox_min_y", "bbox_max_x", "bbox_max_y"))
+        if any(v is None or pd.isna(v) for v in bounds):
+            # Retain unlocated unsupported entities for diagnostics.
+            return True
+        return bounds[0] <= extent[2] and bounds[2] >= extent[0] and bounds[1] <= extent[3] and bounds[3] >= extent[1]
+    return primitives[primitives.apply(keep, axis=1)]
 
 
 def _preview_run_cache_key(run_id: str) -> str:
@@ -657,10 +827,46 @@ def _resolve_focus_extent(
             values.update(str(item).strip() for item in decoded_values if item not in (None, ""))
 
     if values and not texts.empty:
+        identities = set()
+        for source in (issue_row, evidence if isinstance(evidence, dict) else {}):
+            if source is None:
+                continue
+            for key in ("left_text_id", "right_text_id", "selected_left_text_id", "selected_right_text_id"):
+                value = source.get(key)
+                if isinstance(value, str) and value:
+                    identities.add(value)
+        nearby = max(math.dist(start, end)*0.55, _extent_span(page_extent)*0.03, 12.0)
+        matches = []
         for _, row in texts.iterrows():
             label = str(row.get("normalized_text") or row.get("text") or "").strip()
-            if label in values:
-                points.append((float(row["insert_x"]), float(row["insert_y"])))
+            if label not in values:
+                continue
+            geometry = _decode_jsonish(row.get("text_geometry_json")) or {}
+            corners = geometry.get("corners") or [[float(row["insert_x"]), float(row["insert_y"])]]
+            min_x, max_x = min(p[0] for p in corners), max(p[0] for p in corners)
+            min_y, max_y = min(p[1] for p in corners), max(p[1] for p in corners)
+            endpoint_distances = tuple(math.hypot(max(min_x-x, 0, x-max_x), max(min_y-y, 0, y-max_y)) for x, y in (start, end))
+            distance = min(endpoint_distances)
+            identity = str(row.get("text_id") or "")
+            if identities:
+                if identity in identities:
+                    matches.append((label, distance, corners, endpoint_distances))
+            elif distance <= nearby:
+                matches.append((label, distance, corners, endpoint_distances))
+        if identities:
+            for _, _, corners, _ in matches:
+                points.extend((float(p[0]), float(p[1])) for p in corners)
+        else:
+            # Old findings may lack text IDs. Use only the nearest local object
+            # per value and endpoint, keeping two different objects with the
+            # same value without collecting repeated labels on the whole page.
+            for label in values:
+                local = [match for match in matches if match[0] == label]
+                for endpoint_index in (0, 1):
+                    if local:
+                        closest = min(local, key=lambda m: m[3][endpoint_index])
+                        if closest[3][endpoint_index] <= nearby:
+                            points.extend((float(p[0]), float(p[1])) for p in closest[2])
 
     xs = [point[0] for point in points]
     ys = [point[1] for point in points]
@@ -734,6 +940,12 @@ def _filter_texts_in_extent(texts: pd.DataFrame, extent: tuple[float, float, flo
     if texts.empty:
         return texts
     min_x, min_y, max_x, max_y = extent
+    if all(k in texts.columns for k in ("text_geometry_json",)):
+        def keep(row):
+            geometry = _decode_jsonish(row.get("text_geometry_json")) or {}
+            points = geometry.get("corners") or [[float(row["insert_x"]), float(row["insert_y"])]]
+            return min(p[0] for p in points) <= max_x and max(p[0] for p in points) >= min_x and min(p[1] for p in points) <= max_y and max(p[1] for p in points) >= min_y
+        return texts[texts.apply(keep, axis=1)]
     xs = texts["insert_x"].astype(float)
     ys = texts["insert_y"].astype(float)
     mask = (xs >= min_x) & (xs <= max_x) & (ys >= min_y) & (ys <= max_y)

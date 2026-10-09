@@ -900,6 +900,7 @@ def extract_terminal_header_table_pairs(
     sheets: list[SheetRecord],
     *,
     pair_id_factory: IdFactory | None = None,
+    lines: list[LineEntity] | None = None,
 ) -> tuple[list[Pair], list[dict[str, Any]]]:
     """Recover header-prefix table mappings inside terminal pages.
 
@@ -908,6 +909,7 @@ def extract_terminal_header_table_pairs(
     """
 
     texts_by_sheet = _group_by_sheet(texts)
+    lines_by_sheet = _group_by_sheet(lines or [])
     pair_ids = pair_id_factory or IdFactory("PTM")
     table_pairs: list[Pair] = []
     table_mappings: list[dict[str, Any]] = []
@@ -915,7 +917,10 @@ def extract_terminal_header_table_pairs(
     for sheet in sheets:
         if sheet.sheet_category != "屏端子图":
             continue
-        mappings = _build_terminal_header_table_mappings(texts_by_sheet.get(sheet.sheet_id, []), sheet)
+        mappings = _build_terminal_header_table_mappings(
+            texts_by_sheet.get(sheet.sheet_id, []), sheet,
+            lines=lines_by_sheet.get(sheet.sheet_id, []),
+        )
         if not mappings:
             continue
         for mapping in mappings:
@@ -1174,6 +1179,8 @@ def _build_header_semantic_mappings(
 def _build_terminal_header_table_mappings(
     texts: list[TextItem],
     sheet: SheetRecord,
+    *,
+    lines: list[LineEntity] | None = None,
 ) -> list[dict[str, Any]]:
     audit_texts = [text for text in texts if _text_in_audit_area(text, sheet)]
     header_band_texts = [
@@ -1225,6 +1232,8 @@ def _build_terminal_header_table_mappings(
         )
         if len(rows_above) < 2:
             continue
+        if not _terminal_header_rows_touch_header_cell(lower_header, rows_above, lines or []):
+            continue
         row_ids_above = [row.text_id for row in rows_above]
         for upper_header in regular_terminal_headers:
             if upper_header.insert_y <= lower_header.insert_y:
@@ -1233,6 +1242,7 @@ def _build_terminal_header_table_mappings(
                 upper_header,
                 row_numbers,
                 regular_terminal_headers,
+                lines=lines,
             )
             if [row.text_id for row in rows_below_upper] != row_ids_above:
                 continue
@@ -1255,6 +1265,7 @@ def _build_terminal_header_table_mappings(
                 row_numbers,
                 ownership_headers,
                 allow_rows_above=shuoming is not None,
+                lines=lines,
             )
         else:
             ownership_headers = terminal_headers
@@ -1263,8 +1274,12 @@ def _build_terminal_header_table_mappings(
                 row_numbers,
                 ownership_headers,
                 continuation_from_row=continuation_from_row,
+                lines=lines,
             )
         ordered_row_groups = [ordered_rows] if ordered_rows else []
+        if ordered_rows and all(row.insert_y > header.insert_y for row in ordered_rows):
+            if not _terminal_header_rows_touch_header_cell(header, ordered_rows, lines or []):
+                ordered_row_groups = []
         ordered_row_groups.extend(shared_rows_by_header.get(header.text_id, []))
         rows_to_map = [
             row
@@ -1274,6 +1289,9 @@ def _build_terminal_header_table_mappings(
                 endpoints,
                 has_shuoming=shuoming is not None,
                 has_explicit_continuation=continuation_from_row is not None,
+                has_verified_grid=bool(lines)
+                and _terminal_header_row_has_grid_cell(header, lines)
+                and all(_terminal_header_row_has_grid_cell(row, lines) for row in row_group),
             )
             for row in row_group
         ]
@@ -1291,6 +1309,7 @@ def _build_terminal_header_table_mappings(
                     row_numbers,
                     shared_row_endpoint_sides,
                     bracketed_header_pairs,
+                    lines=lines,
                 )
             ]
             if not row_endpoints:
@@ -1560,6 +1579,8 @@ def _build_backplate_virtual_mappings(
         return mappings
 
     headers_by_prefix: dict[str, list[TextItem]] = defaultdict(list)
+    numbered_model_slots = {header.text_id: _backplate_numbered_model_slot(header, virtual_texts)
+                            for header in headers}
     for header in headers:
         prefix = _normalize_backplate_header_prefix(header.normalized_text)
         if prefix:
@@ -1584,6 +1605,17 @@ def _build_backplate_virtual_mappings(
             and 0.0 < header.insert_y - row.insert_y <= _BACKPLATE_HEADER_Y_SPAN
             and abs(row.insert_x - header.insert_x) <= _BACKPLATE_HEADER_X_TOL
             and row.text_id not in used_pin_ids
+            and (not numbered_model_slots.get(header.text_id)
+                 or row.handle.partition(":VIRTUAL:")[0] == header.handle.partition(":VIRTUAL:")[0])
+            and not any(
+                numbered_model_slots.get(header.text_id)
+                and numbered_model_slots.get(peer.text_id)
+                and peer.source_block_name == header.source_block_name
+                and peer.handle.partition(":VIRTUAL:")[0] == header.handle.partition(":VIRTUAL:")[0]
+                and row.insert_y < peer.insert_y < header.insert_y
+                and abs(row.insert_x - peer.insert_x) <= _BACKPLATE_HEADER_X_TOL
+                for peer in headers
+            )
         ]
         # Dual pin columns under one header must not become @c1 collision keys.
         # Only disambiguate when the same header_prefix is stamped on multiple bays.
@@ -1625,12 +1657,16 @@ def _build_backplate_virtual_mappings(
             plugin = _nearest_plugin_slot(row.insert_x, row.insert_y, plugin_slots)
             if plugin is not None and not _point_in_plugin_bay(row.insert_x, row.insert_y, plugin):
                 plugin = None
+            numbered_model_slot = numbered_model_slots.get(header.text_id)
+            if numbered_model_slot is not None:
+                plugin = numbered_model_slot
             # Prefer instance/header-row for classic template headers (BI1/NDY) so
             # multi-device pages keep stable human-readable scope keys.
             use_plugin_for_key = bool(
                 plugin
                 and plugin.get("slot") is not None
-                and _plugin_title_is_pin_grid_bay(plugin.get("title"))
+                and (_plugin_title_is_pin_grid_bay(plugin.get("title"))
+                     or plugin.get("authority") == "same_row_model_and_slot")
             )
             logical_endpoint = _compose_backplate_logical_endpoint(
                 device_instance=device_instance,
@@ -1673,6 +1709,8 @@ def _build_backplate_virtual_mappings(
                     "composite_device_instance": device_instance,
                     "plugin_slot": plugin.get("slot") if plugin else None,
                     "plugin_title": plugin.get("title") if plugin else None,
+                    "plugin_slot_text_id": plugin.get("slot_text_id") if plugin else None,
+                    "plugin_slot_authority": plugin.get("authority") if plugin else None,
                     "column_key": column_key,
                     "column_roles": {
                         "left": "virtual_row_number",
@@ -1762,6 +1800,33 @@ def _is_plugin_bay_number(raw: str) -> bool:
         return False
     value = int(raw)
     return 1 <= value <= 16
+
+
+def _backplate_numbered_model_slot(
+    header: TextItem, virtual_texts: list[TextItem],
+) -> dict[str, Any] | None:
+    """A numbered model header declares a bay identity independent of page order.
+
+    Repeated plugin model names are not instance identifiers. Accept only a
+    unique same-owner, same-row slot immediately to the left of a CH model
+    header; otherwise retain the existing unresolved template scope.
+    """
+    owner, separator, _ = header.handle.partition(":VIRTUAL:")
+    if str(header.layer).upper() != "CH" or not header.source_block_name or not separator or not owner:
+        return None
+    candidates = [text for text in virtual_texts
+                  if text.source_block_name == header.source_block_name
+                  and text.handle.startswith(f"{owner}:VIRTUAL:")
+                  and str(text.layer).upper() == "0"
+                  and re.fullmatch(r"[1-9]\d?", str(text.normalized_text).strip())
+                  and abs(text.insert_y - header.insert_y) <= min(text.height, header.height) * 0.15
+                  and 0 < header.insert_x - text.insert_x <= 8 * header.height]
+    if len(candidates) != 1:
+        return None
+    slot = candidates[0]
+    return {"slot": int(slot.normalized_text), "title": header.normalized_text,
+            "title_text_id": header.text_id, "slot_text_id": slot.text_id,
+            "authority": "same_row_model_and_slot"}
 
 
 def _collect_backplate_plugin_slots(virtual_texts: list[TextItem]) -> list[dict[str, Any]]:
@@ -2247,6 +2312,7 @@ def _collect_terminal_header_rows(
     terminal_headers: list[TextItem],
     *,
     allow_rows_above: bool = False,
+    lines: list[LineEntity] | None = None,
 ) -> list[TextItem]:
     """Collect consecutive middle-column rows owned by one header strip.
 
@@ -2275,11 +2341,15 @@ def _collect_terminal_header_rows(
         and abs(row.insert_x - header.insert_x) <= _TERMINAL_HEADER_ROW_X_TOL
         and (next_header_y is None or row.insert_y > next_header_y)
     ]
-    candidates = [
-        _take_leading_consecutive_terminal_rows(
-            sorted(rows_below, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
-        )
-    ]
+    ordered_below = sorted(rows_below, key=lambda item: (-item.insert_y, item.insert_x, item.text_id))
+    partial_start = bool(lines and _terminal_header_row_has_grid_cell(header, lines))
+    below_run = _take_leading_consecutive_terminal_rows(
+        ordered_below, allow_partial_start=partial_start,
+    )
+    if below_run and int(below_run[0].normalized_text) != 1:
+        if not all(_terminal_header_row_has_grid_cell(row, lines or []) for row in below_run):
+            below_run = []
+    candidates = [below_run]
 
     # Some terminal strips place the instance header and 说明 footer below rows
     # 1..N in world coordinates. Only the explicit 说明 anchor authorizes this
@@ -2299,6 +2369,40 @@ def _collect_terminal_header_rows(
         )
 
     return max(candidates, key=len)
+
+
+def _terminal_header_rows_touch_header_cell(
+    header: TextItem,
+    rows: list[TextItem],
+    lines: list[LineEntity],
+) -> bool:
+    """A footer can own adjacent rows, not rows across an intervening cell.
+
+    Stacked strips can share outer rails and a consecutive numeric run. Two
+    distinct horizontal borders between the last row and the lower header
+    prove a separate closed cell (often a blank footer). Text-only callers
+    retain the legacy ownership heuristic; production supplies CAD geometry.
+    """
+    last_row = min(rows, key=lambda row: row.insert_y)
+    tolerance = max(1e-4, min(header.height, last_row.height) * 0.02)
+    borders: list[float] = []
+    for line in lines:
+        if abs(line.start_y - line.end_y) > tolerance:
+            continue
+        y = (line.start_y + line.end_y) / 2.0
+        if not header.insert_y + tolerance < y < last_row.insert_y - tolerance:
+            continue
+        left, right = sorted((line.start_x, line.end_x))
+        if right - left < max(header.height, last_row.height) * 4.0:
+            continue
+        if not (left - tolerance <= min(header.insert_x, last_row.insert_x)
+                and right + tolerance >= max(header.insert_x, last_row.insert_x)):
+            continue
+        if not any(abs(y - existing) <= tolerance for existing in borders):
+            borders.append(y)
+        if len(borders) > 1:
+            return False
+    return True
 
 
 def _collect_terminal_header_rows_above(
@@ -2330,10 +2434,44 @@ def _collect_terminal_header_rows_above(
     )
 
 
-def _take_leading_consecutive_terminal_rows(rows: list[TextItem]) -> list[TextItem]:
+def _terminal_header_row_has_grid_cell(text: TextItem, lines: list[LineEntity]) -> bool:
+    """Prove a local closed cell from existing extracted grid segments."""
+    tolerance = max(1e-4, text.height * 0.02)
+    horizontal = [
+        line for line in lines
+        if abs(line.start_y - line.end_y) <= tolerance
+        and min(line.start_x, line.end_x) - tolerance <= text.insert_x
+        <= max(line.start_x, line.end_x) + tolerance
+    ]
+    above = [line.start_y for line in horizontal if text.insert_y + tolerance < line.start_y <= text.insert_y + 4 * text.height]
+    below = [line.start_y for line in horizontal if text.insert_y - 4 * text.height <= line.start_y < text.insert_y - tolerance]
+    if not above or not below:
+        return False
+    top, bottom = min(above), max(below)
+    rails = [line.start_x for line in lines
+             if abs(line.start_x - line.end_x) <= tolerance
+             and min(line.start_y, line.end_y) <= bottom + tolerance
+             and max(line.start_y, line.end_y) >= top - tolerance]
+    left = [x for x in rails if text.insert_x - 30 * text.height <= x < text.insert_x - tolerance]
+    right = [x for x in rails if text.insert_x + tolerance < x <= text.insert_x + 30 * text.height]
+    if not left or not right:
+        return False
+    x1, x2 = max(left), min(right)
+    return all(any(
+        abs(line.start_y - y) <= tolerance
+        and min(line.start_x, line.end_x) <= x1 + tolerance
+        and max(line.start_x, line.end_x) >= x2 - tolerance
+        for line in horizontal
+    ) for y in (top, bottom))
+
+
+def _take_leading_consecutive_terminal_rows(
+    rows: list[TextItem], *, allow_partial_start: bool = False,
+) -> list[TextItem]:
     """Keep only the leading 1..N run so a restarted strip cannot pollute the group."""
     taken: list[TextItem] = []
-    expected = 1
+    start = int(rows[0].normalized_text) if allow_partial_start and rows and str(rows[0].normalized_text).isdigit() else 1
+    expected = start
     for row in rows:
         if not str(row.normalized_text).isdigit():
             break
@@ -2342,7 +2480,7 @@ def _take_leading_consecutive_terminal_rows(rows: list[TextItem]) -> list[TextIt
             break
         taken.append(row)
         expected += 1
-    return taken if expected > 2 else []
+    return taken if len(taken) >= 2 and start > 0 else []
 
 
 def _collect_terminal_header_continuation_rows(
@@ -2351,6 +2489,7 @@ def _collect_terminal_header_continuation_rows(
     terminal_headers: list[TextItem],
     *,
     continuation_from_row: int,
+    lines: list[LineEntity] | None = None,
 ) -> list[TextItem]:
     """Collect `上接<prefix><N>` rows beginning exactly at N+1."""
 
@@ -2383,7 +2522,12 @@ def _collect_terminal_header_continuation_rows(
             break
         taken.append(row)
         expected += 1
-    return taken if len(taken) >= 2 else []
+    single_grid_row = (
+        len(taken) == 1 and bool(lines)
+        and _terminal_header_row_has_grid_cell(header, lines)
+        and _terminal_header_row_has_grid_cell(taken[0], lines)
+    )
+    return taken if len(taken) >= 2 or single_grid_row else []
 
 
 def _terminal_rows_start_at_one(rows: list[TextItem]) -> bool:
@@ -2423,16 +2567,19 @@ def _terminal_header_group_has_structure(
     *,
     has_shuoming: bool = False,
     has_explicit_continuation: bool = False,
+    has_verified_grid: bool = False,
 ) -> bool:
     endpoint_counts = [len(_same_row_terminal_endpoints(row, endpoints)) for row in rows]
     endpoint_hit_count = sum(endpoint_counts)
+    if has_shuoming and has_explicit_continuation and has_verified_grid and len(rows) == 1:
+        return endpoint_hit_count >= 1
     # 说明 locks the three-column strip identity; slightly looser endpoint density is ok.
     min_hits = _TERMINAL_HEADER_MIN_ENDPOINT_HITS
     if has_shuoming:
         min_hits = max(1, _TERMINAL_HEADER_MIN_ENDPOINT_HITS - 1)
     if endpoint_hit_count < min_hits:
         return False
-    if has_explicit_continuation:
+    if has_explicit_continuation or (has_shuoming and has_verified_grid):
         return len(rows) >= 2 and endpoint_hit_count >= 1
 
     rows_with_endpoint = sum(1 for count in endpoint_counts if count > 0)
@@ -2504,6 +2651,8 @@ def _terminal_header_endpoint_owned_by_row(
     row_numbers: list[TextItem],
     shared_row_endpoint_sides: dict[tuple[str, str], str],
     bracketed_header_pairs: set[tuple[str, str]],
+    *,
+    lines: list[LineEntity] | None = None,
 ) -> bool:
     """Own an endpoint without stealing a different-number neighboring row."""
 
@@ -2540,6 +2689,7 @@ def _terminal_header_endpoint_owned_by_row(
                 row_numbers,
                 terminal_headers,
                 continuation_from_row=continuation_from_row,
+                lines=lines,
             )
             if continuation_from_row is not None
             else row_numbers

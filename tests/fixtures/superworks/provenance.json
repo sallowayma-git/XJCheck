@@ -1,0 +1,73 @@
+[
+  {
+    "fixture": "schematic",
+    "source": {
+      "file_id": "F0010",
+      "path": "F:\\workspace\\XJToolkit\\test\\正式典设\\GJ-81 WFB-821E+WFB-822E-FCK-851C\\发电机保护测控柜（1WFB-821E+1WFB-822E+FCK-851C）火电站带手合手跳开关\\10 信号回路图.dwg",
+      "sha256": "635255ec6de9c2ecc5619d2bcddba37217109ab08bd18f134106ca72862b7899",
+      "dxf_path": "C:\\Users\\25788\\AppData\\Local\\Temp\\claude\\F--workspace-XJToolkit\\367e37bd-5006-413b-a449-e1c665a8b237\\scratchpad\\dxf\\t4\\GJ-81 WFB-821E+WFB-822E-FCK-851C\\发电机保护测控柜（1WFB-821E+1WFB-822E+FCK-851C）火电站带手合手跳开关\\10 信号回路图.dxf",
+      "dxf_sha256": "1f69bc6ad33080258d7d926b0504ff25fa6599361783f8b756bd79a2aa9fb848",
+      "filename": "10 信号回路图.dwg"
+    },
+    "retained_modelspace_handles": [
+      "26C72",
+      "26F3E",
+      "26F3F",
+      "26F4C",
+      "26F4D",
+      "26F4E",
+      "26F57",
+      "26FA6"
+    ]
+  },
+  {
+    "fixture": "strip",
+    "source": {
+      "file_id": "F0023",
+      "path": "F:\\workspace\\XJToolkit\\test\\正式典设\\GJ-81 WFB-821E+WFB-822E-FCK-851C\\发电机保护测控柜（1WFB-821E+1WFB-822E+FCK-851C）火电站带手合手跳开关\\23 左侧端子图1.dwg",
+      "sha256": "134294d06a93665b9e99f536450b5af0531f67e8a3a758dac4f35a3a9dfab93c",
+      "dxf_path": "C:\\Users\\25788\\AppData\\Local\\Temp\\claude\\F--workspace-XJToolkit\\367e37bd-5006-413b-a449-e1c665a8b237\\scratchpad\\dxf\\t4\\GJ-81 WFB-821E+WFB-822E-FCK-851C\\发电机保护测控柜（1WFB-821E+1WFB-822E+FCK-851C）火电站带手合手跳开关\\23 左侧端子图1.dxf",
+      "dxf_sha256": "f0ffdbbb8e816f2620ace1acfa24fce283bbe8684d79e8baaedc54fd7fdc0895",
+      "filename": "23 左侧端子图1.dwg"
+    },
+    "retained_modelspace_handles": [
+      "29BE",
+      "29C7",
+      "29C8",
+      "29C9",
+      "29D3",
+      "29D4",
+      "29D5",
+      "29D6",
+      "29E0",
+      "29E8",
+      "29E9",
+      "29EA"
+    ]
+  },
+  {
+    "fixture": "component",
+    "source": {
+      "file_id": "F0020",
+      "path": "F:\\workspace\\XJToolkit\\test\\正式典设\\GJ-81 WFB-821E+WFB-822E-FCK-851C\\发电机保护测控柜（1WFB-821E+1WFB-822E+FCK-851C）火电站带手合手跳开关\\20 元件接线图1.dwg",
+      "sha256": "fa344ec8d0c3018d346f55a3ab98b1809ed7416dcc767bb1244bb0d8894b5625",
+      "dxf_path": "C:\\Users\\25788\\AppData\\Local\\Temp\\claude\\F--workspace-XJToolkit\\367e37bd-5006-413b-a449-e1c665a8b237\\scratchpad\\dxf\\t4\\GJ-81 WFB-821E+WFB-822E-FCK-851C\\发电机保护测控柜（1WFB-821E+1WFB-822E+FCK-851C）火电站带手合手跳开关\\20 元件接线图1.dxf",
+      "dxf_sha256": "73f459906ad248be2b2499ad621266eea5596bec5589fc85518d3a64cd5d0317",
+      "filename": "20 元件接线图1.dwg"
+    },
+    "retained_modelspace_handles": [
+      "29368",
+      "29369",
+      "2936A",
+      "2936B",
+      "2936C",
+      "2936D",
+      "2E0B5",
+      "2E0B6",
+      "2E0B9",
+      "2E0BA",
+      "2E0BB",
+      "2E0BC"
+    ]
+  }
+]

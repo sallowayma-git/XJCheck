@@ -137,6 +137,39 @@ def _pair(pair_id: str, text_id: str, value: str, *, pair_kind: str, status: str
     )
 
 
+def test_coverage_distinguishes_accounted_discard_and_unselected_from_resolved() -> None:
+    texts = [_text("T1", "101", 10, 10), _text("T2", "202", 20, 10), _text("T3", "303", 30, 10)]
+    candidates = [
+        _candidate("ACCEPTED", "T2", "202", channel="terminal_numeric_channel", status="accepted"),
+        _candidate("REJECTED", "T2", "202", channel="terminal_numeric_channel", rejection_reason="out_of_row"),
+        _candidate("ONLY-REJECTED", "T3", "303", channel="terminal_numeric_channel", rejection_reason="out_of_row"),
+    ]
+    discarded = _pair("P1", "T1", "101", pair_kind="ordinary_pair", status="discard")
+    discarded.rationale = "Missing independent terminal identity."
+    artifacts = _artifacts(texts=texts, candidates=candidates, pairs=[discarded])
+    frame = build_text_assignment_frame(artifacts)
+    rows = frame.set_index("text_id")
+    assert rows.loc["T1", "resolution_status"] == "discarded"
+    assert rows.loc["T1", "explain_reason"] == discarded.rationale
+    assert rows.loc["T2", "resolution_status"] == "unselected"
+    assert rows.loc["T2", "candidate_status"] == "accepted"
+    assert len(rows.loc["T2", "candidate_decisions"]) == 2
+    assert rows.loc["T3", "resolution_status"] == "rejected"
+    _, summary = build_entity_coverage_summary(frame, artifacts=artifacts)
+    assert summary["coverage_ratio"] == 1.0
+    assert summary["resolution_status_counts"] == {"discarded": 1, "unselected": 1, "rejected": 1}
+
+
+def test_component_body_and_conflicting_labels_are_traceable_evidence() -> None:
+    pair = _pair("PCM", "PIN", "1KLP2-1", pair_kind="component_mapping", status="review")
+    pair.evidence.update({"component_body_text_id": "BODY", "external_endpoint_alternatives": [{"text_id": "A"}, {"text_id": "B"}]})
+    artifacts = _artifacts(texts=[_text("PIN", "1", 10, 10), _text("BODY", "1KLP2", 10, 20), _text("A", "1n101", 10, 5), _text("B", "1n102", 10, 5)], pairs=[pair])
+    rows = build_text_assignment_frame(artifacts).set_index("text_id")
+    for text_id in ("BODY", "A", "B"):
+        assert rows.loc[text_id, "consumed_by_pair_ids"] == ["PCM"]
+        assert rows.loc[text_id, "resolution_status"] == "review"
+
+
 def test_build_text_assignment_frame_uses_contract_assignment_kinds() -> None:
     texts = [
         _text("T1", "101", 10, 10),

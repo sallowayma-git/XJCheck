@@ -2458,6 +2458,12 @@ function App() {
                       </div>
                       <div className="detail-block" style={{ marginTop: 8 }}>
                         <span>证据链（原始）</span>
+                        {readSuperworksEvidence(selectedIssue) && (
+                          <div>
+                            <strong>来源：superworks</strong>
+                            <pre>{JSON.stringify(readSuperworksEvidence(selectedIssue), null, 2)}</pre>
+                          </div>
+                        )}
                         <pre>{JSON.stringify(readEvidenceChain(selectedIssue), null, 2)}</pre>
                       </div>
                       <div className="detail-block" style={{ marginTop: 8 }}>
@@ -2871,6 +2877,15 @@ function formatPointPair(value: unknown): string | null {
     return null
   }
   return `(${x.toFixed(1)}, ${y.toFixed(1)})`
+}
+
+function readSuperworksEvidence(issue: Pick<IssueSummary, "evidence">): Record<string, unknown> | null {
+  const evidence = issue.evidence ?? {}
+  const nested = evidence.pair_evidence
+  const pair = nested && typeof nested === "object" && !Array.isArray(nested)
+    ? nested as Record<string, unknown> : evidence
+  const sw = pair.superworks
+  return sw && typeof sw === "object" && !Array.isArray(sw) ? sw as Record<string, unknown> : null
 }
 
 function formatIssueLocation(

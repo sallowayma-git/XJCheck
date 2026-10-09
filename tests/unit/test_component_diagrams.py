@@ -2,6 +2,8 @@ from dwg_audit.audit.component_diagrams import extract_kk_multi_port_component_p
 from dwg_audit.audit.component_diagrams import extract_small_port_box_component_pairs
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_endpoint_bridge_pairs
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
+from dwg_audit.audit.rules import build_issues
+from dwg_audit.utils.config import DEFAULT_CONFIG
 from dataclasses import replace
 
 import pytest
@@ -148,6 +150,22 @@ def test_extract_strip_two_port_component_pairs_builds_component_mapping() -> No
     assert first.evidence["external_endpoint_text_id"] == "T3859"
 
 
+def test_vlp_body_keeps_both_owned_ports_and_external_labels() -> None:
+    texts = [
+        _make_text("BODY", "5VLP10", 205.0, 205.3, layer="MARK"),
+        _make_text("P1", "1", 208.9, 190.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("P2", "2", 208.9, 175.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("E1", "5UD20", 204.3, 195.4),
+        _make_text("E2", "5n213", 205.8, 169.8),
+    ]
+    pairs, consumed = extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()])
+    assert consumed == {"GC0132"}
+    assert {(p.left_value, p.right_value) for p in pairs} == {
+        ("5VLP10-1", "5UD20"), ("5VLP10-2", "5n213"),
+    }
+    assert all(p.evidence["internal_connectivity_inferred"] is False for p in pairs)
+
+
 def test_extract_strip_two_port_component_pairs_accepts_non_mirrored_definition() -> None:
     sheet = _make_sheet()
     texts = [
@@ -209,8 +227,9 @@ def test_extract_strip_two_port_component_pairs_rejects_malformed_hierarchical_e
         [_make_vertical_group("GC", x=52.5, start_y=252.5, end_y=237.5)],
     )
 
-    assert pairs == []
-    assert consumed == set()
+    assert consumed == {"GC"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {("1-21CLP9-1", None), ("1-21CLP9-2", "1-21n427")}
+    assert next(pair for pair in pairs if pair.right_value is None).status == "review"
 
 
 def test_extract_strip_two_port_component_pairs_accepts_clp_body() -> None:
@@ -388,8 +407,8 @@ def test_extract_strip_two_port_component_pairs_rejects_interior_or_isolated_amp
             [*base[:3], _make_text("TOP", value, 204.3, 195.4), *base[3:]],
             [_make_vertical_group()],
         )
-        assert pairs == []
-        assert consumed == set()
+        assert consumed == {"GC0132"}
+        assert {(pair.left_value, pair.right_value) for pair in pairs} == {("1CLP4-1", None), ("1CLP4-2", "1n922")}
 
 
 def test_extract_strip_two_port_component_pairs_keeps_only_legal_comma_fragments() -> None:
@@ -412,7 +431,7 @@ def test_extract_strip_two_port_component_pairs_keeps_only_legal_comma_fragments
     }
 
 
-def test_extract_strip_two_port_component_pairs_skips_comma_group_without_both_sides() -> None:
+def test_extract_strip_two_port_component_pairs_retains_valid_side_of_invalid_comma_group() -> None:
     sheet = _make_sheet()
     texts = [
         _make_text("T3808", "5KLP10", 205.0, 205.3, layer="MARK"),
@@ -424,8 +443,8 @@ def test_extract_strip_two_port_component_pairs_skips_comma_group_without_both_s
 
     pairs, consumed = extract_strip_two_port_component_pairs([sheet], texts, [_make_vertical_group()])
 
-    assert pairs == []
-    assert consumed == set()
+    assert consumed == {"GC0132"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {("5KLP10-1", None), ("5KLP10-2", "5n112")}
 
 
 def test_extract_strip_two_port_component_pairs_ignores_comma_endpoint_when_legal_candidate_exists() -> None:
@@ -449,7 +468,7 @@ def test_extract_strip_two_port_component_pairs_ignores_comma_endpoint_when_lega
     assert all(pair.right_text_id != "T_BAD" for pair in pairs)
 
 
-def test_extract_strip_two_port_component_pairs_requires_two_valid_external_endpoints() -> None:
+def test_extract_strip_two_port_component_pairs_retains_port_with_missing_external_label() -> None:
     sheet = _make_sheet()
     texts = [
         _make_text("T3808", "5KLP10", 205.0, 205.3, layer="MARK"),
@@ -461,11 +480,98 @@ def test_extract_strip_two_port_component_pairs_requires_two_valid_external_endp
 
     pairs, consumed = extract_strip_two_port_component_pairs([sheet], texts, [_make_vertical_group()])
 
-    assert pairs == []
-    assert consumed == set()
+    assert consumed == {"GC0132"}
+    assert {(pair.left_value, pair.right_value) for pair in pairs} == {("5KLP10-1", "5KLP9-1"), ("5KLP10-2", None)}
+    missing = next(pair for pair in pairs if pair.right_value is None)
+    assert missing.left_text_id == "T3805"
+    assert missing.evidence["unresolved_reason"] == "external_endpoint_missing"
+    from dwg_audit.audit.rules import build_issues
+    from dwg_audit.utils.config import DEFAULT_CONFIG
+    issues = build_issues(pairs, [_make_vertical_group()], [sheet], DEFAULT_CONFIG)
+    assert any(issue.rule_id == "R-PAIR-MISSING-SIDE" and missing.pair_id == issue.pair_id for issue in issues)
 
 
-def test_extract_strip_two_port_endpoint_bridge_pairs_builds_direct_zk_to_n_mapping() -> None:
+def test_strip_variant_keeps_conflicting_label_evidence_without_picking_a_winner() -> None:
+    texts = [
+        _make_text("BODY", "8KLP3", 205, 205.3, layer="MARK"),
+        replace(_make_text("P1", "1", 208.9, 190, source_block_name="FJL-25-2A Y4_Mirror"), handle="INSERT1:VIRTUAL:0"),
+        replace(_make_text("P2", "2", 208.9, 175, source_block_name="FJL-25-2A Y4_Mirror"), handle="INSERT1:VIRTUAL:1"),
+        _make_text("TOP", "8KLP2-1", 204.3, 195.4),
+        _make_text("BOTTOM", "8n401", 205.8, 169.8),
+        _make_text("CONFLICT", "8nB01", 205.82, 169.8),
+        _make_text("NEIGHBOR", "8n402", 220, 169.8),
+    ]
+    pairs, consumed = extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()])
+    assert consumed == {"GC0132"}
+    assert {(p.left_value, p.right_value) for p in pairs} == {("8KLP3-1", "8KLP2-1"), ("8KLP3-2", None)}
+    unresolved = next(p for p in pairs if p.right_value is None)
+    assert unresolved.evidence["unresolved_reason"] == "coincident_conflicting_labels"
+    assert {item["text_id"] for item in unresolved.evidence["external_endpoint_alternatives"]} == {"BOTTOM", "CONFLICT"}
+    texts = [replace(t, handle="INSERT2:VIRTUAL:1") if t.text_id == "P2" else t for t in texts]
+    assert extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()]) == ([], set())
+
+
+@pytest.mark.parametrize("endpoint", ["1DK-4", "1-21ZK-2", "2KK-6"])
+def test_strip_accepts_scoped_device_pin_without_device_index(endpoint: str) -> None:
+    texts = [
+        _make_text("BODY", "1KLP7", 205, 205.3, layer="MARK"),
+        _make_text("P1", "1", 208.9, 190, source_block_name="FJL-25-2A"),
+        _make_text("P2", "2", 208.9, 175, source_block_name="FJL-25-2A"),
+        _make_text("TOP", endpoint, 204.3, 195.4),
+        _make_text("BOTTOM", "1n201", 205.8, 169.8),
+    ]
+    pairs, _ = extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()])
+    assert all(p.status == "pass" for p in pairs)
+    assert {(p.left_value, p.right_value) for p in pairs} == {("1KLP7-1", endpoint), ("1KLP7-2", "1n201")}
+
+
+@pytest.mark.parametrize("body", ["2LP1", "1-2LP3", "3-2LP2"])
+def test_strip_pressure_plate_reads_each_instance_name(body: str) -> None:
+    texts = [
+        _make_text("BODY", body, 205, 205.3, layer="MARK"),
+        replace(_make_text("P1", "1", 208.9, 190, source_block_name="FJL-25-2A_Mirror"), handle="OWNER:VIRTUAL:0"),
+        replace(_make_text("P2", "2", 208.9, 175, source_block_name="FJL-25-2A_Mirror"), handle="OWNER:VIRTUAL:1"),
+        _make_text("TOP", "2ZK-4", 204.3, 195.4),
+        _make_text("BOTTOM", "2n221", 205.8, 169.8),
+        _make_text("OTHER-BODY", "4LP9", 240, 205.3, layer="MARK"),
+    ]
+    pairs, _ = extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()])
+    assert {(p.left_value, p.right_value) for p in pairs} == {(body + "-1", "2ZK-4"), (body + "-2", "2n221")}
+    assert all(p.evidence["component_block_handle"] == "OWNER" for p in pairs)
+    assert all(p.evidence["electrical_union_eligible"] is False for p in pairs)
+
+
+def test_strip_preserves_label_only_ports_without_reporting_electrical_missing_side() -> None:
+    texts = [
+        _make_text("BODY", "1KLP7", 205, 205.3, layer="MARK"),
+        _make_text("P1", "1", 208.9, 190, source_block_name="FJL-25-2A"),
+        _make_text("P2", "2", 208.9, 175, source_block_name="FJL-25-2A"),
+    ]
+    sheet = _make_sheet()
+    pairs, _ = extract_strip_two_port_component_pairs([sheet], texts, [_make_vertical_group()])
+    assert len(pairs) == 2
+    assert all(p.evidence["component_port_label_only"] and not p.evidence["unresolved_component_port"] for p in pairs)
+    from dwg_audit.audit.rules import build_issues
+    from dwg_audit.utils.config import DEFAULT_CONFIG
+    assert build_issues(pairs, [_make_vertical_group()], [sheet], DEFAULT_CONFIG) == []
+
+
+def test_strip_duplicate_same_value_and_neighbor_row_do_not_create_conflict() -> None:
+    texts = [
+        _make_text("BODY", "8KLP3", 205, 205.3, layer="MARK"),
+        _make_text("P1", "1", 208.9, 190, source_block_name="FJL-25-2A"),
+        _make_text("P2", "2", 208.9, 175, source_block_name="FJL-25-2A"),
+        _make_text("TOP", "8KLP2-1", 204.3, 195.4),
+        _make_text("BOTTOM", "8n401", 205.8, 169.8),
+        _make_text("DUP", "8n401", 205.82, 169.8),
+        _make_text("ROW", "8n402", 205.8, 166),
+    ]
+    pairs, _ = extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()])
+    assert all(p.status == "pass" for p in pairs)
+    assert {p.right_value for p in pairs} == {"8KLP2-1", "8n401"}
+
+
+def test_extract_strip_two_port_endpoint_bridge_pairs_retains_nonconductive_context() -> None:
     sheet = _make_sheet()
     texts = [
         _make_text("P1", "1", 301.844972, 193.75, layer="0", source_block_name="FJL-25-2A_Mirror"),
@@ -484,13 +590,23 @@ def test_extract_strip_two_port_endpoint_bridge_pairs_builds_direct_zk_to_n_mapp
     assert pair.right_value == "3-21n401"
     assert pair.left_text_id == "TOP"
     assert pair.right_text_id == "BOTTOM"
-    assert pair.pair_kind == "component_mapping"
+    assert pair.pair_kind == "semantic_mapping"
     assert pair.status == "pass"
     assert pair.evidence["component_submode"] == "strip_two_port_endpoint_bridge"
+    assert pair.evidence["semantic_role"] == "component_endpoint_context"
+    assert pair.evidence["internal_connectivity_inferred"] is False
+    assert pair.evidence["electrical_union_eligible"] is False
     assert pair.evidence["top_port_text_id"] == "P1"
     assert pair.evidence["bottom_port_text_id"] == "P2"
     assert pair.evidence["component_block_name"] == "FJL-25-2A_Mirror"
     assert pair.evidence["supporting_line_ids"] == ["L1"]
+    # Context cannot add a conductive ZK -> n claim beside a real external
+    # component-port -> n mapping, nor erase competing real port mappings.
+    physical = replace(pair, pair_id="PHYSICAL", pair_kind="component_mapping",
+                       left_value="3-21CLP1-2", evidence={"source": "component_mapping"})
+    assert not any(i.rule_id == "R-MANY-TO-ONE" for i in build_issues([pair, physical], [], [sheet], DEFAULT_CONFIG))
+    competitor = replace(physical, pair_id="OTHER", left_value="3-21KLP2-2")
+    assert any(i.rule_id == "R-MANY-TO-ONE" for i in build_issues([pair, physical, competitor], [], [sheet], DEFAULT_CONFIG))
 
 
 def test_extract_strip_two_port_endpoint_bridge_pairs_requires_matching_prefix() -> None:

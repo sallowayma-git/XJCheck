@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+import json
+import math
 
 from shapely.geometry import box
 from shapely.strtree import STRtree
@@ -123,7 +125,12 @@ _TERMINAL_SEMANTIC_ROW_PATTERNS = (
 class TextSpatialIndex:
     def __init__(self, texts: list[TextItem]) -> None:
         self.texts = texts
-        self.boxes = [box(item.bbox_min_x, item.bbox_min_y, item.bbox_max_x, item.bbox_max_y) for item in texts]
+        self.boxes = []
+        for item in texts:
+            ports = json.loads(item.physical_ports_json)
+            xs = [item.bbox_min_x, item.bbox_max_x] + [p["position"][0] for p in ports]
+            ys = [item.bbox_min_y, item.bbox_max_y] + [p["position"][1] for p in ports]
+            self.boxes.append(box(min(xs), min(ys), max(xs), max(ys)))
         self.tree = STRtree(self.boxes) if self.boxes else None
 
     def query(self, bbox: tuple[float, float, float, float]) -> list[TextItem]:
@@ -179,11 +186,21 @@ def build_terminal_candidates(
             for text in index.query(bbox):
                 dx = text.insert_x - endpoint[0]
                 dy = text.insert_y - endpoint[1]
+                physical_ports = json.loads(text.physical_ports_json)
+                physical_evidence = _physical_endpoint_binding(text, group, side, endpoint)
+                grammar_orientation = "horizontal" if physical_evidence else orientation
                 value = _candidate_numeric_value(text, profile["numeric_suffix_patterns"])
                 if value is None:
-                    value = _candidate_wire_logic_endpoint_value(text, sheet, orientation)
+                    value = _candidate_wire_logic_endpoint_value(text, sheet, grammar_orientation)
                 if value is None:
                     value = _candidate_schematic_semantic_endpoint_value(text, sheet, orientation)
+                if value is None and physical_evidence:
+                    label = text.normalized_text.strip()
+                    if re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", label) and any(c.isdigit() for c in label):
+                        value = label
+                if physical_evidence:
+                    dx = physical_evidence["position"][0] - endpoint[0]
+                    dy = physical_evidence["position"][1] - endpoint[1]
                 within_height = min_height <= text.height <= max_height
                 vertical_alignment_score = _cross_axis_alignment_score(dx, dy, radius_x, radius_y, orientation)
                 horizontal_side_score = _side_alignment_score(dx, dy, radius_x, radius_y, side, orientation)
@@ -199,9 +216,12 @@ def build_terminal_candidates(
                     text=text,
                     value=value,
                     sheet=sheet,
-                    orientation=orientation,
+                    orientation=grammar_orientation,
                     matched_terminal_strip_bypass=matched_terminal_strip_bypass,
                 )
+                if physical_evidence and value and not value.isdigit():
+                    channel = _CHANNEL_WIRE_LOGIC_ENDPOINT
+                    channel_detail = "cad_owned_physical_terminal_label"
                 named_component_port = _named_component_port_endpoint(
                     text=text,
                     raw_port_value=value,
@@ -216,7 +236,11 @@ def build_terminal_candidates(
                     value = named_component_port
                     channel = _CHANNEL_WIRE_LOGIC_ENDPOINT
                     channel_detail = _SCHEMATIC_NAMED_COMPONENT_PORT_DETAIL
-                if matched_terminal_strip_bypass:
+                if physical_ports and not physical_evidence:
+                    status = "rejected"
+                    reason = "label_bound_to_other_physical_port"
+                    score = 0.0
+                elif matched_terminal_strip_bypass:
                     status = "rejected"
                     reason = "terminal_strip_bypass_text"
                     score = 0.0
@@ -379,6 +403,7 @@ def build_terminal_candidates(
                         source_block_name=text.source_block_name,
                         channel=channel,
                         channel_detail=channel_detail if status == "accepted" else (reason or channel_detail),
+                        physical_endpoint_evidence=physical_evidence,
                     )
                 )
         _add_schematic_ac_phase_line_span_candidates(
@@ -416,6 +441,22 @@ def build_terminal_candidates(
     _apply_schematic_ud_numeric_peer_contract(results, group_map, sheet_map, config)
     _assign_candidate_ranks(results)
     return results
+
+
+def _physical_endpoint_binding(text: TextItem, group: LineGroup, side: str, endpoint: tuple[float, float]) -> dict:
+    # Exact outward contact with the external wire; never bridge symbol sides.
+    other = (group.end_x, group.end_y) if side in {"left", "top"} else (group.start_x, group.start_y)
+    vx, vy = other[0] - endpoint[0], other[1] - endpoint[1]
+    length = math.hypot(vx, vy)
+    if length <= 0:
+        return {}
+    matches = []
+    for port in json.loads(text.physical_ports_json):
+        px, py = port["position"]
+        ux, uy = port["outward_direction"]
+        if math.hypot(px-endpoint[0], py-endpoint[1]) <= 0.25 and (ux*vx + uy*vy)/length >= 0.98:
+            matches.append(port)
+    return matches[0] if len(matches) == 1 else {}
 
 
 def _candidate_search_bbox(

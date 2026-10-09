@@ -84,6 +84,7 @@ except ImportError:  # pragma: no cover - optional until ScopeResolver lands
 
 _REPORT_FORMATS = ("md", "html", "xlsx")
 _FINDINGS_FRAME_NAMES = (
+    "primitive_segments",
     "pages",
     "texts",
     "lines",
@@ -101,19 +102,27 @@ _FINDINGS_FRAME_NAMES = (
     "sidecars",
     "terminal_strips",
     "extraction_warnings",
+    "sw_symbols", "sw_ports", "sw_strip_rows", "sw_part_instances",
+    "sw_connect_labels", "sw_connect_dots", "superworks_supersession", "sw_port_coverage",
 )
 _PRODUCTION_CORE_FINDINGS_NAMES = frozenset(
     {
         "source_files.parquet",
         "pages.parquet",
         "texts.parquet",
+        "primitive_segments.parquet",
         "lines.parquet",
         "line_groups.parquet",
         "terminal_candidates.parquet",
         "pairs.parquet",
+        "text_assignments.parquet",
+        "entity_coverage_summary.parquet",
         "findings.json",
         "findings.md",
         "runtime_profile.json",
+        "sw_symbols.parquet", "sw_ports.parquet", "sw_strip_rows.parquet",
+        "sw_part_instances.parquet", "sw_connect_labels.parquet", "sw_connect_dots.parquet",
+        "superworks_supersession.parquet", "sw_port_coverage.parquet", "superworks_summary.json",
     }
 )
 _ISSUE_STRUCTURED_COLUMNS = ("evidence", "related_pair_ids", "sheet_ids", "values", "evidence_refs")
@@ -464,6 +473,7 @@ def _write_production_core_artifacts(
         ("source_files", artifacts.scan.manifest.source_files, SourceFileRecord),
         ("pages", artifacts.scan.pages, SheetRecord),
         ("texts", artifacts.texts, TextItem),
+        ("primitive_segments", artifacts.primitive_segments, PrimitiveSegment),
         ("lines", artifacts.lines, LineEntity),
         ("line_groups", artifacts.line_groups, LineGroup),
         ("terminal_candidates", artifacts.terminal_candidates, TerminalCandidate),
@@ -474,6 +484,17 @@ def _write_production_core_artifacts(
         _frame(records, record_type).to_parquet(findings_dir / f"{name}.parquet", index=False)
         core_frame_names.append(name)
 
+    text_assignments = build_text_assignment_frame(
+        artifacts, page_classifications=page_classifications, table_mappings=table_mappings,
+    )
+    coverage_frame, coverage_payload = build_entity_coverage_summary(
+        text_assignments, artifacts=artifacts, page_classifications=page_classifications,
+    )
+    text_assignments.to_parquet(findings_dir / "text_assignments.parquet", index=False)
+    coverage_frame.to_parquet(findings_dir / "entity_coverage_summary.parquet", index=False)
+    core_frame_names.extend(["text_assignments", "entity_coverage_summary"])
+    from dwg_audit.report.superworks_artifacts import write_superworks_artifacts
+    write_superworks_artifacts(artifacts, findings_dir)
     findings_payload = _build_findings_payload(
         artifacts,
         config=config,
@@ -481,6 +502,7 @@ def _write_production_core_artifacts(
         table_mappings=table_mappings,
         extraction_gate=extraction_gate_payload,
         runtime_profile="production",
+        entity_coverage_summary=coverage_payload,
     )
     if persist_page_findings:
         page_findings_dir = findings_dir / "page_findings"
@@ -1393,6 +1415,8 @@ def write_project_artifacts(
             )
     (findings_dir / "findings.json").write_text(json.dumps(findings_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (findings_dir / "findings.md").write_text(_build_findings_markdown(findings_payload), encoding="utf-8")
+    from dwg_audit.report.superworks_artifacts import write_superworks_artifacts
+    write_superworks_artifacts(artifacts, findings_dir)
     return project_dir
 
 
@@ -3019,10 +3043,13 @@ def _build_findings_payload(
             "source_files.parquet",
             "pages.parquet",
             "texts.parquet",
+            "primitive_segments.parquet",
             "lines.parquet",
             "line_groups.parquet",
             "terminal_candidates.parquet",
             "pairs.parquet",
+            "text_assignments.parquet",
+            "entity_coverage_summary.parquet",
         ]
     if bool((config or {}).get("runtime", {}).get("persist_page_findings_files", False)):
         persisted_findings_artifacts.insert(2, "page_findings/")
@@ -3342,6 +3369,7 @@ def _build_findings_markdown(payload: dict[str, Any]) -> str:
             f"- OutOfScopeTexts: `{payload['entity_coverage_summary'].get('out_of_scope_texts', 0)}`",
             f"- CoverageRatio: `{payload['entity_coverage_summary'].get('coverage_ratio', 0.0)}`",
             f"- AssignmentKindCounts: `{json.dumps(payload['entity_coverage_summary'].get('assignment_kind_counts', {}), ensure_ascii=False, sort_keys=True)}`",
+            f"- ResolutionStatusCounts: `{json.dumps(payload['entity_coverage_summary'].get('resolution_status_counts', {}), ensure_ascii=False, sort_keys=True)}`",
             f"- ContractChecks: `{json.dumps(payload['entity_coverage_summary'].get('contract_checks', {}), ensure_ascii=False, sort_keys=True)}`",
             "",
             "## Table Extraction",

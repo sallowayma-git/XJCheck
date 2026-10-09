@@ -55,6 +55,8 @@ def build_issues(
         issue_factory=IssueFactory(issue_ids=IdFactory("I"), group_map=group_map, sheet_map=sheet_map),
     )
     issues: list[Issue] = []
+    from dwg_audit.audit.superworks_extractor import build_superworks_issues
+    issues.extend(build_superworks_issues(context))
     for rule in select_rules(_RULES, enabled):
         issues.extend(rule.runner(context))
     # First merge technical duplicates, then attach user-facing handling buckets
@@ -89,6 +91,32 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
 
     for pair in context.pairs:
         if pair.status == "discard":
+            continue
+        if pair.pair_kind == "component_mapping" and pair.evidence.get("unresolved_component_port"):
+            issues.append(context.issue_factory.build(
+                "R-PAIR-MISSING-SIDE", "review", pair,
+                "Physical component port retained without a unique external label.",
+                title="元件端口标注待核验",
+                explanation="元件身份与端口已保留，但外部标注缺失或同位置存在冲突文字；这不代表检测到电气断线。",
+                recommended_action="核对原图该端口的外部标注及重叠文字；另一端的有效映射仍然保留。",
+                extra={"missing_side_classification": pair.evidence.get("unresolved_reason")},
+            ))
+            continue
+        if (pair.pair_kind == "wire_component_mapping" and pair.status == "review"
+                and pair.evidence.get("component_submode") == "schematic_wire_logic_annotation"
+                and pair.evidence.get("semantic_mapping_missing_side")
+                and not _resolved_by_explicit_external_lead(pair, context)
+                and any(candidate.line_group_id == pair.line_group_id
+                        and candidate.text_id == pair.evidence.get("logical_endpoint_text_id")
+                        and candidate.physical_endpoint_evidence
+                        for candidate in context.terminal_candidates)):
+            issues.append(context.issue_factory.build(
+                "R-PAIR-MISSING-SIDE", "review", pair,
+                "CAD-owned terminal annotation retained without two independently identified physical endpoints.",
+                title="端子物理端点待核验",
+                explanation="CAD 端子身份已保留，但两端的物理对应关系尚未完成；记录类型变化不能视作配对已解决。",
+                extra={"missing_side_classification": "unresolved_physical_terminal_annotation"},
+            ))
             continue
         if not _ordinary_pair_eligible(pair):
             continue
@@ -386,6 +414,7 @@ def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:
         if (
             not _ordinary_pair_eligible(pair)
             and pair.pair_kind != "component_mapping"
+            and not _unresolved_physical_wire_endpoint(pair, context)
         ):
             continue
         if not pair.left_value or not pair.right_value:
@@ -408,6 +437,24 @@ def _run_pair_low_confidence(context: RuleContext) -> list[Issue]:
             )
         )
     return issues
+
+
+def _unresolved_physical_wire_endpoint(pair: Pair, context: RuleContext) -> bool:
+    """A change of record kind does not resolve a physical terminal review."""
+    if (pair.pair_kind != "wire_component_mapping"
+            or pair.evidence.get("component_submode") != "schematic_wire_logic_endpoint"
+            or _resolved_by_explicit_external_lead(pair, context)):
+        return False
+    selected = [pair.evidence.get(f"selected_{side}_physical_endpoint") for side in ("left", "right")]
+    if any(isinstance(proof, dict)
+           and proof.get("source") == "reciprocal_cad_label_and_terminal_geometry" for proof in selected):
+        return True
+    return any(candidate.line_group_id == pair.line_group_id
+               and candidate.sheet_id == pair.sheet_id and candidate.file_id == pair.file_id
+               and candidate.text_id in {pair.left_text_id, pair.right_text_id}
+               and candidate.status == "accepted"
+               and candidate.physical_endpoint_evidence.get("source") == "reciprocal_cad_label_and_terminal_geometry"
+               for candidate in context.terminal_candidates)
 
 
 def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
@@ -456,13 +503,25 @@ def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
 
 def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
-    graph, left_to_pairs, _ = _graph_maps(_high_confidence_pairs(context))
-    for left_value, rights in graph.left_to_rights.items():
-        linked_pairs = left_to_pairs[left_value]
+    scoped_pairs=defaultdict(list)
+    for pair in _high_confidence_pairs(context):
+        if pair.pair_kind=="table_mapping" and _is_superworks_pair(pair):
+            mapping=_table_mapping_evidence(pair)
+            key=(pair.left_value,"superworks_strip_slot",mapping.get("sw_side"),mapping.get("sw_branch"))
+        else:
+            key=(pair.left_value,"logical_endpoint")
+        scoped_pairs[key].append(pair)
+    for key,linked_pairs in scoped_pairs.items():
+        left_value=key[0]
+        rights={pair.right_value for pair in linked_pairs if pair.right_value}
         sheet_ids = {pair.sheet_id for pair in linked_pairs}
         if len(rights) > 1 and len(sheet_ids) > 1:
             first = linked_pairs[0]
+            if _is_authoritative_terminal_strip_backplate_attachment_group(linked_pairs):
+                continue
             if _is_authoritative_inline_component_cross_diagram_correspondence(linked_pairs):
+                continue
+            if all(_is_superworks_pair(pair) for pair in linked_pairs) and _is_authoritative_structured_cardinality_group(linked_pairs):
                 continue
             if _is_page_local_numeric_three_column_group(linked_pairs, left_value):
                 continue
@@ -629,53 +688,61 @@ def _run_table_mapping_source_conflict(context: RuleContext) -> list[Issue]:
         ordinary_pairs = source_pairs["ordinary_pair"]
         if not table_pairs or not ordinary_pairs:
             continue
-
-        table_values = {pair.right_value for pair in table_pairs if pair.right_value}
-        ordinary_values = {pair.right_value for pair in ordinary_pairs if pair.right_value}
-        if not table_values or not ordinary_values:
+        if not any(pair.right_value for pair in ordinary_pairs):
             continue
-        if table_values == ordinary_values:
-            continue
-
-        related_pairs = sorted(
-            [*table_pairs, *ordinary_pairs],
-            key=lambda pair: (
-                _sheet_order_key(pair),
-                pair.pair_id,
-            ),
-        )
-        primary_pair = sorted(
-            table_pairs,
-            key=lambda pair: (
-                _sheet_order_key(pair),
-                pair.pair_id,
-            ),
-        )[0]
-
-        issues.append(
-            context.issue_factory.build(
-                "R-TABLE-MAPPING-SOURCE-CONFLICT",
-                "major",
-                primary_pair,
+        by_slot=defaultdict(list)
+        for pair in table_pairs:
+            mapping=_table_mapping_evidence(pair)
+            sw=pair.evidence.get("superworks") or {}
+            if sw.get("source")=="superworks":
+                slot=(str(mapping.get("scope_key") or ""),str(mapping.get("sw_side") or ""),str(mapping.get("sw_branch") or ""))
+            else:
+                slot=("legacy", "", "")
+            by_slot[slot].append(pair)
+        sw_slots=[slot for slot in by_slot if slot[0]!="legacy"]
+        for slot,slot_pairs in by_slot.items():
+            table_values={pair.right_value for pair in slot_pairs if pair.right_value}
+            slot_ordinary_pairs=ordinary_pairs
+            if slot[0]!="legacy":
+                expected_categories={"端子","装置端子"} if slot[1]=="left" else {"内部元件","线圈","接插件"}
+                slot_ordinary_pairs=[pair for pair in ordinary_pairs
+                    if _sw_other_endpoint_category(pair,left_value) in expected_categories]
+                # A legacy ordinary pair has no SW endpoint category, and cannot
+                # establish which side of the terminal strip it should validate.
+                if not slot_ordinary_pairs:
+                    continue
+            ordinary_values={pair.right_value for pair in slot_ordinary_pairs if pair.right_value}
+            if not table_values or not ordinary_values or table_values & ordinary_values:
+                continue
+            # A schematic connection has no strip-side/parallel-branch identity.
+            # When several independent SW branches exist, a mismatch cannot be
+            # assigned to one branch without guessing, so preserve it as comparable
+            # only after an exact side/branch relation is available.
+            if slot[0]!="legacy":
+                side=slot[1]
+                mapping=_table_mapping_evidence(slot_pairs[0])
+                branch=slot[2]
+                same_side_slots=[key for key in sw_slots if key[0]==slot[0] and key[1]==side]
+                if len(same_side_slots)>1:
+                    continue
+            else:
+                side=branch=""
+                mapping={}
+            related_pairs=sorted([*slot_pairs,*slot_ordinary_pairs],key=lambda pair:(_sheet_order_key(pair),pair.pair_id))
+            primary_pair=sorted(slot_pairs,key=lambda pair:(_sheet_order_key(pair),pair.pair_id))[0]
+            issues.append(context.issue_factory.build(
+                "R-TABLE-MAPPING-SOURCE-CONFLICT","major",primary_pair,
                 f"Table mapping for left value {left_value} conflicts with ordinary terminal mapping.",
                 title="表格映射与图内配对不一致",
-                explanation="同一左值在表格映射和图内普通配对中指向了不同右值，存在 mixed-source consistency 风险。",
-                recommended_action="优先复核表格行的中列/外列含义，以及相关图内端子配对是否引用了同一编号。",
+                explanation="同一端子表行的对应接线侧与图内配对指向不同对象；并接分支和不同侧别按独立槽位核验。",
+                recommended_action="核对端子排表头、行号、侧别、并接分支及原理图物理端点。",
                 related_pairs=related_pairs,
-                extra={
-                    "source_conflict_kind": "table_mapping_vs_ordinary_pair",
-                    "table_mapping_values": sorted(table_values),
-                    "ordinary_pair_values": sorted(ordinary_values),
-                    "conflicting_values": sorted(table_values | ordinary_values),
-                    "table_sheet_ids": sorted({pair.sheet_id for pair in table_pairs}),
-                    "ordinary_sheet_ids": sorted({pair.sheet_id for pair in ordinary_pairs}),
-                    "source_pair_counts": {
-                        "table_mapping": len(table_pairs),
-                        "ordinary_pair": len(ordinary_pairs),
-                    },
-                },
-            )
-        )
+                extra={"source_conflict_kind":"table_mapping_vs_ordinary_pair","table_mapping_values":sorted(table_values),
+                    "ordinary_pair_values":sorted(ordinary_values),"conflicting_values":sorted(table_values|ordinary_values),
+                    "table_sheet_ids":sorted({pair.sheet_id for pair in slot_pairs}),
+                    "ordinary_sheet_ids":sorted({pair.sheet_id for pair in slot_ordinary_pairs}),
+                    "strip_side":side,"strip_branch":branch,"strip_scope_key":mapping.get("scope_key"),
+                    "source_pair_counts":{"table_mapping":len(slot_pairs),"ordinary_pair":len(slot_ordinary_pairs)}}))
     return issues
 
 
@@ -1069,6 +1136,8 @@ def _run_duplicate_pair(context: RuleContext) -> list[Issue]:
                 continue
             if _is_authoritative_structured_cardinality_group(linked_pairs):
                 continue
+            if _is_superworks_distinct_physical_duplicate(linked_pairs):
+                continue
             first = linked_pairs[0]
             issues.append(
                 context.issue_factory.build(
@@ -1133,6 +1202,31 @@ def _is_authoritative_numeric_table_duplicate(linked_pairs: list[Pair]) -> bool:
     )
 
 
+def _resolved_by_explicit_external_lead(pair: Pair, context: RuleContext) -> bool:
+    mapping_id = pair.evidence.get("external_lead_mapping_pair_id")
+    group = context.group_map.get(pair.line_group_id)
+    if not mapping_id or group is None:
+        return False
+    for mapping in context.pairs:
+        proof = mapping.evidence or {}
+        if (mapping.pair_id == mapping_id and mapping.sheet_id == pair.sheet_id and mapping.file_id == pair.file_id
+                and mapping.pair_kind == "wire_component_mapping" and mapping.status == "pass"
+                and _is_native_finite_number(mapping.confidence) and mapping.confidence >= 0.95
+                and proof.get("component_submode") == "explicit_external_device_lead"
+                and mapping.right_text_id == pair.evidence.get("logical_endpoint_text_id")
+                and (mapping.left_text_id in {pair.left_text_id, pair.right_text_id}
+                     or (mapping.left_text_id == pair.evidence.get("resolved_device_pin_text_id")
+                         and proof.get("device_identity_authority") == "cad-declared-device-pin-label-v1"
+                         and proof.get("local_number_text_id") == mapping.left_text_id
+                         and (proof.get("device_pin_label_context") or {}).get("source") == "reciprocal_cad_device_pin_label"))
+                and proof.get("source_line_ids") and set(proof["source_line_ids"]).issubset(group.member_line_ids)
+                and (proof.get("physical_endpoint") or {}).get("source") == "reciprocal_cad_label_and_terminal_geometry"
+                and proof.get("internal_connectivity_inferred") is False
+                and proof.get("electrical_union_eligible") is False):
+            return True
+    return False
+
+
 def _high_confidence_pairs(context: RuleContext) -> list[Pair]:
     return [
         pair
@@ -1158,6 +1252,12 @@ def _is_native_finite_number(value: object) -> bool:
 
 
 def _high_confidence_source_eligible(pair: Pair) -> bool:
+    if (pair.evidence or {}).get("source")=="superworks":
+        if pair.status != "pass" or pair.evidence.get("sw_conflicts"):
+            return False
+        if pair.pair_kind in {"table_mapping", "component_mapping"}:
+            if _superworks_structured_source_kind(pair) != pair.pair_kind:
+                return False
     if _structured_source_kind(pair) in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
         return True
     return _ordinary_pair_eligible(pair)
@@ -1317,6 +1417,51 @@ def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:
     if mapping_modes == {"backplate_virtual_table"}:
         return bool(scope_keys)
     return len(scope_keys) == 1
+
+
+def _is_authoritative_terminal_strip_backplate_attachment_group(linked_pairs: list[Pair]) -> bool:
+    """Compare a backplate attachment with the explicit strip's external path.
+
+    A -> TF-1 on the backplate and A -> B on a TF strip row describe the same
+    path when TF-1 is that row's CAD-owned left pin. No equality of arbitrary
+    net labels, switch contacts or component interior establishes this proof.
+    """
+    if len(linked_pairs) != 2 or len({p.sheet_id for p in linked_pairs}) != 2:
+        return False
+    strip = next((p for p in linked_pairs if (p.evidence or {}).get("component_submode") == "terminal_strip_lattice"), None)
+    table = next((p for p in linked_pairs if p.pair_kind == "table_mapping"), None)
+    if strip is None or table is None or strip.left_value != table.left_value:
+        return False
+    if not _is_authoritative_table_mapping_group([table]):
+        return False
+    mapping = _table_mapping_evidence(table)
+    if mapping.get("mapping_mode") != "backplate_virtual_table" or mapping.get("plugin_slot_authority") != "same_row_model_and_slot":
+        return False
+    evidence = strip.evidence or {}
+    if strip.status != "pass" or not _is_native_finite_number(strip.confidence) or strip.confidence < 0.95:
+        return False
+    instance = evidence.get("terminal_strip_instance")
+    owner = evidence.get("terminal_strip_insert_handle")
+    left_pin = evidence.get("terminal_strip_left_pin") or {}
+    right_pin = evidence.get("terminal_strip_right_pin") or {}
+    if not isinstance(instance, str) or not instance.strip() or not isinstance(owner, str) or not owner.strip():
+        return False
+    if not evidence.get("terminal_strip_instance_text_id") or not evidence.get("terminal_strip_flank_line_ids"):
+        return False
+    if evidence.get("left_terminal") != strip.left_value or evidence.get("right_terminal") != strip.right_value:
+        return False
+    if evidence.get("left_terminal_text_id") != strip.left_text_id or evidence.get("right_terminal_text_id") != strip.right_text_id:
+        return False
+    if not strip.left_text_id or not strip.right_text_id or strip.left_text_id == strip.right_text_id:
+        return False
+    if not all(isinstance(pin.get("handle"), str) and pin["handle"].startswith(f"{owner}:VIRTUAL:")
+               and str(pin.get("value") or "").isdigit() and pin.get("text_id")
+               for pin in (left_pin, right_pin)):
+        return False
+    if left_pin["text_id"] == right_pin["text_id"] or left_pin["value"] == right_pin["value"]:
+        return False
+    expected_attachment = _terminal_reciprocal_identity(f"{instance}-{left_pin['value']}")
+    return bool(expected_attachment) and expected_attachment == _terminal_reciprocal_identity(table.right_value)
 
 
 def _is_authoritative_structured_cardinality_group(linked_pairs: list[Pair]) -> bool:
@@ -2474,7 +2619,7 @@ def _is_authoritative_terminal_header_reciprocal_chain_group(
 ) -> bool:
     """Accept a reciprocal terminal-strip chain repeated on opposite sides."""
 
-    if len(linked_pairs) < 2 or len({pair.sheet_id for pair in linked_pairs}) != 1:
+    if len(linked_pairs) < 2:
         return False
     row_numbers: set[int] = set()
     header_ids: set[str] = set()
@@ -2510,8 +2655,7 @@ def _is_authoritative_terminal_header_reciprocal_chain_group(
         header_ids.add(header_id)
         source_endpoint_keys.add(_terminal_endpoint_identity(pair.left_value))
     if not (
-        len(row_numbers) == 1
-        and len(header_ids) == len(linked_pairs)
+        len(header_ids) == len(linked_pairs)
         and len(endpoint_ids) == len(linked_pairs)
         and len(source_endpoint_keys) == len(linked_pairs)
         and "" not in source_endpoint_keys
@@ -2524,8 +2668,9 @@ def _is_authoritative_terminal_header_reciprocal_chain_group(
     # instead of suppressing an unrelated same-row many-to-one coincidence.
     shared_key = _terminal_endpoint_identity(shared_value)
     reciprocal_targets: set[str] = set()
+    reciprocal_rows: set[tuple[str, str, str, str]] = set()
     for pair in all_pairs:
-        if pair.sheet_id != linked_pairs[0].sheet_id or pair.pair_kind != "table_mapping":
+        if pair.pair_kind != "table_mapping":
             continue
         mapping = _table_mapping_evidence(pair)
         if mapping.get("mapping_mode") != "terminal_header_table":
@@ -2536,8 +2681,13 @@ def _is_authoritative_terminal_header_reciprocal_chain_group(
             continue
         if not _is_authoritative_table_mapping_group([pair]):
             continue
+        reciprocal_rows.add((pair.sheet_id, pair.file_id,
+                             str(mapping.get("header_text_id") or ""),
+                             str(mapping.get("middle_text_id") or "")))
         reciprocal_targets.add(_terminal_endpoint_identity(pair.right_value))
-    return reciprocal_targets == source_endpoint_keys
+    # Cross-page continuation and different terminal numbers are valid only
+    # when one physical reciprocal row explicitly closes every source claim.
+    return len(reciprocal_rows) == 1 and reciprocal_targets == source_endpoint_keys
 
 
 def _is_authoritative_terminal_header_reciprocal_physical_cluster_group(
@@ -2847,6 +2997,8 @@ def _is_authoritative_component_mapping_pair(pair: Pair) -> bool:
     ):
         return False
     evidence = pair.evidence or {}
+    if evidence.get("source")=="superworks":
+        return _superworks_structured_source_kind(pair)=="component_mapping"
     if str(evidence.get("mapping_mode") or "").startswith("accessory_backplate_"):
         return False
     if str(evidence.get("recognition_mode") or "").startswith("geometry_owned_"):
@@ -3093,6 +3245,8 @@ def _structured_source_kind(pair: Pair) -> str | None:
     source = pair.evidence.get("source")
     if isinstance(source, str) and source in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
         return source
+    if _is_superworks_pair(pair):
+        return _superworks_structured_source_kind(pair)
     pair_kind = getattr(pair, "pair_kind", "ordinary_pair")
     if isinstance(pair_kind, str) and pair_kind in _HIGH_CONFIDENCE_STRUCTURED_SOURCES:
         return pair_kind
@@ -3615,6 +3769,86 @@ def _table_mapping_source_kind(pair: Pair) -> str:
     if getattr(pair, "pair_kind", "ordinary_pair") == "ordinary_pair":
         return "ordinary_pair"
     return getattr(pair, "pair_kind", "ordinary_pair")
+
+
+def _is_superworks_pair(pair: Pair) -> bool:
+    evidence=pair.evidence or {}
+    return evidence.get("source")=="superworks" or (evidence.get("superworks") or {}).get("source")=="superworks"
+
+
+def _superworks_structured_source_kind(pair: Pair) -> str | None:
+    evidence=pair.evidence or {}
+    sw=evidence.get("superworks") or {}
+    if evidence.get("source")!="superworks" or sw.get("source")!="superworks":
+        return None
+    if evidence.get("sw_conflicts") or pair.status!="pass" or not _is_native_finite_number(pair.confidence) or pair.confidence<0.95:
+        return None
+    kind=evidence.get("structured_source")
+    if kind=="table_mapping" and pair.pair_kind=="table_mapping":
+        mapping=_table_mapping_evidence(pair)
+        roles=mapping.get("column_roles") or {}
+        if (mapping.get("mapping_mode")=="terminal_header_table"
+            and mapping.get("row_number_sequence_valid") is True
+            and mapping.get("logical_endpoint")==pair.left_value
+            and mapping.get("right_value")==pair.right_value
+            and mapping.get("right_text_id")==pair.right_text_id
+            and mapping.get("middle_text_id") and mapping.get("header_text_id")
+            and mapping.get("scope_key") and mapping.get("sw_side") in {"left","right"}
+            and mapping.get("sw_branch") in {"_1","_2"}
+            and roles.get("middle")=="row_number" and roles.get("right")=="terminal_endpoint"
+            and sw.get("row_handle") and sw.get("connection_handle")
+            and sw.get("side")==mapping.get("sw_side") and sw.get("branch")==mapping.get("sw_branch")):
+            return "table_mapping"
+    if kind=="component_mapping" and pair.pair_kind=="component_mapping":
+        if (evidence.get("component_submode")=="superworks_connect_line_port"
+            and evidence.get("logical_endpoint")==pair.left_value
+            and evidence.get("external_endpoint")==pair.right_value
+            and evidence.get("external_endpoint_split")==pair.right_value
+            and evidence.get("external_endpoint_text_id")==pair.right_text_id
+            and evidence.get("component_body") and evidence.get("component_block_name")
+            and evidence.get("component_body_text_id") and evidence.get("component_port")
+            and (evidence.get("component_port_text_id") or sw.get("corroborating_strip_text_ids"))
+            and sw.get("part_id") and sw.get("instance_path") and sw.get("symbol_handle")
+            and sw.get("port_id") and sw.get("label_handle") and sw.get("connection_handle")
+            and sw.get("connect_line_handle") and sw.get("connect_line_geometry_unique") is True):
+            return "component_mapping"
+    return None
+
+
+def _sw_other_endpoint_category(pair: Pair, value: str) -> str | None:
+    sw=(pair.evidence or {}).get("superworks") or {}
+    for side,other in (("left","right"),("right","left")):
+        if (sw.get(side) or {}).get("value")==value:
+            return (sw.get(other) or {}).get("category")
+    return None
+
+
+def _is_superworks_distinct_physical_duplicate(linked_pairs: list[Pair]) -> bool:
+    if len(linked_pairs)<2 or not all(_is_superworks_pair(pair) and pair.status=="pass" for pair in linked_pairs):
+        return False
+    if (len({(pair.left_value,pair.right_value) for pair in linked_pairs})==1
+        and any(pair.pair_kind=="table_mapping" for pair in linked_pairs)
+        and any(pair.pair_kind in {"ordinary_pair","wire_component_mapping","bridge_mapping"} for pair in linked_pairs)):
+        table_pairs=[pair for pair in linked_pairs if pair.pair_kind=="table_mapping"]
+        if (all(_superworks_structured_source_kind(pair)=="table_mapping" for pair in table_pairs)
+            and len({(_table_mapping_evidence(pair).get("sw_row_id"),_table_mapping_evidence(pair).get("right_text_id"))
+                     for pair in table_pairs})==len(table_pairs)):
+            return True
+    endpoint_sets=[]
+    signatures=[]
+    for pair in linked_pairs:
+        sw=(pair.evidence or {}).get("superworks") or {}
+        left=sw.get("left") or {}
+        right=sw.get("right") or {}
+        left_ids=set(left.get("port_ids",[]))
+        right_ids=set(right.get("port_ids",[]))
+        if not left_ids or not right_ids or not left.get("wire_touched") or not right.get("wire_touched"):
+            return False
+        endpoint_sets.append(left_ids|right_ids)
+        signatures.append(tuple(sorted([tuple(sorted(left_ids)),tuple(sorted(right_ids))])))
+    identical=all(signature==signatures[0] for signature in signatures[1:])
+    distinct=all(not (endpoint_sets[i]&endpoint_sets[j]) for i in range(len(endpoint_sets)) for j in range(i+1,len(endpoint_sets)))
+    return identical or distinct
 
 
 def _ambiguous_candidate_groups(

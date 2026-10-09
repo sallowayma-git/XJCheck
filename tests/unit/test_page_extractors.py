@@ -1,4 +1,5 @@
 import pytest
+import json
 
 from dwg_audit.audit.page_extractors import _mark_input_matrix_covered_ordinary_pairs
 from dwg_audit.audit.page_extractors import _mark_inline_wire_split_continuation_pairs
@@ -22,6 +23,210 @@ from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.config import DEFAULT_CONFIG
+from dwg_audit.utils.ids import IdFactory
+from dwg_audit.audit.page_extractors import _extract_explicit_external_device_lead_pairs
+
+
+@pytest.mark.parametrize("direction", [(1, 0), (-1, 0), (0, 1), (0, -1)])
+@pytest.mark.parametrize("damage", [None, "body", "stub", "neighbor_pin", "competing_terminal", "unbound"])
+def test_declared_device_pin_requires_actual_transformed_external_lead(direction, damage):
+    dx, dy = direction
+    anchor = [50, 50]
+    external = [50 - 20*dx, 50 - 20*dy]
+    pin = _panel_text("PIN", "612", x=52, y=52)
+    body = _panel_text("BODY", "7-2n", x=200, y=200)
+    pin.device_pin_label_json = json.dumps({"source": "reciprocal_cad_device_pin_label",
+        "body_text_id": "BODY", "body_value": "7-2n", "insert_handle": "PIN_INSERT",
+        "definition_line_handle": "STUB", "label_anchor": anchor,
+        "stub_inner_point": [50+2.5*dx, 50+2.5*dy]})
+    terminal = _panel_text("TERM", "WD5", x=external[0], y=external[1])
+    terminal.physical_ports_json = json.dumps([{"source": "reciprocal_cad_label_and_terminal_geometry",
+        "position": external, "outward_direction": list(direction), "insert_handle": "TERM_INSERT"}])
+    texts = [body, pin, terminal]
+    if damage == "body":
+        body.normalized_text = "8n"
+    elif damage == "stub":
+        context = json.loads(pin.device_pin_label_json)
+        context["stub_inner_point"] = [50+2.5*dy, 50-2.5*dx]
+        pin.device_pin_label_json = json.dumps(context)
+    elif damage == "neighbor_pin":
+        context = json.loads(pin.device_pin_label_json)
+        context["label_anchor"] = [50+3*dy, 50+3*dx]
+        pin.device_pin_label_json = json.dumps(context)
+    elif damage == "competing_terminal":
+        other = _panel_text("OTHER", "WD6", x=external[0], y=external[1])
+        other.physical_ports_json = terminal.physical_ports_json
+        texts.append(other)
+    elif damage == "unbound":
+        terminal.physical_ports_json = "[]"
+    lead = _panel_line("LEAD", handle="WIRE", start_x=external[0], start_y=external[1],
+                       end_x=50, end_y=50, layer="CONNECT")
+    group = LineGroup("G1", "S1", "F1", *external, *anchor, 20, .8, ["LEAD"], ["CONNECT"])
+    original = _pair({"component_submode": "schematic_wire_logic_endpoint", "logical_endpoint_text_id": "TERM"},
+                     pair_kind="wire_component_mapping", left_text_id="PIN", right_text_id="TERM")
+    pairs = _extract_explicit_external_device_lead_pairs([_sheet()], texts, [lead], [group], [original], IdFactory("PL"))
+    if damage:
+        assert pairs == []
+        assert "external_lead_mapping_pair_id" not in original.evidence
+    else:
+        assert len(pairs) == 1
+        assert (pairs[0].left_value, pairs[0].right_value) == ("7-2n612", "WD5")
+        assert pairs[0].evidence["device_identity_authority"] == "cad-declared-device-pin-label-v1"
+        assert pairs[0].evidence["component_model_text_id"] is None
+        assert pairs[0].evidence["internal_connectivity_inferred"] is False
+        assert original.evidence["external_lead_mapping_pair_id"] == pairs[0].pair_id
+        assert original.status == "review"
+
+
+@pytest.mark.parametrize("damage", [None, "gap", "border", "branch", "perpendicular"])
+def test_declared_pin_follows_native_stub_connector_without_crossing_a_contact_gap(damage):
+    pin = _panel_text("ACTUAL_PIN", "628", x=65, y=50)
+    pin.device_pin_label_json = json.dumps({"source": "reciprocal_cad_device_pin_label",
+        "body_text_id": "BODY", "body_value": "8n", "insert_handle": "INSERT",
+        "definition_line_handle": "STUB", "label_anchor": [65,50], "stub_inner_point": [67.5,50]})
+    terminal = _panel_text("TERM", "4PD24", x=100, y=50)
+    terminal.physical_ports_json = json.dumps([{"source": "reciprocal_cad_label_and_terminal_geometry",
+        "position": [100,50], "outward_direction": [-1,0]}])
+    lead = _panel_line("LEAD", handle="WIRE", start_x=70, start_y=50, end_x=100, end_y=50, layer="CONNECT")
+    connector = _panel_line("CONNECTOR", handle="SHORT", start_x=67.5, start_y=50, end_x=70, end_y=50, layer="CONNECT")
+    lines = [lead, connector]
+    if damage == "gap":
+        connector.start_x = 68
+    elif damage == "border":
+        connector.layer = "0"
+    elif damage == "branch":
+        lines.append(_panel_line("OTHER", handle="OTHER", start_x=67.5, start_y=50, end_x=70, end_y=50, layer="CONNECT"))
+    elif damage == "perpendicular":
+        connector.start_y = 53
+    # Short native connectors can be excluded from the legacy line group.
+    group = LineGroup("G1", "S1", "F1", 30, 50, 100, 50, 70, .85, ["LEAD"], ["CONNECT"])
+    original = _pair({"component_submode": "schematic_wire_logic_endpoint", "logical_endpoint_text_id": "TERM"},
+                     pair_kind="wire_component_mapping", left_text_id="WRONG_PIN", right_text_id="TERM")
+    pairs = _extract_explicit_external_device_lead_pairs([_sheet()],
+        [_panel_text("BODY", "8n", x=200, y=200), pin, terminal], lines, [group], [original], IdFactory("PL"))
+    if damage:
+        assert pairs == []
+        assert "external_lead_mapping_pair_id" not in original.evidence
+    else:
+        assert pairs[0].left_value == "8n628"
+        assert pairs[0].left_text_id == "ACTUAL_PIN"
+        assert pairs[0].evidence["native_connector_line_ids"] == ["CONNECTOR"]
+        assert original.evidence["resolved_device_pin_text_id"] == "ACTUAL_PIN"
+        assert original.left_text_id == "WRONG_PIN"  # Original decision remains auditable.
+        assert not any(issue.rule_id == "R-PAIR-LOW-CONFIDENCE"
+                       for issue in build_issues([original, *pairs], [group], [_sheet()], DEFAULT_CONFIG))
+
+
+@pytest.mark.parametrize("variant", ["complete", "unbound", "other_row", "competing_pin", "no_model", "wrong_direction", "extra_external_wire", "owned_stub", "wrong_stub_owner"])
+def test_explicit_device_lead_keeps_external_port_separate_from_interior(variant):
+    lines = _closed_frame_lines(parent_handle="BODY", line_prefix="FRAME")
+    lines += [_panel_line("LEAD", handle="LEAD", start_x=90, start_y=90,
+                          end_x=105, end_y=90, layer="CONNECT"),
+              _panel_line("INTERIOR", handle="INTERIOR", start_x=110, start_y=90,
+                          end_x=145, end_y=90)]
+    terminal = _panel_text("WD", "WD5", x=85, y=91)
+    terminal.physical_ports_json = json.dumps([{"source": "reciprocal_cad_label_and_terminal_geometry",
+        "position": [90, 90], "outward_direction": [1, 0], "insert_handle": "INSERT",
+        "electrical_union_eligible": False}])
+    texts = [_panel_text("BODY_LABEL", "7n", x=125, y=114),
+             _panel_text("MODEL", "ABC-123", x=120, y=111),
+             _panel_text("PIN1", "611", x=108, y=100),
+             _panel_text("PIN2", "612", x=108, y=90), terminal]
+    if variant == "unbound":
+        terminal.physical_ports_json = "[]"
+    elif variant == "other_row":
+        texts[3].insert_y = 94
+    elif variant == "competing_pin":
+        texts.append(_panel_text("PIN3", "613", x=109, y=90))
+    elif variant == "no_model":
+        texts.pop(1)
+    elif variant == "wrong_direction":
+        terminal.physical_ports_json = terminal.physical_ports_json.replace("[1, 0]", "[-1, 0]")
+    elif variant in {"owned_stub", "wrong_stub_owner"}:
+        lines[-2].end_x = lines[-2].bbox_max_x = 107.5
+        texts[3].device_pin_label_json = json.dumps({"source": "reciprocal_cad_device_pin_label",
+            "body_text_id": "BODY_LABEL" if variant == "owned_stub" else "OTHER_BODY",
+            "label_anchor": [107.5,90], "stub_inner_point": [110,90], "complete_xrecord_binding": False})
+    ids = ["LEAD", "INTERIOR"]
+    if variant == "extra_external_wire":
+        lines.append(_panel_line("OTHER", handle="OTHER", start_x=90, start_y=90,
+                                 end_x=110, end_y=90, layer="CONNECT"))
+        ids.append("OTHER")
+    group = LineGroup("G1", "S1", "F1", 90, 90, 145, 90, 55, .8, ids, ["0", "CONNECT"])
+    original = _pair({}, left_text_id="WD", right_text_id=None)
+    pairs = _extract_explicit_external_device_lead_pairs([_sheet()], texts, lines, [group], [original], IdFactory("PL"))
+    if variant in {"complete", "extra_external_wire", "owned_stub"}:
+        assert len(pairs) == 1
+        assert (pairs[0].left_value, pairs[0].right_value) == ("7n612", "WD5")
+        assert pairs[0].left_text_id != pairs[0].right_text_id
+        assert pairs[0].evidence["internal_connectivity_inferred"] is False
+        assert original.status == "review"
+        assert (original.evidence.get("ordinary_pair_eligible") is False) == (variant != "extra_external_wire")
+    else:
+        assert pairs == []
+        assert original.evidence.get("ordinary_pair_eligible") is not False
+
+
+@pytest.mark.parametrize("variant", ["interior", "crosses_boundary", "no_model", "external_label"])
+def test_device_interior_pin_artwork_is_retained_without_external_wire_claim(variant):
+    lines = _closed_frame_lines(parent_handle="BODY", line_prefix="FRAME")
+    lines.append(_panel_line("INTERIOR", handle="INTERIOR", start_x=110 if variant != "crosses_boundary" else 90,
+                             start_y=90, end_x=145, end_y=90, layer="CONNECT"))
+    texts = [_panel_text("BODY_LABEL", "7n", x=125, y=114),
+             _panel_text("MODEL", "ABC-123", x=120, y=111),
+             _panel_text("PIN1", "611", x=108, y=90),
+             _panel_text("PIN2", "612", x=147, y=90)]
+    if variant == "no_model":
+        texts.pop(1)
+    elif variant == "external_label":
+        texts[-1].insert_x = 180
+    group = LineGroup("G1", "S1", "F1", 110, 90, 145, 90, 35, .8, ["INTERIOR"], ["CONNECT"])
+    original = _pair({}, left_text_id="PIN1", right_text_id="PIN2", left_value="611", right_value="612")
+    assert _extract_explicit_external_device_lead_pairs([_sheet()], texts, lines, [group], [original], IdFactory("PL")) == []
+    assert original.status == "review" and original.left_text_id == "PIN1" and original.right_text_id == "PIN2"
+    assert (original.evidence.get("ordinary_pair_eligible") is False) == (variant == "interior")
+    if variant == "interior":
+        assert original.evidence["device_interior_context"]["internal_connectivity_inferred"] is False
+
+
+def test_terminal_mapping_does_not_discard_a_pair_claiming_another_row_text() -> None:
+    pair = _pair({"selected_left_text_id": "OTHER_ROW", "selected_right_text_id": "EXTERNAL",
+                  "selected_right_raw_text": "7n211", "selected_right_is_derived_numeric": True})
+    tables = [{"sheet_id": "S1", "mappings": [{"sheet_id": "S1", "mapping_mode": "terminal_header_table",
+               "middle_text_id": "ACTUAL_ROW", "right_text_id": "EXTERNAL"}]}]
+    _mark_terminal_prefixed_endpoint_ordinary_pairs([pair], tables)
+    assert pair.status == "review"
+    assert pair.evidence.get("ordinary_pair_eligible") is not False
+
+
+@pytest.mark.parametrize("variant", ["complete", "duplicate_titles", "absent_model", "competing_instance", "connect_member"])
+def test_device_frame_requires_body_model_and_pin_evidence(variant: str) -> None:
+    lines = _closed_frame_lines(parent_handle="FRAME", line_prefix="FRAME")
+    texts = [_panel_text("INSTANCE", "7-2n", x=125, y=114),
+             _panel_text("MODEL", "ABC-123", x=120, y=111),
+             _panel_text("PIN1", "101", x=108, y=90),
+             _panel_text("PIN2", "102", x=108, y=100)]
+    if variant == "duplicate_titles":
+        texts += [_panel_text("INSTANCE2", "7-2n", x=125, y=114),
+                  _panel_text("MODEL2", "ABC-123", x=120, y=111)]
+    elif variant == "absent_model":
+        texts.pop(1)
+    elif variant == "competing_instance":
+        texts += [_panel_text("INSTANCE2", "8-2n", x=128, y=114)]
+    ids = ["FRAME0"]
+    if variant == "connect_member":
+        lines += [_panel_line("WIRE", handle="WIRE", start_x=105, start_y=80,
+                              end_x=150, end_y=80, layer="CONNECT")]
+        ids += ["WIRE"]
+    group = LineGroup("G_FRAME", "S1", "F1", 105, 80, 150, 80, 45, .55, ids, ["0"])
+    pair = _pair({}, line_group_id="G_FRAME")
+    _shadow_closed_tall_polyline_enclosure_ordinary_pairs([pair], [group], lines, texts)
+    if variant in {"complete", "duplicate_titles"}:
+        assert pair.evidence["ordinary_pair_shadow_reason"] == "closed_device_enclosure_edge"
+        assert pair.evidence["closed_polyline_enclosure"]["device_authority"]["body_value"] == "7-2n"
+        assert pair.status == "review"  # Original claim remains traceable.
+    else:
+        assert pair.evidence.get("ordinary_pair_eligible") is not False
 
 
 def _pair(
@@ -3167,7 +3372,7 @@ def test_component_mapping_endpoint_coverage_is_scoped_to_sheet() -> None:
         [mapping],
     )
 
-    assert same_sheet.evidence["ordinary_pair_eligible"] is False
+    assert same_sheet.evidence.get("ordinary_pair_eligible") is not False
     assert other_sheet.evidence.get("ordinary_pair_eligible") is not False
 
 
@@ -3226,7 +3431,7 @@ def test_component_mapping_endpoint_coverage_does_not_alias_device_suffix_to_bar
     assert ordinary.evidence.get("ordinary_pair_eligible") is not False
 
 
-def test_component_mapping_endpoint_coverage_keeps_strict_n_terminal_display_alias() -> None:
+def test_component_mapping_endpoint_coverage_does_not_hide_distinct_text_via_display_alias() -> None:
     from dwg_audit.audit.page_extractors import (
         mark_component_mapping_endpoint_covered_ordinary_pairs,
     )
@@ -3250,5 +3455,5 @@ def test_component_mapping_endpoint_coverage_keeps_strict_n_terminal_display_ali
 
     mark_component_mapping_endpoint_covered_ordinary_pairs([ordinary], [mapping])
 
-    assert ordinary.evidence["ordinary_pair_eligible"] is False
+    assert ordinary.evidence.get("ordinary_pair_eligible") is not False
 

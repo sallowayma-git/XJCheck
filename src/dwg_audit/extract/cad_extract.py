@@ -26,6 +26,9 @@ from dwg_audit.extract.extraction_census import build_extraction_census
 from dwg_audit.extract.primitive_normalizer import PrimitiveSegment
 from dwg_audit.extract.primitive_normalizer import normalize_document_primitives
 from dwg_audit.extract.terminal_port_bindings import extract_terminal_port_bindings
+from dwg_audit.extract.terminal_port_bindings import bind_labelled_terminal_ports
+from dwg_audit.extract.terminal_port_bindings import bind_vendor_device_pin_labels
+from dwg_audit.extract.text_geometry import cad_text_geometry
 
 _FILENAME_PAGE_PATTERN = re.compile(r"^(?P<page>\d+)\s+(?P<title>.+?)(?:\.dwg)?$", re.IGNORECASE)
 _TITLE_BLOCK_PAGE_LABELS = ("页号", "page", "sheet", "图号")
@@ -47,6 +50,7 @@ class CadExtractionResult:
         default_factory=list
     )
     terminal_port_bindings: list[TerminalPortBinding] = field(default_factory=list)
+    superworks: object = None
 
     def __iter__(self):
         # Preserve the public six-value unpacking contract for legacy callers.
@@ -337,6 +341,7 @@ def _append_text(
     source_block_name: str | None = None,
     color_index: int | None = None,
     true_color: int | None = None,
+    text_geometry: dict | None = None,
 ) -> None:
     text = _normalize_text(raw_text)
     if not text:
@@ -353,7 +358,7 @@ def _append_text(
             normalized_text=text,
             is_numeric_candidate=bool(numeric_pattern.match(text)),
             layer=layer,
-            rotation_deg=rotation,
+            rotation_deg=float(text_geometry.get("rotation_deg", rotation)) if text_geometry else rotation,
             height=max(height, 1.0),
             insert_x=insert_x,
             insert_y=insert_y,
@@ -364,6 +369,7 @@ def _append_text(
             source_block_name=source_block_name,
             color_index=color_index,
             true_color=true_color,
+            text_geometry_json=json.dumps(text_geometry or {}, ensure_ascii=False),
         )
     )
 
@@ -460,6 +466,7 @@ def _extract_graphic_entity(
             source_block_name,
             color_index,
             true_color,
+            cad_text_geometry(entity),
         )
         return
 
@@ -481,6 +488,7 @@ def _extract_graphic_entity(
             source_block_name,
             color_index,
             true_color,
+            cad_text_geometry(entity),
         )
         return
 
@@ -502,6 +510,7 @@ def _extract_graphic_entity(
             source_block_name,
             color_index,
             true_color,
+            cad_text_geometry(entity),
         )
         return
 
@@ -694,6 +703,8 @@ def extract_cad_artifacts(
     canonical_scenes: list[dict[str, object]] = []
     symbol_port_definition_proposals: list[dict[str, object]] = []
     terminal_port_bindings: list[TerminalPortBinding] = []
+    from dwg_audit.extract.superworks_semantics import SuperworksData, extract_superworks_semantics, bind_text_ids, read_project_dictionary
+    superworks = SuperworksData(dictionary=read_project_dictionary(Path(scan.project_root)))
     dxf_reader = EzdxfReader()
     reader_options = ReaderOptions()
 
@@ -870,6 +881,7 @@ def extract_cad_artifacts(
                 expand_virtual_insert=expand_virtual_insert,
             )
 
+        label_port_proposals = []
         definition_handles: dict[str, list[str]] = {}
         for item in sheet_blocks:
             definition_handles.setdefault(item.name, []).append(item.handle)
@@ -886,6 +898,7 @@ def extract_cad_artifacts(
                 continue
             if not proposal.ports:
                 continue
+            label_port_proposals.append(proposal)
             proposal_payload = proposal.to_dict()
             proposal_payload["ports"] = [
                 port.to_review_port() for port in proposal.ports
@@ -901,6 +914,11 @@ def extract_cad_artifacts(
                 }
             )
 
+        bind_labelled_terminal_ports(doc, sheet_texts, label_port_proposals)
+        bind_vendor_device_pin_labels(doc, sheet_texts)
+        sw_sheet = extract_superworks_semantics(doc, sheet_id=sheet.sheet_id, file_id=source.file_id)
+        bind_text_ids(sw_sheet, sheet_texts)
+        superworks.extend(sw_sheet)
         extent = _extent_bbox(sheet_texts, sheet_lines, sheet_blocks)
         if extent is not None:
             title_bbox, audit_bbox = _layout_boxes(extent, config)
@@ -940,6 +958,8 @@ def extract_cad_artifacts(
         symbol_port_definition_proposals,
         primitive_segments,
     )
+    from dwg_audit.extract.superworks_semantics import corroborate_internal_pin_identities
+    corroborate_internal_pin_identities(superworks)
     return CadExtractionResult(
         texts=all_texts,
         lines=all_lines,
@@ -952,4 +972,5 @@ def extract_cad_artifacts(
         canonical_scenes=canonical_scenes,
         symbol_port_definition_proposals=symbol_port_definition_proposals,
         terminal_port_bindings=terminal_port_bindings,
+        superworks=superworks,
     )

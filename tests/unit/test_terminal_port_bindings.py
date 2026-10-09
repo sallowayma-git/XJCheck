@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 
 import ezdxf
 import pytest
@@ -16,7 +17,72 @@ from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalPortBinding
 from dwg_audit.domain.models import TextItem
 from dwg_audit.extract.terminal_port_bindings import extract_terminal_port_bindings
+from dwg_audit.extract.terminal_port_bindings import bind_vendor_device_pin_labels
+from dwg_audit.extract.terminal_port_bindings import _declared_pin_stub_chain
+from dwg_audit.extract.terminal_port_bindings import _unique_outward_definition_line
 from dwg_audit.utils.config import DEFAULT_CONFIG
+
+
+@pytest.mark.parametrize("damage", [None, "gap", "branch", "bend"])
+def test_declared_glyph_stub_never_bridges_an_undrawn_or_branched_connection(damage):
+    document = ezdxf.new()
+    block = document.blocks.new("PIN")
+    first = block.add_line((0, 0), (1.3, 0))
+    block.add_circle((2.5, 0), 1)
+    block.add_line((1.3 if damage != "gap" else 1.6, 0),
+                   (3.7, 0 if damage != "bend" else 1))
+    block.add_line((3.7, 0), (5, 0))
+    if damage == "branch":
+        block.add_line((1.3, 0), (1.3, 2))
+    insert = document.modelspace().add_blockref(block.name, (30, 40))
+    stub = _unique_outward_definition_line(insert, (30, 40), .25)
+    result = _declared_pin_stub_chain(insert, (30, 40), stub)
+    if damage in {"branch", "bend"}:
+        assert result is None
+    elif damage == "gap":
+        assert result == ((31.3, 40), [first.dxf.handle])
+    else:
+        assert result[0] == (35, 40)
+        assert len(result[1]) == 3
+
+
+@pytest.mark.parametrize("rotation,mirror", [(0,1),(90,-1),(180,1)])
+@pytest.mark.parametrize("segmented", [False, True])
+def test_reciprocal_device_pin_label_context_does_not_fabricate_xrecord_ports(rotation, mirror, segmented):
+    document = ezdxf.new()
+    for appid in ("LD_SYMB2_SPECIAL", "LD_SYMB2_TERM_TEXT_1", "LD_SYMB2_LABEL"):
+        document.appids.add(appid)
+    block = document.blocks.new("UNSEEN_PIN_LABEL")
+    if segmented:
+        block.add_line((0,0),(1.3,0))
+        block.add_circle((2.5,0),1)
+        block.add_line((1.3,0),(3.7,0))
+        block.add_line((3.7,0),(5,0))
+    else:
+        block.add_line((0,0),(2.5,0))
+    insert = document.modelspace().add_blockref(block.name,(30,40),dxfattribs={"rotation":rotation,"xscale":mirror})
+    label = document.modelspace().add_text("612",dxfattribs={"insert":(28,41)})
+    body = document.modelspace().add_text("7n",dxfattribs={"insert":(50,70)})
+    insert.set_xdata("LD_SYMB2_SPECIAL",[(1000,"装置端子")])
+    insert.set_xdata("LD_SYMB2_TERM_TEXT_1",[(1005,label.dxf.handle)])
+    label.set_xdata("LD_SYMB2_TERM_TEXT_1",[(1005,insert.dxf.handle)])
+    insert.set_xdata("LD_SYMB2_LABEL",[(1005,body.dxf.handle)])
+    pin_text = replace(_text(1),handle=label.dxf.handle,text="612",normalized_text="612")
+    body_text = replace(_text(2),handle=body.dxf.handle,text="7n",normalized_text="7n")
+    bind_vendor_device_pin_labels(document,[pin_text,body_text])
+    context = json.loads(pin_text.device_pin_label_json)
+    point = insert.matrix44().transform((5 if segmented else 2.5,0,0))
+    assert context["stub_inner_point"] == pytest.approx([point.x,point.y])
+    assert len(context["definition_stub_line_handles"]) == (3 if segmented else 1)
+    assert context["body_text_id"] == body_text.text_id
+    assert context["complete_xrecord_binding"] is False
+    assert context["electrical_union_eligible"] is False
+    assert pin_text.physical_ports_json == "[]"
+    assert extract_terminal_port_bindings(document,sheet_id="S1",file_id="F1") == []
+    label.set_xdata("LD_SYMB2_TERM_TEXT_1",[(1005,"FFFF")])
+    pin_text.device_pin_label_json = "{}"
+    bind_vendor_device_pin_labels(document,[pin_text,body_text])
+    assert pin_text.device_pin_label_json == "{}"
 
 
 def _vendor_terminal_document(**overrides):

@@ -330,7 +330,7 @@ def _store_project_run(
     findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
     frames = load_report_frames(
         project_dir,
-        names=("pairs", "issues", "pages", "lines", "texts", "line_groups", "blocks"),
+        names=("pairs", "issues", "pages", "lines", "texts", "line_groups", "blocks", "primitive_segments", "sw_ports", "sw_part_instances"),
     )
     pairs = frames.get("pairs", pd.DataFrame())
     issues = frames.get("issues", pd.DataFrame())

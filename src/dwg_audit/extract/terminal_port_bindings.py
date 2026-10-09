@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import math
+import json
 import re
 from collections.abc import Iterable
 from typing import Any
 
 from dwg_audit.domain.models import TerminalPortBinding
+from dwg_audit.domain.models import TextItem
 
 
 TERMINAL_PORT_BINDING_SCHEMA_VERSION = "terminal-port-binding-v1"
@@ -17,6 +19,227 @@ _TEXT_APPID_PATTERN = re.compile(r"LD_SYMB2_TERM_TEXT_\d+\Z")
 _RECORD_INSERT_HANDLE_PATTERN = re.compile(r"(?i)([0-9A-F]+):\d+")
 _HANDLE_PATTERN = re.compile(r"(?i)[0-9A-F]+\Z")
 _PART_KEY_PATTERN = re.compile(r"PART2_\d+\Z")
+
+
+def bind_labelled_terminal_ports(document: Any, texts: list[TextItem], proposals: list[Any]) -> None:
+    """Bind reciprocal CAD labels to known terminal geometry, without any union.
+
+    Unlike device XRECORD bindings, ordinary terminal labels may describe four
+    independent outward contacts. The library must recognize the geometry and
+    both CAD objects must reference each other in the same owner space.
+    """
+    from dwg_audit.audit.symbol_port_proposal import classify_definition_family
+
+    definitions = {}
+    for proposal in proposals:
+        family = classify_definition_family(proposal.to_dict())
+        if (family["family_id"] != "labelled_terminal.generic.v1"
+                or family["classifier_status"] != "MATCHED"):
+            continue
+        ports = proposal.ports
+        rule = family["matched_family_rule_id"]
+        if family["classifier_confidence"] < 0.95:
+            ports = _verified_radial_round_ports(proposal, document.blocks.get(proposal.definition_name))
+            if not ports:
+                continue
+            count_name = "two" if len(ports) == 2 else "three"
+            rule = f"verified-{count_name}-radial-contact-terminal-v1"
+        definitions[proposal.definition_name] = (ports, rule)
+    for text in texts:
+        entity = document.entitydb.get(text.handle)
+        if entity is None:
+            continue
+        refs = _xdata_strings(entity, "LD_SYMB2_LABEL", 1005)
+        if len(refs) != 1:
+            continue
+        insert = document.entitydb.get(refs[0])
+        if insert is None or insert.dxftype() != "INSERT":
+            continue
+        if _xdata_strings(insert, "LD_SYMB2_SPECIAL", 1000) != ["端子"]:
+            continue
+        if _xdata_strings(insert, "LD_SYMB2_LABEL", 1005) != [text.handle]:
+            continue
+        if insert.dxf.owner != entity.dxf.owner:
+            continue
+        known = definitions.get(insert.dxf.name)
+        if known is None:
+            continue
+        local_ports, rule = known
+        matrix = insert.matrix44()
+        ports = []
+        for port in local_ports:
+            point = matrix.transform(port.local_position)
+            direction = matrix.transform_direction(port.outward_direction).normalize()
+            ports.append({
+                "insert_handle": _entity_handle(insert), "text_handle": text.handle,
+                "port_id": port.port_id, "position": [point.x, point.y],
+                "outward_direction": [direction.x, direction.y],
+                "family_rule": rule,
+                "source": "reciprocal_cad_label_and_terminal_geometry",
+                "electrical_union_eligible": False,
+            })
+        text.physical_ports_json = json.dumps(ports, ensure_ascii=False)
+
+
+def _verified_radial_round_ports(proposal: Any, block: Any) -> tuple:
+    """Verify two opposite contacts or recover a third radial side contact.
+
+    Reuse normalized symbol features: a complete round body, radial leads
+    and matching hidden contact markers must all agree. The coarse
+    equal-arc family alone is never authority for extra attachment points.
+    """
+    from dwg_audit.audit.symbol_port_proposal import ProposedPort
+
+    shape = (proposal.geometry_summary or {}).get("shape_features", {})
+    histogram = shape.get("entity_histogram", {})
+    count = histogram.get("LINE")
+    if count not in {2, 3} or histogram != {"ARC": 2, "LINE": count, "LWPOLYLINE": count}:
+        return ()
+    arcs = shape.get("normalized_arcs", [])
+    contacts = shape.get("normalized_closed_bulged_contacts", [])
+    lines = shape.get("normalized_line_segments", [])
+    if len(arcs) != 2 or len(contacts) != count or len(lines) != count:
+        return ()
+    center, radius = arcs[0]["center"], arcs[0]["radius"]
+    tolerance = radius * 0.02
+    if radius <= 0 or any(
+        math.dist(arc["center"], center) > tolerance
+        or abs(arc["radius"]-radius) > tolerance
+        or abs(arc["sweep_deg"]-180) > 0.01 for arc in arcs
+    ):
+        return ()
+    if math.dist(arcs[0]["midpoint"], arcs[1]["midpoint"]) < 1.98*radius:
+        return ()
+    if any(not c["invisible"] or not 0 < c["radius"] < radius*0.5 for c in contacts):
+        return ()
+    verified = []
+    for contact in contacts:
+        point = contact["center"]
+        touching = [line for line in lines if min(math.dist(point, line[key]) for key in ("start", "end")) <= tolerance]
+        if len(touching) != 1:
+            return ()
+        line = touching[0]
+        inner = max((line["start"], line["end"]), key=lambda p: math.dist(p, point))
+        outer_radius = math.dist(point, center)
+        if abs(math.dist(inner, center)-radius) > tolerance or outer_radius <= 1.5*radius:
+            return ()
+        direction = [(point[i]-center[i])/outer_radius for i in (0, 1)]
+        inner_direction = [(inner[i]-center[i])/radius for i in (0, 1)]
+        if sum(a*b for a, b in zip(direction, inner_direction)) < 0.98:
+            return ()
+        verified.append((point, direction))
+    # One opposite pair, optionally with one perpendicular side; never use
+    # an open switch or arbitrary arc mechanism as terminal authority.
+    dots = [sum(a*b for a, b in zip(verified[i][1], verified[j][1]))
+            for i in range(count) for j in range(i+1, count)]
+    if sum(dot < -0.98 for dot in dots) != 1 or sum(abs(dot) < 0.02 for dot in dots) != (2 if count == 3 else 0):
+        return ()
+    body = next((e for e in block if e.dxftype() == "ARC"), None)
+    if body is None:
+        return ()
+    scale = max(shape["width"], shape["height"])
+    return tuple(ProposedPort(
+        port_id=f"RP{index}",
+        local_position=(body.dxf.center.x+(point[0]-center[0])*scale,
+                        body.dxf.center.y+(point[1]-center[1])*scale, body.dxf.center.z),
+        outward_direction=(*direction, 0.0), port_type="ELECTRICAL", confidence=0.98,
+        evidence_codes=("RADIAL_BODY_LEAD", "HIDDEN_CONTACT_MARKER"),
+        source_ids=(f"machine_geometry_proposal:{proposal.definition_name}",),
+    ) for index, (point, direction) in enumerate(verified, 1))
+
+
+def bind_vendor_device_pin_labels(document: Any, texts: list[TextItem]) -> None:
+    """Retain reciprocal pin-label ownership and its drawn boundary stub.
+
+    This is label context, not a complete XRECORD port binding or a symbol
+    library port proposal. A consumer must separately prove the device body
+    and the actual external CONNECT lead before using it as a mapping.
+    """
+    by_handle = {text.handle: text for text in texts}
+    contexts: dict[str, list[dict]] = {}
+    for insert in document.modelspace().query("INSERT"):
+        if _xdata_strings(insert, _SPECIAL_APPID, 1000) != [_SPECIAL_VALUE]:
+            continue
+        references = _terminal_text_references(insert)
+        handles = {handle for values in references.values() for handle in values}
+        if not references or len(handles) != 1 or any(not values for values in references.values()):
+            continue
+        handle = next(iter(handles))
+        text = by_handle.get(handle)
+        entity = document.entitydb.get(handle)
+        if text is None or entity is None or not re.fullmatch(r"\d{2,4}", text.normalized_text):
+            continue
+        reciprocal = _terminal_text_references(entity)
+        insert_handle = _entity_handle(insert)
+        if set(references) != set(reciprocal) or any(values != {insert_handle} for values in reciprocal.values()):
+            continue
+        body_refs = _xdata_strings(insert, "LD_SYMB2_LABEL", 1005)
+        if len(body_refs) != 1 or body_refs[0] not in by_handle:
+            continue
+        body = by_handle[body_refs[0]]
+        body_entity = document.entitydb.get(body.handle)
+        if body_entity is None or not re.fullmatch(r"\d+(?:-\d+)*n", body.normalized_text, re.IGNORECASE):
+            continue
+        if entity.dxf.owner != insert.dxf.owner or body_entity.dxf.owner != insert.dxf.owner:
+            continue
+        point = _point(insert.dxf.insert)
+        if point is None:
+            continue
+        stub = _unique_outward_definition_line(insert, point, TERMINAL_PORT_GEOMETRY_TOLERANCE)
+        if stub is None:
+            continue
+        chain = _declared_pin_stub_chain(insert, point, stub)
+        if chain is None:
+            continue
+        contexts.setdefault(text.text_id, []).append({
+            "source": "reciprocal_cad_device_pin_label", "insert_handle": insert_handle,
+            "text_handle": handle, "body_text_id": body.text_id, "body_text_handle": body.handle,
+            "body_value": body.normalized_text, "label_anchor": list(point),
+            "stub_inner_point": list(chain[0]), "definition_line_handle": stub[0],
+            "definition_stub_line_handles": chain[1],
+            "complete_xrecord_binding": False, "internal_connectivity_inferred": False,
+            "electrical_union_eligible": False,
+        })
+    for text in texts:
+        candidates = contexts.get(text.text_id, [])
+        if len(candidates) == 1:
+            text.device_pin_label_json = json.dumps(candidates[0], ensure_ascii=False)
+
+
+def _declared_pin_stub_chain(insert: Any, origin: tuple, stub: tuple) -> tuple | None:
+    """Follow only the declared glyph's continuous straight LINE artwork."""
+    matrix = insert.matrix44()
+    segments = []
+    for entity in insert.block():
+        if entity.dxftype() != "LINE":
+            continue
+        start, end = matrix.transform(entity.dxf.start), matrix.transform(entity.dxf.end)
+        segments.append((_entity_handle(entity), (start.x, start.y), (end.x, end.y)))
+    current, handles = stub[3], [stub[0]]
+    direction = [current[i]-origin[i] for i in (0, 1)]
+    length = math.hypot(*direction)
+    if length <= 0:
+        return None
+    for _ in range(len(segments)):
+        choices = []
+        for handle, start, end in segments:
+            if handle in handles:
+                continue
+            for first, second in ((start, end), (end, start)):
+                if math.dist(first, current) <= 1e-6:
+                    choices.append((handle, second))
+        if not choices:
+            return current, handles
+        if len(choices) != 1:
+            return None
+        handle, next_point = choices[0]
+        vector = [next_point[i]-current[i] for i in (0, 1)]
+        step = math.hypot(*vector)
+        if step <= 0 or sum(vector[i]*direction[i] for i in (0, 1))/(step*length) < 0.999999:
+            return None
+        current = next_point
+        handles.append(handle)
+    return None
 
 
 def extract_terminal_port_bindings(

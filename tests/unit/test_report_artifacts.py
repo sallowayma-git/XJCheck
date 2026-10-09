@@ -187,9 +187,13 @@ def test_production_writer_short_circuits_shadow_artifacts(monkeypatch, tmp_path
         "source_files.parquet",
         "terminal_candidates.parquet",
         "texts.parquet",
+        "primitive_segments.parquet",
+        "text_assignments.parquet",
+        "entity_coverage_summary.parquet",
     }
     payload = json.loads((findings_dir / "findings.json").read_text(encoding="utf-8"))
     assert payload["run_profile"] == "production"
+    assert "identity_ok" in payload["entity_coverage_summary"]
     assert payload["diagnostics_status"] == "not_generated_for_profile"
     assert "wire_networks.parquet" not in payload["artifacts"]["findings"]
     assert "issue_root_cause_audit.json" not in payload["artifacts"]["audit"]

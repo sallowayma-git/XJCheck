@@ -31,7 +31,7 @@ _SMALL_PORT_BOX_BLOCK_PORTS = {
 }
 # Accept classic 1KLP9 / 1-4CLP2 and cabinet module tags like 1C3LP4 / 5C1LP2.
 _COMPONENT_BODY_PATTERN = re.compile(
-    r"^\d+(?:-\d+)?(?:(?:KLP|CLP|ZLP)\d+|[A-Za-z]\d+LP\d+)$",
+    r"^\d+(?:-\d+)?(?:(?:KLP|CLP|ZLP|VLP|LP)\d+|[A-Za-z]\d+LP\d+)$",
     re.IGNORECASE,
 )
 _KK_COMPONENT_BODY_PATTERN = re.compile(
@@ -45,6 +45,7 @@ _EXTERNAL_ENDPOINT_PATTERN = re.compile(
     r"^(?:"
     r"\d+(?:-\d+)?[A-Za-z]\d+[A-Za-z]{1,4}\d+(?:-\d+)?"
     r"|\d+(?:-\d+)?[A-Za-z]{1,4}\d+(?:-\d+)?"
+    r"|\d+(?:-\d+)?[A-Za-z]{1,4}-\d+"
     r"|[A-Za-z]{1,4}\d+(?:-\d+)?"
     r")$",
     re.IGNORECASE,
@@ -118,8 +119,6 @@ def extract_strip_two_port_component_pairs(
                 continue
             top_endpoint = _nearest_strip_external_endpoints(port_top, sheet_texts, side="top")
             bottom_endpoint = _nearest_strip_external_endpoints(port_bottom, sheet_texts, side="bottom")
-            if top_endpoint is None or bottom_endpoint is None:
-                continue
             support_group = _nearest_supporting_vertical_group(port_top, port_bottom, sheet_groups)
             if support_group is None:
                 continue
@@ -128,11 +127,13 @@ def extract_strip_two_port_component_pairs(
                 (port_top, top_endpoint, "top"),
                 (port_bottom, bottom_endpoint, "bottom"),
             ]
+            label_only = top_endpoint is None and bottom_endpoint is None
             built_pairs: list[Pair] = []
             for port, endpoint_result, side_label in endpoint_specs:
-                endpoint, endpoint_values = endpoint_result
-                if not endpoint_values:
-                    break
+                endpoint, endpoint_values = endpoint_result or (None, [None])
+                conflicts = _strip_endpoint_conflicts(sheet_texts, selected=endpoint)
+                if conflicts:
+                    endpoint, endpoint_values = None, [None]
                 logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
                 for endpoint_value in endpoint_values:
                     built_pairs.append(
@@ -146,6 +147,8 @@ def extract_strip_two_port_component_pairs(
                             support_group=support_group,
                             pair_ids=pair_ids,
                             logical_endpoint=logical_endpoint,
+                            conflicting_endpoints=conflicts,
+                            label_only=label_only,
                         )
                     )
             if len(built_pairs) < 2:
@@ -162,7 +165,7 @@ def extract_strip_two_port_endpoint_bridge_pairs(
     *,
     pair_id_factory: IdFactory | None = None,
 ) -> tuple[list[Pair], set[str]]:
-    """Recover direct ZK-to-n endpoint bridges on strip two-port component blocks."""
+    """Retain labels on opposite component sides as nonconductive context."""
 
     pair_ids = pair_id_factory or IdFactory("PCM")
     texts_by_sheet: dict[str, list[TextItem]] = {}
@@ -1389,6 +1392,8 @@ def _strip_port_pairs(texts: list[TextItem]) -> list[tuple[TextItem, TextItem]]:
             bottom
             for bottom in bottom_ports
             if bottom.text_id not in used_bottom_ids
+            and bottom.source_block_name == top.source_block_name
+            and _same_strip_instance(top, bottom)
             and abs(bottom.insert_x - top.insert_x) <= _PORT_X_TOL
             and _PORT_Y_MIN_GAP <= top.insert_y - bottom.insert_y <= _PORT_Y_MAX_GAP
         ]
@@ -1400,6 +1405,16 @@ def _strip_port_pairs(texts: list[TextItem]) -> list[tuple[TextItem, TextItem]]:
     return pairs
 
 
+def _same_strip_instance(top: TextItem, bottom: TextItem) -> bool:
+    # Expanded text handles retain the INSERT identity, including nested paths.
+    # Legacy records without that provenance still use the existing geometry gate.
+    top_owner = top.handle.rsplit(":VIRTUAL:", 1)[0] if ":VIRTUAL:" in top.handle else None
+    bottom_owner = bottom.handle.rsplit(":VIRTUAL:", 1)[0] if ":VIRTUAL:" in bottom.handle else None
+    if top_owner or bottom_owner:
+        return top_owner == bottom_owner
+    return " " not in (top.source_block_name or "").strip()
+
+
 def _is_strip_block_name(value: str | None) -> bool:
     if not value:
         return False
@@ -1407,7 +1422,7 @@ def _is_strip_block_name(value: str | None) -> bool:
     mirror_suffix = "_mirror"
     if normalized.endswith(mirror_suffix):
         normalized = normalized[: -len(mirror_suffix)]
-    return normalized == _STRIP_BLOCK_BASENAME.casefold()
+    return re.fullmatch(re.escape(_STRIP_BLOCK_BASENAME.casefold()) + r"(?:\s+[a-z0-9]+)?", normalized) is not None
 
 
 def _nearest_component_body(port_top: TextItem, texts: list[TextItem]) -> TextItem | None:
@@ -1461,6 +1476,29 @@ def _nearest_strip_external_endpoints(
         ),
     )[0]
     return best_text, best_values
+
+
+def _strip_endpoint_conflicts(
+    texts: list[TextItem], *, selected: TextItem | None,
+) -> list[TextItem]:
+    if selected is None:
+        return []
+    selected_values = _strip_external_endpoint_values(selected.normalized_text)
+    nearby = []
+    for text in texts:
+        if text.source_block_name or text.layer.upper() == "MARK":
+            continue
+        values = _strip_external_endpoint_values(text.normalized_text)
+        if not values:
+            continue
+        # Coincident labels are competing evidence, not two separate branches.
+        tolerance = min(selected.height, text.height) * 0.25
+        if abs(text.insert_x - selected.insert_x) > tolerance or abs(text.insert_y - selected.insert_y) > tolerance:
+            continue
+        nearby.append(text)
+    if any(_strip_external_endpoint_values(text.normalized_text) != selected_values for text in nearby):
+        return sorted(nearby, key=lambda text: text.text_id)
+    return []
 
 
 def _nearest_strip_endpoint_bridge_endpoint(
@@ -1767,9 +1805,12 @@ def _build_strip_endpoint_bridge_pair(
     pair_ids: IdFactory,
 ) -> Pair:
     evidence = {
-        "source": "component_mapping",
-        "pair_kind": "component_mapping",
+        "source": "semantic_mapping",
+        "pair_kind": "semantic_mapping",
         "component_submode": "strip_two_port_endpoint_bridge",
+        "semantic_role": "component_endpoint_context",
+        "internal_connectivity_inferred": False,
+        "electrical_union_eligible": False,
         "filename": page.filename,
         "sheet_no": page.sheet_no,
         "sheet_order": page.sheet_order,
@@ -1813,7 +1854,7 @@ def _build_strip_endpoint_bridge_pair(
         right_value=bottom_value,
         confidence=_PAIR_CONFIDENCE,
         status="pass",
-        rationale="Strip two-port endpoint bridge: top ZK endpoint associated with bottom n endpoint.",
+        rationale="Opposite-side component labels retained as context; component interior connectivity is not inferred.",
         alternative_pair_candidate_ids=[],
         confidence_bucket="high",
         evidence=evidence,
@@ -1828,7 +1869,7 @@ def _build_strip_endpoint_bridge_pair(
         right_score=1.0,
         wire_score=1.0,
         ambiguity_gap=None,
-        pair_kind="component_mapping",
+        pair_kind="semantic_mapping",
     )
 
 
@@ -1837,12 +1878,14 @@ def _build_strip_two_port_pair(
     page: SheetRecord,
     body: TextItem,
     port: TextItem,
-    endpoint: TextItem,
-    endpoint_value: str,
+    endpoint: TextItem | None,
+    endpoint_value: str | None,
     side_label: str,
     support_group: LineGroup,
     pair_ids: IdFactory,
     logical_endpoint: str,
+    conflicting_endpoints: list[TextItem] | None = None,
+    label_only: bool = False,
 ) -> Pair:
     evidence = {
         "source": "component_mapping",
@@ -1859,11 +1902,21 @@ def _build_strip_two_port_pair(
         "component_port_text_id": port.text_id,
         "component_port_coord": [port.insert_x, port.insert_y],
         "component_block_name": port.source_block_name,
+        "component_block_handle": port.handle.rsplit(":VIRTUAL:", 1)[0] if ":VIRTUAL:" in port.handle else None,
+        "internal_connectivity_inferred": False,
+        "electrical_union_eligible": False,
         "external_endpoint": endpoint_value,
-        "external_endpoint_raw": endpoint.normalized_text,
+        "external_endpoint_raw": endpoint.normalized_text if endpoint else None,
         "external_endpoint_split": endpoint_value,
-        "external_endpoint_text_id": endpoint.text_id,
-        "external_endpoint_coord": [endpoint.insert_x, endpoint.insert_y],
+        "external_endpoint_text_id": endpoint.text_id if endpoint else None,
+        "external_endpoint_coord": [endpoint.insert_x, endpoint.insert_y] if endpoint else None,
+        "unresolved_component_port": endpoint is None and not label_only,
+        "component_port_label_only": label_only,
+        "unresolved_reason": ("no_external_mapping_evidence" if label_only else "coincident_conflicting_labels" if conflicting_endpoints else "external_endpoint_missing") if endpoint is None else None,
+        "external_endpoint_alternatives": [
+            {"text_id": text.text_id, "value": text.normalized_text, "coord": [text.insert_x, text.insert_y]}
+            for text in conflicting_endpoints or []
+        ],
         "logical_endpoint": logical_endpoint,
         "endpoint_side": side_label,
         "line_group_id": support_group.line_group_id,
@@ -1873,7 +1926,7 @@ def _build_strip_two_port_pair(
         "right_side_label": "external_endpoint",
         "score_breakdown": {
             "left_score": 1.0,
-            "right_score": 1.0,
+            "right_score": 1.0 if endpoint else 0.0,
             "wire_score": 1.0,
             "ambiguity_gap": None,
         },
@@ -1886,21 +1939,21 @@ def _build_strip_two_port_pair(
         selected_pair_candidate_id=None,
         left_value=logical_endpoint,
         right_value=endpoint_value,
-        confidence=_PAIR_CONFIDENCE,
-        status="pass",
-        rationale="Strip two-port component mapping: component body plus block port associated with external endpoint.",
+        confidence=_PAIR_CONFIDENCE if endpoint else 0.0,
+        status="pass" if endpoint else "review",
+        rationale=("Component port identity retained without external mapping evidence." if label_only else "Strip two-port component mapping: component body plus block port associated with external endpoint." if endpoint else "Component port retained: external endpoint missing or conflicting labels require review."),
         alternative_pair_candidate_ids=[],
-        confidence_bucket="high",
+        confidence_bucket="high" if endpoint else "low",
         evidence=evidence,
         left_text_id=port.text_id,
-        right_text_id=endpoint.text_id,
+        right_text_id=endpoint.text_id if endpoint else None,
         left_coord_x=port.insert_x,
         left_coord_y=port.insert_y,
-        right_coord_x=endpoint.insert_x,
-        right_coord_y=endpoint.insert_y,
+        right_coord_x=endpoint.insert_x if endpoint else None,
+        right_coord_y=endpoint.insert_y if endpoint else None,
         pair_key=f"{logical_endpoint}->{endpoint_value}",
         left_score=1.0,
-        right_score=1.0,
+        right_score=1.0 if endpoint else 0.0,
         wire_score=1.0,
         ambiguity_gap=None,
         pair_kind="component_mapping",

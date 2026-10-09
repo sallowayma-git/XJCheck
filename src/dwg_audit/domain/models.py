@@ -104,6 +104,9 @@ class TextItem:
     source_block_name: str | None = None
     color_index: int | None = None
     true_color: int | None = None
+    text_geometry_json: str = "{}"
+    physical_ports_json: str = "[]"
+    device_pin_label_json: str = "{}"
 
 
 @dataclass(slots=True)
@@ -230,6 +233,7 @@ class TerminalCandidate:
     source_block_name: str | None = None
     channel: str = "terminal_numeric_channel"
     channel_detail: str | None = None
+    physical_endpoint_evidence: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -395,6 +399,100 @@ class ProjectArtifacts:
     symbol_port_definition_proposals: list[dict[str, Any]] = field(
         default_factory=list
     )
+    superworks: Any = None
+    superworks_supersession: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class SwRecord:
+    record_id: str
+    sheet_id: str
+    file_id: str
+    raw_xdata: dict[str, Any] = field(default_factory=dict)
+    validation: dict[str, Any] = field(default_factory=dict)
+    reason_codes: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class SwSymbolInstance(SwRecord):
+    insert_handle: str = ""
+    instance_path: str = ""
+    block_name: str = ""
+    category: str = ""
+    label: dict[str, Any] = field(default_factory=dict)
+    pin_texts: dict[str, Any] = field(default_factory=dict)
+    endpoint_identity: str | None = None
+    insert_x: float = 0.0
+    insert_y: float = 0.0
+    dzlx: str = ""
+    dxlx: str = ""
+    main: str = ""
+    multi: str = ""
+
+
+@dataclass(slots=True)
+class SwPort(SwRecord):
+    symbol_id: str = ""
+    insert_handle: str = ""
+    instance_path: str = ""
+    marker_handle: str = ""
+    port_number: str = ""
+    category: str = ""
+    start_x: float = 0.0
+    start_y: float = 0.0
+    end_x: float = 0.0
+    end_y: float = 0.0
+    direction: str = ""
+    tolerance: float = 0.0
+    endpoint_identity: str | None = None
+    label: dict[str, Any] = field(default_factory=dict)
+    pin: dict[str, Any] = field(default_factory=dict)
+    wire_contacts: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class SwStripRow(SwRecord):
+    row_handle: str = ""
+    header: dict[str, Any] = field(default_factory=dict)
+    row: dict[str, Any] = field(default_factory=dict)
+    endpoint_identity: str | None = None
+    connections: list[dict[str, Any]] = field(default_factory=list)
+    potentials: list[dict[str, Any]] = field(default_factory=list)
+    cross_page_refs: list[dict[str, Any]] = field(default_factory=list)
+    symb_bwrite: str = ""
+    dzlx: str = ""
+    dxlx: str = ""
+
+
+@dataclass(slots=True)
+class SwPartInstance(SwRecord):
+    insert_handle: str = ""
+    instance_path: str = ""
+    block_name: str = ""
+    label: dict[str, Any] = field(default_factory=dict)
+    part_no: dict[str, Any] = field(default_factory=dict)
+    part_type: str = ""
+    ports: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class SwConnectLabel(SwRecord):
+    text: dict[str, Any] = field(default_factory=dict)
+    line_handle: str = ""
+    start_x: float = 0.0
+    start_y: float = 0.0
+    end_x: float = 0.0
+    end_y: float = 0.0
+    part_id: str | None = None
+    port_number: str | None = None
+    endpoint_identity: str | None = None
+
+
+@dataclass(slots=True)
+class SwConnectDot(SwRecord):
+    handle: str = ""
+    x: float = 0.0
+    y: float = 0.0
 
 
 def record_dict(instance: Any) -> dict[str, Any]:

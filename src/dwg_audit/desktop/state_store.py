@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-_PREVIEW_GEOMETRY_SCHEMA_VERSION = 1
+_PREVIEW_GEOMETRY_SCHEMA_VERSION = 2
 
 
 def default_state_db_path() -> Path:
@@ -463,7 +463,7 @@ class DesktopStateStore:
             schema_version = int(
                 geometry.get("schema_version") or _PREVIEW_GEOMETRY_SCHEMA_VERSION
             )
-            if schema_version != _PREVIEW_GEOMETRY_SCHEMA_VERSION:
+            if schema_version not in {1, _PREVIEW_GEOMETRY_SCHEMA_VERSION}:
                 raise ValueError(
                     f"unsupported preview geometry schema version: {schema_version}"
                 )
@@ -515,7 +515,7 @@ class DesktopStateStore:
             schema_version = int(row["schema_version"])
         except (TypeError, ValueError):
             return None
-        if schema_version != _PREVIEW_GEOMETRY_SCHEMA_VERSION:
+        if schema_version not in {1, _PREVIEW_GEOMETRY_SCHEMA_VERSION}:
             return None
         try:
             payload = json.loads(zlib.decompress(bytes(row["geometry_blob"])).decode("utf-8"))
@@ -527,7 +527,7 @@ class DesktopStateStore:
             payload_schema_version = int(payload.get("schema_version") or schema_version)
         except (TypeError, ValueError):
             return None
-        if payload_schema_version != _PREVIEW_GEOMETRY_SCHEMA_VERSION:
+        if payload_schema_version != schema_version:
             return None
         payload["run_id"] = str(run_id)
         payload["schema_version"] = schema_version

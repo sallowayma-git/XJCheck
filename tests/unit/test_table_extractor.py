@@ -9,6 +9,125 @@ from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.config import DEFAULT_CONFIG
 
 
+def _header_grid_lines() -> list[LineEntity]:
+    return [
+        *[_make_h_grid_line(f"H{index}", y, 70, 140)
+          for index, y in enumerate((105, 95, 87.5, 82.5))],
+        _make_v_grid_line("VL", 90, 82.5, 105),
+        _make_v_grid_line("VR", 110, 82.5, 105),
+    ]
+
+
+def test_grid_anchored_header_keeps_partial_row_sequence_and_sparse_endpoint() -> None:
+    sheet = _make_sheet()
+    sheet.sheet_category = "屏端子图"
+    texts = [
+        _make_text("HEADER", 100, 100, "7QD"),
+        _make_text("DESCRIPTION", 60, 100, "说明"),
+        _make_text("ROW9", 100, 90, "9", is_numeric_candidate=True),
+        _make_text("ROW10", 100, 85, "10", is_numeric_candidate=True),
+        _make_text("ENDPOINT", 120, 90, "7n509"),
+    ]
+    assert extract_terminal_header_table_pairs(texts, [sheet])[0] == []
+    pairs, mappings = extract_terminal_header_table_pairs(texts, [sheet], lines=_header_grid_lines())
+    assert [(p.left_value, p.right_value) for p in pairs] == [("7QD-9", "7n509")]
+    assert mappings[0]["mappings"][0]["middle_text_id"] == "ROW9"
+    assert extract_terminal_header_table_pairs(texts, [sheet], lines=_header_grid_lines()[:-1])[0] == []
+
+
+def test_single_continuation_row_requires_grid_and_cannot_be_borrowed_by_adjacent_table() -> None:
+    sheet = _make_sheet()
+    sheet.sheet_category = "屏端子图"
+    texts = [_make_text("CONTINUATION", 100, 100, "上接7YD11"),
+             _make_text("DESCRIPTION", 60, 100, "说明"),
+             _make_text("ROW12", 100, 90, "12", is_numeric_candidate=True),
+             _make_text("TARGET", 120, 90, "7n104")]
+    assert extract_terminal_header_table_pairs(texts, [sheet])[0] == []
+    lines = _header_grid_lines()
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet], lines=lines)
+    assert [(p.left_value, p.right_value) for p in pairs] == [("7YD-12", "7n104")]
+    texts += [_make_text("ADJACENT", 50, 100, "7Q1D"),
+              _make_text("ADJ_DESCRIPTION", 30, 100, "说明"),
+              _make_text("ADJ_ROW1", 50, 90, "1", is_numeric_candidate=True),
+              _make_text("ADJ_ROW2", 50, 85, "2", is_numeric_candidate=True),
+              _make_text("ADJ_ENDPOINT1", 35, 90, "7n201"),
+              _make_text("ADJ_ENDPOINT2", 35, 85, "7n202")]
+    pairs, _ = extract_terminal_header_table_pairs(texts, [sheet], lines=lines)
+    assert ("7YD-12", "7n104") in {(p.left_value,p.right_value) for p in pairs}
+    assert not any(p.left_value == "7Q1D-1" and p.right_value == "7n104" for p in pairs)
+    texts[2].normalized_text = "13"
+    assert not any(p.left_value.startswith("7YD-") for p in extract_terminal_header_table_pairs(texts, [sheet], lines=lines)[0])
+
+
+def test_grid_separator_prevents_lower_header_claiming_upper_rows() -> None:
+    sheet = _make_sheet()
+    sheet.sheet_category = "屏端子图"
+    texts = [
+        _make_text("TOP", 100, 100, "7Q1D"),
+        _make_text("TOP_DESCRIPTION", 60, 100, "说明"),
+        _make_text("BOTTOM", 100, 70, "7Q2D"),
+        _make_text("BOTTOM_DESCRIPTION", 60, 70, "说明"),
+    ]
+    for prefix, ys in (("TOP", (90, 85)), ("BOTTOM", (60, 55))):
+        for row, y in enumerate(ys, 1):
+            texts += [_make_text(f"{prefix}_ROW{row}", 100, y, str(row), is_numeric_candidate=True),
+                      _make_text(f"{prefix}_LEFT{row}", 80, y, f"7n{100 + row}"),
+                      _make_text(f"{prefix}_RIGHT{row}", 120, y, f"7n{200 + row}")]
+    lines = [_make_h_grid_line("CLOSE", 80, 70, 140), _make_h_grid_line("OPEN", 75, 70, 140)]
+    _, tables = extract_terminal_header_table_pairs(texts, [sheet], lines=lines)
+    mappings = tables[0]["mappings"]
+    assert any(m["header_text_id"] == "TOP" and m["left_text_id"] == "TOP_LEFT1" for m in mappings)
+    assert not any(m["header_text_id"] == "BOTTOM" and m["middle_text_id"].startswith("TOP") for m in mappings)
+
+
+def test_model_slot_identity_requires_unique_explicit_same_row_slot() -> None:
+    from dwg_audit.audit.table_extractor import _backplate_numbered_model_slot
+    header = _make_text("MODEL", 60, 100, "ABC305", source_block_name="REAR")
+    header.layer = "CH"
+    header.handle = "OWNER:VIRTUAL:HEADER"
+    slot = _make_text("SLOT", 47.5, 100, "17", source_block_name="REAR")
+    slot.layer = "0"
+    slot.handle = "OWNER:VIRTUAL:SLOT"
+    assert _backplate_numbered_model_slot(header, [header, slot])["slot"] == 17
+    slot.normalized_text = "01"
+    assert _backplate_numbered_model_slot(header, [header, slot]) is None
+    slot.normalized_text = "17"
+    slot.insert_y = 99
+    assert _backplate_numbered_model_slot(header, [header, slot]) is None
+    slot.insert_y = 100
+    other = _make_text("OTHER", 46, 100, "18", source_block_name="REAR")
+    other.layer = "0"
+    other.handle = "OWNER:VIRTUAL:OTHER"
+    assert _backplate_numbered_model_slot(header, [header, slot, other]) is None
+    slot.handle = "OTHER_OWNER:VIRTUAL:SLOT"
+    assert _backplate_numbered_model_slot(header, [header, slot]) is None
+
+
+def test_numbered_model_header_stops_before_the_next_plugin_rows() -> None:
+    sheet = _make_sheet(audit_area_bbox=(0, 0, 300, 260))
+    sheet.sheet_category = "背板接线图"
+    sheet.sheet_title = "7n REAR WIRING"
+    sheet.audit_role = "secondary"
+    texts = [_make_text("INSTANCE", 50, 250, "7n")]
+    for slot, model, y in ((20, "ABC305", 230), (21, "DEF307", 200)):
+        header = _make_text(f"H{slot}", 120, y, model, source_block_name="UNSEEN-REAR")
+        header.layer = "CH"
+        header.handle = f"OWNER:VIRTUAL:H{slot}"
+        number = _make_text(f"SLOT{slot}", 107.5, y, str(slot), source_block_name="UNSEEN-REAR")
+        number.layer = "0"
+        number.handle = f"OWNER:VIRTUAL:SLOT{slot}"
+        texts += [header, number]
+        for row in range(1, 4):
+            texts += [_make_text(f"R{slot}-{row}", 116, y-row*5, f"{row:02d}",
+                                is_numeric_candidate=True, source_block_name="UNSEEN-REAR"),
+                      _make_text(f"E{slot}-{row}", 105, y-row*5, f"7UD{slot*10+row}")]
+            texts[-2].handle = f"OWNER:VIRTUAL:R{slot}-{row}"
+    pairs, _ = extract_table_pairs(texts, [], [], [sheet], DEFAULT_CONFIG)
+    assert {(p.left_value, p.right_value) for p in pairs} == {
+        (f"7n{slot}{row:02d}", f"7UD{slot*10+row}") for slot in (20, 21) for row in range(1,4)}
+    assert all(p.evidence["table_mapping"]["plugin_slot_authority"] == "same_row_model_and_slot" for p in pairs)
+
+
 def _make_sheet(
     *,
     sheet_id: str = "S1",

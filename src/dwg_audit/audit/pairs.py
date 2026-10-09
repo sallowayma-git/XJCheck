@@ -45,6 +45,17 @@ def build_pairs(
     pairs: list[Pair] = []
     for group in line_groups:
         left_side, right_side = _pair_side_labels(group)
+        group_sheet = sheet_map.get(group.sheet_id)
+        original_left = _accepted_sorted(by_group_side[(group.line_group_id, left_side)])
+        original_right = _accepted_sorted(by_group_side[(group.line_group_id, right_side)])
+        internal_self_stub = bool(
+            group_sheet and group_sheet.sheet_category == "元件接线图"
+            and original_left and original_right
+            and original_left[0].text_id == original_right[0].text_id
+            and len(original_left[0].value or "") == 1
+            and original_left[0].source_block_name
+        )
+        _enforce_text_endpoint_identity(by_group_candidates[group.line_group_id], left_side, right_side)
         left = _accepted_sorted(by_group_side[(group.line_group_id, left_side)])[:top_k]
         right = _accepted_sorted(by_group_side[(group.line_group_id, right_side)])[:top_k]
         left, right = _scope_wire_logic_endpoint_candidates(left, right)
@@ -57,9 +68,15 @@ def build_pairs(
             if not left and not right:
                 rationale = "missing numeric candidates on both sides"
                 status = "discard"
+                if any(c.rejection_reason == "text_identity_ambiguous_endpoint" for c in by_group_candidates[group.line_group_id]):
+                    rationale = "text identity ambiguous between endpoints; missing independent endpoint evidence"
+                    status = "review"
             else:
                 rationale = f"missing {left_side} candidate" if not left else f"missing {right_side} candidate"
                 status = "review"
+            if internal_self_stub:
+                status = "discard"
+                rationale = "self_pair_from_same_virtual_text"
             single = PairCandidate(
                 pair_candidate_id=pair_candidate_ids.next(),
                 line_group_id=group.line_group_id,
@@ -363,6 +380,13 @@ def _pair_evidence(
             "ambiguity_gap": selected.ambiguity_gap,
         },
         "alternative_pair_candidate_ids": alternative_ids or [],
+        "selected_left_physical_endpoint": (left_candidate.physical_endpoint_evidence or None) if left_candidate else None,
+        "selected_right_physical_endpoint": (right_candidate.physical_endpoint_evidence or None) if right_candidate else None,
+        "text_identity_decisions": [
+            {"candidate_id": c.candidate_id, "text_id": c.text_id, "side": c.side,
+             "reason": c.rejection_reason}
+            for c in group_candidates if c.rejection_reason and c.rejection_reason.startswith("text_identity_")
+        ],
         "pair_kind": "ordinary_pair",
     }
     evidence.update(
@@ -420,6 +444,31 @@ def _pair_evidence(
         )
     )
     return evidence
+
+
+def _enforce_text_endpoint_identity(candidates: list[TerminalCandidate], left_side: str, right_side: str) -> None:
+    """One text object is evidence for at most one independent wire endpoint.
+
+    A closest side must be unique. Equidistant labels remain unresolved rather
+    than manufacturing two terminal identities. Values are deliberately ignored.
+    """
+    by_text = defaultdict(list)
+    for candidate in candidates:
+        if candidate.status == "accepted":
+            by_text[candidate.text_id].append(candidate)
+    for shared in by_text.values():
+        sides = {c.side for c in shared}
+        if left_side not in sides or right_side not in sides:
+            continue
+        distances = {side: min((c.distance_x**2+c.distance_y**2)**0.5 for c in shared if c.side == side)
+                     for side in (left_side, right_side)}
+        tied = abs(distances[left_side]-distances[right_side]) <= 0.25
+        owner = min(distances, key=distances.get)
+        for candidate in shared:
+            if tied or candidate.side != owner:
+                candidate.status = "rejected"
+                candidate.rejection_reason = "text_identity_ambiguous_endpoint" if tied else "text_identity_owned_by_other_endpoint"
+                candidate.rank = None
 
 
 def _apply_component_pair_guards(

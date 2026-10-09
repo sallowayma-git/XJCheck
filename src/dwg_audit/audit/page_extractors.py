@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+import json
 
 from dataclasses import dataclass
 from dataclasses import field
@@ -195,6 +196,10 @@ def _extract_pairs_for_route(
         )
         _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)
+        lead_pairs = _extract_explicit_external_device_lead_pairs(
+            pages, texts, lines, line_groups, pairs, IdFactory(f"P{id_stem}L"),
+        )
+        pairs.extend(lead_pairs)
     table_mappings = []
     if executed_extractor == "ComponentDiagramExtractor":
         _promote_xjdz_structural_component_pairs(
@@ -278,6 +283,7 @@ def _extract_pairs_for_route(
             texts,
             pages,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
+            lines=lines,
         )
         retry_pages = _terminal_header_table_retry_pages(pages)
         if retry_pages:
@@ -285,6 +291,7 @@ def _extract_pairs_for_route(
                 texts,
                 retry_pages,
                 pair_id_factory=IdFactory(f"P{id_stem}MR"),
+                lines=lines,
             )
             retry_sheet_ids = {page.sheet_id for page in retry_pages}
             # The expanded retry has the complete neighboring-header context.
@@ -372,7 +379,7 @@ def _component_mapping_endpoint_keys(component_pairs: list[Pair]) -> set[tuple[s
     """Text ids and normalized endpoint tokens already bound by component_mapping."""
     keys: set[tuple[str, str]] = set()
     for pair in component_pairs:
-        if pair.pair_kind != "component_mapping":
+        if pair.pair_kind != "component_mapping" or pair.status == "discard":
             continue
         sheet_id = str(pair.sheet_id or "")
         for text_id in (pair.left_text_id, pair.right_text_id):
@@ -426,7 +433,10 @@ def mark_component_mapping_endpoint_covered_ordinary_pairs(
             if text_id and (sheet_id, f"text:{text_id}") in keys:
                 hit = True
                 break
-        if not hit:
+        # A label value (including its display alias) does not identify a
+        # physical terminal. Keep distinct known text objects for audit.
+        known_text_ids = [text_id for text_id in (pair.left_text_id, pair.right_text_id) if text_id]
+        if not hit and not known_text_ids:
             for raw in (
                 pair.left_value,
                 pair.right_value,
@@ -449,6 +459,11 @@ def mark_component_mapping_endpoint_covered_ordinary_pairs(
         pair.evidence["ordinary_pair_shadow_only"] = True
         pair.evidence["ordinary_pair_shadow_reason"] = "covered_by_component_mapping_endpoint"
         pair.evidence["covered_by_component_mapping_endpoint"] = True
+        pair.evidence["covered_by_pair_ids"] = [
+            mapping.pair_id for mapping in component_pairs
+            if mapping.status != "discard" and mapping.sheet_id == pair.sheet_id
+            and any(text_id in (mapping.left_text_id, mapping.right_text_id) for text_id in known_text_ids)
+        ]
 
 
 def _mark_component_mapping_endpoint_covered_ordinary_pairs(
@@ -1476,8 +1491,8 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
     """Keep auxiliary closed-polyline edges as geometry evidence, not electrical pairs.
 
     A tall frame is self-proving geometry. A shorter frame is shadowed only when it
-    duplicates one unique CONNECT claim on the same text and side; this preserves
-    real open-ended CONNECT claims and all structured mappings.
+    duplicates one unique CONNECT claim or encloses a positively identified
+    device. Real open-ended CONNECT claims and all structured mappings remain.
     """
 
     line_by_id = {line.line_id: line for line in lines}
@@ -1512,6 +1527,10 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
             "max_x": float(enclosure["max_x"]),
             "max_y": float(enclosure["max_y"]),
             "is_tall": height >= 4.0 * width,
+            "device_authority": _closed_device_enclosure_authority(
+                enclosure, [text for text in texts or []
+                            if text.sheet_id == sheet_id and text.file_id == file_id],
+            ),
         }
         for line_id in enclosure["member_line_ids"]:
             if line_id in ambiguous_enclosure_line_ids:
@@ -1594,7 +1613,18 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
         enclosure = group_enclosures.get(pair.line_group_id)
         if enclosure is None:
             continue
-        if not enclosure["is_tall"]:
+        device_authority = enclosure.get("device_authority")
+        if device_authority is not None and enclosure["layer"] == "0":
+            pair.evidence["ordinary_pair_shadow_reason"] = "closed_device_enclosure_edge"
+            pair.evidence["closed_polyline_enclosure"] = {
+                "parent_handles": enclosure["parent_handles"],
+                "member_line_ids": enclosure["member_line_ids"],
+                "bbox": [enclosure[key] for key in ("min_x", "min_y", "max_x", "max_y")],
+                "device_authority": device_authority,
+                "internal_connectivity_inferred": False,
+                "electrical_union_eligible": False,
+            }
+        elif not enclosure["is_tall"]:
             repeated_edge = enclosure.get("repeated_edge")
             repeated_claim = (
                 _authoritative_repeated_enclosure_half_pair(pair, group_by_id.get(pair.line_group_id))
@@ -1640,6 +1670,347 @@ def _shadow_closed_tall_polyline_enclosure_ordinary_pairs(
             }
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
+
+
+def _closed_device_enclosure_authority(
+    enclosure: dict[str, object], texts: list[TextItem],
+) -> dict[str, object] | None:
+    """Identify a device body, rather than assuming every rectangle is artwork.
+
+    Coil boxes require an interior TC body label. Instrument boxes require an
+    interior instance, model and at least two distinct interior pin labels.
+    The border itself contributes no port or electrical connectivity.
+    """
+    interior = [text for text in texts
+                if float(enclosure["min_x"]) < text.insert_x < float(enclosure["max_x"])
+                and float(enclosure["min_y"]) < text.insert_y < float(enclosure["max_y"])
+                and not text.source_block_name]
+    coils = [text for text in interior if re.fullmatch(r"TC\d+", text.normalized_text, re.IGNORECASE)]
+    if len(coils) == 1:
+        return {"family_rule": "closed-coil-body-enclosure-v1",
+                "body_text_id": coils[0].text_id, "body_value": coils[0].normalized_text}
+    title_band = [text for text in texts
+                  if float(enclosure["min_x"]) < text.insert_x < float(enclosure["max_x"])
+                  and float(enclosure["min_y"]) < text.insert_y <= float(enclosure["max_y"]) + 2 * text.height
+                  and not text.source_block_name]
+    instances = [text for text in title_band
+                 if re.fullmatch(r"\d+(?:-\d+)*n", text.normalized_text, re.IGNORECASE)]
+    models = [text for text in title_band
+              if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+", text.normalized_text)]
+    pins = [text for text in interior if re.fullmatch(r"\d{2,4}", text.normalized_text)]
+    for text in texts:
+        context = _device_pin_label_context(text)
+        if (context and context.get("body_text_id") in {item.text_id for item in instances}
+                and _device_stub_inside_box(context, enclosure, text.height)
+                and text.text_id not in {pin.text_id for pin in pins}):
+            pins.append(text)
+    def one_label_location(items: list[TextItem]) -> bool:
+        if not items or len({text.normalized_text for text in items}) != 1:
+            return False
+        tolerance = min(text.height for text in items) * 0.02
+        return all(abs(text.insert_x - items[0].insert_x) <= tolerance
+                   and abs(text.insert_y - items[0].insert_y) <= tolerance for text in items)
+
+    if not one_label_location(instances) or not one_label_location(models) or len({text.normalized_text for text in pins}) < 2:
+        return None
+    return {"family_rule": "closed-instrument-body-enclosure-v1",
+            "body_text_id": instances[0].text_id, "body_value": instances[0].normalized_text,
+            "model_text_id": models[0].text_id, "pin_text_ids": [text.text_id for text in pins]}
+
+
+def _device_pin_label_context(text: TextItem) -> dict:
+    try:
+        context = json.loads(text.device_pin_label_json)
+    except (ValueError, TypeError):
+        return {}
+    return context if isinstance(context, dict) and context.get("source") == "reciprocal_cad_device_pin_label" else {}
+
+
+def _point_on_device_side(point: object, box: dict) -> bool:
+    if not isinstance(point, list) or len(point) != 2:
+        return False
+    return (min(abs(point[0]-box["min_x"]), abs(point[0]-box["max_x"])) <= 0.25
+            and box["min_y"] < point[1] < box["max_y"])
+
+
+def _device_stub_inside_box(context: dict, box: dict, text_height: float) -> bool:
+    anchor, inner = context.get("label_anchor"), context.get("stub_inner_point")
+    if not all(isinstance(p, list) and len(p) == 2 for p in (anchor, inner)):
+        return False
+    return (0 < math.dist(anchor, inner) <= 3 * text_height
+            and abs(anchor[1]-inner[1]) <= 0.25
+            and all(box["min_x"] <= p[0] <= box["max_x"] and box["min_y"] < p[1] < box["max_y"]
+                    for p in (anchor, inner)))
+
+
+def _device_pin_native_lead_connection(lead: LineEntity, boundary: tuple, context: dict,
+                                       lines: list[LineEntity], height: float) -> tuple | None:
+    """Reach a declared pin stub through short, actual collinear CONNECT lines.
+
+    The vendor stub can face either direction. Neither a symbol contact gap
+    nor a rectangular device border is an admissible connector.
+    """
+    matches = []
+    for target in (context.get("label_anchor"), context.get("stub_inner_point")):
+        if not isinstance(target, list) or len(target) != 2:
+            continue
+        distance = math.dist(boundary, target)
+        if distance > 3 * height:
+            continue
+        current, used = boundary, []
+        for _ in range(8):
+            remaining = math.dist(current, target)
+            if remaining <= 0.25:
+                matches.append((target, used))
+                break
+            choices = []
+            for line in lines:
+                if (line.line_id == lead.line_id or line.line_id in used or line.source_block_name
+                        or line.sheet_id != lead.sheet_id or line.file_id != lead.file_id
+                        or line.layer.upper() != "CONNECT" or not 0 < line.length <= 3 * height):
+                    continue
+                for first, second in (((line.start_x, line.start_y), (line.end_x, line.end_y)),
+                                      ((line.end_x, line.end_y), (line.start_x, line.start_y))):
+                    if math.dist(first, current) > 0.25:
+                        continue
+                    if (abs((second[0]-current[0])*(target[1]-current[1])
+                            -(second[1]-current[1])*(target[0]-current[0])) / remaining <= 0.25
+                            and math.dist(second, target) < remaining
+                            and math.dist(second, boundary) <= distance + 0.25):
+                        choices.append((line.line_id, second))
+            if len(choices) != 1:
+                break
+            line_id, current = choices[0]
+            used.append(line_id)
+    if not matches:
+        return None
+    shortest = min(len(ids) for _, ids in matches)
+    matches = [(point, ids) for point, ids in matches if len(ids) == shortest]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _extract_explicit_external_device_lead_pairs(
+    pages: list[SheetRecord], texts: list[TextItem], lines: list[LineEntity],
+    groups: list[LineGroup], ordinary_pairs: list[Pair], pair_ids: IdFactory,
+) -> list[Pair]:
+    """Keep a proved external lead separate from instrument interior artwork.
+
+    Authority requires a reciprocal CAD-owned terminal contact and an actual
+    CONNECT lead ending at either a CAD-declared device pin or a closed
+    identified body's unique pin. Declaration stubs support transformed
+    straight leads; the geometric body fallback supports horizontal sides.
+    No interior path or rectangular border becomes electrical connectivity.
+    """
+    page_by_id = {p.sheet_id: p for p in pages}
+    texts_by_sheet: dict[tuple[str, str], list[TextItem]] = defaultdict(list)
+    native_leads_by_sheet: dict[tuple[str, str], list[LineEntity]] = defaultdict(list)
+    parents: dict[tuple[str, str, str], list[tuple[int, LineEntity]]] = defaultdict(list)
+    for text in texts:
+        texts_by_sheet[(text.sheet_id, text.file_id)].append(text)
+    for line in lines:
+        if line.layer.upper() == "CONNECT" and not line.source_block_name and line.length > 0:
+            native_leads_by_sheet[(line.sheet_id, line.file_id)].append(line)
+        parent, separator, index = line.handle.rpartition(":")
+        if line.source_entity_type == "LWPOLYLINE" and separator and index.isdigit():
+            parents[(line.sheet_id, line.file_id, parent)].append((int(index), line))
+    bodies: dict[tuple[str, str], list[tuple[dict, dict, str]]] = defaultdict(list)
+    for (sheet, file, parent), segments in parents.items():
+        enclosure = _closed_polyline_enclosure(segments)
+        if enclosure is None or enclosure["layer"] != "0":
+            continue
+        authority = _closed_device_enclosure_authority(enclosure, texts_by_sheet[(sheet, file)])
+        if authority and authority["family_rule"] == "closed-instrument-body-enclosure-v1":
+            bodies[(sheet, file)].append((enclosure, authority, parent))
+    line_by_id = {line.line_id: line for line in lines}
+    group_by_id = {group.line_group_id: group for group in groups}
+    for ordinary in ordinary_pairs:
+        if ordinary.pair_kind != "ordinary_pair" or ordinary.evidence.get("ordinary_pair_eligible") is False:
+            continue
+        group = group_by_id.get(ordinary.line_group_id)
+        if group is None or not group.member_line_ids or not ordinary.left_text_id or not ordinary.right_text_id:
+            continue
+        members = [line_by_id.get(i) for i in group.member_line_ids]
+        for box, authority, parent in bodies[(ordinary.sheet_id, ordinary.file_id)]:
+            if not {ordinary.left_text_id, ordinary.right_text_id}.issubset(authority["pin_text_ids"]):
+                continue
+            if any(line is None or line.sheet_id != ordinary.sheet_id or line.file_id != ordinary.file_id
+                   or not (box["min_x"]+0.25 < line.bbox_min_x <= line.bbox_max_x < box["max_x"]-0.25
+                           and box["min_y"]+0.25 < line.bbox_min_y <= line.bbox_max_y < box["max_y"]-0.25)
+                   for line in members):
+                continue
+            ordinary.evidence.update({"ordinary_pair_eligible": False, "ordinary_pair_shadow_only": True,
+                "ordinary_pair_shadow_reason": "identified_device_interior_pin_context",
+                "device_interior_context": {"parent_handle": parent, "device_authority": authority,
+                    "source_line_ids": list(group.member_line_ids),
+                    "bbox": [box[k] for k in ("min_x", "min_y", "max_x", "max_y")],
+                    "internal_connectivity_inferred": False, "electrical_union_eligible": False}})
+            break
+    result = []
+    text_by_id = {text.text_id: text for text in texts}
+    for lead in lines:
+        if lead.layer.upper() != "CONNECT" or lead.source_block_name or lead.length <= 0:
+            continue
+        endpoints = [(lead.start_x, lead.start_y), (lead.end_x, lead.end_y)]
+        matches = {}
+        for boundary, external in (endpoints, endpoints[::-1]):
+            sheet_texts = texts_by_sheet[(lead.sheet_id, lead.file_id)]
+            for pin in sheet_texts:
+                context = _device_pin_label_context(pin)
+                anchor, inner = context.get("label_anchor"), context.get("stub_inner_point")
+                body = text_by_id.get(context.get("body_text_id"))
+                if (body is None or body.sheet_id != lead.sheet_id or body.file_id != lead.file_id
+                        or body.normalized_text != context.get("body_value")
+                        or not re.fullmatch(r"\d+(?:-\d+)*n", body.normalized_text, re.IGNORECASE)
+                        or not re.fullmatch(r"\d{2,4}", pin.normalized_text)
+                        or not context.get("insert_handle") or not context.get("definition_line_handle")
+                        or not all(isinstance(p, list) and len(p) == 2 for p in (anchor, inner))):
+                    continue
+                stub_length = math.dist(anchor, inner)
+                if stub_length <= 0 or stub_length > 3 * pin.height:
+                    continue
+                connection = _device_pin_native_lead_connection(
+                    lead, boundary, context, native_leads_by_sheet[(lead.sheet_id, lead.file_id)], pin.height)
+                if connection is None:
+                    continue
+                pin_boundary, connector_ids = connection
+                vector = [pin_boundary[i]-external[i] for i in (0, 1)]
+                vector_length = math.hypot(*vector)
+                if vector_length <= 0 or abs(sum(vector[i]*(inner[i]-anchor[i]) for i in (0,1)))/(vector_length*stub_length) < 0.98:
+                    continue
+                terminals = []
+                for terminal in sheet_texts:
+                    if terminal.text_id == pin.text_id:
+                        continue
+                    try:
+                        ports = json.loads(terminal.physical_ports_json)
+                    except (ValueError, TypeError):
+                        continue
+                    for port in ports if isinstance(ports,list) else []:
+                        if not isinstance(port,dict) or port.get("source") != "reciprocal_cad_label_and_terminal_geometry":
+                            continue
+                        position, direction = port.get("position"), port.get("outward_direction")
+                        if (not all(isinstance(p,list) and len(p)==2 for p in (position,direction))
+                                or math.dist(position,external)>0.25
+                                or sum(vector[i]*direction[i] for i in (0,1))/vector_length<0.98):
+                            continue
+                        terminals.append((terminal,port))
+                if len(terminals) != 1:
+                    continue
+                terminal, port = terminals[0]
+                authority = {"family_rule":"cad-declared-device-pin-label-v1", "body_value":body.normalized_text,
+                             "body_text_id":body.text_id, "model_text_id":None,
+                             "native_connector_line_ids": connector_ids}
+                matches[(body.normalized_text,pin.text_id,terminal.text_id)] = (
+                    None,authority,None,pin,terminal,port,pin_boundary,external)
+            if abs(lead.start_y-lead.end_y) > 0.01:
+                continue
+            for box, authority, parent in bodies[(lead.sheet_id, lead.file_id)]:
+                on_left = abs(boundary[0]-box["min_x"]) <= 0.25 and external[0] < box["min_x"]-0.25
+                on_right = abs(boundary[0]-box["max_x"]) <= 0.25 and external[0] > box["max_x"]+0.25
+                sheet_texts = texts_by_sheet[(lead.sheet_id, lead.file_id)]
+                pins = []
+                for text in sheet_texts:
+                    if text.text_id not in authority["pin_text_ids"]:
+                        continue
+                    context = _device_pin_label_context(text)
+                    point = context.get("stub_inner_point")
+                    anchor = context.get("label_anchor")
+                    via_stub = (context.get("body_text_id") == authority["body_text_id"]
+                                and isinstance(anchor, list) and len(anchor) == 2
+                                and math.dist(anchor, boundary) <= 0.25
+                                and _device_stub_inside_box(context, box, text.height)
+                                and ((external[0] < box["min_x"] <= boundary[0] < point[0]
+                                      and boundary[0]-box["min_x"] <= text.height*2)
+                                     or (external[0] > box["max_x"] >= boundary[0] > point[0]
+                                         and box["max_x"]-boundary[0] <= text.height*2))
+                                and abs(point[1]-boundary[1]) <= 0.25)
+                    directly_on_body = ((on_left or on_right) and box["min_y"] < boundary[1] < box["max_y"]
+                                        and abs(text.rotation_deg % 180) < 0.01
+                                        and abs(text.insert_y-boundary[1]) <= text.height*0.5
+                                        and abs(text.insert_x-boundary[0]) <= text.height*2)
+                    if via_stub or directly_on_body:
+                        pins.append(text)
+                if len(pins) != 1:
+                    continue
+                terminals = []
+                for text in sheet_texts:
+                    if not re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", text.normalized_text) or not any(c.isdigit() for c in text.normalized_text):
+                        continue
+                    try:
+                        ports = json.loads(text.physical_ports_json)
+                    except (ValueError, TypeError):
+                        continue
+                    for port in ports if isinstance(ports, list) else []:
+                        if not isinstance(port, dict) or port.get("source") != "reciprocal_cad_label_and_terminal_geometry":
+                            continue
+                        position, direction = port.get("position"), port.get("outward_direction")
+                        if not isinstance(position, list) or not isinstance(direction, list) or len(position) != 2 or len(direction) != 2:
+                            continue
+                        if math.dist(position, external) > 0.25:
+                            continue
+                        vector = [boundary[i]-external[i] for i in (0, 1)]
+                        if sum(vector[i]*direction[i] for i in (0, 1))/lead.length < 0.98:
+                            continue
+                        if text.text_id != pins[0].text_id:
+                            terminals.append((text, port))
+                if len(terminals) != 1:
+                    continue
+                terminal, port = terminals[0]
+                key = (authority["body_value"], pins[0].text_id, terminal.text_id)
+                matches[key] = (box, authority, parent, pins[0], terminal, port, boundary, external)
+        if len(matches) != 1:
+            continue
+        box, authority, parent, pin, terminal, port, boundary, external = next(iter(matches.values()))
+        logical = f"{authority['body_value']}{pin.normalized_text}"
+        if any(p.evidence.get("component_submode") == "explicit_external_device_lead" and {p.left_value, p.right_value} == {logical, terminal.normalized_text}
+               and p.sheet_id == lead.sheet_id for p in ordinary_pairs):
+            continue
+        page = page_by_id[lead.sheet_id]
+        pair = Pair(
+            pair_id=pair_ids.next(), line_group_id=None, sheet_id=lead.sheet_id, file_id=lead.file_id,
+            selected_pair_candidate_id=None, left_value=logical, right_value=terminal.normalized_text,
+            confidence=0.98, status="pass", confidence_bucket="high",
+            rationale="Explicit external CONNECT lead joins a CAD-owned terminal contact to one identified device pin.",
+            left_text_id=pin.text_id, right_text_id=terminal.text_id,
+            left_coord_x=boundary[0], left_coord_y=boundary[1], right_coord_x=external[0], right_coord_y=external[1],
+            pair_key=f"{logical}->{terminal.normalized_text}", pair_kind="wire_component_mapping",
+            evidence={"source": "wire_component_mapping", "component_submode": "explicit_external_device_lead",
+                      "component_prefix": authority["body_value"], "component_prefix_text_id": authority["body_text_id"],
+                      "component_model_text_id": authority["model_text_id"], "local_number": pin.normalized_text,
+                      "local_number_text_id": pin.text_id, "external_endpoint": terminal.normalized_text,
+                      "external_endpoint_text_id": terminal.text_id, "logical_endpoint": logical,
+                      "component_bbox": [box[k] for k in ("min_x", "min_y", "max_x", "max_y")] if box else None,
+                      "device_identity_authority": authority["family_rule"],
+                      "device_enclosure_parent_handle": parent, "source_line_ids": [lead.line_id],
+                      "native_connector_line_ids": authority.get("native_connector_line_ids", []),
+                      "line_start": list(external), "line_end": list(boundary), "physical_endpoint": port,
+                      "device_pin_label_context": _device_pin_label_context(pin),
+                      "filename": page.filename, "sheet_title": page.sheet_title,
+                      "internal_connectivity_inferred": False, "electrical_union_eligible": False},
+        )
+        result.append(pair)
+        for group in groups:
+            if group.sheet_id != lead.sheet_id or group.file_id != lead.file_id or lead.line_id not in group.member_line_ids:
+                continue
+            others = [line_by_id.get(i) for i in group.member_line_ids if i != lead.line_id]
+            enclosure_covers_others = box is not None and not any(line is None or line.layer != "0" or line.source_block_name
+                   or not (box["min_x"] <= line.bbox_min_x <= line.bbox_max_x <= box["max_x"]
+                           and box["min_y"] <= line.bbox_min_y <= line.bbox_max_y <= box["max_y"])
+                   for line in others)
+            for ordinary in ordinary_pairs:
+                selected_ids = {i for i in (ordinary.left_text_id,ordinary.right_text_id,
+                                           ordinary.evidence.get("logical_endpoint_text_id")) if i}
+                exact_endpoints = selected_ids == {pin.text_id,terminal.text_id}
+                declared_replacement = (authority["family_rule"] == "cad-declared-device-pin-label-v1"
+                    and ordinary.evidence.get("logical_endpoint_text_id") == terminal.text_id)
+                if (ordinary.pair_kind == "ordinary_pair" or ordinary.evidence.get("component_submode") in {
+                        "schematic_wire_logic_annotation","schematic_wire_logic_endpoint"}) and ordinary.line_group_id == group.line_group_id and (exact_endpoints or enclosure_covers_others or declared_replacement):
+                    ordinary.evidence.update({"ordinary_pair_eligible": False, "ordinary_pair_shadow_only": True,
+                        "ordinary_pair_shadow_reason": "external_lead_separated_from_device_artwork",
+                        "external_lead_mapping_pair_id": pair.pair_id,
+                        "covered_by_pair_ids": [pair.pair_id], "covered_source_line_ids": [lead.line_id],
+                        "resolved_device_pin_text_id": pin.text_id})
+    return result
 
 
 def _equivalent_polyline_bbox(left: dict[str, object], right: dict[str, object]) -> bool:
@@ -3052,12 +3423,25 @@ def _mark_terminal_prefixed_endpoint_ordinary_pairs(
     covered_text_ids = _terminal_header_table_text_ids(table_mappings)
     if not covered_text_ids:
         return
+    row_claims = [
+        (str(mapping.get("sheet_id") or ""),
+         {str(mapping[key]) for key in ("middle_text_id", "left_text_id", "right_text_id")
+          if mapping.get(key)})
+        for mapping in _iter_terminal_header_table_mappings(table_mappings)
+        if mapping.get("mapping_mode") == "terminal_header_table"
+    ]
     for pair in pairs:
         if pair.pair_kind != "ordinary_pair":
             continue
         if pair.status == "discard":
             continue
         if not _pair_uses_any_selected_text_id(pair, covered_text_ids):
+            continue
+        selected_ids = _pair_selected_text_ids(pair)
+        matching_rows = [ids for sheet_id, ids in row_claims
+                         if sheet_id == pair.sheet_id and len(selected_ids) >= 2
+                         and selected_ids.issubset(ids)]
+        if not matching_rows:
             continue
 
         uses_prefixed = _uses_derived_prefixed_terminal_endpoint(pair)
@@ -3081,6 +3465,7 @@ def _mark_terminal_prefixed_endpoint_ordinary_pairs(
             pair.evidence["covered_by_terminal_header_table_row"] = True
         pair.evidence["ordinary_pair_eligible"] = False
         pair.evidence["ordinary_pair_shadow_only"] = True
+        pair.evidence["covered_by_terminal_row_text_ids"] = sorted(selected_ids)
         pair.evidence["ordinary_pair_shadow_reason"] = (
             "covered_by_terminal_structured_endpoint"
             if uses_prefixed
@@ -3214,7 +3599,8 @@ def _iter_terminal_header_table_mappings(
     for item in table_mappings:
         nested = item.get("mappings")
         if isinstance(nested, list):
-            rows.extend(row for row in nested if isinstance(row, dict))
+            rows.extend({"sheet_id": item.get("sheet_id"), **row}
+                        for row in nested if isinstance(row, dict))
         else:
             rows.append(item)
     return rows

@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from ezdxf.path import make_path
+from ezdxf.path import from_hatch
+from dwg_audit.extract.text_geometry import cad_text_geometry
 
 
 PRIMITIVE_SCHEMA_VERSION = "primitive-segment-v1"
@@ -40,6 +42,8 @@ class PrimitiveSegment:
     reader_backend: str
     reader_version: str | None
     source_status: str
+    preview_geometry_json: str = "{}"
+    visible: bool = True
 
 
 def normalize_document_primitives(
@@ -54,6 +58,17 @@ def normalize_document_primitives(
     """Normalize modelspace entities without feeding legacy recognition."""
     records: list[PrimitiveSegment] = []
 
+    def entity_visible(entity: Any, effective_layer: str) -> bool:
+        if bool(getattr(entity.dxf, "invisible", 0)):
+            return False
+        if entity.dxftype() in {"ATTRIB", "ATTDEF"} and entity.is_invisible:
+            return False
+        if document.layers.has_entry(effective_layer):
+            layer = document.layers.get(effective_layer)
+            if layer.is_off() or layer.is_frozen():
+                return False
+        return True
+
     def emit(
         source: Any,
         world: Any,
@@ -67,12 +82,32 @@ def normalize_document_primitives(
         world_geometry_override: dict[str, Any] | None = None,
         primitive_kind_override: str | None = None,
         transform_override: dict[str, Any] | None = None,
+        inherited_visible: bool = True,
     ) -> None:
         source_type = source.dxftype()
         world_type = world.dxftype()
         local_geometry = local_geometry_override or _geometry(source)
         world_geometry = world_geometry_override or _geometry(world)
         bbox = _geometry_bbox(world_geometry)
+        preview_geometry = {}
+        if world_type in {"CIRCLE", "ARC", "ELLIPSE"} and not world.dxf.extrusion.isclose((0, 0, 1)):
+            if world_type == "ELLIPSE":
+                axis_x, axis_y = world.dxf.major_axis, world.minor_axis
+            else:
+                ocs = world.ocs()
+                axis_x = ocs.to_wcs((world.dxf.radius, 0, 0))
+                axis_y = ocs.to_wcs((0, world.dxf.radius, 0))
+            preview_geometry = {"curve_axis_x": _point(axis_x), "curve_axis_y": _point(axis_y)}
+        if world_type in {"TEXT", "MTEXT", "ATTRIB", "ATTDEF"}:
+            preview_geometry = cad_text_geometry(world)
+        if world_type == "HATCH" and bool(world.dxf.solid_fill):
+            try:
+                preview_geometry = {"rings": [
+                    [_point(p) for p in path.flattening(distance=0.01, segments=16)]
+                    for path in from_hatch(world)
+                ]}
+            except Exception:
+                preview_geometry = {"diagnostic": "HATCH_BOUNDARY_UNAVAILABLE"}
         handle = str(getattr(source.dxf, "handle", "") or "virtual")
         records.append(
             PrimitiveSegment(
@@ -107,6 +142,8 @@ def normalize_document_primitives(
                 reader_backend=reader_backend,
                 reader_version=reader_version,
                 source_status=source_status,
+                preview_geometry_json=_json(preview_geometry),
+                visible=inherited_visible and not bool(getattr(world.dxf, "invisible", 0)),
             )
         )
 
@@ -118,8 +155,13 @@ def normalize_document_primitives(
         definition_name: str | None = None,
         path: tuple[str, ...] = (),
         transform_chain: tuple[dict[str, Any], ...] = (),
+        inherited_visible: bool = True,
+        inherited_layer: str = "0",
     ) -> None:
         entity_type = world.dxftype()
+        layer = str(getattr(world.dxf, "layer", "0") or "0")
+        effective_layer = inherited_layer if layer == "0" else layer
+        inherited_visible = inherited_visible and entity_visible(world, effective_layer)
         source_handle = str(getattr(source.dxf, "handle", "") or "virtual")
         if entity_type == "INSERT":
             name = str(getattr(world.dxf, "name", "") or "")
@@ -133,6 +175,7 @@ def normalize_document_primitives(
                 definition_name=name or definition_name,
                 path=insert_path,
                 transform_override={"chain": child_transform_chain},
+                inherited_visible=inherited_visible,
             )
             for index, attrib in enumerate(getattr(world, "attribs", ())):
                 emit(
@@ -143,6 +186,9 @@ def normalize_document_primitives(
                     path=insert_path,
                     segment_index=index,
                     transform_override={"chain": child_transform_chain},
+                    inherited_visible=inherited_visible and entity_visible(
+                        attrib, effective_layer if attrib.dxf.layer == "0" else attrib.dxf.layer
+                    ),
                 )
             try:
                 source_children = list(source.block())
@@ -150,7 +196,7 @@ def normalize_document_primitives(
             except Exception:
                 return
             for index, world_child in enumerate(world_children):
-                source_child = source_children[index] if index < len(source_children) else world_child
+                source_child = world_child.source_of_copy or (source_children[index] if index < len(source_children) else world_child)
                 visit(
                     source_child,
                     world_child,
@@ -158,10 +204,13 @@ def normalize_document_primitives(
                     definition_name=name,
                     path=insert_path,
                     transform_chain=child_transform_chain,
+                    inherited_visible=inherited_visible and not bool(getattr(world.dxf, "invisible", 0)),
+                    inherited_layer=effective_layer,
                 )
             return
 
         if entity_type in {"LWPOLYLINE", "POLYLINE"}:
+            inherited_visible = inherited_visible and not bool(getattr(world.dxf, "invisible", 0))
             try:
                 source_parts = list(source.virtual_entities())
                 world_parts = list(world.virtual_entities())
@@ -180,6 +229,7 @@ def normalize_document_primitives(
                         segment_index=index,
                         local_geometry_override=_geometry(source_part),
                         transform_override={"chain": transform_chain},
+                        inherited_visible=inherited_visible,
                     )
                 return
             local_segments = _flattened_segments(source)
@@ -202,6 +252,7 @@ def normalize_document_primitives(
                         world_geometry_override=world_geometry,
                         primitive_kind_override="LINE",
                         transform_override={"chain": transform_chain},
+                        inherited_visible=inherited_visible,
                     )
                 return
 
@@ -220,6 +271,7 @@ def normalize_document_primitives(
             path=path,
             source_status="normalized" if supported else "unsupported_retained",
             transform_override={"chain": transform_chain},
+            inherited_visible=inherited_visible,
         )
 
     for entity in document.modelspace():
@@ -241,7 +293,7 @@ def _geometry(entity: Any) -> dict[str, Any]:
         return {"start": _point(entity.dxf.start), "end": _point(entity.dxf.end)}
     if entity_type in {"ARC", "CIRCLE"}:
         value: dict[str, Any] = {
-            "center": _point(entity.dxf.center),
+            "center": _point(entity.ocs().to_wcs(entity.dxf.center)),
             "radius": float(entity.dxf.radius),
         }
         if entity_type == "ARC":

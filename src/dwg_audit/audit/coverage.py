@@ -30,6 +30,8 @@ _COVERED_PAIR_KINDS = (
 )
 
 _ASSIGNED_KINDS = {
+    "superworks_endpoint",
+    "superworks_strip_cell",
     "pair_endpoint",
     "structured_mapping_endpoint",
     "semantic_evidence",
@@ -94,6 +96,8 @@ _TEXT_ASSIGNMENT_COLUMNS = [
     "candidate_channel",
     "candidate_status",
     "rejection_reason",
+    "resolution_status",
+    "candidate_decisions",
 ]
 
 _SUMMARY_COLUMNS = [
@@ -192,6 +196,8 @@ def _pair_assignments(pairs: list[Any]) -> dict[str, list[dict[str, Any]]]:
         status = getattr(pair, "status", None)
         evidence = getattr(pair, "evidence", {}) or {}
         assignment_kind = _pair_assignment_kind(pair_kind, status)
+        if evidence.get("source") == "superworks" and status != "discard":
+            assignment_kind = "superworks_strip_cell" if pair_kind == "table_mapping" else "superworks_endpoint"
         for side in ("left", "right"):
             text_id = getattr(pair, f"{side}_text_id", None)
             if not text_id:
@@ -199,8 +205,8 @@ def _pair_assignments(pairs: list[Any]) -> dict[str, list[dict[str, Any]]]:
             assignments[text_id].append(
                 {
                     "assignment_kind": assignment_kind,
-                    "explain_reason": f"covered_by_{pair_kind}",
-                    "assignment_source": "pair",
+                    "explain_reason": getattr(pair, "rationale", None) if status == "discard" else f"covered_by_{pair_kind}",
+                    "assignment_source": "superworks" if evidence.get("source") == "superworks" else "pair",
                     "pair_id": pair.pair_id,
                     "candidate_id": getattr(pair, f"{side}_candidate_id", None),
                     "line_group_id": pair.line_group_id,
@@ -210,8 +216,37 @@ def _pair_assignments(pairs: list[Any]) -> dict[str, list[dict[str, Any]]]:
                     "paired_value": getattr(pair, f"{side}_value", None),
                     "pair_status": status,
                     "pair_confidence_bucket": getattr(pair, "confidence_bucket", None),
+                    "label_only": bool(evidence.get("component_port_label_only")),
                 }
             )
+        endpoint_ids = {getattr(pair, "left_text_id", None), getattr(pair, "right_text_id", None)}
+        supporting_ids = {
+            str(evidence[key]) for key in ("component_body_text_id", "component_prefix_text_id")
+            if evidence.get(key)
+        }
+        supporting_ids.update(
+            str(item["text_id"]) for item in evidence.get("external_endpoint_alternatives", [])
+            if isinstance(item, dict) and item.get("text_id")
+        )
+        sw = evidence.get("superworks") or {}
+        for side in ("left", "right"):
+            endpoint = sw.get(side) or {}
+            supporting_ids.update(str(endpoint[k]) for k in ("label_text_id", "pin_text_id") if endpoint.get(k))
+        mapping = evidence.get("table_mapping") or {}
+        supporting_ids.update(str(mapping[key]) for key in
+                              ("header_text_id", "shuoming_text_id", "plugin_slot_text_id")
+                              if mapping.get(key))
+        for text_id in supporting_ids - endpoint_ids:
+            assignments[text_id].append({
+                "assignment_kind": "covered_discard" if status == "discard" else "semantic_evidence",
+                "explain_reason": "component_mapping_supporting_evidence",
+                "assignment_source": "pair", "pair_id": pair.pair_id,
+                "candidate_id": None, "line_group_id": pair.line_group_id,
+                "mapping_mode": evidence.get("mapping_mode"), "pair_kind": pair_kind,
+                "paired_side": "evidence", "paired_value": None,
+                "pair_status": status, "pair_confidence_bucket": getattr(pair, "confidence_bucket", None),
+                "label_only": bool(evidence.get("component_port_label_only")),
+            })
     return assignments
 
 
@@ -248,6 +283,8 @@ def _table_structure_assignments(
 
 def _best_pair_assignment(rows: list[dict[str, Any]]) -> dict[str, Any]:
     priority = {
+        "superworks_endpoint": -2,
+        "superworks_strip_cell": -1,
         "pair_endpoint": 0,
         "structured_mapping_endpoint": 1,
         "semantic_evidence": 2,
@@ -290,8 +327,8 @@ def _best_candidate(candidates: list[TerminalCandidate]) -> TerminalCandidate:
     return sorted(
         candidates,
         key=lambda item: (
+            0 if item.status != "rejected" else 1,
             priority.get(item.channel or "", 2),
-            0 if item.status == "rejected" else 1,
             -(item.score or 0.0),
             item.candidate_id,
         ),
@@ -450,6 +487,30 @@ def build_text_assignment_frame(
                         }
                     )
 
+        decisions = candidates_by_text_id.get(text.text_id, [])
+        row["candidate_decisions"] = [
+            {"candidate_id": item.candidate_id, "line_group_id": item.line_group_id,
+             "side": item.side, "status": item.status, "score": item.score,
+             "rejection_reason": item.rejection_reason}
+            for item in decisions
+        ]
+        if row["assignment_kind"] == "out_of_scope":
+            resolution = "out_of_scope"
+        elif pair_rows:
+            active = [item for item in pair_rows if item["pair_status"] != "discard"]
+            if any(item["pair_status"] == "pass" for item in active):
+                resolution = "resolved"
+            elif active and all(item.get("label_only") for item in active):
+                resolution = "label_only"
+            else:
+                resolution = "review" if active else "discarded"
+        elif row["assignment_source"] == "table_mapping_structure":
+            resolution = "structural_evidence"
+        elif decisions:
+            resolution = "unselected" if any(item.status != "rejected" for item in decisions) else "rejected"
+        else:
+            resolution = "unexplained"
+        row["resolution_status"] = resolution
         rows.append(row)
 
     frame = pd.DataFrame(rows)
@@ -647,6 +708,7 @@ def build_entity_coverage_summary(
             "suspicious_out_of_scope_expansion": False,
             "out_of_scope_reason_counts": {},
             "assignment_kind_counts": {},
+            "resolution_status_counts": {},
             "page_summaries": [],
             "route_summaries": [],
             "page_type_summaries": [],
@@ -809,6 +871,9 @@ def build_entity_coverage_summary(
         "suspicious_out_of_scope_expansion": suspicious_out_of_scope_expansion,
         "out_of_scope_reason_counts": out_of_scope_reason_counts,
         "assignment_kind_counts": dict(sorted(Counter(text_assignments["assignment_kind"]).items())),
+        # Accounting coverage includes rejections and discards; it must not be
+        # presented as the rate of successfully recognized terminal identities.
+        "resolution_status_counts": dict(sorted(Counter(text_assignments.get("resolution_status", [])).items())),
         "page_summaries": sorted(page_rows, key=lambda item: (item["sheet_order"], item["sheet_id"])),
         "route_summaries": route_rows,
         "page_type_summaries": page_type_rows,
