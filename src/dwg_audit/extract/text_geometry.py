@@ -6,7 +6,26 @@ from typing import Any
 from ezdxf.disassemble import make_primitive
 from ezdxf.entities.dxfgfx import get_font_name
 from ezdxf.fonts import fonts
+from ezdxf.lldxf.const import DXFTableEntryError
 from ezdxf.tools.text import text_wrap
+
+
+def style_width_factor(entity: Any) -> float:
+    """Return the width factor of the entity's text style (default 1.0).
+
+    ezdxf measures text with the factor it is given; a style's own width factor
+    (for example 0.7) is not applied unless it is passed explicitly.
+    """
+    doc = getattr(entity, "doc", None)
+    if doc is None:
+        return 1.0
+    try:
+        style = doc.styles.get(entity.dxf.get("style", "Standard"))
+    except DXFTableEntryError:
+        return 1.0
+    factor = style.dxf.get("width", 1.0) if style is not None else 1.0
+    factor = float(factor or 1.0)
+    return factor if factor > 0 else 1.0
 
 
 def cad_text_geometry(entity: Any) -> dict[str, Any]:
@@ -14,12 +33,19 @@ def cad_text_geometry(entity: Any) -> dict[str, Any]:
 
     ezdxf applies alignment, font metrics, width and OCS here. This is a layout
     estimate, not a claim of exact glyph outlines or full MTEXT formatting.
+    The width factor is the entity's own TEXT width when present, otherwise the
+    text style's width factor.
     """
     try:
         layout = entity
         line_metrics = {}
+        if entity.dxftype() in ("TEXT", "ATTRIB", "ATTDEF") and not entity.dxf.hasattr("width"):
+            # ezdxf measures a TEXT with its own width attribute only, so the
+            # style factor is supplied on a copy and the source entity is untouched.
+            layout = entity.copy()
+            layout.dxf.width = style_width_factor(entity)
         if entity.dxftype() == "MTEXT" and entity.columns is None:
-            font = fonts.make_font(get_font_name(entity), entity.dxf.char_height, 1.0)
+            font = fonts.make_font(get_font_name(entity), entity.dxf.char_height, style_width_factor(entity))
             box_width = entity.dxf.get("width", 0.0)
             content = entity.plain_text()
             if not content.strip():

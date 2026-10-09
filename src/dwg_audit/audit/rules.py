@@ -4,6 +4,7 @@ from collections import defaultdict
 import math
 import re
 
+from dwg_audit.audit.candidates import _is_ascending_schematic_terminal_range
 from dwg_audit.audit.graph_builder import PairGraphSummary
 from dwg_audit.audit.graph_builder import build_pair_graph
 from dwg_audit.audit.rule_base import AuditRule
@@ -29,6 +30,99 @@ _SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"(ZK-\d+)", re.IGNORECASE),
 )
 _HIGH_CONFIDENCE_STRUCTURED_SOURCES = {"table_mapping", "component_mapping"}
+# Component-diagram submodes shared by the legacy and SuperWORKS producers.
+# A SuperWORKS connect-line port names its own body/port split through the
+# logical endpoint, so it can corroborate a legacy component-diagram view.
+_COMPONENT_DIAGRAM_SUBMODES = frozenset(
+    {
+        "kk_multi_port_component",
+        "strip_two_port_component",
+        "inline_two_port_component",
+        "small_port_box_component",
+        "opposed_port_panel",
+        "four_port_contact_component",
+    }
+)
+# F3/F4: the old chain (commit 994d0e7) owns the ascending terminal-range
+# endpoint semantics.  The fallback only widens the prefix so the same
+# semantics also cover non-QD ranges such as 7UD16~18.
+_TERMINAL_RANGE_FALLBACK_PATTERN = re.compile(
+    r"^(?P<prefix>\d*[A-Za-z][0-9A-Za-z]*?)(?P<start>\d+)[~～](?P<end>\d+)$"
+)
+
+
+def _is_terminal_range_endpoint(value: object) -> bool:
+    """Reuse the old-chain ascending terminal-range endpoint semantics."""
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if _is_ascending_schematic_terminal_range(text):
+        return True
+    match = _TERMINAL_RANGE_FALLBACK_PATTERN.fullmatch(text)
+    if match is None:
+        return False
+    return int(match.group("start")) < int(match.group("end"))
+
+
+# G5/G9: the dashed variant admits device-prefixed ranges such as 1-4Q1D7~8.
+# It is only used for range expansion (coverage/equivalence), never to widen
+# the bridge-claim predicate above.
+_TERMINAL_RANGE_DASHED_PATTERN = re.compile(
+    r"^(?P<prefix>[0-9-]*[A-Za-z][0-9A-Za-z-]*?)(?P<start>\d+)[~～](?P<end>\d+)$"
+)
+_TERMINAL_RANGE_MAX_SPAN = 64
+
+
+def _terminal_range_members(value: object) -> set[str]:
+    """Expand an ascending terminal range (7QD9~10, 7UD16~18, 1-4Q1D7~8) to identities.
+
+    Returns an empty set for anything that is not an ascending range. The
+    members use the same identity normalization as the endpoint comparisons.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return set()
+    match = _TERMINAL_RANGE_FALLBACK_PATTERN.fullmatch(text) or _TERMINAL_RANGE_DASHED_PATTERN.fullmatch(text)
+    if match is None:
+        return set()
+    start, end = int(match.group("start")), int(match.group("end"))
+    if not start < end or end - start > _TERMINAL_RANGE_MAX_SPAN:
+        return set()
+    prefix = match.group("prefix")
+    return {_terminal_endpoint_identity(f"{prefix}{number}") for number in range(start, end + 1)}
+
+
+def _bridge_covered_terminal_identities(linked_pairs: list[Pair]) -> set[str]:
+    """Terminals spanned by a range value in the group (e.g. 7QD9~10 covers 7QD9 and 7QD10).
+
+    Bridge claims cover their range on both sides (G5). K2: a non-bridge pair's
+    range left value also covers its members, so a member listed separately in
+    the same group (1-7UD20~21 with 1-7UD21) is the same end, not a second left.
+    """
+    covered: set[str] = set()
+    for pair in linked_pairs:
+        values = (
+            (pair.left_value, pair.right_value)
+            if _is_terminal_strip_bridge_claim(pair)
+            else (pair.left_value,)
+        )
+        for value in values:
+            covered |= _terminal_range_members(value)
+    return covered
+
+
+def _values_are_one_terminal_end(values: list[str]) -> bool:
+    """True when every value is a range or a member of one range (1-4Q1D7~8 and 1-4Q1D7)."""
+    expanded = [
+        _terminal_range_members(value) or {_terminal_endpoint_identity(value)}
+        for value in values
+    ]
+    for value, container in zip(values, expanded):
+        if not _terminal_range_members(value):
+            continue
+        if all(members <= container for members in expanded):
+            return True
+    return False
 
 
 def build_issues(
@@ -503,6 +597,7 @@ def _run_duplicate_same_line(context: RuleContext) -> list[Issue]:
 
 def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
+    strip_links = _superworks_strip_link_index(context.pairs)
     scoped_pairs=defaultdict(list)
     for pair in _high_confidence_pairs(context):
         if pair.pair_kind=="table_mapping" and _is_superworks_pair(pair):
@@ -513,10 +608,20 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
         scoped_pairs[key].append(pair)
     for key,linked_pairs in scoped_pairs.items():
         left_value=key[0]
-        rights={pair.right_value for pair in linked_pairs if pair.right_value}
+        # F3/F4: a same-row short/series span (range endpoint or bridge) is not
+        # an independent connection, so it cannot create a cross-page conflict.
+        rights={pair.right_value for pair in linked_pairs
+                if pair.right_value and not _is_terminal_strip_bridge_claim(pair)}
         sheet_ids = {pair.sheet_id for pair in linked_pairs}
         if len(rights) > 1 and len(sheet_ids) > 1:
             first = linked_pairs[0]
+            # G9: the other ends are one range and its member (1-4Q1D7~8 and 1-4Q1D7).
+            if _values_are_one_terminal_end(sorted(rights)):
+                continue
+            # G8: a terminal strip records this end against every other end
+            # (SuperWORKS one-end multi-wire, e.g. KD23 on 1-2QD7 and 1-2QD8).
+            if _is_strip_recorded_one_end_multi_wire(left_value, sorted(rights), strip_links):
+                continue
             if _is_authoritative_terminal_strip_backplate_attachment_group(linked_pairs):
                 continue
             if _is_authoritative_inline_component_cross_diagram_correspondence(linked_pairs):
@@ -524,6 +629,11 @@ def _run_cross_page_conflict(context: RuleContext) -> list[Issue]:
             if all(_is_superworks_pair(pair) for pair in linked_pairs) and _is_authoritative_structured_cardinality_group(linked_pairs):
                 continue
             if _is_page_local_numeric_three_column_group(linked_pairs, left_value):
+                continue
+            if _is_authoritative_cross_view_group(linked_pairs, shared_value=left_value, shared_side="left"):
+                # One connection described once per view (schematic, terminal
+                # strip, component/backplate diagram) is not a cross-page
+                # contradiction.
                 continue
             if _are_backplate_pairs_in_distinct_explicit_scopes(linked_pairs):
                 continue
@@ -672,6 +782,171 @@ def _run_semantic_mapping_conflict(context: RuleContext) -> list[Issue]:
     return issues
 
 
+def _is_terminal_strip_bridge_claim(pair: Pair) -> bool:
+    """Same-row terminal short/series bridge, from either producer (F4)."""
+    evidence = pair.evidence or {}
+    if getattr(pair, "pair_kind", "") == "bridge_mapping":
+        return True
+    if evidence.get("semantic_kind") == "terminal_bridge_mapping" or evidence.get("bridge_mapping_kind"):
+        return True
+    if evidence.get("terminal_short_bridge") or evidence.get("series_chain"):
+        return True
+    # K3: a terminal-strip connection text that starts with "&" is a jumper to
+    # the adjacent strip. The same terminal is joined across strips, so it is a
+    # series bridge, not an independent competing wire.
+    if evidence.get("strip_connection_jumper") is True:
+        return True
+    # G7: a cross-strip wire that the terminal-strip tables corroborate is one
+    # terminal-to-terminal connection, not an independent competing value.
+    # An uncorroborated cross-strip link stays an ordinary pair.
+    if evidence.get("terminal_cross_strip_link") and evidence.get("strip_corroborated") is True:
+        return True
+    if (evidence.get("table_mapping") or {}).get("same_strip_destination"):
+        return True
+    # F4: a terminal-range endpoint (e.g. 1QD39~40) is a same-row short/series
+    # span, so it is never an ordinary terminal mapping.
+    return _is_terminal_range_endpoint(pair.left_value) or _is_terminal_range_endpoint(pair.right_value)
+
+
+def _superworks_strip_link_index(pairs: list[Pair]) -> set[frozenset[str]]:
+    """Identity pairs that one SuperWORKS terminal-strip row records as connected.
+
+    A strip row relates its logical terminal (pair.left_value) with the value
+    wired to it (pair.right_value), on either side or branch of the strip.
+    """
+    links: set[frozenset[str]] = set()
+    for pair in pairs:
+        if pair.pair_kind != "table_mapping" or pair.status != "pass" or not _is_superworks_pair(pair):
+            continue
+        if not pair.left_value or not pair.right_value:
+            continue
+        first = _terminal_endpoint_identity(pair.left_value)
+        second = _terminal_endpoint_identity(pair.right_value)
+        if first and second and first != second:
+            links.add(frozenset({first, second}))
+    return links
+
+
+def _is_strip_recorded_one_end_multi_wire(
+    shared_value: str,
+    other_values: list[str],
+    strip_links: set[frozenset[str]],
+) -> bool:
+    """G8: one terminal feeding several other ends, each recorded by a terminal strip.
+
+    The shared end is a legal one-end-to-many-wires junction when the terminal
+    strip itself records the shared end against every other end of the group.
+    """
+    shared_id = _terminal_endpoint_identity(shared_value)
+    other_ids = {_terminal_endpoint_identity(value) for value in other_values}
+    other_ids.discard("")
+    if not shared_id or len(other_ids) < 2 or shared_id in other_ids:
+        return False
+    return all(frozenset({shared_id, other_id}) in strip_links for other_id in other_ids)
+
+
+_LEGACY_TABLE_VIEWS = {
+    "terminal_header_table": "terminal_strip",
+    "backplate_virtual_table": "backplate",
+    "numeric_three_column": "numeric_table",
+}
+# XDATA style marking a terminal-strip connection to an internal component.
+_INTERNAL_STRIP_ENDPOINT_STYLE = "端子排内接元件"
+
+
+def _pair_view_identity(pair: Pair) -> tuple[str, str, str] | None:
+    """The (view, view_key, scope_key) a structured pair uses to describe its view (F3).
+
+    SuperWORKS pairs carry an explicit ``view_scope`` record; legacy structured
+    mappings reuse the same view vocabulary so both producers hit the same
+    cross-view exemption instead of a blanket SuperWORKS exemption.
+    """
+
+    evidence = pair.evidence or {}
+    file_id = str(pair.file_id or "")
+    sheet_id = str(pair.sheet_id or "")
+    if not file_id or not sheet_id:
+        return None
+    if _is_superworks_pair(pair):
+        scope = evidence.get("view_scope")
+        if not isinstance(scope, dict) or str(scope.get("source") or "") != "superworks":
+            return None
+        if not all(str(scope.get(key) or "").strip() for key in ("view", "view_key", "scope_key", "record_id")):
+            return None
+        return str(scope["view"]), str(scope["view_key"]), str(scope["scope_key"])
+    if pair.pair_kind == "table_mapping" and _is_authoritative_table_mapping_group([pair]):
+        mapping = _table_mapping_evidence(pair)
+        view = _LEGACY_TABLE_VIEWS.get(str(mapping.get("mapping_mode") or ""))
+        record = str(mapping.get("middle_text_id") or mapping.get("row_number") or "")
+        if not view or not record:
+            return None
+        return view, f"{file_id}:{sheet_id}:{view}", f"{file_id}:{sheet_id}:{record}"
+    if pair.pair_kind == "component_mapping" and _is_authoritative_component_mapping_pair(pair):
+        submode = str(evidence.get("component_submode") or "")
+        body = str(evidence.get("component_body") or "")
+        port = str(evidence.get("component_port") or "")
+        if not submode or not body or not port:
+            return None
+        view = "component_diagram" if submode in _COMPONENT_DIAGRAM_SUBMODES else "schematic"
+        return view, f"{file_id}:{sheet_id}:{view}", f"{file_id}:{sheet_id}:{body}:{port}"
+    return None
+
+
+def _is_authoritative_cross_view_group(
+    linked_pairs: list[Pair],
+    *,
+    shared_value: object,
+    shared_side: str,
+) -> bool:
+    """One connection described once per view is neither duplicate nor many-to-one (F3).
+
+    Accepted only when every claim is a complete high-confidence structured
+    claim with its own view/scope identity, the views come from at least two
+    different diagram categories and every view/scope is distinct, at least one
+    claim is an authoritative structured mapping, and the same ordered
+    connection is repeated across two different views.  A bare (non-anchored)
+    SuperWORKS wire claim, or two rows of the same diagram category, therefore
+    still produces the original issue.
+    """
+
+    if len(linked_pairs) < 2 or not str(shared_value or ""):
+        return False
+    shared = str(shared_value)
+    views: set[str] = set()
+    view_keys: set[str] = set()
+    scope_keys: set[str] = set()
+    anchored = 0
+    connection_counts: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for pair in linked_pairs:
+        if pair.status != "pass" or not _is_native_finite_number(pair.confidence) or pair.confidence < 0.95:
+            return False
+        other_side = "left" if shared_side == "right" else "right"
+        if str(getattr(pair, f"{shared_side}_value") or "") != shared:
+            return False
+        other = str(getattr(pair, f"{other_side}_value") or "")
+        if not other or _terminal_endpoint_identity(other) == _terminal_endpoint_identity(shared):
+            return False
+        identity = _pair_view_identity(pair)
+        if identity is None:
+            return False
+        view, view_key, scope_key = identity
+        views.add(view)
+        view_keys.add(view_key)
+        scope_keys.add(scope_key)
+        if _superworks_structured_source_kind(pair) is not None or _is_authoritative_table_mapping_group([pair]) \
+                or _is_authoritative_component_mapping_pair(pair):
+            anchored += 1
+        connection_counts[(str(pair.left_value or ""), str(pair.right_value or ""))].add(view_key)
+    if len(views) < 2:
+        return False
+    if len(view_keys) != len(linked_pairs) or len(scope_keys) != len(linked_pairs):
+        return False
+    if anchored < 1:
+        return False
+    # A cross-view convergence must actually repeat one connection in two views.
+    return any(len(view_set) > 1 for view_set in connection_counts.values())
+
+
 def _run_table_mapping_source_conflict(context: RuleContext) -> list[Issue]:
     grouped: dict[str, dict[str, list[Pair]]] = defaultdict(lambda: {"table_mapping": [], "ordinary_pair": []})
     for pair in _high_confidence_pairs(context):
@@ -679,6 +954,10 @@ def _run_table_mapping_source_conflict(context: RuleContext) -> list[Issue]:
             continue
         source_kind = _table_mapping_source_kind(pair)
         if source_kind not in {"table_mapping", "ordinary_pair"}:
+            continue
+        if _is_terminal_strip_bridge_claim(pair):
+            # A same-row short or series bridge is never an ordinary terminal
+            # mapping, so it cannot be compared against the strip declaration.
             continue
         grouped[pair.left_value][source_kind].append(pair)
 
@@ -704,7 +983,14 @@ def _run_table_mapping_source_conflict(context: RuleContext) -> list[Issue]:
             table_values={pair.right_value for pair in slot_pairs if pair.right_value}
             slot_ordinary_pairs=ordinary_pairs
             if slot[0]!="legacy":
-                expected_categories={"端子","装置端子"} if slot[1]=="left" else {"内部元件","线圈","接插件"}
+                slot_mapping=_table_mapping_evidence(slot_pairs[0])
+                if str(slot_mapping.get("endpoint_style") or "")==_INTERNAL_STRIP_ENDPOINT_STYLE:
+                    # F4: an internal strip-component connection is a different
+                    # physical side from an external schematic connection, so it
+                    # can only be compared against internal ordinary pairs.
+                    expected_categories={"内部元件","线圈","接插件"}
+                else:
+                    expected_categories={"端子","装置端子"} if slot[1]=="left" else {"内部元件","线圈","接插件"}
                 slot_ordinary_pairs=[pair for pair in ordinary_pairs
                     if _sw_other_endpoint_category(pair,left_value) in expected_categories]
                 # A legacy ordinary pair has no SW endpoint category, and cannot
@@ -768,6 +1054,10 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
             # dedicated table-vs-ordinary rule.
             continue
         backplate_scope_info = _backplate_virtual_table_same_sheet_scope_info(linked_pairs)
+        if _is_authoritative_cross_view_group(linked_pairs, shared_value=left_value, shared_side="left"):
+            # The same source endpoint described once per view fans out to the
+            # other views' own targets; that is not an ordinary one-to-many.
+            continue
         if backplate_scope_info is not None:
             issues.append(
                 context.issue_factory.build(
@@ -909,6 +1199,54 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
     return issues
 
 
+def _is_many_to_one_structured_exemption(
+    linked_pairs: list[Pair],
+    context: RuleContext,
+    right_value: str,
+) -> bool:
+    """Structured exemptions that turn one shared right endpoint into a legal junction.
+
+    The sequence is shared by the full group and by its non-bridge subgroup (G6);
+    it only ever removes findings, never adds one.
+    """
+    if is_cross_view_terminal_series_chain(linked_pairs):
+        # Producer-owned series junction (wire -> terminal -> component
+        # port); the chain auditor owns this group and records it in
+        # series_chains.json, so it is not a many-to-one conflict.
+        return True
+    if _is_page_local_numeric_three_column_many_to_one_group(
+        linked_pairs,
+        right_value,
+    ):
+        return True
+    if _is_authoritative_cross_view_group(linked_pairs, shared_value=right_value, shared_side="right"):
+        # One shared endpoint described once per view (schematic,
+        # terminal strip, component/backplate diagram) is a legitimate
+        # convergence, not a many-to-one conflict.
+        return True
+    if _is_authoritative_structured_cardinality_group(linked_pairs):
+        return True
+    if _is_authoritative_component_table_cross_diagram_endpoint_group(
+        linked_pairs,
+        context.pairs,
+        shared_value=right_value,
+    ):
+        return True
+    if _is_authoritative_terminal_header_reciprocal_chain_group(
+        linked_pairs,
+        context.pairs,
+        right_value,
+    ):
+        return True
+    if _is_authoritative_terminal_header_reciprocal_physical_cluster_group(
+        linked_pairs,
+        context.pairs,
+        right_value,
+    ):
+        return True
+    return _is_distinct_xjdz_instance_pin_group(linked_pairs)
+
+
 def _run_many_to_one(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
     graph, _, right_to_pairs = _graph_maps(_high_confidence_pairs(context))
@@ -916,37 +1254,28 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
             first = linked_pairs[0]
-            if is_cross_view_terminal_series_chain(linked_pairs):
-                # Producer-owned series junction (wire -> terminal -> component
-                # port); the chain auditor owns this group and records it in
-                # series_chains.json, so it is not a many-to-one conflict.
+            # F3/F4: a terminal-range endpoint is a same-row short/series span,
+            # not an independent connection, so it never creates a many-to-one.
+            # G5: terminals spanned by a range value (7QD9~10 covers 7QD9) are the
+            # same short/series span and are not counted either; K2 extends the
+            # coverage from bridge claims to every pair's range value.
+            effective_lefts = {
+                _terminal_endpoint_identity(pair.left_value)
+                for pair in linked_pairs
+                if not _is_terminal_strip_bridge_claim(pair)
+            } - _bridge_covered_terminal_identities(linked_pairs)
+            if len(effective_lefts) <= 1:
                 continue
-            if _is_page_local_numeric_three_column_many_to_one_group(
-                linked_pairs,
-                right_value,
+            if _is_many_to_one_structured_exemption(linked_pairs, context, right_value):
+                continue
+            # G6: bridge claims are not independent connections; when the full
+            # group has no structured exemption, judge the non-bridge subgroup
+            # with the same sequence (only ever adds exemptions).
+            non_bridge_pairs = [pair for pair in linked_pairs if not _is_terminal_strip_bridge_claim(pair)]
+            if (
+                2 <= len(non_bridge_pairs) < len(linked_pairs)
+                and _is_many_to_one_structured_exemption(non_bridge_pairs, context, right_value)
             ):
-                continue
-            if _is_authoritative_structured_cardinality_group(linked_pairs):
-                continue
-            if _is_authoritative_component_table_cross_diagram_endpoint_group(
-                linked_pairs,
-                context.pairs,
-                shared_value=right_value,
-            ):
-                continue
-            if _is_authoritative_terminal_header_reciprocal_chain_group(
-                linked_pairs,
-                context.pairs,
-                right_value,
-            ):
-                continue
-            if _is_authoritative_terminal_header_reciprocal_physical_cluster_group(
-                linked_pairs,
-                context.pairs,
-                right_value,
-            ):
-                continue
-            if _is_distinct_xjdz_instance_pin_group(linked_pairs):
                 continue
             terminal_header_info = _terminal_header_table_shared_endpoint_info(
                 linked_pairs,
@@ -1137,6 +1466,8 @@ def _run_duplicate_pair(context: RuleContext) -> list[Issue]:
             if _is_authoritative_structured_cardinality_group(linked_pairs):
                 continue
             if _is_superworks_distinct_physical_duplicate(linked_pairs):
+                continue
+            if _is_authoritative_cross_view_group(linked_pairs, shared_value=key[1], shared_side="right"):
                 continue
             first = linked_pairs[0]
             issues.append(
@@ -1559,25 +1890,48 @@ def _inline_component_correspondence_endpoint_key(pair: Pair, mapping_mode: str)
 
 
 def _is_authoritative_schematic_kk_component_duplicate(linked_pairs: list[Pair]) -> bool:
-    """Accept exact schematic/KK descriptions of one independent component port."""
+    """Accept exact schematic/component-diagram descriptions of one component port.
+
+    The component-diagram side may be produced by the legacy KK extractor or by
+    the SuperWORKS connect-line producer; both must carry a complete body/port
+    and external-endpoint provenance chain.
+    """
 
     if len(linked_pairs) != 2 or len({str(pair.sheet_id or "") for pair in linked_pairs}) != 2:
         return False
     schematic_identities = [
         identity
         for pair in linked_pairs
-        if (identity := _authoritative_schematic_inline_component_identity(pair)) is not None
+        if (identity := _authoritative_schematic_role_identity(pair)) is not None
     ]
     kk_identities = [
         identity
         for pair in linked_pairs
-        if (identity := _authoritative_kk_component_identity(pair)) is not None
+        if (identity := _authoritative_component_diagram_identity(pair)) is not None
     ]
     return (
         len(schematic_identities) == 1
         and len(kk_identities) == 1
         and schematic_identities[0] == kk_identities[0]
     )
+
+
+def _authoritative_component_diagram_identity(pair: Pair) -> tuple[str, str, str] | None:
+    """A component-diagram port identity, from the legacy KK or SuperWORKS view."""
+    return _authoritative_kk_component_identity(pair) or _authoritative_superworks_component_identity(pair)
+
+
+def _authoritative_schematic_role_identity(pair: Pair) -> tuple[str, str, str] | None:
+    """A schematic-role port identity: the inline schematic pair only (K1).
+
+    A SuperWORKS connect-line port is a component-diagram view of the port, so
+    it never counts as a schematic role. Otherwise the same physical port seen
+    once on the schematic and once on a connect-line diagram would yield two
+    schematic identities and defeat the one-schematic/one-diagram exemption.
+    """
+    if (pair.evidence or {}).get("component_submode") == "superworks_connect_line_port":
+        return None
+    return _authoritative_schematic_inline_component_identity(pair)
 
 
 def _is_authoritative_schematic_small_port_component_duplicate(
@@ -1596,7 +1950,7 @@ def _is_authoritative_schematic_small_port_component_duplicate(
     schematic_identities = [
         identity
         for pair in linked_pairs
-        if (identity := _authoritative_schematic_inline_component_identity(pair)) is not None
+        if (identity := _authoritative_schematic_role_identity(pair)) is not None
     ]
     small_port_identities = [
         identity
@@ -1798,7 +2152,10 @@ def _is_authoritative_schematic_inline_backplate_endpoint_group(
             continue
         return False
 
-    if len(schematic_identities) != 1 or len(table_pairs) != 1 or len(kk_identities) > 1:
+    # G3: the same schematic port seen once in each of two views is one
+    # corroborated identity, not two claims.
+    unique_schematic = set(schematic_identities)
+    if not unique_schematic or len(unique_schematic) != 1 or len(table_pairs) != 1 or len(kk_identities) > 1:
         return False
     return not kk_identities or kk_identities[0] == schematic_identities[0]
 
@@ -1807,6 +2164,10 @@ def _authoritative_schematic_inline_component_identity(
     pair: Pair,
 ) -> tuple[str, str, str] | None:
     evidence = pair.evidence or {}
+    if evidence.get("component_submode") == "superworks_connect_line_port":
+        # G3: a SuperWORKS connect-line port that resolves to a component-port
+        # identity yields the same triple as the inline producer.
+        return _authoritative_superworks_component_identity(pair)
     if (
         pair.pair_kind != "component_mapping"
         or pair.status != "pass"
@@ -2410,7 +2771,7 @@ def _is_authoritative_component_table_cross_diagram_endpoint_group(
     else:
         component_identity = _authoritative_kk_component_identity(
             component_pair
-        ) or _authoritative_strip_component_identity(component_pair)
+        ) or _authoritative_strip_component_identity(component_pair) or _authoritative_superworks_component_identity(component_pair)
     if component_identity is None:
         return False
     if not _is_authoritative_table_mapping_group([table_pair]):
@@ -2997,6 +3358,14 @@ def _is_authoritative_component_mapping_pair(pair: Pair) -> bool:
     ):
         return False
     evidence = pair.evidence or {}
+    # G1: a SuperWORKS connect-line port whose identity is authoritative is a
+    # complete strip-component mapping edge (same contract as the legacy one).
+    if (
+        evidence.get("component_submode") == "superworks_connect_line_port"
+        and evidence.get("structured_source") == "component_mapping"
+        and _authoritative_superworks_component_identity(pair) is not None
+    ):
+        return True
     if evidence.get("source")=="superworks":
         return _superworks_structured_source_kind(pair)=="component_mapping"
     if str(evidence.get("mapping_mode") or "").startswith("accessory_backplate_"):
@@ -3771,9 +4140,85 @@ def _table_mapping_source_kind(pair: Pair) -> str:
     return getattr(pair, "pair_kind", "ordinary_pair")
 
 
+def _authoritative_superworks_component_identity(
+    pair: Pair,
+) -> tuple[str, str, str] | None:
+    """Validate one SuperWORKS connect-line component port mapping.
+
+    The SuperWORKS producer binds the part label, the physical port number and
+    the connection-line text through one reciprocal metadata chain; the port pin
+    text id may legitimately be absent when the pin was resolved from the strip
+    text or from the block definition.
+    """
+
+    evidence = pair.evidence or {}
+    if (
+        pair.pair_kind != "component_mapping"
+        or pair.status != "pass"
+        or not _is_native_finite_number(pair.confidence)
+        or pair.confidence < 0.95
+        or evidence.get("structured_source") != "component_mapping"
+        or evidence.get("component_submode") != "superworks_connect_line_port"
+        or evidence.get("electrical_union_eligible") is not False
+        or evidence.get("ordinary_pair_eligible") is not False
+    ):
+        return None
+    sw = evidence.get("superworks") or {}
+    logical_endpoint = str(evidence.get("logical_endpoint") or "")
+    external_endpoint = str(evidence.get("external_endpoint") or "")
+    body = str(evidence.get("component_body") or "")
+    port = str(evidence.get("component_port") or "")
+    if (
+        not logical_endpoint
+        or not external_endpoint
+        or not body
+        or not port
+        or logical_endpoint != str(pair.left_value or "")
+        or external_endpoint != str(pair.right_value or "")
+    ):
+        return None
+    if not (evidence.get("component_body_text_id") and evidence.get("external_endpoint_text_id")):
+        return None
+    if not (
+        evidence.get("component_port_text_id")
+        or sw.get("corroborating_strip_text_ids")
+        or sw.get("port_resolution_method")
+    ):
+        return None
+    if not all(sw.get(key) for key in ("part_id", "instance_path", "symbol_handle", "port_id",
+                                       "label_handle", "connection_handle")):
+        return None
+    if sw.get("connect_line_geometry_unique") is not True:
+        return None
+    # The old chain identifies a component-diagram port by (body, port,
+    # external endpoint); the SuperWORKS producer keeps the same body/port
+    # split in its logical endpoint (e.g. 1ZKK-1 -> body 1ZKK, port 1).
+    if not logical_endpoint.endswith(f"-{port}"):
+        return None
+    logical_body = logical_endpoint[: -(len(port) + 1)]
+    # G2: the connect-line submode above is itself the component-diagram
+    # contract; producers that do not also write a legacy submode qualify.
+    submode_ok = (
+        str(evidence.get("submode") or "") in _COMPONENT_DIAGRAM_SUBMODES
+        or evidence.get("component_submode") == "superworks_connect_line_port"
+    )
+    if not logical_body or not submode_ok:
+        return None
+    return (logical_body.upper(), port.upper(), external_endpoint.upper())
+
+
 def _is_superworks_pair(pair: Pair) -> bool:
     evidence=pair.evidence or {}
     return evidence.get("source")=="superworks" or (evidence.get("superworks") or {}).get("source")=="superworks"
+
+
+def _table_endpoint_column_side(roles: dict) -> str | None:
+    """The single column ("left" or "right") that carries the terminal endpoint."""
+    left_is_endpoint = roles.get("left") == "terminal_endpoint"
+    right_is_endpoint = roles.get("right") == "terminal_endpoint"
+    if left_is_endpoint == right_is_endpoint:
+        return None
+    return "left" if left_is_endpoint else "right"
 
 
 def _superworks_structured_source_kind(pair: Pair) -> str | None:
@@ -3787,15 +4232,20 @@ def _superworks_structured_source_kind(pair: Pair) -> str | None:
     if kind=="table_mapping" and pair.pair_kind=="table_mapping":
         mapping=_table_mapping_evidence(pair)
         roles=mapping.get("column_roles") or {}
+        # The terminal endpoint is read from the column that carries the
+        # terminal_endpoint role: right-column rows (legacy shape) and
+        # left-column rows (sw_side=left, legacy-left shape) both qualify.
+        endpoint_side=_table_endpoint_column_side(roles)
         if (mapping.get("mapping_mode")=="terminal_header_table"
             and mapping.get("row_number_sequence_valid") is True
+            and endpoint_side is not None
             and mapping.get("logical_endpoint")==pair.left_value
-            and mapping.get("right_value")==pair.right_value
-            and mapping.get("right_text_id")==pair.right_text_id
+            and mapping.get(f"{endpoint_side}_value")==pair.right_value
+            and mapping.get(f"{endpoint_side}_text_id")==pair.right_text_id
             and mapping.get("middle_text_id") and mapping.get("header_text_id")
             and mapping.get("scope_key") and mapping.get("sw_side") in {"left","right"}
             and mapping.get("sw_branch") in {"_1","_2"}
-            and roles.get("middle")=="row_number" and roles.get("right")=="terminal_endpoint"
+            and roles.get("middle")=="row_number"
             and sw.get("row_handle") and sw.get("connection_handle")
             and sw.get("side")==mapping.get("sw_side") and sw.get("branch")==mapping.get("sw_branch")):
             return "table_mapping"

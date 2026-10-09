@@ -38,6 +38,19 @@ def write_superworks_artifacts(artifacts, findings_dir):
     ledger_columns=["element_key","category","reason","old_pair","new_pairs"]
     pq.write_table(pa.Table.from_pandas(pd.DataFrame(ledger,columns=ledger_columns),schema=pa.schema([(name,pa.string()) for name in ledger_columns]),preserve_index=False),findings_dir/"superworks_supersession.parquet")
 
+    # F1: same-identity wire groups are diagnostics only.  They never become
+    # production pairs, so they are reported here instead of in the pair table.
+    diagnostics=[item for item in data.conflict_observations if item.get("kind")=="self_connection"]
+    diagnostic_columns=["kind","reason_code","detail","identity","file_id","sheet_id","line_group_id","line_group_origin",
+        "left_symbol_id","right_symbol_id","left_port_ids","right_port_ids","left_port_number","right_port_number",
+        "left_coord","right_coord","split_at_port","split_result","member_line_ids"]
+    diagnostic_rows=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict,tuple))
+                      else value if isinstance(value,str) else ("" if value is None else str(value)))
+                      for key,value in item.items()} for item in diagnostics]
+    pq.write_table(pa.Table.from_pandas(pd.DataFrame(diagnostic_rows,columns=diagnostic_columns),
+        schema=pa.schema([(name,pa.string()) for name in diagnostic_columns]),preserve_index=False),
+        findings_dir/"sw_diagnostics.parquet")
+
     consumption=defaultdict(list)
     bindings=defaultdict(list)
     coverage_observations=defaultdict(list)
@@ -187,6 +200,12 @@ def write_superworks_artifacts(artifacts, findings_dir):
         "strip_agreement":{"counts":dict(Counter(r["status"] for r in comparisons)),"by_side_branch":_agreement_by_slot(comparisons),"comparisons":comparisons},
         "dictionary":data.dictionary,"timing":{"extraction_seconds":data.extraction_seconds,"recognition_seconds":data.recognition_seconds},
         "pin_resolution_counts":data.pin_resolution_counts,
+        "self_connection_diagnostics":{
+            "total":len(diagnostics),
+            "by_reason_code":dict(Counter(item.get("reason_code") for item in diagnostics)),
+            "by_detail":dict(Counter(item.get("detail") for item in diagnostics)),
+            "split_at_port":sum(1 for item in diagnostics if item.get("split_at_port")),
+            "note":"same-identity wire groups are diagnostics only and produce no production pair"},
         "supersession_categories":dict(Counter(r["category"] for r in artifacts.superworks_supersession))}
     (findings_dir/"superworks_summary.json").write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding="utf-8")
 
