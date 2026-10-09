@@ -16,12 +16,16 @@ from collections import defaultdict
 from dwg_audit.domain.models import Pair
 
 TERMINAL_STRIP_SUBMODE = "terminal_strip_lattice"
+_SW_CONNECT_LINE_SUBMODE = "superworks_connect_line_port"
 _PORT_OWNER_SUBMODES = {
     "kk_multi_port_component",
     "small_port_box_component",
     "strip_two_port_component",
     "strip_two_port_endpoint_bridge",
     "inline_two_port_component",
+    # G4: a SuperWORKS connect-line port is a component-side view of the same
+    # port-to-terminal fact as the legacy component/inline views.
+    _SW_CONNECT_LINE_SUBMODE,
 }
 _CHAIN_SUBMODES = _PORT_OWNER_SUBMODES | {TERMINAL_STRIP_SUBMODE}
 _CHAIN_MIN_CONFIDENCE = 0.95
@@ -33,6 +37,9 @@ _CHAIN_SCHEMA_VERSION = "1.0"
 _CORROBORATION_SUBMODE_PAIRS = {
     frozenset({"inline_two_port_component", "kk_multi_port_component"}),
     frozenset({"inline_two_port_component", "small_port_box_component"}),
+    frozenset({_SW_CONNECT_LINE_SUBMODE, "inline_two_port_component"}),
+    frozenset({_SW_CONNECT_LINE_SUBMODE, "kk_multi_port_component"}),
+    frozenset({_SW_CONNECT_LINE_SUBMODE, "small_port_box_component"}),
 }
 # Terminal-chart rows may continue the chain through the cabinet chart
 # (chart terminal UD-x bridged to device terminal 1UDx). Only the row-scoped
@@ -79,6 +86,14 @@ def _finite_confidence(pair: Pair) -> float | None:
         return None
     value = float(confidence)
     return value if math.isfinite(value) else None
+
+
+def _is_superworks_connect_line_member(evidence: dict) -> bool:
+    """SuperWORKS connect-line port evidence (G4 scope key)."""
+    return (
+        evidence.get("component_submode") == _SW_CONNECT_LINE_SUBMODE
+        and evidence.get("structured_source") == "component_mapping"
+    )
 
 
 def _is_chain_member(pair: Pair) -> bool:
@@ -151,7 +166,18 @@ def is_cross_view_terminal_series_chain(linked_pairs: list[Pair]) -> bool:
         return False
     if any(not _nonempty_text(pair.sheet_id) or not _nonempty_text(pair.file_id) for pair in linked_pairs):
         return False
-    scopes = [(pair.sheet_id.strip(), pair.file_id.strip()) for pair in linked_pairs]
+    # One claim per physical scope (sheet, file). G4: a SuperWORKS connect-line
+    # port is keyed by its producer submode as well, so its component-side
+    # view and the strip-side view on one sheet remain two distinct claims.
+    # Legacy members keep the strict sheet-level key.
+    scopes = [
+        (
+            pair.sheet_id.strip(),
+            pair.file_id.strip(),
+            _SW_CONNECT_LINE_SUBMODE if _is_superworks_connect_line_member(_pair_evidence(pair)) else None,
+        )
+        for pair in linked_pairs
+    ]
     if len(set(scopes)) != len(scopes):
         return False
     if not all(_is_chain_member(pair) for pair in linked_pairs):

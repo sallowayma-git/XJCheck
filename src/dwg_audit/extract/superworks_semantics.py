@@ -11,16 +11,57 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ezdxf.enums import TextEntityAlignment
 from ezdxf.math import Matrix44, Vec3
 
 from dwg_audit.domain.models import (SwSymbolInstance, SwPort, SwStripRow,
     SwPartInstance, SwConnectLabel, SwConnectDot, TextItem)
+from dwg_audit.extract.text_geometry import cad_text_geometry
+
+# A nearest-text pin candidate is rejected when it lies farther from its port
+# than this factor times the largest distance of the other resolved pins of the
+# same definition instance (see _definition_ports).
+NEAREST_BOUND_FACTOR = 1.25
+PIN_INDEPENDENT_METHODS = ("instance_term_text", "definition_text_reference", "definition_text_nearest")
+PIN_NON_INDEPENDENT_METHODS = ("strip_reverse_corroboration",)
 
 
 def normalize(value: str) -> str:
     # Same endpoint normalization used by the legacy page extractor.
     from dwg_audit.audit.candidates import _normalize_schematic_semantic_endpoint_value
     return _normalize_schematic_semantic_endpoint_value(unicodedata.normalize("NFKC", value))
+
+
+def entity_insert_wcs(entity) -> Vec3:
+    """DXF insertion points are in the entity's OCS (a mirrored extrusion of
+    (0,0,-1) flips X); every position used for matching must be WCS."""
+    return entity.ocs().to_wcs(Vec3(entity.dxf.insert))
+
+
+def text_anchor_wcs(entity) -> Vec3:
+    """Real anchor of a text entity in WCS, used for pin-to-port proximity.
+
+    TEXT/ATTRIB: ezdxf's placement point, i.e. the alignment point whenever the
+    horizontal or vertical alignment is not the default, else the insertion point.
+    MTEXT: the bottom-edge point of its layout box in the attachment column
+    (left, centre or right) derived from attachment_point; the insertion point
+    is the attachment point, so this converts it to the text's baseline anchor.
+    """
+    if entity.dxftype() == "MTEXT":
+        corners = cad_text_geometry(entity).get("corners")
+        if not corners or len(corners) != 4:
+            return entity_insert_wcs(entity)
+        bottom_left, bottom_right = Vec3(corners[3]), Vec3(corners[2])
+        column = (int(entity.dxf.get("attachment_point", 1) or 1) - 1) % 3
+        if column == 0:
+            return bottom_left
+        if column == 2:
+            return bottom_right
+        return (bottom_left + bottom_right) * 0.5
+    alignment, point, second = entity.get_placement()
+    if second is not None and alignment in (TextEntityAlignment.FIT, TextEntityAlignment.ALIGNED):
+        point = point.lerp(second, factor=0.5)
+    return entity.ocs().to_wcs(point)
 
 
 def xvalues(entity, app: str, code: int) -> list[str]:
@@ -46,11 +87,15 @@ def text_ref(doc, handle: str, transform: Matrix44 | None = None) -> dict:
     if entity is None or entity.dxftype() not in ("TEXT", "MTEXT", "ATTRIB"):
         return {"handle": handle, "resolved": False, "value": "", "text_id": None}
     value = entity.plain_text() if entity.dxftype() == "MTEXT" else entity.dxf.text
-    point = entity.dxf.insert
+    point = entity_insert_wcs(entity)
+    anchor = text_anchor_wcs(entity)
     if transform is not None:
         point = transform.transform(point)
+        anchor = transform.transform(anchor)
     return {"handle": handle, "resolved": True, "value": value, "normalized": normalize(value),
-            "x": float(point.x), "y": float(point.y), "height": float(entity.dxf.char_height if entity.dxftype() == "MTEXT" else entity.dxf.height), "text_id": None}
+            "x": float(point.x), "y": float(point.y),
+            "anchor_x": float(anchor.x), "anchor_y": float(anchor.y),
+            "height": float(entity.dxf.char_height if entity.dxftype() == "MTEXT" else entity.dxf.height), "text_id": None}
 
 
 @dataclass(slots=True)
@@ -89,6 +134,7 @@ def _definition_ports(doc, insert, parent: Matrix44, path: str, seen=()):
             ref = text_ref(doc, entity.dxf.handle, world)
             if ref.get("resolved") and ref.get("normalized"):
                 local_texts.append(ref)
+    ports = []
     for entity in doc.blocks[name]:
         if entity.dxftype() == "LWPOLYLINE" and entity.xdata and "LD_SYMB1LIB_TERMPOINT" in entity.xdata.data:
             points = list(entity.vertices_in_wcs())
@@ -108,22 +154,95 @@ def _definition_ports(doc, insert, parent: Matrix44, path: str, seen=()):
             a, b = world.transform(points[0]), world.transform(points[-1])
             if not number and pin:
                 number = pin.get("normalized", "")
-            if not pin:
-                candidates = []
-                for ref in local_texts:
-                    distance = _point_segment_distance(ref["x"], ref["y"], a.x, a.y, b.x, b.y)
-                    height = float(ref.get("height") or 0.0)
-                    if height > 0 and distance <= height * 3.0 + 1e-8:
-                        candidates.append((distance, ref))
-                candidates.sort(key=lambda item: (item[0], item[1].get("handle") or ""))
-                if candidates and (len(candidates) == 1 or candidates[1][0] - candidates[0][0] >= max(0.25, candidates[0][1].get("height", 0.0) * 0.25)):
-                    pin = dict(candidates[0][1])
-                    pin["resolution_method"] = "definition_text_nearest"
-                    pin["nearest_distance"] = candidates[0][0]
-                    pin["reciprocal_ok"] = True
-            if pin and not number:
-                number = pin.get("normalized", "")
-            yield entity, number, a, b, path, pin
+            ports.append({"entity": entity, "number": number, "a": a, "b": b, "pin": pin, "path": path})
+
+    # Nearest-text candidates are measured from the real text anchor.  A candidate
+    # is kept only when it is not farther from its port than the other resolved
+    # pins of this same definition instance allow (block-internal labels such
+    # as a contact marker sit at a distance no other pin of the block reaches).
+    nearest = {}
+    for index, port in enumerate(ports):
+        if port["pin"] is not None:
+            continue
+        candidates = []
+        for ref in local_texts:
+            distance = _point_segment_distance(ref["anchor_x"], ref["anchor_y"], port["a"].x, port["a"].y, port["b"].x, port["b"].y)
+            height = float(ref.get("height") or 0.0)
+            if height > 0 and distance <= height * 3.0 + 1e-8:
+                candidates.append((distance, ref))
+        candidates.sort(key=lambda item: (item[0], item[1].get("handle") or ""))
+        if candidates and (len(candidates) == 1 or candidates[1][0] - candidates[0][0] >= max(0.25, candidates[0][1].get("height", 0.0) * 0.25)):
+            nearest[index] = candidates[0]
+    # A label value names a port only when it names one text in this definition
+    # instance. Several ports adopting the same value from different text entities
+    # (e.g. one caption repeated beside each slot of a block) are not told apart by
+    # it, so they fall back to their port numbers. Ports sharing one text entity
+    # are the shared-terminal case below and keep their adoption.
+    # The revocation is made only when every port of such a group has a usable
+    # fallback identity (its TERMPOINT port number) and those numbers are distinct
+    # within the group. Otherwise revoking would leave the ports with no identity at
+    # all (e.g. a backplate whose one row label sits on several ports), so the
+    # nearest adoption is kept.
+    rejected = {}
+    by_value = defaultdict(list)
+    for index, (_, ref) in nearest.items():
+        by_value[ref.get("normalized")].append(index)
+    for indices in by_value.values():
+        if len(indices) < 2 or len({nearest[index][1].get("handle") for index in indices}) < 2:
+            continue
+        fallbacks = [normalize(ports[index]["number"] or "") for index in indices]
+        if not all(fallbacks) or len(set(fallbacks)) < len(fallbacks):
+            continue
+        for index in indices:
+            distance, ref = nearest.pop(index)
+            rejected[index] = {"handle": ref.get("handle"), "distance": distance, "reason": "same_value_distinct_text"}
+    distances = {}
+    for index, port in enumerate(ports):
+        if port["pin"] is not None:
+            pin = port["pin"]
+            distances[index] = _point_segment_distance(pin["anchor_x"], pin["anchor_y"], port["a"].x, port["a"].y, port["b"].x, port["b"].y)
+        elif index in nearest:
+            distances[index] = nearest[index][0]
+    # A text that several ports of this definition use (a shared terminal label such
+    # as DC on two contacts) is not a block-internal marker; the bound does not apply.
+    shared_handles = Counter(pin.get("handle") for pin in (port["pin"] for port in ports) if pin)
+    shared_handles.update(ref.get("handle") for _, ref in nearest.values())
+    for index, (distance, ref) in list(nearest.items()):
+        if shared_handles[ref.get("handle")] > 1:
+            continue
+        others = [value for other, value in distances.items() if other != index]
+        if not others:
+            continue
+        bound = max(NEAREST_BOUND_FACTOR * max(others), float(ref.get("height") or 0.0))
+        if distance > bound + 1e-8:
+            rejected[index] = {"handle": ref.get("handle"), "distance": distance, "bound": bound, "reason": "nearest_bound"}
+            del nearest[index]
+
+    for index, port in enumerate(ports):
+        pin = port["pin"]
+        number = port["number"]
+        if pin is None and index in nearest:
+            distance, ref = nearest[index]
+            pin = dict(ref)
+            pin["resolution_method"] = "definition_text_nearest"
+            pin["nearest_distance"] = distance
+            pin["reciprocal_ok"] = True
+        elif pin is None and index in rejected:
+            pin = {"resolved": False, "nearest_rejected": rejected[index]}
+        if pin and not number:
+            number = pin.get("normalized", "")
+        yield port["entity"], number, port["a"], port["b"], port["path"], pin
+
+
+def _terminal_identity(label_value, pin_value, joiner=""):
+    """Endpoint identity of a label and a pin value: "1n" + "219" -> "1n219" for a device
+    terminal (no joiner), "1n" + "-" + "A1" for other parts. None when either part is empty."""
+    return label_value + joiner + pin_value if label_value and pin_value else None
+
+
+def _revoked_adoption(pin) -> bool:
+    """True when _definition_ports withdrew this port's same-label nearest adoption (L1)."""
+    return (pin or {}).get("nearest_rejected", {}).get("reason") == "same_value_distinct_text"
 
 
 def _point_segment_distance(px, py, ax, ay, bx, by):
@@ -184,7 +303,7 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
             label = text_ref(doc, label_handle, transform)
             reciprocal_app = "LD_SYMB2_LABEL" if category else "LDPARTLAYT_PART_HANDLE"
             reciprocal = insert.dxf.handle in xvalues(label_entity, reciprocal_app, 1005)
-            position = parent.transform(insert.dxf.insert)
+            position = parent.transform(entity_insert_wcs(insert))
             distance = math.hypot(label.get("x", position.x) - position.x, label.get("y", position.y) - position.y)
             reasons = []
             if label_handle and not label.get("resolved"):
@@ -230,7 +349,22 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
                     endpoint = label.get("normalized") or None
                     if category != "端子":
                         pin_value = pin.get("normalized") if pin.get("resolved") else ""
-                        endpoint = (endpoint + ("" if category == "装置端子" else "-") + pin_value) if endpoint and pin_value else None
+                        endpoint = _terminal_identity(endpoint, pin_value, "" if category == "装置端子" else "-")
+                        if endpoint is None and number and _revoked_adoption(pin):
+                            # N1: a port whose same-label adoption was withdrawn has no pin value, so
+                            # the line above yields None. Its TERMPOINT port number (normalized as a
+                            # device-terminal pin value) gives the device-terminal identity form.
+                            fallback = _terminal_identity(label.get("normalized") or None, normalize(str(number)))
+                            if fallback:
+                                endpoint = fallback
+                                pin = {**pin, "pin_resolution_method": "termpoint_number_fallback", "fallback_identity": fallback}
+                    if category != "端子" and label.get("normalized") and number and pin.get("resolved"):
+                        # F4c: a TERMPOINT name such as IN2/OUT2 is displayed as its digit 2.
+                        # Terminal strips write the name, so the name is kept as an alias identity.
+                        port_name = str(number)
+                        if port_name != pin.get("normalized") and re.fullmatch(r"[A-Za-z]+\d+", port_name):
+                            pin = {**pin, "port_name": port_name,
+                                   "endpoint_aliases": [label.get("normalized") + ("" if category == "装置端子" else "-") + port_name]}
                     contacts = _contacts(grid, a, b, tolerance)
                     port_reasons = list(reasons)
                     if category != "端子" and category and not pin.get("resolved"):
@@ -421,11 +555,26 @@ def corroborate_internal_pin_identities(data: SuperworksData):
         number=port.port_number if is_record else port.get("port_number")
         label=port.label if is_record else port.get("label",{})
         if not pin.get("resolved") and number:
-            candidate=f"{label.get('normalized')}-{number}" if label.get("normalized") else ""
-            strip_refs=destinations.get(candidate.casefold(),[])
+            label_key=label.get('normalized')
+            # F4c: a TERMPOINT name (IN2) and its display digit (2) name one port;
+            # a terminal strip may write either form, so both are candidates.
+            digit_alias=re.fullmatch(r"[A-Za-z]+(\d+)",str(number))
+            numbers=[str(number)]+([digit_alias[1]] if digit_alias else [])
+            candidate=""
+            strip_refs=[]
+            if label_key:
+                for option in numbers:
+                    option_candidate=f"{label_key}-{option}"
+                    option_refs=destinations.get(option_candidate.casefold(),[])
+                    if option_refs:
+                        candidate, strip_refs, number=option_candidate, option_refs, option
+                        break
             if candidate and strip_refs:
                 pin={"handle":None,"text_id":None,"value":number,"normalized":number,"resolved":True,
                      "reciprocal_ok":True,"resolution_method":"strip_reverse_corroboration",
+                     # F4d: a pin resolved only from the strip's own reverse reference is
+                     # recorded separately and never counted as independent verification.
+                     "pin_resolution_method":"strip_reverse_corroboration","independent_verification":False,
                      "corroborating_strip_refs":strip_refs,
                      "corroborating_strip_text_ids":sorted({ref["connection_text_id"] for ref in strip_refs if ref.get("connection_text_id")})}
                 if is_record:
@@ -435,10 +584,17 @@ def corroborate_internal_pin_identities(data: SuperworksData):
                 else:
                     port["pin"]=pin
                     port["endpoint_identity"]=candidate
+                    port["pin_resolution_method"]="strip_reverse_corroboration"
                     port.setdefault("validation",{})["pin_resolution_method"]="strip_reverse_corroboration"
                     port["reason_codes"]=[reason for reason in port.get("reason_codes",[]) if reason not in ("unresolved_pin_text","nonreciprocal_pin")]
         method=pin.get("resolution_method") if pin.get("resolved") and pin.get("reciprocal_ok",True) else None
-        counts[method if method in counts else "unresolved"]+=1
+        if method and method not in PIN_NON_INDEPENDENT_METHODS:
+            pin.setdefault("pin_resolution_method",method)
+            pin.setdefault("independent_verification",method in PIN_INDEPENDENT_METHODS)
+            if method in PIN_INDEPENDENT_METHODS:
+                counts["independently_verified_ports"]=counts.get("independently_verified_ports",0)+1
+        bucket=method if method in counts else "unresolved"
+        counts[bucket]+=1
     part_by_id={part.record_id:part for part in data.part_instances}
     for label in data.connect_labels:
         part=part_by_id.get(label.part_id)
@@ -449,6 +605,13 @@ def corroborate_internal_pin_identities(data: SuperworksData):
         if len(matches)==1:
             label.endpoint_identity=next(iter(matches))
             label.reason_codes=[reason for reason in label.reason_codes if reason!="unresolved_part_port"]
+    total=len(all_ports)
+    resolved=total-counts["unresolved"]
+    counts["total_internal_ports"]=total
+    counts["resolved_internal_ports"]=resolved
+    counts["internal_pin_resolution_rate"]=round(resolved/total,6) if total else None
+    counts["method_counts"]={key:counts[key] for key in
+        ("instance_term_text","definition_text_reference","definition_text_nearest","strip_reverse_corroboration")}
     data.pin_resolution_counts=counts
 
 
