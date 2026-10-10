@@ -332,6 +332,86 @@ def _is_two_sided_terminal_passthrough_group(
     return False
 
 
+# Z-6 m2o: category labels of SW endpoints that are terminals (wire ends, not component ports).
+_SW_TERMINAL_ENDPOINT_CATEGORIES = frozenset({"端子", "装置端子"})
+
+
+def _sw_terminal_direct_partners(pairs: list[Pair], shared_identity: str) -> set[str]:
+    """Terminals joined to the shared right terminal by a SW terminal-terminal pass line (Z-6 m2o clause b).
+
+    Only superworks wire records whose two ends are both terminal labels count; component
+    port records and bridge claims are not direct terminal-terminal lines.
+    """
+    partners: set[str] = set()
+    for pair in pairs:
+        if pair.status != "pass" or _is_terminal_strip_bridge_claim(pair):
+            continue
+        superworks = (pair.evidence or {}).get("superworks") or {}
+        left, right = superworks.get("left"), superworks.get("right")
+        if not isinstance(left, dict) or not isinstance(right, dict):
+            continue
+        if left.get("category") not in _SW_TERMINAL_ENDPOINT_CATEGORIES:
+            continue
+        if right.get("category") not in _SW_TERMINAL_ENDPOINT_CATEGORIES:
+            continue
+        ends = {_pair_endpoint_identity(pair, pair.left_value), _fold_continuation_identity(pair.right_value)}
+        if shared_identity in ends:
+            partners |= ends - {shared_identity}
+    return partners
+
+
+def _is_net_explained_many_to_one_group(
+    effective_lefts: set[str],
+    right_value: str,
+    context_pairs: list[Pair],
+    pin_index: dict[str, list[Pair]],
+    row_index: dict[str, list[frozenset[str]]],
+) -> bool:
+    """True when every conflicting left end is on the same net as the shared right terminal (Z-6 m2o).
+
+    A left end L is explained when, with names of one physical pin merged (Y3-a, same sheet
+    and right text id):
+      (a) L and another member sit on the two sides of one terminal-header row (the other side
+          may be a same-pin alias of that member);
+      (b) L is, or is a same-pin alias of, a terminal joined to the right terminal by a SW
+          terminal-terminal pass line;
+      (c) L is a same-pin alias of a member that is explained by (a), (b) or (c).
+    The group is legal only when every left end is explained.
+    """
+    shared = _fold_continuation_identity(right_value)
+    partners = _sw_terminal_direct_partners(context_pairs, shared)
+    rows = row_index.get(shared, ())
+    row_names: set[str] = set().union(*rows) if rows else set()
+    roots = _same_pin_alias_roots(set(effective_lefts) | partners | row_names, right_value, pin_index)
+
+    def same_net(first: str, second: str) -> bool:
+        return roots.get(first, first) == roots.get(second, second)
+
+    def clause_a(left: str) -> bool:
+        others = [name for name in effective_lefts if name != left]
+        return any(
+            left in sides
+            and any(side != left and any(same_net(side, member) for member in others) for side in sides)
+            for sides in rows
+        )
+
+    def clause_b(left: str) -> bool:
+        return any(same_net(left, partner) for partner in partners)
+
+    # Clause (c) only links a left to a member that is itself explained by (a) or (b) or by
+    # such a member in turn, so two aliases of one pin with no SW path to the shared
+    # terminal explain nothing.
+    explained = {left for left in effective_lefts if clause_a(left) or clause_b(left)}
+    grown = True
+    while grown:
+        grown = False
+        for left in effective_lefts - explained:
+            if any(same_net(left, member) for member in explained):
+                explained.add(left)
+                grown = True
+    return explained == set(effective_lefts)
+
+
 def _values_are_one_terminal_end(values: list[str]) -> bool:
     """True when every value is a range or a member of one range (1-4Q1D7~8 and 1-4Q1D7)."""
     expanded = [
@@ -1550,6 +1630,16 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
             # L-16b Y3-b: a pass-through terminal with its device side and its external
             # wire as its only two left ends is a normal two-sided connection.
             if _is_two_sided_terminal_passthrough_group(linked_pairs, right_value, alias_roots):
+                continue
+            # Z-6 m2o: every left end is on the same net as the shared terminal
+            # (a row-side partner, a SW direct terminal line, or a same-pin alias).
+            if _is_net_explained_many_to_one_group(
+                effective_lefts,
+                right_value,
+                context.pairs,
+                pin_index,
+                row_index,
+            ):
                 continue
             if _is_many_to_one_structured_exemption(linked_pairs, context, right_value):
                 continue
