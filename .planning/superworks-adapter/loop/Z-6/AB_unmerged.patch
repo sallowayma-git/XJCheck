@@ -1,0 +1,124 @@
+diff --git a/src/dwg_audit/audit/candidates.py b/src/dwg_audit/audit/candidates.py
+index 59aafe1..4f74b86 100644
+--- a/src/dwg_audit/audit/candidates.py
++++ b/src/dwg_audit/audit/candidates.py
+@@ -5,6 +5,7 @@ from collections import defaultdict
+ import json
+ import math
+ 
++from shapely.geometry import Point
+ from shapely.geometry import box
+ from shapely.strtree import STRtree
+ 
+@@ -122,6 +123,53 @@ _TERMINAL_SEMANTIC_ROW_PATTERNS = (
+ )
+ 
+ 
++# A numeric label is bound to another line when that line's endpoint is much closer to
++# the label anchor than the candidate's own endpoint, and close in absolute terms.
++_LABEL_OTHER_LINE_ENDPOINT_MAX_OWN_RATIO = 1.0 / 3.0
++_LABEL_OTHER_LINE_ENDPOINT_MAX_HEIGHT_MULTIPLE = 1.5
++
++
++class _LineEndpointIndex:
++    """Endpoints of one sheet's line groups, used to find a foreign endpoint near a text anchor."""
++
++    def __init__(self, groups: list[LineGroup]) -> None:
++        self.points: list[tuple[float, float, str]] = []
++        for group in groups:
++            self.points.append((group.start_x, group.start_y, group.line_group_id))
++            self.points.append((group.end_x, group.end_y, group.line_group_id))
++        self.tree = STRtree([Point(x, y) for x, y, _ in self.points]) if self.points else None
++
++    def nearest_foreign_distance(
++        self,
++        anchor: tuple[float, float],
++        line_group_id: str,
++        radius: float,
++    ) -> float | None:
++        """Distance to the nearest endpoint of a single other line group within radius.
++
++        Returns None when no foreign endpoint is within radius, or when two or more
++        distinct foreign groups have endpoints within radius (a shared numeric anchor).
++        """
++        if self.tree is None or radius <= 0:
++            return None
++        ax, ay = anchor
++        best: float | None = None
++        owners: set[str] = set()
++        for index in self.tree.query(box(ax - radius, ay - radius, ax + radius, ay + radius)):
++            x, y, owner = self.points[int(index)]
++            if owner == line_group_id:
++                continue
++            distance = math.hypot(ax - x, ay - y)
++            if distance > radius:
++                continue
++            owners.add(owner)
++            if best is None or distance < best:
++                best = distance
++        if len(owners) != 1:
++            return None
++        return best
++
++
+ class TextSpatialIndex:
+     def __init__(self, texts: list[TextItem]) -> None:
+         self.texts = texts
+@@ -163,6 +211,10 @@ def build_terminal_candidates(
+         by_sheet_texts[text.sheet_id].append(text)
+ 
+     indexes = {sheet_id: TextSpatialIndex(sheet_texts) for sheet_id, sheet_texts in by_sheet_texts.items()}
++    groups_by_sheet: dict[str, list[LineGroup]] = defaultdict(list)
++    for group in line_groups:
++        groups_by_sheet[group.sheet_id].append(group)
++    endpoint_indexes = {sheet_id: _LineEndpointIndex(groups) for sheet_id, groups in groups_by_sheet.items()}
+     sheet_map = {sheet.sheet_id: sheet for sheet in sheets or []}
+     group_map = {group.line_group_id: group for group in line_groups}
+     candidate_ids = candidate_id_factory or IdFactory("C")
+@@ -172,6 +224,7 @@ def build_terminal_candidates(
+         index = indexes.get(group.sheet_id)
+         if index is None:
+             continue
++        line_endpoints = endpoint_indexes.get(group.sheet_id)
+         sheet = sheet_map.get(group.sheet_id)
+         profile = _candidate_profile(config, sheet)
+         radius_x = profile["radius_x"]
+@@ -240,6 +293,16 @@ def build_terminal_candidates(
+                     status = "rejected"
+                     reason = "label_bound_to_other_physical_port"
+                     score = 0.0
++                elif (
++                    value is not None
++                    and value.isdigit()
++                    and not physical_evidence
++                    and line_endpoints is not None
++                    and _is_label_bound_to_other_line_endpoint(text, group, endpoint, line_endpoints)
++                ):
++                    status = "rejected"
++                    reason = "label_bound_to_other_line_endpoint"
++                    score = 0.0
+                 elif matched_terminal_strip_bypass:
+                     status = "rejected"
+                     reason = "terminal_strip_bypass_text"
+@@ -459,6 +522,21 @@ def _physical_endpoint_binding(text: TextItem, group: LineGroup, side: str, endp
+     return matches[0] if len(matches) == 1 else {}
+ 
+ 
++def _is_label_bound_to_other_line_endpoint(
++    text: TextItem,
++    group: LineGroup,
++    endpoint: tuple[float, float],
++    line_endpoints: _LineEndpointIndex,
++) -> bool:
++    anchor = (text.insert_x, text.insert_y)
++    own_distance = math.hypot(anchor[0] - endpoint[0], anchor[1] - endpoint[1])
++    radius = _LABEL_OTHER_LINE_ENDPOINT_MAX_HEIGHT_MULTIPLE * text.height
++    foreign_distance = line_endpoints.nearest_foreign_distance(anchor, group.line_group_id, radius)
++    if foreign_distance is None:
++        return False
++    return foreign_distance <= radius and foreign_distance <= own_distance * _LABEL_OTHER_LINE_ENDPOINT_MAX_OWN_RATIO
++
++
+ def _candidate_search_bbox(
+     group: LineGroup,
+     endpoint: tuple[float, float],
