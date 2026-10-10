@@ -266,6 +266,10 @@ def analyze_input_root(
         pairs, superworks_supersession = supersede_equivalent_component_duplicates(
             pairs, superworks_supersession,
         )
+        from dwg_audit.audit.superworks_extractor import supersede_border_row_duplicates
+        pairs, superworks_supersession = supersede_border_row_duplicates(
+            pairs, superworks_supersession, audit_lines, line_groups, audit_texts,
+        )
 
         mark_ignored_equipment_panel_ordinary_pairs(
             pairs,

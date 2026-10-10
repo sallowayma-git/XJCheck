@@ -1113,6 +1113,168 @@ def supersede_equivalent_component_duplicates(pairs, ledger):
     return kept,ledger
 
 
+# A horizontal table border is a VIRTUAL grid line; the legacy chain may take it for a wire and
+# leave one side of its pair empty while a SuperWORKS connect stub already carries the same row end.
+BORDER_MIDLINE_TOL_FRACTION = 0.15
+BORDER_TEXT_TOL_HEIGHTS = 1.5
+BORDER_HORIZONTAL_TOL = 0.01
+# A neighbouring border must cover at least this share of the missing end's border span; SW pin
+# ticks (1-unit VIRTUAL dashes at the row centre) would otherwise be taken for the adjacent border.
+BORDER_NEIGHBOUR_MIN_SPAN_FRACTION = 0.5
+TABLE_BORDER_REASON = "table_border_row_duplicates_sw_connect_stub"
+
+
+def _is_virtual_horizontal_line(line):
+    return ":VIRTUAL:" in str(line.handle or "") and abs(line.start_y - line.end_y) <= BORDER_HORIZONTAL_TOL
+
+
+def _connect_line_ids(pair):
+    evidence = pair.evidence or {}
+    sw = evidence.get("superworks") or {}
+    if sw.get("connect_line_geometry_unique") is False:
+        return []
+    if sw.get("connect_line_id"):
+        return [str(sw["connect_line_id"])]
+    return [str(item) for item in evidence.get("supporting_line_ids") or []]
+
+
+def _border_neighbours(point, owner, borders, span):
+    """Nearest horizontal border above and below `point` in the same table.
+
+    A neighbour must cover `point`'s x and at least BORDER_NEIGHBOUR_MIN_SPAN_FRACTION of the
+    border span (`span`, the missing end's own border).
+    """
+    px, py = point
+    span_lo, span_hi = span
+    above = below = None
+    for line in borders:
+        if line.handle.split(":VIRTUAL:", 1)[0] != owner:
+            continue
+        y = line.start_y
+        if abs(y - py) <= BORDER_HORIZONTAL_TOL:
+            continue
+        lo, hi = min(line.start_x, line.end_x), max(line.start_x, line.end_x)
+        if not (lo - BORDER_HORIZONTAL_TOL <= px <= hi + BORDER_HORIZONTAL_TOL):
+            continue
+        if min(hi, span_hi) - max(lo, span_lo) < BORDER_NEIGHBOUR_MIN_SPAN_FRACTION * (span_hi - span_lo):
+            continue
+        if y > py and (above is None or y < above.start_y):
+            above = line
+        if y < py and (below is None or y > below.start_y):
+            below = line
+    return [line for line in (above, below) if line is not None]
+
+
+def _bbox_corners(text):
+    return [(text.bbox_min_x, text.bbox_min_y), (text.bbox_max_x, text.bbox_min_y),
+            (text.bbox_max_x, text.bbox_max_y), (text.bbox_min_x, text.bbox_max_y)]
+
+
+def supersede_border_row_duplicates(pairs, ledger, lines, line_groups, texts):
+    """Retire one-sided legacy pairs whose missing end is a table border already carried by a SW row.
+
+    A legacy one-sided pair on a horizontal VIRTUAL table border (every member line VIRTUAL) is
+    retired only when all of these hold: its missing end M is the end farther from the present text;
+    a SuperWORKS pass row on the same sheet has a connect-stub endpoint E on the midline between M's
+    border and a neighbouring border in the same table (|E.y - midline| <= 15% of their spacing, and
+    E.x inside their shared span); and that row's external endpoint text lies within 1.5 text heights
+    of M.  Every such border is retired, including when two borders claim the same SW row, and
+    including when one border has qualifying SW rows on both sides.  The SW rows and all other pairs
+    are left unchanged.
+    """
+    sw_rows = [pair for pair in pairs if _is_sw_component_row(pair) and pair.status == "pass"]
+    if not sw_rows:
+        return pairs, ledger
+    group_by_id = {group.line_group_id: group for group in line_groups}
+    line_by_id = {line.line_id: line for line in lines}
+    text_by_id = {text.text_id: text for text in texts}
+    borders = defaultdict(list)
+    for line in lines:
+        if _is_virtual_horizontal_line(line):
+            borders[(line.file_id, line.sheet_id)].append(line)
+    stubs = []
+    for sw in sw_rows:
+        external = text_by_id.get((sw.evidence or {}).get("external_endpoint_text_id"))
+        ends = []
+        for line_id in _connect_line_ids(sw):
+            line = line_by_id.get(line_id)
+            if line is not None:
+                ends.extend([(line.start_x, line.start_y), (line.end_x, line.end_y)])
+        if external is not None and ends:
+            stubs.append((sw, ends, external))
+    if not stubs:
+        return pairs, ledger
+    result = list(pairs)
+    for index, pair in enumerate(pairs):
+        group = group_by_id.get(pair.line_group_id)
+        if not _fillable_one_sided_pair(pair, group):
+            continue
+        members = [line_by_id.get(str(item)) for item in group.member_line_ids]
+        if not members or any(m is None or not _is_virtual_horizontal_line(m) for m in members):
+            continue
+        owners = {m.handle.split(":VIRTUAL:", 1)[0] for m in members}
+        if len(owners) != 1:
+            continue
+        (owner,) = owners
+        ends = _missing_end_points(pair, group)
+        if ends is None:
+            continue
+        missing_side, missing_end, _ = ends
+        mx, my = missing_end
+        span_lo, span_hi = min(group.start_x, group.end_x), max(group.start_x, group.end_x)
+        if span_hi - span_lo <= BORDER_HORIZONTAL_TOL:
+            continue
+        claims = []
+        for neighbour in _border_neighbours(missing_end, owner, borders[(pair.file_id, pair.sheet_id)],
+                                            (span_lo, span_hi)):
+            spacing = abs(neighbour.start_y - my)
+            midline = (neighbour.start_y + my) / 2
+            tol = BORDER_MIDLINE_TOL_FRACTION * spacing
+            lo = max(span_lo, min(neighbour.start_x, neighbour.end_x))
+            hi = min(span_hi, max(neighbour.start_x, neighbour.end_x))
+            for sw, sw_ends, external in stubs:
+                if sw.file_id != pair.file_id or sw.sheet_id != pair.sheet_id:
+                    continue
+                height = float(external.height or 0.0)
+                if height <= 0:
+                    continue
+                matched = [(ex, ey) for ex, ey in sw_ends
+                           if abs(ey - midline) <= tol and lo - tol <= ex <= hi + tol]
+                if not matched:
+                    continue
+                corners = _text_outline(external) or _bbox_corners(external)
+                distance = _outline_distance(missing_end, corners)
+                if distance > BORDER_TEXT_TOL_HEIGHTS * height:
+                    continue
+                endpoint = min(matched, key=lambda e: abs(e[1] - midline))
+                claims.append((abs(endpoint[1] - midline), sw, neighbour, endpoint, distance,
+                               midline, tol, spacing, height))
+        if not claims:
+            continue
+        # A border may see two SW rows (the row above and the row below): every qualifying row is
+        # recorded, and the closest midline match is the one named in the evidence.
+        sw_by_id = {}
+        for claim in claims:
+            sw_by_id.setdefault(claim[1].pair_id, claim[1])
+        _, sw, neighbour, endpoint, distance, midline, tol, spacing, height = min(claims, key=lambda c: c[0])
+        sw_ids = sorted(sw_by_id)
+        evidence = copy.deepcopy(pair.evidence or {})
+        evidence["table_border_row_duplicate"] = {
+            "reason": TABLE_BORDER_REASON, "sw_pair_id": sw.pair_id, "sw_pair_ids": sw_ids,
+            "border_line_group_id": pair.line_group_id, "missing_side": missing_side,
+            "missing_end": [mx, my], "neighbour_handle": neighbour.handle,
+            "neighbour_y": neighbour.start_y, "midline_y": midline, "midline_tolerance": round(tol, 4),
+            "stub_endpoint": list(endpoint), "text_id": sw.evidence.get("external_endpoint_text_id"),
+            "text_distance": round(distance, 4), "text_limit": round(BORDER_TEXT_TOL_HEIGHTS * height, 4)}
+        new = replace(pair, status="discard", rationale=f"{TABLE_BORDER_REASON}: {', '.join(sw_ids)}",
+                      evidence=evidence)
+        result[index] = new
+        ledger.append({"element_key": f"table_border_row:{pair.sheet_id}:{pair.pair_id}", "category": "H",
+                       "reason": TABLE_BORDER_REASON, "old_pair": asdict(pair),
+                       "new_pairs": [asdict(sw_by_id[sw_id]) for sw_id in sw_ids]})
+    return result, ledger
+
+
 def build_superworks_issues(context):
     grouped=defaultdict(list)
     for pair in context.pairs:
