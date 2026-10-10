@@ -228,6 +228,110 @@ def _is_terminal_row_junction_group(
     return False
 
 
+# L-16b Y3-a: component records that name the device-side pin of a terminal.
+_PIN_NAME_COMPONENT_PAIR_KINDS = frozenset({"component_mapping", "wire_component_mapping"})
+
+
+def _pin_alias_index(pairs: list[Pair]) -> dict[str, list[Pair]]:
+    """Terminal identity -> records whose right value is that terminal (L-16b Y3-a).
+
+    Only groups records for later lookup; no decision is made here.
+    """
+    index: dict[str, list[Pair]] = defaultdict(list)
+    for pair in pairs:
+        if pair.left_value and pair.right_value and pair.right_text_id:
+            index[_terminal_endpoint_identity(pair.right_value)].append(pair)
+    return dict(index)
+
+
+def _same_pin_alias_roots(
+    effective_lefts: set[str],
+    right_value: str,
+    pin_index: dict[str, list[Pair]],
+) -> dict[str, str]:
+    """Left identity -> representative of the physical pin it names (L-16b Y3-a).
+
+    Two left names are one pin when a terminal-table record and a component record
+    name them on the same sheet at the same right text id of the shared terminal
+    (the same terminal text, e.g. 1-21n/BI2-20 from the table and 1-21n320 from the
+    component). The structural co-occurrence decides; name shape is not inspected.
+    """
+    parent: dict[str, str] = {}
+
+    def find(name: str) -> str:
+        parent.setdefault(name, name)
+        while parent[name] != name:
+            parent[name] = parent[parent[name]]
+            name = parent[name]
+        return name
+
+    anchors: dict[tuple[str, str], list[Pair]] = defaultdict(list)
+    for pair in pin_index.get(_terminal_endpoint_identity(right_value), ()):
+        anchors[(str(pair.sheet_id or ""), str(pair.right_text_id))].append(pair)
+    for records in anchors.values():
+        kinds = {pair.pair_kind for pair in records}
+        if "table_mapping" not in kinds or not kinds & _PIN_NAME_COMPONENT_PAIR_KINDS:
+            continue
+        names = [_pair_endpoint_identity(pair, pair.left_value) for pair in records]
+        for name in names[1:]:
+            parent[find(name)] = find(names[0])
+    return {name: find(name) for name in effective_lefts}
+
+
+def _is_terminal_table_device_record(pair: Pair, right_value: str) -> bool:
+    """Device-side record of a backplate terminal table: the terminal sits in its external column (L-16b Y3-b)."""
+    if pair.pair_kind != "table_mapping":
+        return False
+    table_mapping = (pair.evidence or {}).get("table_mapping") or {}
+    roles = table_mapping.get("column_roles") or {}
+    return (
+        table_mapping.get("mapping_mode") == "backplate_virtual_table"
+        and roles.get("right") == "external_terminal_endpoint"
+        and _terminal_endpoint_identity(pair.right_value) == _terminal_endpoint_identity(right_value)
+    )
+
+
+def _is_two_sided_terminal_passthrough_group(
+    linked_pairs: list[Pair],
+    right_value: str,
+    alias_roots: dict[str, str],
+) -> bool:
+    """A terminal with exactly two left pins: its device side and its external wire (L-16b Y3-b).
+
+    After same-pin merging, the shared terminal has exactly two left identities. One
+    side is the device-side terminal-table record, the other an ordinary wire on a
+    different sheet. That is one terminal wired from both of its sides, not a
+    many-to-one conflict. Two device sides or two wires keep the finding.
+    """
+    sides: dict[str, list[Pair]] = defaultdict(list)
+    for pair in linked_pairs:
+        if _is_terminal_strip_bridge_claim(pair):
+            continue
+        name = _pair_endpoint_identity(pair, pair.left_value)
+        if name not in alias_roots:
+            return False
+        sides[alias_roots[name]].append(pair)
+    if len(sides) != 2:
+        return False
+    first, second = sides.values()
+    for device, wire in ((first, second), (second, first)):
+        # The device side is a table record; a component record of the same pin
+        # (Y3-a alias) may join it, but a wire may not.
+        if not any(_is_terminal_table_device_record(pair, right_value) for pair in device):
+            continue
+        if not all(
+            _is_terminal_table_device_record(pair, right_value)
+            or pair.pair_kind in _PIN_NAME_COMPONENT_PAIR_KINDS
+            for pair in device
+        ):
+            continue
+        if not all(_ordinary_pair_eligible(pair) for pair in wire):
+            continue
+        if not {pair.sheet_id for pair in wire} & {pair.sheet_id for pair in device}:
+            return True
+    return False
+
+
 def _values_are_one_terminal_end(values: list[str]) -> bool:
     """True when every value is a range or a member of one range (1-4Q1D7~8 and 1-4Q1D7)."""
     expanded = [
@@ -349,7 +453,7 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
                     pair,
                     "Near-duplicate line groups claim the same one-sided text anchor.",
                     title="重复线文本归属待复核",
-                    explanation="同一数字文本被同页近邻且重叠的线组重复认领；保留一个缺侧问题并关联全部线组，避免把同一文字误报为多个独立缺失。",
+                    explanation="同一数字文本被同页近邻且重叠的线组重复认领；只保留到该文字最近的线组归属该文字并报一个缺侧问题，其余近邻线组不因该共享文字报缺端。",
                     recommended_action="核对共享文本所在的实际导线，并检查近邻重叠线是否为重复图元、并行辅助线或同一连接的分段表示。",
                     related_pairs=[pair, *related_pairs],
                     extra={
@@ -358,6 +462,12 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
                         "duplicate_line_group_ids": sorted(
                             str(item.line_group_id)
                             for item in [pair, *related_pairs]
+                            if item.line_group_id
+                        ),
+                        "owner_line_group_id": str(pair.line_group_id or ""),
+                        "non_owner_line_group_ids": sorted(
+                            str(item.line_group_id)
+                            for item in related_pairs
                             if item.line_group_id
                         ),
                     },
@@ -424,6 +534,8 @@ def _duplicate_missing_side_text_claim_groups(
             primary, *related = component
             primary_to_related[primary.pair_id] = related
             related_ids.update(pair.pair_id for pair in related)
+            # L-12 S3: the shared text belongs to the nearest line group only; the
+            # others are not reported as missing a side because of this text.
     return primary_to_related, related_ids
 
 
@@ -454,14 +566,48 @@ def _near_duplicate_missing_side_line_groups(
 def _missing_side_text_claim_rank(
     pair: Pair,
     group_map: dict[str, LineGroup],
-) -> tuple[float, float, float, str]:
+) -> tuple[float, float, float, float, str]:
+    """Owner order for a shared text (L-12 S3): nearest line to the text anchor first."""
     group = group_map.get(pair.line_group_id)
     if group is None:
-        return (float("inf"), 0.0, 0.0, pair.pair_id)
+        return (float("inf"), float("inf"), 0.0, 0.0, pair.pair_id)
+    text_x = pair.left_coord_x if pair.left_value else pair.right_coord_x
     text_y = pair.left_coord_y if pair.left_value else pair.right_coord_y
     group_y = (group.start_y + group.end_y) / 2.0
     text_gap = abs(float(text_y) - group_y) if text_y is not None else float("inf")
-    return (text_gap, -float(group.wire_candidate_score), -float(group.length), pair.pair_id)
+    segment_gap = _point_segment_distance(
+        text_x,
+        text_y,
+        group.start_x,
+        group.start_y,
+        group.end_x,
+        group.end_y,
+    )
+    return (
+        segment_gap,
+        text_gap,
+        -float(group.wire_candidate_score),
+        -float(group.length),
+        pair.pair_id,
+    )
+
+
+def _point_segment_distance(
+    px: float | None,
+    py: float | None,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+) -> float:
+    if px is None or py is None:
+        return float("inf")
+    dx, dy = x2 - x1, y2 - y1
+    length_sq = dx * dx + dy * dy
+    if length_sq <= 0.0:
+        return math.hypot(float(px) - x1, float(py) - y1)
+    t = max(0.0, min(1.0, ((float(px) - x1) * dx + (float(py) - y1) * dy) / length_sq))
+    return math.hypot(float(px) - (x1 + t * dx), float(py) - (y1 + t * dy))
 
 
 def _complementary_half_pair_matches(
@@ -1369,6 +1515,7 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
     high_confidence_pairs = _high_confidence_pairs(context)
     graph, _, right_to_pairs = _graph_maps(high_confidence_pairs)
     row_index = _terminal_row_side_index(high_confidence_pairs)
+    pin_index = _pin_alias_index(context.pairs)
     for right_value, lefts in graph.right_to_lefts.items():
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
@@ -1386,6 +1533,11 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
             } - _bridge_covered_terminal_identities(linked_pairs)
             if len(effective_lefts) <= 1:
                 continue
+            # L-16b Y3-a: names of one physical pin (same sheet, same right text id,
+            # table record + component record) are one left end.
+            alias_roots = _same_pin_alias_roots(effective_lefts, right_value, pin_index)
+            if len(set(alias_roots.values())) <= 1:
+                continue
             # L-16 R2/R3: the two wires on the two sides of one terminal-header row
             # (range ends explained by their members) are one terminal, not a conflict.
             if _is_terminal_row_junction_group(
@@ -1394,6 +1546,10 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 right_value,
                 row_index,
             ):
+                continue
+            # L-16b Y3-b: a pass-through terminal with its device side and its external
+            # wire as its only two left ends is a normal two-sided connection.
+            if _is_two_sided_terminal_passthrough_group(linked_pairs, right_value, alias_roots):
                 continue
             if _is_many_to_one_structured_exemption(linked_pairs, context, right_value):
                 continue

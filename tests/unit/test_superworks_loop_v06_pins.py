@@ -54,9 +54,9 @@ def test_nearest_digit_is_the_port_own_number_for_x_named_termpoints():
         assert port["pin"]["resolved"] is True
         assert port["pin"]["normalized"] == number
         assert port["pin"]["resolution_method"] == "definition_text_nearest"
-        assert port["endpoint_identity"] == f"K741-{number}"
-        # The terminal-strip spelling of the same pin is kept as an alias.
-        assert port["pin"]["endpoint_aliases"] == [f"K741-X{number}"]
+        # L-15: the identity takes the terminal-strip spelling; the digit form is the alias.
+        assert port["endpoint_identity"] == f"K741-X{number}"
+        assert port["pin"]["endpoint_aliases"] == [f"K741-{number}"]
 
 
 def test_neighbour_digit_does_not_take_an_x_named_port():
