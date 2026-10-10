@@ -22,6 +22,9 @@ from dwg_audit.extract.text_geometry import cad_text_geometry
 # than this factor times the largest distance of the other resolved pins of the
 # same definition instance (see _definition_ports).
 NEAREST_BOUND_FACTOR = 1.25
+# A connect-label anchor that lies on a LD_ConnectLine endpoint (within this tolerance)
+# identifies that leader; see _connect_labels.
+CONNECT_ANCHOR_COINCIDENT_TOL = 0.5
 PIN_INDEPENDENT_METHODS = ("instance_term_text", "definition_text_reference", "definition_text_nearest")
 PIN_NON_INDEPENDENT_METHODS = ("strip_reverse_corroboration",)
 
@@ -284,10 +287,48 @@ def _contacts(grid, a, b, tolerance):
     return list(found.values())
 
 
+def _page_text_index(doc):
+    """Page-WCS insertion points of every TEXT/MTEXT on the sheet (model space and
+    block-internal, through the same transforms as the walk), grouped by normalized value.
+    Used to tell whether a same-identity text lies nearer to a symbol than its label."""
+    index = defaultdict(list)
+
+    def visit(entities, parent, seen=()):
+        for entity in entities:
+            kind = entity.dxftype()
+            if kind in ("TEXT", "MTEXT"):
+                value = entity.plain_text() if kind == "MTEXT" else entity.dxf.text
+                normalized = normalize(value)
+                if normalized:
+                    point = parent.transform(entity_insert_wcs(entity))
+                    index[normalized].append((entity.dxf.handle, float(point.x), float(point.y)))
+            elif kind == "INSERT" and entity.dxf.name not in seen and len(seen) < 32 and entity.dxf.name in doc.blocks:
+                visit(doc.blocks[entity.dxf.name], entity.matrix44() @ parent, (*seen, entity.dxf.name))
+
+    visit(doc.modelspace(), Matrix44())
+    return index
+
+
 def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> SuperworksData:
     start = time.perf_counter()
     data = SuperworksData()
     grid = _wire_index(doc)
+    page_index = {}
+
+    def nearer_same_identity_text(label, position, distance) -> bool:
+        """True when another text of this sheet carrying the label's identity lies nearer to the symbol."""
+        identity = label.get("normalized")
+        if not identity:
+            return False
+        if "index" not in page_index:
+            # Built lazily: only far terminal labels ask, so ordinary sheets pay nothing.
+            page_index["index"] = _page_text_index(doc)
+        for handle, x, y in page_index["index"].get(identity, ()):
+            if handle == label.get("handle") and math.hypot(x - label["x"], y - label["y"]) <= 1e-6:
+                continue
+            if math.hypot(x - position.x, y - position.y) < distance - 1e-9:
+                return True
+        return False
 
     def walk(entities, parent, path, seen=()):
         for insert in entities:
@@ -315,7 +356,14 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
             if label_handle and label_entity is not None and label_entity.dxf.owner != insert.dxf.owner:
                 reasons.append("label_owner_mismatch")
             if category == "端子" and distance > 30:
-                reasons.append("stale_label_reference")
+                # Far from its symbol but reciprocally referenced, resolvable, and the only text
+                # of its identity on the sheet nearest the symbol: a layout observation, not a
+                # metadata conflict. Stale only when the reference itself is unsound or a nearer
+                # same-identity text exists.
+                if reciprocal and label.get("resolved") and not nearer_same_identity_text(label, position, distance):
+                    reasons.append("label_far_from_symbol")
+                else:
+                    reasons.append("stale_label_reference")
             validation = {"handle_resolved": bool(label.get("resolved")), "reciprocal_ok": reciprocal,
                           "label_distance": distance, "stale_suspect": "stale_label_reference" in reasons}
             symbol_id = f"SW:{file_id}:{sheet_id}:{instance}"
@@ -458,16 +506,42 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
 def _connect_labels(doc, data, sheet_id, file_id):
     tagged = [e for e in doc.modelspace() if e.xdata and "LD_ConnectLine" in e.xdata.data]
     lines = [e for e in tagged if e.dxftype() == "LINE"]
+    candidates = []
     for e in tagged:
         if e.dxftype() not in ("TEXT","MTEXT"):
             continue
         text = text_ref(doc,e.dxf.handle)
-        proposals = []
+        # Distances are measured from the text's real anchor (text_anchor_wcs), not its
+        # insertion point: a centred label's insertion point sits well off its leader end.
+        anchor_x, anchor_y = text["anchor_x"], text["anchor_y"]
+        radius = max(5, text["height"]*3)
+        coincident, nearby = [], []
         for line in lines:
-            distance = min(math.hypot(text["x"]-p.x,text["y"]-p.y) for p in (line.dxf.start,line.dxf.end))
-            if distance <= max(5, text["height"]*3):
-                proposals.append((abs(int(e.dxf.handle,16)-int(line.dxf.handle,16)),distance,line))
-        proposals.sort(key=lambda p:(p[0],p[1]))
+            distance = min(math.hypot(anchor_x-p.x,anchor_y-p.y) for p in (line.dxf.start,line.dxf.end))
+            handle_gap = abs(int(e.dxf.handle,16)-int(line.dxf.handle,16))
+            if distance <= CONNECT_ANCHOR_COINCIDENT_TOL:
+                coincident.append((handle_gap,distance,line))
+            elif distance <= radius:
+                nearby.append((handle_gap,distance,line))
+        candidates.append((e,text,coincident,nearby))
+    # Pass 1: a leader whose end sits on the label's anchor is that label's own leader.
+    # Those leaders are claimed and locked before any radius fallback runs.
+    locked = set()
+    proposals_by_label = []
+    for e,text,coincident,_ in candidates:
+        proposals = sorted(coincident,key=lambda p:(p[0],p[1]))
+        if proposals:
+            locked.add(proposals[0][2].dxf.handle)
+        proposals_by_label.append(proposals)
+    # Pass 2: labels without an anchor-coincident leader fall back to the radius rule (GND-style
+    # labels whose leader end is offset from the anchor). Leaders locked in pass 1 are excluded,
+    # so an offset label cannot take a leader another label's anchor is sitting on.
+    for index,(e,text,coincident,nearby) in enumerate(candidates):
+        if coincident:
+            continue
+        proposals = sorted((p for p in nearby if p[2].dxf.handle not in locked),key=lambda p:(p[0],p[1]))
+        proposals_by_label[index] = proposals
+    for (e,text,_,_),proposals in zip(candidates,proposals_by_label):
         line = proposals[0][2] if proposals else None
         reasons = [] if line else ["unresolved_connect_line"]
         if len(proposals)>1 and proposals[0][:2] == proposals[1][:2]:

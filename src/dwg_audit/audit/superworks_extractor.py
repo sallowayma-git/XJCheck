@@ -10,7 +10,8 @@ from collections import defaultdict, deque
 from dataclasses import asdict, replace
 
 from dwg_audit.domain.models import Pair, SwPort, LineGroup
-from dwg_audit.extract.superworks_semantics import SuperworksData, normalize
+from dwg_audit.extract.superworks_semantics import (CONNECT_ANCHOR_COINCIDENT_TOL,
+    SuperworksData, normalize)
 
 _TRUE_CONFLICTS = {
     "dangling_label_handle", "stale_label_reference", "label_owner_mismatch",
@@ -219,6 +220,30 @@ def _true_conflicts(reasons):
     return sorted(set(reasons) & _TRUE_CONFLICTS)
 
 
+def _legacy_pairs_on_label_anchor_with_other_port(old, label, group_by_id):
+    """Legacy component pairs for this connect label whose port number disagrees with the
+    SW connect line, while their own supporting wire ends on the label's anchor.
+
+    Such a pair is kept over the SW result: the wire geometry says the legacy port is the
+    one physically at this terminal, and the SW port was read from a neighbouring leader.
+    """
+    ax, ay = label.text.get("anchor_x"), label.text.get("anchor_y")
+    if ax is None or ay is None:
+        return []
+    disputed = []
+    for pair in old:
+        legacy_port = pair.evidence.get("component_port")
+        if legacy_port in (None, "") or str(legacy_port) == str(label.port_number):
+            continue
+        group = group_by_id.get(pair.line_group_id)
+        if group is None:
+            continue
+        ends = ((group.start_x, group.start_y), (group.end_x, group.end_y))
+        if any(math.hypot(x - ax, y - ay) <= CONNECT_ANCHOR_COINCIDENT_TOL for x, y in ends):
+            disputed.append(pair)
+    return disputed
+
+
 def _strip_scope_index(data):
     rows_by_endpoint = defaultdict(list)
     for row in data.strip_rows:
@@ -311,11 +336,23 @@ def _strip_range_base(value):
     return match[1] if match else text
 
 
+# SuperWORKS draws '&' and '*' as decorative boundary marks around an external
+# endpoint (e.g. "* 1n2107", "1I2D1 *"). Only leading/trailing runs of them and
+# the blanks beside them are removed; interior characters, and '@' (a layout
+# marker still under review, L-17), are left as written.
+_SW_ENDPOINT_DECORATION_PATTERN = re.compile(r"^[\s&*]+|[\s&*]+$")
+
+
+def _clean_sw_endpoint_value(value):
+    """Canonical SuperWORKS external endpoint text; the caller keeps the raw text."""
+    return _SW_ENDPOINT_DECORATION_PATTERN.sub("", normalize(str(value or "")))
+
+
 def _destination_keys(value):
     """Identity keys a strip connection value names; a range N~M names each member."""
     keys = set()
     for piece in re.split(r"[,，]", normalize(str(value or ""))):
-        piece = piece.strip().strip("&")
+        piece = _clean_sw_endpoint_value(piece)
         if not piece:
             continue
         match = _RANGE_LABEL.fullmatch(piece)
@@ -668,7 +705,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
             if not row_id or not header_id or not connection.get("text_id"):
                 reasons.append("strip_text_not_extracted")
             # Destination lists are represented as independent mappings, never a fabricated union.
-            values=[normalize(v.strip().strip("&")) for v in re.split(r"[,，]",value) if v.strip().strip("&")]
+            values=[v for v in (_clean_sw_endpoint_value(p) for p in re.split(r"[,，]",value)) if v]
             for destination in values:
                 row_number=int(row.row.get("normalized")) if row.row.get("normalized", "").isdigit() else None
                 strip_scope=(row.file_id,row.header.get("handle") or header_id)
@@ -736,6 +773,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     for sid,rows in sw_mappings.items():
         mappings.append({"sheet_id":sid,"source":"superworks","mappings":rows})
 
+    group_by_id={group.line_group_id:group for group in line_groups}
     for label in data.connect_labels:
         if label.sheet_id not in audit_ids:
             continue
@@ -753,7 +791,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                 index=output.index(current)
                 output[index]=replace(current,evidence=evidence)
             continue
-        values=[normalize(v.strip().strip("&")) for v in re.split(r"[,，]",label.text.get("value","")) if v.strip().strip("&")]
+        values=[v for v in (_clean_sw_endpoint_value(p) for p in re.split(r"[,，]",label.text.get("value",""))) if v]
         part=next(p for p in data.part_instances if p.record_id==label.part_id)
         part_ports=[port for port in part.ports if str(port.get("port_number"))==str(label.port_number)
                     and port.get("endpoint_identity")==label.endpoint_identity]
@@ -762,6 +800,15 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         support_line_id=line_id_by_handle.get(label.line_handle)
         producer_groups=[g for g in groups_by_member.get(support_line_id,[]) if support_line_id] if support_line_id else []
         line_group_id=producer_groups[0].line_group_id if len(producer_groups)==1 else (old[0].line_group_id if old else None)
+        disputed=_legacy_pairs_on_label_anchor_with_other_port(old,label,group_by_id)
+        if disputed:
+            data.conflict_observations.append({"kind":"connect_line_port_disagreement",
+                "reason_code":"connect_line_port_disagrees_with_legacy","connect_label_id":label.record_id,
+                "sheet_id":label.sheet_id,"file_id":label.file_id,"text_id":label.text.get("text_id"),
+                "sw_port_number":label.port_number,"sw_connect_line_handle":label.line_handle,
+                "legacy_pair_ids":[p.pair_id for p in disputed],
+                "legacy_port_numbers":[p.evidence.get("component_port") for p in disputed]})
+            continue
         new=[]
         for destination in values:
             evidence=copy.deepcopy(old[0].evidence) if old else {}
@@ -824,6 +871,50 @@ def _competing_object_id(sw):
             if item.get("right_symbol"):
                 symbols.add(str(item["right_symbol"]))
     return "|".join(sorted(symbols)) if symbols else None
+
+
+_SW_COMPONENT_SUBMODE = "superworks_connect_line_port"
+
+
+def _is_sw_component_row(pair):
+    return (pair.pair_kind == "component_mapping"
+            and (pair.evidence or {}).get("component_submode") == _SW_COMPONENT_SUBMODE)
+
+
+def _component_identity(pair):
+    # Same sheet, same logical endpoint, same destination, same physical port
+    # number, and the same destination text: the identity both producers share.
+    return (pair.sheet_id, pair.left_value, pair.right_value,
+            str((pair.evidence or {}).get("component_port")), pair.right_text_id)
+
+
+def supersede_equivalent_component_duplicates(pairs, ledger):
+    """Retire legacy component_mapping rows that a SuperWORKS connect-line row repeats.
+
+    The accessory/backplate producer runs after extract_superworks_pairs and
+    appends its rows without SuperWORKS supersession, so a legacy row whose
+    identity was re-derived from SuperWORKS connect labels survives beside the
+    SW row.  Only exact-identity legacy rows (see _component_identity) are
+    retired; a legacy row that differs on any identity field is kept.
+    """
+    sw_rows=defaultdict(list)
+    for pair in pairs:
+        if _is_sw_component_row(pair) and pair.status=="pass":
+            sw_rows[_component_identity(pair)].append(pair)
+    if not sw_rows:
+        return pairs,ledger
+    kept=[]
+    for pair in pairs:
+        twins=None
+        if pair.pair_kind=="component_mapping" and pair.status=="pass" and not _is_sw_component_row(pair):
+            twins=sw_rows.get(_component_identity(pair))
+        if not twins:
+            kept.append(pair)
+            continue
+        ledger.append({"element_key":f"component_duplicate:{pair.sheet_id}:{pair.pair_id}",
+                       "category":"G","reason":"superworks_connect_line_port_supersedes_equivalent_legacy_row",
+                       "old_pair":asdict(pair),"new_pairs":[asdict(p) for p in twins]})
+    return kept,ledger
 
 
 def build_superworks_issues(context):

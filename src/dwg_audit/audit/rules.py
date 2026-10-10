@@ -111,6 +111,123 @@ def _bridge_covered_terminal_identities(linked_pairs: list[Pair]) -> set[str]:
     return covered
 
 
+# L-16 R1/R3: 上接 (continuation) header text. The pattern is the one used by
+# table_extractor._terminal_header_identity(allow_continuation=True); it is
+# re-declared here so rules.py does not import the extractor.
+_CONTINUATION_MARK = "上接"
+_CONTINUATION_HEADER_PATTERN = re.compile(r"上接(?P<prefix>.+[A-Za-z])(?P<last_row>\d+)")
+
+
+def _compact_endpoint_text(value: object) -> str:
+    return re.sub(r"\s+", "", str(value or "").strip())
+
+
+def _fold_continuation_identity(value: object) -> str:
+    """Identity of an endpoint value with the 上接 continuation alias folded to its bare text."""
+    text = _compact_endpoint_text(value)
+    if text.startswith(_CONTINUATION_MARK):
+        text = text[len(_CONTINUATION_MARK):]
+    return _terminal_endpoint_identity(text)
+
+
+def _terminal_row_logical_identity(table_mapping: dict[str, object]) -> str | None:
+    """Identity of the endpoint a terminal-header row names (header prefix + row number).
+
+    For a continuation header (上接7U1D48, row 92) the "48" is the last row of the
+    upper block, so the row names 7U1D92 and not 7U1D4892.
+    """
+    header = _compact_endpoint_text(table_mapping.get("header_prefix"))
+    row = table_mapping.get("row_number")
+    if not header or row is None or str(row).strip() == "":
+        return None
+    match = _CONTINUATION_HEADER_PATTERN.fullmatch(header)
+    prefix = match.group("prefix") if match is not None else header
+    return _terminal_endpoint_identity(f"{prefix}{row}") or None
+
+
+def _pair_endpoint_identity(pair: Pair, value: object) -> str:
+    """Identity of a left endpoint in a many-to-one comparison (L-16 R1).
+
+    A continuation endpoint (上接7U1D4892) that is the logical endpoint of its own
+    terminal-header row names the same terminal as that row (7U1D92). Any other
+    上接 value is compared by its bare text (上接JD511 -> JD511).
+    """
+    text = _compact_endpoint_text(value)
+    if not text.startswith(_CONTINUATION_MARK):
+        return _terminal_endpoint_identity(value)
+    table_mapping = (pair.evidence or {}).get("table_mapping") or {}
+    header = _compact_endpoint_text(table_mapping.get("header_prefix"))
+    row = table_mapping.get("row_number")
+    if header.startswith(_CONTINUATION_MARK) and row is not None and text == f"{header}{row}":
+        logical = _terminal_row_logical_identity(table_mapping)
+        if logical:
+            return logical
+    return _fold_continuation_identity(text)
+
+
+def _range_member_identities_by_end(linked_pairs: list[Pair]) -> dict[str, frozenset[str]]:
+    """Range end identity -> member identities, for the non-bridge range lefts of a group (L-16 R2)."""
+    members: dict[str, frozenset[str]] = {}
+    for pair in linked_pairs:
+        if _is_terminal_strip_bridge_claim(pair):
+            continue
+        range_members = _terminal_range_members(pair.left_value)
+        if range_members:
+            members[_pair_endpoint_identity(pair, pair.left_value)] = frozenset(range_members)
+    return members
+
+
+def _terminal_row_side_index(pairs: list[Pair]) -> dict[str, list[frozenset[str]]]:
+    """Logical endpoint identity -> value sets of the two-sided terminal-header rows (L-16 R3).
+
+    One (sheet, sw_row_id) of table_mapping evidence is indexed only when the row
+    number sits in the middle column and terminal endpoints sit in both the left
+    and the right column. The row's own endpoint (header prefix + row number) is
+    the middle terminal, and its two side terminals are the wires on that terminal.
+    """
+    rows: dict[tuple[str, str], dict[str, object]] = {}
+    for pair in pairs:
+        if pair.pair_kind != "table_mapping":
+            continue
+        table_mapping = (pair.evidence or {}).get("table_mapping") or {}
+        row_id = table_mapping.get("sw_row_id")
+        roles = table_mapping.get("column_roles") or {}
+        if not row_id or roles.get("middle") != "row_number":
+            continue
+        entry = rows.setdefault((str(pair.sheet_id or ""), str(row_id)), {"logical": None, "sides": {}})
+        entry["logical"] = entry["logical"] or _terminal_row_logical_identity(table_mapping)
+        for side in ("left", "right"):
+            value = table_mapping.get(f"{side}_value")
+            if roles.get(side) == "terminal_endpoint" and value:
+                entry["sides"].setdefault(side, _fold_continuation_identity(value))
+    index: dict[str, list[frozenset[str]]] = defaultdict(list)
+    for entry in rows.values():
+        sides = entry["sides"]
+        if entry["logical"] and set(sides) == {"left", "right"} and sides["left"] != sides["right"]:
+            index[entry["logical"]].append(frozenset(sides.values()))
+    return dict(index)
+
+
+def _is_terminal_row_junction_group(
+    ends: set[str],
+    range_members: dict[str, frozenset[str]],
+    right_value: object,
+    row_index: dict[str, list[frozenset[str]]],
+) -> bool:
+    """True when every left end of a many-to-one group is a side wire of one two-sided terminal row.
+
+    The row's middle terminal is the group's shared right value. Its left-column and
+    right-column wires are two legitimate ends of one terminal (L-16 R3). A range end
+    (1-7UD20~21) is explained by its member side (1-7UD21) (L-16 R2). Any left end
+    outside the row keeps the group a many-to-one finding.
+    """
+    shared = _fold_continuation_identity(right_value)
+    for sides in row_index.get(shared, ()):
+        if all(end in sides or (range_members.get(end, frozenset()) & sides) for end in ends):
+            return True
+    return False
+
+
 def _values_are_one_terminal_end(values: list[str]) -> bool:
     """True when every value is a range or a member of one range (1-4Q1D7~8 and 1-4Q1D7)."""
     expanded = [
@@ -1249,7 +1366,9 @@ def _is_many_to_one_structured_exemption(
 
 def _run_many_to_one(context: RuleContext) -> list[Issue]:
     issues: list[Issue] = []
-    graph, _, right_to_pairs = _graph_maps(_high_confidence_pairs(context))
+    high_confidence_pairs = _high_confidence_pairs(context)
+    graph, _, right_to_pairs = _graph_maps(high_confidence_pairs)
+    row_index = _terminal_row_side_index(high_confidence_pairs)
     for right_value, lefts in graph.right_to_lefts.items():
         linked_pairs = right_to_pairs[right_value]
         if len(lefts) > 1:
@@ -1259,12 +1378,22 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
             # G5: terminals spanned by a range value (7QD9~10 covers 7QD9) are the
             # same short/series span and are not counted either; K2 extends the
             # coverage from bridge claims to every pair's range value.
+            # L-16 R1: a 上接 continuation endpoint is compared by the terminal it names.
             effective_lefts = {
-                _terminal_endpoint_identity(pair.left_value)
+                _pair_endpoint_identity(pair, pair.left_value)
                 for pair in linked_pairs
                 if not _is_terminal_strip_bridge_claim(pair)
             } - _bridge_covered_terminal_identities(linked_pairs)
             if len(effective_lefts) <= 1:
+                continue
+            # L-16 R2/R3: the two wires on the two sides of one terminal-header row
+            # (range ends explained by their members) are one terminal, not a conflict.
+            if _is_terminal_row_junction_group(
+                effective_lefts,
+                _range_member_identities_by_end(linked_pairs),
+                right_value,
+                row_index,
+            ):
                 continue
             if _is_many_to_one_structured_exemption(linked_pairs, context, right_value):
                 continue
@@ -1750,26 +1879,105 @@ def _is_authoritative_table_mapping_group(linked_pairs: list[Pair]) -> bool:
     return len(scope_keys) == 1
 
 
+def _strip_endpoint_decoration_free(value: object) -> str:
+    """Drop SuperWORKS endpoint decorations (* and &) and spaces, as the lattice path does."""
+    return re.sub(r"[\s*&]", "", str(value or ""))
+
+
+def _terminal_strip_row_witness(pair: Pair) -> dict[str, object] | None:
+    """Return the terminal-strip row that one pair states, or None.
+
+    A terminal_strip_lattice pair states its row directly.  A SuperWORKS
+    connect-line half states the same row through one port: it carries both
+    external terminals, both pins and the strip instance.  The half is a
+    witness only when its own logical endpoint is the pin that its own external
+    terminal lands on (TF<instance>-<pin>), so the SuperWORKS source alone never
+    establishes the row.
+    """
+    evidence = pair.evidence or {}
+    submode = evidence.get("component_submode")
+    if submode == "terminal_strip_lattice":
+        return {
+            "left": pair.left_value,
+            "right": pair.right_value,
+            "left_text_id": pair.left_text_id,
+            "right_text_id": pair.right_text_id,
+            "status": pair.status,
+            "confidence": pair.confidence,
+            "evidence": evidence,
+        }
+    if (submode != "superworks_connect_line_port"
+            or evidence.get("line_orientation") != "terminal_strip_lattice_row"
+            or not _is_superworks_pair(pair)
+            or evidence.get("sw_conflicts")
+            or evidence.get("independent_pin_verification") is not True):
+        return None
+    instance = evidence.get("terminal_strip_instance")
+    left_terminal = evidence.get("left_terminal")
+    right_terminal = evidence.get("right_terminal")
+    if not isinstance(instance, str) or not instance.strip():
+        return None
+    if not isinstance(left_terminal, str) or not isinstance(right_terminal, str):
+        return None
+    logical = _terminal_reciprocal_identity(evidence.get("logical_endpoint"))
+    external = _strip_endpoint_decoration_free(evidence.get("external_endpoint"))
+    if not logical or not external:
+        return None
+    if external == _strip_endpoint_decoration_free(left_terminal):
+        row_side = "left"
+    elif external == _strip_endpoint_decoration_free(right_terminal):
+        row_side = "right"
+    else:
+        return None
+    port = str(evidence.get("component_port") or "")
+    pin = evidence.get(f"terminal_strip_{row_side}_pin") or {}
+    if not port or str(pin.get("value") or "") != port:
+        return None
+    if _terminal_reciprocal_identity(f"{instance}-{port}") != logical:
+        return None
+    # The pair itself must state exactly this logical endpoint against this external terminal.
+    pair_is_logical_left = (_terminal_reciprocal_identity(pair.left_value) == logical
+                            and _strip_endpoint_decoration_free(pair.right_value) == external)
+    pair_is_logical_right = (_terminal_reciprocal_identity(pair.right_value) == logical
+                             and _strip_endpoint_decoration_free(pair.left_value) == external)
+    if not (pair_is_logical_left or pair_is_logical_right):
+        return None
+    return {
+        "left": left_terminal,
+        "right": right_terminal,
+        "left_text_id": evidence.get("left_terminal_text_id"),
+        "right_text_id": evidence.get("right_terminal_text_id"),
+        "status": pair.status,
+        "confidence": pair.confidence,
+        "evidence": evidence,
+    }
+
+
 def _is_authoritative_terminal_strip_backplate_attachment_group(linked_pairs: list[Pair]) -> bool:
     """Compare a backplate attachment with the explicit strip's external path.
 
     A -> TF-1 on the backplate and A -> B on a TF strip row describe the same
     path when TF-1 is that row's CAD-owned left pin. No equality of arbitrary
     net labels, switch contacts or component interior establishes this proof.
+    The strip row may be stated by a lattice pair or by an equivalent
+    SuperWORKS connect-line half (see _terminal_strip_row_witness).
     """
     if len(linked_pairs) != 2 or len({p.sheet_id for p in linked_pairs}) != 2:
         return False
-    strip = next((p for p in linked_pairs if (p.evidence or {}).get("component_submode") == "terminal_strip_lattice"), None)
     table = next((p for p in linked_pairs if p.pair_kind == "table_mapping"), None)
-    if strip is None or table is None or strip.left_value != table.left_value:
+    strip_pair = next((p for p in linked_pairs if p.pair_kind != "table_mapping"), None)
+    if strip_pair is None or table is None:
+        return False
+    strip = _terminal_strip_row_witness(strip_pair)
+    if strip is None or strip["left"] != table.left_value:
         return False
     if not _is_authoritative_table_mapping_group([table]):
         return False
     mapping = _table_mapping_evidence(table)
     if mapping.get("mapping_mode") != "backplate_virtual_table" or mapping.get("plugin_slot_authority") != "same_row_model_and_slot":
         return False
-    evidence = strip.evidence or {}
-    if strip.status != "pass" or not _is_native_finite_number(strip.confidence) or strip.confidence < 0.95:
+    evidence = strip["evidence"]
+    if strip["status"] != "pass" or not _is_native_finite_number(strip["confidence"]) or strip["confidence"] < 0.95:
         return False
     instance = evidence.get("terminal_strip_instance")
     owner = evidence.get("terminal_strip_insert_handle")
@@ -1779,11 +1987,11 @@ def _is_authoritative_terminal_strip_backplate_attachment_group(linked_pairs: li
         return False
     if not evidence.get("terminal_strip_instance_text_id") or not evidence.get("terminal_strip_flank_line_ids"):
         return False
-    if evidence.get("left_terminal") != strip.left_value or evidence.get("right_terminal") != strip.right_value:
+    if evidence.get("left_terminal") != strip["left"] or evidence.get("right_terminal") != strip["right"]:
         return False
-    if evidence.get("left_terminal_text_id") != strip.left_text_id or evidence.get("right_terminal_text_id") != strip.right_text_id:
+    if evidence.get("left_terminal_text_id") != strip["left_text_id"] or evidence.get("right_terminal_text_id") != strip["right_text_id"]:
         return False
-    if not strip.left_text_id or not strip.right_text_id or strip.left_text_id == strip.right_text_id:
+    if not strip["left_text_id"] or not strip["right_text_id"] or strip["left_text_id"] == strip["right_text_id"]:
         return False
     if not all(isinstance(pin.get("handle"), str) and pin["handle"].startswith(f"{owner}:VIRTUAL:")
                and str(pin.get("value") or "").isdigit() and pin.get("text_id")
@@ -4307,7 +4515,11 @@ def _ambiguous_candidate_groups(
 ) -> dict[tuple[str, str], list[TerminalCandidate]]:
     by_group_side = defaultdict(list)
     for candidate in terminal_candidates:
-        if candidate.status == "accepted" and candidate.value:
+        if (
+            candidate.status == "accepted"
+            and candidate.value
+            and candidate.channel_detail != "schematic_ac_phase_label"
+        ):
             by_group_side[(candidate.line_group_id, candidate.side)].append(candidate)
 
     ambiguous = {}

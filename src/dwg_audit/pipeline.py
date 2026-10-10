@@ -260,6 +260,13 @@ def analyze_input_root(
                 }
             )
 
+        # The accessory pass runs after extract_superworks_pairs, so its legacy rows
+        # were never checked against SW connect-line rows; retire exact duplicates here.
+        from dwg_audit.audit.superworks_extractor import supersede_equivalent_component_duplicates
+        pairs, superworks_supersession = supersede_equivalent_component_duplicates(
+            pairs, superworks_supersession,
+        )
+
         mark_ignored_equipment_panel_ordinary_pairs(
             pairs,
             line_groups,
