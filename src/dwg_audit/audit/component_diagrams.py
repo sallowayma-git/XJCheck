@@ -134,6 +134,14 @@ def extract_strip_two_port_component_pairs(
                 conflicts = _strip_endpoint_conflicts(sheet_texts, selected=endpoint)
                 if conflicts:
                     endpoint, endpoint_values = None, [None]
+                # Unlabelled: no external endpoint and no conflicting label in the search
+                # window at all (not even a non-endpoint external text).
+                unlabelled_port = (
+                    endpoint is None
+                    and not conflicts
+                    and not label_only
+                    and not _strip_side_window_has_external_text(port, sheet_texts, side=side_label)
+                )
                 logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
                 for endpoint_value in endpoint_values:
                     built_pairs.append(
@@ -149,6 +157,7 @@ def extract_strip_two_port_component_pairs(
                             logical_endpoint=logical_endpoint,
                             conflicting_endpoints=conflicts,
                             label_only=label_only,
+                            unlabelled_port=unlabelled_port,
                         )
                     )
             if len(built_pairs) < 2:
@@ -1478,6 +1487,34 @@ def _nearest_strip_external_endpoints(
     return best_text, best_values
 
 
+def _strip_side_window_has_external_text(
+    port: TextItem,
+    texts: list[TextItem],
+    *,
+    side: str,
+) -> bool:
+    """True when any external (non-block, non-MARK) text lies in the port's endpoint window.
+
+    Same window as _nearest_strip_external_endpoints, but without the endpoint-value filter:
+    a port whose window holds any external text is not unlabelled, even when that text
+    is not a valid external endpoint.
+    """
+    for text in texts:
+        if text.source_block_name or text.layer.upper() == "MARK":
+            continue
+        if not text.normalized_text:
+            continue
+        if abs(text.insert_x - port.insert_x) > _ENDPOINT_X_TOL:
+            continue
+        if side == "top":
+            gap = text.insert_y - port.insert_y
+            if _TOP_ENDPOINT_Y_MIN_GAP <= gap <= _TOP_ENDPOINT_Y_MAX_GAP:
+                return True
+        elif _BOTTOM_ENDPOINT_Y_MIN_GAP <= port.insert_y - text.insert_y <= _BOTTOM_ENDPOINT_Y_MAX_GAP:
+            return True
+    return False
+
+
 def _strip_endpoint_conflicts(
     texts: list[TextItem], *, selected: TextItem | None,
 ) -> list[TextItem]:
@@ -1886,6 +1923,7 @@ def _build_strip_two_port_pair(
     logical_endpoint: str,
     conflicting_endpoints: list[TextItem] | None = None,
     label_only: bool = False,
+    unlabelled_port: bool = False,
 ) -> Pair:
     evidence = {
         "source": "component_mapping",
@@ -1913,6 +1951,7 @@ def _build_strip_two_port_pair(
         "unresolved_component_port": endpoint is None and not label_only,
         "component_port_label_only": label_only,
         "unresolved_reason": ("no_external_mapping_evidence" if label_only else "coincident_conflicting_labels" if conflicting_endpoints else "external_endpoint_missing") if endpoint is None else None,
+        "missing_side_reason": "unlabelled_port" if (endpoint is None and unlabelled_port) else None,
         "external_endpoint_alternatives": [
             {"text_id": text.text_id, "value": text.normalized_text, "coord": [text.insert_x, text.insert_y]}
             for text in conflicting_endpoints or []

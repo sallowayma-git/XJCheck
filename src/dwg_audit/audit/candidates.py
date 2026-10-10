@@ -68,9 +68,13 @@ _SCHEMATIC_NAMED_COMPONENT_INSTANCE_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,11}$
 _SCHEMATIC_NAMED_COMPONENT_PORT_DETAIL = "schematic_named_component_port"
 _SCHEMATIC_WIRE_LOGIC_SEARCH_RADIUS_X = 28.0
 _SCHEMATIC_DEVICE_ENDPOINT_SEARCH_RADIUS_X = 35.0
+# Public-ground network name. One identity shared by the schematic GND semantic endpoints below
+# and by the many-to-one exemption in rules.py (a ground terminal shared by several strips or
+# devices is one common-ground net, not a conflict).
+GROUND_NETWORK_NAME_PATTERN = re.compile(r"^GND$", re.IGNORECASE)
 _SCHEMATIC_DC_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^DC\s+0-5V/4-20mA\s*[+-]$", re.IGNORECASE),
-    re.compile(r"^GND$", re.IGNORECASE),
+    GROUND_NETWORK_NAME_PATTERN,
 )
 _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^TD\d+$", re.IGNORECASE),
@@ -79,7 +83,7 @@ _SCHEMATIC_NETWORK_TIME_SEMANTIC_ENDPOINT_PATTERNS = (
     re.compile(r"^Device alarm$", re.IGNORECASE),
     re.compile(r"^RXD$", re.IGNORECASE),
     re.compile(r"^TXD$", re.IGNORECASE),
-    re.compile(r"^GND$", re.IGNORECASE),
+    GROUND_NETWORK_NAME_PATTERN,
     re.compile(r"^5n$", re.IGNORECASE),
 )
 _SCHEMATIC_AC_PHASE_SEMANTIC_ENDPOINT_PATTERNS = (

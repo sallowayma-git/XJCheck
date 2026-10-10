@@ -4,6 +4,7 @@ from collections import defaultdict
 import math
 import re
 
+from dwg_audit.audit.candidates import GROUND_NETWORK_NAME_PATTERN
 from dwg_audit.audit.candidates import _is_ascending_schematic_terminal_range
 from dwg_audit.audit.graph_builder import PairGraphSummary
 from dwg_audit.audit.graph_builder import build_pair_graph
@@ -488,13 +489,23 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
         if pair.status == "discard":
             continue
         if pair.pair_kind == "component_mapping" and pair.evidence.get("unresolved_component_port"):
+            message = "Physical component port retained without a unique external label."
+            explanation = "元件身份与端口已保留，但外部标注缺失或同位置存在冲突文字；这不代表检测到电气断线。"
+            extra: dict = {"missing_side_classification": pair.evidence.get("unresolved_reason")}
+            if pair.evidence.get("missing_side_reason") == "unlabelled_port":
+                # Only set when the port's search window holds no external text at all;
+                # overlapping conflicting labels keep the generic explanation.
+                port_no = pair.evidence.get("component_port") or "?"
+                message += f"（端口 {port_no} 无任何外部标注，可能为备用脚或漏标，请核验）"
+                explanation = f"该元件端口（端口 {port_no}）无标注：其搜索窗口内没有任何外部标注文字。" + explanation
+                extra["missing_side_reason"] = "unlabelled_port"
             issues.append(context.issue_factory.build(
                 "R-PAIR-MISSING-SIDE", "review", pair,
-                "Physical component port retained without a unique external label.",
+                message,
                 title="元件端口标注待核验",
-                explanation="元件身份与端口已保留，但外部标注缺失或同位置存在冲突文字；这不代表检测到电气断线。",
+                explanation=explanation,
                 recommended_action="核对原图该端口的外部标注及重叠文字；另一端的有效映射仍然保留。",
-                extra={"missing_side_classification": pair.evidence.get("unresolved_reason")},
+                extra=extra,
             ))
             continue
         if (pair.pair_kind == "wire_component_mapping" and pair.status == "review"
@@ -1542,6 +1553,18 @@ def _run_one_to_many(context: RuleContext) -> list[Issue]:
     return issues
 
 
+def _is_ground_network_endpoint(value: str | None) -> bool:
+    """True when a terminal endpoint names the public-ground network (GND).
+
+    The name identity is the one used by the schematic ground semantic endpoints
+    (candidates.GROUND_NETWORK_NAME_PATTERN). The SuperWORKS symbol category
+    (LD_SYMB2_SPECIAL=接地) is not attached to terminal-strip table endpoints, so the
+    name is the only available signal for these pairs. The exemption is keyed on the
+    shared endpoint only; it never judges the individual left ends.
+    """
+    return bool(value) and GROUND_NETWORK_NAME_PATTERN.fullmatch(str(value).strip()) is not None
+
+
 def _is_many_to_one_structured_exemption(
     linked_pairs: list[Pair],
     context: RuleContext,
@@ -1651,6 +1674,10 @@ def _run_many_to_one(context: RuleContext) -> list[Issue]:
                 2 <= len(non_bridge_pairs) < len(linked_pairs)
                 and _is_many_to_one_structured_exemption(non_bridge_pairs, context, right_value)
             ):
+                continue
+            # G-1: a shared public-ground network endpoint (GND) is one common-ground net
+            # across terminal strips and devices; it is legal and is not reported as many-to-one.
+            if _is_ground_network_endpoint(right_value):
                 continue
             terminal_header_info = _terminal_header_table_shared_endpoint_info(
                 linked_pairs,
