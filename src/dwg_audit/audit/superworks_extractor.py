@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import math
 import re
 import time
@@ -485,6 +486,200 @@ def _table_mapping_strip_fields(membership, own_value, destination):
     return _strip_contract_fields(membership, own_value, [], destination, [], directed=True)
 
 
+# L-12 S1 (Y2b): a one-sided legacy ordinary pair whose missing line end carries a SuperWORKS
+# connect text is completed from that text.  The text is attributed by its layout outline
+# (text_geometry_json corners), not by its anchor: a row label's anchor can sit midway
+# between two row ends while its outline touches only its own row.  The missing end must lie
+# within SW_LABEL_BOX_TOL_HEIGHTS text heights of the outline, the present end must lie outside
+# that window, and the missing end must be the sheet's nearest line end by at least
+# SW_LABEL_SEPARATION.  1.0 is the lower example the L-12 brief gives; the four known-good
+# GND fills of p075 (PC0123, PC0185, PC0331, PC0393) have an outline margin of 1.24 over the
+# next row end, and a 1.5 (half a text height) margin would reject them.
+SW_LABEL_BOX_TOL_HEIGHTS = 1.5
+SW_LABEL_SEPARATION = 1.0
+_SW_LABEL_UNRESOLVED_GEOMETRY = {"ambiguous_connect_line", "connect_line_geometry_not_unique"}
+_CJK_PATTERN = re.compile(r"[㐀-鿿豈-﫿]")
+_VALUE_SEPARATOR_PATTERN = re.compile(r"[,，]")
+
+
+def _is_blank_value(value):
+    return value is None or (isinstance(value, float) and math.isnan(value)) or not str(value).strip()
+
+
+def _collect_text_ids(value, found):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if str(key).endswith("text_id") and isinstance(item, str) and item:
+                found.add(item)
+            _collect_text_ids(item, found)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_text_ids(item, found)
+    return found
+
+
+def _used_text_ids(output):
+    used = set()
+    for pair in output:
+        used.update(text_id for text_id in (pair.left_text_id, pair.right_text_id) if text_id)
+        _collect_text_ids(pair.evidence, used)
+    return used
+
+
+def _fillable_one_sided_pair(pair, group):
+    """The legacy one-sided pairs that R-PAIR-MISSING-SIDE reports, and only those."""
+    if pair.status == "discard" or group is None:
+        return False
+    if pair.pair_kind != "ordinary_pair" or pair.evidence.get("ordinary_pair_eligible", True) is False:
+        return False
+    if pair.evidence.get("source") == "superworks":
+        return False
+    if _is_blank_value(pair.left_value) == _is_blank_value(pair.right_value):
+        return False
+    layers = {str(layer).upper() for layer in group.layer_hints}
+    return not (layers and layers.issubset({"DIM"}))
+
+
+def _missing_end_points(pair, group):
+    """(missing end, present end) of the pair's line group, judged from the present text."""
+    missing_side = "left" if _is_blank_value(pair.left_value) else "right"
+    px, py = ((pair.right_coord_x, pair.right_coord_y) if missing_side == "left"
+              else (pair.left_coord_x, pair.left_coord_y))
+    if px is None or py is None:
+        return None
+    ends = [(group.start_x, group.start_y), (group.end_x, group.end_y)]
+    distances = [math.hypot(x - px, y - py) for x, y in ends]
+    if abs(distances[0] - distances[1]) < 1e-9:
+        return None
+    far = 0 if distances[0] > distances[1] else 1
+    return missing_side, ends[far], ends[1 - far]
+
+
+def _connect_text_value(label):
+    """Canonical single endpoint value of a connect text, or None when it is not one value."""
+    value = _clean_sw_endpoint_value(label.text.get("value", ""))
+    if not value or _VALUE_SEPARATOR_PATTERN.search(value) or _CJK_PATTERN.search(value):
+        return None
+    return value
+
+
+def _text_outline(text):
+    """A text's layout outline as four (x, y) corners from text_geometry_json, else None."""
+    try:
+        corners = json.loads(text.text_geometry_json or "{}").get("corners")
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if not isinstance(corners, list) or len(corners) != 4:
+        return None
+    return [(float(x), float(y)) for x, y in corners]
+
+
+def _segment_distance(point, start, end):
+    px, py = point
+    ax, ay = start
+    bx, by = end
+    dx, dy = bx - ax, by - ay
+    length_sq = dx * dx + dy * dy
+    t = 0.0 if length_sq == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
+def _outline_distance(point, corners):
+    """Distance from a point to a convex outline; zero when the point lies inside it."""
+    count = len(corners)
+    px, py = point
+    sides = [(corners[(i + 1) % count][0] - corners[i][0]) * (py - corners[i][1])
+             - (corners[(i + 1) % count][1] - corners[i][1]) * (px - corners[i][0]) for i in range(count)]
+    if all(side >= 0 for side in sides) or all(side <= 0 for side in sides):
+        return 0.0
+    return min(_segment_distance(point, corners[i], corners[(i + 1) % count]) for i in range(count))
+
+
+def _fill_one_sided_pairs_from_connect_labels(output, connect_labels, line_groups, audit_ids, ledger, text_map):
+    """Complete one-sided legacy pairs from unclaimed SuperWORKS connect texts.
+
+    Fail-closed: a pair is completed only when exactly one unclaimed connect text on the same
+    sheet has its outline within the window of the missing end, outside it at the present end,
+    and the missing end is its nearest line end by at least SW_LABEL_SEPARATION; that text must be the only
+    candidate for that end.  Multi-value texts, texts already used by any pair, and pairs with
+    two sides are left untouched.
+    """
+    group_by_id = {group.line_group_id: group for group in line_groups}
+    used = _used_text_ids(output)
+    sides = []
+    for index, pair in enumerate(output):
+        group = group_by_id.get(pair.line_group_id)
+        if not _fillable_one_sided_pair(pair, group):
+            continue
+        ends = _missing_end_points(pair, group)
+        if ends is None:
+            continue
+        sides.append((index, pair, *ends))
+    labels = []
+    for label in connect_labels:
+        text_id = label.text.get("text_id")
+        if label.sheet_id not in audit_ids or not text_id or text_id in used:
+            continue
+        if _true_conflicts(label.reason_codes) or set(label.reason_codes) & _SW_LABEL_UNRESOLVED_GEOMETRY:
+            continue
+        value = _connect_text_value(label)
+        text = text_map.get(text_id)
+        outline = _text_outline(text) if text is not None else None
+        if value is None or outline is None:
+            continue
+        labels.append((label, value, outline, text.height))
+    sheet_ends = defaultdict(set)
+    for group in line_groups:
+        sheet_ends[(group.file_id, group.sheet_id)].update({(group.start_x, group.start_y), (group.end_x, group.end_y)})
+    qualifying = defaultdict(list)
+    claimants = defaultdict(list)
+    measures = {}
+    for position, (_, pair, missing_side, missing_end, present_end) in enumerate(sides):
+        ends = sheet_ends[(pair.file_id, pair.sheet_id)]
+        for li, (label, _, outline, height) in enumerate(labels):
+            if label.sheet_id != pair.sheet_id or label.file_id != pair.file_id:
+                continue
+            tolerance = SW_LABEL_BOX_TOL_HEIGHTS * height
+            d_missing = _outline_distance(missing_end, outline)
+            if d_missing > tolerance:
+                continue
+            d_present = _outline_distance(present_end, outline)
+            if d_present <= tolerance:
+                continue
+            second = min((_outline_distance(end, outline) for end in ends if end != missing_end), default=math.inf)
+            if second - d_missing < SW_LABEL_SEPARATION:
+                continue
+            qualifying[position].append(li)
+            claimants[li].append(position)
+            measures[(position, li)] = (d_missing, d_present, second, tolerance)
+    for position, (index, pair, missing_side, missing_end, present_end) in enumerate(sides):
+        if len(qualifying[position]) != 1 or len(claimants[qualifying[position][0]]) != 1:
+            continue
+        li = qualifying[position][0]
+        label, value, _, height = labels[li]
+        d_missing, d_present, second, tolerance = measures[(position, li)]
+        text_id = label.text.get("text_id")
+        evidence = copy.deepcopy(pair.evidence)
+        evidence["sw_missing_side_fill"] = {"source": "superworks_connect_label", "side": missing_side,
+            "connect_label_id": label.record_id, "text_id": text_id,
+            "raw_value": label.text.get("value"), "value": value,
+            "attribution": "text_bbox", "text_height": height,
+            "bbox_distance": round(d_missing, 4), "present_end_bbox_distance": round(d_present, 4),
+            "second_end_distance": None if math.isinf(second) else round(second, 4),
+            "tolerance": round(tolerance, 4), "separation_min": SW_LABEL_SEPARATION,
+            "scoring": "not_applicable_review"}
+        new = replace(pair,
+            **{f"{missing_side}_value": value, f"{missing_side}_text_id": text_id,
+               f"{missing_side}_coord_x": label.text.get("x"), f"{missing_side}_coord_y": label.text.get("y")},
+            status="review", confidence_bucket="review",
+            rationale=f"SuperWORKS connect text supplies the missing {missing_side} endpoint; legacy score does not apply, retained for review",
+            evidence=evidence)
+        output[index] = new
+        ledger.append({"element_key": f"sw_missing_side:{label.record_id}", "category": _category(pair, new),
+                       "reason": "sw_connect_label_missing_side_fill",
+                       "old_pair": asdict(pair), "new_pairs": [asdict(new)]})
+
+
 def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_groups, pairs, table_mappings):
     if data is None:
         return pairs,table_mappings,[]
@@ -845,6 +1040,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                 left_coord_x=label.start_x,left_coord_y=label.start_y,right_coord_x=label.end_x,right_coord_y=label.end_y,
                 pair_key=f"{label.endpoint_identity}->{destination}"))
         replace_claims(old,new,f"part:{label.record_id}")
+    _fill_one_sided_pairs_from_connect_labels(output, data.connect_labels, line_groups, audit_ids, ledger, text_map)
     # The dictionary is observational; it cannot demote or validate a connection.
     dictionary={_key(v) for v in data.dictionary.get("names",[])}
     strip_names={_key(v) for v in data.dictionary.get("strip_names",[])}

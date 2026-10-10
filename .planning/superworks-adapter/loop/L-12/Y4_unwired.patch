@@ -1,0 +1,182 @@
+diff --git a/src/dwg_audit/audit/candidates.py b/src/dwg_audit/audit/candidates.py
+index 59aafe1..2f7fa2a 100644
+--- a/src/dwg_audit/audit/candidates.py
++++ b/src/dwg_audit/audit/candidates.py
+@@ -120,6 +120,77 @@ _TERMINAL_SEMANTIC_ROW_PATTERNS = (
+     re.compile(r"^(?:CZ|AK)-", re.IGNORECASE),
+     re.compile(r"^(?!.*n\d{3,}$).*(?:DK|KLP|(?:K)?ZKK|CLP|KK-|ZK-).*$", re.IGNORECASE),
+ )
++# Non-numeric terminal names admitted only when the project's SuperWORKS metadata
++# names them (see build_endpoint_lexicon). They travel the schematic semantic
++# endpoint channel, so pairs.py keeps them only beside a numeric opposite side.
++_SW_LEXICON_TERMINAL_DETAIL = "sw_endpoint_lexicon_terminal"
++_SW_LEXICON_MAX_ROW_OFFSET = 3.0
++_SW_LEXICON_MIN_LENGTH = 2
++# Alarm/contact function labels, e.g. "系统告警(NO3)": SuperWORKS stores them as
++# connect-label pin names, but they name a signal, not a terminal, so they stay out.
++_SW_FUNCTION_LABEL_PATTERN = re.compile(r"\((?:NO|NC)\d+\)$", re.IGNORECASE)
++# Connect-label identities read "<device>-<pin>", e.g. "1-26n-COM1" -> pin "COM1".
++_SW_DEVICE_PIN_IDENTITY_PATTERN = re.compile(r"^\d+-\d+n-(?P<pin>.+)$", re.IGNORECASE)
++_SW_LEXICON_EXCLUDED_PORT_CATEGORIES = frozenset({"内部元件"})
++_SW_ENDPOINT_DECORATION_PATTERN = re.compile(r"^[\s&*]+|[\s&*]+$")
++
++
++def _lexicon_key(value: object) -> str:
++    if isinstance(value, dict):
++        value = value.get("value") or value.get("normalized") or ""
++    text = re.sub(r"\s+", " ", str(value or "")).strip()
++    return _SW_ENDPOINT_DECORATION_PATTERN.sub("", text)
++
++
++def build_endpoint_lexicon(superworks: object) -> frozenset[str]:
++    """Terminal names a project's SuperWORKS metadata already identifies.
++
++    Sources: strip-row endpoint identities, port endpoint identities and their
++    label/pin aliases (internal component ports excluded), and connect-label
++    values plus device pin names. Function labels are dropped by pattern.
++    """
++
++    names: set[str] = set()
++
++    def add(value: object) -> None:
++        key = _lexicon_key(value)
++        if key and not _SW_FUNCTION_LABEL_PATTERN.search(key):
++            names.add(key)
++
++    def add_identity(identity: object) -> None:
++        key = _lexicon_key(identity)
++        if not key:
++            return
++        add(key)
++        match = _SW_DEVICE_PIN_IDENTITY_PATTERN.fullmatch(key)
++        if match:
++            add(match.group("pin"))
++
++    for row in getattr(superworks, "strip_rows", None) or []:
++        add_identity(getattr(row, "endpoint_identity", None))
++    for port in getattr(superworks, "ports", None) or []:
++        if getattr(port, "category", "") in _SW_LEXICON_EXCLUDED_PORT_CATEGORIES:
++            continue
++        identity = _lexicon_key(getattr(port, "endpoint_identity", None))
++        add_identity(identity)
++        label = _lexicon_key(getattr(port, "label", None))
++        # A label that only prefixes its own identity ("1-26n" for "1-26n1201") is the device.
++        if not (label and identity.startswith(label) and identity != label):
++            add(label)
++        add(getattr(port, "pin", None))
++    for label in getattr(superworks, "connect_labels", None) or []:
++        add(getattr(label, "text", None))
++        add_identity(getattr(label, "endpoint_identity", None))
++    return frozenset(name for name in names if len(name) >= _SW_LEXICON_MIN_LENGTH)
++
++
++def _lexicon_terminal_value(text: TextItem, lexicon: frozenset[str]) -> str | None:
++    key = _lexicon_key(text.normalized_text)
++    if len(key) < _SW_LEXICON_MIN_LENGTH or key not in lexicon:
++        return None
++    if _SW_FUNCTION_LABEL_PATTERN.search(key):
++        return None
++    return key
+ 
+ 
+ class TextSpatialIndex:
+@@ -157,6 +228,7 @@ def build_terminal_candidates(
+     config: dict,
+     sheets: list[SheetRecord] | None = None,
+     candidate_id_factory: IdFactory | None = None,
++    endpoint_lexicon: frozenset[str] | None = None,
+ ) -> list[TerminalCandidate]:
+     by_sheet_texts = defaultdict(list)
+     for text in texts:
+@@ -198,6 +270,10 @@ def build_terminal_candidates(
+                     label = text.normalized_text.strip()
+                     if re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", label) and any(c.isdigit() for c in label):
+                         value = label
++                lexicon_value = None
++                if value is None and endpoint_lexicon and not physical_evidence:
++                    lexicon_value = _lexicon_terminal_value(text, endpoint_lexicon)
++                    value = lexicon_value
+                 if physical_evidence:
+                     dx = physical_evidence["position"][0] - endpoint[0]
+                     dy = physical_evidence["position"][1] - endpoint[1]
+@@ -219,6 +295,9 @@ def build_terminal_candidates(
+                     orientation=grammar_orientation,
+                     matched_terminal_strip_bypass=matched_terminal_strip_bypass,
+                 )
++                if lexicon_value is not None:
++                    channel = _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
++                    channel_detail = _SW_LEXICON_TERMINAL_DETAIL
+                 if physical_evidence and value and not value.isdigit():
+                     channel = _CHANNEL_WIRE_LOGIC_ENDPOINT
+                     channel_detail = "cad_owned_physical_terminal_label"
+@@ -270,6 +349,16 @@ def build_terminal_candidates(
+                     status = "rejected"
+                     reason = "height_out_of_range"
+                     score = 0.0
++                elif (
++                    channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
++                    and channel_detail == _SW_LEXICON_TERMINAL_DETAIL
++                    and abs(dy) > _SW_LEXICON_MAX_ROW_OFFSET
++                ):
++                    status = "rejected"
++                    reason = "schematic_semantic_out_of_row"
++                    score = 0.0
++                    channel = _CHANNEL_NOISE
++                    channel_detail = reason
+                 elif (
+                     channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+                     and channel_detail == "schematic_ac_phase_label"
+@@ -443,6 +532,7 @@ def build_terminal_candidates(
+     return results
+ 
+ 
++
+ def _physical_endpoint_binding(text: TextItem, group: LineGroup, side: str, endpoint: tuple[float, float]) -> dict:
+     # Exact outward contact with the external wire; never bridge symbol sides.
+     other = (group.end_x, group.end_y) if side in {"left", "top"} else (group.start_x, group.start_y)
+diff --git a/src/dwg_audit/audit/pairs.py b/src/dwg_audit/audit/pairs.py
+index 3762911..bd4d049 100644
+--- a/src/dwg_audit/audit/pairs.py
++++ b/src/dwg_audit/audit/pairs.py
+@@ -7,6 +7,7 @@ from dwg_audit.audit.candidates import _CHANNEL_CONTINUATION
+ from dwg_audit.audit.candidates import _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
+ from dwg_audit.audit.candidates import _CHANNEL_TERMINAL_NUMERIC
+ from dwg_audit.audit.candidates import _CHANNEL_WIRE_LOGIC_ENDPOINT
++from dwg_audit.audit.candidates import _SW_LEXICON_TERMINAL_DETAIL
+ from dwg_audit.audit.candidates import _looks_like_terminal_semantic_marker
+ from dwg_audit.domain.models import LineGroup
+ from dwg_audit.domain.models import Pair
+@@ -56,8 +57,10 @@ def build_pairs(
+             and original_left[0].source_block_name
+         )
+         _enforce_text_endpoint_identity(by_group_candidates[group.line_group_id], left_side, right_side)
+-        left = _accepted_sorted(by_group_side[(group.line_group_id, left_side)])[:top_k]
+-        right = _accepted_sorted(by_group_side[(group.line_group_id, right_side)])[:top_k]
++        left = _accepted_sorted(by_group_side[(group.line_group_id, left_side)])
++        right = _accepted_sorted(by_group_side[(group.line_group_id, right_side)])
++        left, right = _scope_lexicon_terminal_candidates(left, right)
++        left, right = left[:top_k], right[:top_k]
+         left, right = _scope_wire_logic_endpoint_candidates(left, right)
+         left, right = _scope_schematic_semantic_endpoint_candidates(left, right)
+         group_pair_candidates: list[PairCandidate] = []
+@@ -296,6 +299,20 @@ def _scope_wire_logic_endpoint_candidates(
+     return left, right
+ 
+ 
++def _scope_lexicon_terminal_candidates(
++    left: list[TerminalCandidate],
++    right: list[TerminalCandidate],
++) -> tuple[list[TerminalCandidate], list[TerminalCandidate]]:
++    """SuperWORKS-named terminal text fills only a side with no numeric terminal."""
++    left_has_numeric = any(item.channel == _CHANNEL_TERMINAL_NUMERIC for item in left)
++    right_has_numeric = any(item.channel == _CHANNEL_TERMINAL_NUMERIC for item in right)
++    if left_has_numeric:
++        left = [item for item in left if item.channel_detail != _SW_LEXICON_TERMINAL_DETAIL]
++    if right_has_numeric:
++        right = [item for item in right if item.channel_detail != _SW_LEXICON_TERMINAL_DETAIL]
++    return left, right
++
++
+ def _scope_schematic_semantic_endpoint_candidates(
+     left: list[TerminalCandidate],
+     right: list[TerminalCandidate],

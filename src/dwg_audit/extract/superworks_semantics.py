@@ -411,8 +411,17 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
                         # Terminal strips write the name, so the name is kept as an alias identity.
                         port_name = str(number)
                         if port_name != pin.get("normalized") and re.fullmatch(r"[A-Za-z]+\d+", port_name):
-                            pin = {**pin, "port_name": port_name,
-                                   "endpoint_aliases": [label.get("normalized") + ("" if category == "装置端子" else "-") + port_name]}
+                            digit_match = re.fullmatch(r"[A-Za-z]+(\d+)", port_name)
+                            if (pin.get("resolution_method") == "definition_text_nearest" and endpoint
+                                    and pin.get("normalized") == digit_match[1]):
+                                # L-15: a nearest-selected digit of an X-named TERMPOINT (X19 beside "19")
+                                # takes the terminal-strip spelling "label-X19" as its identity, as the
+                                # strip writes it; the digit form "label-19" stays as an alias.
+                                pin = {**pin, "port_name": port_name, "endpoint_aliases": [endpoint]}
+                                endpoint = label.get("normalized") + "-" + port_name
+                            else:
+                                pin = {**pin, "port_name": port_name,
+                                       "endpoint_aliases": [label.get("normalized") + ("" if category == "装置端子" else "-") + port_name]}
                     contacts = _contacts(grid, a, b, tolerance)
                     port_reasons = list(reasons)
                     if category != "端子" and category and not pin.get("resolved"):
