@@ -99,7 +99,7 @@ def test_dangling_stale_and_unattached_are_observable():
     doc=ezdxf.new()
     ins,label=symbol(doc,"端子","TD10")
     label.dxf.insert=(100,100,0)
-    assert "stale_label_reference" in extract(doc).ports[0].reason_codes
+    assert "label_far_from_symbol" in extract(doc).ports[0].reason_codes
     xdata(ins,"LD_SYMB2_LABEL",[(1005,"FFFF")])
     port=extract(doc).ports[0]
     assert "dangling_label_handle" in port.reason_codes
@@ -211,7 +211,21 @@ def test_component_handle_adjacency_is_not_geometric_proof():
     for entity in (far,label,near):
         xdata(entity,'LD_ConnectLine',[(1000,'1')])
     result=extract(doc).connect_labels[0]
-    assert result.line_handle==far.dxf.handle
+    # Geometry first: near's end sits on the anchor (distance 0); far is only handle-adjacent.
+    assert result.line_handle==near.dxf.handle
+    assert 'connect_line_geometry_not_unique' not in result.reason_codes
+    # No leader on the anchor: equal distances, handle gap alone breaks the tie -> still not unique.
+    doc=ezdxf.new()
+    doc.appids.new('LD_ConnectLine')
+    msp=doc.modelspace()
+    above=msp.add_line((0,4),(20,4))
+    label=msp.add_text('TD11',dxfattribs={'insert':(20,0),'height':2})
+    msp.add_line((100,100),(110,100))
+    below=msp.add_line((0,-4),(20,-4))
+    for entity in (above,label,below):
+        xdata(entity,'LD_ConnectLine',[(1000,'1')])
+    result=extract(doc).connect_labels[0]
+    assert result.line_handle==above.dxf.handle
     assert 'connect_line_geometry_not_unique' in result.reason_codes
 
 
