@@ -1206,6 +1206,8 @@ def supersede_border_row_duplicates(pairs, ledger, lines, line_groups, texts):
         return pairs, ledger
     result = list(pairs)
     for index, pair in enumerate(pairs):
+        if _panel_owned(pair):
+            continue
         group = group_by_id.get(pair.line_group_id)
         if not _fillable_one_sided_pair(pair, group):
             continue
@@ -1272,6 +1274,231 @@ def supersede_border_row_duplicates(pairs, ledger, lines, line_groups, texts):
         ledger.append({"element_key": f"table_border_row:{pair.sheet_id}:{pair.pair_id}", "category": "H",
                        "reason": TABLE_BORDER_REASON, "old_pair": asdict(pair),
                        "new_pairs": [asdict(sw_by_id[sw_id]) for sw_id in sw_ids]})
+    return result, ledger
+
+
+# A table cell's horizontal edge (INSERT VIRTUAL lines between two column frames of the same block) can be
+# read as a wire and leave one side of its pair empty.  With no SuperWORKS stub on the table, the cell row
+# shows nothing outward of the missing end; a real wire would show a lead or a label there.
+TABLE_CELL_REASON = "table_cell_edge_no_outward"
+# Column-frame endpoint tolerance, relative to the edge span (the frame sits exactly on the edge end in
+# the data; the tolerance only absorbs float noise and keeps the divider 5 units away from counting).
+CELL_FRAME_X_TOL_FRACTION = 0.05
+# A lead may touch the column frame only within this share of the row spacing on its inner side, and must
+# reach beyond the frame by more than it; a straddling pin mark (about half its length on each side) fails.
+LEAD_CONTACT_FRACTION = 0.05
+# Parallel borders within this multiple of the nearest border's distance count as grid neighbours.
+GRID_PITCH_RATIO = 2.0
+# With a grid neighbour on one side only, the row pitch must be confirmed by the block's own ladder: this many
+# consecutive parallel borders (same INSERT, same layer, any span) at equal spacing, within this share of pitch.
+CELL_GRID_MIN_EQUAL_LINES = 3
+CELL_GRID_PITCH_TOL_FRACTION = 0.10
+
+
+def _insert_owner(line):
+    """The INSERT handle a VIRTUAL line was expanded from, or None for a non-VIRTUAL line."""
+    handle = str(line.handle or "")
+    return handle.split(":VIRTUAL:", 1)[0] if ":VIRTUAL:" in handle else None
+
+
+def _is_vertical_line(line):
+    return abs(line.start_x - line.end_x) <= BORDER_HORIZONTAL_TOL and abs(line.start_y - line.end_y) > BORDER_HORIZONTAL_TOL
+
+
+def _panel_owned(pair):
+    """Pairs a whole-panel IGNORE decision has already taken out of the ordinary graph (see mark pass)."""
+    evidence = pair.evidence or {}
+    return bool(evidence.get("ignored_panel_family_id")) or evidence.get("ordinary_pair_eligible") is False
+
+
+def _frame_covers(end, owner, verticals, x_tol, y_tol):
+    """True when a column frame of `owner` sits at the edge end's x and its y range covers the edge."""
+    ex, ey = end
+    for line in verticals:
+        if _insert_owner(line) != owner or abs(line.start_x - ex) > x_tol:
+            continue
+        lo, hi = sorted((line.start_y, line.end_y))
+        if lo - y_tol <= ey <= hi + y_tol:
+            return True
+    return False
+
+
+def _equal_spacing_confirms(block_ys, neighbour_y, pitch):
+    """True when CELL_GRID_MIN_EQUAL_LINES consecutive parallel block borders at `pitch` include the neighbour.
+
+    `block_ys` are the horizontal borders of the same INSERT on the same layer, whatever their span; coincident
+    lines (one border drawn as several segments) count once.  Every gap of the window must match the pitch and
+    each other within CELL_GRID_PITCH_TOL_FRACTION of the pitch.
+    """
+    ys = []
+    for y in sorted(block_ys):
+        if not ys or y - ys[-1] > BORDER_HORIZONTAL_TOL:
+            ys.append(y)
+    tol = CELL_GRID_PITCH_TOL_FRACTION * pitch
+    width = CELL_GRID_MIN_EQUAL_LINES
+    for start in range(len(ys) - width + 1):
+        window = ys[start:start + width]
+        if not any(abs(y - neighbour_y) <= BORDER_HORIZONTAL_TOL for y in window):
+            continue
+        gaps = [hi - lo for lo, hi in zip(window, window[1:])]
+        if all(abs(gap - pitch) <= tol for gap in gaps) and max(gaps) - min(gaps) <= tol:
+            return True
+    return False
+
+
+def _cell_row_probe(missing_end, outward, neighbour_y, owner, lines, texts, members, x_tol):
+    """Outward probe at the row centre beside the missing end, one row high and one row long.
+
+    Clear means no lead (see LEAD_CONTACT_FRACTION) reaches outward from the column frame through the
+    probe rectangle, and no text on the outward side lies within 1.5 text heights of the missing end.
+    """
+    mx, my = missing_end
+    spacing = abs(neighbour_y - my)
+    centre_y = (my + neighbour_y) / 2
+    tol = BORDER_MIDLINE_TOL_FRACTION * spacing
+    contact = LEAD_CONTACT_FRACTION * spacing
+    x_lo, x_hi = sorted((mx, mx + outward * spacing))
+    y_lo, y_hi = centre_y - tol, centre_y + tol
+    leads = []
+    for line in lines:
+        if line.line_id in members:
+            continue
+        if _is_vertical_line(line) and _insert_owner(line) == owner and abs(line.start_x - mx) <= x_tol:
+            continue
+        if not (line.bbox_min_x <= x_hi and line.bbox_max_x >= x_lo and line.bbox_min_y <= y_hi and line.bbox_max_y >= y_lo):
+            continue
+        # A lead starts on the column frame and runs outward. A symmetric VIRTUAL pin mark straddles the
+        # frame (its ends lie on both sides of it) and is not a lead.
+        ends = [(line.start_x, line.start_y), (line.end_x, line.end_y)]
+        inward = max(0.0, max((mx - x) * outward for x, _ in ends))
+        reach = max((x - mx) * outward for x, _ in ends)
+        if inward <= contact and reach > contact:
+            leads.append(line.handle)
+    near = []
+    for text in texts:
+        corners = _text_outline(text) or _bbox_corners(text)
+        height = float(text.height or 0.0)
+        if height <= 0 or max((x - mx) * outward for x, _ in corners) < -BORDER_HORIZONTAL_TOL:
+            continue
+        if _outline_distance((mx, my), corners) <= BORDER_TEXT_TOL_HEIGHTS * height:
+            near.append(text.text_id)
+    return {"neighbour_y": neighbour_y, "centre_y": centre_y, "spacing": spacing, "tolerance": round(tol, 4),
+            "leads": leads, "texts": near, "clear": not leads and not near}
+
+
+def supersede_cell_edge_pairs(pairs, ledger, lines, line_groups, texts):
+    """Retire one-sided legacy pairs whose line group is a table cell edge with nothing outward of it.
+
+    Must run after mark_ignored_equipment_panel_ordinary_pairs.  A one-sided, non-SuperWORKS ordinary pair is
+    retired only when all of these hold:
+    - it is not already retired by another rule and not owned by a whole-panel IGNORE decision;
+    - its line group is horizontal and every member is a VIRTUAL segment of one INSERT on one layer, with both
+      endpoints on column frames of that INSERT whose y range covers the edge;
+    - the row pitch is grid-confirmed: a horizontal border of the same INSERT and layer, sharing at least half
+      the edge span, lies on each side of the edge (both within GRID_PITCH_RATIO of the nearest), or, with one
+      side only, CELL_GRID_MIN_EQUAL_LINES borders of the block at equal spacing include that neighbour;
+    - the cell band (between the edge and its row neighbours) has clear row-centre probes on both sides of the
+      edge outward of the missing end: no lead leaves the frame and no text lies within 1.5 text heights of the
+      missing end.
+    Two-sided pairs, SuperWORKS rows and pairs already retired are never changed; no pair is removed.
+    """
+    group_by_id = {group.line_group_id: group for group in line_groups}
+    line_by_id = {line.line_id: line for line in lines}
+    lines_by_sheet = defaultdict(list)
+    borders = defaultdict(list)
+    verticals = defaultdict(list)
+    for line in lines:
+        key = (line.file_id, line.sheet_id)
+        lines_by_sheet[key].append(line)
+        if _is_virtual_horizontal_line(line):
+            borders[key].append(line)
+        elif _is_vertical_line(line) and _insert_owner(line) is not None:
+            verticals[key].append(line)
+    texts_by_sheet = defaultdict(list)
+    for text in texts:
+        texts_by_sheet[(text.file_id, text.sheet_id)].append(text)
+    result = list(pairs)
+    for index, pair in enumerate(pairs):
+        if TABLE_BORDER_REASON in (pair.rationale or "") or "table_border_row_duplicate" in (pair.evidence or {}):
+            continue
+        if _panel_owned(pair):
+            continue
+        group = group_by_id.get(pair.line_group_id)
+        if not _fillable_one_sided_pair(pair, group):
+            continue
+        members = [line_by_id.get(str(item)) for item in group.member_line_ids]
+        if not members or any(m is None or not _is_virtual_horizontal_line(m) for m in members):
+            continue
+        owners = {_insert_owner(m) for m in members}
+        if len(owners) != 1 or None in owners:
+            continue
+        (owner,) = owners
+        layers = {str(m.layer) for m in members}
+        if len(layers) != 1:
+            continue
+        (edge_layer,) = layers
+        ends = _missing_end_points(pair, group)
+        if ends is None:
+            continue
+        missing_side, missing_end, _ = ends
+        mx, my = missing_end
+        span_lo, span_hi = sorted((group.start_x, group.end_x))
+        span_len = span_hi - span_lo
+        if span_len <= BORDER_HORIZONTAL_TOL:
+            continue
+        key = (pair.file_id, pair.sheet_id)
+        table = [line for line in borders[key]
+                 if _insert_owner(line) == owner and str(line.layer) == edge_layer]
+        neighbours = _border_neighbours(missing_end, owner, table, (span_lo, span_hi))
+        if not neighbours:
+            continue
+        pitch = min(abs(n.start_y - my) for n in neighbours)
+        # Grid rows only: a border more than GRID_PITCH_RATIO pitches away is not the next table row.
+        neighbours = [n for n in neighbours if abs(n.start_y - my) <= GRID_PITCH_RATIO * pitch]
+        sides = {(1 if n.start_y > my else -1): n for n in neighbours}
+        if len(sides) == 2:
+            basis = "both_sides"
+        else:
+            # A lone neighbour cannot define the row pitch by itself: the block's own ladder must confirm it.
+            # Only row-length borders take part: 1-unit VIRTUAL pin dashes sit between rows and break the ladder.
+            (only,) = sides.values()
+            pitch = abs(only.start_y - my)
+            ladder = [line.start_y for line in table
+                      if abs(line.end_x - line.start_x) >= BORDER_NEIGHBOUR_MIN_SPAN_FRACTION * span_len]
+            if not _equal_spacing_confirms(ladder, only.start_y, pitch):
+                continue
+            basis = "equal_spacing"
+        y_tol = BORDER_MIDLINE_TOL_FRACTION * pitch
+        x_tol = CELL_FRAME_X_TOL_FRACTION * span_len
+        edge_y = (group.start_y + group.end_y) / 2
+        if not all(_frame_covers(end, owner, verticals[key], x_tol, y_tol)
+                   for end in ((group.start_x, edge_y), (group.end_x, edge_y))):
+            continue
+        outward = 1 if mx > (span_lo + span_hi) / 2 else -1
+        members_ids = set(group.member_line_ids)
+        probes = []
+        # Both row centres (the cell band above and below the edge) are probed, never only one.
+        for sign in (1, -1):
+            neighbour = sides.get(sign)
+            # A side without a neighbour is one pitch deep in an equal-spacing grid.
+            neighbour_y = neighbour.start_y if neighbour is not None else my + sign * pitch
+            probe = _cell_row_probe(missing_end, outward, neighbour_y, owner, lines_by_sheet[key],
+                                    texts_by_sheet[key], members_ids, x_tol)
+            probe["side"] = "higher_y" if sign > 0 else "lower_y"
+            probe["neighbour_handle"] = None if neighbour is None else neighbour.handle
+            probes.append(probe)
+        if not all(probe["clear"] for probe in probes):
+            continue
+        evidence = copy.deepcopy(pair.evidence or {})
+        evidence["table_cell_edge"] = {
+            "reason": TABLE_CELL_REASON, "owner": owner, "border_line_group_id": pair.line_group_id,
+            "missing_side": missing_side, "missing_end": [mx, my], "span": [span_lo, span_hi],
+            "edge_layer": edge_layer, "grid_basis": basis, "outward": outward,
+            "neighbour_handles": sorted(n.handle for n in sides.values()), "probes": probes}
+        new = replace(pair, status="discard", rationale=f"{TABLE_CELL_REASON}: {owner}", evidence=evidence)
+        result[index] = new
+        ledger.append({"element_key": f"table_cell_edge:{pair.sheet_id}:{pair.pair_id}", "category": "H",
+                       "reason": TABLE_CELL_REASON, "old_pair": asdict(pair), "new_pairs": []})
     return result, ledger
 
 

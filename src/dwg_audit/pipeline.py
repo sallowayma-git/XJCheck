@@ -266,17 +266,23 @@ def analyze_input_root(
         pairs, superworks_supersession = supersede_equivalent_component_duplicates(
             pairs, superworks_supersession,
         )
-        from dwg_audit.audit.superworks_extractor import supersede_border_row_duplicates
-        pairs, superworks_supersession = supersede_border_row_duplicates(
-            pairs, superworks_supersession, audit_lines, line_groups, audit_texts,
-        )
-
         mark_ignored_equipment_panel_ordinary_pairs(
             pairs,
             line_groups,
             audit_texts,
             audit_lines,
             symbol_port_definition_proposals,
+        )
+
+        # Both table-edge passes run after the panel mark: a panel-owned pair (ordinary_pair_eligible=False,
+        # ignored_panel_family_id) is never retired here and leaves no ledger entry.
+        from dwg_audit.audit.superworks_extractor import supersede_border_row_duplicates
+        pairs, superworks_supersession = supersede_border_row_duplicates(
+            pairs, superworks_supersession, audit_lines, line_groups, audit_texts,
+        )
+        from dwg_audit.audit.superworks_extractor import supersede_cell_edge_pairs
+        pairs, superworks_supersession = supersede_cell_edge_pairs(
+            pairs, superworks_supersession, audit_lines, line_groups, audit_texts,
         )
 
         authoritative_component_pairs = [
