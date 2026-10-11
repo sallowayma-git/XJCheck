@@ -1,0 +1,880 @@
+{
+ "project": "PIN-ID",
+ "scope": "read-only; replay .tmp/superworks_round16_full (77 projects, 1745 pages); DXF from corpus_manifest.json",
+ "population": {
+  "pop_s": {
+   "total": 35963,
+   "with_wire": 33830,
+   "with_terminal_partner": 18604,
+   "terminal_partner_by_family": {
+    "正式典设": 13483,
+    "110kV变压器保护柜": 183,
+    "PAC-885G-H": 217,
+    "【出原理图】N2604HBJ20732J合同": 4407,
+    "变压器测控柜(2圈变，2台测控)": 314
+   },
+   "label_ok": 29183,
+   "reasons": {
+    "label_ok_no_pin_text_link": 29153,
+    "label_ok_term_text_link_present_but_not_used": 30,
+    "label_reference_missing": 6780
+   },
+   "by_family": {
+    "正式典设": 25726,
+    "110kV变压器保护柜": 470,
+    "PAC-885G-H": 512,
+    "【出原理图】N2604HBJ20732J合同": 8675,
+    "变压器测控柜(2圈变，2台测控)": 580
+   },
+   "pin_level_link_resolved": 160,
+   "scan_term_text_links": 92,
+   "terminal_partner_and_label": 16642
+  },
+  "pop_x": {
+   "total_ends": 8145,
+   "symbols": 3513,
+   "reasons": {
+    "symbol_dropped_no_LD_SYMB2_SPECIAL": 8145,
+    "slot_text_missing": 410,
+    "other_end_not_resolved_terminal": 938,
+    "wire_handle_missing_in_record": 1152,
+    "label_missing": 6
+   },
+   "by_family": {
+    "正式典设": 5643,
+    "110kV变压器保护柜": 163,
+    "PAC-885G-H": 149,
+    "【出原理图】N2604HBJ20732J合同": 2064,
+    "变压器测控柜(2圈变，2台测控)": 126
+   },
+   "term_partner": 7207,
+   "candidate_availability": {
+    "K_rec": 7987,
+    "K_slot": 7735,
+    "K_rec_and_K_slot_equal": 7735,
+    "K_rec_only_slot_missing": 252
+   }
+  }
+ },
+ "consistency": {
+  "K1_slot_vs_record": {
+   "pairs": 7735,
+   "agree": 7735
+  },
+  "K2_record_vs_terminal_row": {
+   "counts": {
+    "agree": 3584,
+    "row_missing": 3070,
+    "disagree_device_absent": 482,
+    "disagree_same_device_other_pin": 65
+   },
+   "checkable": 4131,
+   "agree_rate": 0.8676,
+   "disagree_with_no_wire_handle": 526,
+   "disagree_total": 547,
+   "note": "disagreements are mostly records without a wire handle (bus or polyline wires), see README"
+  },
+  "K3_termpoint_number_vs_identified": {
+   "identified_internal_ports": 856,
+   "suffix_equals_number": 56,
+   "rate": 0.0654
+  },
+  "K4_duplicates": {
+   "popx": {
+    "identities": 7940,
+    "multi_location": 47,
+    "multi_location_distinct_partners": 1
+   },
+   "pops": {
+    "identities": 829,
+    "multi_location": 548,
+    "multi_location_distinct_partners": 379
+   }
+  },
+  "K5_conflicts_with_existing_pass_pairs": {
+   "unique_terminal_ports": 553,
+   "by_pair_kind": {
+    "bridge_mapping": 85,
+    "wire_component_mapping": 448,
+    "semantic_mapping": 7,
+    "ordinary_pair": 13
+   },
+   "by_pair_status": {
+    "pass": 532,
+    "review": 21
+   },
+   "other_side_numeric_legacy": 25,
+   "by_family": {
+    "正式典设": 255,
+    "PAC-885G-H": 8,
+    "【出原理图】N2604HBJ20732J合同": 290
+   }
+  }
+ },
+ "duplicates": {
+  "pop_s": {
+   "identities": 829,
+   "multi_location": 548,
+   "multi_location_distinct_partners": 379
+  },
+  "pop_x": {
+   "identities": 7940,
+   "multi_location": 47,
+   "multi_location_distinct_partners": 1
+  }
+ },
+ "visual": {
+  "strata": {
+   "A": {
+    "n": 26,
+    "correct": 26,
+    "plausible": 0,
+    "unverifiable": 0,
+    "incorrect": 0,
+    "by_family": {
+     "PAC-885G-H": 1,
+     "正式典设": 16,
+     "【出原理图】N2604HBJ20732J合同": 7,
+     "变压器测控柜(2圈变，2台测控)": 1,
+     "110kV变压器保护柜": 1
+    }
+   },
+   "B": {
+    "n": 6,
+    "correct": 0,
+    "plausible": 1,
+    "unverifiable": 5,
+    "incorrect": 0,
+    "by_family": {
+     "正式典设": 4,
+     "PAC-885G-H": 1,
+     "110kV变压器保护柜": 1
+    }
+   },
+   "C": {
+    "n": 5,
+    "correct": 0,
+    "plausible": 5,
+    "unverifiable": 0,
+    "incorrect": 0,
+    "by_family": {
+     "正式典设": 3,
+     "110kV变压器保护柜": 1,
+     "变压器测控柜(2圈变，2台测控)": 1
+    }
+   },
+   "D": {
+    "n": 9,
+    "correct": 0,
+    "plausible": 0,
+    "unverifiable": 6,
+    "incorrect": 3,
+    "by_family": {
+     "正式典设": 4,
+     "变压器测控柜(2圈变，2台测控)": 1,
+     "PAC-885G-H": 1,
+     "【出原理图】N2604HBJ20732J合同": 2,
+     "110kV变压器保护柜": 1
+    }
+   },
+   "A2": {
+    "n": 20,
+    "correct": 20,
+    "plausible": 0,
+    "unverifiable": 0,
+    "incorrect": 0,
+    "by_family": {
+     "正式典设": 14,
+     "变压器测控柜(2圈变，2台测控)": 1,
+     "【出原理图】N2604HBJ20732J合同": 4,
+     "PAC-885G-H": 1
+    }
+   }
+  },
+  "A_all": {
+   "n": 46,
+   "correct": 46,
+   "point_precision_pct": 100.0,
+   "exact_95_lower_bound": 0.937,
+   "note": "draws A (seed 20261011) and A2 (seed 20261012) of the same accepted-source pool; A215 and A217 are copies of one drawing"
+  },
+  "conflict_examples": [
+   {
+    "kind": "bridge_mapping",
+    "verdict": "plausible_candidate",
+    "note": "candidate matches the drawn wire end (pin 13 of 1FA); the existing bridge pair 1QD4-1QD7 looks spurious"
+   },
+   {
+    "kind": "wire_component_mapping",
+    "verdict": "candidate_corrects_legacy",
+    "note": "drawn 12 matches the candidate FZJ1-12; the existing pass pair holds a bare legacy number 12"
+   },
+   {
+    "kind": "semantic_mapping",
+    "verdict": "plausible_candidate",
+    "note": "drawn 1 matches candidate 1-21ZK-1; existing review pair holds a bare legacy number 13"
+   },
+   {
+    "kind": "ordinary_pair",
+    "verdict": "candidate_consistent_with_geometry",
+    "note": "the drawn wire runs from the terminal to pin 13 of 3-4FA2; the existing ordinary pair to terminal 3-4Q2D17 looks wrong"
+   }
+  ],
+  "samples": {
+   "A": [
+    {
+     "png": "png/A01_p050_F0015_1D5B0-2.png",
+     "pid": "p050",
+     "family": "PAC-885G-H",
+     "file": "F0015",
+     "verdict": "correct",
+     "note": "drawn 2 in the marker circle; label 1DK beside it"
+    },
+    {
+     "png": "png/A02_p046_F0005_120C3-3.png",
+     "pid": "p046",
+     "family": "正式典设",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 3; label 2-21ZKK1"
+    },
+    {
+     "png": "png/A03_p064_F0009_F931-1.png",
+     "pid": "p064",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0009",
+     "verdict": "correct",
+     "note": "drawn 5; label DYQK"
+    },
+    {
+     "png": "png/A04_p045_F0014_B8F0-1.png",
+     "pid": "p045",
+     "family": "正式典设",
+     "file": "F0014",
+     "verdict": "correct",
+     "note": "drawn 1 under the marker; label 2-21CLP3"
+    },
+    {
+     "png": "png/A05_p024_F0010_1FADF-2.png",
+     "pid": "p024",
+     "family": "正式典设",
+     "file": "F0010",
+     "verdict": "correct",
+     "note": "drawn 2; label 1KLP11 beside the device"
+    },
+    {
+     "png": "png/A06_p004_F0005_680-2.png",
+     "pid": "p004",
+     "family": "正式典设",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 2; label 8DK"
+    },
+    {
+     "png": "png/A07_p025_F0008_18A41-1.png",
+     "pid": "p025",
+     "family": "正式典设",
+     "file": "F0008",
+     "verdict": "correct",
+     "note": "drawn 2 while TERMPOINT number is 1: the port number is not the drawn name"
+    },
+    {
+     "png": "png/A08_p062_F0004_390FC-2.png",
+     "pid": "p062",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0004",
+     "verdict": "correct",
+     "note": "drawn 2; label 2-40DK1"
+    },
+    {
+     "png": "png/A09_p076_F0004_106F8-1.png",
+     "pid": "p076",
+     "family": "变压器测控柜(2圈变，2台测控)",
+     "file": "F0004",
+     "verdict": "correct",
+     "note": "drawn 1 above the marker; label 1-21ZKK"
+    },
+    {
+     "png": "png/A10_p001_F0007_1AD73-1.png",
+     "pid": "p001",
+     "family": "正式典设",
+     "file": "F0007",
+     "verdict": "correct",
+     "note": "drawn 2 while TERMPOINT number is 1"
+    },
+    {
+     "png": "png/A11_p058_F0005_D3D9-6.png",
+     "pid": "p058",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 6; label 2-21ZKK1"
+    },
+    {
+     "png": "png/A12_p060_F0005_C9FB-3.png",
+     "pid": "p060",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 3; label 2-21DK2"
+    },
+    {
+     "png": "png/A13_p059_F0005_C9FB-4.png",
+     "pid": "p059",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 4; label 2-21DK2"
+    },
+    {
+     "png": "png/A14_p049_F0012_2CF0B-2.png",
+     "pid": "p049",
+     "family": "110kV变压器保护柜",
+     "file": "F0012",
+     "verdict": "correct",
+     "note": "drawn 2; label 5KLP5"
+    },
+    {
+     "png": "png/A15_p033_F0014_17B1A-1.png",
+     "pid": "p033",
+     "family": "正式典设",
+     "file": "F0014",
+     "verdict": "correct",
+     "note": "drawn 2 while TERMPOINT number is 1"
+    },
+    {
+     "png": "png/A16_p044_F0008_4A39A-3.png",
+     "pid": "p044",
+     "family": "正式典设",
+     "file": "F0008",
+     "verdict": "correct",
+     "note": "drawn 3; label 2-1DK1"
+    },
+    {
+     "png": "png/A17_p007_F0012_EE39-2.png",
+     "pid": "p007",
+     "family": "正式典设",
+     "file": "F0012",
+     "verdict": "correct",
+     "note": "drawn 1 under the marker, candidate uses seq 1 (TERMPOINT 2)"
+    },
+    {
+     "png": "png/A18_p033_F0008_C663-4.png",
+     "pid": "p033",
+     "family": "正式典设",
+     "file": "F0008",
+     "verdict": "correct",
+     "note": "drawn 4; label 1ZKK3"
+    },
+    {
+     "png": "png/A19_p000_F0007_1AD73-2.png",
+     "pid": "p000",
+     "family": "正式典设",
+     "file": "F0007",
+     "verdict": "correct",
+     "note": "drawn 1 under the marker (TERMPOINT 2)"
+    },
+    {
+     "png": "png/A20_p071_F0004_26945-2.png",
+     "pid": "p071",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0004",
+     "verdict": "correct",
+     "note": "drawn 2; label 2-57DK1"
+    },
+    {
+     "png": "png/A21_p034_F0012_1E43C-1.png",
+     "pid": "p034",
+     "family": "正式典设",
+     "file": "F0012",
+     "verdict": "correct",
+     "note": "drawn 1; label 5KLP7; LOGGEN record has no wire handle, the drawn wire does end at this marker"
+    },
+    {
+     "png": "png/A22_p006_F0004_1CD10-2.png",
+     "pid": "p006",
+     "family": "正式典设",
+     "file": "F0004",
+     "verdict": "correct",
+     "note": "drawn 2; label 1-21ZKK"
+    },
+    {
+     "png": "png/A23_p006_F0005_4C51-2.png",
+     "pid": "p006",
+     "family": "正式典设",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 2; label 4DK1"
+    },
+    {
+     "png": "png/A24_p033_F0013_1E49D-1.png",
+     "pid": "p033",
+     "family": "正式典设",
+     "file": "F0013",
+     "verdict": "correct",
+     "note": "drawn 13; label 5FA"
+    },
+    {
+     "png": "png/A25_p074_F0005_34F55-5.png",
+     "pid": "p074",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn glyph read as 5 (low resolution), candidate uses seq 5"
+    },
+    {
+     "png": "png/A26_p014_F0016_EEC9-2.png",
+     "pid": "p014",
+     "family": "正式典设",
+     "file": "F0016",
+     "verdict": "correct",
+     "note": "drawn 1 under the marker (TERMPOINT 2)"
+    }
+   ],
+   "B": [
+    {
+     "png": "png/B01_p002_F0005_E2C0-N.png",
+     "pid": "p002",
+     "family": "正式典设",
+     "file": "F0005",
+     "verdict": "unverifiable",
+     "note": "CZ-N template: drawn N sits at the top of the device, the marker is at the bottom; LOGGEN wire handle missing"
+    },
+    {
+     "png": "png/B02_p050_F0015_24589-N.png",
+     "pid": "p050",
+     "family": "PAC-885G-H",
+     "file": "F0015",
+     "verdict": "unverifiable",
+     "note": "same CZ-N template as B01"
+    },
+    {
+     "png": "png/B03_p049_F0007_1D354-N.png",
+     "pid": "p049",
+     "family": "110kV变压器保护柜",
+     "file": "F0007",
+     "verdict": "unverifiable",
+     "note": "same CZ-N template as B01"
+    },
+    {
+     "png": "png/B04_p039_F0018_21299-R-.png",
+     "pid": "p039",
+     "family": "正式典设",
+     "file": "F0018",
+     "verdict": "plausible",
+     "note": "device sign R- is drawn inside the device at the wire end; not a pin number"
+    },
+    {
+     "png": "png/B05_p019_F0006_11379-N.png",
+     "pid": "p019",
+     "family": "正式典设",
+     "file": "F0006",
+     "verdict": "unverifiable",
+     "note": "same CZ-N template as B01"
+    },
+    {
+     "png": "png/B06_p044_F0008_49C0F-N.png",
+     "pid": "p044",
+     "family": "正式典设",
+     "file": "F0008",
+     "verdict": "unverifiable",
+     "note": "same CZ-N template as B01"
+    }
+   ],
+   "C": [
+    {
+     "png": "png/C01_p032_F0011_20AD1-1.png",
+     "pid": "p032",
+     "family": "正式典设",
+     "file": "F0011",
+     "verdict": "plausible",
+     "note": "drawn 1 under the marker; the terminal feeds a vertical bus that reaches many pins, so the strip row lists only one"
+    },
+    {
+     "png": "png/C02_p049_F0010_25803-1.png",
+     "pid": "p049",
+     "family": "110kV变压器保护柜",
+     "file": "F0010",
+     "verdict": "plausible",
+     "note": "drawn 1; bus topology as C01"
+    },
+    {
+     "png": "png/C03_p007_F0011_28858-1.png",
+     "pid": "p007",
+     "family": "正式典设",
+     "file": "F0011",
+     "verdict": "plausible",
+     "note": "drawn 1; bus topology as C01"
+    },
+    {
+     "png": "png/C04_p023_F0010_20002-1.png",
+     "pid": "p023",
+     "family": "正式典设",
+     "file": "F0010",
+     "verdict": "plausible",
+     "note": "drawn 1; bus topology as C01"
+    },
+    {
+     "png": "png/C05_p076_F0010_F2C1-1.png",
+     "pid": "p076",
+     "family": "变压器测控柜(2圈变，2台测控)",
+     "file": "F0010",
+     "verdict": "plausible",
+     "note": "drawn 13; the terminal wire reaches the device through a vertical bus"
+    }
+   ],
+   "D": [
+    {
+     "png": "png/D01_p023_F0013_17C4B-1.png",
+     "pid": "p023",
+     "family": "正式典设",
+     "file": "F0013",
+     "verdict": "unverifiable",
+     "note": "no drawn pin text at the marker"
+    },
+    {
+     "png": "png/D02_p034_F0008_C649-1.png",
+     "pid": "p034",
+     "family": "正式典设",
+     "file": "F0008",
+     "verdict": "incorrect",
+     "note": "drawn 5 at the marker while the candidate uses TERMPOINT number 1"
+    },
+    {
+     "png": "png/D03_p076_F0012_11633-1.png",
+     "pid": "p076",
+     "family": "变压器测控柜(2圈变，2台测控)",
+     "file": "F0012",
+     "verdict": "unverifiable",
+     "note": "no drawn pin text at the marker"
+    },
+    {
+     "png": "png/D04_p015_F0007_B88B-1.png",
+     "pid": "p015",
+     "family": "正式典设",
+     "file": "F0007",
+     "verdict": "incorrect",
+     "note": "drawn 9 at the marker while the candidate uses TERMPOINT number 1"
+    },
+    {
+     "png": "png/D05_p040_F0009_172B0-1.png",
+     "pid": "p040",
+     "family": "正式典设",
+     "file": "F0009",
+     "verdict": "incorrect",
+     "note": "drawn 2 at the marker while the candidate uses TERMPOINT number 1"
+    },
+    {
+     "png": "png/D06_p050_F0021_2850F-2.png",
+     "pid": "p050",
+     "family": "PAC-885G-H",
+     "file": "F0021",
+     "verdict": "unverifiable",
+     "note": "no drawn pin text at the marker"
+    },
+    {
+     "png": "png/D07_p072_F0012_319CD-2.png",
+     "pid": "p072",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0012",
+     "verdict": "unverifiable",
+     "note": "nearest text is a strip caption, not a pin text"
+    },
+    {
+     "png": "png/D08_p052_F0008_29C7D-1.png",
+     "pid": "p052",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0008",
+     "verdict": "unverifiable",
+     "note": "single-pin ground symbol; only GND is drawn"
+    },
+    {
+     "png": "png/D09_p049_F0006_21782-1.png",
+     "pid": "p049",
+     "family": "110kV变压器保护柜",
+     "file": "F0006",
+     "verdict": "unverifiable",
+     "note": "no clear pin text at the marker"
+    }
+   ],
+   "A2": [
+    {
+     "png": "png/A201_p025_F0008_18A49-2.png",
+     "pid": "p025",
+     "family": "正式典设",
+     "file": "F0008",
+     "verdict": "correct",
+     "note": "drawn 1 under the marker (TERMPOINT 2)"
+    },
+    {
+     "png": "png/A202_p076_F0008_10421-2.png",
+     "pid": "p076",
+     "family": "变压器测控柜(2圈变，2台测控)",
+     "file": "F0008",
+     "verdict": "correct",
+     "note": "drawn 6; label 1-21KK"
+    },
+    {
+     "png": "png/A203_p026_F0004_12281-2.png",
+     "pid": "p026",
+     "family": "正式典设",
+     "file": "F0004",
+     "verdict": "correct",
+     "note": "drawn 2; label JR"
+    },
+    {
+     "png": "png/A204_p072_F0006_1BAED-3.png",
+     "pid": "p072",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0006",
+     "verdict": "correct",
+     "note": "drawn 3; label 4DK2"
+    },
+    {
+     "png": "png/A205_p065_F0014_ECCD-2.png",
+     "pid": "p065",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0014",
+     "verdict": "correct",
+     "note": "drawn 1 under the marker (TERMPOINT 2)"
+    },
+    {
+     "png": "png/A206_p056_F0005_C9C0-3.png",
+     "pid": "p056",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 3; label 1-21DK2"
+    },
+    {
+     "png": "png/A207_p009_F0015_1B4B0-1.png",
+     "pid": "p009",
+     "family": "正式典设",
+     "file": "F0015",
+     "verdict": "correct",
+     "note": "drawn 2 while TERMPOINT number is 1"
+    },
+    {
+     "png": "png/A208_p038_F0014_2619C-2.png",
+     "pid": "p038",
+     "family": "正式典设",
+     "file": "F0014",
+     "verdict": "correct",
+     "note": "drawn 2; label 3-2CLP4"
+    },
+    {
+     "png": "png/A209_p006_F0012_23FB5-2.png",
+     "pid": "p006",
+     "family": "正式典设",
+     "file": "F0012",
+     "verdict": "correct",
+     "note": "drawn 2; label 1-21CLP6"
+    },
+    {
+     "png": "png/A210_p000_F0012_19925-2.png",
+     "pid": "p000",
+     "family": "正式典设",
+     "file": "F0012",
+     "verdict": "correct",
+     "note": "drawn 2X3; label K861"
+    },
+    {
+     "png": "png/A211_p009_F0006_158C9-2.png",
+     "pid": "p009",
+     "family": "正式典设",
+     "file": "F0006",
+     "verdict": "correct",
+     "note": "drawn 2; label 1DK"
+    },
+    {
+     "png": "png/A212_p007_F0012_173FE-1.png",
+     "pid": "p007",
+     "family": "正式典设",
+     "file": "F0012",
+     "verdict": "correct",
+     "note": "drawn 2; label 1C18LP1"
+    },
+    {
+     "png": "png/A213_p037_F0013_3DCC3-2.png",
+     "pid": "p037",
+     "family": "正式典设",
+     "file": "F0013",
+     "verdict": "correct",
+     "note": "drawn 1 under the marker (TERMPOINT 2)"
+    },
+    {
+     "png": "png/A214_p031_F0020_356ED-1.png",
+     "pid": "p031",
+     "family": "正式典设",
+     "file": "F0020",
+     "verdict": "correct",
+     "note": "drawn 2X2; label K862"
+    },
+    {
+     "png": "png/A215_p025_F0004_12270-3.png",
+     "pid": "p025",
+     "family": "正式典设",
+     "file": "F0004",
+     "verdict": "correct",
+     "note": "drawn 3; label KZKK (same drawing as A217)"
+    },
+    {
+     "png": "png/A216_p050_F0017_34B16-2.png",
+     "pid": "p050",
+     "family": "PAC-885G-H",
+     "file": "F0017",
+     "verdict": "correct",
+     "note": "drawn 2; label 1KLP7"
+    },
+    {
+     "png": "png/A217_p000_F0005_E2D9-3.png",
+     "pid": "p000",
+     "family": "正式典设",
+     "file": "F0005",
+     "verdict": "correct",
+     "note": "drawn 3; label KZKK (copy of A215 in another project)"
+    },
+    {
+     "png": "png/A218_p019_F0016_EE1D-1.png",
+     "pid": "p019",
+     "family": "正式典设",
+     "file": "F0016",
+     "verdict": "correct",
+     "note": "drawn 2; label 1C11LP1"
+    },
+    {
+     "png": "png/A219_p007_F0012_ED52-1.png",
+     "pid": "p007",
+     "family": "正式典设",
+     "file": "F0012",
+     "verdict": "correct",
+     "note": "drawn 2; label 1C8LP1"
+    },
+    {
+     "png": "png/A220_p064_F0007_17DA9-1.png",
+     "pid": "p064",
+     "family": "【出原理图】N2604HBJ20732J合同",
+     "file": "F0007",
+     "verdict": "correct",
+     "note": "drawn 1; label 1ZKK4"
+    }
+   ]
+  }
+ },
+ "coverage": {
+  "baseline": {
+   "eligible": 82680,
+   "consumed": 47692,
+   "ratio": 0.576826
+  },
+  "per_family_baseline": {
+   "正式典设": {
+    "eligible": 59021,
+    "consumed": 32873
+   },
+   "110kV变压器保护柜": {
+    "eligible": 1181,
+    "consumed": 654
+   },
+   "PAC-885G-H": {
+    "eligible": 1134,
+    "consumed": 624
+   },
+   "【出原理图】N2604HBJ20732J合同": {
+    "eligible": 20094,
+    "consumed": 12707
+   },
+   "变压器测控柜(2圈变，2台测控)": {
+    "eligible": 1250,
+    "consumed": 834
+   }
+  },
+  "rules": {
+   "R1_slot_agree_rec_unique_row_not_disagree": {
+    "candidate_terminal_ports": 3788,
+    "eligible_unconsumed_gain": 3188,
+    "eligible_already_consumed": 553,
+    "upper_strict_ratio": 0.615385,
+    "gain_pp": 3.856,
+    "gain_by_family": {
+     "【出原理图】N2604HBJ20732J合同": 1147,
+     "PAC-885G-H": 92,
+     "正式典设": 1794,
+     "变压器测控柜(2圈变，2台测控)": 52,
+     "110kV变压器保护柜": 103
+    }
+   },
+   "R2_slot_agree_only": {
+    "candidate_terminal_ports": 3802,
+    "eligible_unconsumed_gain": 3198,
+    "eligible_already_consumed": 556,
+    "upper_strict_ratio": 0.615506,
+    "gain_pp": 3.868,
+    "gain_by_family": {
+     "【出原理图】N2604HBJ20732J合同": 1148,
+     "PAC-885G-H": 92,
+     "正式典设": 1803,
+     "变压器测控柜(2圈变，2台测控)": 52,
+     "110kV变压器保护柜": 103
+    }
+   },
+   "R3_rec_only_slot_missing": {
+    "candidate_terminal_ports": 132,
+    "eligible_unconsumed_gain": 130,
+    "eligible_already_consumed": 2,
+    "upper_strict_ratio": 0.578399,
+    "gain_pp": 0.157,
+    "gain_by_family": {
+     "正式典设": 74,
+     "【出原理图】N2604HBJ20732J合同": 41,
+     "变压器测控柜(2圈变，2台测控)": 9,
+     "110kV变压器保护柜": 3,
+     "PAC-885G-H": 3
+    }
+   },
+   "R4_rec_only_including_row_disagree": {
+    "candidate_terminal_ports": 3934,
+    "eligible_unconsumed_gain": 3328,
+    "eligible_already_consumed": 558,
+    "upper_strict_ratio": 0.617078,
+    "gain_pp": 4.025,
+    "gain_by_family": {
+     "【出原理图】N2604HBJ20732J合同": 1189,
+     "PAC-885G-H": 95,
+     "正式典设": 1877,
+     "变压器测控柜(2圈变，2台测控)": 61,
+     "110kV变压器保护柜": 106
+    }
+   }
+  },
+  "R1_unconsumed_gain_split": {
+   "total_ports": 3188,
+   "wire_handle_present": 3041,
+   "wire_handle_missing": 147
+  },
+  "R1_upper_strict_ratio_wire_present_only": 0.613607,
+  "pop_s_naive_k_num_reachable_unconsumed_terminals": 10859
+ },
+ "conflicts": {
+  "r1_terminal_ports_already_consumed": 553,
+  "detail": {
+   "unique_terminal_ports": 553,
+   "by_pair_kind": {
+    "bridge_mapping": 85,
+    "wire_component_mapping": 448,
+    "semantic_mapping": 7,
+    "ordinary_pair": 13
+   },
+   "by_pair_status": {
+    "pass": 532,
+    "review": 21
+   },
+   "other_side_numeric_legacy": 25,
+   "by_family": {
+    "正式典设": 255,
+    "PAC-885G-H": 8,
+    "【出原理图】N2604HBJ20732J合同": 290
+   }
+  }
+ }
+}
