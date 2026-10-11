@@ -1,0 +1,67 @@
+{
+ "project": "p006",
+ "pairs_reference": 2775,
+ "pairs_new": 2776,
+ "pairs_added": 1,
+ "pairs_added_by": {
+  "review|bridge_mapping": 1
+ },
+ "pairs_removed": 0,
+ "pairs_removed_by": {},
+ "pairs_changed": 1,
+ "pairs_changed_detail": [
+  {
+   "pair_id": "PW0229",
+   "fields": [
+    "evidence"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    "115",
+    "115"
+   ],
+   "right": [
+    "Manual closing of synchronization",
+    "Manual closing of synchronization"
+   ],
+   "pair_kind": "semantic_mapping"
+  }
+ ],
+ "added_pairs": [
+  {
+   "pair_id": "PSWcd439f5774bb55af",
+   "file_id": "F0004",
+   "sheet_id": "S0004",
+   "line_group_id": null,
+   "left_value": "1-21UD5",
+   "right_value": "1-21UD4",
+   "status": "review",
+   "pair_kind": "bridge_mapping",
+   "rationale": "wire_geometry_missing",
+   "left_text_id": "T0075",
+   "right_text_id": "T0052",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_16"
+  }
+ ],
+ "issues_reference": 0,
+ "issues_new": 0,
+ "issues_added": [],
+ "issues_removed": [],
+ "findings_differing": [
+  "pairs.parquet",
+  "source_files.parquet",
+  "sw_port_coverage.parquet",
+  "text_assignments.parquet"
+ ],
+ "strict_reference": {
+  "eligible": 1339,
+  "consumed": 777
+ },
+ "strict_new": {
+  "eligible": 1339,
+  "consumed": 779
+ }
+}

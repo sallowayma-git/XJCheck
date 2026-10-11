@@ -1,0 +1,27 @@
+{
+ "project": "p057",
+ "pairs_reference": 1149,
+ "pairs_new": 1149,
+ "pairs_added": 0,
+ "pairs_added_by": {},
+ "pairs_removed": 0,
+ "pairs_removed_by": {},
+ "pairs_changed": 0,
+ "pairs_changed_detail": [],
+ "added_pairs": [],
+ "issues_reference": 0,
+ "issues_new": 0,
+ "issues_added": [],
+ "issues_removed": [],
+ "findings_differing": [
+  "source_files.parquet"
+ ],
+ "strict_reference": {
+  "eligible": 632,
+  "consumed": 467
+ },
+ "strict_new": {
+  "eligible": 632,
+  "consumed": 467
+ }
+}

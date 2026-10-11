@@ -1,0 +1,1980 @@
+{
+ "p000": {
+  "project": "p000",
+  "pairs_reference": 1417,
+  "pairs_new": 1417,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 2,
+  "issues_new": 2,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 662,
+   "consumed": 385
+  },
+  "strict_new": {
+   "eligible": 662,
+   "consumed": 389
+  }
+ },
+ "p001": {
+  "project": "p001",
+  "pairs_reference": 1279,
+  "pairs_new": 1279,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 663,
+   "consumed": 398
+  },
+  "strict_new": {
+   "eligible": 663,
+   "consumed": 402
+  }
+ },
+ "p002": {
+  "project": "p002",
+  "pairs_reference": 1540,
+  "pairs_new": 1540,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 5,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 720,
+   "consumed": 440
+  },
+  "strict_new": {
+   "eligible": 720,
+   "consumed": 444
+  }
+ },
+ "p003": {
+  "project": "p003",
+  "pairs_reference": 637,
+  "pairs_new": 637,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 378,
+   "consumed": 242
+  },
+  "strict_new": {
+   "eligible": 378,
+   "consumed": 242
+  }
+ },
+ "p004": {
+  "project": "p004",
+  "pairs_reference": 989,
+  "pairs_new": 989,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 495,
+   "consumed": 247
+  },
+  "strict_new": {
+   "eligible": 495,
+   "consumed": 247
+  }
+ },
+ "p005": {
+  "project": "p005",
+  "pairs_reference": 1386,
+  "pairs_new": 1386,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 709,
+   "consumed": 342
+  },
+  "strict_new": {
+   "eligible": 709,
+   "consumed": 342
+  }
+ },
+ "p006": {
+  "project": "p006",
+  "pairs_reference": 2775,
+  "pairs_new": 2776,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1339,
+   "consumed": 777
+  },
+  "strict_new": {
+   "eligible": 1339,
+   "consumed": 779
+  }
+ },
+ "p007": {
+  "project": "p007",
+  "pairs_reference": 2321,
+  "pairs_new": 2321,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1249,
+   "consumed": 641
+  },
+  "strict_new": {
+   "eligible": 1249,
+   "consumed": 641
+  }
+ },
+ "p008": {
+  "project": "p008",
+  "pairs_reference": 2530,
+  "pairs_new": 2530,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1373,
+   "consumed": 714
+  },
+  "strict_new": {
+   "eligible": 1373,
+   "consumed": 714
+  }
+ },
+ "p009": {
+  "project": "p009",
+  "pairs_reference": 3356,
+  "pairs_new": 3356,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1739,
+   "consumed": 994
+  },
+  "strict_new": {
+   "eligible": 1739,
+   "consumed": 994
+  }
+ },
+ "p010": {
+  "project": "p010",
+  "pairs_reference": 2058,
+  "pairs_new": 2058,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1160,
+   "consumed": 545
+  },
+  "strict_new": {
+   "eligible": 1160,
+   "consumed": 545
+  }
+ },
+ "p011": {
+  "project": "p011",
+  "pairs_reference": 2726,
+  "pairs_new": 2726,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1495,
+   "consumed": 779
+  },
+  "strict_new": {
+   "eligible": 1495,
+   "consumed": 779
+  }
+ },
+ "p012": {
+  "project": "p012",
+  "pairs_reference": 1854,
+  "pairs_new": 1854,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1095,
+   "consumed": 499
+  },
+  "strict_new": {
+   "eligible": 1095,
+   "consumed": 499
+  }
+ },
+ "p013": {
+  "project": "p013",
+  "pairs_reference": 2476,
+  "pairs_new": 2476,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1411,
+   "consumed": 717
+  },
+  "strict_new": {
+   "eligible": 1411,
+   "consumed": 717
+  }
+ },
+ "p014": {
+  "project": "p014",
+  "pairs_reference": 3688,
+  "pairs_new": 3688,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1952,
+   "consumed": 1146
+  },
+  "strict_new": {
+   "eligible": 1952,
+   "consumed": 1146
+  }
+ },
+ "p015": {
+  "project": "p015",
+  "pairs_reference": 2792,
+  "pairs_new": 2792,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1591,
+   "consumed": 835
+  },
+  "strict_new": {
+   "eligible": 1591,
+   "consumed": 835
+  }
+ },
+ "p016": {
+  "project": "p016",
+  "pairs_reference": 2648,
+  "pairs_new": 2669,
+  "pairs_added": 21,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 21
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1438,
+   "consumed": 789
+  },
+  "strict_new": {
+   "eligible": 1438,
+   "consumed": 831
+  }
+ },
+ "p017": {
+  "project": "p017",
+  "pairs_reference": 2106,
+  "pairs_new": 2118,
+  "pairs_added": 12,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 12
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1216,
+   "consumed": 593
+  },
+  "strict_new": {
+   "eligible": 1216,
+   "consumed": 617
+  }
+ },
+ "p018": {
+  "project": "p018",
+  "pairs_reference": 1957,
+  "pairs_new": 1970,
+  "pairs_added": 13,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 13
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1174,
+   "consumed": 559
+  },
+  "strict_new": {
+   "eligible": 1174,
+   "consumed": 585
+  }
+ },
+ "p019": {
+  "project": "p019",
+  "pairs_reference": 2566,
+  "pairs_new": 2579,
+  "pairs_added": 13,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 13
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1474,
+   "consumed": 761
+  },
+  "strict_new": {
+   "eligible": 1474,
+   "consumed": 787
+  }
+ },
+ "p020": {
+  "project": "p020",
+  "pairs_reference": 3127,
+  "pairs_new": 3139,
+  "pairs_added": 12,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 12
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1744,
+   "consumed": 944
+  },
+  "strict_new": {
+   "eligible": 1744,
+   "consumed": 968
+  }
+ },
+ "p021": {
+  "project": "p021",
+  "pairs_reference": 2920,
+  "pairs_new": 2931,
+  "pairs_added": 11,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 11
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1685,
+   "consumed": 905
+  },
+  "strict_new": {
+   "eligible": 1685,
+   "consumed": 927
+  }
+ },
+ "p022": {
+  "project": "p022",
+  "pairs_reference": 1631,
+  "pairs_new": 1631,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 747,
+   "consumed": 384
+  },
+  "strict_new": {
+   "eligible": 747,
+   "consumed": 388
+  }
+ },
+ "p023": {
+  "project": "p023",
+  "pairs_reference": 1406,
+  "pairs_new": 1406,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 665,
+   "consumed": 340
+  },
+  "strict_new": {
+   "eligible": 665,
+   "consumed": 344
+  }
+ },
+ "p024": {
+  "project": "p024",
+  "pairs_reference": 1921,
+  "pairs_new": 1921,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 8,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 890,
+   "consumed": 476
+  },
+  "strict_new": {
+   "eligible": 890,
+   "consumed": 484
+  }
+ },
+ "p025": {
+  "project": "p025",
+  "pairs_reference": 2607,
+  "pairs_new": 2608,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 3,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1419,
+   "consumed": 783
+  },
+  "strict_new": {
+   "eligible": 1419,
+   "consumed": 785
+  }
+ },
+ "p026": {
+  "project": "p026",
+  "pairs_reference": 2425,
+  "pairs_new": 2426,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 2,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1252,
+   "consumed": 678
+  },
+  "strict_new": {
+   "eligible": 1252,
+   "consumed": 680
+  }
+ },
+ "p027": {
+  "project": "p027",
+  "pairs_reference": 2797,
+  "pairs_new": 2798,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 3,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1431,
+   "consumed": 787
+  },
+  "strict_new": {
+   "eligible": 1431,
+   "consumed": 789
+  }
+ },
+ "p028": {
+  "project": "p028",
+  "pairs_reference": 2231,
+  "pairs_new": 2231,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1079,
+   "consumed": 551
+  },
+  "strict_new": {
+   "eligible": 1079,
+   "consumed": 555
+  }
+ },
+ "p029": {
+  "project": "p029",
+  "pairs_reference": 2845,
+  "pairs_new": 2845,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1490,
+   "consumed": 727
+  },
+  "strict_new": {
+   "eligible": 1490,
+   "consumed": 731
+  }
+ },
+ "p030": {
+  "project": "p030",
+  "pairs_reference": 2368,
+  "pairs_new": 2368,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1267,
+   "consumed": 612
+  },
+  "strict_new": {
+   "eligible": 1267,
+   "consumed": 616
+  }
+ },
+ "p031": {
+  "project": "p031",
+  "pairs_reference": 2851,
+  "pairs_new": 2851,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1506,
+   "consumed": 749
+  },
+  "strict_new": {
+   "eligible": 1506,
+   "consumed": 753
+  }
+ },
+ "p032": {
+  "project": "p032",
+  "pairs_reference": 2956,
+  "pairs_new": 2956,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 5,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1400,
+   "consumed": 811
+  },
+  "strict_new": {
+   "eligible": 1400,
+   "consumed": 815
+  }
+ },
+ "p033": {
+  "project": "p033",
+  "pairs_reference": 2735,
+  "pairs_new": 2735,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 5,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1318,
+   "consumed": 751
+  },
+  "strict_new": {
+   "eligible": 1318,
+   "consumed": 755
+  }
+ },
+ "p034": {
+  "project": "p034",
+  "pairs_reference": 3033,
+  "pairs_new": 3033,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 5,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1424,
+   "consumed": 837
+  },
+  "strict_new": {
+   "eligible": 1424,
+   "consumed": 841
+  }
+ },
+ "p035": {
+  "project": "p035",
+  "pairs_reference": 1861,
+  "pairs_new": 1861,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 880,
+   "consumed": 467
+  },
+  "strict_new": {
+   "eligible": 880,
+   "consumed": 467
+  }
+ },
+ "p036": {
+  "project": "p036",
+  "pairs_reference": 1882,
+  "pairs_new": 1882,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 858,
+   "consumed": 522
+  },
+  "strict_new": {
+   "eligible": 858,
+   "consumed": 522
+  }
+ },
+ "p037": {
+  "project": "p037",
+  "pairs_reference": 1847,
+  "pairs_new": 1847,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 13,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "superworks_supersession.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 989,
+   "consumed": 552
+  },
+  "strict_new": {
+   "eligible": 989,
+   "consumed": 556
+  }
+ },
+ "p038": {
+  "project": "p038",
+  "pairs_reference": 2556,
+  "pairs_new": 2556,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 10,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1181,
+   "consumed": 644
+  },
+  "strict_new": {
+   "eligible": 1181,
+   "consumed": 654
+  }
+ },
+ "p039": {
+  "project": "p039",
+  "pairs_reference": 3141,
+  "pairs_new": 3141,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 2,
+  "issues_new": 2,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1711,
+   "consumed": 995
+  },
+  "strict_new": {
+   "eligible": 1711,
+   "consumed": 995
+  }
+ },
+ "p040": {
+  "project": "p040",
+  "pairs_reference": 2417,
+  "pairs_new": 2417,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 4,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1134,
+   "consumed": 611
+  },
+  "strict_new": {
+   "eligible": 1134,
+   "consumed": 615
+  }
+ },
+ "p041": {
+  "project": "p041",
+  "pairs_reference": 1744,
+  "pairs_new": 1745,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 744,
+   "consumed": 394
+  },
+  "strict_new": {
+   "eligible": 744,
+   "consumed": 396
+  }
+ },
+ "p042": {
+  "project": "p042",
+  "pairs_reference": 1762,
+  "pairs_new": 1763,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 749,
+   "consumed": 396
+  },
+  "strict_new": {
+   "eligible": 749,
+   "consumed": 398
+  }
+ },
+ "p043": {
+  "project": "p043",
+  "pairs_reference": 2946,
+  "pairs_new": 2947,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1306,
+   "consumed": 790
+  },
+  "strict_new": {
+   "eligible": 1306,
+   "consumed": 792
+  }
+ },
+ "p044": {
+  "project": "p044",
+  "pairs_reference": 2970,
+  "pairs_new": 2971,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1315,
+   "consumed": 796
+  },
+  "strict_new": {
+   "eligible": 1315,
+   "consumed": 798
+  }
+ },
+ "p045": {
+  "project": "p045",
+  "pairs_reference": 2904,
+  "pairs_new": 2904,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1290,
+   "consumed": 868
+  },
+  "strict_new": {
+   "eligible": 1290,
+   "consumed": 868
+  }
+ },
+ "p046": {
+  "project": "p046",
+  "pairs_reference": 2852,
+  "pairs_new": 2852,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1270,
+   "consumed": 870
+  },
+  "strict_new": {
+   "eligible": 1270,
+   "consumed": 870
+  }
+ },
+ "p047": {
+  "project": "p047",
+  "pairs_reference": 2835,
+  "pairs_new": 2836,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1250,
+   "consumed": 832
+  },
+  "strict_new": {
+   "eligible": 1250,
+   "consumed": 834
+  }
+ },
+ "p048": {
+  "project": "p048",
+  "pairs_reference": 3786,
+  "pairs_new": 3787,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1694,
+   "consumed": 1140
+  },
+  "strict_new": {
+   "eligible": 1694,
+   "consumed": 1142
+  }
+ },
+ "p049": {
+  "project": "p049",
+  "pairs_reference": 2556,
+  "pairs_new": 2556,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 10,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1181,
+   "consumed": 644
+  },
+  "strict_new": {
+   "eligible": 1181,
+   "consumed": 654
+  }
+ },
+ "p050": {
+  "project": "p050",
+  "pairs_reference": 2502,
+  "pairs_new": 2502,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1134,
+   "consumed": 624
+  },
+  "strict_new": {
+   "eligible": 1134,
+   "consumed": 624
+  }
+ },
+ "p051": {
+  "project": "p051",
+  "pairs_reference": 755,
+  "pairs_new": 755,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 229,
+   "consumed": 156
+  },
+  "strict_new": {
+   "eligible": 229,
+   "consumed": 156
+  }
+ },
+ "p052": {
+  "project": "p052",
+  "pairs_reference": 699,
+  "pairs_new": 699,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 301,
+   "consumed": 228
+  },
+  "strict_new": {
+   "eligible": 301,
+   "consumed": 228
+  }
+ },
+ "p053": {
+  "project": "p053",
+  "pairs_reference": 298,
+  "pairs_new": 298,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 118,
+   "consumed": 58
+  },
+  "strict_new": {
+   "eligible": 118,
+   "consumed": 58
+  }
+ },
+ "p054": {
+  "project": "p054",
+  "pairs_reference": 47,
+  "pairs_new": 47,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 2,
+   "consumed": 0
+  },
+  "strict_new": {
+   "eligible": 2,
+   "consumed": 0
+  }
+ },
+ "p055": {
+  "project": "p055",
+  "pairs_reference": 626,
+  "pairs_new": 626,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 267,
+   "consumed": 194
+  },
+  "strict_new": {
+   "eligible": 267,
+   "consumed": 194
+  }
+ },
+ "p056": {
+  "project": "p056",
+  "pairs_reference": 2987,
+  "pairs_new": 2987,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1326,
+   "consumed": 872
+  },
+  "strict_new": {
+   "eligible": 1326,
+   "consumed": 872
+  }
+ },
+ "p057": {
+  "project": "p057",
+  "pairs_reference": 1149,
+  "pairs_new": 1149,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 632,
+   "consumed": 467
+  },
+  "strict_new": {
+   "eligible": 632,
+   "consumed": 467
+  }
+ },
+ "p058": {
+  "project": "p058",
+  "pairs_reference": 2864,
+  "pairs_new": 2864,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1274,
+   "consumed": 883
+  },
+  "strict_new": {
+   "eligible": 1274,
+   "consumed": 883
+  }
+ },
+ "p059": {
+  "project": "p059",
+  "pairs_reference": 2804,
+  "pairs_new": 2804,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 2,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1230,
+   "consumed": 825
+  },
+  "strict_new": {
+   "eligible": 1230,
+   "consumed": 825
+  }
+ },
+ "p060": {
+  "project": "p060",
+  "pairs_reference": 2796,
+  "pairs_new": 2798,
+  "pairs_added": 2,
+  "pairs_added_by": {
+   "review|bridge_mapping": 2
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 2,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1230,
+   "consumed": 825
+  },
+  "strict_new": {
+   "eligible": 1230,
+   "consumed": 829
+  }
+ },
+ "p061": {
+  "project": "p061",
+  "pairs_reference": 4229,
+  "pairs_new": 4230,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1931,
+   "consumed": 1261
+  },
+  "strict_new": {
+   "eligible": 1931,
+   "consumed": 1263
+  }
+ },
+ "p062": {
+  "project": "p062",
+  "pairs_reference": 538,
+  "pairs_new": 538,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 208,
+   "consumed": 124
+  },
+  "strict_new": {
+   "eligible": 208,
+   "consumed": 124
+  }
+ },
+ "p063": {
+  "project": "p063",
+  "pairs_reference": 2241,
+  "pairs_new": 2241,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 2,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 993,
+   "consumed": 592
+  },
+  "strict_new": {
+   "eligible": 993,
+   "consumed": 594
+  }
+ },
+ "p064": {
+  "project": "p064",
+  "pairs_reference": 3147,
+  "pairs_new": 3148,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 2,
+  "issues_new": 2,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1650,
+   "consumed": 864
+  },
+  "strict_new": {
+   "eligible": 1650,
+   "consumed": 866
+  }
+ },
+ "p065": {
+  "project": "p065",
+  "pairs_reference": 2317,
+  "pairs_new": 2317,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1325,
+   "consumed": 642
+  },
+  "strict_new": {
+   "eligible": 1325,
+   "consumed": 642
+  }
+ },
+ "p066": {
+  "project": "p066",
+  "pairs_reference": 2264,
+  "pairs_new": 2264,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 1,
+  "issues_new": 1,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1229,
+   "consumed": 629
+  },
+  "strict_new": {
+   "eligible": 1229,
+   "consumed": 629
+  }
+ },
+ "p067": {
+  "project": "p067",
+  "pairs_reference": 1302,
+  "pairs_new": 1302,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 2,
+  "issues_new": 2,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 679,
+   "consumed": 328
+  },
+  "strict_new": {
+   "eligible": 679,
+   "consumed": 328
+  }
+ },
+ "p068": {
+  "project": "p068",
+  "pairs_reference": 882,
+  "pairs_new": 882,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 2,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 351,
+   "consumed": 170
+  },
+  "strict_new": {
+   "eligible": 351,
+   "consumed": 172
+  }
+ },
+ "p069": {
+  "project": "p069",
+  "pairs_reference": 1792,
+  "pairs_new": 1792,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 862,
+   "consumed": 556
+  },
+  "strict_new": {
+   "eligible": 862,
+   "consumed": 556
+  }
+ },
+ "p070": {
+  "project": "p070",
+  "pairs_reference": 1383,
+  "pairs_new": 1395,
+  "pairs_added": 12,
+  "pairs_added_by": {
+   "review|wire_component_mapping": 12
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 696,
+   "consumed": 610
+  },
+  "strict_new": {
+   "eligible": 696,
+   "consumed": 634
+  }
+ },
+ "p071": {
+  "project": "p071",
+  "pairs_reference": 499,
+  "pairs_new": 499,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 3,
+  "issues_new": 3,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 200,
+   "consumed": 112
+  },
+  "strict_new": {
+   "eligible": 200,
+   "consumed": 112
+  }
+ },
+ "p072": {
+  "project": "p072",
+  "pairs_reference": 2009,
+  "pairs_new": 2009,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 12,
+  "issues_reference": 4,
+  "issues_new": 4,
+  "findings_differing": [
+   "entity_coverage_summary.parquet",
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1083,
+   "consumed": 588
+  },
+  "strict_new": {
+   "eligible": 1083,
+   "consumed": 592
+  }
+ },
+ "p073": {
+  "project": "p073",
+  "pairs_reference": 893,
+  "pairs_new": 893,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 3,
+  "issues_new": 3,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 375,
+   "consumed": 215
+  },
+  "strict_new": {
+   "eligible": 375,
+   "consumed": 215
+  }
+ },
+ "p074": {
+  "project": "p074",
+  "pairs_reference": 2409,
+  "pairs_new": 2409,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 2,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1105,
+   "consumed": 704
+  },
+  "strict_new": {
+   "eligible": 1105,
+   "consumed": 706
+  }
+ },
+ "p075": {
+  "project": "p075",
+  "pairs_reference": 2338,
+  "pairs_new": 2338,
+  "pairs_added": 0,
+  "pairs_added_by": {},
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 0,
+  "issues_reference": 4,
+  "issues_new": 4,
+  "findings_differing": [
+   "source_files.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 798,
+   "consumed": 762
+  },
+  "strict_new": {
+   "eligible": 798,
+   "consumed": 762
+  }
+ },
+ "p076": {
+  "project": "p076",
+  "pairs_reference": 2834,
+  "pairs_new": 2835,
+  "pairs_added": 1,
+  "pairs_added_by": {
+   "review|bridge_mapping": 1
+  },
+  "pairs_removed": 0,
+  "pairs_removed_by": {},
+  "pairs_changed": 1,
+  "issues_reference": 0,
+  "issues_new": 0,
+  "findings_differing": [
+   "pairs.parquet",
+   "source_files.parquet",
+   "sw_port_coverage.parquet",
+   "text_assignments.parquet"
+  ],
+  "strict_reference": {
+   "eligible": 1250,
+   "consumed": 832
+  },
+  "strict_new": {
+   "eligible": 1250,
+   "consumed": 834
+  }
+ },
+ "_total": {
+  "pairs_added": 109,
+  "pairs_removed": 0,
+  "pairs_changed": 136,
+  "issues_reference": 41,
+  "issues_new": 41,
+  "eligible_ref": 82680,
+  "consumed_ref": 47380,
+  "eligible_new": 82680,
+  "consumed_new": 47692,
+  "strict_ratio_reference": 0.5730527334300919,
+  "strict_ratio_new": 0.5768263183357523
+ }
+}

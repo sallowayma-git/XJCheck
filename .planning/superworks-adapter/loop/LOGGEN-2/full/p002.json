@@ -1,0 +1,138 @@
+{
+ "project": "p002",
+ "pairs_reference": 1540,
+ "pairs_new": 1540,
+ "pairs_added": 0,
+ "pairs_added_by": {},
+ "pairs_removed": 0,
+ "pairs_removed_by": {},
+ "pairs_changed": 5,
+ "pairs_changed_detail": [
+  {
+   "pair_id": "PW0248",
+   "fields": [
+    "evidence"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    "519",
+    "519"
+   ],
+   "right": [
+    null,
+    null
+   ],
+   "pair_kind": "semantic_mapping"
+  },
+  {
+   "pair_id": "PW0280",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "704",
+    "7QD7"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0286",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "703",
+    "7QD6"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0290",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "702",
+    "7QD5"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0296",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "701",
+    "7QD4"
+   ],
+   "pair_kind": "wire_component_mapping"
+  }
+ ],
+ "added_pairs": [],
+ "issues_reference": 0,
+ "issues_new": 0,
+ "issues_added": [],
+ "issues_removed": [],
+ "findings_differing": [
+  "pairs.parquet",
+  "source_files.parquet",
+  "sw_port_coverage.parquet",
+  "text_assignments.parquet"
+ ],
+ "strict_reference": {
+  "eligible": 720,
+  "consumed": 440
+ },
+ "strict_new": {
+  "eligible": 720,
+  "consumed": 444
+ }
+}

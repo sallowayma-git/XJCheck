@@ -1,0 +1,138 @@
+{
+ "project": "p034",
+ "pairs_reference": 3033,
+ "pairs_new": 3033,
+ "pairs_added": 0,
+ "pairs_added_by": {},
+ "pairs_removed": 0,
+ "pairs_removed_by": {},
+ "pairs_changed": 5,
+ "pairs_changed_detail": [
+  {
+   "pair_id": "PW0410",
+   "fields": [
+    "evidence"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    "14",
+    "14"
+   ],
+   "right": [
+    "Enable remote operate",
+    "Enable remote operate"
+   ],
+   "pair_kind": "semantic_mapping"
+  },
+  {
+   "pair_id": "PW0615",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "702",
+    "1-7QD7"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0618",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "701",
+    "1-7QD6"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0621",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "802",
+    "1-7QD5"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0624",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "801",
+    "1-7QD4"
+   ],
+   "pair_kind": "wire_component_mapping"
+  }
+ ],
+ "added_pairs": [],
+ "issues_reference": 1,
+ "issues_new": 1,
+ "issues_added": [],
+ "issues_removed": [],
+ "findings_differing": [
+  "pairs.parquet",
+  "source_files.parquet",
+  "sw_port_coverage.parquet",
+  "text_assignments.parquet"
+ ],
+ "strict_reference": {
+  "eligible": 1424,
+  "consumed": 837
+ },
+ "strict_new": {
+  "eligible": 1424,
+  "consumed": 841
+ }
+}

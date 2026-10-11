@@ -1,0 +1,1419 @@
+[
+{
+"project": "p006",
+"pair_id": "PSWcd439f5774bb55af",
+"left": "1-21UD5",
+"right": "1-21UD4",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_16",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSWaaac9145c573d3ee",
+"left": "1I3D7",
+"right": "TF37",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_17",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW93a6d9a08dd1971b",
+"left": "1I6D7",
+"right": "TF67",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_32",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSWa29e6fae08d5f7e9",
+"left": "1I2D7",
+"right": "TF27",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_4",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW9fe55708860a1228",
+"left": "1I4D7",
+"right": "TF47",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_45",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW19fb5c66c4c6d6bf",
+"left": "1I8D7",
+"right": "TF87",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSWf55076a5d816b3a2",
+"left": "1I12D7",
+"right": "TF127",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_27",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW15b9d859e10f5605",
+"left": "1I9D7",
+"right": "TF97",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_58",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW0e6c4876915c6925",
+"left": "1I10D7",
+"right": "TF107",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_74",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSWadd7ecca19484049",
+"left": "1I11D7",
+"right": "TF117",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_90",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW177d69813c0edce7",
+"left": "1I15D7",
+"right": "TF157",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_15",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW5688d04578dc5015",
+"left": "1I16D7",
+"right": "TF167",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_43",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSWdfdc670961a7ee2a",
+"left": "1I14D7",
+"right": "TF147",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_5",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW2828ee72664d29fc",
+"left": "1I17D7",
+"right": "TF177",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_67",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW2c70c994e307f7c4",
+"left": "1I13D7",
+"right": "TF137",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_80",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW34e70bb169c96c8b",
+"left": "1I18D7",
+"right": "TF187",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_93",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW2f043c624fc9fedc",
+"left": "1I19D7",
+"right": "TF197",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_43",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSWf973c60a0dbb174a",
+"left": "1I20D7",
+"right": "TF207",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_53",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW76ac116482dedfe0",
+"left": "1I21D7",
+"right": "TF217",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_63",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW5e70e277323be3d9",
+"left": "1I22D7",
+"right": "TF227",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_73",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW507d281630078961",
+"left": "1I23D7",
+"right": "TF237",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_83",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p016",
+"pair_id": "PSW9eb059bdb3d0afd9",
+"left": "1I24D7",
+"right": "TF247",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_93",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW30f00e8acb3b1c9e",
+"left": "1I3D7",
+"right": "TF37",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_18",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSWe13feb0269883f35",
+"left": "1I6D7",
+"right": "TF67",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_33",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW7b1f0d427d35f9f4",
+"left": "1I4D7",
+"right": "TF47",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_46",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW3d7e64c019b8ac75",
+"left": "1I2D7",
+"right": "TF27",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_5",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW19fb5c66c4c6d6bf",
+"left": "1I8D7",
+"right": "TF87",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW3bb9715e91539711",
+"left": "1I12D7",
+"right": "TF127",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_24",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW177d69813c0edce7",
+"left": "1I15D7",
+"right": "TF157",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_15",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW5688d04578dc5015",
+"left": "1I16D7",
+"right": "TF167",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_43",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSWdfdc670961a7ee2a",
+"left": "1I14D7",
+"right": "TF147",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_5",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSWef8f11c02899b340",
+"left": "1I13D7",
+"right": "TF137",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_70",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW4706abb5e3ba1ec0",
+"left": "1I17D7",
+"right": "TF177",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_83",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p017",
+"pair_id": "PSW34e70bb169c96c8b",
+"left": "1I18D7",
+"right": "TF187",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_93",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSWaaac9145c573d3ee",
+"left": "1I3D7",
+"right": "TF37",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_17",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSW93a6d9a08dd1971b",
+"left": "1I6D7",
+"right": "TF67",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_32",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSWa29e6fae08d5f7e9",
+"left": "1I2D7",
+"right": "TF27",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_4",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSW9fe55708860a1228",
+"left": "1I4D7",
+"right": "TF47",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_45",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSW19fb5c66c4c6d6bf",
+"left": "1I8D7",
+"right": "TF87",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSWf55076a5d816b3a2",
+"left": "1I12D7",
+"right": "TF127",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_27",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSW15b9d859e10f5605",
+"left": "1I9D7",
+"right": "TF97",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_58",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSW0e6c4876915c6925",
+"left": "1I10D7",
+"right": "TF107",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_74",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSWadd7ecca19484049",
+"left": "1I11D7",
+"right": "TF117",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_90",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSWbf2ea78465800e50",
+"left": "1I15D7",
+"right": "TF157",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSW188d1f0c9078e7d3",
+"left": "1I14D7",
+"right": "TF147",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_4",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSWb4ead9af2f270ae2",
+"left": "1I16D7",
+"right": "TF167",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_41",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p018",
+"pair_id": "PSW36d94704ef8f5c46",
+"left": "1I17D7",
+"right": "TF177",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_65",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSWaaac9145c573d3ee",
+"left": "1I3D7",
+"right": "TF37",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_17",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSW93a6d9a08dd1971b",
+"left": "1I6D7",
+"right": "TF67",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_32",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSWa29e6fae08d5f7e9",
+"left": "1I2D7",
+"right": "TF27",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_4",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSW9fe55708860a1228",
+"left": "1I4D7",
+"right": "TF47",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_45",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSW19fb5c66c4c6d6bf",
+"left": "1I8D7",
+"right": "TF87",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSWf55076a5d816b3a2",
+"left": "1I12D7",
+"right": "TF127",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_27",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSW15b9d859e10f5605",
+"left": "1I9D7",
+"right": "TF97",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_58",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSW0e6c4876915c6925",
+"left": "1I10D7",
+"right": "TF107",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_74",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSWadd7ecca19484049",
+"left": "1I11D7",
+"right": "TF117",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_90",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSWbf2ea78465800e50",
+"left": "1I15D7",
+"right": "TF157",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSW188d1f0c9078e7d3",
+"left": "1I14D7",
+"right": "TF147",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_4",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSWb4ead9af2f270ae2",
+"left": "1I16D7",
+"right": "TF167",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_41",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p019",
+"pair_id": "PSW36d94704ef8f5c46",
+"left": "1I17D7",
+"right": "TF177",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_65",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW30f00e8acb3b1c9e",
+"left": "1I3D7",
+"right": "TF37",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_18",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSWe13feb0269883f35",
+"left": "1I6D7",
+"right": "TF67",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_33",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW7b1f0d427d35f9f4",
+"left": "1I4D7",
+"right": "TF47",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_46",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW3d7e64c019b8ac75",
+"left": "1I2D7",
+"right": "TF27",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_5",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW19fb5c66c4c6d6bf",
+"left": "1I12D7",
+"right": "TF127",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW177d69813c0edce7",
+"left": "1I15D7",
+"right": "TF157",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_15",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW013bd8f3ca2d5a20",
+"left": "1I16D7",
+"right": "TF167",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_42",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSWdfdc670961a7ee2a",
+"left": "1I14D7",
+"right": "TF147",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_5",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSWd646a1d06c9b24e8",
+"left": "1I13D7",
+"right": "TF137",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_69",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW439cf2bf6ce48c32",
+"left": "1I17D7",
+"right": "TF177",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_82",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW1900674cd593e19b",
+"left": "1I24D7",
+"right": "TF247",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_21",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p020",
+"pair_id": "PSW107aa3bd0fc97e9c",
+"left": "1I23D7",
+"right": "TF237",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_31",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW30f00e8acb3b1c9e",
+"left": "1I3D7",
+"right": "TF37",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_18",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSWe13feb0269883f35",
+"left": "1I6D7",
+"right": "TF67",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_33",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW7b1f0d427d35f9f4",
+"left": "1I4D7",
+"right": "TF47",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_46",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW3d7e64c019b8ac75",
+"left": "1I2D7",
+"right": "TF27",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_5",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW19fb5c66c4c6d6bf",
+"left": "1I8D7",
+"right": "TF87",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW3bb9715e91539711",
+"left": "1I9D7",
+"right": "TF97",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_24",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW89ba829400ed3b6c",
+"left": "1I10D7",
+"right": "TF107",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_34",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW8877038972267e00",
+"left": "1I12D7",
+"right": "TF127",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_54",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSWbf2ea78465800e50",
+"left": "1I15D7",
+"right": "TF157",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW188d1f0c9078e7d3",
+"left": "1I14D7",
+"right": "TF147",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_4",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p021",
+"pair_id": "PSW1b0e434ec86259d8",
+"left": "1I16D7",
+"right": "TF167",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_40",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p025",
+"pair_id": "PSWa59634864052e774",
+"left": "1-4n401",
+"right": "1-4n201",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0013:LOGGEN:LD_SYMB2LOGGEN_21",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p026",
+"pair_id": "PSWa59634864052e774",
+"left": "1-4n401",
+"right": "1-4n201",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0013:LOGGEN:LD_SYMB2LOGGEN_21",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p027",
+"pair_id": "PSWa59634864052e774",
+"left": "1-4n401",
+"right": "1-4n201",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0013:LOGGEN:LD_SYMB2LOGGEN_21",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p041",
+"pair_id": "PSWd00db053dcd45aea",
+"left": "2-1ID7",
+"right": "2-1ID6",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p042",
+"pair_id": "PSWd00db053dcd45aea",
+"left": "2-1ID7",
+"right": "2-1ID6",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p043",
+"pair_id": "PSWd00db053dcd45aea",
+"left": "2-1ID7",
+"right": "2-1ID6",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p044",
+"pair_id": "PSWd00db053dcd45aea",
+"left": "2-1ID7",
+"right": "2-1ID6",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p047",
+"pair_id": "PSW3d7c52cbe89055d5",
+"left": "1-21UD5",
+"right": "1-21UD4",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p048",
+"pair_id": "PSW3d7c52cbe89055d5",
+"left": "1-21UD5",
+"right": "1-21UD4",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p060",
+"pair_id": "PSW3d7c52cbe89055d5",
+"left": "1-21UD5",
+"right": "1-21UD4",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p060",
+"pair_id": "PSW75e898912233b55c",
+"left": "2-21UD5",
+"right": "2-21UD4",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_37",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p061",
+"pair_id": "PSWe43d6c6245fd6957",
+"left": "1-21UD5",
+"right": "1-21UD4",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_1",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p064",
+"pair_id": "PSWb5ce3fa1d44d6847",
+"left": "1-4n401",
+"right": "1-4n201",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0020:LOGGEN:LD_SYMB2LOGGEN_21",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW661afb211f41c893",
+"left": "CJn6A",
+"right": "T6OUT3",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_10",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW42ebae8d820595d9",
+"left": "CJn6B",
+"right": "T6OUT2",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_11",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW364e649bfd279f64",
+"left": "CJn7A",
+"right": "T7OUT3",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_12",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW577fc7220267c428",
+"left": "CJn7B",
+"right": "T7OUT2",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_13",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSWcbfe26e6b51c2c94",
+"left": "CJn8A",
+"right": "T8OUT3",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_14",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSWfb4cee547fd3296d",
+"left": "CJn8B",
+"right": "T8OUT2",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_15",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSWcb9c0e469ce84458",
+"left": "CJn3A",
+"right": "T3OUT3",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_4",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW0609a3994fa441d6",
+"left": "CJn3B",
+"right": "T3OUT2",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_5",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSWff763b218cbd0092",
+"left": "CJn4A",
+"right": "T4OUT3",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_6",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW800507611e188bc0",
+"left": "CJn4B",
+"right": "T4OUT2",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_7",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW67f08419b2679361",
+"left": "CJn5A",
+"right": "T5OUT3",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_8",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p070",
+"pair_id": "PSW2e2ed0eebce6d037",
+"left": "CJn5B",
+"right": "T5OUT2",
+"kind": "wire_component_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_9",
+"review_reasons": [
+"wire_geometry_missing"
+]
+},
+{
+"project": "p076",
+"pair_id": "PSW3d7c52cbe89055d5",
+"left": "1-21UD5",
+"right": "1-21UD4",
+"kind": "bridge_mapping",
+"status": "review",
+"rationale": "wire_geometry_missing",
+"record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+"review_reasons": [
+"wire_geometry_missing"
+]
+}
+]

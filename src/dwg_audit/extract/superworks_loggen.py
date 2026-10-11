@@ -1,8 +1,12 @@
 """SuperWORKS wire-route records read from LD_SYMB2LOGGEN and LD_PARTCONNECTLINE.
 
-Diagnostic only. The rows describe where each drawn wire leads (its two ends as
-SuperWORKS endpoint identities). They are written to sw_wire_routes.parquet and
-never enter pairs, issues or any extractor decision.
+Each record names the two ends of one drawn wire as SuperWORKS endpoint identities. The pages are
+read from the DXF documents cad_extract already has open (read_page_wire_routes), and resolved
+against the SuperWORKS ports (build_wire_route_rows). The rows are written to sw_wire_routes.parquet.
+
+The rows feed production only through superworks_extractor: eligible records (two unconsumed
+terminal ends on one audited sheet) become SuperWORKS wire pairs, and the others are reconciled
+against existing pairs as evidence. This module itself never creates pairs or issues.
 
 Two record kinds are read:
 - LD_SYMB2LOGGEN_DICTIONARY (root dictionary, one XRECORD per wire): CONNECTLINEHANDLE
@@ -368,6 +372,10 @@ def resolve_wire_routes(pages: list[PageWireRoutes], index: EndpointIndex) -> li
                 "lineno_end_index": lineno_match,
                 "ends_json": _json(ends_out),
                 "reason_codes_json": _json(sorted(set(reasons))),
+                # Filled by the production admission step (superworks_extractor); None = not decided.
+                "admission_status": None,
+                "admission_reason": None,
+                "admitted_pair_id": None,
             })
     return rows
 
@@ -377,37 +385,43 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
-def collect_wire_route_rows(sources: list[tuple[str, str, Path]], superworks: Any,
-                            sheet_numbers: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Read every page (sources: (file_id, sheet_id, dxf_path)) and resolve against superworks.
-
-    Each DXF is opened once here. Failures are counted per page and never raised.
-    """
-    import ezdxf
-
+def build_wire_route_rows(pages: list[PageWireRoutes], superworks: Any,
+                          sheet_numbers: dict[str, str] | None = None,
+                          page_failures: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Resolve already-read pages against superworks. No DXF is opened here."""
     started = time.perf_counter()
-    pages: list[PageWireRoutes] = []
-    failures: dict[str, str] = {}
-    read_seconds = 0.0
-    for file_id, sheet_id, path in sources:
-        try:
-            began = time.perf_counter()
-            doc = ezdxf.readfile(str(path))
-            read_seconds += time.perf_counter() - began
-            pages.append(read_page_wire_routes(doc, file_id=file_id, sheet_id=sheet_id))
-        except Exception as exc:  # diagnostic only: a bad page must not stop the pipeline
-            failures[file_id] = type(exc).__name__
     index = EndpointIndex(superworks, sheet_numbers)
     rows = resolve_wire_routes(pages, index)
     stats = {
         "schema_version": SCHEMA_VERSION,
-        "page_count": len(sources),
-        "page_failures": failures,
+        "page_count": len(pages) + len(page_failures or {}),
+        "page_failures": dict(page_failures or {}),
         "row_count": len(rows),
-        "read_seconds": read_seconds,
-        "total_seconds": time.perf_counter() - started,
+        "read_seconds": sum(page.seconds for page in pages),
+        "resolve_seconds": time.perf_counter() - started,
     }
     return rows, stats
+
+
+def collect_wire_route_rows(sources: list[tuple[str, str, Path]], superworks: Any,
+                            sheet_numbers: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read every page (sources: (file_id, sheet_id, dxf_path)) and resolve against superworks.
+
+    Standalone entry for tests and tools: it opens each DXF once. The pipeline does not use it;
+    cad_extract reads the routes from the document it already has open.
+    Failures are counted per page and never raised.
+    """
+    import ezdxf
+
+    pages: list[PageWireRoutes] = []
+    failures: dict[str, str] = {}
+    for file_id, sheet_id, path in sources:
+        try:
+            doc = ezdxf.readfile(str(path))
+            pages.append(read_page_wire_routes(doc, file_id=file_id, sheet_id=sheet_id))
+        except Exception as exc:  # diagnostic only: a bad page must not stop the pipeline
+            failures[file_id] = type(exc).__name__
+    return build_wire_route_rows(pages, superworks, sheet_numbers, failures)
 
 
 def write_wire_route_rows(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -421,5 +435,5 @@ _ROW_COLUMNS = (
     "schema_version", "record_id", "sheet_id", "file_id", "source_kind", "source_handle",
     "owner_handle", "logical_pin", "wire_handle", "wire_entity_kind", "linestyle", "end_count",
     "resolved_end_count", "both_ends_resolved", "lineno_raw", "lineno_end_index",
-    "ends_json", "reason_codes_json",
+    "ends_json", "reason_codes_json", "admission_status", "admission_reason", "admitted_pair_id",
 )

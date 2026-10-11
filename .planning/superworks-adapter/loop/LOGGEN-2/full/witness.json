@@ -1,0 +1,1536 @@
+{
+ "summary": {
+  "pairs": 109,
+  "witness": 101,
+  "no_witness": 8,
+  "missing_contact": 0
+ },
+ "pairs": [
+  {
+   "project": "p006",
+   "pair_id": "PSWcd439f5774bb55af",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_16",
+   "left": "1-21UD5",
+   "right": "1-21UD4",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSWaaac9145c573d3ee",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_17",
+   "left": "1I3D7",
+   "right": "TF37",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW93a6d9a08dd1971b",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_32",
+   "left": "1I6D7",
+   "right": "TF67",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSWa29e6fae08d5f7e9",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_4",
+   "left": "1I2D7",
+   "right": "TF27",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW9fe55708860a1228",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_45",
+   "left": "1I4D7",
+   "right": "TF47",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW19fb5c66c4c6d6bf",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I8D7",
+   "right": "TF87",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSWf55076a5d816b3a2",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_27",
+   "left": "1I12D7",
+   "right": "TF127",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW15b9d859e10f5605",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_58",
+   "left": "1I9D7",
+   "right": "TF97",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW0e6c4876915c6925",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_74",
+   "left": "1I10D7",
+   "right": "TF107",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSWadd7ecca19484049",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_90",
+   "left": "1I11D7",
+   "right": "TF117",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW177d69813c0edce7",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_15",
+   "left": "1I15D7",
+   "right": "TF157",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW5688d04578dc5015",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_43",
+   "left": "1I16D7",
+   "right": "TF167",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSWdfdc670961a7ee2a",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_5",
+   "left": "1I14D7",
+   "right": "TF147",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW2828ee72664d29fc",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_67",
+   "left": "1I17D7",
+   "right": "TF177",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW2c70c994e307f7c4",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_80",
+   "left": "1I13D7",
+   "right": "TF137",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW34e70bb169c96c8b",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_93",
+   "left": "1I18D7",
+   "right": "TF187",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW2f043c624fc9fedc",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_43",
+   "left": "1I19D7",
+   "right": "TF197",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSWf973c60a0dbb174a",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_53",
+   "left": "1I20D7",
+   "right": "TF207",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW76ac116482dedfe0",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_63",
+   "left": "1I21D7",
+   "right": "TF217",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW5e70e277323be3d9",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_73",
+   "left": "1I22D7",
+   "right": "TF227",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW507d281630078961",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_83",
+   "left": "1I23D7",
+   "right": "TF237",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p016",
+   "pair_id": "PSW9eb059bdb3d0afd9",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_93",
+   "left": "1I24D7",
+   "right": "TF247",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW30f00e8acb3b1c9e",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_18",
+   "left": "1I3D7",
+   "right": "TF37",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSWe13feb0269883f35",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_33",
+   "left": "1I6D7",
+   "right": "TF67",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW7b1f0d427d35f9f4",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_46",
+   "left": "1I4D7",
+   "right": "TF47",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW3d7e64c019b8ac75",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_5",
+   "left": "1I2D7",
+   "right": "TF27",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW19fb5c66c4c6d6bf",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I8D7",
+   "right": "TF87",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW3bb9715e91539711",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_24",
+   "left": "1I12D7",
+   "right": "TF127",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW177d69813c0edce7",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_15",
+   "left": "1I15D7",
+   "right": "TF157",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW5688d04578dc5015",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_43",
+   "left": "1I16D7",
+   "right": "TF167",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSWdfdc670961a7ee2a",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_5",
+   "left": "1I14D7",
+   "right": "TF147",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSWef8f11c02899b340",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_70",
+   "left": "1I13D7",
+   "right": "TF137",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW4706abb5e3ba1ec0",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_83",
+   "left": "1I17D7",
+   "right": "TF177",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p017",
+   "pair_id": "PSW34e70bb169c96c8b",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_93",
+   "left": "1I18D7",
+   "right": "TF187",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSWaaac9145c573d3ee",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_17",
+   "left": "1I3D7",
+   "right": "TF37",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSW93a6d9a08dd1971b",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_32",
+   "left": "1I6D7",
+   "right": "TF67",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSWa29e6fae08d5f7e9",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_4",
+   "left": "1I2D7",
+   "right": "TF27",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSW9fe55708860a1228",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_45",
+   "left": "1I4D7",
+   "right": "TF47",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSW19fb5c66c4c6d6bf",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I8D7",
+   "right": "TF87",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSWf55076a5d816b3a2",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_27",
+   "left": "1I12D7",
+   "right": "TF127",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSW15b9d859e10f5605",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_58",
+   "left": "1I9D7",
+   "right": "TF97",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSW0e6c4876915c6925",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_74",
+   "left": "1I10D7",
+   "right": "TF107",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSWadd7ecca19484049",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_90",
+   "left": "1I11D7",
+   "right": "TF117",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSWbf2ea78465800e50",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I15D7",
+   "right": "TF157",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSW188d1f0c9078e7d3",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_4",
+   "left": "1I14D7",
+   "right": "TF147",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSWb4ead9af2f270ae2",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_41",
+   "left": "1I16D7",
+   "right": "TF167",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p018",
+   "pair_id": "PSW36d94704ef8f5c46",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_65",
+   "left": "1I17D7",
+   "right": "TF177",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSWaaac9145c573d3ee",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_17",
+   "left": "1I3D7",
+   "right": "TF37",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSW93a6d9a08dd1971b",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_32",
+   "left": "1I6D7",
+   "right": "TF67",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSWa29e6fae08d5f7e9",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_4",
+   "left": "1I2D7",
+   "right": "TF27",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSW9fe55708860a1228",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_45",
+   "left": "1I4D7",
+   "right": "TF47",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSW19fb5c66c4c6d6bf",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I8D7",
+   "right": "TF87",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSWf55076a5d816b3a2",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_27",
+   "left": "1I12D7",
+   "right": "TF127",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSW15b9d859e10f5605",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_58",
+   "left": "1I9D7",
+   "right": "TF97",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSW0e6c4876915c6925",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_74",
+   "left": "1I10D7",
+   "right": "TF107",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSWadd7ecca19484049",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_90",
+   "left": "1I11D7",
+   "right": "TF117",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSWbf2ea78465800e50",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I15D7",
+   "right": "TF157",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSW188d1f0c9078e7d3",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_4",
+   "left": "1I14D7",
+   "right": "TF147",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSWb4ead9af2f270ae2",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_41",
+   "left": "1I16D7",
+   "right": "TF167",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p019",
+   "pair_id": "PSW36d94704ef8f5c46",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_65",
+   "left": "1I17D7",
+   "right": "TF177",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW30f00e8acb3b1c9e",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_18",
+   "left": "1I3D7",
+   "right": "TF37",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSWe13feb0269883f35",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_33",
+   "left": "1I6D7",
+   "right": "TF67",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW7b1f0d427d35f9f4",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_46",
+   "left": "1I4D7",
+   "right": "TF47",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW3d7e64c019b8ac75",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_5",
+   "left": "1I2D7",
+   "right": "TF27",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW19fb5c66c4c6d6bf",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I12D7",
+   "right": "TF127",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW177d69813c0edce7",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_15",
+   "left": "1I15D7",
+   "right": "TF157",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW013bd8f3ca2d5a20",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_42",
+   "left": "1I16D7",
+   "right": "TF167",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSWdfdc670961a7ee2a",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_5",
+   "left": "1I14D7",
+   "right": "TF147",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSWd646a1d06c9b24e8",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_69",
+   "left": "1I13D7",
+   "right": "TF137",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW439cf2bf6ce48c32",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_82",
+   "left": "1I17D7",
+   "right": "TF177",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW1900674cd593e19b",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_21",
+   "left": "1I24D7",
+   "right": "TF247",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p020",
+   "pair_id": "PSW107aa3bd0fc97e9c",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_31",
+   "left": "1I23D7",
+   "right": "TF237",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW30f00e8acb3b1c9e",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_18",
+   "left": "1I3D7",
+   "right": "TF37",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSWe13feb0269883f35",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_33",
+   "left": "1I6D7",
+   "right": "TF67",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW7b1f0d427d35f9f4",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_46",
+   "left": "1I4D7",
+   "right": "TF47",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW3d7e64c019b8ac75",
+   "record_id": "SWWR:F0007:LOGGEN:LD_SYMB2LOGGEN_5",
+   "left": "1I2D7",
+   "right": "TF27",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW19fb5c66c4c6d6bf",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I8D7",
+   "right": "TF87",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW3bb9715e91539711",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_24",
+   "left": "1I9D7",
+   "right": "TF97",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW89ba829400ed3b6c",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_34",
+   "left": "1I10D7",
+   "right": "TF107",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW8877038972267e00",
+   "record_id": "SWWR:F0008:LOGGEN:LD_SYMB2LOGGEN_54",
+   "left": "1I12D7",
+   "right": "TF127",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSWbf2ea78465800e50",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "1I15D7",
+   "right": "TF157",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW188d1f0c9078e7d3",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_4",
+   "left": "1I14D7",
+   "right": "TF147",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p021",
+   "pair_id": "PSW1b0e434ec86259d8",
+   "record_id": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_40",
+   "left": "1I16D7",
+   "right": "TF167",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p025",
+   "pair_id": "PSWa59634864052e774",
+   "record_id": "SWWR:F0013:LOGGEN:LD_SYMB2LOGGEN_21",
+   "left": "1-4n401",
+   "right": "1-4n201",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p026",
+   "pair_id": "PSWa59634864052e774",
+   "record_id": "SWWR:F0013:LOGGEN:LD_SYMB2LOGGEN_21",
+   "left": "1-4n401",
+   "right": "1-4n201",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p027",
+   "pair_id": "PSWa59634864052e774",
+   "record_id": "SWWR:F0013:LOGGEN:LD_SYMB2LOGGEN_21",
+   "left": "1-4n401",
+   "right": "1-4n201",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p041",
+   "pair_id": "PSWd00db053dcd45aea",
+   "record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+   "left": "2-1ID7",
+   "right": "2-1ID6",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p042",
+   "pair_id": "PSWd00db053dcd45aea",
+   "record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+   "left": "2-1ID7",
+   "right": "2-1ID6",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p043",
+   "pair_id": "PSWd00db053dcd45aea",
+   "record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+   "left": "2-1ID7",
+   "right": "2-1ID6",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p044",
+   "pair_id": "PSWd00db053dcd45aea",
+   "record_id": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_46",
+   "left": "2-1ID7",
+   "right": "2-1ID6",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p047",
+   "pair_id": "PSW3d7c52cbe89055d5",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+   "left": "1-21UD5",
+   "right": "1-21UD4",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p048",
+   "pair_id": "PSW3d7c52cbe89055d5",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+   "left": "1-21UD5",
+   "right": "1-21UD4",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p060",
+   "pair_id": "PSW3d7c52cbe89055d5",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+   "left": "1-21UD5",
+   "right": "1-21UD4",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p060",
+   "pair_id": "PSW75e898912233b55c",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_37",
+   "left": "2-21UD5",
+   "right": "2-21UD4",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p061",
+   "pair_id": "PSWe43d6c6245fd6957",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_1",
+   "left": "1-21UD5",
+   "right": "1-21UD4",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p064",
+   "pair_id": "PSWb5ce3fa1d44d6847",
+   "record_id": "SWWR:F0020:LOGGEN:LD_SYMB2LOGGEN_21",
+   "left": "1-4n401",
+   "right": "1-4n201",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": false
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW661afb211f41c893",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_10",
+   "left": "CJn6A",
+   "right": "T6OUT3",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW42ebae8d820595d9",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_11",
+   "left": "CJn6B",
+   "right": "T6OUT2",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW364e649bfd279f64",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_12",
+   "left": "CJn7A",
+   "right": "T7OUT3",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW577fc7220267c428",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_13",
+   "left": "CJn7B",
+   "right": "T7OUT2",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSWcbfe26e6b51c2c94",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_14",
+   "left": "CJn8A",
+   "right": "T8OUT3",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSWfb4cee547fd3296d",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_15",
+   "left": "CJn8B",
+   "right": "T8OUT2",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSWcb9c0e469ce84458",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_4",
+   "left": "CJn3A",
+   "right": "T3OUT3",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW0609a3994fa441d6",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_5",
+   "left": "CJn3B",
+   "right": "T3OUT2",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSWff763b218cbd0092",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_6",
+   "left": "CJn4A",
+   "right": "T4OUT3",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW800507611e188bc0",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_7",
+   "left": "CJn4B",
+   "right": "T4OUT2",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW67f08419b2679361",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_8",
+   "left": "CJn5A",
+   "right": "T5OUT3",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p070",
+   "pair_id": "PSW2e2ed0eebce6d037",
+   "record_id": "SWWR:F0010:LOGGEN:LD_SYMB2LOGGEN_9",
+   "left": "CJn5B",
+   "right": "T5OUT2",
+   "kind": "wire_component_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  },
+  {
+   "project": "p076",
+   "pair_id": "PSW3d7c52cbe89055d5",
+   "record_id": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_2",
+   "left": "1-21UD5",
+   "right": "1-21UD4",
+   "kind": "bridge_mapping",
+   "contact_segments": [
+    1,
+    1
+   ],
+   "start_segments": 1,
+   "witness": true
+  }
+ ]
+}
