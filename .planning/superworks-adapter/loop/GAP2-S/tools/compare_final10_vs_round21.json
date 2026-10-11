@@ -1,0 +1,388 @@
+{
+ "projects": {
+  "p001": {
+   "pairs": 1324,
+   "pairs_after": 1324,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 0,
+   "issues_after": 0,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 1092,
+   "line_groups_after": 1092,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 149,
+   "links_after": 149,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 131,
+   "coverage_before": {
+    "strict": 447,
+    "with_continuity": 488,
+    "with_internal": 585,
+    "total": 594
+   },
+   "coverage_after": {
+    "strict": 447,
+    "with_continuity": 488,
+    "with_internal": 585,
+    "total": 594
+   },
+   "eligible": 663,
+   "split_stats": {
+    "split_examined": 44,
+    "split_accepted": 36,
+    "split_refused:gap_crossed": 1,
+    "split_refused:components_not_two": 7
+   }
+  },
+  "p003": {
+   "pairs": 655,
+   "pairs_after": 655,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 0,
+   "issues_after": 0,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 646,
+   "line_groups_after": 646,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 66,
+   "links_after": 66,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 64,
+   "coverage_before": {
+    "strict": 260,
+    "with_continuity": 285,
+    "with_internal": 323,
+    "total": 330
+   },
+   "coverage_after": {
+    "strict": 260,
+    "with_continuity": 285,
+    "with_internal": 323,
+    "total": 330
+   },
+   "eligible": 378,
+   "split_stats": {
+    "split_examined": 30,
+    "split_accepted": 24,
+    "split_refused:components_not_two": 6
+   }
+  },
+  "p022": {
+   "pairs": 1699,
+   "pairs_after": 1699,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 1,
+   "issues_after": 1,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 1221,
+   "line_groups_after": 1221,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 207,
+   "links_after": 203,
+   "links_added": 0,
+   "links_lost": 4,
+   "links_sw_element_after": 195,
+   "coverage_before": {
+    "strict": 456,
+    "with_continuity": 527,
+    "with_internal": 640,
+    "total": 661
+   },
+   "coverage_after": {
+    "strict": 456,
+    "with_continuity": 527,
+    "with_internal": 640,
+    "total": 661
+   },
+   "eligible": 747,
+   "split_stats": {
+    "split_examined": 64,
+    "split_accepted": 50,
+    "split_refused:components_not_two": 14
+   }
+  },
+  "p044": {
+   "pairs": 3033,
+   "pairs_after": 3033,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 1,
+   "issues_after": 1,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 2058,
+   "line_groups_after": 2058,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 241,
+   "links_after": 241,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 162,
+   "coverage_before": {
+    "strict": 860,
+    "with_continuity": 860,
+    "with_internal": 1101,
+    "total": 1101
+   },
+   "coverage_after": {
+    "strict": 860,
+    "with_continuity": 860,
+    "with_internal": 1101,
+    "total": 1101
+   },
+   "eligible": 1315,
+   "split_stats": {
+    "split_examined": 38,
+    "split_accepted": 37,
+    "split_refused:components_not_two": 1
+   }
+  },
+  "p050": {
+   "pairs": 2556,
+   "pairs_after": 2556,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 1,
+   "issues_after": 1,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 1743,
+   "line_groups_after": 1743,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 215,
+   "links_after": 215,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 186,
+   "coverage_before": {
+    "strict": 678,
+    "with_continuity": 780,
+    "with_internal": 893,
+    "total": 900
+   },
+   "coverage_after": {
+    "strict": 678,
+    "with_continuity": 780,
+    "with_internal": 893,
+    "total": 900
+   },
+   "eligible": 1134,
+   "split_stats": {
+    "split_examined": 0,
+    "split_accepted": 0
+   }
+  },
+  "p051": {
+   "pairs": 797,
+   "pairs_after": 797,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 0,
+   "issues_after": 0,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 621,
+   "line_groups_after": 621,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 8,
+   "links_after": 8,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 8,
+   "coverage_before": {
+    "strict": 198,
+    "with_continuity": 198,
+    "with_internal": 206,
+    "total": 206
+   },
+   "coverage_after": {
+    "strict": 198,
+    "with_continuity": 198,
+    "with_internal": 206,
+    "total": 206
+   },
+   "eligible": 229,
+   "split_stats": {
+    "split_examined": 17,
+    "split_accepted": 17
+   }
+  },
+  "p061": {
+   "pairs": 4305,
+   "pairs_after": 4305,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 0,
+   "issues_after": 0,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 3136,
+   "line_groups_after": 3136,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 457,
+   "links_after": 456,
+   "links_added": 0,
+   "links_lost": 1,
+   "links_sw_element_after": 452,
+   "coverage_before": {
+    "strict": 1338,
+    "with_continuity": 1602,
+    "with_internal": 1794,
+    "total": 1800
+   },
+   "coverage_after": {
+    "strict": 1338,
+    "with_continuity": 1602,
+    "with_internal": 1793,
+    "total": 1799
+   },
+   "eligible": 1931,
+   "split_stats": {
+    "split_examined": 117,
+    "split_accepted": 108,
+    "split_refused:components_not_two": 8,
+    "split_refused:body_too_narrow": 1
+   }
+  },
+  "p071": {
+   "pairs": 537,
+   "pairs_after": 537,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 3,
+   "issues_after": 3,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 425,
+   "line_groups_after": 425,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 6,
+   "links_after": 6,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 6,
+   "coverage_before": {
+    "strict": 150,
+    "with_continuity": 155,
+    "with_internal": 156,
+    "total": 159
+   },
+   "coverage_after": {
+    "strict": 150,
+    "with_continuity": 155,
+    "with_internal": 156,
+    "total": 159
+   },
+   "eligible": 200,
+   "split_stats": {
+    "split_examined": 24,
+    "split_accepted": 21,
+    "split_refused:components_not_two": 3
+   }
+  },
+  "p074": {
+   "pairs": 2455,
+   "pairs_after": 2455,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 0,
+   "issues_after": 0,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 1645,
+   "line_groups_after": 1645,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 252,
+   "links_after": 252,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 252,
+   "coverage_before": {
+    "strict": 752,
+    "with_continuity": 796,
+    "with_internal": 1002,
+    "total": 1002
+   },
+   "coverage_after": {
+    "strict": 752,
+    "with_continuity": 796,
+    "with_internal": 1002,
+    "total": 1002
+   },
+   "eligible": 1105,
+   "split_stats": {
+    "split_examined": 98,
+    "split_accepted": 94,
+    "split_refused:components_not_two": 4
+   }
+  },
+  "p075": {
+   "pairs": 2346,
+   "pairs_after": 2346,
+   "pairs_added": 0,
+   "pairs_removed": 0,
+   "issues": 4,
+   "issues_after": 4,
+   "issues_added": 0,
+   "issues_removed": 0,
+   "line_groups": 1384,
+   "line_groups_after": 1384,
+   "line_group_sets_added": 0,
+   "line_group_sets_removed": 0,
+   "links": 6,
+   "links_after": 6,
+   "links_added": 0,
+   "links_lost": 0,
+   "links_sw_element_after": 6,
+   "coverage_before": {
+    "strict": 770,
+    "with_continuity": 775,
+    "with_internal": 776,
+    "total": 781
+   },
+   "coverage_after": {
+    "strict": 770,
+    "with_continuity": 775,
+    "with_internal": 776,
+    "total": 781
+   },
+   "eligible": 798,
+   "split_stats": {
+    "split_examined": 6,
+    "split_accepted": 0,
+    "split_refused:components_not_two": 6
+   }
+  }
+ },
+ "total": {
+  "pairs": 19707,
+  "pairs_added": 0,
+  "pairs_removed": 0,
+  "issues": 10,
+  "issues_added": 0,
+  "issues_removed": 0,
+  "links": 1607,
+  "links_after": 1602,
+  "links_added": 0,
+  "links_lost": 5,
+  "line_group_sets_added": 0,
+  "line_group_sets_removed": 0
+ }
+}

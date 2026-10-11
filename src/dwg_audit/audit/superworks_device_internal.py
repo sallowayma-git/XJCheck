@@ -29,6 +29,19 @@ label equals the device label after normalisation, the wire is a device-internal
 counted under ``unregistered:<reason>``: no free far end, no block at the far end, several blocks, an unresolved
 label, or a different or related label.
 
+GAP2-S adds a terminal-body split. A device terminal is drawn as a body whose two TERMPOINTs are the contacts of
+its two wires: one wire runs into each side. The line-group builder joins two collinear segments whose gap is at
+most 4.0, and the body gap is 2.5, so one SuperWORKS wire can hold both sides and several ports. When two device
+terminal ports of one insert with one identity have their contacts on the two sides of one line group, the group
+is cut at that gap (``split_terminal_wires``). The split is made here only: line groups and pairs are unchanged.
+A cut is made only when all of these hold; otherwise it is refused and counted under ``split_refused:<reason>``:
+the group consists of exactly two end-point components, one holding each contact; the two contacts lie on one
+axis line; the body (the distance of the insert's two TERMPOINT midpoints) is at least SPLIT_MIN_BODY_WIDTH;
+their distance is at least SPLIT_MIN_GAP and equals the body width within SPLIT_WIDTH_FACTOR; no model-space line
+crosses the open gap; no connection dot lies at the open gap. The element guard applies to every wire, split or
+not: a link needs an internal element without its own identity. An element that already carries an identity takes
+part in the pair rules, so the wire is counted (``excluded:element_identified``), not linked.
+
 The functions take plain dictionaries, so they run on the in-memory production records and on the written
 parquet rows alike. Identities are compared casefold-exact; nothing is matched by prefix or by value.
 """
@@ -51,6 +64,18 @@ CONTACT_TOLERANCE_FACTOR = 0.6
 _POINT_DECIMALS = 3
 _GRID_CELL = 2.0
 _LEADING_DIGITS_DASH = re.compile(r"^\d+-")
+# Terminal-body split (see the module docstring). Gap and width are measured in drawing units.
+SPLIT_MIN_GAP = 0.5
+# A device terminal body spanned by two TERMPOINTs (two-port terminal). Three-pin symbols have a 1.25 pitch and
+# are not two-port bodies, so a cut across a span narrower than this is refused (body_too_narrow).
+SPLIT_MIN_BODY_WIDTH = 2.0
+SPLIT_LATERAL_TOL = 1.0
+SPLIT_WIDTH_FACTOR = 0.1
+SPLIT_SHRINK = 0.05
+SPLIT_LINE_CLEARANCE = 0.02
+SPLIT_DOT_CLEARANCE = 0.6
+_ENDPOINT_TOL = 1e-3
+_CONTACT_TOL = 0.01
 
 
 def _text(value) -> str:
@@ -222,7 +247,242 @@ def wire_keys_from_lines(lines, line_groups) -> dict:
     return keys
 
 
-def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unregistered=(), wire_endpoints=None) -> dict:
+def _number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(number) else number
+
+
+def _termpoint_mid(port):
+    coords = [_number(port.get(key)) for key in ("start_x", "start_y", "end_x", "end_y")]
+    if any(c is None for c in coords):
+        return None
+    return ((coords[0] + coords[2]) / 2.0, (coords[1] + coords[3]) / 2.0)
+
+
+def _ends(seg):
+    return (seg["sx"], seg["sy"]), (seg["ex"], seg["ey"])
+
+
+def _at_endpoint(seg, point) -> bool:
+    return any(_dist(point, end) <= _CONTACT_TOL for end in _ends(seg))
+
+
+def _point_segment_distance(point, a, b) -> float:
+    ax, ay = a
+    dx, dy = b[0] - ax, b[1] - ay
+    length_sq = dx * dx + dy * dy
+    if length_sq == 0:
+        return _dist(point, a)
+    t = max(0.0, min(1.0, ((point[0] - ax) * dx + (point[1] - ay) * dy) / length_sq))
+    return _dist(point, (ax + t * dx, ay + t * dy))
+
+
+def _segment_distance(a, b, c, d) -> float:
+    """Distance between the closed segments ab and cd (0 when they cross)."""
+    def side(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    d1, d2 = side(c, d, a), side(c, d, b)
+    d3, d4 = side(a, b, c), side(a, b, d)
+    if d1 * d2 < 0 and d3 * d4 < 0:
+        return 0.0
+    return min(_point_segment_distance(a, c, d), _point_segment_distance(b, c, d),
+               _point_segment_distance(c, a, b), _point_segment_distance(d, a, b))
+
+
+def _end_point_components(keys, segments) -> dict:
+    """Components of one line group's members, joined where two member end points coincide."""
+    parent = {key: key for key in keys}
+
+    def find(item):
+        while parent[item] != item:
+            parent[item] = parent[parent[item]]
+            item = parent[item]
+        return item
+
+    owners = defaultdict(list)
+    for key in keys:
+        for end in _ends(segments[key]):
+            owners[_point_key(end)].append(key)
+    for members in owners.values():
+        for other in members[1:]:
+            parent[find(other)] = find(members[0])
+    return {key: find(key) for key in keys}
+
+
+def _judge_split(a, b, ca, cb, component_count, file_id, dots, model_segments):
+    """(refusal reason, None) or (None, geometry) for two device-terminal contacts of one group."""
+    if component_count != 2:
+        return "components_not_two", None
+    mid_a, mid_b = _termpoint_mid(a), _termpoint_mid(b)
+    if mid_a is None or mid_b is None:
+        return "no_termpoint", None
+    body = _dist(mid_a, mid_b)
+    if body <= 0:
+        return "no_body_width", None
+    if body < SPLIT_MIN_BODY_WIDTH:
+        return "body_too_narrow", None
+    dx, dy = abs(cb[0] - ca[0]), abs(cb[1] - ca[1])
+    gap = math.hypot(dx, dy)
+    if gap < SPLIT_MIN_GAP:
+        return "coincident_contacts", None
+    if min(dx, dy) > SPLIT_LATERAL_TOL:
+        return "not_axis_aligned", None
+    if abs(gap - body) > SPLIT_WIDTH_FACTOR * body:
+        return "width_mismatch", None
+    ux, uy = (cb[0] - ca[0]) / gap, (cb[1] - ca[1]) / gap
+    start = (ca[0] + SPLIT_SHRINK * ux, ca[1] + SPLIT_SHRINK * uy)
+    end = (cb[0] - SPLIT_SHRINK * ux, cb[1] - SPLIT_SHRINK * uy)
+    lo_x, hi_x = min(start[0], end[0]) - 1.0, max(start[0], end[0]) + 1.0
+    lo_y, hi_y = min(start[1], end[1]) - 1.0, max(start[1], end[1]) + 1.0
+    for seg in model_segments.get(file_id, ()):
+        if max(seg["sx"], seg["ex"]) < lo_x or min(seg["sx"], seg["ex"]) > hi_x:
+            continue
+        if max(seg["sy"], seg["ey"]) < lo_y or min(seg["sy"], seg["ey"]) > hi_y:
+            continue
+        if _segment_distance(start, end, (seg["sx"], seg["sy"]), (seg["ex"], seg["ey"])) <= SPLIT_LINE_CLEARANCE:
+            return "gap_crossed", None
+    for dot in dots.get(file_id, ()):
+        if _point_segment_distance(dot, start, end) <= SPLIT_DOT_CLEARANCE:
+            return "dot_in_gap", None
+    return None, {"body_width": body, "gap": gap, "lateral": min(dx, dy)}
+
+
+def split_terminal_wires(ports, lines, line_groups, connect_dots=()) -> dict:
+    """Cut line groups at the body gap between the two contacts of one device terminal (GAP2-S).
+
+    ports: as build_device_internal_links; a device terminal needs its TERMPOINT (start_x, start_y, end_x, end_y).
+    lines: dicts with file_id, line_id, handle, source_block_name and the end points sx, sy, ex, ey.
+    line_groups: dicts with file_id and member_line_ids (a list or JSON). connect_dots: dicts with file_id, x, y.
+
+    Returns {"mapping": {(file_id, handle): wire key}, "splits": [...], "refusals": Counter, "split_wire_keys": set,
+    "partners": {wire key: [partner port ids]}}. A cut is applied to a whole line group, and only when it is
+    verified: after the cut the two contacts must lie on different wire keys, or the cut is refused (still_merged).
+    Inputs are read only; the mapping of an unsplit group equals wire_keys_from_lines on the same inputs.
+    """
+    refusals = Counter()
+    segments = {}
+    handle_keys = defaultdict(list)
+    model_segments = defaultdict(list)
+    for line in lines:
+        file_id, line_id = _text(line.get("file_id")), _text(line.get("line_id"))
+        coords = [_number(line.get(key)) for key in ("sx", "sy", "ex", "ey")]
+        if not line_id or any(c is None for c in coords):
+            continue
+        handle = _text(line.get("handle"))
+        seg = {"file_id": file_id, "handle": handle, "sx": coords[0], "sy": coords[1], "ex": coords[2], "ey": coords[3]}
+        segments[(file_id, line_id)] = seg
+        if handle:
+            handle_keys[(file_id, handle)].append((file_id, line_id))
+        if not _text(line.get("source_block_name")):
+            model_segments[file_id].append(seg)
+    groups = []
+    for group in line_groups:
+        file_id = _text(group.get("file_id"))
+        members = group.get("member_line_ids") or []
+        if isinstance(members, str):
+            members = json.loads(members or "[]")
+        keys = list(dict.fromkeys(key for key in ((file_id, _text(m)) for m in members) if key in segments))
+        if len(keys) >= 2:
+            groups.append(keys)
+    group_roots, members_of = [], defaultdict(list)
+    for index, keys in enumerate(groups):
+        group_roots.append(_end_point_components(keys, segments))
+        for key in keys:
+            members_of[key].append(index)
+    dots = defaultdict(list)
+    for dot in connect_dots:
+        x, y = _number(dot.get("x")), _number(dot.get("y"))
+        if x is not None and y is not None:
+            dots[_text(dot.get("file_id"))].append((x, y))
+
+    contacts_in = defaultdict(list)
+    for port in ports:
+        if _text(port.get("category")) != DEVICE_CATEGORY or not _text(port.get("endpoint_identity")):
+            continue
+        file_id = _text(port.get("file_id"))
+        for contact in _contacts_of(port):
+            handle = _text(contact.get("wire_handle"))
+            x, y = _number(contact.get("x")), _number(contact.get("y"))
+            if not handle or x is None or y is None:
+                continue
+            for key in handle_keys.get((file_id, handle), ()):
+                if not _at_endpoint(segments[key], (x, y)):
+                    continue
+                for index in members_of.get(key, ()):
+                    contacts_in[index].append((port, handle, group_roots[index][key], (x, y)))
+
+    accepted, examined = [], 0
+    for index, items in contacts_in.items():
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                (a, handle_a, root_a, ca), (b, handle_b, root_b, cb) = items[i], items[j]
+                if root_a == root_b or a.get("record_id") == b.get("record_id"):
+                    continue
+                if (a.get("file_id"), a.get("insert_handle")) != (b.get("file_id"), b.get("insert_handle")):
+                    continue
+                if _text(a.get("endpoint_identity")).casefold() != _text(b.get("endpoint_identity")).casefold():
+                    continue
+                examined += 1
+                file_id = _text(a.get("file_id"))
+                reason, geometry = _judge_split(a, b, ca, cb, len(set(group_roots[index].values())), file_id,
+                                                dots, model_segments)
+                if reason:
+                    refusals[reason] += 1
+                    continue
+                accepted.append({"group": index, "file_id": file_id, "insert_handle": _text(a.get("insert_handle")),
+                    "endpoint_identity": _text(a.get("endpoint_identity")), "port_a": a.get("record_id"),
+                    "port_b": b.get("record_id"), "handle_a": handle_a, "handle_b": handle_b,
+                    "root_a": root_a, "root_b": root_b, **geometry})
+
+    def pieces(active):
+        cut = {record["group"]: record for record in active}
+        result = []
+        for index, keys in enumerate(groups):
+            if index not in cut:
+                result.append({"file_id": keys[0][0], "member_line_ids": [key[1] for key in keys]})
+                continue
+            record = cut[index]
+            for root in (record["root_a"], record["root_b"]):
+                members = [key for key in keys if group_roots[index][key] == root]
+                result.append({"file_id": keys[0][0], "member_line_ids": [key[1] for key in members]})
+        return result
+
+    def key_of(mapping, file_id, handle):
+        return mapping.get((file_id, handle), (file_id, handle))
+
+    active = list(accepted)
+    for _ in range(len(accepted) + 1):
+        mapping = wire_keys_from_lines(lines, pieces(active))
+        still = [record for record in active
+                 if key_of(mapping, record["file_id"], record["handle_a"])
+                 == key_of(mapping, record["file_id"], record["handle_b"])]
+        if not still:
+            break
+        for record in still:
+            active.remove(record)
+            refusals["still_merged"] += 1
+    mapping = wire_keys_from_lines(lines, pieces(active))
+    split_wire_keys, partners = set(), defaultdict(list)
+    for record in active:
+        partners[key_of(mapping, record["file_id"], record["handle_a"])].append(record["port_b"])
+        partners[key_of(mapping, record["file_id"], record["handle_b"])].append(record["port_a"])
+        for key in groups[record["group"]]:
+            handle = segments[key]["handle"]
+            if handle:
+                split_wire_keys.add(key_of(mapping, key[0], handle))
+    splits = [{"file_id": r["file_id"], "insert_handle": r["insert_handle"], "endpoint_identity": r["endpoint_identity"],
+               "port_a": r["port_a"], "port_b": r["port_b"], "handle_a": r["handle_a"], "handle_b": r["handle_b"],
+               "body_width": r["body_width"], "gap": r["gap"], "lateral": r["lateral"], "split_reason": "terminal_body"}
+              for r in active]
+    return {"mapping": mapping, "splits": splits, "examined": examined, "refusals": refusals,
+            "split_wire_keys": split_wire_keys, "partners": dict(partners)}
+
+
+def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unregistered=(), wire_endpoints=None,
+                                terminal_split=None) -> dict:
     """Device-internal links of the eligible device terminals of one project.
 
     ports: dicts with record_id, file_id, sheet_id, insert_handle, port_number, category, endpoint_identity,
@@ -236,10 +496,25 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
         label_resolved, termpoints with a and b end points). Read only.
     wire_endpoints: {(file_id, wire handle): {wire_side: (x, y)}} end points of every model-space wire.
 
-    Returns {"links": [...], "covered": {device port record_id: [link_id]}, "stats": {...}}. Ports are read only.
+    terminal_split: optional {"lines": [...], "line_groups": [...], "connect_dots": [...]} (see the module docstring).
+        When given, the wire mapping is computed here from these inputs with the body-gap cuts applied, and
+        wire_group_of is not used. Without it the behaviour is the unsplit rule of the module.
+
+    Returns {"links": [...], "covered": {device port record_id: [link_id]}, "stats": {...}, "terminal_splits": [...]}.
+    Ports are read only.
     """
     stats = Counter()
     decisions = []
+    split_wire_keys, partners, terminal_splits = set(), {}, []
+    if terminal_split is not None:
+        split = split_terminal_wires(ports, terminal_split["lines"], terminal_split["line_groups"],
+                                     terminal_split.get("connect_dots", ()))
+        wire_group_of = split["mapping"]
+        split_wire_keys, partners, terminal_splits = split["split_wire_keys"], split["partners"], split["splits"]
+        stats["split_examined"] = split["examined"]
+        stats["split_accepted"] = len(terminal_splits)
+        for reason, count in split["refusals"].items():
+            stats[f"split_refused:{reason}"] += count
     by_wire = defaultdict(list)
     group_of = wire_group_of or {}
     members = defaultdict(list)
@@ -304,7 +579,7 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
                 if far is None:
                     stats["excluded:wire_no_other_port"] += 1
                 else:
-                    candidates.append({"handle": handle, "element": None, "wire_ports": wire_ports, "far": far})
+                    candidates.append({"handle": handle, "element": None, "wire_ports": wire_ports, "far": far, "wire": wire})
                 continue
             if len(others) > 1:
                 reason = "excluded:wire_multi_end_internal" if all(
@@ -326,7 +601,12 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
                 else:
                     stats["excluded:element_label_differs"] += 1
                 continue
-            candidates.append({"handle": handle, "element": element, "wire_ports": wire_ports, "far": None})
+            if _text(element.get("endpoint_identity")):
+                # GAP2-S guard (every wire): an element that already carries an identity takes part in the pair
+                # rules, so the wire is not counted as this terminal's internal wire.
+                stats["excluded:element_identified"] += 1
+                continue
+            candidates.append({"handle": handle, "element": element, "wire_ports": wire_ports, "far": None, "wire": wire})
         if not candidates:
             continue
         if len(candidates) > 1:
@@ -334,6 +614,10 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
             continue
         candidate = candidates[0]
         handle, element, wire_ports, far = candidate["handle"], candidate["element"], candidate["wire_ports"], candidate["far"]
+        wire = candidate["wire"]
+        split_reason = "terminal_body" if wire in split_wire_keys else None
+        if split_reason:
+            stats["linked_on_split_wire"] += 1
         pcl_ids = sorted(set(pcl.get(identity.casefold(), [])))
         if element is not None:
             link_id = "XDI:" + hashlib.sha1(
@@ -367,10 +651,12 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
             "wire_handle": handle, **element_fields,
             "wire_port_ids": sorted(_text(o.get("record_id")) for o in wire_ports),
             "pcl_corroborated": bool(pcl_ids), "pcl_record_ids": pcl_ids,
+            "split_reason": split_reason, "split_partner_port_ids": sorted(partners.get(wire, [])),
         }
         links.append(link)
         covered[port.get("record_id")].append(link_id)
         stats["linked"] += 1
         stats["pcl_corroborated"] += int(bool(pcl_ids))
     stats["linked_ports"] = len(covered)
-    return {"links": links, "covered": dict(covered), "stats": dict(stats), "unregistered_decisions": decisions}
+    return {"links": links, "covered": dict(covered), "stats": dict(stats), "unregistered_decisions": decisions,
+            "terminal_splits": terminal_splits}

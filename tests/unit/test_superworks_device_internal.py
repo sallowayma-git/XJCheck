@@ -406,3 +406,154 @@ def test_extraction_records_the_unregistered_block_and_the_artifacts_count_it_as
     assert summary["device_internal"]["unregistered_symb2"]["blocks"] == 1
     decisions = pd.read_parquet(tmp_path / "sw_unregistered_pin_decisions.parquet")
     assert decisions.reason.tolist() == ["candidate"]
+
+
+# GAP2-S: terminal-body split. A device terminal's two contacts sit on the two sides of its body (gap 2.5); the
+# line group that merges the two sides is cut there, so the terminal links to its own unlabelled internal pin.
+
+from dwg_audit.audit.superworks_device_internal import split_terminal_wires  # noqa: E402
+
+
+def _split_port(record_id, identity, contact, *, mid_x, insert="I1", category="装置端子", file_id="F1",
+                wire_handle=None, element_label="1n"):
+    x, y = contact
+    wire_handle = wire_handle or ("W1" if x < 1.25 else "W2")
+    port = {
+        "record_id": record_id, "file_id": file_id, "sheet_id": "S1", "insert_handle": insert, "port_number": "1",
+        "category": category, "endpoint_identity": identity, "label": _label(element_label if category != "装置端子" else "1n"),
+        "wire_contacts": [{"wire_handle": wire_handle, "wire_side": 0, "x": x, "y": y}],
+        "start_x": mid_x, "start_y": -0.5, "end_x": mid_x, "end_y": 0.5,
+    }
+    return port
+
+
+def _split_lines(contact2_x=2.5):
+    return [
+        {"file_id": "F1", "line_id": "L1", "handle": "W1", "source_block_name": "", "sx": -10.0, "sy": 0.0, "ex": 0.0, "ey": 0.0},
+        {"file_id": "F1", "line_id": "L2", "handle": "W2", "source_block_name": "", "sx": contact2_x, "sy": 0.0, "ex": 12.0, "ey": 0.0},
+    ]
+
+
+def _merged_group(members=("L1", "L2")):
+    return {"file_id": "F1", "line_group_id": "G", "member_line_ids": list(members)}
+
+
+def _split_case(*, element_identity=None, body_mid=2.5, device2_identity="1n705", device2_insert="I1", extra_lines=(),
+                groups=None, dots=(), contact2_x=2.5):
+    device1 = _split_port("D1", "1n705", (0.0, 0.0), mid_x=0.0)
+    device2 = _split_port("D2", device2_identity, (contact2_x, 0.0), mid_x=body_mid, insert=device2_insert)
+    element = _split_port("Q1", element_identity, (-10.0, 0.0), mid_x=-10.0, category="内部元件", element_label="1n")
+    ports = [device1, device2, element]
+    lines = _split_lines(contact2_x) + list(extra_lines)
+    line_groups = groups if groups is not None else [_merged_group()]
+    split = {"lines": lines, "line_groups": line_groups, "connect_dots": list(dots)}
+    return ports, split
+
+
+def test_body_gap_cuts_the_merged_wire_and_links_the_terminal_to_its_own_pin():
+    ports, split = _split_case()
+    unsplit = build_device_internal_links(ports, [], wire_group_of=wire_keys_from_lines(split["lines"], split["line_groups"]))
+    assert unsplit["links"] == []
+    assert unsplit["stats"]["excluded:wire_multi_end"] == 2  # both device terminals sit on the merged wire
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert [l["port_id"] for l in result["links"]] == ["D1"]
+    link = result["links"][0]
+    assert link["element_port_id"] == "Q1"
+    assert link["split_reason"] == "terminal_body"
+    assert link["split_partner_port_ids"] == ["D2"]
+    assert result["terminal_splits"][0]["split_reason"] == "terminal_body"
+    assert result["terminal_splits"][0]["gap"] == pytest.approx(2.5)
+    assert result["stats"]["split_accepted"] == 1
+    assert result["stats"]["linked_on_split_wire"] == 1
+
+
+def test_identified_element_on_a_split_wire_is_not_linked_and_is_counted():
+    ports, split = _split_case(element_identity="1n3")
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert result["links"] == []
+    assert result["stats"]["excluded:element_identified"] == 1
+
+
+def test_identified_element_on_an_unsplit_wire_is_not_linked_either():
+    ports = [_device(), _port("Q1", "内部元件", identity="1n3", label="1n", contacts=("W1",))]
+    result = build_device_internal_links(ports, [], terminal_split=None)
+    assert result["links"] == []
+    assert result["stats"]["excluded:element_identified"] == 1
+
+
+def test_a_body_narrower_than_two_units_is_not_cut():
+    ports, split = _split_case(body_mid=1.25, contact2_x=1.25)
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert result["links"] == []
+    assert result["stats"]["split_refused:body_too_narrow"] == 1
+
+
+def test_a_body_of_two_units_is_cut():
+    ports, split = _split_case(body_mid=2.0, contact2_x=2.0)
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert [l["port_id"] for l in result["links"]] == ["D1"]
+    assert result["links"][0]["split_reason"] == "terminal_body"
+
+
+def test_connection_dot_in_the_gap_keeps_the_wire_merged():
+    ports, split = _split_case(dots=[{"file_id": "F1", "x": 1.25, "y": 0.0}])
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert result["links"] == []
+    assert result["stats"]["split_refused:dot_in_gap"] == 1
+
+
+def test_gap_must_equal_the_insert_body_width():
+    ports, split = _split_case(body_mid=4.0)
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert result["links"] == []
+    assert result["stats"]["split_refused:width_mismatch"] == 1
+
+
+def test_a_different_identity_or_insert_is_not_a_body_pair():
+    ports, split = _split_case(device2_identity="1n706")
+    assert build_device_internal_links(ports, [], terminal_split=split)["stats"].get("split_examined", 0) == 0
+    ports, split = _split_case(device2_insert="I2")
+    assert build_device_internal_links(ports, [], terminal_split=split)["stats"].get("split_examined", 0) == 0
+
+
+def test_a_line_crossing_the_gap_refuses_the_cut():
+    crossing = {"file_id": "F1", "line_id": "L9", "handle": "W9", "source_block_name": "",
+                "sx": 1.25, "sy": -5.0, "ex": 1.25, "ey": 5.0}
+    ports, split = _split_case(extra_lines=[crossing])
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert result["links"] == []
+    assert result["stats"]["split_refused:gap_crossed"] == 1
+
+
+def test_a_group_of_three_pieces_is_not_cut():
+    loose = {"file_id": "F1", "line_id": "L7", "handle": "W7", "source_block_name": "",
+             "sx": 20.0, "sy": 0.0, "ex": 30.0, "ey": 0.0}
+    ports, split = _split_case(extra_lines=[loose], groups=[_merged_group(("L1", "L2", "L7"))])
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert result["links"] == []
+    assert result["stats"]["split_refused:components_not_two"] == 1
+
+
+def test_a_second_group_that_still_joins_both_sides_refuses_the_cut():
+    loose = {"file_id": "F1", "line_id": "L7", "handle": "W7", "source_block_name": "",
+             "sx": 20.0, "sy": 0.0, "ex": 30.0, "ey": 0.0}
+    other = {"file_id": "F1", "line_group_id": "H", "member_line_ids": ["L1", "L2", "L7"]}
+    ports, split = _split_case(extra_lines=[loose], groups=[_merged_group(), other])
+    result = build_device_internal_links(ports, [], terminal_split=split)
+    assert result["links"] == []
+    assert result["stats"]["split_refused:still_merged"] == 1
+
+
+def test_without_a_cut_the_split_mapping_is_the_line_group_mapping():
+    ports, split = _split_case(device2_identity="1n706")
+    mapping = split_terminal_wires(ports, split["lines"], split["line_groups"], split["connect_dots"])["mapping"]
+    assert mapping == wire_keys_from_lines(split["lines"], split["line_groups"])
+
+
+def test_split_reads_ports_and_lines_only_and_is_stable():
+    ports, split = _split_case()
+    before = json.dumps([ports, split], sort_keys=True, default=str)
+    first = build_device_internal_links(ports, [], terminal_split=split)
+    second = build_device_internal_links(ports, [], terminal_split=split)
+    assert json.dumps([ports, split], sort_keys=True, default=str) == before
+    assert [l["link_id"] for l in first["links"]] == [l["link_id"] for l in second["links"]]
