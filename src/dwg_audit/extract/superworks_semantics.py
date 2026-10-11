@@ -480,10 +480,23 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
                     cross_refs.append({"handle": match[1], "port_number": match[2], "page_name": match[3]})
             def attribute(app):
                 return first(e,app) or text_ref(doc,first(e,app,1005)).get("value", "")
+            # The strip's own name (DZ_SERIALNUMBER_NAME, on every row) is the identity prefix. The header
+            # text is only a check: a continuation note such as "上接1QD15" names the rows above it, not the
+            # strip, so it must not be read as the prefix ("上接1QD15" + "16" would give "上接1QD1516").
+            header_value = header.get("normalized", "")
+            dz_name = first(e, "DZ_SERIALNUMBER_NAME", 1000)
+            if dz_name:
+                strip_name, strip_name_source = normalize(dz_name), "dz_serialnumber_name"
+            else:
+                strip_name, strip_name_source = header_value, "header"
+            header_mismatch = bool(dz_name) and header_value != strip_name
             data.strip_rows.append(SwStripRow(record_id=f"SWR:{file_id}:{sheet_id}:{e.dxf.handle}", sheet_id=sheet_id,file_id=file_id,
-                row_handle=e.dxf.handle,header=header,row=row, endpoint_identity=(header.get("normalized","")+row.get("normalized","")) or None,
+                row_handle=e.dxf.handle,header=header,row=row, endpoint_identity=(strip_name+row.get("normalized","")) or None,
                 connections=connections,potentials=potentials,cross_page_refs=cross_refs, raw_xdata=raw(e),
-                validation={"handle_resolved": bool(header.get("resolved")),"reciprocal_ok":reciprocal},reason_codes=sorted(set(reasons)),
+                validation={"handle_resolved": bool(header.get("resolved")),"reciprocal_ok":reciprocal,
+                            "strip_name": strip_name, "strip_name_source": strip_name_source,
+                            "header_text": header.get("value", ""), "header_mismatch": header_mismatch},
+                reason_codes=sorted(set(reasons)),
                 symb_bwrite=attribute("LD_DZPNO_SymbBwrite"),dzlx=attribute("LD_DZPNO_DZLX"),dxlx=attribute("LD_DZPNO_DXLX")))
         if "LD_CONNECT_DOT" in e.xdata.data and e.dxftype() == "LWPOLYLINE":
             points = list(e.vertices_in_wcs())

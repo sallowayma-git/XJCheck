@@ -1,0 +1,918 @@
+{
+ "scope": {
+  "run": ".tmp/superworks_round12_full (77 projects, read-only)",
+  "date": "2026-10-10",
+  "families": {
+   "正式典设": 49,
+   "N2604合同": 25,
+   "110kV变压器保护柜": 1,
+   "PAC-885G-H": 1,
+   "变压器测控柜": 1
+  }
+ },
+ "strict_definition": "沿用 report/superworks_artifacts.py：eligible = 端子/装置端子 且有导线接触且标签已解析；consumed = 非 discard 生产配对中的 SW 证据 port_ids 命中且侧值与端口身份相等。",
+ "discrepancy": {
+  "user_quoted_strict_coverage": "约 63%",
+  "measured_round12_terminal_strict": 0.5731,
+  "round3_f5_strict": 0.5749,
+  "report_md_quoted_strict": 0.9428,
+  "note": "round12 实测严格口径为 57.3%（47380/82680）；63% 无法在 round12/round3 复现（N2604 子集为 63.0%）；report.md 的 94.28% 来自另一次验收运行口径，不可与本回放比较。"
+ },
+ "layers": {
+  "a_strip_connections": {
+   "universe": 20806,
+   "left": 10247,
+   "right": 10559,
+   "_2_slots_nonzero_in_xdata": 0,
+   "covered": 20806,
+   "rate": 1.0,
+   "covered_by": {
+    "left": 10247,
+    "right": 10559
+   },
+   "pass_table_mapping_refs": "every connection carries one pass table_mapping pair (strict: both sides non-empty)",
+   "by_family": [
+    {
+     "fam": "正式典设",
+     "universe": 14415,
+     "covered": 14415,
+     "rate": 1.0
+    },
+    {
+     "fam": "N2604合同",
+     "universe": 5432,
+     "covered": 5432,
+     "rate": 1.0
+    },
+    {
+     "fam": "变压器测控柜",
+     "universe": 333,
+     "covered": 333,
+     "rate": 1.0
+    },
+    {
+     "fam": "PAC-885G-H",
+     "universe": 326,
+     "covered": 326,
+     "rate": 1.0
+    },
+    {
+     "fam": "110kV变压器保护柜",
+     "universe": 300,
+     "covered": 300,
+     "rate": 1.0
+    }
+   ],
+   "by_page_type": [
+    {
+     "page_type": "屏端子图",
+     "universe": 20806,
+     "covered": 20806,
+     "rate": 1.0
+    }
+   ]
+  },
+  "a2_strip_destination_texts": {
+   "universe": 43596,
+   "resolved_text": 43596,
+   "consumed_by_nondiscard_pair": 20779,
+   "rate": 0.4766,
+   "uncovered_reasons": {
+    "X2_跨页目标端口未消费": 11953,
+    "X1_跨页目标端口已消费(本链路未建立)": 8386,
+    "X3_跨页目标端口不存在": 2442,
+    "X4_非跨页去向未被配对": 36
+   },
+   "by_family": [
+    {
+     "fam": "正式典设",
+     "universe": 30381,
+     "covered": 14817,
+     "rate": 0.4877
+    },
+    {
+     "fam": "N2604合同",
+     "universe": 11386,
+     "covered": 5186,
+     "rate": 0.4555
+    },
+    {
+     "fam": "变压器测控柜",
+     "universe": 688,
+     "covered": 328,
+     "rate": 0.4767
+    },
+    {
+     "fam": "110kV变压器保护柜",
+     "universe": 609,
+     "covered": 290,
+     "rate": 0.4762
+    },
+    {
+     "fam": "PAC-885G-H",
+     "universe": 532,
+     "covered": 158,
+     "rate": 0.297
+    }
+   ],
+   "by_page_type": [
+    {
+     "page_type": "屏端子图",
+     "universe": 43596,
+     "covered": 20779,
+     "rate": 0.4766
+    }
+   ]
+  },
+  "a2_cross_page_target_check": {
+   "cross_page_candidates": 22781,
+   "target_found_with_identity": 20339,
+   "target_category": {
+    "装置端子": 10505,
+    "端子": 9640,
+    "线圈": 122,
+    "内部元件": 69,
+    "接地": 3
+   },
+   "target_consumed": {
+    "not_consumed": 11953,
+    "consumed": 8386
+   }
+  },
+  "b_terminal_ports_strict": {
+   "rows": 127089,
+   "eligible": 82680,
+   "covered": 47380,
+   "rate": 0.5731,
+   "not_eligible": 44409,
+   "by_category": [
+    {
+     "category": "装置端子",
+     "universe": 45827,
+     "covered": 18562,
+     "rate": 0.405
+    },
+    {
+     "category": "端子",
+     "universe": 36853,
+     "covered": 28818,
+     "rate": 0.782
+    }
+   ],
+   "by_family": [
+    {
+     "fam": "正式典设",
+     "universe": 59021,
+     "covered": 32615,
+     "rate": 0.5526
+    },
+    {
+     "fam": "N2604合同",
+     "universe": 20094,
+     "covered": 12665,
+     "rate": 0.6303
+    },
+    {
+     "fam": "变压器测控柜",
+     "universe": 1250,
+     "covered": 832,
+     "rate": 0.6656
+    },
+    {
+     "fam": "110kV变压器保护柜",
+     "universe": 1181,
+     "covered": 644,
+     "rate": 0.5453
+    },
+    {
+     "fam": "PAC-885G-H",
+     "universe": 1134,
+     "covered": 624,
+     "rate": 0.5503
+    }
+   ],
+   "by_page_type": [
+    {
+     "page_type": "二次原理图",
+     "universe": 81025,
+     "covered": 46626,
+     "rate": 0.5755
+    },
+    {
+     "page_type": "表格型图",
+     "universe": 1655,
+     "covered": 754,
+     "rate": 0.4556
+    }
+   ],
+   "uncovered_primary": {
+    "O3_对端为内部元件端口(无身份)": 14915,
+    "O10_对端无实体无文字": 8106,
+    "P3_同组配对均为discard": 7653,
+    "P4_SW引用存在但身份值不一致": 1838,
+    "O9_对端接入其它导线": 965,
+    "P1_本端身份未解析": 793,
+    "O1_对端为可判SW端子但未成对": 504,
+    "O4_对端为线圈/接地/接插件端口": 251,
+    "O6_对端为连接点/连接标签": 130,
+    "O2_对端为不可判SW端子": 113,
+    "O7_对端文字已接受但未成对": 27,
+    "P5_同组有配对但未引用本端口": 4,
+    "O0_导线组缺失": 1
+   }
+  },
+  "b_other_categories_loose": {
+   "by_category_total": {
+    "内部元件": 34111,
+    "接地": 600,
+    "接插件": 390,
+    "线圈": 1718
+   },
+   "by_category_with_wire": {
+    "内部元件": 33294,
+    "接地": 313,
+    "接插件": 85,
+    "线圈": 851
+   },
+   "by_category_referenced_nondiscard": {
+    "内部元件": 5549,
+    "接地": 100,
+    "接插件": 58,
+    "线圈": 152
+   },
+   "rate_loose": {
+    "内部元件": 0.1667,
+    "接地": 0.3195,
+    "接插件": 0.6824,
+    "线圈": 0.1786
+   }
+  },
+  "c_schematic_groups": {
+   "universe": 91936,
+   "dist": {
+    "两端都没有": 47813,
+    "两端都解析": 30668,
+    "只解析一端": 13455
+   },
+   "rate_both": 0.3336,
+   "by_origin": {
+    "SW元数据": {
+     "universe": 55697,
+     "both": 17372,
+     "one": 0,
+     "none": 38325,
+     "rate_both": 0.3119
+    },
+    "legacy": {
+     "universe": 36239,
+     "both": 13296,
+     "one": 13455,
+     "none": 9488,
+     "rate_both": 0.3669
+    }
+   },
+   "by_family": {
+    "110kV变压器保护柜": {
+     "universe": 1287,
+     "both": 400,
+     "rate_both": 0.3108
+    },
+    "N2604合同": {
+     "universe": 22659,
+     "both": 7976,
+     "rate_both": 0.352
+    },
+    "PAC-885G-H": {
+     "universe": 1325,
+     "both": 365,
+     "rate_both": 0.2755
+    },
+    "变压器测控柜": {
+     "universe": 1515,
+     "both": 492,
+     "rate_both": 0.3248
+    },
+    "正式典设": {
+     "universe": 65150,
+     "both": 21435,
+     "rate_both": 0.329
+    }
+   },
+   "unresolved_endpoint_reasons": {
+    "G6_端点无任何实体": 37926,
+    "G2_端点为SW元件端口(无身份)": 29671,
+    "G1_端点候选全部被拒:not_numeric": 17618,
+    "G4_端点为连接点/标签": 9803,
+    "G5_端点接入其它导线": 9436,
+    "G1_端点候选全部被拒:single_char_layer_filtered": 2218,
+    "G1_端点候选全部被拒:label_bound_to_other_physical_port": 1926,
+    "G1_端点候选全部被拒:text_identity_owned_by_other_endpoint": 290,
+    "G1_端点候选全部被拒:schematic_logic_endpoint_out_of_row": 92,
+    "G1_端点候选全部被拒:schematic_semantic_out_of_row": 56,
+    "G1_端点候选全部被拒:schematic_q_device_endpoint_out_of_scope": 35,
+    "G1_端点候选全部被拒:schematic_terminal_range_out_of_scope": 9,
+    "G1_端点候选全部被拒:shared_numeric_anchor_owned_by_q_device_mapping": 1
+   },
+   "all_groups_by_page_type": {
+    "二次原理图": {
+     "groups": 91936,
+     "both": 30668
+    },
+    "元件接线图": {
+     "groups": 8161,
+     "both": 2647
+    },
+    "屏端子图": {
+     "groups": 29587,
+     "both": 1492
+    },
+    "表格型图": {
+     "groups": 1480,
+     "both": 427
+    }
+   }
+  },
+  "d_component_backplane_text_level": {
+   "universe": 24823,
+   "covered": 16085,
+   "rate": 0.648,
+   "by_page_type": [
+    {
+     "page_type": "背板表格型图",
+     "universe": 15963,
+     "covered": 15849,
+     "rate": 0.9929
+    },
+    {
+     "page_type": "元件接线图",
+     "universe": 8860,
+     "covered": 236,
+     "rate": 0.0266
+    }
+   ],
+   "by_family": [
+    {
+     "fam": "正式典设",
+     "universe": 17519,
+     "covered": 11588,
+     "rate": 0.6615
+    },
+    {
+     "fam": "N2604合同",
+     "universe": 6055,
+     "covered": 3608,
+     "rate": 0.5959
+    },
+    {
+     "fam": "PAC-885G-H",
+     "universe": 430,
+     "covered": 316,
+     "rate": 0.7349
+    },
+    {
+     "fam": "110kV变压器保护柜",
+     "universe": 421,
+     "covered": 269,
+     "rate": 0.639
+    },
+    {
+     "fam": "变压器测控柜",
+     "universe": 398,
+     "covered": 304,
+     "rate": 0.7638
+    }
+   ],
+   "uncovered_primary": {
+    "D1a_元件内部引脚号被拒(block_internal_pin_number)": 4068,
+    "D1d_声称被component_mapping覆盖但台账无非discard挂接": 1382,
+    "D1e_元件内部引脚对被discard": 1346,
+    "D1c_候选已接受但未被选中": 953,
+    "D1f_端子排结构边框被discard": 314,
+    "D1b_被派生数字替代(superseded)": 262,
+    "D1g_其它discard:self_pair_from_same_virtual_text": 160,
+    "D1h_structural_evidence": 114,
+    "D1h_review": 46,
+    "D1g_其它discard:table_border_row_duplicates_sw_connect_s": 26,
+    "D1g_其它discard:table_cell_edge_no_outward: 3214C": 19,
+    "D1g_其它discard:table_cell_edge_no_outward: 3205D": 19,
+    "D1h_label_only": 14,
+    "D1g_其它discard:top=1 bottom=8 score=0.678; ambiguous ca": 4,
+    "D1g_其它discard:top=3 bottom=7 score=0.750": 2,
+    "D1g_其它discard:left=1 right=37 score=0.700; ambiguous c": 2,
+    "D1g_其它discard:left=1 right=6 score=0.701": 2,
+    "D1g_其它discard:left=2 right=2 score=0.684": 2,
+    "D1g_其它discard:top=503 bottom=8 score=0.656": 1,
+    "D1g_其它discard:top=1 bottom=7 score=0.750": 1,
+    "D1g_其它discard:top=5 bottom=15 score=0.692": 1
+   }
+  }
+ },
+ "uncovered_union": {
+  "total": 66855,
+  "layer_totals": {
+   "b_SW端子(严格口径)": 35300,
+   "a2_端子排去向文字": 22817,
+   "d_元件接线/背板页文字": 8738
+  }
+ },
+ "top8": [
+  {
+   "rank": 1,
+   "bucket": "O3_对端为内部元件端口(无身份)",
+   "count": 17333,
+   "share_of_all_uncovered": 0.2593,
+   "layers": {
+    "b_SW端子(严格口径)": 17333
+   },
+   "projects": 75,
+   "families": {
+    "正式典设": 12540,
+    "N2604合同": 4092,
+    "变压器测控柜": 312,
+    "PAC-885G-H": 214,
+    "110kV变压器保护柜": 175
+   },
+   "tags": {
+    "P3_同组配对均为discard": 2418
+   },
+   "cause": "导线另一端落在元件图形内的引脚（SW internal-component 端口，无 endpoint_identity），其旁只有裸引脚号或无文字，无法组成两端身份的配对。",
+   "fix": "为元件内部引脚生成“元件标号 + 引脚号”身份（元件标号取自元件块旁的标签文字，引脚号取自 SW 端口 port_number 或块内数字），作为 SW 端子↔元件引脚的 SW 证据配对；仅当元件块内引脚号唯一、标号唯一时启用。",
+   "gain": "最多 17333（端子→元件引脚）；与 O7、D1a 共用同一身份生成；严格口径分母内 b 层可提升约 21%（若全部成对，上界）。",
+   "risk": "高：元件标号与引脚号重号、同名元件多实例；需要同页唯一性与互为对端校验，否则伪连接。",
+   "samples": [
+    {
+     "project": "p059",
+     "sheet": "S0012",
+     "obj": "SW:F0012:S0012:/9B25:/9B25:3481:1",
+     "ident": "2-21n408",
+     "group": "GWSW7c9207589f02475d",
+     "oend": "O3_对端为内部元件端口(无身份)",
+     "png_single": "png/B1_1.png"
+    },
+    {
+     "project": "p037",
+     "sheet": "S0011",
+     "obj": "SW:F0011:S0011:/33BFA:/33BFA:25654:1",
+     "ident": "4n932",
+     "group": "GWSWa0d4275c822a6041",
+     "oend": "O3_对端为内部元件端口(无身份)",
+     "png_single": "png/B1_2.png"
+    },
+    {
+     "project": "p014",
+     "sheet": "S0015",
+     "obj": "SW:F0015:S0015:/12FA0:/12FA0:124E9:2",
+     "ident": "1n709",
+     "group": "GWSWdecdeed13a788aa3",
+     "oend": "O3_对端为内部元件端口(无身份)",
+     "png_single": "png/B1_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B1.png"
+  },
+  {
+   "rank": 2,
+   "bucket": "X2_跨页目标端口未消费",
+   "count": 11953,
+   "share_of_all_uncovered": 0.1788,
+   "layers": {
+    "a2_端子排去向文字": 11953
+   },
+   "projects": 77,
+   "families": {
+    "正式典设": 8414,
+    "N2604合同": 2953,
+    "变压器测控柜": 203,
+    "PAC-885G-H": 196,
+    "110kV变压器保护柜": 187
+   },
+   "tags": {},
+   "cause": "端子排连接的去向文字（XDATA potentials，文字本身为 TEXT 实体，字高1/3，内容“未定义<句柄>:<端口>_<页>”）指向另一页的 SW 端口；该端口有身份，但没有任何非 discard 的配对引用端子排侧，跨页链路从未被建立。约 48% 的目标身份与同行端子排连接身份完全相同。",
+   "fix": "利用 cross_page_refs（句柄+端口号）在同项目内定位目标端口；当目标端口身份与同行端子排连接身份（或端子排行身份所对应的内部连接）相等且目标在该项目内唯一时，生成跨页 SW 证据配对（status 由既有 pass/review 规则决定）。",
+   "gain": "严格端口口径：11706 个 b 层未覆盖端子为本桶目标，上界覆盖率 57.3%→71.5%。",
+   "risk": "中：同身份多页重复（competing_physical_port_identities 已有先例）；X1 同类目标若已被另一配对消费会产生多对一，必须交给已有 many-to-one 规则而非直接放行。",
+   "samples": [
+    {
+     "project": "p035",
+     "sheet": "S0026",
+     "obj": "SWR:F0026:S0026:61B4|T3746",
+     "ident": "未定义1AE4D:1_13 非电量信号输出回路3",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B2_1.png"
+    },
+    {
+     "project": "p067",
+     "sheet": "S0017",
+     "obj": "SWR:F0017:S0017:326C2|T2866",
+     "ident": "未定义37CFD:1_12 操作箱原理图4",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B2_2.png"
+    },
+    {
+     "project": "p075",
+     "sheet": "S0016",
+     "obj": "SWR:F0016:S0016:261E9|T3092",
+     "ident": "未定义18927:1_05 信号回路图",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B2_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B2.png"
+  },
+  {
+   "rank": 3,
+   "bucket": "X1_跨页目标端口已消费(本链路未建立)",
+   "count": 8386,
+   "share_of_all_uncovered": 0.1254,
+   "layers": {
+    "a2_端子排去向文字": 8386
+   },
+   "projects": 76,
+   "families": {
+    "正式典设": 5387,
+    "N2604合同": 2650,
+    "PAC-885G-H": 147,
+    "110kV变压器保护柜": 101,
+    "变压器测控柜": 101
+   },
+   "tags": {},
+   "cause": "目标端口已由其所在页的导线配对消费，但端子排侧的连接身份与目标身份命名不同（如 2-26n711 对 2-26TD111），仅靠身份无法对齐，缺少把两者连接起来的依据。",
+   "fix": "只在存在独立证据（如 XDATA 句柄、与目标端口同一设备句柄的 cross_page_refs 唯一对应）时建立链接，并把已消费端口视为‘二次证据’，不改变既有配对。",
+   "gain": "不直接提升严格端口覆盖（目标已消费）；提升的是端子排去向文字覆盖与跨页一致性；身份相等的仅约 1612 个。",
+   "risk": "高：命名体系不同，身份相等规则会误连；建议先作为仅报告的候选，不进入覆盖率。",
+   "samples": [
+    {
+     "project": "p070",
+     "sheet": "S0015",
+     "obj": "SWR:F0015:S0015:26612|T2730",
+     "ident": "未定义35541:2_05 交流回路图2",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B3_1.png"
+    },
+    {
+     "project": "p075",
+     "sheet": "S0018",
+     "obj": "SWR:F0018:S0018:23191|T4119",
+     "ident": "未定义A553:1_10 时钟对时回路图5",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B3_2.png"
+    },
+    {
+     "project": "p039",
+     "sheet": "S0027",
+     "obj": "SWR:F0027:S0027:7689|T4994",
+     "ident": "未定义26160:4_16 出口回路图",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B3_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B3.png"
+  },
+  {
+   "rank": 4,
+   "bucket": "O10_对端无实体无文字",
+   "count": 8357,
+   "share_of_all_uncovered": 0.125,
+   "layers": {
+    "b_SW端子(严格口径)": 8357
+   },
+   "projects": 75,
+   "families": {
+    "正式典设": 6943,
+    "N2604合同": 1299,
+    "PAC-885G-H": 51,
+    "110kV变压器保护柜": 39,
+    "变压器测控柜": 25
+   },
+   "tags": {
+    "P3_同组配对均为discard": 251
+   },
+   "cause": "导线另一端既无 SW 端口、也无候选文字：多为元件图形内的未标注引脚（引脚号被当作块内号拒绝）或框线/表格边线的接入点，两者都不在任何配对源里。",
+   "fix": "与 O3/D1a 合并处理（元件引脚身份）；框线/表格线类端点在导线组层面过滤（需要先给 line_group 分类为非导线）。",
+   "gain": "最多 8357，但多数需要元件引脚身份才能转化。",
+   "risk": "中：把框线误当导线会制造伪连接；需先做导线/框线分类。",
+   "samples": [
+    {
+     "project": "p002",
+     "sheet": "S0007",
+     "obj": "SW:F0007:S0007:/1B26D:/1B26D:E3A9:1",
+     "ident": "1n405",
+     "group": "GWSW19afc9272c6ebcac",
+     "oend": "O10_对端无实体无文字",
+     "png_single": "png/B4_1.png"
+    },
+    {
+     "project": "p056",
+     "sheet": "S0005",
+     "obj": "SW:F0005:S0005:/DF8D:/DF8D:5C4F:1",
+     "ident": "1-40nPWR5",
+     "group": "GWSWb4e1932c42e6ae04",
+     "oend": "O10_对端无实体无文字",
+     "png_single": "png/B4_2.png"
+    },
+    {
+     "project": "p021",
+     "sheet": "S0018",
+     "obj": "SW:F0018:S0018:/D8FE:/D8FE:D7E1:2",
+     "ident": "1n1316",
+     "group": "GWSW885a0f969042405d",
+     "oend": "O10_对端无实体无文字",
+     "png_single": "png/B4_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B4.png"
+  },
+  {
+   "rank": 5,
+   "bucket": "D1a_元件内部引脚号被拒(block_internal_pin_number)",
+   "count": 4068,
+   "share_of_all_uncovered": 0.0608,
+   "layers": {
+    "d_元件接线/背板页文字": 4068
+   },
+   "projects": 63,
+   "families": {
+    "正式典设": 3168,
+    "N2604合同": 742,
+    "110kV变压器保护柜": 104,
+    "变压器测控柜": 54
+   },
+   "tags": {},
+   "cause": "元件接线图上的数字文字位于元件圆形引脚符号内，被规则判为块内引脚号而拒绝；目视样例中无外部导线接入，多数不是外部端子，应从应覆盖分母中排除（或先确认是否有外部导线）。",
+   "fix": "更像分母口径问题：在元件接线图的覆盖分母中把块内引脚号单列，不计入外部端子覆盖；若某引脚确有导线，再交给元件引脚身份规则。",
+   "gain": "口径修正而非连接增量；可把层 d 覆盖率的分母缩小 4068。",
+   "risk": "低（口径改动需要在报告中说明）。",
+   "samples": [
+    {
+     "project": "p001",
+     "sheet": "S0013",
+     "obj": "T1990",
+     "ident": "2",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B5_1.png"
+    },
+    {
+     "project": "p044",
+     "sheet": "S0021",
+     "obj": "T3874",
+     "ident": "1",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B5_2.png"
+    },
+    {
+     "project": "p005",
+     "sheet": "S0016",
+     "obj": "T2562",
+     "ident": "1",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B5_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B5.png"
+  },
+  {
+   "rank": 6,
+   "bucket": "X3_跨页目标端口不存在",
+   "count": 2442,
+   "share_of_all_uncovered": 0.0365,
+   "layers": {
+    "a2_端子排去向文字": 2442
+   },
+   "projects": 74,
+   "families": {
+    "正式典设": 1753,
+    "N2604合同": 574,
+    "变压器测控柜": 53,
+    "110kV变压器保护柜": 31,
+    "PAC-885G-H": 31
+   },
+   "tags": {},
+   "cause": "目标设备句柄在本项目 sw_symbols 中完全不存在（2442 中 0 个命中），SW 通道没有目标端口，只有文字侧可能给出设备名（如 A'-2、C663）。",
+   "fix": "SW 侧无法补齐；需要文字侧设备名与端子排去向的对齐（独立的文字配对），不属于 SW 扩展。",
+   "gain": "无法靠 SW 修复。",
+   "risk": "低（只报告）。",
+   "samples": [
+    {
+     "project": "p075",
+     "sheet": "S0019",
+     "obj": "SWR:F0019:S0019:20EB0|T4508",
+     "ident": "未定义415E5:2_04 直流回路图",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B6_1.png"
+    },
+    {
+     "project": "p051",
+     "sheet": "S0012",
+     "obj": "SWR:F0012:S0012:21498|T1613",
+     "ident": "未定义424F4:2_04 交直流回路图",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B6_2.png"
+    },
+    {
+     "project": "p028",
+     "sheet": "S0028",
+     "obj": "SWR:F0028:S0028:12CE4|T4578",
+     "ident": "未定义C663:1_08 交流电压回路",
+     "group": null,
+     "oend": "",
+     "png_single": "png/B6_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B6.png"
+  },
+  {
+   "rank": 7,
+   "bucket": "P4_SW引用存在但身份值不一致",
+   "count": 1838,
+   "share_of_all_uncovered": 0.0275,
+   "layers": {
+    "b_SW端子(严格口径)": 1838
+   },
+   "projects": 68,
+   "families": {
+    "正式典设": 1344,
+    "N2604合同": 421,
+    "PAC-885G-H": 36,
+    "110kV变压器保护柜": 29,
+    "变压器测控柜": 8
+   },
+   "tags": {},
+   "cause": "主要形态：review 配对的侧值去掉了设备侧前缀（如配对值 717，SW 身份 1n717）；其次为 SW 端无 value 的 semantic_mapping 挂接。全部为 review 状态。",
+   "fix": "在 SW 身份比较中加入‘设备前缀可剥离’的规范化（仅当前缀为同页内唯一的设备侧前缀，且后缀唯一对应该端口时），使该端口获得 SW 证据消费。",
+   "gain": "约 1600 个严格端子（b 层）可获得消费；风险最低、实现最小。",
+   "risk": "低-中：前缀规则必须限定在同页同设备；需要回归检查 many-to-one 与 competing identity。",
+   "samples": [
+    {
+     "project": "p061",
+     "sheet": "S0010",
+     "obj": "SW:F0010:S0010:/D3F5:/D3F5:68DA:2",
+     "ident": "1-21n532",
+     "group": "GW0312",
+     "oend": "O6_对端为连接点/连接标签",
+     "png_single": "png/B7_1.png"
+    },
+    {
+     "project": "p068",
+     "sheet": "S0004",
+     "obj": "SW:F0004:S0004:/217C1:/217C1:1A824:1",
+     "ident": "2-1n207",
+     "group": "GW0015",
+     "oend": "O7_对端文字已接受但未成对",
+     "png_single": "png/B7_2.png"
+    },
+    {
+     "project": "p059",
+     "sheet": "S0004",
+     "obj": "SW:F0004:S0004:/F3D6:/F3D6:8E80:2",
+     "ident": "2-21UD4~6",
+     "group": "GW0040",
+     "oend": "O8_对端候选全部被拒:label_bound_to_other_physical_port",
+     "png_single": "png/B7_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B7.png"
+  },
+  {
+   "rank": 8,
+   "bucket": "O7_对端文字已接受但未成对",
+   "count": 1628,
+   "share_of_all_uncovered": 0.0244,
+   "layers": {
+    "b_SW端子(严格口径)": 1628
+   },
+   "projects": 77,
+   "families": {
+    "正式典设": 1206,
+    "N2604合同": 397,
+    "变压器测控柜": 10,
+    "PAC-885G-H": 8,
+    "110kV变压器保护柜": 7
+   },
+   "tags": {
+    "P3_同组配对均为discard": 1601
+   },
+   "cause": "另一端是候选已接受的裸数字（继电器/触点的引脚号，如 7、13、3），缺少元件名前缀，无法形成完整身份，因此不配对；同一桶内 1601 个属于 discard-only 组。",
+   "fix": "与 O3/O10 共用元件引脚身份：把已接受的裸引脚号与其旁边的元件标号（如 ZJ1）组合为完整身份后参与配对。",
+   "gain": "最多 1628（与 O3 相关）。",
+   "risk": "中：裸数字多义，必须有元件标号唯一性。",
+   "samples": [
+    {
+     "project": "p049",
+     "sheet": "S0009",
+     "obj": "SW:F0009:S0009:/2335D:/2335D:23251:3",
+     "ident": "1QD3",
+     "group": "GW0218",
+     "oend": "O7_对端文字已接受但未成对",
+     "png_single": "png/B8_1.png"
+    },
+    {
+     "project": "p034",
+     "sheet": "S0011",
+     "obj": "SW:F0011:S0011:/1FBBC:/1FBBC:16433:3",
+     "ident": "1QD3",
+     "group": "GW0352",
+     "oend": "O7_对端文字已接受但未成对",
+     "png_single": "png/B8_2.png"
+    },
+    {
+     "project": "p062",
+     "sheet": "S0004",
+     "obj": "SW:F0004:S0004:/390B8:/390B8:2BA98:3",
+     "ident": "ZD4",
+     "group": "GW0023",
+     "oend": "O7_对端文字已接受但未成对",
+     "png_single": "png/B8_3.png"
+    }
+   ],
+   "png_bucket_sheet": "png/bucket_B8.png"
+  }
+ ],
+ "checks": {
+  "dxf_xdata_strip_slots": {
+   "dxf_files_checked": 242,
+   "projects": 12,
+   "usages": {
+    "LDDZ_LEFTTEXT_HANDLE": 3950,
+    "LDDZ_RIGHTTEXT_HANDLE": 3950,
+    "LDDZ_LEFTTEXT_HANDLE_2": 3950,
+    "LDDZ_RIGHTTEXT_HANDLE_2": 3950,
+    "LDDZ_LEFT_FENGEHANDLE": 3950,
+    "LDDZ_RIGHT_FENGEHANDLE": 3950
+   },
+   "nonzero": {
+    "LDDZ_LEFTTEXT_HANDLE": 1756,
+    "LDDZ_RIGHTTEXT_HANDLE": 1228,
+    "LDDZ_LEFTTEXT_HANDLE_2": 0,
+    "LDDZ_RIGHTTEXT_HANDLE_2": 0,
+    "LDDZ_LEFT_FENGEHANDLE": 0,
+    "LDDZ_RIGHT_FENGEHANDLE": 0
+   },
+   "note": "_2 and FENGE slots are registered (APPID) but never populated with a handle in these DXFs"
+  },
+  "destination_text_entities": {
+   "count": 33453,
+   "height": {
+    "1.0": 22817,
+    "3.0": 10636
+   },
+   "layer": {
+    "0": 33453
+   },
+   "entity_type": {
+    "TEXT": 33453
+   },
+   "note": "TEXT entities on layer 0; small (height 1.0 or 3.0); visible but tiny at page scale"
+  },
+  "cross_page_identity_equality": {
+   "X2_targets_unconsumed": 11953,
+   "X2_identity_equal_to_row_connection": 5718,
+   "X2_share": 0.4784,
+   "X1_targets_consumed": 8386,
+   "X1_identity_equal_to_row_connection": 1612,
+   "X1_share": 0.1922
+  },
+  "strict_uplift_bound_if_X2_linked": {
+   "X2_targets_that_are_uncovered_strict_terminals": 11706,
+   "eligible": 82680,
+   "covered_now": 47380,
+   "rate_now": 0.5731,
+   "rate_upper_bound": 0.7146,
+   "note": "upper bound: assumes every X2 target gets a correct cross-page pair"
+  },
+  "P4_subtypes": {
+   "pair_value_is_suffix_of_SW_value(device prefix dropped) | review | ordinary_pair": 792,
+   "pair_value_is_suffix_of_SW_value(device prefix dropped) | review | semantic_mapping": 628,
+   "pair_value_is_suffix_of_SW_value(device prefix dropped) | review | wire_component_mapping": 173,
+   "different_identity | review | wire_component_mapping": 82,
+   "sw_value_missing | review | semantic_mapping": 73,
+   "pair_side_empty | review | ordinary_pair": 34,
+   "sw_value_missing | review | ordinary_pair": 21,
+   "pair_side_empty | review | semantic_mapping": 13,
+   "different_identity | review | semantic_mapping": 10,
+   "pair_value_is_suffix_of_SW_value(device prefix dropped) | pass | wire_component_mapping": 9,
+   "different_identity | review | ordinary_pair": 2,
+   "sw_value_missing | review | wire_component_mapping": 1
+  },
+  "D1d_bookkeeping": {
+   "n": 1382,
+   "referenced_by_nondiscard_component_mapping": 288
+  },
+  "layer_c_score_test_20_projects": {
+   "score>=0.7_resolved_share": 0.4477,
+   "score<0.7_resolved_share": 0.5997,
+   "groups": 25529,
+   "conclusion": "wire_candidate_score does not filter out non-wire groups"
+  }
+ }
+}

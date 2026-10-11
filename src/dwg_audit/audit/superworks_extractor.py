@@ -380,7 +380,10 @@ class StripMembership:
             if not row.endpoint_identity:
                 continue
             key = _key(row.endpoint_identity)
-            header = (row.header or {}).get("normalized")
+            # The strip the row belongs to, not its header text: a continuation header
+            # ("上接3-21GD16") names the rows above it, so two rows of one strip (GD16 under
+            # the first header, GD17 under the continuation) must compare as the same strip.
+            header = (row.validation or {}).get("strip_name") or (row.header or {}).get("normalized")
             if header:
                 self.headers[key][_key(header)] = header
             for connection in row.connections:
@@ -913,7 +916,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                 # legacy TableExtractor writes it (left-side rows: left filled, right empty).
                 other_side="right" if side=="left" else "left"
                 mapping={"mapping_mode":"terminal_header_table","sheet_id":row.sheet_id,"file_id":row.file_id,
-                    "header_prefix":row.header.get("normalized"),"header_text_id":header_id,
+                    "header_prefix":row.validation.get("strip_name") or row.header.get("normalized"),"header_text_id":header_id,
                     "header_handle":row.header.get("handle"),"header_coord":[row.header.get("x"),row.header.get("y")],"row_number":row_number,
                     "middle_value":row.row.get("normalized"),"middle_text_id":row_id,"middle_coord":[row.row.get("x"),row.row.get("y")],
                     "logical_endpoint":row.endpoint_identity,"row_number_sequence_valid":True,

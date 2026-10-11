@@ -1,0 +1,26 @@
+[
+ {
+  "group": "GW0624",
+  "project": "p048",
+  "sheet": "S0019",
+  "reason_start": "G1_端点候选全部被拒:not_numeric",
+  "reason_end": "G1_端点候选全部被拒:not_numeric",
+  "entities": null
+ },
+ {
+  "group": "GW0218",
+  "project": "p050",
+  "sheet": "S0017",
+  "reason_start": "G1_端点候选全部被拒:not_numeric",
+  "reason_end": "G1_端点候选全部被拒:not_numeric",
+  "entities": null
+ },
+ {
+  "group": "GWSW07103d9c52861044",
+  "project": "p020",
+  "sheet": "S0016",
+  "reason_start": "G6_端点无任何实体",
+  "reason_end": "G2_端点为SW元件端口(无身份)",
+  "entities": null
+ }
+]
