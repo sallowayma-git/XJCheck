@@ -9,7 +9,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from dwg_audit.audit.superworks_cross_page import build_cross_page_links
+from dwg_audit.audit.superworks_cross_page import build_cross_page_links, short_bridge_pairs
 from dwg_audit.domain.models import SwSymbolInstance, SwPort, SwStripRow, SwPartInstance, SwConnectLabel, SwConnectDot
 
 
@@ -261,7 +261,13 @@ def _cross_page_continuity(artifacts,data):
             "left_text_id":getattr(pair,"left_text_id",None),"right_text_id":getattr(pair,"right_text_id",None),
             "left_port_ids":list((sw.get("left") or {}).get("port_ids") or []),"right_port_ids":list((sw.get("right") or {}).get("port_ids") or [])})
     page_rows=[{"file_id":p.file_id,"sheet_no":p.sheet_no} for p in pages]
-    return build_cross_page_links(strips,ports,pairs,page_rows)
+    # XPAGE-2: rows joined by a short bridge drawn on their strip page are electrically equivalent.
+    bridge_rows=[{"record_id":r.record_id,"file_id":r.file_id,"group":(r.header or {}).get("handle"),
+        "x":(r.row or {}).get("x"),"y":(r.row or {}).get("y")} for r in getattr(data,"strip_rows",[]) or []]
+    bridge_lines=[{"file_id":l.file_id,"x0":l.start_x,"y0":l.start_y,"x1":l.end_x,"y1":l.end_y}
+        for l in getattr(artifacts,"lines",[]) or []]
+    bridges=short_bridge_pairs(bridge_rows,bridge_lines)
+    return build_cross_page_links(strips,ports,pairs,page_rows,bridges=bridges)
 
 
 def _write_cross_page_tables(findings_dir,cross_page):
