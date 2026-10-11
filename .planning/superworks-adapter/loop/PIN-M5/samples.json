@@ -1,0 +1,768 @@
+[
+ {
+  "name": "TX01",
+  "cls": "TX",
+  "pid": "p048",
+  "fid": "F0011",
+  "label": "1-21KK",
+  "T": [
+   "121CD14"
+  ],
+  "pred": "4",
+  "truth": "4",
+  "match_src": "sw",
+  "record": "SWWR:F0011:LOGGEN:LD_SYMB2LOGGEN_11",
+  "block": "SYMB2_M_PWF175",
+  "wire": "F23D",
+  "layout": {
+   "fid": "F0024",
+   "owner": "E3E6",
+   "far_text": "1-21CD14",
+   "far_sw": "1-21CD14",
+   "wire": "F674",
+   "record": "SWWR:F0024:PCL:E3E6:4"
+  },
+  "sch_insert": "F22C",
+  "sch_pin": "2",
+  "sch_file": "F0011"
+ },
+ {
+  "name": "TX02",
+  "cls": "TX",
+  "pid": "p021",
+  "fid": "F0018",
+  "label": "1CLP1",
+  "T": [
+   "1N1218"
+  ],
+  "pred": "2",
+  "truth": "2",
+  "match_src": "sw",
+  "record": "SWWR:F0018:LOGGEN:LD_SYMB2LOGGEN_37",
+  "block": "SYMB2_M_PWF224",
+  "wire": "16897",
+  "layout": {
+   "fid": "F0023",
+   "owner": "15288",
+   "far_text": "1n1218",
+   "far_sw": "1n1218",
+   "wire": "167C5",
+   "record": "SWWR:F0023:PCL:15288:2"
+  },
+  "sch_insert": "1688B",
+  "sch_pin": "1",
+  "sch_file": "F0018"
+ },
+ {
+  "name": "TX03",
+  "cls": "TX",
+  "pid": "p015",
+  "fid": "F0009",
+  "label": "1ZKK2",
+  "T": [
+   "UD8"
+  ],
+  "pred": "5",
+  "truth": "5",
+  "match_src": "sw",
+  "record": "SWWR:F0009:LOGGEN:LD_SYMB2LOGGEN_24",
+  "block": "SYMB2_M_PWF237",
+  "wire": "14BEF",
+  "layout": {
+   "fid": "F0020",
+   "owner": "12AC2",
+   "far_text": "UD8",
+   "far_sw": "UD8",
+   "wire": "141EA",
+   "record": "SWWR:F0020:PCL:12AC2:5"
+  },
+  "sch_insert": "14BF3",
+  "sch_pin": "5",
+  "sch_file": "F0009"
+ },
+ {
+  "name": "TX04",
+  "cls": "TX",
+  "pid": "p033",
+  "fid": "F0014",
+  "label": "1C3LP3",
+  "T": [
+   "1KD8"
+  ],
+  "pred": "1",
+  "truth": "1",
+  "match_src": "sw",
+  "record": "SWWR:F0014:LOGGEN:LD_SYMB2LOGGEN_86",
+  "block": "SYMB2_M_PWF224",
+  "wire": "18751",
+  "layout": {
+   "fid": "F0026",
+   "owner": "150FF",
+   "far_text": "1KD8",
+   "far_sw": "1KD8",
+   "wire": "155ED",
+   "record": "SWWR:F0026:PCL:150FF:1"
+  },
+  "sch_insert": "18748",
+  "sch_pin": "2",
+  "sch_file": "F0014"
+ },
+ {
+  "name": "TX05",
+  "cls": "TX",
+  "pid": "p035",
+  "fid": "F0015",
+  "label": "K863",
+  "T": [
+   "34Q1D5"
+  ],
+  "pred": "1X4",
+  "truth": "1X4",
+  "match_src": "text",
+  "record": "SWWR:F0015:LOGGEN:LD_SYMB2LOGGEN_6",
+  "block": "SYMB2_M_PWF4",
+  "wire": "3E40B",
+  "layout": {
+   "fid": "F0022",
+   "owner": "22151",
+   "far_text": "3-4Q1D5",
+   "far_sw": "3-4Q1D5",
+   "wire": "2353F",
+   "record": "SWWR:F0022:PCL:22151:1X4"
+  },
+  "sch_insert": "3E409",
+  "sch_pin": "1",
+  "sch_file": "F0015"
+ },
+ {
+  "name": "TX06",
+  "cls": "TX",
+  "pid": "p052",
+  "fid": "F0004",
+  "label": "3-40DK1",
+  "T": [
+   "ZD4"
+  ],
+  "pred": "3",
+  "truth": "3",
+  "match_src": "text",
+  "record": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_21",
+  "block": "SYMB2_M_PWF236",
+  "wire": "41232",
+  "layout": {
+   "fid": "F0012",
+   "owner": "3B687",
+   "far_text": "ZD4",
+   "far_sw": "ZD4",
+   "wire": "3BF97",
+   "record": "SWWR:F0012:PCL:3B687:3"
+  },
+  "sch_insert": "4123A",
+  "sch_pin": "3",
+  "sch_file": "F0004"
+ },
+ {
+  "name": "TX07",
+  "cls": "TX",
+  "pid": "p053",
+  "fid": "F0004",
+  "label": "3-40DK1",
+  "T": [
+   "ZD3"
+  ],
+  "pred": "3",
+  "truth": "3",
+  "match_src": "text",
+  "record": "SWWR:F0004:LOGGEN:LD_SYMB2LOGGEN_21",
+  "block": "SYMB2_M_PWF236",
+  "wire": "41232",
+  "layout": {
+   "fid": "F0010",
+   "owner": "3B687",
+   "far_text": "ZD3",
+   "far_sw": "ZD3",
+   "wire": "3C0A0",
+   "record": "SWWR:F0010:PCL:3B687:3"
+  },
+  "sch_insert": "4123A",
+  "sch_pin": "3",
+  "sch_file": "F0004"
+ },
+ {
+  "name": "TX08",
+  "cls": "TX",
+  "pid": "p016",
+  "fid": "F0006",
+  "label": "A'",
+  "T": [
+   "JD6"
+  ],
+  "pred": "2",
+  "truth": "2",
+  "match_src": "text",
+  "record": "SWWR:F0006:LOGGEN:LD_SYMB2LOGGEN_15",
+  "block": "SYMB2_M_PWF105",
+  "wire": "11389",
+  "layout": {
+   "fid": "F0019",
+   "owner": "125BB",
+   "far_text": "JD6",
+   "far_sw": "JD6",
+   "wire": "151F5",
+   "record": "SWWR:F0019:PCL:125BB:2"
+  },
+  "sch_insert": "11371",
+  "sch_pin": "2",
+  "sch_file": "F0006"
+ },
+ {
+  "name": "PS01",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF191",
+  "pid": "p076",
+  "fid": "F0012",
+  "label": "3-21N",
+  "T": [
+   "321N222"
+  ],
+  "pred": "222",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0012:S0012:/11618:/11618:80FD:1",
+  "wire": "11615",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0018",
+   "owner": "E2ED",
+   "far_text": "3-21QD32",
+   "far_sw": "3-21n222",
+   "wire": "102B9",
+   "record": "SWWR:F0018:PCL:E2ED:222"
+  }
+ },
+ {
+  "name": "PS02",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF191",
+  "pid": "p060",
+  "fid": "F0007",
+  "label": "1-21N",
+  "T": [
+   "121N213"
+  ],
+  "pred": "213",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0007:S0007:/E773:/E773:6911:1",
+  "wire": "E770",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0013",
+   "owner": "10164",
+   "far_text": "1-21QD29",
+   "far_sw": "1-21n213",
+   "wire": "110DA",
+   "record": "SWWR:F0013:PCL:10164:213"
+  }
+ },
+ {
+  "name": "PS03",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF191",
+  "pid": "p021",
+  "fid": "F0015",
+  "label": "1N",
+  "T": [
+   "1N528"
+  ],
+  "pred": "528",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0015:S0015:/17A17:/17A17:16EA6:1",
+  "wire": "17A14",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0020",
+   "owner": "FAD7",
+   "far_text": "1C8D14",
+   "far_sw": "1n528",
+   "wire": "106EE",
+   "record": "SWWR:F0020:PCL:FAD7:528"
+  }
+ },
+ {
+  "name": "PS04",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF191",
+  "pid": "p046",
+  "fid": "F0012",
+  "label": "2-21N",
+  "T": [
+   "221N219"
+  ],
+  "pred": "219",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0012:S0012:/1382F:/1382F:80FD:1",
+  "wire": "1382C",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0016",
+   "owner": "11630",
+   "far_text": "2-21QD35",
+   "far_sw": "2-21n219",
+   "wire": "11945",
+   "record": "SWWR:F0016:PCL:11630:219"
+  }
+ },
+ {
+  "name": "PS05",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF191",
+  "pid": "p058",
+  "fid": "F0012",
+  "label": "2-21N",
+  "T": [
+   "221N326"
+  ],
+  "pred": "326",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0012:S0012:/E03C:/E03C:8083:1",
+  "wire": "E039",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0015",
+   "owner": "E0A5",
+   "far_text": "2-21QD83",
+   "far_sw": "2-21n326",
+   "wire": "10E10",
+   "record": "SWWR:F0015:PCL:E0A5:326"
+  }
+ },
+ {
+  "name": "PS06",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF191",
+  "pid": "p076",
+  "fid": "F0009",
+  "label": "1-21N",
+  "T": [
+   "121N314"
+  ],
+  "pred": "314",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0009:S0009:/E06B:/E06B:6911:1",
+  "wire": "E064",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0017",
+   "owner": "10430",
+   "far_text": "1-21QD71",
+   "far_sw": "1-21n314",
+   "wire": "12495",
+   "record": "SWWR:F0017:PCL:10430:314"
+  }
+ },
+ {
+  "name": "PS07",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF194",
+  "pid": "p028",
+  "fid": "F0012",
+  "label": "1N",
+  "T": [
+   "1N519"
+  ],
+  "pred": "519",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0012:S0012:/17B23:/17B23:DA76:1",
+  "wire": "17B19",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0021",
+   "owner": "20E10",
+   "far_text": "1CD6",
+   "far_sw": "1n519",
+   "wire": "2406F",
+   "record": "SWWR:F0021:PCL:20E10:519"
+  }
+ },
+ {
+  "name": "PS08",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF194",
+  "pid": "p045",
+  "fid": "F0014",
+  "label": "2-21N",
+  "T": [
+   "221N404"
+  ],
+  "pred": "404",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0014:S0014:/B8CD:/B8CD:3491:1",
+  "wire": "B8C3",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0016",
+   "owner": "10755",
+   "far_text": "2-21CLP2-2",
+   "far_sw": "2-21n404",
+   "wire": "1141C",
+   "record": "SWWR:F0016:PCL:10755:404"
+  }
+ },
+ {
+  "name": "PS09",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF194",
+  "pid": "p028",
+  "fid": "F0012",
+  "label": "1N",
+  "T": [
+   "1N411"
+  ],
+  "pred": "411",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0012:S0012:/1872B:/1872B:DA76:1",
+  "wire": "18721",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0021",
+   "owner": "20E10",
+   "far_text": "1CD11",
+   "far_sw": "1n411",
+   "wire": "24043",
+   "record": "SWWR:F0021:PCL:20E10:411"
+  }
+ },
+ {
+  "name": "PS10",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF194",
+  "pid": "p060",
+  "fid": "F0009",
+  "label": "1-21N",
+  "T": [
+   "121N406"
+  ],
+  "pred": "406",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0009:S0009:/F4EB:/F4EB:677A:2",
+  "wire": "F4E6",
+  "port_number": "2",
+  "layout": {
+   "fid": "F0013",
+   "owner": "10164",
+   "far_text": "1-21C1D3",
+   "far_sw": "1-21n406",
+   "wire": "1114C",
+   "record": "SWWR:F0013:PCL:10164:406"
+  }
+ },
+ {
+  "name": "PS11",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF229",
+  "pid": "p065",
+  "fid": "F0008",
+  "label": "1N",
+  "T": [
+   "1N2405"
+  ],
+  "pred": "2405",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0008:S0008:/A2F3:/A2F3:A03C:1",
+  "wire": "A2F7",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0018",
+   "owner": "1BED9",
+   "far_text": "1I13D3",
+   "far_sw": "1n2405",
+   "wire": "1DA82",
+   "record": "SWWR:F0018:PCL:1BED9:2405"
+  }
+ },
+ {
+  "name": "PS12",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF229",
+  "pid": "p046",
+  "fid": "F0005",
+  "label": "2-21N",
+  "T": [
+   "221N703"
+  ],
+  "pred": "703",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0005:S0005:/120EA:/120EA:1056D:1",
+  "wire": "120ED",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0016",
+   "owner": "11630",
+   "far_text": "2-21ID2",
+   "far_sw": "2-21n703",
+   "wire": "11A1D",
+   "record": "SWWR:F0016:PCL:11630:703"
+  }
+ },
+ {
+  "name": "PS13",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF229",
+  "pid": "p068",
+  "fid": "F0004",
+  "label": "1-1N",
+  "T": [
+   "11N217"
+  ],
+  "pred": "217",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0004:S0004:/21335:/21335:1A84E:1",
+  "wire": "21339",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0008",
+   "owner": "235C2",
+   "far_text": "1-1ID3",
+   "far_sw": "1-1n217",
+   "wire": "260DB",
+   "record": "SWWR:F0008:PCL:235C2:217"
+  }
+ },
+ {
+  "name": "PS14",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF163",
+  "pid": "p064",
+  "fid": "F0018",
+  "label": "5N",
+  "T": [
+   "5N615"
+  ],
+  "pred": "615",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0018:S0018:/1AECF:/1AECF:1AF5E:2",
+  "wire": "1AED0",
+  "port_number": "2",
+  "layout": {
+   "fid": "F0024",
+   "owner": "21361",
+   "far_text": "5LD30",
+   "far_sw": "5n615",
+   "wire": "25F48",
+   "record": "SWWR:F0024:PCL:21361:615"
+  }
+ },
+ {
+  "name": "PS15",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF163",
+  "pid": "p025",
+  "fid": "F0010",
+  "label": "5N",
+  "T": [
+   "5N421"
+  ],
+  "pred": "421",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0010:S0010:/1AE4F:/1AE4F:1AF5E:2",
+  "wire": "1AE50",
+  "port_number": "2",
+  "layout": {
+   "fid": "F0020",
+   "owner": "21361",
+   "far_text": "5YD19",
+   "far_sw": "5n421",
+   "wire": "2297B",
+   "record": "SWWR:F0020:PCL:21361:421"
+  }
+ },
+ {
+  "name": "PS16",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF192",
+  "pid": "p057",
+  "fid": "F0007",
+  "label": "7N",
+  "T": [
+   "7N804"
+  ],
+  "pred": "804",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0007:S0007:/172B0:/172B0:12CC7:1",
+  "wire": "170AF",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0009",
+   "owner": "24C13",
+   "far_text": "UD4",
+   "far_sw": "7n804",
+   "wire": "269B7",
+   "record": "SWWR:F0009:PCL:24C13:804"
+  }
+ },
+ {
+  "name": "PS17",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF192",
+  "pid": "p032",
+  "fid": "F0017",
+  "label": "5N",
+  "T": [
+   "5N428"
+  ],
+  "pred": "428",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0017:S0017:/13EDF:/13EDF:C352:2",
+  "wire": "13EE0",
+  "port_number": "2",
+  "layout": {
+   "fid": "F0022",
+   "owner": "21361",
+   "far_text": "5XD19",
+   "far_sw": "5n428",
+   "wire": "246E0",
+   "record": "SWWR:F0022:PCL:21361:428"
+  }
+ },
+ {
+  "name": "PS18",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF196",
+  "pid": "p024",
+  "fid": "F0013",
+  "label": "2-7N",
+  "T": [
+   "27N720"
+  ],
+  "pred": "720",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0013:S0013:/19913:/19913:F234:2",
+  "wire": "1993E",
+  "port_number": "2",
+  "layout": {
+   "fid": "F0016",
+   "owner": "1FC45",
+   "far_text": "2-7XD5",
+   "far_sw": "2-7n720",
+   "wire": "209C0",
+   "record": "SWWR:F0016:PCL:1FC45:720"
+  }
+ },
+ {
+  "name": "PS19",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF4",
+  "pid": "p004",
+  "fid": "F0010",
+  "label": "K862",
+  "T": [
+   "K8621X5"
+  ],
+  "pred": "1X5",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0010:S0010:/398BA:/398BA:3974E:1",
+  "wire": "398BB",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0017",
+   "owner": "14806",
+   "far_text": "4Q2D15",
+   "far_sw": "K8621X5",
+   "wire": "1579E",
+   "record": "SWWR:F0017:PCL:14806:1X5"
+  }
+ },
+ {
+  "name": "PS20",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF210",
+  "pid": "p038",
+  "fid": "F0015",
+  "label": "1-2N",
+  "T": [
+   "12N226"
+  ],
+  "pred": "226",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0015:S0015:/276E9:/276E9:15996:1",
+  "wire": "276EF",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0019",
+   "owner": "38A57",
+   "far_text": "1-4QD21",
+   "far_sw": "1-2n226",
+   "wire": "38CCB",
+   "record": "SWWR:F0019:PCL:38A57:226"
+  }
+ },
+ {
+  "name": "PS21",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF216",
+  "pid": "p025",
+  "fid": "F0018",
+  "label": "3-4N",
+  "T": [
+   "34N606"
+  ],
+  "pred": "606",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0018:S0018:/19ED9:/19ED9:17ACE:1",
+  "wire": "19F3A",
+  "port_number": "1",
+  "layout": {
+   "fid": "F0023",
+   "owner": "1C1F8",
+   "far_text": "3-4Q2D14",
+   "far_sw": "3-4n606",
+   "wire": "1D8DC",
+   "record": "SWWR:F0023:PCL:1C1F8:606"
+  }
+ },
+ {
+  "name": "PS22",
+  "cls": "PS",
+  "block": "SYMB2_M_PWF168",
+  "pid": "p072",
+  "fid": "F0013",
+  "label": "4N",
+  "T": [
+   "4N1605"
+  ],
+  "pred": "1605",
+  "truth": null,
+  "match_src": "sw",
+  "record": "SW:F0013:S0013:/32F1A:/32F1A:25680:2",
+  "wire": "32F23",
+  "port_number": "2",
+  "layout": {
+   "fid": "F0019",
+   "owner": "210CF",
+   "far_text": "4C1D14",
+   "far_sw": "4n1605",
+   "wire": "2301A",
+   "record": "SWWR:F0019:PCL:210CF:1605"
+  }
+ }
+]
