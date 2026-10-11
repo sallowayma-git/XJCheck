@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import pytest
 
 from dwg_audit.audit.superworks_device_internal import (
     build_device_internal_links,
@@ -241,3 +242,167 @@ def test_artifacts_add_internal_coverage_without_changing_pairs(tmp_path):
     coverage = pd.read_parquet(tmp_path / "sw_port_coverage.parquet").set_index("port_id")
     assert json.loads(coverage.loc["D1", "device_internal_link_ids"]) == [links.link_id.iloc[0]]
     assert bool(coverage.loc["D1", "consumed_with_internal"]) and not bool(coverage.loc["D1", "consumed"])
+
+
+# G1P: a single-end wire of a device terminal may end on an unregistered SYMB2 block (label, no LD_SYMB2_SPECIAL).
+
+
+def _contact(handle, side, x, y):
+    return {"wire_handle": handle, "wire_side": side, "x": x, "y": y}
+
+
+def _device_at(contacts, identity="1n705", label="1n"):
+    device = _device(identity=identity, label=label, contacts=())
+    device["wire_contacts"] = list(contacts)
+    return device
+
+
+def _block(record_id="USY:F1:S1:B1", label="1n", resolved=True, a=(9.5, 0.0), b=(10.5, 0.0), number="1", insert="B1"):
+    return {"record_id": record_id, "file_id": "F1", "sheet_id": "S1", "insert_handle": insert,
+            "label_value": label, "label_resolved": resolved,
+            "termpoints": [{"number": number, "a": a, "b": b}]}
+
+
+def _single_wire():
+    """Device contact at (0.5, 0) on W1; the wire runs to (10, 0)."""
+    return {"wire_endpoints": {("F1", "W1"): {0: (0.5, 0.0), 1: (10.0, 0.0)}}}
+
+
+def test_single_end_wire_on_matching_unregistered_pin_is_linked_as_coverage():
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)])
+    result = build_device_internal_links([device], [], unregistered=[_block()], **_single_wire())
+    assert len(result["links"]) == 1
+    link = result["links"][0]
+    assert link["source"] == "unregistered_symb2_pin"
+    assert link["element_block_record_id"] == "USY:F1:S1:B1"
+    assert link["element_port_id"] is None
+    assert link["element_label"] == "1n"
+    assert (link["far_x"], link["far_y"]) == (10.0, 0.0)
+    assert link["wire_port_ids"] == ["D1"]
+    assert result["covered"] == {"D1": [link["link_id"]]}
+    assert result["stats"]["unregistered:candidate"] == 1
+    assert result["stats"]["linked_unregistered"] == 1
+    assert "excluded:wire_no_other_port" not in result["stats"]
+    assert result["unregistered_decisions"][0]["reason"] == "candidate"
+
+
+def test_unregistered_label_must_equal_the_device_label():
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)])
+    result = build_device_internal_links([device], [], unregistered=[_block(label="2n")], **_single_wire())
+    assert result["links"] == []
+    assert result["stats"]["unregistered:label_differs"] == 1
+    assert result["stats"]["excluded:wire_no_other_port"] == 1
+
+
+def test_station_prefixed_unregistered_label_is_counted_apart():
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)], identity="1-1n705", label="1-1n")
+    result = build_device_internal_links([device], [], unregistered=[_block(label="1n")], **_single_wire())
+    assert result["links"] == []
+    assert result["stats"]["unregistered:label_related"] == 1
+
+
+def test_unresolved_unregistered_label_is_not_linked():
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)])
+    result = build_device_internal_links([device], [], unregistered=[_block(label="", resolved=False)],
+                                         **_single_wire())
+    assert result["links"] == []
+    assert result["stats"]["unregistered:label_unresolved"] == 1
+
+
+def test_two_blocks_at_the_far_end_are_ambiguous():
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)])
+    blocks = [_block(record_id="USY:F1:S1:B1", insert="B1"), _block(record_id="USY:F1:S1:B2", insert="B2")]
+    result = build_device_internal_links([device], [], unregistered=blocks, **_single_wire())
+    assert result["links"] == []
+    assert result["stats"]["unregistered:multiple_blocks"] == 1
+
+
+def test_pin_contact_tolerance_is_the_port_rule_of_0_6_times_the_segment_length():
+    # TERMPOINT segment (10.5, 0)-(10.5, 2): length 2, tolerance 1.2. The far end (10, 0) is 0.5 from a: a contact.
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)])
+    near = build_device_internal_links([device], [], unregistered=[_block(a=(10.5, 0.0), b=(10.5, 2.0))],
+                                       **_single_wire())
+    assert len(near["links"]) == 1
+    # Far end (7, 0): 3.5 from a and more from b, beyond the tolerance.
+    miss = build_device_internal_links([_device_at([_contact("W1", 0, 0.5, 0.0)])], [],
+                                       unregistered=[_block(a=(10.5, 0.0), b=(10.5, 2.0))],
+                                       wire_endpoints={("F1", "W1"): {0: (0.5, 0.0), 1: (7.0, 0.0)}})
+    assert miss["links"] == []
+    assert miss["stats"]["unregistered:no_far_pin"] == 1
+
+
+def test_an_interior_junction_of_one_wire_is_not_a_far_end():
+    # Two segments of one line group meet at (5, 0); the free far end is (10, 0). A block on the junction is no far end.
+    keys = {("F1", "W1"): ("F1", "W:G"), ("F1", "W2"): ("F1", "W:G")}
+    endpoints = {("F1", "W1"): {0: (0.5, 0.0), 1: (5.0, 0.0)}, ("F1", "W2"): {0: (5.0, 0.0), 1: (10.0, 0.0)}}
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)])
+    result = build_device_internal_links([device], [], wire_group_of=keys,
+                                         unregistered=[_block(a=(4.5, 0.0), b=(5.5, 0.0))],
+                                         wire_endpoints=endpoints)
+    assert result["links"] == []
+    assert result["stats"]["unregistered:no_far_pin"] == 1
+
+
+def test_free_far_end_of_a_two_segment_wire_is_linked():
+    keys = {("F1", "W1"): ("F1", "W:G"), ("F1", "W2"): ("F1", "W:G")}
+    endpoints = {("F1", "W1"): {0: (0.5, 0.0), 1: (5.0, 0.0)}, ("F1", "W2"): {0: (5.0, 0.0), 1: (10.0, 0.0)}}
+    device = _device_at([_contact("W1", 0, 0.5, 0.0)])
+    result = build_device_internal_links([device], [], wire_group_of=keys, unregistered=[_block()],
+                                         wire_endpoints=endpoints)
+    assert len(result["links"]) == 1
+    assert result["links"][0]["wire_handle"] == "W1"
+
+
+def test_terminal_with_an_internal_wire_and_an_unregistered_wire_is_ambiguous():
+    internal = _internal("Q1", contacts=("W2",))
+    device = _device_at([_contact("W1", 0, 0.5, 0.0), _contact("W2", 0, 0.5, 5.0)])
+    endpoints = {("F1", "W1"): {0: (0.5, 0.0), 1: (10.0, 0.0)}, ("F1", "W2"): {0: (0.5, 5.0), 1: (20.0, 5.0)}}
+    result = build_device_internal_links([device, internal], [], unregistered=[_block()], wire_endpoints=endpoints)
+    assert result["links"] == []
+    assert result["stats"]["excluded:multiple_internal_wires"] == 1
+
+
+def test_extraction_records_the_unregistered_block_and_the_artifacts_count_it_as_coverage_only(tmp_path):
+    """From an open DXF: the block is recorded, adds no symbol, port, pair or issue; coverage gains one link."""
+    from types import SimpleNamespace
+
+    import ezdxf
+
+    from dwg_audit.domain.models import SheetRecord
+    from dwg_audit.extract.superworks_semantics import extract_superworks_semantics
+    from dwg_audit.report.superworks_artifacts import _device_internal_links, write_superworks_artifacts
+    from test_superworks_semantics import symbol, xdata
+
+    doc = ezdxf.new()
+    symbol(doc, "装置端子", "1n", pin_value="705")
+    # Unregistered SYMB2 block at (10, 0): label "1n", TERMPOINT (9.5, 0)-(10.5, 0), no LD_SYMB2_SPECIAL.
+    block = doc.blocks.new("SYMB2_M_PWF999")
+    marker = block.add_lwpolyline([(-.5, 0), (.5, 0)])
+    xdata(marker, "LD_SYMB1LIB_TERMPOINT", [(1000, "1")])
+    insert = doc.modelspace().add_blockref("SYMB2_M_PWF999", (10, 0))
+    label = doc.modelspace().add_text("1n", dxfattribs={"insert": (10, 3), "height": 2})
+    xdata(insert, "LD_SYMB2_LABEL", [(1005, label.dxf.handle)])
+    xdata(label, "LD_SYMB2_LABEL", [(1005, insert.dxf.handle)])
+    doc.modelspace().add_line((0.5, 0), (9.5, 0), dxfattribs={"layer": "CONNECT"})
+    data = extract_superworks_semantics(doc, sheet_id="S1", file_id="F1")
+    assert [p.endpoint_identity for p in data.ports] == ["1n705"]
+    assert not any(s.insert_handle == insert.dxf.handle for s in data.symbols)
+    assert len(data.unregistered_symb2) == 1
+    record = data.unregistered_symb2[0]
+    assert record["label_value"] == "1n"
+    assert record["termpoints"][0]["a"] == pytest.approx((9.5, 0.0))
+    assert record["termpoints"][0]["b"] == pytest.approx((10.5, 0.0))
+    device_links = _device_internal_links(SimpleNamespace(line_groups=[], lines=[]), data)
+    assert [link["source"] for link in device_links["links"]] == ["unregistered_symb2_pin"]
+    page = SheetRecord("S1", "F1", "01 x.dwg", 1, "01", "x", "二次原理图", "primary", "filename", True,
+                       audit_disposition="audit")
+    full = SimpleNamespace(superworks=data, superworks_supersession=[], lines=[], line_groups=[],
+                           scan=SimpleNamespace(manifest=SimpleNamespace(project_id="P1"), pages=[page]), pairs=[])
+    write_superworks_artifacts(full, tmp_path)
+    summary = json.loads((tmp_path / "superworks_summary.json").read_text(encoding="utf-8"))
+    assert summary["port_coverage"]["consumed"] == 0
+    assert summary["coverage_views"]["total"]["consumed"] == 1
+    assert summary["device_internal"]["link_count_by_source"] == {"unregistered_symb2_pin": 1}
+    assert summary["device_internal"]["unregistered_symb2"]["blocks"] == 1
+    decisions = pd.read_parquet(tmp_path / "sw_unregistered_pin_decisions.parquet")
+    assert decisions.reason.tolist() == ["candidate"]

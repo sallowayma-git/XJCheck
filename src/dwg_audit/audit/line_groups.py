@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import math
 import re
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Iterable
 
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import PageClassification
 from dwg_audit.domain.models import SheetRecord
+from dwg_audit.domain.models import SwConnectDot
+from dwg_audit.domain.models import SwPort
 from dwg_audit.domain.models import TextItem
 from dwg_audit.utils.ids import IdFactory
 
@@ -16,6 +21,42 @@ _ORIENTATION_VERTICAL = "vertical"
 _ORIENTATION_GRID = "grid"
 _SIGNAL_INLINE_BRIDGE_GAP = 20.0
 _NAMED_COMPONENT_BARRIER_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,11}$", re.IGNORECASE)
+# A wire end "sits on" a SuperWORKS port when it lies within this distance of the port marker.
+_TERMINAL_TOUCH_TOLERANCE = 1.0
+# A text or connect dot counts as inside an empty gap when it reaches this far past either gap end.
+_GAP_EDGE_MARGIN = 0.6
+
+
+@dataclass(frozen=True)
+class WireBreakEvidence:
+    """One sheet's SuperWORKS evidence for telling a real wire break from a merged wire.
+
+    ports: (record_id, x1, y1, x2, y2) marker segments of the sheet's SuperWORKS ports.
+    dots: (x, y) centers of the sheet's LD_CONNECT_DOT junction markers.
+    """
+
+    ports: tuple[tuple[str, float, float, float, float], ...] = ()
+    dots: tuple[tuple[float, float], ...] = ()
+
+
+def wire_break_evidence_by_sheet(
+    ports: Iterable[SwPort] | None,
+    connect_dots: Iterable[SwConnectDot] | None,
+) -> dict[str, WireBreakEvidence]:
+    """Group SuperWORKS ports (SwPort) and connect dots (SwConnectDot) by sheet_id."""
+    port_rows: dict[str, list[tuple[str, float, float, float, float]]] = defaultdict(list)
+    for port in ports or []:
+        port_rows[port.sheet_id].append(
+            (port.record_id, float(port.start_x), float(port.start_y), float(port.end_x), float(port.end_y))
+        )
+    dot_rows: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for dot in connect_dots or []:
+        dot_rows[dot.sheet_id].append((float(dot.x), float(dot.y)))
+    sheet_ids = set(port_rows) | set(dot_rows)
+    return {
+        sheet_id: WireBreakEvidence(ports=tuple(port_rows.get(sheet_id, ())), dots=tuple(dot_rows.get(sheet_id, ())))
+        for sheet_id in sheet_ids
+    }
 
 
 def _point_in_bbox(x: float, y: float, bbox: tuple[float, float, float, float] | None) -> bool:
@@ -33,6 +74,7 @@ def build_line_groups(
     classifications: dict[str, PageClassification] | None = None,
     group_id_factory: IdFactory | None = None,
     band_id_factory: IdFactory | None = None,
+    wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
 ) -> list[LineGroup]:
     by_sheet = defaultdict(list)
     for line in lines:
@@ -58,6 +100,7 @@ def build_line_groups(
         if sheet is None or not sheet.is_primary_audit_candidate or sheet.audit_area_bbox is None:
             continue
         sheet_texts = by_sheet_texts.get(sheet_id, [])
+        sheet_break_evidence = (wire_break_evidence or {}).get(sheet_id)
         sheet_inline_bridge_gap = _inline_bridge_gap_for_sheet(sheet, inline_bridge_gap)
         classification = classifications.get(sheet_id) if classifications else None
         orientation = _resolve_orientation(
@@ -86,6 +129,7 @@ def build_line_groups(
                 y_tol,
                 sheet_inline_bridge_gap,
                 inline_bridge_y_tol,
+                wire_break_evidence=sheet_break_evidence,
             )
             result.extend(grid_groups)
             continue
@@ -112,6 +156,7 @@ def build_line_groups(
                     cross_axis_tol=y_tol,
                     inline_bridge_gap=sheet_inline_bridge_gap,
                     inline_bridge_y_tol=inline_bridge_y_tol,
+                    wire_break_evidence=sheet_break_evidence,
                 ):
                     group["start_axis"] = min(group["start_axis"], start_axis)
                     group["end_axis"] = max(group["end_axis"], end_axis)
@@ -219,6 +264,8 @@ def _build_grid_row_bands(
     y_tol: float,
     inline_bridge_gap: float,
     inline_bridge_y_tol: float,
+    *,
+    wire_break_evidence: WireBreakEvidence | None = None,
 ) -> list[LineGroup]:
     """grid 模式行带聚类：先按 y 容差把水平线分到行带，再在行带内做共线合并。
 
@@ -265,6 +312,7 @@ def _build_grid_row_bands(
                     cross_axis_tol=y_tol,
                     inline_bridge_gap=inline_bridge_gap,
                     inline_bridge_y_tol=inline_bridge_y_tol,
+                    wire_break_evidence=wire_break_evidence,
                 ):
                     group["start_axis"] = min(group["start_axis"], start_axis)
                     group["end_axis"] = max(group["end_axis"], end_axis)
@@ -423,6 +471,7 @@ def _can_merge_axis_intervals(
     cross_axis_tol: float,
     inline_bridge_gap: float,
     inline_bridge_y_tol: float,
+    wire_break_evidence: WireBreakEvidence | None = None,
 ) -> bool:
     if abs(first_cross_axis - second_cross_axis) > cross_axis_tol:
         return False
@@ -443,7 +492,19 @@ def _can_merge_axis_intervals(
         return True
 
     if gap <= gap_tol:
-        return True
+        # A small empty gap between two terminals is a wire break at a terminal strip frame,
+        # not a continuous wire. Text (wire-number label), a connect dot, or a single terminal
+        # spanning the gap keeps the legacy merge.
+        return not _is_terminal_wire_break(
+            previous_end_axis,
+            next_start_axis,
+            previous_cross_axis,
+            next_cross_axis,
+            texts,
+            wire_break_evidence,
+            orientation=orientation,
+            cross_axis_tolerance=inline_bridge_y_tol,
+        )
     if _has_named_component_barrier(
         previous_end_axis,
         next_start_axis,
@@ -464,6 +525,125 @@ def _can_merge_axis_intervals(
         inline_bridge_gap=inline_bridge_gap,
         inline_bridge_y_tol=inline_bridge_y_tol,
     )
+
+
+def _is_terminal_wire_break(
+    previous_end_axis: float,
+    next_start_axis: float,
+    previous_cross_axis: float,
+    next_cross_axis: float,
+    texts: list[TextItem],
+    evidence: WireBreakEvidence | None,
+    *,
+    orientation: str,
+    cross_axis_tolerance: float,
+) -> bool:
+    """True when an empty gap separates the wire ends of two different terminals.
+
+    Both gap ends must sit on SuperWORKS ports, and they must be different ports (one
+    terminal spanning the whole gap is one wire passing through, not a break). Any text
+    or connect dot that touches the gap keeps the legacy merge.
+    """
+    if evidence is None or not evidence.ports:
+        return False
+    left_ports = _ports_touching(
+        _axis_point(orientation, previous_end_axis, previous_cross_axis), evidence.ports
+    )
+    if not left_ports:
+        return False
+    right_ports = _ports_touching(
+        _axis_point(orientation, next_start_axis, next_cross_axis), evidence.ports
+    )
+    if not any(left != right for left in left_ports for right in right_ports):
+        return False
+    target_cross_axis = (previous_cross_axis + next_cross_axis) / 2.0
+    if _gap_has_text(
+        previous_end_axis,
+        next_start_axis,
+        target_cross_axis,
+        texts,
+        orientation=orientation,
+        cross_axis_tolerance=cross_axis_tolerance,
+    ):
+        return False
+    return not _gap_has_dot(
+        previous_end_axis,
+        next_start_axis,
+        target_cross_axis,
+        evidence.dots,
+        orientation=orientation,
+        cross_axis_tolerance=cross_axis_tolerance,
+    )
+
+
+def _axis_point(orientation: str, axis_value: float, cross_value: float) -> tuple[float, float]:
+    if orientation == _ORIENTATION_VERTICAL:
+        return cross_value, axis_value
+    return axis_value, cross_value
+
+
+def _ports_touching(point: tuple[float, float], ports: tuple[tuple[str, float, float, float, float], ...]) -> set[str]:
+    touching: set[str] = set()
+    px, py = point
+    for record_id, x1, y1, x2, y2 in ports:
+        dx, dy = x2 - x1, y2 - y1
+        length_sq = dx * dx + dy * dy
+        if length_sq <= 0:
+            nearest_x, nearest_y = x1, y1
+        else:
+            t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / length_sq))
+            nearest_x, nearest_y = x1 + t * dx, y1 + t * dy
+        if math.hypot(px - nearest_x, py - nearest_y) <= _TERMINAL_TOUCH_TOLERANCE + 1e-8:
+            touching.add(record_id)
+    return touching
+
+
+def _gap_has_text(
+    previous_end_axis: float,
+    next_start_axis: float,
+    target_cross_axis: float,
+    texts: list[TextItem],
+    *,
+    orientation: str,
+    cross_axis_tolerance: float,
+) -> bool:
+    """Any text whose drawn extent covers the gap (a wire-number label knocks out the wire under it)."""
+    for text in texts:
+        if not (text.text or "").strip():
+            continue
+        if orientation == _ORIENTATION_VERTICAL:
+            axis_min = min(text.bbox_min_y, text.bbox_max_y)
+            axis_max = max(text.bbox_min_y, text.bbox_max_y)
+            cross_min = min(text.bbox_min_x, text.bbox_max_x)
+            cross_max = max(text.bbox_min_x, text.bbox_max_x)
+        else:
+            axis_min = min(text.bbox_min_x, text.bbox_max_x)
+            axis_max = max(text.bbox_min_x, text.bbox_max_x)
+            cross_min = min(text.bbox_min_y, text.bbox_max_y)
+            cross_max = max(text.bbox_min_y, text.bbox_max_y)
+        if axis_max < previous_end_axis - _GAP_EDGE_MARGIN or axis_min > next_start_axis + _GAP_EDGE_MARGIN:
+            continue
+        if cross_max < target_cross_axis - cross_axis_tolerance or cross_min > target_cross_axis + cross_axis_tolerance:
+            continue
+        return True
+    return False
+
+
+def _gap_has_dot(
+    previous_end_axis: float,
+    next_start_axis: float,
+    target_cross_axis: float,
+    dots: tuple[tuple[float, float], ...],
+    *,
+    orientation: str,
+    cross_axis_tolerance: float,
+) -> bool:
+    for x, y in dots:
+        axis_value, cross_value = (y, x) if orientation == _ORIENTATION_VERTICAL else (x, y)
+        if previous_end_axis - _GAP_EDGE_MARGIN <= axis_value <= next_start_axis + _GAP_EDGE_MARGIN:
+            if abs(cross_value - target_cross_axis) <= cross_axis_tolerance:
+                return True
+    return False
 
 
 def _has_named_component_barrier(

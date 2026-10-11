@@ -12,6 +12,7 @@ from collections import defaultdict
 from dwg_audit.audit import component_diagrams
 from dwg_audit.audit.candidates import build_terminal_candidates
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
+from dwg_audit.audit.line_groups import WireBreakEvidence
 from dwg_audit.audit.line_groups import build_line_groups
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.table_extractor import extract_terminal_header_table_pairs
@@ -64,6 +65,7 @@ def extract_wire_pairs(
     blocks: list[BlockRecord] | None = None,
     classifications: dict[str, PageClassification] | None = None,
     terminal_port_bindings: list[TerminalPortBinding] | None = None,
+    wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="WireDiagramExtractor",
@@ -74,6 +76,7 @@ def extract_wire_pairs(
         blocks=blocks,
         config=config,
         classifications=classifications,
+        wire_break_evidence=wire_break_evidence,
         terminal_port_bindings=terminal_port_bindings,
     )
 
@@ -86,6 +89,7 @@ def extract_component_pairs(
     *,
     blocks: list[BlockRecord] | None = None,
     classifications: dict[str, PageClassification] | None = None,
+    wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="ComponentDiagramExtractor",
@@ -96,6 +100,7 @@ def extract_component_pairs(
         blocks=blocks,
         config=config,
         classifications=classifications,
+        wire_break_evidence=wire_break_evidence,
     )
 
 
@@ -106,6 +111,7 @@ def extract_terminal_pairs(
     config: dict,
     *,
     classifications: dict[str, PageClassification] | None = None,
+    wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="TerminalDiagramExtractor",
@@ -115,6 +121,7 @@ def extract_terminal_pairs(
         lines=lines,
         config=config,
         classifications=classifications,
+        wire_break_evidence=wire_break_evidence,
     )
 
 
@@ -125,6 +132,7 @@ def extract_layout_audit_pairs(
     config: dict,
     *,
     classifications: dict[str, PageClassification] | None = None,
+    wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="LayoutOnlyAuditFallback",
@@ -134,6 +142,7 @@ def extract_layout_audit_pairs(
         lines=lines,
         config=config,
         classifications=classifications,
+        wire_break_evidence=wire_break_evidence,
     )
 
 
@@ -148,6 +157,7 @@ def _extract_pairs_for_route(
     config: dict,
     classifications: dict[str, PageClassification] | None = None,
     terminal_port_bindings: list[TerminalPortBinding] | None = None,
+    wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
 ) -> PairingExtractionResult:
     id_stem = _extractor_id_stem(executed_extractor)
     route_sheet_ids = {page.sheet_id for page in pages}
@@ -164,6 +174,7 @@ def _extract_pairs_for_route(
         classifications=route_classifications,
         group_id_factory=IdFactory(f"G{id_stem}"),
         band_id_factory=IdFactory(f"RB{id_stem}"),
+        wire_break_evidence=wire_break_evidence,
     )
     terminal_candidates = build_terminal_candidates(
         line_groups,
