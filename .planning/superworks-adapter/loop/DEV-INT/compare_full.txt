@@ -1,0 +1,119 @@
+{
+ "totals": {
+  "pairs_base": 172528,
+  "pairs_new": 172528,
+  "pairs_added": 0,
+  "pairs_removed": 0,
+  "issues_base": 41,
+  "issues_new": 41,
+  "issues_added": 0,
+  "issues_removed": 0,
+  "eligible": 82680,
+  "device_internal_links": 12847,
+  "device_internal_pcl": 9494,
+  "base_strict": 52494,
+  "new_strict": 52494,
+  "base_with_continuity": 59551,
+  "new_with_continuity": 59551,
+  "base_with_internal": 52494,
+  "new_with_internal": 64783,
+  "base_total": 59551,
+  "new_total": 68240
+ },
+ "ratios": {
+  "strict": {
+   "base": 0.6349056603773585,
+   "new": 0.6349056603773585
+  },
+  "with_continuity": {
+   "base": 0.7202588292210934,
+   "new": 0.7202588292210934
+  },
+  "with_internal": {
+   "base": 0.6349056603773585,
+   "new": 0.7835389453313981
+  },
+  "total": {
+   "base": 0.7202588292210934,
+   "new": 0.8253507498790518
+  }
+ },
+ "pairs_and_issues_identical": true
+}
+p000 pairs 1474 1474 + 0 - 0 | issues 2 2 + 0 - 0 | eligible 662 strict 446 cont 477 int 545 total 562 | links 109
+p001 pairs 1324 1324 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 663 strict 447 cont 488 int 544 total 567 | links 108
+p002 pairs 1587 1587 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 720 strict 491 cont 540 int 590 total 619 | links 110
+p003 pairs 655 655 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 378 strict 260 cont 285 int 303 total 320 | links 46
+p004 pairs 1035 1035 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 495 strict 293 cont 306 int 363 total 375 | links 72
+p005 pairs 1426 1426 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 709 strict 382 cont 416 int 520 total 545 | links 143
+p006 pairs 2828 2828 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1339 strict 831 cont 942 int 1084 total 1131 | links 259
+p007 pairs 2401 2401 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1249 strict 721 cont 819 int 862 total 946 | links 150
+p008 pairs 2623 2623 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1373 strict 807 cont 903 int 962 total 1046 | links 164
+p009 pairs 3464 3464 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1739 strict 1102 cont 1277 int 1319 total 1412 | links 229
+p010 pairs 2130 2130 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1160 strict 617 cont 692 int 766 total 832 | links 155
+p011 pairs 2807 2807 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1495 strict 860 cont 988 int 1075 total 1146 | links 222
+p012 pairs 1913 1913 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1095 strict 558 cont 616 int 719 total 771 | links 164
+p013 pairs 2543 2543 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1411 strict 784 cont 899 int 1014 total 1069 | links 235
+p014 pairs 3801 3801 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1952 strict 1259 cont 1458 int 1527 total 1620 | links 283
+p015 pairs 2871 2871 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1591 strict 914 cont 1059 int 1175 total 1238 | links 268
+p016 pairs 2749 2749 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1438 strict 911 cont 1022 int 1050 total 1147 | links 148
+p017 pairs 2184 2184 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1216 strict 683 cont 759 int 839 total 906 | links 162
+p018 pairs 2025 2025 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1174 strict 640 cont 694 int 805 total 853 | links 168
+p019 pairs 2642 2642 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1474 strict 850 cont 966 int 1084 total 1146 | links 239
+p020 pairs 3236 3236 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1744 strict 1065 cont 1213 int 1353 total 1436 | links 303
+p021 pairs 3008 3008 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1685 strict 1004 cont 1160 int 1266 total 1346 | links 269
+p022 pairs 1699 1699 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 747 strict 456 cont 527 int 592 total 631 | links 159
+p023 pairs 1457 1457 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 665 strict 395 cont 457 int 520 total 555 | links 143
+p024 pairs 1989 1989 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 890 strict 552 cont 634 int 687 total 732 | links 156
+p025 pairs 2677 2677 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1419 strict 854 cont 1000 int 1092 total 1186 | links 244
+p026 pairs 2491 2491 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1252 strict 745 cont 879 int 962 total 1049 | links 222
+p027 pairs 2871 2871 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1431 strict 862 cont 1010 int 1100 total 1196 | links 244
+p028 pairs 2322 2322 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1079 strict 646 cont 719 int 841 total 882 | links 217
+p029 pairs 2972 2972 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1490 strict 858 cont 928 int 1130 total 1171 | links 295
+p030 pairs 2461 2461 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1267 strict 709 cont 769 int 959 total 995 | links 268
+p031 pairs 2978 2978 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1506 strict 880 cont 951 int 1133 total 1176 | links 274
+p032 pairs 3061 3061 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1400 strict 920 cont 1093 int 1112 total 1222 | links 216
+p033 pairs 2823 2823 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1318 strict 843 cont 1006 int 1043 total 1149 | links 219
+p034 pairs 3142 3142 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1424 strict 950 cont 1125 int 1123 total 1236 | links 195
+p035 pairs 1940 1940 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 880 strict 546 cont 647 int 662 total 732 | links 117
+p036 pairs 1954 1954 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 858 strict 594 cont 703 int 683 total 759 | links 92
+p037 pairs 1898 1898 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 989 strict 607 cont 670 int 792 total 836 | links 199
+p038 pairs 2642 2642 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1181 strict 740 cont 809 int 839 total 892 | links 113
+p039 pairs 3229 3229 + 0 - 0 | issues 2 2 + 0 - 0 | eligible 1711 strict 1083 cont 1224 int 1318 total 1347 | links 248
+p040 pairs 2499 2499 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1134 strict 697 cont 779 int 850 total 874 | links 162
+p041 pairs 1785 1785 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 744 strict 436 cont 436 int 474 total 474 | links 38
+p042 pairs 1803 1803 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 749 strict 438 cont 438 int 476 total 476 | links 38
+p043 pairs 3009 3009 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1306 strict 854 cont 854 int 987 total 987 | links 133
+p044 pairs 3033 3033 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1315 strict 860 cont 860 int 993 total 993 | links 133
+p045 pairs 2963 2963 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1290 strict 927 cont 1136 int 1177 total 1232 | links 250
+p046 pairs 2906 2906 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1270 strict 924 cont 1124 int 1174 total 1220 | links 250
+p047 pairs 2883 2883 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1250 strict 881 cont 1063 int 1120 total 1161 | links 240
+p048 pairs 3846 3846 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1694 strict 1201 cont 1460 int 1538 total 1589 | links 338
+p049 pairs 2642 2642 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1181 strict 740 cont 809 int 839 total 892 | links 113
+p050 pairs 2556 2556 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1134 strict 678 cont 780 int 864 total 871 | links 186
+p051 pairs 797 797 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 229 strict 198 cont 198 int 202 total 202 | links 4
+p052 pairs 739 739 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 301 strict 268 cont 271 int 272 total 275 | links 6
+p053 pairs 330 330 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 118 strict 90 cont 92 int 94 total 96 | links 4
+p054 pairs 47 47 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 2 strict 0 cont 0 int 0 total 0 | links 0
+p055 pairs 662 662 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 267 strict 230 cont 234 int 234 total 238 | links 4
+p056 pairs 3057 3057 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1326 strict 942 cont 1158 int 1188 total 1254 | links 246
+p057 pairs 1153 1153 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 632 strict 471 cont 496 int 547 total 562 | links 76
+p058 pairs 2911 2911 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1274 strict 930 cont 1128 int 1180 total 1226 | links 250
+p059 pairs 2839 2839 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1230 strict 860 cont 1039 int 1088 total 1133 | links 230
+p060 pairs 2833 2833 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1230 strict 864 cont 1044 int 1092 total 1138 | links 230
+p061 pairs 4305 4305 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1931 strict 1338 cont 1602 int 1702 total 1778 | links 365
+p062 pairs 584 584 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 208 strict 170 cont 172 int 176 total 178 | links 6
+p063 pairs 2287 2287 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 993 strict 640 cont 684 int 816 total 816 | links 178
+p064 pairs 3263 3263 + 0 - 0 | issues 2 2 + 0 - 0 | eligible 1650 strict 981 cont 1151 int 1296 total 1407 | links 342
+p065 pairs 2384 2384 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1325 strict 709 cont 816 int 934 total 991 | links 232
+p066 pairs 2340 2340 + 0 - 0 | issues 1 1 + 0 - 0 | eligible 1229 strict 705 cont 803 int 846 total 930 | links 150
+p067 pairs 1336 1336 + 0 - 0 | issues 2 2 + 0 - 0 | eligible 679 strict 362 cont 400 int 500 total 529 | links 143
+p068 pairs 922 922 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 351 strict 212 cont 224 int 242 total 252 | links 34
+p069 pairs 1834 1834 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 862 strict 598 cont 704 int 747 total 776 | links 149
+p070 pairs 1429 1429 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 696 strict 668 cont 675 int 668 total 675 | links 2
+p071 pairs 537 537 + 0 - 0 | issues 3 3 + 0 - 0 | eligible 200 strict 150 cont 155 int 154 total 159 | links 4
+p072 pairs 2064 2064 + 0 - 0 | issues 4 4 + 0 - 0 | eligible 1083 strict 647 cont 711 int 840 total 887 | links 213
+p073 pairs 935 935 + 0 - 0 | issues 3 3 + 0 - 0 | eligible 375 strict 257 cont 291 int 296 total 320 | links 47
+p074 pairs 2455 2455 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1105 strict 752 cont 796 int 928 total 928 | links 178
+p075 pairs 2346 2346 + 0 - 0 | issues 4 4 + 0 - 0 | eligible 798 strict 770 cont 775 int 776 total 781 | links 6
+p076 pairs 2882 2882 + 0 - 0 | issues 0 0 + 0 - 0 | eligible 1250 strict 881 cont 1063 int 1120 total 1161 | links 240
