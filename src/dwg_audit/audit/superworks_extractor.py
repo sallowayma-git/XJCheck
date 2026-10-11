@@ -11,6 +11,7 @@ from collections import Counter, defaultdict, deque
 from dataclasses import asdict, replace
 
 from dwg_audit.domain.models import Pair, SwPort, LineGroup
+from dwg_audit.audit.superworks_device_internal import DEVICE_INTERNAL, device_internal_verdict, label_of
 from dwg_audit.extract.superworks_loggen import SYMB2_IDENTITY_SOURCE, SYMB2_STATUS
 from dwg_audit.extract.superworks_semantics import (CONNECT_ANCHOR_COINCIDENT_TOL,
     SuperworksData, normalize)
@@ -1229,6 +1230,76 @@ def _run_wire_route_admission(output, data, *, lines, line_groups, audit_ids, pa
     data.wire_route_rows = rows
 
 
+DEVICE_INTERNAL_DISCARD = "device_internal"
+
+
+def _pair_end(pair, side, ports_by_id):
+    """The device-internal view of one SuperWORKS side: category, label, identity and port ids.
+
+    A side with a SuperWORKS port takes its category and label from that port. An unregistered INSERT end has no
+    port: its label is the device name its own record names (symb2_text_slot), and it is marked unregistered.
+    """
+    evidence = pair.evidence or {}
+    end = (evidence.get("superworks") or {}).get(side) or {}
+    port_ids = list(end.get("port_ids") or [])
+    port = next((ports_by_id[port_id] for port_id in port_ids if port_id in ports_by_id), None)
+    if port is not None:
+        # The port's own identity (label + pin tail), as DEV-INT reads it; the pair value of an ordinary pair can be
+        # a bare number ("719") that carries no device label.
+        identity = port.endpoint_identity or end.get("value") or getattr(pair, f"{side}_value") or ""
+        label, resolved = label_of({"label": port.label})
+        return {"identity": identity, "category": port.category or "", "label": label, "label_resolved": resolved,
+                "unregistered": False, "port_ids": port_ids}
+    identity = getattr(pair, f"{side}_value") or end.get("value") or ""
+    slot = next((item for item in evidence.get("symb2_text_slot") or [] if item.get("identity") == identity), None)
+    unregistered = bool(not port_ids and end.get("identity_source") == SYMB2_IDENTITY_SOURCE and slot)
+    device = (slot or {}).get("record_device") or ""
+    return {"identity": identity, "category": end.get("category") or "", "label": device if unregistered else "",
+            "label_resolved": bool(unregistered and device), "unregistered": unregistered, "port_ids": port_ids}
+
+
+def _discard_device_internal_pairs(output, data):
+    """DEV-INT-DISCARD: a non-discard pair the device-internal rule accepts becomes a silent discard.
+
+    The rule is device_internal_verdict, the same function the DEV-INT links use. Pass and review pairs alike are
+    discarded; the evidence records discard_reason and the decision. Only pairs that already carry SuperWORKS sides
+    are read. Returns counters: discarded:<status> and discarded:<status>:<pair_kind>, and the verdicts of the
+    pairs with a device-terminal side that were kept, so the unrecognised remainder can be read off the summary.
+    """
+    ports_by_id = {port.record_id: port for port in data.ports}
+    stats = Counter()
+    for index, pair in enumerate(output):
+        if pair.status == "discard" or not (pair.evidence or {}).get("superworks"):
+            continue
+        ends = {side: _pair_end(pair, side, ports_by_id) for side in ("left", "right")}
+        verdicts = {}
+        for terminal, other in (("left", "right"), ("right", "left")):
+            verdicts[terminal] = device_internal_verdict(ends[terminal], ends[other])
+            if verdicts[terminal] == DEVICE_INTERNAL:
+                break
+        hit = next((side for side in ("left", "right") if verdicts.get(side) == DEVICE_INTERNAL), None)
+        if hit is None:
+            for side in ("left", "right"):
+                if ends[side]["category"] == "装置端子":
+                    stats[f"kept:{verdicts[side]}"] += 1
+            continue
+        terminal, other = ends[hit], ends["right" if hit == "left" else "left"]
+        evidence = copy.deepcopy(pair.evidence or {})
+        evidence["discard_reason"] = DEVICE_INTERNAL_DISCARD
+        evidence["device_internal_discard"] = {
+            "status_before": pair.status, "pair_kind": pair.pair_kind, "terminal_side": hit,
+            "terminal_identity": terminal["identity"], "terminal_label": terminal["label"],
+            "terminal_port_ids": terminal["port_ids"], "other_identity": other["identity"],
+            "other_category": other["category"], "other_label": other["label"],
+            "other_port_ids": other["port_ids"], "other_unregistered": other["unregistered"],
+            "rule": "device_internal_verdict"}
+        output[index] = replace(pair, status="discard", evidence=evidence,
+            rationale=f"{DEVICE_INTERNAL_DISCARD}: {terminal['identity']} 与本装置内部元件 {other['identity']} 相连，不进入匹配")
+        stats[f"discarded:{pair.status}"] += 1
+        stats[f"discarded:{pair.status}:{pair.pair_kind}"] += 1
+    return dict(stats)
+
+
 def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_groups, pairs, table_mappings,
                             wire_route_sheet_numbers=None):
     if data is None:
@@ -1571,6 +1642,8 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         _run_wire_route_admission(output, data, lines=lines, line_groups=line_groups, audit_ids=audit_ids,
                                   page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint,
                                   xml_ranks=xml_ranks, sheet_numbers=wire_route_sheet_numbers, texts=texts)
+    # DEV-INT-DISCARD: after admission, so admission sees the ports exactly as before this rule.
+    data.device_internal_discard_stats = _discard_device_internal_pairs(output, data)
     # The dictionary is observational; it cannot demote or validate a connection.
     dictionary={_key(v) for v in data.dictionary.get("names",[])}
     strip_names={_key(v) for v in data.dictionary.get("strip_names",[])}
@@ -2036,6 +2109,9 @@ def build_superworks_issues(context):
     grouped=defaultdict(list)
     for pair in context.pairs:
         evidence=pair.evidence or {}
+        if evidence.get("discard_reason")==DEVICE_INTERNAL_DISCARD:
+            # DEV-INT-DISCARD: a device-internal connection is silent, whatever conflict its pair carried.
+            continue
         conflicts=_true_conflicts(evidence.get("sw_conflicts") or [])
         if not conflicts:
             continue

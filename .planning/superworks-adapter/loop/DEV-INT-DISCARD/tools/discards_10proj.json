@@ -1,0 +1,1479 @@
+[
+  {
+    "project": "p001",
+    "pair_id": "PW0016",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0004",
+    "left_value": "707",
+    "right_value": "719",
+    "terminal_identity": "1n719",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/1139A:/1139A:9A52:1"
+    ],
+    "other_identity": "707",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/11377:/11377:112EF:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0021",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0004",
+    "left_value": "706",
+    "right_value": "718",
+    "terminal_identity": "1n718",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/11398:/11398:9A52:1"
+    ],
+    "other_identity": "706",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/11376:/11376:112EF:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0026",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0004",
+    "left_value": "705",
+    "right_value": "717",
+    "terminal_identity": "1n717",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/11396:/11396:9A52:1"
+    ],
+    "other_identity": "705",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/11375:/11375:112EF:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0163",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0008",
+    "left_value": "107",
+    "right_value": "108",
+    "terminal_identity": "1n108",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/E9EE:/E9EE:E3A9:1"
+    ],
+    "other_identity": "107",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/E9F0:/E9F0:10A33:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0165",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0008",
+    "left_value": "",
+    "right_value": "908",
+    "terminal_identity": "1n908",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/E763:/E763:E3A9:1"
+    ],
+    "other_identity": "",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/177D9:/177D9:E485:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0166",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0008",
+    "left_value": "",
+    "right_value": "907",
+    "terminal_identity": "1n907",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/E74D:/E74D:E3A9:1"
+    ],
+    "other_identity": "",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/E750:/E750:E485:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0167",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0008",
+    "left_value": "905",
+    "right_value": "906",
+    "terminal_identity": "1n906",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/E74B:/E74B:E3A9:1"
+    ],
+    "other_identity": "905",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/E74F:/E74F:E485:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0249",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0010",
+    "left_value": "710",
+    "right_value": "722",
+    "terminal_identity": "1n722",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/F84C:/F84C:8DA5:1"
+    ],
+    "other_identity": "710",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/F884:/F884:F752:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0251",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0010",
+    "left_value": "709",
+    "right_value": "721",
+    "terminal_identity": "1n721",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/F84A:/F84A:8DA5:1"
+    ],
+    "other_identity": "709",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/F883:/F883:F752:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0253",
+    "pair_kind": "semantic_mapping",
+    "status_before": "review",
+    "sheet_id": "S0010",
+    "left_value": "",
+    "right_value": "720",
+    "terminal_identity": "1n720",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/F848:/F848:8DA5:1"
+    ],
+    "other_identity": "",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/F882:/F882:F752:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0259",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0010",
+    "left_value": "",
+    "right_value": "725",
+    "terminal_identity": "1n725",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/F8BE:/F8BE:8DA5:1"
+    ],
+    "other_identity": "",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/F8DE:/F8DE:F752:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PW0264",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0010",
+    "left_value": "723",
+    "right_value": "724",
+    "terminal_identity": "1n724",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/F8BC:/F8BC:8DA5:1"
+    ],
+    "other_identity": "723",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/F8DD:/F8DD:F752:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PSWb4b73072c4cab6cf",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0005",
+    "left_value": "1n112",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n112",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0005:S0005:/8ED7:/8ED7:8DA6:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0005:S0005:/8ED6:/8ED6:8DE9:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PSWc178a7426631a64b",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0005",
+    "left_value": "1n114",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n114",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0005:S0005:/8ED9:/8ED9:8DA6:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0005:S0005:/8ED6:/8ED6:8DEC:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PSW0a77945b07210c20",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0007",
+    "left_value": "1n112",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n112",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/100B6:/100B6:1AE59:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/100B5:/100B5:100A4:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PSWbb77b1c7d39bff8d",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0007",
+    "left_value": "1n114",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n114",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/100B8:/100B8:1AE59:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/100B5:/100B5:100A7:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PSW981984be56a4e1f4",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0007",
+    "left_value": "1n112",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n112",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/19C77:/19C77:1AE59:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/19C76:/19C76:100A4:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p001",
+    "pair_id": "PSW3337a173e30e8630",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0007",
+    "left_value": "1n114",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n114",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/19C79:/19C79:1AE59:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/19C76:/19C76:100A7:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p003",
+    "pair_id": "PW0068",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0007",
+    "left_value": "432",
+    "right_value": "",
+    "terminal_identity": "8n432",
+    "terminal_label": "8n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/68C:/68C:4EA:2"
+    ],
+    "other_identity": "",
+    "other_category": "内部元件",
+    "other_label": "8n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/3F9A:/3F9A:53E:2",
+      "SW:F0007:S0007:/3F9F:/3F9F:53E:2",
+      "SW:F0007:S0007:/653:/653:53E:2",
+      "SW:F0007:S0007:/658:/658:53E:2",
+      "SW:F0007:S0007:/65D:/65D:53E:2",
+      "SW:F0007:S0007:/662:/662:53E:2",
+      "SW:F0007:S0007:/667:/667:53E:2",
+      "SW:F0007:S0007:/66C:/66C:53E:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p003",
+    "pair_id": "PW0075",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0008",
+    "left_value": "",
+    "right_value": "804",
+    "terminal_identity": "8n804",
+    "terminal_label": "8n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/3C91:/3C91:4E7:1"
+    ],
+    "other_identity": "",
+    "other_category": "内部元件",
+    "other_label": "8n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/3C93:/3C93:536:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p003",
+    "pair_id": "PSW9b354ac5fe318826",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "8n112",
+    "right_value": "8n-DC",
+    "terminal_identity": "8n112",
+    "terminal_label": "8n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/1A93F:/1A93F:16DDC:2"
+    ],
+    "other_identity": "8n-DC",
+    "other_category": "内部元件",
+    "other_label": "8n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/1A93E:/1A93E:16E1F:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p003",
+    "pair_id": "PSWfd5eb40a083e2b15",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "8n114",
+    "right_value": "8n-DC",
+    "terminal_identity": "8n114",
+    "terminal_label": "8n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/1A941:/1A941:16DDC:2"
+    ],
+    "other_identity": "8n-DC",
+    "other_category": "内部元件",
+    "other_label": "8n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/1A93E:/1A93E:16E22:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p003",
+    "pair_id": "PSW543f59eb1f897697",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0007",
+    "left_value": "8n112",
+    "right_value": "8n-DC",
+    "terminal_identity": "8n112",
+    "terminal_label": "8n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/6C2:/6C2:4EA:2"
+    ],
+    "other_identity": "8n-DC",
+    "other_category": "内部元件",
+    "other_label": "8n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/6C1:/6C1:4F8:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p003",
+    "pair_id": "PSWa58a552058ba01d4",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0007",
+    "left_value": "8n114",
+    "right_value": "8n-DC",
+    "terminal_identity": "8n114",
+    "terminal_label": "8n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/6C4:/6C4:4EA:2"
+    ],
+    "other_identity": "8n-DC",
+    "other_category": "内部元件",
+    "other_label": "8n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/6C1:/6C1:4FB:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0123",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0007",
+    "left_value": "803",
+    "right_value": "808",
+    "terminal_identity": "1-7n808",
+    "terminal_label": "1-7n",
+    "terminal_port_ids": [
+      "SW:F0007:S0007:/A73E:/A73E:A64E:1"
+    ],
+    "other_identity": "803",
+    "other_category": "内部元件",
+    "other_label": "1-7n",
+    "other_port_ids": [
+      "SW:F0007:S0007:/A710:/A710:A66E:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0245",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "401",
+    "right_value": "402",
+    "terminal_identity": "1n402",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A5D:/17A5D:D1B9:1"
+    ],
+    "other_identity": "401",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AEA:/17AEA:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0246",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "423",
+    "right_value": "424",
+    "terminal_identity": "1n424",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/1866A:/1866A:D1B9:1"
+    ],
+    "other_identity": "423",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/186F3:/186F3:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0247",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "529",
+    "right_value": "530",
+    "terminal_identity": "1n530",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A51:/17A51:D1B9:1"
+    ],
+    "other_identity": "529",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AE9:/17AE9:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0250",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "527",
+    "right_value": "528",
+    "terminal_identity": "1n528",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A4E:/17A4E:D1B9:1"
+    ],
+    "other_identity": "527",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AE8:/17AE8:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0251",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "419",
+    "right_value": "420",
+    "terminal_identity": "1n420",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/18659:/18659:D1B9:1"
+    ],
+    "other_identity": "419",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/186F1:/186F1:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0252",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "525",
+    "right_value": "526",
+    "terminal_identity": "1n526",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A57:/17A57:D1B9:1"
+    ],
+    "other_identity": "525",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AE7:/17AE7:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0255",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "523",
+    "right_value": "524",
+    "terminal_identity": "1n524",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A42:/17A42:D1B9:1"
+    ],
+    "other_identity": "523",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AE6:/17AE6:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0258",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "425",
+    "right_value": "426",
+    "terminal_identity": "1n426",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A3F:/17A3F:D1B9:1"
+    ],
+    "other_identity": "425",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AE5:/17AE5:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0261",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "521",
+    "right_value": "522",
+    "terminal_identity": "1n522",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A48:/17A48:D1B9:1"
+    ],
+    "other_identity": "521",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AE4:/17AE4:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0266",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "413",
+    "right_value": "414",
+    "terminal_identity": "1n414",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/18650:/18650:D1B9:1"
+    ],
+    "other_identity": "413",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/186EC:/186EC:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0267",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "515",
+    "right_value": "516",
+    "terminal_identity": "1n516",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A31:/17A31:D1B9:1"
+    ],
+    "other_identity": "515",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17AE3:/17AE3:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0272",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "409",
+    "right_value": "410",
+    "terminal_identity": "1n410",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/18639:/18639:D1B9:1"
+    ],
+    "other_identity": "409",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/186EB:/186EB:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PW0281",
+    "pair_kind": "ordinary_pair",
+    "status_before": "review",
+    "sheet_id": "S0011",
+    "left_value": "503",
+    "right_value": "504",
+    "terminal_identity": "1n504",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0011:S0011:/17A19:/17A19:D1B9:1"
+    ],
+    "other_identity": "503",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0011:S0011:/17ADF:/17ADF:DA79:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PSW73c41b0642a39f05",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "1n112",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n112",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/9339:/9339:9224:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/9338:/9338:9267:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PSWdfe5d9bff8cd0868",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "1n114",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n114",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/933B:/933B:9224:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/9338:/9338:926A:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PSW47795340ac0f5b2b",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0010",
+    "left_value": "1n112",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n112",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/2001B:/2001B:119F8:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/2001A:/2001A:16809:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PSW10924980f85d555f",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0010",
+    "left_value": "1n114",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n114",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/2001D:/2001D:119F8:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/2001A:/2001A:1680C:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PSWa41b8dff637fe4c2",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0010",
+    "left_value": "1n112",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n112",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/200C4:/200C4:119F8:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/200C3:/200C3:16809:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p022",
+    "pair_id": "PSW26e2af0ba11de833",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0010",
+    "left_value": "1n114",
+    "right_value": "1n-DC",
+    "terminal_identity": "1n114",
+    "terminal_label": "1n",
+    "terminal_port_ids": [
+      "SW:F0010:S0010:/200C6:/200C6:119F8:2"
+    ],
+    "other_identity": "1n-DC",
+    "other_category": "内部元件",
+    "other_label": "1n",
+    "other_port_ids": [
+      "SW:F0010:S0010:/200C3:/200C3:1680C:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p044",
+    "pair_id": "PSW666d502888bae410",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "1-21n103",
+    "right_value": "1-21n-DC",
+    "terminal_identity": "1-21n103",
+    "terminal_label": "1-21n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/4B065:/4B065:4AF63:2"
+    ],
+    "other_identity": "1-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-21n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/4B064:/4B064:4AFB3:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p044",
+    "pair_id": "PSWb382c39a527e6660",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "1-21n105",
+    "right_value": "1-21n-DC",
+    "terminal_identity": "1-21n105",
+    "terminal_label": "1-21n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/4B067:/4B067:4AF63:2"
+    ],
+    "other_identity": "1-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-21n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/4B064:/4B064:4AFB6:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSW2344559e44975a6e",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "1-25nPWR1-4",
+    "right_value": "1-25n-DC",
+    "terminal_identity": "1-25nPWR1-4",
+    "terminal_label": "1-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/334F1:/334F1:31037:2"
+    ],
+    "other_identity": "1-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/334F0:/334F0:31045:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSW59d337262f96959e",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "1-25nPWR1-5",
+    "right_value": "1-25n-DC",
+    "terminal_identity": "1-25nPWR1-5",
+    "terminal_label": "1-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/334F3:/334F3:31037:2"
+    ],
+    "other_identity": "1-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/334F0:/334F0:31048:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSW96e959fb0ed2387f",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "2-25nPWR1-4",
+    "right_value": "2-25n-DC",
+    "terminal_identity": "2-25nPWR1-4",
+    "terminal_label": "2-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/3358F:/3358F:31037:2"
+    ],
+    "other_identity": "2-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/3358E:/3358E:31045:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSW3cca0a0a2201baab",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "2-25nPWR1-5",
+    "right_value": "2-25n-DC",
+    "terminal_identity": "2-25nPWR1-5",
+    "terminal_label": "2-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/33591:/33591:31037:2"
+    ],
+    "other_identity": "2-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/3358E:/3358E:31048:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSW6a5f356bfe4f369d",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "1-25nPWR2-4",
+    "right_value": "1-25n-DC",
+    "terminal_identity": "1-25nPWR2-4",
+    "terminal_label": "1-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/3FB8B:/3FB8B:31037:2"
+    ],
+    "other_identity": "1-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/3FB8A:/3FB8A:31045:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSW40cf844fab7b6548",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "1-25nPWR2-5",
+    "right_value": "1-25n-DC",
+    "terminal_identity": "1-25nPWR2-5",
+    "terminal_label": "1-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/3FB8D:/3FB8D:31037:2"
+    ],
+    "other_identity": "1-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/3FB8A:/3FB8A:31048:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSWbec691bc71bf47fd",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "2-25nPWR2-4",
+    "right_value": "2-25n-DC",
+    "terminal_identity": "2-25nPWR2-4",
+    "terminal_label": "2-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/3FBAB:/3FBAB:31037:2"
+    ],
+    "other_identity": "2-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/3FBAA:/3FBAA:31045:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p051",
+    "pair_id": "PSWa4ce96cc889a24c2",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0004",
+    "left_value": "2-25nPWR2-5",
+    "right_value": "2-25n-DC",
+    "terminal_identity": "2-25nPWR2-5",
+    "terminal_label": "2-25n",
+    "terminal_port_ids": [
+      "SW:F0004:S0004:/3FBAD:/3FBAD:31037:2"
+    ],
+    "other_identity": "2-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-25n",
+    "other_port_ids": [
+      "SW:F0004:S0004:/3FBAA:/3FBAA:31048:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSW65c91ca04fb3d306",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "1-21n103",
+    "right_value": "1-21n-DC",
+    "terminal_identity": "1-21n103",
+    "terminal_label": "1-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/9037:/9037:5C52:2"
+    ],
+    "other_identity": "1-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/9036:/9036:5C95:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSWdeed45288895ce5a",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "1-21n105",
+    "right_value": "1-21n-DC",
+    "terminal_identity": "1-21n105",
+    "terminal_label": "1-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/9039:/9039:5C52:2"
+    ],
+    "other_identity": "1-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/9036:/9036:5C98:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSW7d6f5ecae44c2d35",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "3-21n103",
+    "right_value": "3-21n-DC",
+    "terminal_identity": "3-21n103",
+    "terminal_label": "3-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/907F:/907F:5C52:2"
+    ],
+    "other_identity": "3-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "3-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/907E:/907E:5C95:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSW2db47a3ccff0f32a",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "3-21n105",
+    "right_value": "3-21n-DC",
+    "terminal_identity": "3-21n105",
+    "terminal_label": "3-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/9081:/9081:5C52:2"
+    ],
+    "other_identity": "3-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "3-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/907E:/907E:5C98:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSW7c5547f8d413dd1b",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "4-21n103",
+    "right_value": "4-21n-DC",
+    "terminal_identity": "4-21n103",
+    "terminal_label": "4-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/90C8:/90C8:5C52:2"
+    ],
+    "other_identity": "4-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "4-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/90C7:/90C7:5C95:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSWab5ad358868fae78",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "4-21n105",
+    "right_value": "4-21n-DC",
+    "terminal_identity": "4-21n105",
+    "terminal_label": "4-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/90CA:/90CA:5C52:2"
+    ],
+    "other_identity": "4-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "4-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/90C7:/90C7:5C98:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSW5f7766cbf6376bb9",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "2-21n103",
+    "right_value": "2-21n-DC",
+    "terminal_identity": "2-21n103",
+    "terminal_label": "2-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/AF6B:/AF6B:5C52:2"
+    ],
+    "other_identity": "2-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/AF6A:/AF6A:5C95:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p061",
+    "pair_id": "PSWc9f631611c306273",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0006",
+    "left_value": "2-21n105",
+    "right_value": "2-21n-DC",
+    "terminal_identity": "2-21n105",
+    "terminal_label": "2-21n",
+    "terminal_port_ids": [
+      "SW:F0006:S0006:/AF6D:/AF6D:5C52:2"
+    ],
+    "other_identity": "2-21n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-21n",
+    "other_port_ids": [
+      "SW:F0006:S0006:/AF6A:/AF6A:5C98:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p071",
+    "pair_id": "PSW1ae8591f26bbe95d",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0005",
+    "left_value": "1-40nPWR5",
+    "right_value": "1-40n-DC",
+    "terminal_identity": "1-40nPWR5",
+    "terminal_label": "1-40n",
+    "terminal_port_ids": [
+      "SW:F0005:S0005:/26F99:/26F99:1A75A:2"
+    ],
+    "other_identity": "1-40n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-40n",
+    "other_port_ids": [
+      "SW:F0005:S0005:/26F98:/26F98:1BDE2:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p071",
+    "pair_id": "PSW708a99f0a12bdbed",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0005",
+    "left_value": "1-40nPWR4",
+    "right_value": "1-40n-DC",
+    "terminal_identity": "1-40nPWR4",
+    "terminal_label": "1-40n",
+    "terminal_port_ids": [
+      "SW:F0005:S0005:/26F9B:/26F9B:1A75A:2"
+    ],
+    "other_identity": "1-40n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-40n",
+    "other_port_ids": [
+      "SW:F0005:S0005:/26F98:/26F98:1BDE5:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p071",
+    "pair_id": "PSW4120b4c3a405e100",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0005",
+    "left_value": "2-40nPWR5",
+    "right_value": "2-40n-DC",
+    "terminal_identity": "2-40nPWR5",
+    "terminal_label": "2-40n",
+    "terminal_port_ids": [
+      "SW:F0005:S0005:/26FCC:/26FCC:1A75A:2"
+    ],
+    "other_identity": "2-40n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-40n",
+    "other_port_ids": [
+      "SW:F0005:S0005:/26FCB:/26FCB:1BDE2:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p071",
+    "pair_id": "PSW350bdd680463a7ab",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0005",
+    "left_value": "2-40nPWR4",
+    "right_value": "2-40n-DC",
+    "terminal_identity": "2-40nPWR4",
+    "terminal_label": "2-40n",
+    "terminal_port_ids": [
+      "SW:F0005:S0005:/26FCE:/26FCE:1A75A:2"
+    ],
+    "other_identity": "2-40n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-40n",
+    "other_port_ids": [
+      "SW:F0005:S0005:/26FCB:/26FCB:1BDE5:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p074",
+    "pair_id": "PSWc59f6b34c33e8bbe",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "1-25n106",
+    "right_value": "1-25n-DC",
+    "terminal_identity": "1-25n106",
+    "terminal_label": "1-25n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/3902D:/3902D:23E37:2"
+    ],
+    "other_identity": "1-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-25n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/3902C:/3902C:23E7A:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p074",
+    "pair_id": "PSWaf7e1e5b7b8e31c2",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "1-25n108",
+    "right_value": "1-25n-DC",
+    "terminal_identity": "1-25n108",
+    "terminal_label": "1-25n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/3902F:/3902F:23E37:2"
+    ],
+    "other_identity": "1-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "1-25n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/3902C:/3902C:23E7D:2"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p074",
+    "pair_id": "PSWf4e4a0d7aa9c14ca",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "2-25n106",
+    "right_value": "2-25n-DC",
+    "terminal_identity": "2-25n106",
+    "terminal_label": "2-25n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/390A0:/390A0:23E37:2"
+    ],
+    "other_identity": "2-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-25n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/3909F:/3909F:23E7A:1"
+    ],
+    "other_unregistered": false
+  },
+  {
+    "project": "p074",
+    "pair_id": "PSW80c057baae761300",
+    "pair_kind": "wire_component_mapping",
+    "status_before": "pass",
+    "sheet_id": "S0008",
+    "left_value": "2-25n108",
+    "right_value": "2-25n-DC",
+    "terminal_identity": "2-25n108",
+    "terminal_label": "2-25n",
+    "terminal_port_ids": [
+      "SW:F0008:S0008:/390A2:/390A2:23E37:2"
+    ],
+    "other_identity": "2-25n-DC",
+    "other_category": "内部元件",
+    "other_label": "2-25n",
+    "other_port_ids": [
+      "SW:F0008:S0008:/3909F:/3909F:23E7D:2"
+    ],
+    "other_unregistered": false
+  }
+]
