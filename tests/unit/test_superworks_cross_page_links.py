@@ -173,3 +173,78 @@ def test_artifacts_add_continuity_coverage_without_changing_pairs(tmp_path):
     assert json.loads(row.continuity_link_ids) == [links.link_id.iloc[0]]
     assert bool(row.consumed_with_continuity) and not bool(row.consumed)
     assert pair.status == "pass" and pair.evidence == {}
+
+
+# XPAGE-2: equivalence of strip rows (short bridges, range terminals, one-hop wires, shared target nodes).
+from dwg_audit.audit.superworks_cross_page import (  # noqa: E402
+    RELATION_GROUP,
+    short_bridge_pairs,
+)
+
+
+def _bridge_rows():
+    return [{"record_id": "A", "file_id": "F1", "group": "H", "x": 60.0, "y": 123.5},
+            {"record_id": "B", "file_id": "F1", "group": "H", "x": 60.0, "y": 118.5}]
+
+
+def _bridge_lines(upper_mid_only=False):
+    lines = [{"file_id": "F1", "x0": 66.0, "y0": 124.25, "x1": 66.0, "y1": 122.5},
+             {"file_id": "F1", "x0": 66.0, "y0": 122.5, "x1": 66.0, "y1": 120.75}]
+    return lines[:1] if upper_mid_only else lines
+
+
+def test_short_bridge_joins_consecutive_rows_when_both_halves_are_drawn():
+    assert short_bridge_pairs(_bridge_rows(), _bridge_lines()) == [("A", "B")]
+
+
+def test_one_bridge_half_is_not_a_short_bridge():
+    assert short_bridge_pairs(_bridge_rows(), _bridge_lines(upper_mid_only=True)) == []
+
+
+def test_target_identity_held_by_a_bridged_row_is_an_equivalence_not_a_candidate():
+    rows = [_row(record_id="R1", identity="7UD17", connections=[{"text_id": "T1", "value": "1n709"}]),
+            _row(record_id="R2", identity="7UD18", connections=[{"text_id": "T2", "value": "1n710"}], refs=[])]
+    pairs = [_pair(pair_id="PAIR1", left="7UD17", right="1n709", right_text="T1"),
+             _pair(pair_id="PAIR2", left="7UD18", right="1n710", right_text="T2")]
+    result = build_cross_page_links(rows, [_port(identity="1n710")], pairs, PAGES, bridges=[("R1", "R2")])
+    link = result["links"][0]
+    assert link["relation"] == RELATION_GROUP and link["equivalence"] == "target_in_group_far"
+    assert link["covers_target"] is False and result["candidates"] == [] and result["covered"] == {}
+
+
+def test_range_terminal_names_each_member_so_a_member_target_is_equivalent():
+    row = _row(identity="U3D7~8", connections=[{"text_id": "T1", "value": "1n705"}])
+    result = build_cross_page_links([row], [_port(identity="U3D8")], [_pair(left="U3D7~8")], PAGES)
+    assert result["links"][0]["relation"] == RELATION_GROUP
+    assert result["links"][0]["equivalence"] == "target_in_group"
+    assert result["candidates"] == []
+
+
+def test_one_hop_wire_between_two_rows_explains_the_other_end_of_the_target():
+    rows = [_row(record_id="R1", identity="7UD18", connections=[{"text_id": "T1", "value": "1ud4"}]),
+            _row(record_id="R2", identity="1UD4", connections=[{"text_id": "T2", "value": "7UD18"},
+                                                              {"text_id": "T3", "value": "1n1522"}], refs=[])]
+    pairs = [_pair(pair_id="PAIR1", left="7UD18", right="1ud4", right_text="T1"),
+             _pair(pair_id="PAIR2", left="1n888", right="1n1522", left_ports=["P9"], sheet="S2")]
+    result = build_cross_page_links(rows, [_port(identity="1n888")], pairs, PAGES)
+    link = result["links"][0]
+    assert link["relation"] == RELATION_GROUP and link["equivalence"] == "other_in_hop"
+    assert result["candidates"] == []
+
+
+def test_claimed_consumed_target_is_a_shared_node_not_a_candidate():
+    rows = [_row(record_id="R1", identity="7UD1", connections=[{"text_id": "T1", "value": "1n705"}]),
+            _row(record_id="R2", identity="7UD2", connections=[{"text_id": "T2", "value": "1n706"}])]
+    pairs = [_pair(pair_id="PAIR1", left="7UD1", right="1n705", right_text="T1"),
+             _pair(pair_id="PAIR3", left="7UD2", right="1n706", right_text="T2"),
+             _pair(pair_id="PAIR2", left="1n888", right="1n999", left_ports=["P9"], sheet="S2")]
+    result = build_cross_page_links(rows, [_port(identity="1n888")], pairs, PAGES)
+    assert result["candidates"] == []
+    assert {link["equivalence"] for link in result["links"]} == {"shared_target_node"}
+
+
+def test_consumed_target_with_an_empty_other_end_has_no_evidence_to_compare():
+    other = _pair(pair_id="PAIR2", left="1n888", right="", left_ports=["P9"], sheet="S2")
+    result = build_cross_page_links([_row()], [_port(identity="1n888")], [_pair(), other], PAGES)
+    assert result["candidates"] == []
+    assert result["stats"]["consumer_other_empty"] == 1
