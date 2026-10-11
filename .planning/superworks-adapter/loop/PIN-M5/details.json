@@ -1,0 +1,790 @@
+{
+ "scope": "PIN-M5: schematic pin identity / connection via layout PCL (round18, read-only)",
+ "handle_link": {
+  "scan": "tools/01_handle_scan.py (Pass A: 1005 XDATA/XRECORD refs in 1745 DXF; Pass B: cross-file resolution)",
+  "refs_1005_total": 2075930,
+  "dangling_in_own_file": 0,
+  "note": "All 1005 handle references resolve inside their own drawing. Schematic symbol (LD_SYMB2_LABEL) and layout part (LDPARTLAYT_PARTLABEL_HANDLE) use file-local label handles; no cross-drawing handle link exists between a schematic symbol and a 元件接线图/背板 part. PCL 线号 cross-page references are text (未定义H:P_页) and reach terminal INSERTs of other pages (装置端子 14900+1605, 端子 7936+2010 far ends; no 内部元件 far end)."
+ },
+ "pcl_far_categories": {
+  "装置端子": 16505,
+  "接地": 87,
+  "端子": 9946,
+  "": 1767,
+  "线圈": 124,
+  "接插件": 6
+ },
+ "populations": {
+  "TX": 8145,
+  "TI": 380,
+  "PS": 35963
+ },
+ "ps_status": {
+  "no_match": 8598,
+  "no_terminal": 12084,
+  "unique": 7410,
+  "no_label_in_layout": 657,
+  "no_label": 6780,
+  "ambiguous": 434
+ },
+ "tx_status": {
+  "unique": 4229,
+  "no_match": 2947,
+  "no_label_in_layout": 156,
+  "no_terminal": 785,
+  "no_label": 6,
+  "ambiguous": 22
+ },
+ "ti_status": {
+  "no_terminal": 190,
+  "unique": 37,
+  "no_match": 49,
+  "no_label_in_layout": 44,
+  "no_label": 60
+ },
+ "holdout_B": {
+  "TX": {
+   "unique_predictions": 4229,
+   "unique_agree": 4210,
+   "strict_predictions": 4197,
+   "strict_agree": 4197,
+   "strict_by_source": {
+    "text|True": 1138,
+    "sw|True": 3059
+   }
+  },
+  "TI": {
+   "unique_predictions": 37,
+   "unique_agree": 37,
+   "strict_predictions": 37,
+   "strict_agree": 37,
+   "strict_by_source": {
+    "sw|True": 35,
+    "text|True": 2
+   }
+  },
+  "TX_unique_before_gate": {
+   "n": 4229,
+   "agree": 4210
+  }
+ },
+ "popS": {
+  "total": 35963,
+  "by_category_status": {
+   "内部元件|no_match": 8453,
+   "内部元件|no_terminal": 11855,
+   "内部元件|unique": 7382,
+   "接地|no_label_in_layout": 243,
+   "接插件|no_terminal": 10,
+   "接插件|no_label_in_layout": 86,
+   "内部元件|no_label": 5123,
+   "内部元件|ambiguous": 434,
+   "接地|no_label": 357,
+   "内部元件|no_label_in_layout": 328,
+   "线圈|no_label": 1214,
+   "线圈|no_match": 145,
+   "线圈|no_terminal": 219,
+   "线圈|unique": 28,
+   "接插件|no_label": 86
+  },
+  "strict_unique": 7322,
+  "strict_self_identity": 7282,
+  "strict_admissible_nonself": 40,
+  "strict_pred_equals_terminal_suffix": 7318,
+  "strict_generic_label": 7211
+ },
+ "popS_by_block": {
+  "SYMB2_M_PWF191": {
+   "n": 9918,
+   "strict": 3413,
+   "self": 3385,
+   "no_terminal": 4959
+  },
+  "SYMB2_M_PWF194": {
+   "n": 5788,
+   "no_label": 650,
+   "strict": 1853,
+   "self": 1853,
+   "no_terminal": 1757
+  },
+  "SYMB2_M_PWF229": {
+   "n": 4904,
+   "no_terminal": 637,
+   "strict": 488,
+   "self": 476,
+   "no_label": 12
+  },
+  "SYMB2_M_PWF208": {
+   "n": 3284,
+   "no_label": 3284
+  },
+  "SYMB2_M_PWF192": {
+   "n": 1842,
+   "strict": 588,
+   "self": 588,
+   "no_terminal": 735
+  },
+  "SYMB2_M_PWF168": {
+   "n": 1344,
+   "no_terminal": 1082,
+   "strict": 15,
+   "self": 15,
+   "no_label": 38
+  },
+  "SYMB2_M_PWF209": {
+   "n": 1084,
+   "no_label": 1012,
+   "no_terminal": 72
+  },
+  "SYMB2_M_PWF163": {
+   "n": 1070,
+   "no_terminal": 424,
+   "strict": 483,
+   "self": 483
+  },
+  "SYMB2_M_PWF210": {
+   "n": 942,
+   "no_terminal": 621,
+   "strict": 50,
+   "self": 50,
+   "no_label": 38
+  },
+  "SYMB2_M_PWF196": {
+   "n": 862,
+   "no_terminal": 366,
+   "strict": 120,
+   "self": 120,
+   "no_label": 94
+  },
+  "SYMB2_S_PWF318": {
+   "n": 746,
+   "no_label": 595
+  },
+  "SYMB2_M_PWF4": {
+   "n": 542,
+   "strict": 77,
+   "self": 77,
+   "no_label": 90
+  },
+  "SYMB2_M_PWF216": {
+   "n": 380,
+   "no_terminal": 231,
+   "no_label": 30,
+   "strict": 6,
+   "self": 6
+  },
+  "SYMB2_M_PWF115": {
+   "n": 352,
+   "no_terminal": 315
+  },
+  "SYMB2_M_PWF127": {
+   "n": 332,
+   "strict": 84,
+   "self": 84,
+   "no_terminal": 156
+  },
+  "SYMB2_M_PWF26": {
+   "n": 278,
+   "no_label": 278
+  },
+  "SYMB2_M_PWF6": {
+   "n": 252,
+   "no_label": 52,
+   "strict": 61,
+   "self": 61,
+   "no_terminal": 98
+  },
+  "SYMB2_S_PWF314": {
+   "n": 242,
+   "no_label": 242
+  },
+  "SYMB2_M_PWF7": {
+   "n": 206,
+   "strict": 39,
+   "self": 39
+  },
+  "SYMB2_M_PWF172": {
+   "n": 182,
+   "no_terminal": 182
+  }
+ },
+ "popS_by_category_strict": {
+  "内部元件": 7294,
+  "线圈": 28
+ },
+ "consistency": {
+  "A_by_family": {
+   "正式典设": {
+    "rows": 19818,
+    "far_sw": 15961,
+    "text_known": 16981,
+    "resolved": 18381
+   },
+   "110kV变压器保护柜": {
+    "rows": 432,
+    "far_sw": 303,
+    "resolved": 357,
+    "text_known": 315
+   },
+   "PAC-885G-H": {
+    "rows": 468,
+    "far_sw": 336,
+    "text_known": 355,
+    "resolved": 386
+   },
+   "【出原理图】N2604HBJ20732J合同": {
+    "rows": 7275,
+    "far_sw": 5875,
+    "text_known": 6233,
+    "resolved": 6738
+   },
+   "变压器测控柜(2圈变，2台测控)": {
+    "rows": 442,
+    "far_sw": 378,
+    "resolved": 417,
+    "text_known": 384
+   }
+  },
+  "F_by_class_family": {
+   "TX|正式典设": {
+    "eligible": 4987,
+    "supported": 2834
+   },
+   "TX|110kV变压器保护柜": {
+    "eligible": 128,
+    "supported": 68
+   },
+   "TX|PAC-885G-H": {
+    "eligible": 125,
+    "supported": 76
+   },
+   "TX|【出原理图】N2604HBJ20732J合同": {
+    "eligible": 1852,
+    "supported": 1187,
+    "label_not_in_layout": 4
+   },
+   "TX|变压器测控柜(2圈变，2台测控)": {
+    "eligible": 106,
+    "supported": 86
+   },
+   "TI|正式典设": {
+    "eligible": 80,
+    "supported": 32
+   },
+   "TI|【出原理图】N2604HBJ20732J合同": {
+    "eligible": 6,
+    "supported": 5
+   },
+   "PS|正式典设": {
+    "eligible": 11849,
+    "supported": 5211,
+    "label_not_in_layout": 103
+   },
+   "PS|110kV变压器保护柜": {
+    "eligible": 169,
+    "supported": 89,
+    "label_not_in_layout": 4
+   },
+   "PS|PAC-885G-H": {
+    "label_not_in_layout": 5,
+    "eligible": 186,
+    "supported": 111
+   },
+   "PS|【出原理图】N2604HBJ20732J合同": {
+    "label_not_in_layout": 86,
+    "eligible": 3945,
+    "supported": 2202
+   },
+   "PS|变压器测控柜(2圈变，2台测控)": {
+    "eligible": 293,
+    "supported": 231,
+    "label_not_in_layout": 2
+   }
+  },
+  "R_by_family": {
+   "正式典设": {
+    "layout_far_terminals": 17282,
+    "supported_by_schematic": 8481
+   },
+   "110kV变压器保护柜": {
+    "layout_far_terminals": 371,
+    "supported_by_schematic": 185
+   },
+   "PAC-885G-H": {
+    "layout_far_terminals": 363,
+    "supported_by_schematic": 195
+   },
+   "【出原理图】N2604HBJ20732J合同": {
+    "layout_far_terminals": 6471,
+    "supported_by_schematic": 3518
+   },
+   "变压器测控柜(2圈变，2台测控)": {
+    "layout_far_terminals": 422,
+    "supported_by_schematic": 321
+   }
+  }
+ },
+ "nomatch_diagnosis": {
+  "TX|T_absent": 3090,
+  "TX|L_nofar": 1031,
+  "TI|T_absent": 51,
+  "PS|T_absent": 8598
+ },
+ "coverage": {
+  "baseline_consumed": 52494,
+  "eligible": 82680,
+  "gain_by_bucket": {
+   "TX": 449,
+   "PS": 40
+  },
+  "gain_total": 489,
+  "after_rate": 0.64082,
+  "before_rate": 0.634906,
+  "by_family_bucket": {
+   "正式典设|TX": 248,
+   "110kV变压器保护柜|TX": 8,
+   "PAC-885G-H|TX": 26,
+   "【出原理图】N2604HBJ20732J合同|TX": 157,
+   "变压器测控柜(2圈变，2台测控)|TX": 10,
+   "【出原理图】N2604HBJ20732J合同|PS": 40
+  },
+  "self_connection_skipped": {
+   "PS": 7282
+  }
+ },
+ "visual": {
+  "n": 30,
+  "TX_n": 8,
+  "PS_n": 22,
+  "incorrect": 0,
+  "both_checks_visible_correct": 8,
+  "identity_visible_correct": 14,
+  "consistent_not_fully_visible": 22,
+  "note": "identity check = layout display number / truth agrees or wire number beside the pin agrees; connection check = terminal or far text visible on the same window and agreeing",
+  "samples": [
+   {
+    "name": "TX01",
+    "cls": "TX",
+    "label": "1-21KK",
+    "pred": "4",
+    "truth": "4",
+    "T": [
+     "121CD14"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF175"
+   },
+   {
+    "name": "TX02",
+    "cls": "TX",
+    "label": "1CLP1",
+    "pred": "2",
+    "truth": "2",
+    "T": [
+     "1N1218"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF224"
+   },
+   {
+    "name": "TX03",
+    "cls": "TX",
+    "label": "1ZKK2",
+    "pred": "5",
+    "truth": "5",
+    "T": [
+     "UD8"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF237"
+   },
+   {
+    "name": "TX04",
+    "cls": "TX",
+    "label": "1C3LP3",
+    "pred": "1",
+    "truth": "1",
+    "T": [
+     "1KD8"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF224"
+   },
+   {
+    "name": "TX05",
+    "cls": "TX",
+    "label": "K863",
+    "pred": "1X4",
+    "truth": "1X4",
+    "T": [
+     "34Q1D5"
+    ],
+    "match_src": "text",
+    "block": "SYMB2_M_PWF4"
+   },
+   {
+    "name": "TX06",
+    "cls": "TX",
+    "label": "3-40DK1",
+    "pred": "3",
+    "truth": "3",
+    "T": [
+     "ZD4"
+    ],
+    "match_src": "text",
+    "block": "SYMB2_M_PWF236"
+   },
+   {
+    "name": "TX07",
+    "cls": "TX",
+    "label": "3-40DK1",
+    "pred": "3",
+    "truth": "3",
+    "T": [
+     "ZD3"
+    ],
+    "match_src": "text",
+    "block": "SYMB2_M_PWF236"
+   },
+   {
+    "name": "TX08",
+    "cls": "TX",
+    "label": "A'",
+    "pred": "2",
+    "truth": "2",
+    "T": [
+     "JD6"
+    ],
+    "match_src": "text",
+    "block": "SYMB2_M_PWF105"
+   },
+   {
+    "name": "PS01",
+    "cls": "PS",
+    "label": "3-21N",
+    "pred": "222",
+    "truth": null,
+    "T": [
+     "321N222"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF191"
+   },
+   {
+    "name": "PS02",
+    "cls": "PS",
+    "label": "1-21N",
+    "pred": "213",
+    "truth": null,
+    "T": [
+     "121N213"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF191"
+   },
+   {
+    "name": "PS03",
+    "cls": "PS",
+    "label": "1N",
+    "pred": "528",
+    "truth": null,
+    "T": [
+     "1N528"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF191"
+   },
+   {
+    "name": "PS04",
+    "cls": "PS",
+    "label": "2-21N",
+    "pred": "219",
+    "truth": null,
+    "T": [
+     "221N219"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF191"
+   },
+   {
+    "name": "PS05",
+    "cls": "PS",
+    "label": "2-21N",
+    "pred": "326",
+    "truth": null,
+    "T": [
+     "221N326"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF191"
+   },
+   {
+    "name": "PS06",
+    "cls": "PS",
+    "label": "1-21N",
+    "pred": "314",
+    "truth": null,
+    "T": [
+     "121N314"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF191"
+   },
+   {
+    "name": "PS07",
+    "cls": "PS",
+    "label": "1N",
+    "pred": "519",
+    "truth": null,
+    "T": [
+     "1N519"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF194"
+   },
+   {
+    "name": "PS08",
+    "cls": "PS",
+    "label": "2-21N",
+    "pred": "404",
+    "truth": null,
+    "T": [
+     "221N404"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF194"
+   },
+   {
+    "name": "PS09",
+    "cls": "PS",
+    "label": "1N",
+    "pred": "411",
+    "truth": null,
+    "T": [
+     "1N411"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF194"
+   },
+   {
+    "name": "PS10",
+    "cls": "PS",
+    "label": "1-21N",
+    "pred": "406",
+    "truth": null,
+    "T": [
+     "121N406"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF194"
+   },
+   {
+    "name": "PS11",
+    "cls": "PS",
+    "label": "1N",
+    "pred": "2405",
+    "truth": null,
+    "T": [
+     "1N2405"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF229"
+   },
+   {
+    "name": "PS12",
+    "cls": "PS",
+    "label": "2-21N",
+    "pred": "703",
+    "truth": null,
+    "T": [
+     "221N703"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF229"
+   },
+   {
+    "name": "PS13",
+    "cls": "PS",
+    "label": "1-1N",
+    "pred": "217",
+    "truth": null,
+    "T": [
+     "11N217"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF229"
+   },
+   {
+    "name": "PS14",
+    "cls": "PS",
+    "label": "5N",
+    "pred": "615",
+    "truth": null,
+    "T": [
+     "5N615"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF163"
+   },
+   {
+    "name": "PS15",
+    "cls": "PS",
+    "label": "5N",
+    "pred": "421",
+    "truth": null,
+    "T": [
+     "5N421"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF163"
+   },
+   {
+    "name": "PS16",
+    "cls": "PS",
+    "label": "7N",
+    "pred": "804",
+    "truth": null,
+    "T": [
+     "7N804"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF192"
+   },
+   {
+    "name": "PS17",
+    "cls": "PS",
+    "label": "5N",
+    "pred": "428",
+    "truth": null,
+    "T": [
+     "5N428"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF192"
+   },
+   {
+    "name": "PS18",
+    "cls": "PS",
+    "label": "2-7N",
+    "pred": "720",
+    "truth": null,
+    "T": [
+     "27N720"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF196"
+   },
+   {
+    "name": "PS19",
+    "cls": "PS",
+    "label": "K862",
+    "pred": "1X5",
+    "truth": null,
+    "T": [
+     "K8621X5"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF4"
+   },
+   {
+    "name": "PS20",
+    "cls": "PS",
+    "label": "1-2N",
+    "pred": "226",
+    "truth": null,
+    "T": [
+     "12N226"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF210"
+   },
+   {
+    "name": "PS21",
+    "cls": "PS",
+    "label": "3-4N",
+    "pred": "606",
+    "truth": null,
+    "T": [
+     "34N606"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF216"
+   },
+   {
+    "name": "PS22",
+    "cls": "PS",
+    "label": "4N",
+    "pred": "1605",
+    "truth": null,
+    "T": [
+     "4N1605"
+    ],
+    "match_src": "sw",
+    "block": "SYMB2_M_PWF168"
+   }
+  ],
+  "judgements": {
+   "TX01": [
+    "identity correct (layout display 4 = truth 4)",
+    "connection plausible (terminal off-window)"
+   ],
+   "TX02": [
+    "correct",
+    "correct (layout far text 1n1218 = T)"
+   ],
+   "TX03": [
+    "correct",
+    "correct (far text UD8 = T)"
+   ],
+   "TX04": [
+    "correct",
+    "correct (far text 1KD8 = T)"
+   ],
+   "TX05": [
+    "correct",
+    "correct (far text 3-4Q1D5 = T 34Q1D5)"
+   ],
+   "TX06": [
+    "correct",
+    "correct (far text ZD4 = T)"
+   ],
+   "TX07": [
+    "correct",
+    "correct (far text ZD3 = T)"
+   ],
+   "TX08": [
+    "correct",
+    "correct (far text JD6 = T)"
+   ],
+   "PS01": [
+    "correct (display 22 = column 2 + row 22 convention)",
+    "correct (terminal 3-21n222 visible)"
+   ],
+   "PS06": [
+    "correct (display 14, pin 314)",
+    "plausible"
+   ],
+   "PS09": [
+    "correct (display 11, pin 411)",
+    "plausible"
+   ],
+   "PS15": [
+    "correct (display 21, pin 421)",
+    "plausible (off-window)"
+   ],
+   "PS18": [
+    "correct (display 20, pin 720)",
+    "plausible (off-window)"
+   ],
+   "PS19": [
+    "correct (display 5, pin 1X5)",
+    "plausible (off-window)"
+   ],
+   "others": "PS02-05, PS07-08, PS10-14, PS16-17, PS20-22: wire number beside pin = pin number, terminal or far text on the other page; not fully visible"
+  }
+ },
+ "admission_recommendation": {
+  "TX_strict_gate": "unique logical pin AND schematic terminal not shared by several pins of the same label",
+  "PS": "do not admit as identity or pair: pin identity label+number equals its terminal identity in 7282/7322 cases (F1 self-connection), and the logical number equals the terminal number in 7318/7322 cases"
+ }
+}
