@@ -121,6 +121,8 @@ class SuperworksData:
     wire_route_failures: dict[str, str] = field(default_factory=dict)
     wire_route_rows: list[dict[str, Any]] = field(default_factory=list)
     wire_route_stats: dict[str, Any] = field(default_factory=dict)
+    # DEV-INT-DISCARD: counters of the non-discard pairs the device-internal rule discarded (written after admission).
+    device_internal_discard_stats: dict[str, Any] = field(default_factory=dict)
     # G1P: INSERTs with LD_SYMB2_LABEL and without LD_SYMB2_SPECIAL (unregistered SYMB2 blocks). They
     # never enter ports or symbols; only device-internal links read their TERMPOINT ends.
     unregistered_symb2: list[dict[str, Any]] = field(default_factory=list)

@@ -103,13 +103,13 @@ def test_wire_without_other_port_is_dangling():
 def test_related_label_is_counted_not_linked():
     result = build_device_internal_links([_device(identity="1n705"), _internal(label="1-1n")], [])
     assert result["links"] == []
-    assert result["stats"]["excluded:element_label_related"] == 1
+    assert result["stats"]["excluded:other_label_related"] == 1
 
 
 def test_different_label_is_counted_not_linked():
     result = build_device_internal_links([_device(identity="1n705"), _internal(label="2n")], [])
     assert result["links"] == []
-    assert result["stats"]["excluded:element_label_differs"] == 1
+    assert result["stats"]["excluded:other_label_differs"] == 1
 
 
 def test_station_prefixed_device_identity_uses_its_full_label():
@@ -230,18 +230,23 @@ def test_artifacts_add_internal_coverage_without_changing_pairs(tmp_path):
     summary = json.loads((tmp_path / "superworks_summary.json").read_text(encoding="utf-8"))
     assert summary["port_coverage"]["consumed"] == 0
     assert summary["port_coverage_with_continuity"]["consumed"] == 0
-    assert summary["port_coverage_with_internal"]["consumed"] == 1
-    assert summary["port_coverage_with_internal"]["added_by_continuity_and_internal"] == 1
+    assert "port_coverage_with_internal" not in summary
     assert summary["device_internal"]["link_count"] == 1
     assert summary["device_internal"]["pcl_corroborated"] == 1
-    assert summary["coverage_views"]["strict"]["consumed"] == 0
-    assert summary["coverage_views"]["with_internal"]["consumed"] == 1
-    assert summary["coverage_views"]["total"]["consumed"] == 1
+    assert summary["device_internal"]["excluded_device_internal_ports"] == 1
+    # The device-internal port is not covered in any view and leaves the excl views' denominator.
+    views = summary["coverage_views"]
+    assert views["excluded_device_internal"] == 1
+    assert views["strict"] == {"eligible": 1, "consumed": 0, "ratio": 0.0}
+    assert views["with_continuity"]["consumed"] == 0
+    assert views["strict_excl_device_internal"] == {"eligible": 0, "consumed": 0, "ratio": None}
+    assert views["with_continuity_excl_device_internal"] == {"eligible": 0, "consumed": 0, "ratio": None}
     links = pd.read_parquet(tmp_path / "sw_device_internal_links.parquet")
     assert len(links) == 1 and links.port_id.iloc[0] == "D1"
     coverage = pd.read_parquet(tmp_path / "sw_port_coverage.parquet").set_index("port_id")
     assert json.loads(coverage.loc["D1", "device_internal_link_ids"]) == [links.link_id.iloc[0]]
-    assert bool(coverage.loc["D1", "consumed_with_internal"]) and not bool(coverage.loc["D1", "consumed"])
+    assert bool(coverage.loc["D1", "excluded_device_internal"]) and not bool(coverage.loc["D1", "consumed"])
+    assert "consumed_with_internal" not in coverage.columns
 
 
 # G1P: a single-end wire of a device terminal may end on an unregistered SYMB2 block (label, no LD_SYMB2_SPECIAL).
@@ -401,7 +406,8 @@ def test_extraction_records_the_unregistered_block_and_the_artifacts_count_it_as
     write_superworks_artifacts(full, tmp_path)
     summary = json.loads((tmp_path / "superworks_summary.json").read_text(encoding="utf-8"))
     assert summary["port_coverage"]["consumed"] == 0
-    assert summary["coverage_views"]["total"]["consumed"] == 1
+    assert summary["coverage_views"]["excluded_device_internal"] == 1
+    assert summary["coverage_views"]["strict_excl_device_internal"]["eligible"] == 0
     assert summary["device_internal"]["link_count_by_source"] == {"unregistered_symb2_pin": 1}
     assert summary["device_internal"]["unregistered_symb2"]["blocks"] == 1
     decisions = pd.read_parquet(tmp_path / "sw_unregistered_pin_decisions.parquet")
@@ -467,18 +473,22 @@ def test_body_gap_cuts_the_merged_wire_and_links_the_terminal_to_its_own_pin():
     assert result["stats"]["linked_on_split_wire"] == 1
 
 
-def test_identified_element_on_a_split_wire_is_not_linked_and_is_counted():
-    ports, split = _split_case(element_identity="1n3")
+def test_identified_element_on_a_split_wire_is_still_a_device_internal_link():
+    # DEV-INT-DISCARD: an element with its own identity no longer excludes its wire; the pair layer discards the
+    # pair of the same connection instead, so the terminal is excluded from the coverage denominator.
+    ports, split = _split_case(element_identity="1n-3")
     result = build_device_internal_links(ports, [], terminal_split=split)
-    assert result["links"] == []
-    assert result["stats"]["excluded:element_identified"] == 1
+    assert [link["port_id"] for link in result["links"]] == ["D1"]
+    assert result["links"][0]["element_identity"] == "1n-3"
+    assert result["stats"]["linked_element_identified"] == 1
 
 
-def test_identified_element_on_an_unsplit_wire_is_not_linked_either():
-    ports = [_device(), _port("Q1", "内部元件", identity="1n3", label="1n", contacts=("W1",))]
+def test_identified_element_on_an_unsplit_wire_is_still_a_device_internal_link():
+    ports = [_device(), _port("Q1", "内部元件", identity="1n-3", label="1n", contacts=("W1",))]
     result = build_device_internal_links(ports, [], terminal_split=None)
-    assert result["links"] == []
-    assert result["stats"]["excluded:element_identified"] == 1
+    assert [link["port_id"] for link in result["links"]] == ["D1"]
+    assert result["links"][0]["element_identity"] == "1n-3"
+    assert "excluded:element_identified" not in result["stats"]
 
 
 def test_a_body_narrower_than_two_units_is_not_cut():

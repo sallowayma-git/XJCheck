@@ -124,10 +124,25 @@ def write_superworks_artifacts(artifacts, findings_dir):
     # DEV-INT: a device terminal wired to an internal pin of its own device (same label) is recorded as a
     # device-internal link. It is a third, additive coverage figure; `consumed` and continuity are unchanged.
     device_internal=_device_internal_links(artifacts,data)
+    # DEV-INT-DISCARD: the terminal ports of the pairs the device-internal rule discarded.
+    discarded_pairs=defaultdict(list)
+    for pair in artifacts.pairs:
+        evidence=pair.evidence or {}
+        found=evidence.get("device_internal_discard") or {}
+        if evidence.get("discard_reason")=="device_internal":
+            for port_id in found.get("terminal_port_ids") or []:
+                discarded_pairs[port_id].append(pair.pair_id)
     for row in rows:
         link_ids=device_internal["covered"].get(row["port_id"],[])
         row["device_internal_link_ids"]=link_ids
-        row["consumed_with_internal"]=bool(row["consumed_with_continuity"] or (row["eligible"] and link_ids))
+        row["device_internal_pair_ids"]=discarded_pairs.get(row["port_id"],[])
+        # Device-internal ports leave the denominator of the *_excl_device_internal views and count as uncovered in
+        # the others (their pairs are discarded, and they have no pair of their own). A port that a non-discard
+        # pair names is an external connection by that pair: the pair overrules a wire-level device-internal link
+        # (the wire-level rule cannot see unregistered pins on the same wire), and the link is kept for audit only.
+        internal_fact=bool(link_ids or row["device_internal_pair_ids"])
+        row["device_internal_overruled"]=bool(internal_fact and row["consumed"])
+        row["excluded_device_internal"]=bool(internal_fact and not row["consumed"])
     eligible=[r for r in rows if r["eligible"]]
     by_page=[]
     for sid in sorted({r["sheet_id"] for r in rows}):
@@ -154,6 +169,8 @@ def write_superworks_artifacts(artifacts, findings_dir):
     comparisons=[]
     for pair in artifacts.pairs:
         sw=pair.evidence.get("superworks") or {}
+        if pair.evidence.get("discard_reason")=="device_internal":
+            continue
         if (pair.evidence.get("source")!="superworks" and sw.get("source")!="superworks") or pair.pair_kind not in ("ordinary_pair","bridge_mapping","wire_component_mapping"):
             continue
         for side,other in (("left","right"),("right","left")):
@@ -197,15 +214,20 @@ def write_superworks_artifacts(artifacts, findings_dir):
     coverage_columns=["port_id","sheet_id","file_id","category","page_type","endpoint_identity","eligible","consumed","pass",
         "production_pairs","sw_production_pair_consumed","sw_production_pairs","main_two_end_eligible","main_two_end_consumed",
         "wire_group_observations","reason_codes","continuity_link_ids","consumed_with_continuity",
-        "device_internal_link_ids","consumed_with_internal"]
+        "device_internal_link_ids","device_internal_pair_ids","excluded_device_internal","device_internal_overruled"]
     pd.DataFrame(rows,columns=coverage_columns).assign(
         production_pairs=lambda f:f.production_pairs.map(lambda v:json.dumps(v,ensure_ascii=False)),
         sw_production_pairs=lambda f:f.sw_production_pairs.map(lambda v:json.dumps(v,ensure_ascii=False)),
         wire_group_observations=lambda f:f.wire_group_observations.map(lambda v:json.dumps(v,ensure_ascii=False)),
         reason_codes=lambda f:f.reason_codes.map(lambda v:json.dumps(v,ensure_ascii=False)),
         continuity_link_ids=lambda f:f.continuity_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False)),
-        device_internal_link_ids=lambda f:f.device_internal_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False))).to_parquet(findings_dir/"sw_port_coverage.parquet",index=False)
+        device_internal_link_ids=lambda f:f.device_internal_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False)),
+        device_internal_pair_ids=lambda f:f.device_internal_pair_ids.map(lambda v:json.dumps(v,ensure_ascii=False))).to_parquet(findings_dir/"sw_port_coverage.parquet",index=False)
     _write_cross_page_tables(findings_dir,cross_page)
+    # A wire-level link whose port a non-discard pair names is overruled by that pair (kept for audit only).
+    consumed_ports={r["port_id"] for r in rows if r["consumed"]}
+    for link in device_internal["links"]:
+        link["overruled_by_pair"]=link["port_id"] in consumed_ports
     _write_device_internal_links(findings_dir,device_internal)
     _write_unregistered_symb2(findings_dir,data)
     main_eligible=[r for r in rows if r["main_two_end_eligible"]]
@@ -220,16 +242,18 @@ def write_superworks_artifacts(artifacts, findings_dir):
                              "ratio":sum(r["main_two_end_consumed"] for r in main_eligible)/len(main_eligible) if main_eligible else None,
                              "by_page_type":_coverage_by_page(main_eligible,pages)}},
         "port_coverage_with_continuity":_continuity_coverage(eligible),
-        "port_coverage_with_internal":_internal_coverage(eligible),
         "coverage_views":_coverage_views(eligible),
         "device_internal":{"stats":device_internal["stats"],"link_count":len(device_internal["links"]),
+            "excluded_device_internal_ports":sum(r["excluded_device_internal"] for r in eligible),
+            "overruled_by_external_pair_ports":sum(r["device_internal_overruled"] for r in eligible),
+            "pair_discards":dict(getattr(data,"device_internal_discard_stats",None) or {}),
             "link_count_by_source":dict(Counter(l["source"] for l in device_internal["links"])),
             "unregistered_symb2":{"blocks":len(data.unregistered_symb2),
                 "label_resolved":sum(bool(b["label_resolved"]) for b in data.unregistered_symb2),
                 "termpoints":sum(len(b["termpoints"]) for b in data.unregistered_symb2)},
             "pcl_corroborated":sum(bool(l["pcl_corroborated"]) for l in device_internal["links"]),
             "terminal_splits":len(device_internal["terminal_splits"]),
-            "note":"device-internal links count as coverage in port_coverage_with_internal only; they create no pairs"},
+            "note":"device-internal ports are excluded from the *_excl_device_internal views; their pairs are discarded (discard_reason device_internal) and they raise no issue"},
         "cross_page":{"stats":cross_page["stats"],"link_count":len(cross_page["links"]),
             "candidate_counts":dict(Counter(c["candidate"] for c in cross_page["candidates"])),
             "note":"continuity links count as coverage in port_coverage_with_continuity only; they create no pairs"},
@@ -311,12 +335,28 @@ def _device_internal_links(artifacts,data):
     groups=[{"file_id":g.file_id,"member_line_ids":list(g.member_line_ids or [])}
         for g in getattr(artifacts,"line_groups",[]) or []]
     dots=[{"file_id":d.file_id,"x":d.x,"y":d.y} for d in getattr(data,"connect_dots",[]) or []]
+    # DEV-INT-PATH: an internal element's identity is its port's, or else the text its non-discard pair names
+    # for that port (a terminal-form identity such as 1-21n332 sits in the pair text, not on the SW port).
+    element_identities={}
+    for pair in getattr(artifacts,"pairs",[]) or []:
+        if pair.status=="discard":
+            continue
+        sw=(pair.evidence or {}).get("superworks") or {}
+        for side in ("left","right"):
+            end=sw.get(side) or {}
+            if end.get("category") not in ("内部元件","线圈"):
+                continue
+            value=end.get("value") or getattr(pair,f"{side}_value")
+            for port_id in end.get("port_ids") or []:
+                if value:
+                    element_identities.setdefault(port_id,value)
     # GAP2-S: the wire mapping is cut at terminal bodies inside DEV-INT (line groups and pairs are unchanged).
     # G1P: unregistered SYMB2 blocks (TERMPOINT ends) and the end points of every model-space wire.
     return build_device_internal_links(ports,routes,
         unregistered=list(getattr(data,"unregistered_symb2",[]) or []),
         wire_endpoints=dict(getattr(data,"wire_endpoints",{}) or {}),
-        terminal_split={"lines":lines,"line_groups":groups,"connect_dots":dots})
+        terminal_split={"lines":lines,"line_groups":groups,"connect_dots":dots},
+        element_identities=element_identities)
 
 
 def _write_unregistered_symb2(findings_dir,data):
@@ -348,24 +388,21 @@ def _write_device_internal_links(findings_dir,device_internal):
     decision_frame.to_parquet(findings_dir/"sw_unregistered_pin_decisions.parquet",index=False)
 
 
-def _internal_coverage(eligible):
-    """Coverage with pairs, continuity links and device-internal links (the total figure)."""
-    consumed=sum(r["consumed_with_internal"] for r in eligible)
-    return {"eligible":len(eligible),"consumed":consumed,"pairs_only_consumed":sum(r["consumed"] for r in eligible),
-        "added_by_continuity_and_internal":consumed-sum(r["consumed"] for r in eligible),
-        "ratio":consumed/len(eligible) if eligible else None}
-
-
 def _coverage_views(eligible):
-    """The four coverage views: strict (pairs), with continuity, with internal, and total (all three)."""
-    total=len(eligible)
-    def view(count):
-        return {"consumed":count,"ratio":count/total if total else None}
-    strict=sum(r["consumed"] for r in eligible)
-    with_continuity=sum(r["consumed_with_continuity"] for r in eligible)
-    with_internal=sum(bool(r["consumed"] or (r["eligible"] and r["device_internal_link_ids"])) for r in eligible)
-    return {"eligible":total,"strict":view(strict),"with_continuity":view(with_continuity),
-        "with_internal":view(with_internal),"total":view(sum(r["consumed_with_internal"] for r in eligible))}
+    """Four coverage views, each consumed / denominator.
+
+    strict and with_continuity keep the eligible denominator. The two *_excl_device_internal views drop the
+    device-internal ports from the denominator (eligible minus excluded_device_internal) and count only the
+    remaining ports as covered. A device-internal port is never counted as covered in any view.
+    """
+    free=[r for r in eligible if not r["excluded_device_internal"]]
+    def view(rows,key):
+        count=sum(bool(r[key]) for r in rows)
+        return {"eligible":len(rows),"consumed":count,"ratio":count/len(rows) if rows else None}
+    return {"eligible":len(eligible),"excluded_device_internal":len(eligible)-len(free),
+        "strict":view(eligible,"consumed"),"with_continuity":view(eligible,"consumed_with_continuity"),
+        "strict_excl_device_internal":view(free,"consumed"),
+        "with_continuity_excl_device_internal":view(free,"consumed_with_continuity")}
 
 
 def _continuity_coverage(eligible):

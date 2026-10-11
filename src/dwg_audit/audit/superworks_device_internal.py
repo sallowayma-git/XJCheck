@@ -38,9 +38,10 @@ A cut is made only when all of these hold; otherwise it is refused and counted u
 the group consists of exactly two end-point components, one holding each contact; the two contacts lie on one
 axis line; the body (the distance of the insert's two TERMPOINT midpoints) is at least SPLIT_MIN_BODY_WIDTH;
 their distance is at least SPLIT_MIN_GAP and equals the body width within SPLIT_WIDTH_FACTOR; no model-space line
-crosses the open gap; no connection dot lies at the open gap. The element guard applies to every wire, split or
-not: a link needs an internal element without its own identity. An element that already carries an identity takes
-part in the pair rules, so the wire is counted (``excluded:element_identified``), not linked.
+crosses the open gap; no connection dot lies at the open gap. DEV-INT-DISCARD: the device-internal rule is one function, ``device_internal_verdict``, shared by this module and
+the pair layer. The pair layer discards a non-discard pair that the rule accepts (``discard_reason``
+``device_internal``), so an internal element that carries an identity is no longer an exception: its wire is a
+device-internal link like any other. The GAP2-S element guard is therefore gone.
 
 The functions take plain dictionaries, so they run on the in-memory production records and on the written
 parquet rows alike. Identities are compared casefold-exact; nothing is matched by prefix or by value.
@@ -84,7 +85,7 @@ def _text(value) -> str:
     return str(value).strip()
 
 
-def _label_of(port) -> tuple[str, bool]:
+def label_of(port) -> tuple[str, bool]:
     label = port.get("label") or {}
     if isinstance(label, str):
         label = json.loads(label or "{}")
@@ -112,6 +113,70 @@ def _related(a: str, b: str) -> bool:
     base_a = _LEADING_DIGITS_DASH.sub("", a)
     base_b = _LEADING_DIGITS_DASH.sub("", b)
     return base_a == base_b or a.endswith("-" + b) or b.endswith("-" + a)
+
+
+DEVICE_INTERNAL = "device_internal"
+_PIN_NUMBER = re.compile(r"[0-9]+")
+
+
+def is_terminal_form(identity, label) -> bool:
+    """Whether an identity has the form of a device terminal: the device label followed by a pure-digit pin number.
+
+    ``1-21n332`` is terminal-form for ``1-21n``; ``1n-DC``, ``3-4n-I`` and ``1n-3`` are not (a dash separates a pin or
+    a function name from the label). Used to tell a terminal-to-terminal connection, which is an external wire, from
+    a terminal-to-element connection, which is internal. Casefold-exact on the label, no value is special-cased.
+    """
+    identity, label = _text(identity), _text(label)
+    if not identity or not label or not identity.casefold().startswith(label.casefold()):
+        return False
+    return bool(_PIN_NUMBER.fullmatch(identity[len(label):]))
+
+
+def _element_form(identity, label) -> bool:
+    """A label followed by a dash and a pin or function name: 1n-DC, 3-4n-I, 1n-3 (the element's own identity)."""
+    identity, label = _text(identity), _text(label)
+    return bool(label) and identity.casefold().startswith(label.casefold() + "-") and len(identity) > len(label) + 1
+
+
+def device_internal_verdict(terminal, other) -> str:
+    """The device-internal rule: one device terminal wired to an internal pin of its own device.
+
+    terminal: category, identity, label and label_resolved of the SuperWORKS device-terminal end. Its identity is the
+        device label plus a pin tail (``1n705`` for ``1n``). other: category, label and label_resolved of the other
+        end. ``unregistered`` is True for an unregistered SYMB2 pin, which has no SuperWORKS port and so no category.
+        The other end's identity is not compared: an internal pin may have none.
+    Returns DEVICE_INTERNAL, or the first reason the two ends are not one device's internal connection. Labels are
+    compared casefold-exact; a related label (``1-1n`` for ``1n``) gives its own reason and is never a match.
+    """
+    if _text(terminal.get("category")) != DEVICE_CATEGORY:
+        return "terminal_not_device"
+    label = _text(terminal.get("label"))
+    identity = _text(terminal.get("identity"))
+    if not (terminal.get("label_resolved") and label):
+        return "terminal_label_unresolved"
+    if not identity.casefold().startswith(label.casefold()) or len(identity) <= len(label):
+        return "terminal_identity_not_label_prefixed"
+    category = _text(other.get("category"))
+    if not (other.get("unregistered") or category in INTERNAL_CATEGORIES):
+        return f"other_end_category:{category or 'none'}"
+    other_label = _text(other.get("label"))
+    if not (other.get("label_resolved") and other_label):
+        return "other_label_unresolved"
+    if other_label.casefold() != label.casefold():
+        return "other_label_related" if _related(other_label.casefold(), label.casefold()) else "other_label_differs"
+    # An SW element's identity decides what the connection is. A terminal-form identity (device label + pure-digit
+    # pin) makes it a terminal-to-terminal wire, external, not internal. An identity with a dash after the device
+    # label (1n-DC, 3-4n-I, 1n-3) is an element pin or function name: internal. No identity, or a bare number with
+    # no label (the element's own pin number), is an unidentified element pin: internal. Any other identity (it
+    # begins with a different name) names something this rule cannot place, so it is not discarded.
+    # Coils and unregistered pins are internal whatever their identity.
+    if category == "内部元件":
+        identity = _text(other.get("identity"))
+        if is_terminal_form(identity, label):
+            return "other_identity_terminal_form"
+        if identity and not _PIN_NUMBER.fullmatch(identity) and not _element_form(identity, label):
+            return "other_identity_foreign"
+    return DEVICE_INTERNAL
 
 
 def _dist(a, b) -> float:
@@ -157,7 +222,7 @@ class _PinIndex:
         return found
 
 
-def _far_pin(port_file: str, contact, wire_key, members, wire_endpoints, pins, label: str):
+def _far_pin(port_file: str, contact, wire_key, members, wire_endpoints, pins, label: str, identity: str):
     """Decide the far end of a single-end wire of a device terminal against the unregistered blocks.
 
     Returns (candidate, reason, detail). candidate is None unless the far end lies on exactly one block whose
@@ -188,11 +253,13 @@ def _far_pin(port_file: str, contact, wire_key, members, wire_endpoints, pins, l
     block, far, pin, number = next(iter(hits.values()))
     detail = {"block_record_id": block.get("record_id"), "block_insert_handle": _text(block.get("insert_handle")),
               "block_label": _text(block.get("label_value")), "far": far, "pin": pin, "number": number}
-    block_label = _text(block.get("label_value"))
-    if not block.get("label_resolved") or not block_label:
-        return None, "label_unresolved", detail
-    if block_label.casefold() != label.casefold():
-        reason = "label_related" if _related(block_label.casefold(), label.casefold()) else "label_differs"
+    verdict = device_internal_verdict(
+        {"category": DEVICE_CATEGORY, "identity": identity, "label": label, "label_resolved": True},
+        {"unregistered": True, "label": _text(block.get("label_value")),
+         "label_resolved": bool(block.get("label_resolved"))})
+    if verdict != DEVICE_INTERNAL:
+        reason = {"other_label_unresolved": "label_unresolved", "other_label_related": "label_related",
+                  "other_label_differs": "label_differs"}.get(verdict, verdict)
         return None, reason, detail
     return {"block": block, "far": far, "pin": pin, "number": number}, "candidate", detail
 
@@ -481,8 +548,17 @@ def split_terminal_wires(ports, lines, line_groups, connect_dots=()) -> dict:
             "split_wire_keys": split_wire_keys, "partners": dict(partners)}
 
 
+def _element_identity(element, element_identities) -> str:
+    """The identity of an internal element end: its own port identity, else the identity the pair layer read for
+    that port (a terminal-form identity sits in the pair's text, not on the SW port)."""
+    own = _text(element.get("endpoint_identity"))
+    if own:
+        return own
+    return _text((element_identities or {}).get(element.get("record_id")))
+
+
 def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unregistered=(), wire_endpoints=None,
-                                terminal_split=None) -> dict:
+                                terminal_split=None, element_identities=None) -> dict:
     """Device-internal links of the eligible device terminals of one project.
 
     ports: dicts with record_id, file_id, sheet_id, insert_handle, port_number, category, endpoint_identity,
@@ -539,7 +615,7 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
             continue
         stats["device_terminals"] += 1
         contacts = _contacts_of(port)
-        label, resolved = _label_of(port)
+        label, resolved = label_of(port)
         identity = _text(port.get("endpoint_identity"))
         if not contacts:
             stats["excluded:no_wire_contact"] += 1
@@ -571,7 +647,8 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
             if not others:
                 # G1P: a single-end wire may end on an unregistered SYMB2 pin instead of a SuperWORKS port.
                 stats["single_end_wires"] += 1
-                far, reason, detail = _far_pin(_text(port.get("file_id")), contact, wire, members, endpoints, pins, label)
+                far, reason, detail = _far_pin(_text(port.get("file_id")), contact, wire, members, endpoints, pins,
+                                               label, identity)
                 stats[f"unregistered:{reason}"] += 1
                 decisions.append({"port_id": port.get("record_id"), "file_id": port.get("file_id"),
                     "sheet_id": port.get("sheet_id"), "device_label": label, "endpoint_identity": identity,
@@ -587,24 +664,14 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
                 stats[reason] += 1
                 continue
             element = others[0]
-            category = element.get("category")
-            if category not in INTERNAL_CATEGORIES:
-                stats[f"excluded:other_end_category:{category or 'none'}"] += 1
-                continue
-            element_label, element_resolved = _label_of(element)
-            if not element_resolved or not element_label:
-                stats["excluded:element_label_unresolved"] += 1
-                continue
-            if element_label.casefold() != label.casefold():
-                if _related(element_label.casefold(), label.casefold()):
-                    stats["excluded:element_label_related"] += 1
-                else:
-                    stats["excluded:element_label_differs"] += 1
-                continue
-            if _text(element.get("endpoint_identity")):
-                # GAP2-S guard (every wire): an element that already carries an identity takes part in the pair
-                # rules, so the wire is not counted as this terminal's internal wire.
-                stats["excluded:element_identified"] += 1
+            element_label, element_resolved = label_of(element)
+            element_id = _element_identity(element, element_identities)
+            verdict = device_internal_verdict(
+                {"category": DEVICE_CATEGORY, "identity": identity, "label": label, "label_resolved": resolved},
+                {"category": element.get("category"), "label": element_label, "label_resolved": element_resolved,
+                 "identity": element_id})
+            if verdict != DEVICE_INTERNAL:
+                stats[f"excluded:{verdict}"] += 1
                 continue
             candidates.append({"handle": handle, "element": element, "wire_ports": wire_ports, "far": None, "wire": wire})
         if not candidates:
@@ -626,11 +693,13 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
                 "source": SOURCE_SW_ELEMENT, "element_port_id": element.get("record_id"),
                 "element_block_record_id": None,
                 "element_insert_handle": _text(element.get("insert_handle")),
-                "element_label": _text(_label_of(element)[0]),
+                "element_label": _text(label_of(element)[0]),
+                "element_identity": _element_identity(element, element_identities) or None,
                 "element_port_number": _text(element.get("port_number")),
                 "far_x": None, "far_y": None, "pin_x": None, "pin_y": None,
             }
             stats["linked_sw_element"] += 1
+            stats["linked_element_identified"] += int(bool(_element_identity(element, element_identities)))
         else:
             block = far["block"]
             link_id = "XDI:" + hashlib.sha1(
@@ -640,6 +709,7 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
                 "element_block_record_id": block.get("record_id"),
                 "element_insert_handle": _text(block.get("insert_handle")),
                 "element_label": _text(block.get("label_value")),
+                "element_identity": None,
                 "element_port_number": far["number"],
                 "far_x": far["far"][0], "far_y": far["far"][1], "pin_x": far["pin"][0], "pin_y": far["pin"][1],
             }
