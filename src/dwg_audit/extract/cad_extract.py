@@ -370,6 +370,7 @@ def _append_text(
             color_index=color_index,
             true_color=true_color,
             text_geometry_json=json.dumps(text_geometry or {}, ensure_ascii=False),
+            raw_height=float(height),
         )
     )
 

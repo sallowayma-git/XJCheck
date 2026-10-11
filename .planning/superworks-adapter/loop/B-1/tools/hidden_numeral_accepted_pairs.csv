@@ -1,0 +1,36 @@
+﻿project,sheet_id,text_id,text,candidate_id,side,line_group_id,pair_id,status,pair_kind,rationale,left_value,right_value,pair_single_ended,line_layers,line_len
+p051,S0009,T0864,2,CC0506,left,GC0104,PC0104,review,ordinary_pair,missing right candidate,2,nan,True,"[""MARK""]",16.518
+p051,S0009,T0963,3,CC0351,left,GC0075,PC0075,review,ordinary_pair,missing right candidate,3,nan,True,"[""MARK""]",16.518
+p051,S0010,T1116,4,CC0718,left,GC0152,PC0152,review,ordinary_pair,missing right candidate,4,nan,True,"[""MARK""]",22.525
+p051,S0010,T1166,4,CC0611,left,GC0127,PC0127,review,ordinary_pair,missing right candidate,4,nan,True,"[""MARK""]",22.525
+p051,S0011,T1272,5,CC1110,left,GC0203,PC0203,review,ordinary_pair,missing right candidate,5,nan,True,"[""MARK""]",30.034
+p051,S0011,T1307,6,CC1114,left,GC0204,PC0204,review,ordinary_pair,missing right candidate,6,nan,True,"[""MARK""]",30.034
+p062,S0012,T1040,7,CC0032,left,GC0019,PC0019,review,ordinary_pair,missing right candidate,7,nan,True,"[""MARK""]",15.017
+p062,S0013,T1174,8,CC0664,left,GC0125,PC0125,review,ordinary_pair,missing right candidate,8,nan,True,"[""MARK""]",13.515
+p062,S0013,T1215,5,CC0650,left,GC0120,PC0120,review,ordinary_pair,missing right candidate,5,nan,True,"[""MARK""]",30.034
+p062,S0013,T1256,6,CC0655,left,GC0121,PC0121,review,ordinary_pair,missing right candidate,6,nan,True,"[""MARK""]",30.034
+p069,S0015,T2603,21,CC0463,left,GC0074,PC0074,review,ordinary_pair,missing right candidate,21,nan,True,"[""MARK""]",30.034
+p071,S0011,T1112,1,CC0345,left,GC0053,PC0053,review,ordinary_pair,missing right candidate,1,nan,True,"[""MARK""]",18.766
+p071,S0011,T1112,1,CC0368,left,GC0054,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1115,1,CC0310,left,GC0052,PC0052,discard,ordinary_pair,left=1 right=37 score=0.700; ambiguous candidate ordering,1,37,False,"[""MARK""]",16.0
+p071,S0011,T1118,1,CC0351,left,GC0053,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1118,1,CC0375,left,GC0054,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1121,1,CC0317,left,GC0052,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1121,1,CC0343,left,GC0053,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1124,1,CC0314,left,GC0052,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1124,1,CC0340,left,GC0053,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1127,1,CC0313,left,GC0052,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1130,1,CC0245,right,GC0039,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1130,1,CC0248,left,GC0040,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1136,1,CC0346,left,GC0053,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1136,1,CC0369,left,GC0054,PC0054,discard,ordinary_pair,left=1 right=6 score=0.701,1,6,False,"[""MARK""]",30.4
+p071,S0011,T1139,2,CC0149,left,GC0019,PC0019,discard,ordinary_pair,left=2 right=2 score=0.684,2,2,False,"[""MARK""]",19.2
+p071,S0011,T1139,2,CC0189,right,GC0023,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1142,3,CC0007,left,GC0001,PC0001,discard,ordinary_pair,Covered by component_mapping from ComponentDiagramExtractor.,3,14,False,"[""MARK""]",19.2
+p071,S0011,T1142,3,CC0038,right,GC0003,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1145,4,CC0075,right,GC0007,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1145,4,CC0095,left,GC0010,PC0010,discard,ordinary_pair,Covered by component_mapping from ComponentDiagramExtractor.,4,11,False,"[""MARK""]",19.2
+p071,S0011,T1223,36,CC0320,left,GC0052,,,,(no pair row keeps this candidate),,,,,
+p071,S0011,T1230,37,CC0327,right,GC0052,PC0052,discard,ordinary_pair,left=1 right=37 score=0.700; ambiguous candidate ordering,1,37,False,"[""MARK""]",16.0
+p075,S0014,T2174,8,CC4149,left,GC0232,PC0232,review,ordinary_pair,missing right candidate,8,nan,True,"[""MARK""]",15.017
+p075,S0015,T2799,9,CC8207,left,GC0440,PC0440,review,ordinary_pair,missing right candidate,9,nan,True,"[""MARK""]",15.017

@@ -107,6 +107,24 @@ class TextItem:
     text_geometry_json: str = "{}"
     physical_ports_json: str = "[]"
     device_pin_label_json: str = "{}"
+    # Source DXF height before the engine's min-1.0 clamp (cad_extract._append_text).
+    # None means "not recorded" (legacy artifacts); such texts are treated as visible.
+    raw_height: float | None = None
+
+
+# DXF text whose own height is below this is drawn invisibly (e.g. SuperWORKS
+# hidden ordinal numerals written at 1e-05). Only the raw height decides this.
+INVISIBLE_TEXT_RAW_HEIGHT = 0.01
+
+
+def is_invisible_text(text: "TextItem") -> bool:
+    raw = getattr(text, "raw_height", None)
+    if raw is None:
+        return False
+    try:
+        return float(raw) < INVISIBLE_TEXT_RAW_HEIGHT
+    except (TypeError, ValueError):
+        return False
 
 
 @dataclass(slots=True)

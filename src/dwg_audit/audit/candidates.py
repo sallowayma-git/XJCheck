@@ -12,6 +12,7 @@ from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
 from dwg_audit.domain.models import TextItem
+from dwg_audit.domain.models import is_invisible_text
 from dwg_audit.utils.ids import IdFactory
 
 
@@ -274,6 +275,10 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "height_out_of_range"
                     score = 0.0
+                elif is_invisible_text(text):
+                    status = "rejected"
+                    reason = "invisible_text"
+                    score = 0.0
                 elif (
                     channel == _CHANNEL_SCHEMATIC_SEMANTIC_ENDPOINT
                     and channel_detail == "schematic_ac_phase_label"
@@ -528,7 +533,7 @@ def _add_schematic_ac_phase_line_span_candidates(
     for text in index.query(bbox):
         if text.text_id in existing_text_ids:
             continue
-        if not (min_height <= text.height <= max_height):
+        if not (min_height <= text.height <= max_height) or is_invisible_text(text):
             continue
         if not (min_x <= text.insert_x <= max_x and abs(text.insert_y - y) <= y_tolerance):
             continue
@@ -644,7 +649,7 @@ def _add_schematic_wire_logic_near_endpoint_candidates(
     for text in index.query(bbox):
         if text.text_id in existing_text_ids:
             continue
-        if not (min_height <= text.height <= max_height):
+        if not (min_height <= text.height <= max_height) or is_invisible_text(text):
             continue
         value = _candidate_wire_logic_endpoint_value(text, sheet, orientation)
         if value is None:
@@ -760,7 +765,7 @@ def _add_schematic_device_near_endpoint_candidates(
     for text in index.query(bbox):
         if text.text_id in existing_text_ids:
             continue
-        if not (min_height <= text.height <= max_height):
+        if not (min_height <= text.height <= max_height) or is_invisible_text(text):
             continue
         detail = _candidate_schematic_semantic_endpoint_detail(text, sheet, orientation)
         if detail != "schematic_device_endpoint":

@@ -29,6 +29,7 @@ from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.domain.models import is_invisible_text
 from dwg_audit.audit.table_structure import build_table_structure_profiles
 from dwg_audit.utils.ids import IdFactory
 
@@ -134,6 +135,9 @@ def extract_table_pairs(
     - table_mappings：结构化列映射记录，供 findings 展示和 RuleEngine 作为独立信源
     """
     config = config or {}
+    # Hidden DXF text (raw height < 0.01) is not readable on the drawing, so no table
+    # channel (cells, contact matrix, header/backplate/terminal rows) may use it.
+    texts = [text for text in texts if not is_invisible_text(text)]
     texts_by_sheet = _group_by_sheet(texts)
     lines_by_sheet = _group_by_sheet(lines)
     polylines_by_sheet = _group_by_sheet(polylines)
@@ -1072,6 +1076,14 @@ def _build_three_column_mappings(
     mappings: list[dict[str, Any]] = []
     row_count = len(rows) - 1
     for row_index in range(row_count):
+        # A value cell carries at most one numeral. A cell with several numerals is an array
+        # (for example a port-number strip), not a table value, and "the first numeral" picked
+        # from it would pair unrelated items. Notes or header prefixes beside one numeral are fine.
+        if any(
+            sum(1 for item in cell_values.get((row_index, col), []) if _looks_like_numeric_value(item.normalized_text)) > 1
+            for col in (0, 1, 2)
+        ):
+            continue
         left_text = _numeric_cell_text(cell_values.get((row_index, 0), []))
         middle_text = _numeric_cell_text(cell_values.get((row_index, 1), []))
         right_text = _numeric_cell_text(cell_values.get((row_index, 2), []))
