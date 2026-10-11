@@ -9,6 +9,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from dwg_audit.audit.superworks_cross_page import build_cross_page_links
 from dwg_audit.domain.models import SwSymbolInstance, SwPort, SwStripRow, SwPartInstance, SwConnectLabel, SwConnectDot
 
 
@@ -112,6 +113,13 @@ def write_superworks_artifacts(artifacts, findings_dir):
             "sw_production_pairs":sw_used,"main_two_end_eligible":port.record_id in two_endpoint_ports,
             "main_two_end_consumed":port.record_id in two_endpoint_ports and bool(sw_used),
             "wire_group_observations":observations,"reason_codes":sorted(set(reasons))})
+    # X2 continuity: a target port that is the far end of a connection the terminal-strip page already
+    # records. It is counted as a second, additive coverage figure; `consumed` (pairs only) is unchanged.
+    cross_page=_cross_page_continuity(artifacts,data)
+    for row in rows:
+        link_ids=cross_page["covered"].get(row["port_id"],[])
+        row["continuity_link_ids"]=link_ids
+        row["consumed_with_continuity"]=bool(row["consumed"] or (row["eligible"] and link_ids))
     eligible=[r for r in rows if r["eligible"]]
     by_page=[]
     for sid in sorted({r["sheet_id"] for r in rows}):
@@ -180,12 +188,14 @@ def write_superworks_artifacts(artifacts, findings_dir):
                     "strip_destinations":sorted(values),"target_categories":sorted(str(v) for v in target_categories if v)})
     coverage_columns=["port_id","sheet_id","file_id","category","page_type","endpoint_identity","eligible","consumed","pass",
         "production_pairs","sw_production_pair_consumed","sw_production_pairs","main_two_end_eligible","main_two_end_consumed",
-        "wire_group_observations","reason_codes"]
+        "wire_group_observations","reason_codes","continuity_link_ids","consumed_with_continuity"]
     pd.DataFrame(rows,columns=coverage_columns).assign(
         production_pairs=lambda f:f.production_pairs.map(lambda v:json.dumps(v,ensure_ascii=False)),
         sw_production_pairs=lambda f:f.sw_production_pairs.map(lambda v:json.dumps(v,ensure_ascii=False)),
         wire_group_observations=lambda f:f.wire_group_observations.map(lambda v:json.dumps(v,ensure_ascii=False)),
-        reason_codes=lambda f:f.reason_codes.map(lambda v:json.dumps(v,ensure_ascii=False))).to_parquet(findings_dir/"sw_port_coverage.parquet",index=False)
+        reason_codes=lambda f:f.reason_codes.map(lambda v:json.dumps(v,ensure_ascii=False)),
+        continuity_link_ids=lambda f:f.continuity_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False))).to_parquet(findings_dir/"sw_port_coverage.parquet",index=False)
+    _write_cross_page_tables(findings_dir,cross_page)
     main_eligible=[r for r in rows if r["main_two_end_eligible"]]
     summary={"schema_version":2,"project_id":artifacts.scan.manifest.project_id,
         "counts":{attr:len(getattr(data,attr)) for _,attr,_ in specs},
@@ -197,6 +207,10 @@ def write_superworks_artifacts(artifacts, findings_dir):
                          "main_two_end":{"eligible":len(main_eligible),"consumed_by_superworks":sum(r["main_two_end_consumed"] for r in main_eligible),
                              "ratio":sum(r["main_two_end_consumed"] for r in main_eligible)/len(main_eligible) if main_eligible else None,
                              "by_page_type":_coverage_by_page(main_eligible,pages)}},
+        "port_coverage_with_continuity":_continuity_coverage(eligible),
+        "cross_page":{"stats":cross_page["stats"],"link_count":len(cross_page["links"]),
+            "candidate_counts":dict(Counter(c["candidate"] for c in cross_page["candidates"])),
+            "note":"continuity links count as coverage in port_coverage_with_continuity only; they create no pairs"},
         "strip_agreement":{"counts":dict(Counter(r["status"] for r in comparisons)),"by_side_branch":_agreement_by_slot(comparisons),"comparisons":comparisons},
         "dictionary":data.dictionary,"timing":{"extraction_seconds":data.extraction_seconds,"recognition_seconds":data.recognition_seconds},
         "pin_resolution_counts":data.pin_resolution_counts,
@@ -229,3 +243,37 @@ def _agreement_by_slot(comparisons):
         key=(item.get("strip_side") or "unknown",item.get("strip_branch") or "unknown")
         grouped[key][item["status"]]+=1
     return {f"{side}:{branch}":dict(counts) for (side,branch),counts in sorted(grouped.items())}
+
+
+def _cross_page_continuity(artifacts,data):
+    """Continuity links of the terminal-strip cross-page references (see audit/superworks_cross_page.py)."""
+    pages=getattr(getattr(artifacts,"scan",None),"pages",[]) or []
+    strips=[{"record_id":r.record_id,"sheet_id":r.sheet_id,"file_id":r.file_id,"endpoint_identity":r.endpoint_identity,
+        "connections":r.connections,"cross_page_refs":r.cross_page_refs} for r in getattr(data,"strip_rows",[]) or []]
+    ports=[{"record_id":p.record_id,"file_id":p.file_id,"sheet_id":p.sheet_id,"insert_handle":p.insert_handle,
+        "port_number":p.port_number,"endpoint_identity":p.endpoint_identity,"category":p.category,
+        "has_wire_contact":bool(p.wire_contacts)} for p in getattr(data,"ports",[]) or []]
+    pairs=[]
+    for pair in artifacts.pairs:
+        sw=(getattr(pair,"evidence",None) or {}).get("superworks") or {}
+        pairs.append({"pair_id":pair.pair_id,"status":getattr(pair,"status",None),"sheet_id":getattr(pair,"sheet_id",None),
+            "left_value":getattr(pair,"left_value",None),"right_value":getattr(pair,"right_value",None),
+            "left_text_id":getattr(pair,"left_text_id",None),"right_text_id":getattr(pair,"right_text_id",None),
+            "left_port_ids":list((sw.get("left") or {}).get("port_ids") or []),"right_port_ids":list((sw.get("right") or {}).get("port_ids") or [])})
+    page_rows=[{"file_id":p.file_id,"sheet_no":p.sheet_no} for p in pages]
+    return build_cross_page_links(strips,ports,pairs,page_rows)
+
+
+def _write_cross_page_tables(findings_dir,cross_page):
+    for name,records in (("sw_cross_page_links",cross_page["links"]),("sw_cross_page_candidates",cross_page["candidates"])):
+        rows=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict)) else value) for key,value in record.items()} for record in records]
+        frame=pd.DataFrame(rows) if rows else pd.DataFrame(columns=["link_id"])
+        frame.to_parquet(findings_dir/f"{name}.parquet",index=False)
+
+
+def _continuity_coverage(eligible):
+    """Coverage of eligible terminal ports with pairs and continuity links (the additive figure)."""
+    consumed=sum(r["consumed_with_continuity"] for r in eligible)
+    return {"eligible":len(eligible),"consumed":consumed,"pairs_only_consumed":sum(r["consumed"] for r in eligible),
+        "added_by_continuity":consumed-sum(r["consumed"] for r in eligible),
+        "ratio":consumed/len(eligible) if eligible else None}
