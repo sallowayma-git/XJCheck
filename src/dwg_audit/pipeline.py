@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from dwg_audit.audit.line_groups import wire_break_evidence_by_sheet
 from dwg_audit.audit.page_extractors import extract_component_pairs
 from dwg_audit.audit.page_extractors import extract_layout_audit_pairs
 from dwg_audit.audit.page_extractors import extract_terminal_pairs
@@ -166,6 +167,11 @@ def analyze_input_root(
         terminal_candidates = []
         pair_candidates = []
         pairs = []
+        # SuperWORKS ports and connect dots tell a real wire break at two terminals from a merged wire.
+        wire_break_evidence = (
+            wire_break_evidence_by_sheet(getattr(superworks, "ports", None), getattr(superworks, "connect_dots", None))
+            if superworks is not None else None
+        )
         supplemental_table_mappings = []
         route_extractors = (
             ("WireDiagramExtractor", extract_wire_pairs),
@@ -185,7 +191,7 @@ def analyze_input_root(
                 for sheet_id in sheet_ids
                 if sheet_id in classifications
             }
-            extractor_kwargs = {"classifications": route_classifications}
+            extractor_kwargs = {"classifications": route_classifications, "wire_break_evidence": wire_break_evidence}
             if route_target in {"WireDiagramExtractor", "ComponentDiagramExtractor"}:
                 extractor_kwargs["blocks"] = [
                     block for block in blocks if block.sheet_id in sheet_ids

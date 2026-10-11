@@ -207,6 +207,7 @@ def write_superworks_artifacts(artifacts, findings_dir):
         device_internal_link_ids=lambda f:f.device_internal_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False))).to_parquet(findings_dir/"sw_port_coverage.parquet",index=False)
     _write_cross_page_tables(findings_dir,cross_page)
     _write_device_internal_links(findings_dir,device_internal)
+    _write_unregistered_symb2(findings_dir,data)
     main_eligible=[r for r in rows if r["main_two_end_eligible"]]
     summary={"schema_version":2,"project_id":artifacts.scan.manifest.project_id,
         "counts":{attr:len(getattr(data,attr)) for _,attr,_ in specs},
@@ -222,6 +223,10 @@ def write_superworks_artifacts(artifacts, findings_dir):
         "port_coverage_with_internal":_internal_coverage(eligible),
         "coverage_views":_coverage_views(eligible),
         "device_internal":{"stats":device_internal["stats"],"link_count":len(device_internal["links"]),
+            "link_count_by_source":dict(Counter(l["source"] for l in device_internal["links"])),
+            "unregistered_symb2":{"blocks":len(data.unregistered_symb2),
+                "label_resolved":sum(bool(b["label_resolved"]) for b in data.unregistered_symb2),
+                "termpoints":sum(len(b["termpoints"]) for b in data.unregistered_symb2)},
             "pcl_corroborated":sum(bool(l["pcl_corroborated"]) for l in device_internal["links"]),
             "note":"device-internal links count as coverage in port_coverage_with_internal only; they create no pairs"},
         "cross_page":{"stats":cross_page["stats"],"link_count":len(cross_page["links"]),
@@ -303,7 +308,22 @@ def _device_internal_links(artifacts,data):
         for l in getattr(artifacts,"lines",[]) or []]
     groups=[{"file_id":g.file_id,"member_line_ids":list(g.member_line_ids or [])}
         for g in getattr(artifacts,"line_groups",[]) or []]
-    return build_device_internal_links(ports,routes,wire_group_of=wire_keys_from_lines(lines,groups))
+    # G1P: unregistered SYMB2 blocks (TERMPOINT ends) and the end points of every model-space wire.
+    return build_device_internal_links(ports,routes,wire_group_of=wire_keys_from_lines(lines,groups),
+        unregistered=list(getattr(data,"unregistered_symb2",[]) or []),
+        wire_endpoints=dict(getattr(data,"wire_endpoints",{}) or {}))
+
+
+def _write_unregistered_symb2(findings_dir,data):
+    """G1P: unregistered SYMB2 blocks (label, no LD_SYMB2_SPECIAL) and their TERMPOINT ends, for audit only."""
+    rows=[{"record_id":b["record_id"],"sheet_id":b["sheet_id"],"file_id":b["file_id"],"insert_handle":b["insert_handle"],
+           "instance_path":b["instance_path"],"block_name":b["block_name"],"label_handle":b["label_handle"],
+           "label_value":b["label_value"],"label_resolved":b["label_resolved"],"label_reciprocal":b["label_reciprocal"],
+           "termpoints":json.dumps([{"number":t["number"],"a":list(t["a"]),"b":list(t["b"])} for t in b["termpoints"]],ensure_ascii=False)}
+          for b in data.unregistered_symb2]
+    columns=["record_id","sheet_id","file_id","insert_handle","instance_path","block_name","label_handle","label_value",
+             "label_resolved","label_reciprocal","termpoints"]
+    pd.DataFrame(rows,columns=columns).to_parquet(findings_dir/"sw_unregistered_symb2.parquet",index=False)
 
 
 def _write_device_internal_links(findings_dir,device_internal):
@@ -311,6 +331,11 @@ def _write_device_internal_links(findings_dir,device_internal):
         for link in device_internal["links"]]
     frame=pd.DataFrame(rows) if rows else pd.DataFrame(columns=["link_id"])
     frame.to_parquet(findings_dir/"sw_device_internal_links.parquet",index=False)
+    # G1P: one row per single-end device wire decided against the unregistered SYMB2 blocks (audit only).
+    decisions=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict,tuple)) else value)
+                for key,value in item.items()} for item in device_internal["unregistered_decisions"]]
+    decision_frame=pd.DataFrame(decisions) if decisions else pd.DataFrame(columns=["port_id"])
+    decision_frame.to_parquet(findings_dir/"sw_unregistered_pin_decisions.parquet",index=False)
 
 
 def _internal_coverage(eligible):

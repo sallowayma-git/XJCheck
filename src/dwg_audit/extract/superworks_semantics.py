@@ -121,11 +121,17 @@ class SuperworksData:
     wire_route_failures: dict[str, str] = field(default_factory=dict)
     wire_route_rows: list[dict[str, Any]] = field(default_factory=list)
     wire_route_stats: dict[str, Any] = field(default_factory=dict)
+    # G1P: INSERTs with LD_SYMB2_LABEL and without LD_SYMB2_SPECIAL (unregistered SYMB2 blocks). They
+    # never enter ports or symbols; only device-internal links read their TERMPOINT ends.
+    unregistered_symb2: list[dict[str, Any]] = field(default_factory=list)
+    # Model-space wire end points of the sheet: (file_id, wire handle) -> {wire_side: (x, y)}.
+    wire_endpoints: dict[tuple[str, str], dict[int, tuple[float, float]]] = field(default_factory=dict)
 
     def extend(self, other):
         for name in ("symbols", "ports", "strip_rows", "part_instances", "connect_labels", "connect_dots",
-                     "coverage_observations", "conflict_observations"):
+                     "coverage_observations", "conflict_observations", "unregistered_symb2"):
             getattr(self, name).extend(getattr(other, name))
+        self.wire_endpoints.update(other.wire_endpoints)
         self.extraction_seconds += other.extraction_seconds
 
 
@@ -315,10 +321,40 @@ def _page_text_index(doc):
     return index
 
 
+def _unregistered_symb2(doc, insert, world, label, file_id, sheet_id, instance) -> dict[str, Any]:
+    """An unregistered SYMB2 block (LD_SYMB2_LABEL, no LD_SYMB2_SPECIAL): its label and its own TERMPOINT ends.
+
+    Ends are WCS points of the block's LWPOLYLINE first and last vertices, transformed by the instance
+    matrix (the same frame as _definition_ports). The label is the one walk() already resolved.
+    """
+    termpoints = []
+    if insert.dxf.name in doc.blocks:
+        for entity in doc.blocks[insert.dxf.name]:
+            if entity.dxftype() == "LWPOLYLINE" and entity.xdata and "LD_SYMB1LIB_TERMPOINT" in entity.xdata.data:
+                points = [world.transform(point) for point in entity.vertices_in_wcs()]
+                if len(points) >= 2:
+                    termpoints.append({"number": first(entity, "LD_SYMB1LIB_TERMPOINT"),
+                                       "a": (float(points[0].x), float(points[0].y)),
+                                       "b": (float(points[-1].x), float(points[-1].y))})
+    label_entity = doc.entitydb.get(first(insert, "LD_SYMB2_LABEL", 1005))
+    resolved = bool(label.get("resolved"))
+    return {
+        "record_id": f"USY:{file_id}:{sheet_id}:{instance}", "sheet_id": sheet_id, "file_id": file_id,
+        "insert_handle": insert.dxf.handle, "instance_path": instance, "block_name": insert.dxf.name,
+        "label_handle": label.get("handle") or None, "label_resolved": resolved,
+        "label_value": label.get("normalized", "") if resolved else "",
+        "label_reciprocal": insert.dxf.handle in xvalues(label_entity, "LD_SYMB2_LABEL", 1005),
+        "termpoints": termpoints,
+    }
+
+
 def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> SuperworksData:
     start = time.perf_counter()
     data = SuperworksData()
     grid = _wire_index(doc)
+    for cell in grid.values():
+        for handle, side, point in cell:
+            data.wire_endpoints.setdefault((file_id, handle), {})[side] = (float(point.x), float(point.y))
     page_index = {}
 
     def nearer_same_identity_text(label, position, distance) -> bool:
@@ -372,6 +408,8 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
                     reasons.append("stale_label_reference")
             validation = {"handle_resolved": bool(label.get("resolved")), "reciprocal_ok": reciprocal,
                           "label_distance": distance, "stale_suspect": "stale_label_reference" in reasons}
+            if not category and first(insert, "LD_SYMB2_LABEL", 1005):
+                data.unregistered_symb2.append(_unregistered_symb2(doc, insert, world, label, file_id, sheet_id, instance))
             symbol_id = f"SW:{file_id}:{sheet_id}:{instance}"
             pin_texts = {}
             for app in raw(insert):
