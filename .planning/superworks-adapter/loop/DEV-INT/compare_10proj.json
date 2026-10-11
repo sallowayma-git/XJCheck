@@ -1,0 +1,677 @@
+{
+  "projects": [
+    "p001",
+    "p003",
+    "p022",
+    "p044",
+    "p050",
+    "p051",
+    "p061",
+    "p071",
+    "p075",
+    "p076"
+  ],
+  "totals": {
+    "pairs_base": 20134,
+    "pairs_new": 20134,
+    "pairs_added": 0,
+    "pairs_removed": 0,
+    "issues_base": 10,
+    "issues_new": 10,
+    "issues_added": 0,
+    "issues_removed": 0,
+    "eligible": 8645,
+    "device_internal_links": 1251,
+    "device_internal_pcl": 1085,
+    "base_strict": 6038,
+    "new_strict": 6038,
+    "base_with_continuity": 6733,
+    "new_with_continuity": 6733,
+    "base_with_internal": 6038,
+    "new_with_internal": 7250,
+    "base_total": 6733,
+    "new_total": 7463
+  },
+  "ratios": {
+    "strict": {
+      "base": 0.6984384037015616,
+      "new": 0.6984384037015616
+    },
+    "with_continuity": {
+      "base": 0.7788316946211683,
+      "new": 0.7788316946211683
+    },
+    "with_internal": {
+      "base": 0.6984384037015616,
+      "new": 0.838635049161365
+    },
+    "total": {
+      "base": 0.7788316946211683,
+      "new": 0.8632735685367264
+    }
+  },
+  "rows": [
+    {
+      "project_id": "p001",
+      "pairs_base": 1324,
+      "pairs_new": 1324,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 0,
+      "issues_new": 0,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 663,
+      "base_views": {
+        "eligible": 663,
+        "strict": 447,
+        "with_continuity": 488,
+        "total": 488,
+        "with_internal": 447
+      },
+      "new_views": {
+        "eligible": 663,
+        "strict": 447,
+        "with_continuity": 488,
+        "total": 567,
+        "with_internal": 544
+      },
+      "device_internal_links": 108,
+      "device_internal_pcl": 86,
+      "device_internal_stats": {
+        "device_terminals": 490,
+        "eligible": 341,
+        "excluded:other_end_category:端子": 71,
+        "linked": 108,
+        "pcl_corroborated": 86,
+        "excluded:no_wire_contact": 145,
+        "excluded:wire_multi_end": 96,
+        "excluded:wire_no_other_port": 72,
+        "excluded:other_end_category:接地": 1,
+        "excluded:label_unresolved": 4,
+        "excluded:other_end_category:装置端子": 12,
+        "excluded:element_label_unresolved": 3,
+        "linked_ports": 108
+      },
+      "summary_views": {
+        "eligible": 663,
+        "strict": {
+          "consumed": 447,
+          "ratio": 0.6742081447963801
+        },
+        "with_continuity": {
+          "consumed": 488,
+          "ratio": 0.7360482654600302
+        },
+        "with_internal": {
+          "consumed": 544,
+          "ratio": 0.8205128205128205
+        },
+        "total": {
+          "consumed": 567,
+          "ratio": 0.8552036199095022
+        }
+      }
+    },
+    {
+      "project_id": "p003",
+      "pairs_base": 655,
+      "pairs_new": 655,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 0,
+      "issues_new": 0,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 378,
+      "base_views": {
+        "eligible": 378,
+        "strict": 260,
+        "with_continuity": 285,
+        "total": 285,
+        "with_internal": 260
+      },
+      "new_views": {
+        "eligible": 378,
+        "strict": 260,
+        "with_continuity": 285,
+        "total": 320,
+        "with_internal": 303
+      },
+      "device_internal_links": 46,
+      "device_internal_pcl": 38,
+      "device_internal_stats": {
+        "device_terminals": 324,
+        "eligible": 192,
+        "excluded:wire_multi_end": 69,
+        "excluded:no_wire_contact": 132,
+        "excluded:other_end_category:接地": 1,
+        "excluded:other_end_category:端子": 37,
+        "linked": 46,
+        "pcl_corroborated": 38,
+        "excluded:wire_no_other_port": 31,
+        "excluded:other_end_category:装置端子": 14,
+        "linked_ports": 46
+      },
+      "summary_views": {
+        "eligible": 378,
+        "strict": {
+          "consumed": 260,
+          "ratio": 0.6878306878306878
+        },
+        "with_continuity": {
+          "consumed": 285,
+          "ratio": 0.753968253968254
+        },
+        "with_internal": {
+          "consumed": 303,
+          "ratio": 0.8015873015873016
+        },
+        "total": {
+          "consumed": 320,
+          "ratio": 0.8465608465608465
+        }
+      }
+    },
+    {
+      "project_id": "p022",
+      "pairs_base": 1699,
+      "pairs_new": 1699,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 1,
+      "issues_new": 1,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 747,
+      "base_views": {
+        "eligible": 747,
+        "strict": 456,
+        "with_continuity": 527,
+        "total": 527,
+        "with_internal": 456
+      },
+      "new_views": {
+        "eligible": 747,
+        "strict": 456,
+        "with_continuity": 527,
+        "total": 631,
+        "with_internal": 592
+      },
+      "device_internal_links": 159,
+      "device_internal_pcl": 111,
+      "device_internal_stats": {
+        "device_terminals": 692,
+        "eligible": 405,
+        "excluded:other_end_category:端子": 76,
+        "linked": 159,
+        "pcl_corroborated": 111,
+        "excluded:no_wire_contact": 283,
+        "excluded:wire_multi_end": 134,
+        "excluded:wire_no_other_port": 48,
+        "excluded:other_end_category:接地": 1,
+        "excluded:label_unresolved": 4,
+        "excluded:other_end_category:装置端子": 2,
+        "excluded:element_label_unresolved": 2,
+        "linked_ports": 159
+      },
+      "summary_views": {
+        "eligible": 747,
+        "strict": {
+          "consumed": 456,
+          "ratio": 0.6104417670682731
+        },
+        "with_continuity": {
+          "consumed": 527,
+          "ratio": 0.7054886211512718
+        },
+        "with_internal": {
+          "consumed": 592,
+          "ratio": 0.7925033467202142
+        },
+        "total": {
+          "consumed": 631,
+          "ratio": 0.8447121820615796
+        }
+      }
+    },
+    {
+      "project_id": "p044",
+      "pairs_base": 3033,
+      "pairs_new": 3033,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 1,
+      "issues_new": 1,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 1315,
+      "base_views": {
+        "eligible": 1315,
+        "strict": 860,
+        "with_continuity": 860,
+        "total": 860,
+        "with_internal": 860
+      },
+      "new_views": {
+        "eligible": 1315,
+        "strict": 860,
+        "with_continuity": 860,
+        "total": 993,
+        "with_internal": 993
+      },
+      "device_internal_links": 133,
+      "device_internal_pcl": 127,
+      "device_internal_stats": {
+        "device_terminals": 825,
+        "eligible": 655,
+        "excluded:other_end_category:端子": 178,
+        "excluded:wire_no_other_port": 134,
+        "excluded:other_end_category:装置端子": 12,
+        "excluded:no_wire_contact": 164,
+        "linked": 133,
+        "pcl_corroborated": 127,
+        "excluded:wire_multi_end": 129,
+        "excluded:label_unresolved": 6,
+        "excluded:other_end_category:接地": 3,
+        "excluded:identity_missing": 78,
+        "linked_ports": 133
+      },
+      "summary_views": {
+        "eligible": 1315,
+        "strict": {
+          "consumed": 860,
+          "ratio": 0.6539923954372624
+        },
+        "with_continuity": {
+          "consumed": 860,
+          "ratio": 0.6539923954372624
+        },
+        "with_internal": {
+          "consumed": 993,
+          "ratio": 0.7551330798479088
+        },
+        "total": {
+          "consumed": 993,
+          "ratio": 0.7551330798479088
+        }
+      }
+    },
+    {
+      "project_id": "p050",
+      "pairs_base": 2556,
+      "pairs_new": 2556,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 1,
+      "issues_new": 1,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 1134,
+      "base_views": {
+        "eligible": 1134,
+        "strict": 678,
+        "with_continuity": 780,
+        "total": 780,
+        "with_internal": 678
+      },
+      "new_views": {
+        "eligible": 1134,
+        "strict": 678,
+        "with_continuity": 780,
+        "total": 871,
+        "with_internal": 864
+      },
+      "device_internal_links": 186,
+      "device_internal_pcl": 163,
+      "device_internal_stats": {
+        "device_terminals": 704,
+        "eligible": 625,
+        "excluded:other_end_category:端子": 227,
+        "excluded:wire_no_other_port": 98,
+        "excluded:no_wire_contact": 75,
+        "excluded:other_end_category:装置端子": 22,
+        "excluded:other_end_category:接地": 1,
+        "excluded:label_unresolved": 4,
+        "linked": 186,
+        "pcl_corroborated": 163,
+        "excluded:identity_missing": 90,
+        "excluded:element_label_unresolved": 1,
+        "linked_ports": 186
+      },
+      "summary_views": {
+        "eligible": 1134,
+        "strict": {
+          "consumed": 678,
+          "ratio": 0.5978835978835979
+        },
+        "with_continuity": {
+          "consumed": 780,
+          "ratio": 0.6878306878306878
+        },
+        "with_internal": {
+          "consumed": 864,
+          "ratio": 0.7619047619047619
+        },
+        "total": {
+          "consumed": 871,
+          "ratio": 0.7680776014109347
+        }
+      }
+    },
+    {
+      "project_id": "p051",
+      "pairs_base": 797,
+      "pairs_new": 797,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 0,
+      "issues_new": 0,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 229,
+      "base_views": {
+        "eligible": 229,
+        "strict": 198,
+        "with_continuity": 198,
+        "total": 198,
+        "with_internal": 198
+      },
+      "new_views": {
+        "eligible": 229,
+        "strict": 198,
+        "with_continuity": 198,
+        "total": 202,
+        "with_internal": 202
+      },
+      "device_internal_links": 4,
+      "device_internal_pcl": 4,
+      "device_internal_stats": {
+        "device_terminals": 234,
+        "eligible": 98,
+        "excluded:wire_multi_end": 34,
+        "excluded:no_wire_contact": 134,
+        "excluded:other_end_category:接地": 8,
+        "excluded:wire_no_other_port": 24,
+        "excluded:other_end_category:端子": 20,
+        "excluded:label_unresolved": 2,
+        "linked": 4,
+        "pcl_corroborated": 4,
+        "excluded:other_end_category:装置端子": 4,
+        "excluded:identity_missing": 4,
+        "linked_ports": 4
+      },
+      "summary_views": {
+        "eligible": 229,
+        "strict": {
+          "consumed": 198,
+          "ratio": 0.8646288209606987
+        },
+        "with_continuity": {
+          "consumed": 198,
+          "ratio": 0.8646288209606987
+        },
+        "with_internal": {
+          "consumed": 202,
+          "ratio": 0.8820960698689956
+        },
+        "total": {
+          "consumed": 202,
+          "ratio": 0.8820960698689956
+        }
+      }
+    },
+    {
+      "project_id": "p061",
+      "pairs_base": 4305,
+      "pairs_new": 4305,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 0,
+      "issues_new": 0,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 1931,
+      "base_views": {
+        "eligible": 1931,
+        "strict": 1338,
+        "with_continuity": 1602,
+        "total": 1602,
+        "with_internal": 1338
+      },
+      "new_views": {
+        "eligible": 1931,
+        "strict": 1338,
+        "with_continuity": 1602,
+        "total": 1778,
+        "with_internal": 1702
+      },
+      "device_internal_links": 365,
+      "device_internal_pcl": 314,
+      "device_internal_stats": {
+        "device_terminals": 1643,
+        "eligible": 1010,
+        "excluded:wire_no_other_port": 58,
+        "linked": 365,
+        "pcl_corroborated": 314,
+        "excluded:no_wire_contact": 631,
+        "excluded:wire_multi_end": 478,
+        "excluded:other_end_category:端子": 108,
+        "excluded:other_end_category:接地": 7,
+        "excluded:label_unresolved": 2,
+        "excluded:other_end_category:装置端子": 30,
+        "linked_ports": 365
+      },
+      "summary_views": {
+        "eligible": 1931,
+        "strict": {
+          "consumed": 1338,
+          "ratio": 0.6929052304505438
+        },
+        "with_continuity": {
+          "consumed": 1602,
+          "ratio": 0.8296219575349559
+        },
+        "with_internal": {
+          "consumed": 1702,
+          "ratio": 0.8814085965820818
+        },
+        "total": {
+          "consumed": 1778,
+          "ratio": 0.9207664422578975
+        }
+      }
+    },
+    {
+      "project_id": "p071",
+      "pairs_base": 537,
+      "pairs_new": 537,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 3,
+      "issues_new": 3,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 200,
+      "base_views": {
+        "eligible": 200,
+        "strict": 150,
+        "with_continuity": 155,
+        "total": 155,
+        "with_internal": 150
+      },
+      "new_views": {
+        "eligible": 200,
+        "strict": 150,
+        "with_continuity": 155,
+        "total": 159,
+        "with_internal": 154
+      },
+      "device_internal_links": 4,
+      "device_internal_pcl": 4,
+      "device_internal_stats": {
+        "device_terminals": 134,
+        "eligible": 76,
+        "excluded:wire_multi_end": 51,
+        "excluded:no_wire_contact": 56,
+        "excluded:other_end_category:端子": 7,
+        "excluded:other_end_category:装置端子": 2,
+        "excluded:label_unresolved": 2,
+        "excluded:other_end_category:接地": 4,
+        "excluded:identity_missing": 8,
+        "linked": 4,
+        "pcl_corroborated": 4,
+        "linked_ports": 4
+      },
+      "summary_views": {
+        "eligible": 200,
+        "strict": {
+          "consumed": 150,
+          "ratio": 0.75
+        },
+        "with_continuity": {
+          "consumed": 155,
+          "ratio": 0.775
+        },
+        "with_internal": {
+          "consumed": 154,
+          "ratio": 0.77
+        },
+        "total": {
+          "consumed": 159,
+          "ratio": 0.795
+        }
+      }
+    },
+    {
+      "project_id": "p075",
+      "pairs_base": 2346,
+      "pairs_new": 2346,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 4,
+      "issues_new": 4,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 798,
+      "base_views": {
+        "eligible": 798,
+        "strict": 770,
+        "with_continuity": 775,
+        "total": 775,
+        "with_internal": 770
+      },
+      "new_views": {
+        "eligible": 798,
+        "strict": 770,
+        "with_continuity": 775,
+        "total": 781,
+        "with_internal": 776
+      },
+      "device_internal_links": 6,
+      "device_internal_pcl": 0,
+      "device_internal_stats": {
+        "device_terminals": 914,
+        "eligible": 324,
+        "excluded:wire_no_other_port": 8,
+        "excluded:other_end_category:接地": 4,
+        "excluded:label_unresolved": 2,
+        "excluded:wire_multi_end": 18,
+        "linked": 6,
+        "pcl_corroborated": 0,
+        "excluded:no_wire_contact": 588,
+        "excluded:other_end_category:端子": 288,
+        "linked_ports": 6
+      },
+      "summary_views": {
+        "eligible": 798,
+        "strict": {
+          "consumed": 770,
+          "ratio": 0.9649122807017544
+        },
+        "with_continuity": {
+          "consumed": 775,
+          "ratio": 0.9711779448621554
+        },
+        "with_internal": {
+          "consumed": 776,
+          "ratio": 0.9724310776942355
+        },
+        "total": {
+          "consumed": 781,
+          "ratio": 0.9786967418546366
+        }
+      }
+    },
+    {
+      "project_id": "p076",
+      "pairs_base": 2882,
+      "pairs_new": 2882,
+      "pairs_added": 0,
+      "pairs_removed": 0,
+      "issues_base": 0,
+      "issues_new": 0,
+      "issues_added": 0,
+      "issues_removed": 0,
+      "eligible": 1250,
+      "base_views": {
+        "eligible": 1250,
+        "strict": 881,
+        "with_continuity": 1063,
+        "total": 1063,
+        "with_internal": 881
+      },
+      "new_views": {
+        "eligible": 1250,
+        "strict": 881,
+        "with_continuity": 1063,
+        "total": 1161,
+        "with_internal": 1120
+      },
+      "device_internal_links": 240,
+      "device_internal_pcl": 238,
+      "device_internal_stats": {
+        "device_terminals": 1010,
+        "eligible": 660,
+        "excluded:wire_no_other_port": 36,
+        "linked": 240,
+        "pcl_corroborated": 238,
+        "excluded:no_wire_contact": 346,
+        "excluded:wire_multi_end": 338,
+        "excluded:other_end_category:端子": 46,
+        "excluded:other_end_category:接地": 2,
+        "excluded:label_unresolved": 4,
+        "excluded:other_end_category:装置端子": 20,
+        "linked_ports": 240
+      },
+      "summary_views": {
+        "eligible": 1250,
+        "strict": {
+          "consumed": 881,
+          "ratio": 0.7048
+        },
+        "with_continuity": {
+          "consumed": 1063,
+          "ratio": 0.8504
+        },
+        "with_internal": {
+          "consumed": 1120,
+          "ratio": 0.896
+        },
+        "total": {
+          "consumed": 1161,
+          "ratio": 0.9288
+        }
+      }
+    }
+  ],
+  "pairs_and_issues_identical": true,
+  "full_column_check": {
+    "pairs_rows_compared": 20134,
+    "issues_compared": 10,
+    "projects_with_column_mismatch": {
+      "pairs": [],
+      "issues": []
+    }
+  }
+}

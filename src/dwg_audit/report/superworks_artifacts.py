@@ -10,6 +10,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from dwg_audit.audit.superworks_cross_page import build_cross_page_links, short_bridge_pairs
+from dwg_audit.audit.superworks_device_internal import build_device_internal_links, wire_keys_from_lines
 from dwg_audit.domain.models import SwSymbolInstance, SwPort, SwStripRow, SwPartInstance, SwConnectLabel, SwConnectDot
 
 
@@ -120,6 +121,13 @@ def write_superworks_artifacts(artifacts, findings_dir):
         link_ids=cross_page["covered"].get(row["port_id"],[])
         row["continuity_link_ids"]=link_ids
         row["consumed_with_continuity"]=bool(row["consumed"] or (row["eligible"] and link_ids))
+    # DEV-INT: a device terminal wired to an internal pin of its own device (same label) is recorded as a
+    # device-internal link. It is a third, additive coverage figure; `consumed` and continuity are unchanged.
+    device_internal=_device_internal_links(artifacts,data)
+    for row in rows:
+        link_ids=device_internal["covered"].get(row["port_id"],[])
+        row["device_internal_link_ids"]=link_ids
+        row["consumed_with_internal"]=bool(row["consumed_with_continuity"] or (row["eligible"] and link_ids))
     eligible=[r for r in rows if r["eligible"]]
     by_page=[]
     for sid in sorted({r["sheet_id"] for r in rows}):
@@ -188,14 +196,17 @@ def write_superworks_artifacts(artifacts, findings_dir):
                     "strip_destinations":sorted(values),"target_categories":sorted(str(v) for v in target_categories if v)})
     coverage_columns=["port_id","sheet_id","file_id","category","page_type","endpoint_identity","eligible","consumed","pass",
         "production_pairs","sw_production_pair_consumed","sw_production_pairs","main_two_end_eligible","main_two_end_consumed",
-        "wire_group_observations","reason_codes","continuity_link_ids","consumed_with_continuity"]
+        "wire_group_observations","reason_codes","continuity_link_ids","consumed_with_continuity",
+        "device_internal_link_ids","consumed_with_internal"]
     pd.DataFrame(rows,columns=coverage_columns).assign(
         production_pairs=lambda f:f.production_pairs.map(lambda v:json.dumps(v,ensure_ascii=False)),
         sw_production_pairs=lambda f:f.sw_production_pairs.map(lambda v:json.dumps(v,ensure_ascii=False)),
         wire_group_observations=lambda f:f.wire_group_observations.map(lambda v:json.dumps(v,ensure_ascii=False)),
         reason_codes=lambda f:f.reason_codes.map(lambda v:json.dumps(v,ensure_ascii=False)),
-        continuity_link_ids=lambda f:f.continuity_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False))).to_parquet(findings_dir/"sw_port_coverage.parquet",index=False)
+        continuity_link_ids=lambda f:f.continuity_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False)),
+        device_internal_link_ids=lambda f:f.device_internal_link_ids.map(lambda v:json.dumps(v,ensure_ascii=False))).to_parquet(findings_dir/"sw_port_coverage.parquet",index=False)
     _write_cross_page_tables(findings_dir,cross_page)
+    _write_device_internal_links(findings_dir,device_internal)
     main_eligible=[r for r in rows if r["main_two_end_eligible"]]
     summary={"schema_version":2,"project_id":artifacts.scan.manifest.project_id,
         "counts":{attr:len(getattr(data,attr)) for _,attr,_ in specs},
@@ -208,6 +219,11 @@ def write_superworks_artifacts(artifacts, findings_dir):
                              "ratio":sum(r["main_two_end_consumed"] for r in main_eligible)/len(main_eligible) if main_eligible else None,
                              "by_page_type":_coverage_by_page(main_eligible,pages)}},
         "port_coverage_with_continuity":_continuity_coverage(eligible),
+        "port_coverage_with_internal":_internal_coverage(eligible),
+        "coverage_views":_coverage_views(eligible),
+        "device_internal":{"stats":device_internal["stats"],"link_count":len(device_internal["links"]),
+            "pcl_corroborated":sum(bool(l["pcl_corroborated"]) for l in device_internal["links"]),
+            "note":"device-internal links count as coverage in port_coverage_with_internal only; they create no pairs"},
         "cross_page":{"stats":cross_page["stats"],"link_count":len(cross_page["links"]),
             "candidate_counts":dict(Counter(c["candidate"] for c in cross_page["candidates"])),
             "note":"continuity links count as coverage in port_coverage_with_continuity only; they create no pairs"},
@@ -275,6 +291,46 @@ def _write_cross_page_tables(findings_dir,cross_page):
         rows=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict)) else value) for key,value in record.items()} for record in records]
         frame=pd.DataFrame(rows) if rows else pd.DataFrame(columns=["link_id"])
         frame.to_parquet(findings_dir/f"{name}.parquet",index=False)
+
+
+def _device_internal_links(artifacts,data):
+    """Device-internal links of the device terminals (see audit/superworks_device_internal.py)."""
+    ports=[{"record_id":p.record_id,"file_id":p.file_id,"sheet_id":p.sheet_id,"insert_handle":p.insert_handle,
+        "port_number":p.port_number,"category":p.category,"endpoint_identity":p.endpoint_identity,
+        "label":p.label,"wire_contacts":p.wire_contacts} for p in getattr(data,"ports",[]) or []]
+    routes=[dict(r) for r in getattr(data,"wire_route_rows",[]) or []]
+    lines=[{"file_id":l.file_id,"line_id":l.line_id,"handle":l.handle,"source_block_name":l.source_block_name}
+        for l in getattr(artifacts,"lines",[]) or []]
+    groups=[{"file_id":g.file_id,"member_line_ids":list(g.member_line_ids or [])}
+        for g in getattr(artifacts,"line_groups",[]) or []]
+    return build_device_internal_links(ports,routes,wire_group_of=wire_keys_from_lines(lines,groups))
+
+
+def _write_device_internal_links(findings_dir,device_internal):
+    rows=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict)) else value) for key,value in link.items()}
+        for link in device_internal["links"]]
+    frame=pd.DataFrame(rows) if rows else pd.DataFrame(columns=["link_id"])
+    frame.to_parquet(findings_dir/"sw_device_internal_links.parquet",index=False)
+
+
+def _internal_coverage(eligible):
+    """Coverage with pairs, continuity links and device-internal links (the total figure)."""
+    consumed=sum(r["consumed_with_internal"] for r in eligible)
+    return {"eligible":len(eligible),"consumed":consumed,"pairs_only_consumed":sum(r["consumed"] for r in eligible),
+        "added_by_continuity_and_internal":consumed-sum(r["consumed"] for r in eligible),
+        "ratio":consumed/len(eligible) if eligible else None}
+
+
+def _coverage_views(eligible):
+    """The four coverage views: strict (pairs), with continuity, with internal, and total (all three)."""
+    total=len(eligible)
+    def view(count):
+        return {"consumed":count,"ratio":count/total if total else None}
+    strict=sum(r["consumed"] for r in eligible)
+    with_continuity=sum(r["consumed_with_continuity"] for r in eligible)
+    with_internal=sum(bool(r["consumed"] or (r["eligible"] and r["device_internal_link_ids"])) for r in eligible)
+    return {"eligible":total,"strict":view(strict),"with_continuity":view(with_continuity),
+        "with_internal":view(with_internal),"total":view(sum(r["consumed_with_internal"] for r in eligible))}
 
 
 def _continuity_coverage(eligible):
