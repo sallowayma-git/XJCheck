@@ -11,6 +11,10 @@ from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.extract.text_overlap import OVERLAP_RESOLUTION_LATEST_HANDLE
+from dwg_audit.extract.text_overlap import OVERLAP_UNRESOLVED
+from dwg_audit.extract.text_overlap import TextOverlapResolution
+from dwg_audit.extract.text_overlap import resolve_overlapping_texts
 from dwg_audit.utils.ids import IdFactory
 
 
@@ -132,8 +136,20 @@ def extract_strip_two_port_component_pairs(
             for port, endpoint_result, side_label in endpoint_specs:
                 endpoint, endpoint_values = endpoint_result or (None, [None])
                 conflicts = _strip_endpoint_conflicts(sheet_texts, selected=endpoint)
+                overlap: TextOverlapResolution | None = None
                 if conflicts:
-                    endpoint, endpoint_values = None, [None]
+                    overlap = resolve_overlapping_texts(conflicts)
+                    winner_values = (
+                        _strip_external_endpoint_values(overlap.winner.normalized_text)
+                        if overlap.winner is not None else []
+                    )
+                    if winner_values:
+                        # Readable order: the latest text is the endpoint; the earlier stacked
+                        # text is dropped and kept as evidence only (no issue).
+                        endpoint, endpoint_values = overlap.winner, winner_values
+                        conflicts = []
+                    else:
+                        endpoint, endpoint_values = None, [None]
                 # Unlabelled: no external endpoint and no conflicting label in the search
                 # window at all (not even a non-endpoint external text).
                 unlabelled_port = (
@@ -158,6 +174,7 @@ def extract_strip_two_port_component_pairs(
                             conflicting_endpoints=conflicts,
                             label_only=label_only,
                             unlabelled_port=unlabelled_port,
+                            overlap=overlap,
                         )
                     )
             if len(built_pairs) < 2:
@@ -192,8 +209,8 @@ def extract_strip_two_port_endpoint_bridge_pairs(
         sheet_texts = texts_by_sheet.get(page.sheet_id, [])
         sheet_groups = groups_by_sheet.get(page.sheet_id, [])
         for port_top, port_bottom in _strip_port_pairs(sheet_texts):
-            top_endpoint = _nearest_strip_endpoint_bridge_endpoint(port_top, sheet_texts, side="top")
-            bottom_endpoint = _nearest_strip_endpoint_bridge_endpoint(port_bottom, sheet_texts, side="bottom")
+            top_endpoint, top_overlap = _bridge_endpoint_after_overlap(port_top, sheet_texts, side="top")
+            bottom_endpoint, bottom_overlap = _bridge_endpoint_after_overlap(port_bottom, sheet_texts, side="bottom")
             if top_endpoint is None or bottom_endpoint is None:
                 continue
             top_value = _clean_external_endpoint(top_endpoint.normalized_text)
@@ -215,6 +232,7 @@ def extract_strip_two_port_endpoint_bridge_pairs(
                     bottom_value=bottom_value,
                     support_group=support_group,
                     pair_ids=pair_ids,
+                    overlaps=[overlap for overlap in (top_overlap, bottom_overlap) if overlap is not None],
                 )
             )
     return pairs, consumed_group_ids
@@ -1577,6 +1595,57 @@ def _nearest_strip_endpoint_bridge_endpoint(
     )[0]
 
 
+def _coincident_external_texts(anchor: TextItem, texts: list[TextItem]) -> list[TextItem]:
+    """External texts at the anchor's position, with the tolerance used by _strip_endpoint_conflicts."""
+    found = []
+    for text in texts:
+        if text.source_block_name or text.layer.upper() == "MARK" or not text.normalized_text:
+            continue
+        tolerance = min(anchor.height, text.height) * 0.25
+        if abs(text.insert_x - anchor.insert_x) <= tolerance and abs(text.insert_y - anchor.insert_y) <= tolerance:
+            found.append(text)
+    return found
+
+
+def _bridge_endpoint_after_overlap(
+    port: TextItem,
+    texts: list[TextItem],
+    *,
+    side: str,
+) -> tuple[TextItem | None, TextOverlapResolution | None]:
+    """Nearest bridge endpoint, after contradictory texts stacked on its position are resolved.
+
+    A readable stacking order picks the latest text, provided that text is itself a bridge endpoint
+    of this side. Without a readable order no bridge pair is built: the stacked texts are never
+    chosen by text id, and the bridge context is not reported as an issue.
+    """
+    best = _nearest_strip_endpoint_bridge_endpoint(port, texts, side=side)
+    if best is None:
+        return None, None
+    stack = _coincident_external_texts(best, texts)
+    if len({_clean_external_endpoint(text.normalized_text) for text in stack}) < 2:
+        return best, None
+    resolution = resolve_overlapping_texts(stack)
+    if resolution.winner is None:
+        return None, resolution
+    pattern = _STRIP_ENDPOINT_BRIDGE_TOP_PATTERN if side == "top" else _STRIP_ENDPOINT_BRIDGE_BOTTOM_PATTERN
+    if pattern.fullmatch(_clean_external_endpoint(resolution.winner.normalized_text)) is None:
+        return None, resolution
+    return resolution.winner, resolution
+
+
+def _overlap_evidence(overlaps) -> dict:
+    """Evidence keys for resolved stacked texts used by a pair (empty when none)."""
+    resolved = [overlap for overlap in overlaps if overlap is not None and overlap.resolved]
+    if not resolved:
+        return {}
+    return {
+        "overlap_resolution": OVERLAP_RESOLUTION_LATEST_HANDLE,
+        "overlap_winner_text_ids": [overlap.winner.text_id for overlap in resolved],
+        "overlapping_text_superseded": [item for overlap in resolved for item in overlap.superseded_evidence()],
+    }
+
+
 def _is_valid_strip_endpoint_bridge(top_value: str, bottom_value: str) -> bool:
     top_match = _STRIP_ENDPOINT_BRIDGE_TOP_PATTERN.fullmatch(top_value)
     bottom_match = _STRIP_ENDPOINT_BRIDGE_BOTTOM_PATTERN.fullmatch(bottom_value)
@@ -1840,6 +1909,7 @@ def _build_strip_endpoint_bridge_pair(
     bottom_value: str,
     support_group: LineGroup,
     pair_ids: IdFactory,
+    overlaps: list[TextOverlapResolution] | tuple[TextOverlapResolution, ...] = (),
 ) -> Pair:
     evidence = {
         "source": "semantic_mapping",
@@ -1871,6 +1941,7 @@ def _build_strip_endpoint_bridge_pair(
         "external_endpoint": bottom_value,
         "line_group_id": support_group.line_group_id,
         "supporting_line_ids": support_group.member_line_ids,
+        **_overlap_evidence(overlaps),
         "line_orientation": "strip_two_port_endpoint_bridge_vertical",
         "left_side_label": "top_endpoint",
         "right_side_label": "bottom_endpoint",
@@ -1924,6 +1995,7 @@ def _build_strip_two_port_pair(
     conflicting_endpoints: list[TextItem] | None = None,
     label_only: bool = False,
     unlabelled_port: bool = False,
+    overlap: TextOverlapResolution | None = None,
 ) -> Pair:
     evidence = {
         "source": "component_mapping",
@@ -1970,6 +2042,14 @@ def _build_strip_two_port_pair(
             "ambiguity_gap": None,
         },
     }
+    if overlap is not None and overlap.resolved:
+        evidence["overlap_resolution"] = overlap.reason
+        evidence["overlap_winner_text_id"] = overlap.winner.text_id if overlap.winner else None
+        evidence["overlapping_text_superseded"] = overlap.superseded_evidence()
+    elif overlap is not None:
+        evidence["overlap_resolution"] = OVERLAP_UNRESOLVED
+        evidence["overlap_unresolved_reason"] = overlap.reason
+        evidence["overlapping_text_values"] = list(overlap.values)
     return Pair(
         pair_id=pair_ids.next(),
         line_group_id=support_group.line_group_id,

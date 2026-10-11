@@ -7,6 +7,7 @@ import re
 from dwg_audit.audit.candidates import GROUND_NETWORK_NAME_PATTERN
 from dwg_audit.audit.candidates import _is_ascending_schematic_terminal_range
 from dwg_audit.audit.graph_builder import PairGraphSummary
+from dwg_audit.extract.text_overlap import overlap_detected_text
 from dwg_audit.audit.graph_builder import build_pair_graph
 from dwg_audit.audit.rule_base import AuditRule
 from dwg_audit.audit.rule_base import IssueFactory
@@ -492,6 +493,13 @@ def _run_pair_missing_side(context: RuleContext) -> list[Issue]:
             message = "Physical component port retained without a unique external label."
             explanation = "元件身份与端口已保留，但外部标注缺失或同位置存在冲突文字；这不代表检测到电气断线。"
             extra: dict = {"missing_side_classification": pair.evidence.get("unresolved_reason")}
+            overlap_values = pair.evidence.get("overlapping_text_values")
+            if overlap_values:
+                # Stacked contradictory texts with no readable order: name them for review.
+                overlap_text = overlap_detected_text(overlap_values)
+                message += f" {overlap_text}"
+                explanation = f"{overlap_text}（同一位置的文字内容互相矛盾，且无法读出先后）。" + explanation
+                extra["overlapping_text_values"] = list(overlap_values)
             if pair.evidence.get("missing_side_reason") == "unlabelled_port":
                 # Only set when the port's search window holds no external text at all;
                 # overlapping conflicting labels keep the generic explanation.
