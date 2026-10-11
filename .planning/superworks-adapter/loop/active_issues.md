@@ -32,7 +32,7 @@
 
 ## 当前指标
 
-第十八轮全量回放（`.tmp/loop_pin1_full`，代码快照 `.tmp/loop_pin1_src`）：issue 41，与第十七轮逐条相同；新增 4,802 条 review wire_component_mapping；严格口径 63.49%，含延续 72.03%。
+第十八轮全量回放（`.tmp/superworks_round18_full`，代码快照 `round18_full_src`）：issue 41，与第十七轮逐条相同；新增 4,802 条 review wire_component_mapping；严格口径 63.49%，含延续 72.03%。
 第十七轮全量回放（`.tmp/superworks_round17_full`，代码快照 `round17_full_src`）：共 41 条 issue，与第十六轮相同；严格口径覆盖率 57.7%，含跨页延续为 67.2%。
 第十六轮全量回放（`.tmp/superworks_round16_full`，代码快照 `round16_full_src`）：共 41 条 issue，与第十五轮逐条相同。
 第十五轮全量回放（`.tmp/superworks_round15_full`，代码快照 `round15_full_src`）：共 41 条 issue（SuperWORKS 冲突 17、低置信 14、缺端 4（p041–p044 无标注）、多对一 3、跨页 3）。
