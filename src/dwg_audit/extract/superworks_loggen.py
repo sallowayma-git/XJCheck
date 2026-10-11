@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dwg_audit.extract.superworks_semantics import first, normalize, text_ref, xvalues
+
 SCHEMA_VERSION = "sw-wire-route-v1"
 LOGGEN_DICTIONARY = "LD_SYMB2LOGGEN_DICTIONARY"
 PART_CONNECT_APPID = "LD_PARTCONNECTLINE"
@@ -34,6 +36,13 @@ _HANDLE = re.compile(r"[0-9A-F]+\Z")
 _CROSS_LABEL = re.compile(r"未定义([0-9A-Fa-f]+):([^_\s]+)(?:_(\d+))?(?:\s+(.*))?\Z")
 _PCL_START_KEY = "逻辑端号"
 _PCL_TERMINAL_CATEGORIES = {"端子", "装置端子"}
+# A LOGGEN end whose INSERT SuperWORKS never registered (no LD_SYMB2_SPECIAL, so walk() drops it) can still
+# name its pin from the INSERT's own label and TERM_TEXT slot. The identity is "label-slot", the same form
+# as an internal component identity. It is an admission candidate, never a SuperWORKS port identity.
+SYMB2_STATUS = "resolved_by_symb2_text"
+SYMB2_IDENTITY_SOURCE = "symb2_text_slot"
+_SYMB2_LABEL_APP = "LD_SYMB2_LABEL"
+_SYMB2_SLOT_APP = "LD_SYMB2_TERM_TEXT_"
 
 
 @dataclass(slots=True)
@@ -131,6 +140,61 @@ def _loggen_routes(doc: Any, file_id: str, sheet_id: str) -> list[dict[str, Any]
     return routes
 
 
+def _compare_key(value: Any) -> str:
+    return re.sub(r"\s+", "", normalize(str(value or ""))).casefold()
+
+
+def _symb2_slot_evidence(doc: Any, insert: Any, end: dict[str, Any]) -> dict[str, Any]:
+    """Pin identity of a LOGGEN end's INSERT from its own LD_SYMB2_LABEL and LD_SYMB2_TERM_TEXT_<pin>.
+
+    Intrinsic checks only: both texts resolve and reference the INSERT back, the label equals the record
+    device, and the slot text equals the record sequence number. Project-level checks (identity unique,
+    pin single record, terminal strip row) belong to the admission step in superworks_extractor.
+    """
+    rejects: list[str] = []
+    label_handle = first(insert, _SYMB2_LABEL_APP, 1005)
+    label = text_ref(doc, label_handle)
+    if not label_handle:
+        rejects.append("label_missing")
+    elif not label.get("resolved"):
+        rejects.append("label_unresolved")
+    elif insert.dxf.handle not in xvalues(doc.entitydb.get(label_handle), _SYMB2_LABEL_APP, 1005):
+        rejects.append("label_nonreciprocal")
+    pin = str(end.get("port_number") or "").strip()
+    slot_app = _SYMB2_SLOT_APP + pin
+    slot_handle = first(insert, slot_app, 1005) if pin else ""
+    slot = text_ref(doc, slot_handle)
+    if not pin:
+        rejects.append("pin_missing")
+    elif not slot_handle:
+        rejects.append("slot_missing")
+    elif not slot.get("resolved"):
+        rejects.append("slot_unresolved")
+    elif insert.dxf.handle not in xvalues(doc.entitydb.get(slot_handle), slot_app, 1005):
+        rejects.append("slot_nonreciprocal")
+    device = str(end.get("device") or "").strip()
+    seq = str(end.get("seq") or "").strip()
+    label_value = label.get("normalized", "") if label.get("resolved") else ""
+    slot_value = slot.get("normalized", "") if slot.get("resolved") else ""
+    if not device:
+        rejects.append("device_missing")
+    elif label_value and _compare_key(label_value) != _compare_key(device):
+        rejects.append("label_device_mismatch")
+    if not seq:
+        rejects.append("seq_missing")
+    elif slot_value and _compare_key(slot_value) != _compare_key(seq):
+        rejects.append("slot_seq_mismatch")
+    if label.get("resolved") and not label_value:
+        rejects.append("label_blank")
+    if slot.get("resolved") and not slot_value:
+        rejects.append("slot_blank")
+    identity = f"{label_value}-{slot_value}" if not rejects else None
+    return {"identity": identity, "rejects": rejects,
+            "label_text": label.get("value", ""), "label_handle": label_handle or None,
+            "slot_text": slot.get("value", ""), "slot_handle": slot_handle or None,
+            "record_device": device, "record_seq": seq}
+
+
 def _pcl_entries(values: list[str]) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     current: dict[str, str] | None = None
@@ -208,6 +272,9 @@ def read_page_wire_routes(doc: Any, *, file_id: str, sheet_id: str) -> PageWireR
             if end.get("terminal_handle"):
                 entity = doc.entitydb.get(end["terminal_handle"])
                 end["terminal_handle_kind"] = entity.dxftype() if entity is not None else None
+                if (route["source_kind"] == "LOGGEN" and entity is not None and entity.dxftype() == "INSERT"
+                        and entity.xdata and _SYMB2_LABEL_APP in entity.xdata.data):
+                    end["symb2"] = _symb2_slot_evidence(doc, entity, end)
             else:
                 end.setdefault("terminal_handle_kind", None)
     return PageWireRoutes(file_id=file_id, sheet_id=sheet_id, routes=routes,
@@ -303,6 +370,17 @@ def _text_identity(device: str, pin: str, category: str) -> str | None:
     return device + "-" + pin
 
 
+def _with_symb2_identity(result: dict[str, Any], end: dict[str, Any]) -> dict[str, Any]:
+    """An INSERT that SuperWORKS never registered takes its label-slot identity when the intrinsic checks pass."""
+    evidence = end.get("symb2")
+    if result.get("status") != "insert_not_sw" or not evidence:
+        return result
+    if evidence.get("rejects") or not evidence.get("identity"):
+        return {**result, "detail": "symb2:" + ",".join(evidence.get("rejects") or ["identity_missing"])}
+    return {"status": SYMB2_STATUS, "identity": evidence["identity"], "identity_source": SYMB2_IDENTITY_SOURCE,
+            "port_ids": [], "category": "", "detail": ""}
+
+
 def resolve_wire_routes(pages: list[PageWireRoutes], index: EndpointIndex) -> list[dict[str, Any]]:
     """Attach endpoint identities to raw routes. Output rows are JSON-friendly."""
     rows = []
@@ -316,8 +394,8 @@ def resolve_wire_routes(pages: list[PageWireRoutes], index: EndpointIndex) -> li
                     result["file_id"] = page.file_id
                     ends_out.append({**end, **result, "end_index": len(ends_out)})
                     continue
-                result = index.same_page_end(page.file_id, end["terminal_handle"], end["port_number"],
-                                             end.get("terminal_handle_kind"))
+                result = _with_symb2_identity(index.same_page_end(page.file_id, end["terminal_handle"],
+                                                                 end["port_number"], end.get("terminal_handle_kind")), end)
                 result["file_id"] = page.file_id
                 ends_out.append({**end, **result, "end_index": len(ends_out)})
             far_text = route.get("far_text")
@@ -349,7 +427,7 @@ def resolve_wire_routes(pages: list[PageWireRoutes], index: EndpointIndex) -> li
                 lineno_match = next((e["end_index"] for e in ends_out
                                      if e.get("terminal_handle") == lineno["handle"]
                                      and str(e.get("port_number")) == str(lineno.get("port_number"))), None)
-            resolved = [e for e in ends_out if e.get("status") in ("resolved", "resolved_by_text")]
+            resolved = [e for e in ends_out if e.get("status") in ("resolved", "resolved_by_text", SYMB2_STATUS)]
             for end in ends_out:
                 if end.get("status") not in ("resolved", "resolved_by_text"):
                     reasons.append(f"end_{end['end_index']}_{end.get('status')}")

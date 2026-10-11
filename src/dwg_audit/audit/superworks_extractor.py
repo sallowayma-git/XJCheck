@@ -11,6 +11,7 @@ from collections import Counter, defaultdict, deque
 from dataclasses import asdict, replace
 
 from dwg_audit.domain.models import Pair, SwPort, LineGroup
+from dwg_audit.extract.superworks_loggen import SYMB2_IDENTITY_SOURCE, SYMB2_STATUS
 from dwg_audit.extract.superworks_semantics import (CONNECT_ANCHOR_COINCIDENT_TOL,
     SuperworksData, normalize)
 
@@ -735,6 +736,8 @@ _WIRE_ROUTE_TERMINALS = {"端子", "装置端子"}
 # resolved by its text alone (cross-page target not a single SW port) carries no SW identity to compare.
 _WIRE_ROUTE_RESOLVED = {"resolved"}
 _WIRE_ROUTE_TEXT_ONLY = {"resolved_by_text"}
+# Strip rows name the component connected to a terminal in cells styled with this text (PIN-1 row check).
+_STRIP_COMPONENT_STYLE = "端子排内接元件"
 
 
 def _is_blank_side(value):
@@ -782,45 +785,160 @@ def _same_segment(group, line):
     ) < 1e-5
 
 
-def _admission_reason(row, ends, audit_ids, ports_by_key, consumed):
-    """(reason, None) for the first rule a record fails; (None, (endpoints, end_ports)) when eligible."""
+def _symb2_physical_pin(end):
+    return (end["file_id"], str(end["terminal_handle"]), str(end["port_number"]))
+
+
+def _symb2_endpoint(end, text_ids):
+    """The endpoint of an unregistered INSERT end: identity from its own label and slot text, no SuperWORKS
+    port. Its category is empty, so the pair is a wire-component mapping (never a terminal pair)."""
+    evidence = end.get("symb2") or {}
+    slot_id = text_ids.get((end["file_id"], evidence.get("slot_handle")))
+    label_id = text_ids.get((end["file_id"], evidence.get("label_handle")))
+    return {"value": end["identity"], "candidate_values": [end["identity"]], "category": "",
+            "text_id": slot_id or label_id, "label_text_id": label_id, "pin_text_id": slot_id,
+            "label_handle": evidence.get("label_handle"), "pin_handle": evidence.get("slot_handle"),
+            "symbol_handle": end.get("terminal_handle"), "symbol_id": None,
+            "port_number": str(end.get("port_number") or ""), "port_ids": [], "ports": [],
+            "network_line_ids": [], "wire_touched": False, "reason_codes": [], "competing_ports": [],
+            "validation": {}, "identity_source": SYMB2_IDENTITY_SOURCE}
+
+
+def _strip_row_verdict(terminal_value, identity, strip_rows_by_endpoint):
+    """Whether the terminal strip row of the terminal names the candidate identity among its component
+    connections ('端子排内接元件'). A terminal without a strip row gives 'row_missing' (not a contradiction)."""
+    records = strip_rows_by_endpoint.get(_key(terminal_value), [])
+    if not records:
+        return "row_missing"
+    for _, row in records:
+        for connection in row.connections or []:
+            if connection.get("style") == _STRIP_COMPONENT_STYLE and _key(identity) in {
+                    _key(piece) for piece in _destination_keys(connection.get("value"))}:
+                return "agree"
+    return "disagree"
+
+
+def _symb2_reason(end, endpoint, terminal, symb2_ctx):
+    """Project-level admission of an unregistered INSERT end: the identity has one terminal partner over the
+    project, one wire record per pin, and no contradiction from the terminal's strip row. (reason or None)."""
+    identity_key = _key(endpoint["value"])
+    if len(symb2_ctx["partners_by_identity"].get(identity_key, ())) > 1:
+        return "symb2_identity_conflict"
+    if len(symb2_ctx["records_by_pin"].get(_symb2_physical_pin(end), ())) != 1:
+        return "symb2_pin_not_single"
+    if _strip_row_verdict(terminal["value"], endpoint["value"], symb2_ctx["strip_rows"]) == "disagree":
+        return "symb2_strip_row_disagrees"
+    return None
+
+
+def _symb2_rejection(end):
+    rejects = (end.get("symb2") or {}).get("rejects") or []
+    return "symb2_" + rejects[0] if rejects else "end_unresolved"
+
+
+def _admission_reason(row, ends, audit_ids, ports_by_key, consumed, symb2_ctx):
+    """(reason, None) for the first rule a record fails; (None, (endpoints, end_ports)) when eligible.
+
+    end_ports holds the SuperWORKS ports of the terminal end only; an unregistered INSERT end has none.
+    """
     if row["sheet_id"] not in audit_ids:
         return "sheet_not_audited", None
     if len(ends) != 2:
         return "not_two_ends", None
-    if any(end.get("status") not in _WIRE_ROUTE_RESOLVED for end in ends):
-        return "end_unresolved", None
+    if any(end.get("status") not in _WIRE_ROUTE_RESOLVED | {SYMB2_STATUS} for end in ends):
+        unresolved = next(end for end in ends if end.get("status") not in _WIRE_ROUTE_RESOLVED | {SYMB2_STATUS})
+        return (_symb2_rejection(unresolved) if unresolved.get("status") == "insert_not_sw" else "end_unresolved"), None
     if any(end.get("far_source") == "cross_page" for end in ends):
         return "cross_page_end", None
-    if any(not (end.get("category") or "") for end in ends):
-        return "internal_end", None
-    if any(end.get("category") not in _WIRE_ROUTE_TERMINALS for end in ends):
-        return "non_terminal_end", None
+    internal = [end for end in ends if end.get("status") == SYMB2_STATUS]
+    if len(internal) > 1:
+        return "two_internal_ends", None
     if any(end.get("file_id") != row["file_id"] for end in ends):
         return "cross_file", None
+    for end in ends:
+        if end.get("status") == SYMB2_STATUS:
+            continue
+        if not (end.get("category") or ""):
+            return "internal_end", None
+        if end.get("category") not in _WIRE_ROUTE_TERMINALS:
+            return "non_terminal_end", None
     endpoints = []
     end_ports = []
     for end in ends:
+        if end.get("status") == SYMB2_STATUS:
+            endpoints.append(_symb2_endpoint(end, symb2_ctx["text_ids"]))
+            continue
         ports = [port for port in ports_by_key.get((end["file_id"], str(end["terminal_handle"]), str(end["port_number"])), [])
                  if port.sheet_id == row["sheet_id"]]
+        endpoint = _endpoint(ports) if ports else None
+        if endpoint is None or not endpoint["value"]:
+            return "identity_not_single", None
+        if _key(endpoint["value"]) != _key(end["identity"]):
+            return "identity_mismatch", None
+        if endpoint["category"] not in _WIRE_ROUTE_TERMINALS:
+            return "non_terminal_end", None
         end_ports.append(ports)
-        endpoints.append(_endpoint(ports) if ports else None)
-    if any(endpoint is None or not endpoint["value"] for endpoint in endpoints):
-        return "identity_not_single", None
-    if any(_key(endpoint["value"]) != _key(end["identity"]) for endpoint, end in zip(endpoints, ends)):
-        return "identity_mismatch", None
-    if any(endpoint["category"] not in _WIRE_ROUTE_TERMINALS for endpoint in endpoints):
-        return "non_terminal_end", None
+        endpoints.append(endpoint)
     if any(set(endpoint["port_ids"]) & set(consumed) for endpoint in endpoints):
         return "end_consumed", None
     left, right = endpoints
     if _self_connection_reason(left, right):
         return "self_connection", None
+    if internal:
+        internal_index = next(i for i, end in enumerate(ends) if end.get("status") == SYMB2_STATUS)
+        terminal = endpoints[1 - internal_index]
+        reason = _symb2_reason(ends[internal_index], endpoints[internal_index], terminal, symb2_ctx)
+        if reason:
+            return reason, None
     return None, (endpoints, end_ports)
 
 
+def _symb2_context(rows, data, strip_rows_by_endpoint, texts):
+    """Project-wide facts for the unregistered-INSERT ends.
+
+    partners_by_identity: the terminal identities each identity is wired to, over every pin that names it
+    (candidate pins through their record's terminal end; SuperWORKS pins through the terminals on their
+    wires). A device pin drawn on two sheets is one identity with one partner and is fine; the same identity
+    wired to two different terminals is a conflict. Pins with no known partner add nothing.
+    records_by_pin: the wire records of each candidate pin (one per pin).
+    """
+    terminal_on_wire = defaultdict(set)
+    for port in data.ports:
+        if port.category in _WIRE_ROUTE_TERMINALS and port.endpoint_identity:
+            for contact in port.wire_contacts or []:
+                terminal_on_wire[(port.file_id, contact.get("wire_handle"))].add(_key(port.endpoint_identity))
+    partners_by_identity = defaultdict(set)
+    for port in data.ports:
+        if port.category in _WIRE_ROUTE_TERMINALS or not port.endpoint_identity:
+            continue
+        for contact in port.wire_contacts or []:
+            partners_by_identity[_key(port.endpoint_identity)] |= terminal_on_wire.get((port.file_id, contact.get("wire_handle")), set())
+    for part in data.part_instances:
+        for port in part.ports or []:
+            if not port.get("endpoint_identity"):
+                continue
+            for contact in port.get("wire_contacts") or []:
+                partners_by_identity[_key(port["endpoint_identity"])] |= terminal_on_wire.get(
+                    (part.file_id, contact.get("wire_handle")), set())
+    records_by_pin = defaultdict(set)
+    for row in rows:
+        ends = json.loads(row["ends_json"])
+        for index, end in enumerate(ends):
+            if end.get("status") != SYMB2_STATUS:
+                continue
+            other = ends[1 - index] if len(ends) == 2 else {}
+            if other.get("status") in _WIRE_ROUTE_RESOLVED and other.get("category") in _WIRE_ROUTE_TERMINALS and other.get("identity"):
+                partners_by_identity[_key(end["identity"])].add(_key(other["identity"]))
+            records_by_pin[_symb2_physical_pin(end)].add(row["record_id"])
+    text_ids = {}
+    for text in texts or []:
+        text_ids.setdefault((text.file_id, str(text.handle)), text.text_id)
+    return {"partners_by_identity": partners_by_identity, "records_by_pin": records_by_pin,
+            "strip_rows": strip_rows_by_endpoint, "text_ids": text_ids}
+
+
 def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, page_map,
-                       strip_rows_by_endpoint, xml_ranks):
+                       strip_rows_by_endpoint, xml_ranks, texts=None):
     """Add SuperWORKS wire pairs for eligible wire-route records. Only ever appends pairs.
 
     A record is eligible when both ends are resolved terminals of one audited sheet, neither end
@@ -839,15 +957,17 @@ def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, pag
     groups_by_id = {group.line_group_id: group for group in line_groups}
     active_groups = {(pair.sheet_id, pair.line_group_id) for pair in output if pair.status != "discard"}
     consumed = _consumed_ports(output)
+    symb2_ctx = _symb2_context(rows, data, strip_rows_by_endpoint, texts)
     for row in rows:
         ends = json.loads(row["ends_json"])
-        reason, found = _admission_reason(row, ends, audit_ids, ports_by_key, consumed)
+        reason, found = _admission_reason(row, ends, audit_ids, ports_by_key, consumed, symb2_ctx)
         if reason is not None:
             row["admission_reason"] = reason
             stats[f"not_admitted:{reason}"] += 1
             continue
         endpoints, end_ports = found
         left, right = endpoints
+        symb2_ends = [end for end in ends if end.get("status") == SYMB2_STATUS]
         wire = row.get("wire_handle")
         line = line_by_key.get((row["file_id"], wire)) if wire else None
         if line is not None and line.sheet_id != row["sheet_id"]:
@@ -860,6 +980,11 @@ def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, pag
             review.append("wire_geometry_missing")
         elif not confirmed:
             review.append("wire_not_touching_port")
+        if symb2_ends:
+            # A pin named only by its own INSERT text is never pass in this stage (LOGGEN-3 PIN-1 rule R1).
+            review.append("pin_identity_symb2_text_slot")
+            if wire is None:
+                review.append("no_wire_handle")
         group = None
         line_group_id = None
         coords = None
@@ -896,7 +1021,21 @@ def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, pag
             scope_id=line_group_id or row["record_id"], left=left, right=right, origin=origin,
             conflicts=conflicts, strip_relation=strip_relation, page_map=page_map, review_reasons=review)
         new.evidence["sw_wire_route"] = {"record_id": row["record_id"], "source_kind": row["source_kind"],
-            "wire_handle": wire, "wire_confirmed": confirmed, "review_reasons": review}
+            "wire_handle": wire, "wire_confirmed": confirmed, "review_reasons": review,
+            "identity_source": SYMB2_IDENTITY_SOURCE if symb2_ends else "sw_port",
+            "no_wire_handle": wire is None}
+        if symb2_ends:
+            new.evidence["symb2_text_slot"] = [{
+                "identity": end["identity"], "identity_source": SYMB2_IDENTITY_SOURCE,
+                "terminal_handle": end["terminal_handle"], "port_number": end["port_number"],
+                "label_text": (end.get("symb2") or {}).get("label_text"),
+                "slot_text": (end.get("symb2") or {}).get("slot_text"),
+                "record_device": (end.get("symb2") or {}).get("record_device"),
+                "record_seq": (end.get("symb2") or {}).get("record_seq"),
+                "terminal_strip_verdict": _strip_row_verdict(
+                    (endpoints[1 - i])["value"], end["identity"], strip_rows_by_endpoint),
+            } for i, end in enumerate(ends) if end.get("status") == SYMB2_STATUS]
+            stats["admitted:symb2_text_slot"] += 1
         output.append(new)
         if line_group_id:
             active_groups.add((row["sheet_id"], line_group_id))
@@ -1030,7 +1169,7 @@ def _wire_route_census(rows):
     for row in rows:
         ends = json.loads(row["ends_json"])
         census[f"records:{row['source_kind']}"] += 1
-        if any(end.get("status") in _WIRE_ROUTE_RESOLVED and not (end.get("category") or "") for end in ends):
+        if any(end.get("status") in _WIRE_ROUTE_RESOLVED | {SYMB2_STATUS} and not (end.get("category") or "") for end in ends):
             census["records_with_internal_end"] += 1
         local = next((end for end in ends if end.get("role") == "LOCAL"), None)
         for end in ends:
@@ -1055,13 +1194,14 @@ def _wire_route_census(rows):
 
 
 def _run_wire_route_admission(output, data, *, lines, line_groups, audit_ids, page_map,
-                              strip_rows_by_endpoint, xml_ranks, sheet_numbers):
+                              strip_rows_by_endpoint, xml_ranks, sheet_numbers, texts=None):
     """Resolve the wire-route records read by cad_extract, admit eligible ones, reconcile the rest."""
     from dwg_audit.extract.superworks_loggen import build_wire_route_rows
     rows, route_stats = build_wire_route_rows(list(data.wire_route_pages), data, sheet_numbers,
                                               dict(data.wire_route_failures))
     admission = _admit_wire_routes(output, data, rows, lines=lines, line_groups=line_groups, audit_ids=audit_ids,
-                                   page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint, xml_ranks=xml_ranks)
+                                   page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint, xml_ranks=xml_ranks,
+                                   texts=texts)
     consumed_stats = Counter()
     handle_by_line = {line.line_id: line.handle for line in lines}
     members_by_group = {(group.sheet_id, group.line_group_id): group.member_line_ids for group in line_groups}
@@ -1430,7 +1570,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     if getattr(data, "wire_route_pages", None) and wire_route_sheet_numbers is not None:
         _run_wire_route_admission(output, data, lines=lines, line_groups=line_groups, audit_ids=audit_ids,
                                   page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint,
-                                  xml_ranks=xml_ranks, sheet_numbers=wire_route_sheet_numbers)
+                                  xml_ranks=xml_ranks, sheet_numbers=wire_route_sheet_numbers, texts=texts)
     # The dictionary is observational; it cannot demote or validate a connection.
     dictionary={_key(v) for v in data.dictionary.get("names",[])}
     strip_names={_key(v) for v in data.dictionary.get("strip_names",[])}
