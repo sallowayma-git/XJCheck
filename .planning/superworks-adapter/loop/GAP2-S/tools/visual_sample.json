@@ -1,0 +1,709 @@
+{
+ "seed": 20261011,
+ "cases": [
+  {
+   "case": 1,
+   "project": "p001",
+   "sheet": "S0009",
+   "link_id": "XDI:396834e6dbec0c08",
+   "device_port": "SW:F0009:S0009:/17D8A:/17D8A:D962:1",
+   "device_identity": "1n526",
+   "element_port": "SW:F0009:S0009:/17D88:/17D88:D8E4:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/17D8A:/17D8A:D965:2",
+   "wire_handle": "17D8C",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 2,
+   "project": "p001",
+   "sheet": "S0009",
+   "link_id": "XDI:49ded63ebdaedec6",
+   "device_port": "SW:F0009:S0009:/17C20:/17C20:D962:1",
+   "device_identity": "1n511",
+   "element_port": "SW:F0009:S0009:/17C1A:/17C1A:D90B:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/17C20:/17C20:D965:2",
+   "wire_handle": "17C1F",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 3,
+   "project": "p001",
+   "sheet": "S0009",
+   "link_id": "XDI:230f674758b060d9",
+   "device_port": "SW:F0009:S0009:/17D6F:/17D6F:D962:1",
+   "device_identity": "1n621",
+   "element_port": "SW:F0009:S0009:/17D7A:/17D7A:D90B:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/17D6F:/17D6F:D965:2",
+   "wire_handle": "17D71",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 4,
+   "project": "p001",
+   "sheet": "S0004",
+   "link_id": "XDI:a49c95a7049a67fa",
+   "device_port": "SW:F0004:S0004:/E32A:/E32A:9A52:1",
+   "device_identity": "1n1507",
+   "element_port": "SW:F0004:S0004:/E32C:/E32C:9A66:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0004:S0004:/E32A:/E32A:9A55:2",
+   "wire_handle": "E32D",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0004"
+  },
+  {
+   "case": 5,
+   "project": "p003",
+   "sheet": "S0009",
+   "link_id": "XDI:77a4ee8d9cce428a",
+   "device_port": "SW:F0009:S0009:/6290:/6290:4E7:1",
+   "device_identity": "8n607",
+   "element_port": "SW:F0009:S0009:/628E:/628E:59E1:2",
+   "element_label": "8n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/6290:/6290:4EA:2",
+   "wire_handle": "6292",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 6,
+   "project": "p003",
+   "sheet": "S0004",
+   "link_id": "XDI:6b5483fc1d18d540",
+   "device_port": "SW:F0004:S0004:/1C864:/1C864:16DD9:1",
+   "device_identity": "8n1502",
+   "element_port": "SW:F0004:S0004:/1C86A:/1C86A:1C780:2",
+   "element_label": "8n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0004:S0004:/1C864:/1C864:16DDC:2",
+   "wire_handle": "1C86B",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0004"
+  },
+  {
+   "case": 7,
+   "project": "p003",
+   "sheet": "S0009",
+   "link_id": "XDI:82dd790dc3a8e529",
+   "device_port": "SW:F0009:S0009:/627B:/627B:4E7:1",
+   "device_identity": "8n621",
+   "element_port": "SW:F0009:S0009:/6286:/6286:543:2",
+   "element_label": "8n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/627B:/627B:4EA:2",
+   "wire_handle": "627D",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 8,
+   "project": "p022",
+   "sheet": "S0012",
+   "link_id": "XDI:c8590a2794b3b3a4",
+   "device_port": "SW:F0012:S0012:/1363F:/1363F:C302:1",
+   "device_identity": "1n310",
+   "element_port": "SW:F0012:S0012:/13641:/13641:C322:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0012:S0012:/1363F:/1363F:C305:2",
+   "wire_handle": "13642",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0012"
+  },
+  {
+   "case": 9,
+   "project": "p022",
+   "sheet": "S0006",
+   "link_id": "XDI:ad2bc2d9b88c3f14",
+   "device_port": "SW:F0006:S0006:/11FEA:/11FEA:84DD:1",
+   "device_identity": "1n1112",
+   "element_port": "SW:F0006:S0006:/11FF0:/11FF0:84F1:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0006:S0006:/11FEA:/11FEA:84E0:2",
+   "wire_handle": "11FF1",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0006"
+  },
+  {
+   "case": 10,
+   "project": "p022",
+   "sheet": "S0013",
+   "link_id": "XDI:eb8bd7b3b1035f64",
+   "device_port": "SW:F0013:S0013:/F2EF:/F2EF:D76F:1",
+   "device_identity": "1-7n720",
+   "element_port": "SW:F0013:S0013:/F30D:/F30D:F234:2",
+   "element_label": "1-7n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0013:S0013:/F2EF:/F2EF:D772:2",
+   "wire_handle": "F716",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0013"
+  },
+  {
+   "case": 11,
+   "project": "p022",
+   "sheet": "S0006",
+   "link_id": "XDI:c1d4d5cae7950ae9",
+   "device_port": "SW:F0006:S0006:/1085B:/1085B:84DD:1",
+   "device_identity": "1n914",
+   "element_port": "SW:F0006:S0006:/1085D:/1085D:84F1:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0006:S0006:/1085B:/1085B:84E0:2",
+   "wire_handle": "1085E",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0006"
+  },
+  {
+   "case": 12,
+   "project": "p022",
+   "sheet": "S0012",
+   "link_id": "XDI:153fe52ab63b3b95",
+   "device_port": "SW:F0012:S0012:/134DE:/134DE:C302:1",
+   "device_identity": "1n108",
+   "element_port": "SW:F0012:S0012:/134E0:/134E0:C322:2",
+   "element_label": "1n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0012:S0012:/134DE:/134DE:C305:2",
+   "wire_handle": "134E1",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0012"
+  },
+  {
+   "case": 13,
+   "project": "p044",
+   "sheet": "S0007",
+   "link_id": "XDI:ce3c4e7a54a1fcef",
+   "device_port": "SW:F0007:S0007:/4902B:/4902B:48D8F:1",
+   "device_identity": "1-21n710",
+   "element_port": "SW:F0007:S0007:/49038:/49038:48DA3:2",
+   "element_label": "1-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0007:S0007:/4902B:/4902B:48D92:2",
+   "wire_handle": "4903F",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0007"
+  },
+  {
+   "case": 14,
+   "project": "p044",
+   "sheet": "S0009",
+   "link_id": "XDI:3d23afa36e001fe1",
+   "device_port": "SW:F0009:S0009:/25D80:/25D80:25CCA:1",
+   "device_identity": "1-21n109",
+   "element_port": "SW:F0009:S0009:/25D82:/25D82:25CEB:2",
+   "element_label": "1-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/25D80:/25D80:25CCD:2",
+   "wire_handle": "25D83",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 15,
+   "project": "p044",
+   "sheet": "S0016",
+   "link_id": "XDI:1c5abf3b2c5f3d08",
+   "device_port": "SW:F0016:S0016:/23708:/23708:1FADD:1",
+   "device_identity": "1-21n421",
+   "element_port": "SW:F0016:S0016:/2370F:/2370F:1FAF0:2",
+   "element_label": "1-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0016:S0016:/23708:/23708:1FAE0:2",
+   "wire_handle": "2370A",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0016"
+  },
+  {
+   "case": 16,
+   "project": "p044",
+   "sheet": "S0016",
+   "link_id": "XDI:fd70a70ed273d182",
+   "device_port": "SW:F0016:S0016:/2368C:/2368C:1FADD:1",
+   "device_identity": "1-21n518",
+   "element_port": "SW:F0016:S0016:/2368F:/2368F:1FAF0:2",
+   "element_label": "1-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0016:S0016:/2368C:/2368C:1FAE0:2",
+   "wire_handle": "2368E",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0016"
+  },
+  {
+   "case": 17,
+   "project": "p051",
+   "sheet": "S0005",
+   "link_id": "XDI:6e97c44e090b0af2",
+   "device_port": "SW:F0005:S0005:/F5FE:/F5FE:D9EF:1",
+   "device_identity": "1-25nPWR1-2",
+   "element_port": "SW:F0005:S0005:/F600:/F600:DA1E:2",
+   "element_label": "1-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0005:S0005:/F5FE:/F5FE:D9F2:2",
+   "wire_handle": "F61B",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0005"
+  },
+  {
+   "case": 18,
+   "project": "p061",
+   "sheet": "S0013",
+   "link_id": "XDI:82972a86d9dc83c6",
+   "device_port": "SW:F0013:S0013:/A997:/A997:5D22:1",
+   "device_identity": "2-21n402",
+   "element_port": "SW:F0013:S0013:/A993:/A993:5D35:2",
+   "element_label": "2-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0013:S0013:/A997:/A997:5D25:2",
+   "wire_handle": "A9BD",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0013"
+  },
+  {
+   "case": 19,
+   "project": "p061",
+   "sheet": "S0011",
+   "link_id": "XDI:9cd250536269e881",
+   "device_port": "SW:F0011:S0011:/F6CE:/F6CE:6767:1",
+   "device_identity": "1-21n423",
+   "element_port": "SW:F0011:S0011:/F6CD:/F6CD:677A:2",
+   "element_label": "1-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0011:S0011:/F6CE:/F6CE:676A:2",
+   "wire_handle": "F6C8",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0011"
+  },
+  {
+   "case": 20,
+   "project": "p061",
+   "sheet": "S0015",
+   "link_id": "XDI:d488c4cf5973beaf",
+   "device_port": "SW:F0015:S0015:/AE9D:/AE9D:5D22:1",
+   "device_identity": "3-21n406",
+   "element_port": "SW:F0015:S0015:/AEA4:/AEA4:5D35:2",
+   "element_label": "3-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0015:S0015:/AE9D:/AE9D:5D25:2",
+   "wire_handle": "AE9F",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0015"
+  },
+  {
+   "case": 21,
+   "project": "p061",
+   "sheet": "S0005",
+   "link_id": "XDI:a191c76af07d9b11",
+   "device_port": "SW:F0005:S0005:/21FF:/21FF:34F:1",
+   "device_identity": "3-21n708",
+   "element_port": "SW:F0005:S0005:/21FC:/21FC:363:2",
+   "element_label": "3-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0005:S0005:/21FF:/21FF:352:2",
+   "wire_handle": "2203",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0005"
+  },
+  {
+   "case": 22,
+   "project": "p061",
+   "sheet": "S0018",
+   "link_id": "XDI:cfdcf0a9d20a86df",
+   "device_port": "SW:F0018:S0018:/6A72:/6A72:3481:1",
+   "device_identity": "4-21n411",
+   "element_port": "SW:F0018:S0018:/6A71:/6A71:3494:2",
+   "element_label": "4-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0018:S0018:/6A72:/6A72:3484:2",
+   "wire_handle": "6A6C",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0018"
+  },
+  {
+   "case": 23,
+   "project": "p061",
+   "sheet": "S0004",
+   "link_id": "XDI:35908755faaf9752",
+   "device_port": "SW:F0004:S0004:/A850:/A850:64C7:1",
+   "device_identity": "1-21n706",
+   "element_port": "SW:F0004:S0004:/A837:/A837:64DB:2",
+   "element_label": "1-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0004:S0004:/A850:/A850:64CA:2",
+   "wire_handle": "A85C",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0004"
+  },
+  {
+   "case": 24,
+   "project": "p061",
+   "sheet": "S0005",
+   "link_id": "XDI:f136cce0108c43f7",
+   "device_port": "SW:F0005:S0005:/21B9:/21B9:34F:1",
+   "device_identity": "3-21n702",
+   "element_port": "SW:F0005:S0005:/21A2:/21A2:363:2",
+   "element_label": "3-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0005:S0005:/21B9:/21B9:352:2",
+   "wire_handle": "21C5",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0005"
+  },
+  {
+   "case": 25,
+   "project": "p061",
+   "sheet": "S0015",
+   "link_id": "XDI:a44bbf10cfbedbf4",
+   "device_port": "SW:F0015:S0015:/AE85:/AE85:5D22:1",
+   "device_identity": "3-21n426",
+   "element_port": "SW:F0015:S0015:/AE84:/AE84:5D35:2",
+   "element_label": "3-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0015:S0015:/AE85:/AE85:5D25:2",
+   "wire_handle": "AE7F",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0015"
+  },
+  {
+   "case": 26,
+   "project": "p061",
+   "sheet": "S0013",
+   "link_id": "XDI:2b64fef8dc6be2d5",
+   "device_port": "SW:F0013:S0013:/AEA6:/AEA6:5D22:1",
+   "device_identity": "2-21n405",
+   "element_port": "SW:F0013:S0013:/AEA5:/AEA5:5D35:2",
+   "element_label": "2-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0013:S0013:/AEA6:/AEA6:5D25:2",
+   "wire_handle": "AEA0",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0013"
+  },
+  {
+   "case": 27,
+   "project": "p061",
+   "sheet": "S0011",
+   "link_id": "XDI:85115f0773d7a3b8",
+   "device_port": "SW:F0011:S0011:/F543:/F543:6767:1",
+   "device_identity": "1-21n403",
+   "element_port": "SW:F0011:S0011:/F541:/F541:677A:2",
+   "element_label": "1-21n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0011:S0011:/F543:/F543:676A:2",
+   "wire_handle": "F570",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0011"
+  },
+  {
+   "case": 28,
+   "project": "p071",
+   "sheet": "S0006",
+   "link_id": "XDI:8ff2c0c60806644a",
+   "device_port": "SW:F0006:S0006:/1ADE7:/1ADE7:199E2:1",
+   "device_identity": "25nPWR2-2",
+   "element_port": "SW:F0006:S0006:/1ADE9:/1ADE9:19A23:2",
+   "element_label": "25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0006:S0006:/1ADE7:/1ADE7:199E5:2",
+   "wire_handle": "1ADEA",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0006"
+  },
+  {
+   "case": 29,
+   "project": "p074",
+   "sheet": "S0009",
+   "link_id": "XDI:bab7458d63ceb2c7",
+   "device_port": "SW:F0009:S0009:/36B23:/36B23:2230B:1",
+   "device_identity": "1-25n104",
+   "element_port": "SW:F0009:S0009:/36B26:/36B26:24E42:2",
+   "element_label": "1-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/36B23:/36B23:2230E:2",
+   "wire_handle": "36B27",
+   "pcl": false,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 30,
+   "project": "p074",
+   "sheet": "S0009",
+   "link_id": "XDI:9bb63610b74e2f7e",
+   "device_port": "SW:F0009:S0009:/395B6:/395B6:2230B:1",
+   "device_identity": "2-25n102",
+   "element_port": "SW:F0009:S0009:/395BA:/395BA:2234C:2",
+   "element_label": "2-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/395B6:/395B6:2230E:2",
+   "wire_handle": "395BD",
+   "pcl": false,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 31,
+   "project": "p074",
+   "sheet": "S0009",
+   "link_id": "XDI:7a8680d8c7d89b0f",
+   "device_port": "SW:F0009:S0009:/36B21:/36B21:2230B:1",
+   "device_identity": "1-25n102",
+   "element_port": "SW:F0009:S0009:/36B25:/36B25:2234C:2",
+   "element_label": "1-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/36B21:/36B21:2230E:2",
+   "wire_handle": "36B28",
+   "pcl": false,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 32,
+   "project": "p074",
+   "sheet": "S0009",
+   "link_id": "XDI:08a29284bffbfe9c",
+   "device_port": "SW:F0009:S0009:/395B8:/395B8:2230B:1",
+   "device_identity": "2-25n104",
+   "element_port": "SW:F0009:S0009:/395BB:/395BB:24E42:2",
+   "element_label": "2-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/395B8:/395B8:2230E:2",
+   "wire_handle": "395BC",
+   "pcl": false,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 33,
+   "project": "p074",
+   "sheet": "S0009",
+   "link_id": "XDI:e7697368baad8fe0",
+   "device_port": "SW:F0009:S0009:/36BF0:/36BF0:2230B:1",
+   "device_identity": "1-25n508",
+   "element_port": "SW:F0009:S0009:/36BF6:/36BF6:2B9EA:2",
+   "element_label": "1-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0009:S0009:/36BF0:/36BF0:2230E:2",
+   "wire_handle": "36BF7",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0009"
+  },
+  {
+   "case": 34,
+   "project": "p074",
+   "sheet": "S0006",
+   "link_id": "XDI:ae65e4e27b9333eb",
+   "device_port": "SW:F0006:S0006:/3589E:/3589E:23E34:1",
+   "device_identity": "2-25nC08",
+   "element_port": "SW:F0006:S0006:/358A4:/358A4:277F9:2",
+   "element_label": "2-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0006:S0006:/3589E:/3589E:23E37:2",
+   "wire_handle": "358A5",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0006"
+  },
+  {
+   "case": 35,
+   "project": "p074",
+   "sheet": "S0007",
+   "link_id": "XDI:4758b9cbe312f176",
+   "device_port": "SW:F0007:S0007:/38FB2:/38FB2:23E34:1",
+   "device_identity": "2-25n912",
+   "element_port": "SW:F0007:S0007:/38FB8:/38FB8:277F9:2",
+   "element_label": "2-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0007:S0007:/38FB2:/38FB2:23E37:2",
+   "wire_handle": "38FB9",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0007"
+  },
+  {
+   "case": 36,
+   "project": "p074",
+   "sheet": "S0006",
+   "link_id": "XDI:f84be361774adecd",
+   "device_port": "SW:F0006:S0006:/358A2:/358A2:23E34:1",
+   "device_identity": "2-25nC12",
+   "element_port": "SW:F0006:S0006:/358A8:/358A8:277F9:2",
+   "element_label": "2-25n",
+   "element_port_number": "2",
+   "partner_port": "SW:F0006:S0006:/358A2:/358A2:23E37:2",
+   "wire_handle": "358A9",
+   "pcl": true,
+   "source": "sw_internal_element",
+   "dxf_file": "F0006"
+  }
+ ],
+ "png": [
+  {
+   "png": "G2S_01.png",
+   "cases": [
+    1,
+    2
+   ]
+  },
+  {
+   "png": "G2S_02.png",
+   "cases": [
+    3,
+    4
+   ]
+  },
+  {
+   "png": "G2S_03.png",
+   "cases": [
+    5,
+    6
+   ]
+  },
+  {
+   "png": "G2S_04.png",
+   "cases": [
+    7,
+    8
+   ]
+  },
+  {
+   "png": "G2S_05.png",
+   "cases": [
+    9,
+    10
+   ]
+  },
+  {
+   "png": "G2S_06.png",
+   "cases": [
+    11,
+    12
+   ]
+  },
+  {
+   "png": "G2S_07.png",
+   "cases": [
+    13,
+    14
+   ]
+  },
+  {
+   "png": "G2S_08.png",
+   "cases": [
+    15,
+    16
+   ]
+  },
+  {
+   "png": "G2S_09.png",
+   "cases": [
+    17,
+    18
+   ]
+  },
+  {
+   "png": "G2S_10.png",
+   "cases": [
+    19,
+    20
+   ]
+  },
+  {
+   "png": "G2S_11.png",
+   "cases": [
+    21,
+    22
+   ]
+  },
+  {
+   "png": "G2S_12.png",
+   "cases": [
+    23,
+    24
+   ]
+  },
+  {
+   "png": "G2S_13.png",
+   "cases": [
+    25,
+    26
+   ]
+  },
+  {
+   "png": "G2S_14.png",
+   "cases": [
+    27,
+    28
+   ]
+  },
+  {
+   "png": "G2S_15.png",
+   "cases": [
+    29,
+    30
+   ]
+  },
+  {
+   "png": "G2S_16.png",
+   "cases": [
+    31,
+    32
+   ]
+  },
+  {
+   "png": "G2S_17.png",
+   "cases": [
+    33,
+    34
+   ]
+  },
+  {
+   "png": "G2S_18.png",
+   "cases": [
+    35,
+    36
+   ]
+  }
+ ]
+}

@@ -138,3 +138,13 @@ GAP-2 报告的 1604 端口（前版估计）来自这类插入点窗口统计�
 - 工具：`tools/g2_compare.py`（10 项目对比，只读）、`tools/g2_trace.py`（单项目端到端与计时）、`tools/g2_gap_probe.py`（缺口统计）、`tools/g2_render.py`（截图）
 - 图：`png/G2_label_covered_gaps.png`、`png/G2_only_empty_candidate_p039.png`
 - 临时：`.tmp/loop_g2_src`（快照）、`.tmp/loop_g2_final`、`.tmp/loop_g2_compare_final`、`.tmp/loop_g2_time`、`.tmp/loop_g2_cost`、`.tmp/loop_g2_scratch`（均可删）
+
+## 更正（GAP2-PAIR，GAP2-S 切片）
+
+本节更正 §0 与 §6 的判断，依据 `loop/GAP2-PAIR/README.md`。
+
+1. **间隙文字不是线号。** 3018 个未覆盖端口中，间隙内的文字是端子自身的尾号（如 `1n1502` 中的 `1502`，2991 个），与伙伴端口同标识。被线组合并的不是“线号标注打断的导线”，而是**端子本体两侧的两根导线**：本体宽 2.50，两侧接触点恰相距 2.50。原 §0 的“文字断口 = 标注打断、合并正确”对端子本体不成立。
+2. **G2 判据几乎不触发的原因。** G2 的文字守卫看间隙与文字 bbox 是否相交。端子尾号正好落在本体间隙内，守卫把它当作线号标注，因此判为“文字断口，保持合并”。这一误判使 G2 在 77 项目只触发 1 次（p039），与本更正一致。
+3. **G2 的代码与数字。** `line_groups.py` 中的 G2 判据未改动（生产行为不变）。§0 第 3 条的“1604”与 GAP README §5.2 的 G2 增量作废，不计入覆盖预估。
+4. **正确的处理位置。** 3018 个端口的切开在 DEV-INT 层完成（GAP2-S，`superworks_device_internal.py::split_terminal_wires`），按同 insert、同标识、间距等于本体宽（取两 TERMPOINT 实际距离）、间隙无圆点、间隙内无线穿过的条件切开。线组与配对不变；切开的结果只产生覆盖（装置内部链接），不产生配对。
+5. **仍需另立的根因。** §6 的 2b 开口端（945 个）与 G2 无关，见 GAP2-PAIR §6。

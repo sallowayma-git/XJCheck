@@ -228,6 +228,7 @@ def write_superworks_artifacts(artifacts, findings_dir):
                 "label_resolved":sum(bool(b["label_resolved"]) for b in data.unregistered_symb2),
                 "termpoints":sum(len(b["termpoints"]) for b in data.unregistered_symb2)},
             "pcl_corroborated":sum(bool(l["pcl_corroborated"]) for l in device_internal["links"]),
+            "terminal_splits":len(device_internal["terminal_splits"]),
             "note":"device-internal links count as coverage in port_coverage_with_internal only; they create no pairs"},
         "cross_page":{"stats":cross_page["stats"],"link_count":len(cross_page["links"]),
             "candidate_counts":dict(Counter(c["candidate"] for c in cross_page["candidates"])),
@@ -302,16 +303,20 @@ def _device_internal_links(artifacts,data):
     """Device-internal links of the device terminals (see audit/superworks_device_internal.py)."""
     ports=[{"record_id":p.record_id,"file_id":p.file_id,"sheet_id":p.sheet_id,"insert_handle":p.insert_handle,
         "port_number":p.port_number,"category":p.category,"endpoint_identity":p.endpoint_identity,
-        "label":p.label,"wire_contacts":p.wire_contacts} for p in getattr(data,"ports",[]) or []]
+        "label":p.label,"wire_contacts":p.wire_contacts,"start_x":p.start_x,"start_y":p.start_y,
+        "end_x":p.end_x,"end_y":p.end_y} for p in getattr(data,"ports",[]) or []]
     routes=[dict(r) for r in getattr(data,"wire_route_rows",[]) or []]
-    lines=[{"file_id":l.file_id,"line_id":l.line_id,"handle":l.handle,"source_block_name":l.source_block_name}
-        for l in getattr(artifacts,"lines",[]) or []]
+    lines=[{"file_id":l.file_id,"line_id":l.line_id,"handle":l.handle,"source_block_name":l.source_block_name,
+        "sx":l.start_x,"sy":l.start_y,"ex":l.end_x,"ey":l.end_y} for l in getattr(artifacts,"lines",[]) or []]
     groups=[{"file_id":g.file_id,"member_line_ids":list(g.member_line_ids or [])}
         for g in getattr(artifacts,"line_groups",[]) or []]
+    dots=[{"file_id":d.file_id,"x":d.x,"y":d.y} for d in getattr(data,"connect_dots",[]) or []]
+    # GAP2-S: the wire mapping is cut at terminal bodies inside DEV-INT (line groups and pairs are unchanged).
     # G1P: unregistered SYMB2 blocks (TERMPOINT ends) and the end points of every model-space wire.
-    return build_device_internal_links(ports,routes,wire_group_of=wire_keys_from_lines(lines,groups),
+    return build_device_internal_links(ports,routes,
         unregistered=list(getattr(data,"unregistered_symb2",[]) or []),
-        wire_endpoints=dict(getattr(data,"wire_endpoints",{}) or {}))
+        wire_endpoints=dict(getattr(data,"wire_endpoints",{}) or {}),
+        terminal_split={"lines":lines,"line_groups":groups,"connect_dots":dots})
 
 
 def _write_unregistered_symb2(findings_dir,data):
@@ -331,6 +336,11 @@ def _write_device_internal_links(findings_dir,device_internal):
         for link in device_internal["links"]]
     frame=pd.DataFrame(rows) if rows else pd.DataFrame(columns=["link_id"])
     frame.to_parquet(findings_dir/"sw_device_internal_links.parquet",index=False)
+    # GAP2-S: one row per device-terminal body cut (audit only; the cut changes no line group and no pair).
+    split_rows=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict)) else value) for key,value in item.items()}
+        for item in device_internal["terminal_splits"]]
+    split_frame=pd.DataFrame(split_rows) if split_rows else pd.DataFrame(columns=["file_id"])
+    split_frame.to_parquet(findings_dir/"sw_terminal_splits.parquet",index=False)
     # G1P: one row per single-end device wire decided against the unregistered SYMB2 blocks (audit only).
     decisions=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict,tuple)) else value)
                 for key,value in item.items()} for item in device_internal["unregistered_decisions"]]
