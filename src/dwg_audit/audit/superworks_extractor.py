@@ -7,7 +7,7 @@ import json
 import math
 import re
 import time
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from dataclasses import asdict, replace
 
 from dwg_audit.domain.models import Pair, SwPort, LineGroup
@@ -683,7 +683,414 @@ def _fill_one_sided_pairs_from_connect_labels(output, connect_labels, line_group
                        "old_pair": asdict(pair), "new_pairs": [asdict(new)]})
 
 
-def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_groups, pairs, table_mappings):
+def _wire_pair(*, pair_id, line_group_id, sheet_id, file_id, coords, scope_id, left, right, origin,
+               conflicts, strip_relation, page_map, review_reasons=()):
+    """The SuperWORKS wire Pair for two resolved endpoints.
+
+    Shared by the line-group path of extract_superworks_pairs and the wire-route admission, so a
+    pair from either source carries the same fields, status rule and view scope. `conflicts` are
+    the true metadata conflicts (kept in evidence); `review_reasons` only force review.
+    `coords` is (x1, y1, x2, y2) of the wire, or None when the wire has no geometry.
+    """
+    if left["category"]==right["category"]=="端子" and strip_relation:
+        kind="bridge_mapping"
+        bridge_kind="superworks_terminal_strip_same_header"
+    else:
+        kind="ordinary_pair" if left["category"]==right["category"]=="端子" else "wire_component_mapping"
+        bridge_kind=None
+    evidence={"source":"superworks","superworks":{"source":"superworks","left":left,"right":right},
+              "sw_conflicts":conflicts,"ordinary_pair_eligible":kind=="ordinary_pair",
+              "electrical_union_eligible":False,"internal_connectivity_inferred":False,
+              "pair_kind":kind,"sheet_order":page_map[sheet_id].sheet_order,
+              "selected_left_raw_text":left["value"],"selected_right_raw_text":right["value"],
+              "semantic_marker_texts":[left["value"],right["value"]]}
+    evidence["superworks"]["line_group_origin"]=origin
+    page=page_map.get(sheet_id)
+    evidence["view_scope"]=_view_scope(_view_for_page(page),
+        file_id=file_id,sheet_id=sheet_id,
+        view_key=f"{file_id}:{sheet_id}:schematic",
+        scope_key=f"{file_id}:{sheet_id}:{scope_id}",
+        record_id=scope_id,page=page)
+    if strip_relation:
+        evidence["superworks"]["strip_relation"]=strip_relation
+    if bridge_kind:
+        evidence.update(semantic_kind="terminal_bridge_mapping",bridge_mapping_kind=bridge_kind)
+    blocked=bool(conflicts or review_reasons)
+    new=Pair(pair_id=pair_id,line_group_id=line_group_id,
+        sheet_id=sheet_id,file_id=file_id,selected_pair_candidate_id=None,
+        left_value=left["value"],right_value=right["value"],confidence=.99 if not blocked else .5,
+        status="pass" if not blocked else "review",
+        rationale="SuperWORKS identity verified against existing wire endpoints" if not blocked else ";".join(list(conflicts)+list(review_reasons)),
+        confidence_bucket="high" if not blocked else "review",evidence=evidence,
+        left_text_id=left["text_id"],right_text_id=right["text_id"],left_coord_x=coords[0],left_coord_y=coords[1],
+        right_coord_x=coords[2],right_coord_y=coords[3],pair_key=f'{left["value"]}->{right["value"]}',pair_kind=kind)
+    return new
+
+
+# LOGGEN phase 2 (wire-route admission). A wire-route record (XRECORD LD_SYMB2LOGGEN or PCL) names the
+# SuperWORKS identity at each end of one drawn wire. The rules below add pairs only for records whose
+# two ends are both unconsumed terminals; everything else is recorded, never turned into an issue here.
+_WIRE_ROUTE_TERMINALS = {"端子", "装置端子"}
+# Only an end resolved to a SuperWORKS port identity takes part in admission and reconciliation; an end
+# resolved by its text alone (cross-page target not a single SW port) carries no SW identity to compare.
+_WIRE_ROUTE_RESOLVED = {"resolved"}
+_WIRE_ROUTE_TEXT_ONLY = {"resolved_by_text"}
+
+
+def _is_blank_side(value):
+    return value is None or (isinstance(value, float) and math.isnan(value)) or not str(value).strip()
+
+
+def _identities_agree(identity, value, aliases=()):
+    """Production equivalence of a record identity and a pair side value (the LOGGEN evaluation rules):
+    equal after cleaning, a member of a range value, an alias, or the same identity with a letter prefix."""
+    if not identity or _is_blank_side(value):
+        return False
+    identity_key = _key(identity)
+    raw = str(value)
+    value_key = _key(_clean_sw_endpoint_value(raw))
+    if identity_key in (_key(raw), value_key):
+        return True
+    if identity_key in _destination_keys(raw):
+        return True
+    if identity_key in {_key(alias) for alias in aliases or [] if alias}:
+        return True
+    head = identity_key[:-len(value_key)] if value_key and identity_key.endswith(value_key) else ""
+    return bool(head and any(ch.isalpha() for ch in head) and any(ch.isdigit() for ch in value_key))
+
+
+def _consumed_ports(pairs):
+    """port_id -> [(pair, side)] for every non-discard pair that names the port in its SuperWORKS sides."""
+    consumed = defaultdict(list)
+    for pair in pairs:
+        if pair.status == "discard":
+            continue
+        sw = (pair.evidence or {}).get("superworks") or {}
+        for side in ("left", "right"):
+            for port_id in (sw.get(side) or {}).get("port_ids") or []:
+                consumed[port_id].append((pair, side))
+    return consumed
+
+
+def _same_segment(group, line):
+    a, b = (line.start_x, line.start_y), (line.end_x, line.end_y)
+    if a > b:
+        a, b = b, a
+    return min(
+        max(math.hypot(group.start_x - a[0], group.start_y - a[1]), math.hypot(group.end_x - b[0], group.end_y - b[1])),
+        max(math.hypot(group.end_x - a[0], group.end_y - a[1]), math.hypot(group.start_x - b[0], group.start_y - b[1])),
+    ) < 1e-5
+
+
+def _admission_reason(row, ends, audit_ids, ports_by_key, consumed):
+    """(reason, None) for the first rule a record fails; (None, (endpoints, end_ports)) when eligible."""
+    if row["sheet_id"] not in audit_ids:
+        return "sheet_not_audited", None
+    if len(ends) != 2:
+        return "not_two_ends", None
+    if any(end.get("status") not in _WIRE_ROUTE_RESOLVED for end in ends):
+        return "end_unresolved", None
+    if any(end.get("far_source") == "cross_page" for end in ends):
+        return "cross_page_end", None
+    if any(not (end.get("category") or "") for end in ends):
+        return "internal_end", None
+    if any(end.get("category") not in _WIRE_ROUTE_TERMINALS for end in ends):
+        return "non_terminal_end", None
+    if any(end.get("file_id") != row["file_id"] for end in ends):
+        return "cross_file", None
+    endpoints = []
+    end_ports = []
+    for end in ends:
+        ports = [port for port in ports_by_key.get((end["file_id"], str(end["terminal_handle"]), str(end["port_number"])), [])
+                 if port.sheet_id == row["sheet_id"]]
+        end_ports.append(ports)
+        endpoints.append(_endpoint(ports) if ports else None)
+    if any(endpoint is None or not endpoint["value"] for endpoint in endpoints):
+        return "identity_not_single", None
+    if any(_key(endpoint["value"]) != _key(end["identity"]) for endpoint, end in zip(endpoints, ends)):
+        return "identity_mismatch", None
+    if any(endpoint["category"] not in _WIRE_ROUTE_TERMINALS for endpoint in endpoints):
+        return "non_terminal_end", None
+    if any(set(endpoint["port_ids"]) & set(consumed) for endpoint in endpoints):
+        return "end_consumed", None
+    left, right = endpoints
+    if _self_connection_reason(left, right):
+        return "self_connection", None
+    return None, (endpoints, end_ports)
+
+
+def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, page_map,
+                       strip_rows_by_endpoint, xml_ranks):
+    """Add SuperWORKS wire pairs for eligible wire-route records. Only ever appends pairs.
+
+    A record is eligible when both ends are resolved terminals of one audited sheet, neither end
+    port is named by a non-discard pair, and the wire's group carries no non-discard pair. The pair
+    is built by _wire_pair, the same builder as the line-group path. It is pass only when the wire
+    handle exists and touches a port at each end, and no true conflict is present; otherwise review.
+    """
+    stats = Counter()
+    ports_by_key = defaultdict(list)
+    for port in data.ports:
+        ports_by_key[(port.file_id, port.insert_handle, str(port.port_number))].append(port)
+    line_by_key = {}
+    for line in lines:
+        if not line.source_block_name:
+            line_by_key.setdefault((line.file_id, line.handle), line)
+    groups_by_id = {group.line_group_id: group for group in line_groups}
+    active_groups = {(pair.sheet_id, pair.line_group_id) for pair in output if pair.status != "discard"}
+    consumed = _consumed_ports(output)
+    for row in rows:
+        ends = json.loads(row["ends_json"])
+        reason, found = _admission_reason(row, ends, audit_ids, ports_by_key, consumed)
+        if reason is not None:
+            row["admission_reason"] = reason
+            stats[f"not_admitted:{reason}"] += 1
+            continue
+        endpoints, end_ports = found
+        left, right = endpoints
+        wire = row.get("wire_handle")
+        line = line_by_key.get((row["file_id"], wire)) if wire else None
+        if line is not None and line.sheet_id != row["sheet_id"]:
+            line = None
+        confirmed = line is not None and all(
+            any(contact.get("wire_handle") == wire for port in ports for contact in port.wire_contacts)
+            for ports in end_ports)
+        review = []
+        if line is None:
+            review.append("wire_geometry_missing")
+        elif not confirmed:
+            review.append("wire_not_touching_port")
+        group = None
+        line_group_id = None
+        coords = None
+        origin = "wire_route_record"
+        if line is not None:
+            gid = "GWSW" + hashlib.sha256(
+                f"{line.file_id}:{line.sheet_id}:{line.handle}:{line.line_id}".encode()).hexdigest()[:16]
+            group = groups_by_id.get(gid)
+            if group is None:
+                group = next((g for g in line_groups if g.sheet_id == line.sheet_id
+                              and line.line_id in g.member_line_ids and _same_segment(g, line)), None)
+            if group is not None and (line.sheet_id, group.line_group_id) in active_groups:
+                row["admission_reason"] = "group_has_active_pair"
+                stats["not_admitted:group_has_active_pair"] += 1
+                continue
+            if group is None:
+                a, b = (line.start_x, line.start_y), (line.end_x, line.end_y)
+                if a > b:
+                    a, b = b, a
+                group = LineGroup(line_group_id=gid, sheet_id=line.sheet_id, file_id=line.file_id,
+                    start_x=a[0], start_y=a[1], end_x=b[0], end_y=b[1], length=line.length,
+                    wire_candidate_score=1.0, member_line_ids=[line.line_id], layer_hints=[line.layer],
+                    orientation="vertical" if abs(a[0] - b[0]) < 1e-6 else "horizontal" if abs(a[1] - b[1]) < 1e-6 else "diagonal")
+                line_groups.append(group)
+                groups_by_id[gid] = group
+            line_group_id = group.line_group_id
+            coords = (group.start_x, group.start_y, group.end_x, group.end_y)
+            origin = "metadata_wire_reference" if line_group_id.startswith("GWSW") else "legacy_line_group"
+        reasons = sorted({code for endpoint in endpoints for code in endpoint["reason_codes"]})
+        conflicts = _true_conflicts(reasons)
+        strip_relation = _same_strip_relation(left, right, strip_rows_by_endpoint, xml_ranks)
+        new = _wire_pair(pair_id=_id(f"wire-route:{row['record_id']}"), line_group_id=line_group_id,
+            sheet_id=row["sheet_id"], file_id=row["file_id"], coords=coords or (None, None, None, None),
+            scope_id=line_group_id or row["record_id"], left=left, right=right, origin=origin,
+            conflicts=conflicts, strip_relation=strip_relation, page_map=page_map, review_reasons=review)
+        new.evidence["sw_wire_route"] = {"record_id": row["record_id"], "source_kind": row["source_kind"],
+            "wire_handle": wire, "wire_confirmed": confirmed, "review_reasons": review}
+        output.append(new)
+        if line_group_id:
+            active_groups.add((row["sheet_id"], line_group_id))
+        for side, endpoint in (("left", left), ("right", right)):
+            for port in endpoint["ports"]:
+                data.coverage_observations.append({"port_id": port["port_id"], "sheet_id": row["sheet_id"],
+                    "file_id": row["file_id"], "line_group_id": line_group_id,
+                    "line_group_origin": origin, "endpoint_side": side,
+                    "identity_resolved": True, "wire_touched": bool(endpoint.get("wire_touched")),
+                    "network_line_ids": []})
+            for port_id in endpoint["port_ids"]:
+                consumed[port_id].append((new, side))
+        row["admission_status"] = "admitted_pass" if new.status == "pass" else "admitted_review"
+        row["admission_reason"] = None
+        row["admitted_pair_id"] = new.pair_id
+        stats[f"admitted:{new.status}"] += 1
+        stats[f"admitted:{new.status}:{new.pair_kind}"] += 1
+    return stats
+
+
+def _attach_wire_route_conflict(pair, item):
+    items = pair.evidence.setdefault("sw_wire_route_conflict", [])
+    if not any(old["record_id"] == item["record_id"] and old["kind"] == item["kind"]
+               and old["pair_side"] == item["pair_side"] for old in items):
+        items.append(item)
+
+
+def _check_consumed_end(row, ends, index, pair, side, stats, wires_of):
+    """Compare one record end with the pair that consumes its port. Returns the verdict for this end.
+
+    Only SuperWORKS terminal identities are compared. Internal component pins carry several naming
+    forms for one pin (e.g. "8ID3" beside "8n1505"), so an internal end never yields a conflict.
+
+    - Same-port disagreement: when the pair is review and its own SuperWORKS side identity is exactly
+      the record identity, the legacy side value (a numeric candidate) is replaced by that identity;
+      otherwise it is recorded as a conflict.
+    - Other end: the record's other terminal differs from the pair's other terminal. Recorded as a
+      conflict only when the pair is on the same wire; on another wire the port simply carries a second
+      wire (fan-out), which is counted but not recorded.
+    Nothing here creates a pair.
+    """
+    end = ends[index]
+    identity = end["identity"]
+    end_is_terminal = end.get("category") in _WIRE_ROUTE_TERMINALS
+    other = "right" if side == "left" else "left"
+    sw = (pair.evidence.get("superworks") or {})
+    own_value = getattr(pair, f"{side}_value")
+    verdicts = set()
+    if not end_is_terminal:
+        return "unchecked"
+    if not _is_blank_side(own_value) and not _identities_agree(identity, own_value):
+        sw_side = sw.get(side) or {}
+        sw_value = sw_side.get("value")
+        if pair.status == "review" and sw_value and _key(sw_value) == _key(identity):
+            setattr(pair, f"{side}_value", sw_value)
+            if sw_side.get("text_id"):
+                setattr(pair, f"{side}_text_id", sw_side["text_id"])
+            pair.pair_key = f"{pair.left_value or '?'}->{pair.right_value}"
+            pair.evidence.setdefault("sw_wire_route_fix", []).append({"record_id": row["record_id"],
+                "side": side, "from_value": own_value, "to_value": sw_value})
+            stats["value_fixed"] += 1
+            verdicts.add("value_fixed")
+        else:
+            _attach_wire_route_conflict(pair, {"record_id": row["record_id"], "kind": "same_port_value_differs",
+                "pair_side": side, "record_identity": identity, "pair_value": own_value})
+            stats["conflict:same_port_value_differs"] += 1
+            verdicts.add("conflict")
+    if len(ends) == 2:
+        other_end = ends[1 - index]
+        other_value = getattr(pair, f"{other}_value")
+        other_side = sw.get(other) or {}
+        if (other_end.get("status") in _WIRE_ROUTE_RESOLVED and other_end.get("category") in _WIRE_ROUTE_TERMINALS
+                and other_side.get("category") in _WIRE_ROUTE_TERMINALS and other_end.get("identity")
+                and not _is_blank_side(other_value)):
+            if _identities_agree(other_end["identity"], other_value):
+                verdicts.add("agree")
+            elif row.get("wire_handle") in wires_of(pair):
+                _attach_wire_route_conflict(pair, {"record_id": row["record_id"], "kind": "other_end_differs",
+                    "pair_side": side, "record_identity": identity, "record_other_identity": other_end["identity"],
+                    "pair_value": own_value, "pair_other_value": other_value})
+                stats["conflict:other_end_differs"] += 1
+                verdicts.add("conflict")
+            else:
+                stats["fanout:other_wire_other_end"] += 1
+                verdicts.add("fanout")
+        else:
+            verdicts.add("unchecked")
+    if "conflict" in verdicts:
+        return "conflict"
+    if "value_fixed" in verdicts:
+        return "value_fixed"
+    if "fanout" in verdicts:
+        return "fanout"
+    return "agree" if "agree" in verdicts else "unchecked"
+
+
+_CONSUMED_STATUS = {"conflict": "consumed_conflict", "value_fixed": "consumed_value_fixed",
+                    "fanout": "consumed_fanout", "agree": "consumed_agree", "unchecked": "consumed_unchecked"}
+
+
+def _reconcile_consumed_wire_routes(rows, consumed, stats, wires_of):
+    """Record-level checks for records that were not admitted but have a consumed end (phase-1
+    "one end consumed" records). These records never become pairs."""
+    for row in rows:
+        if row.get("admission_status"):
+            continue
+        ends = json.loads(row["ends_json"])
+        verdicts = []
+        for index, end in enumerate(ends):
+            if end.get("status") not in _WIRE_ROUTE_RESOLVED:
+                continue
+            hits = []
+            for port_id in end.get("port_ids") or []:
+                for pair, side in consumed.get(port_id, []):
+                    if not any(known is pair and known_side == side for known, known_side in hits):
+                        hits.append((pair, side))
+            for pair, side in hits:
+                verdicts.append(_check_consumed_end(row, ends, index, pair, side, stats, wires_of))
+        if not verdicts:
+            continue
+        for verdict in ("conflict", "value_fixed", "fanout", "agree", "unchecked"):
+            if verdict in verdicts:
+                row["admission_status"] = _CONSUMED_STATUS[verdict]
+                break
+        stats[f"record:{row['admission_status']}"] += 1
+
+
+def _wire_route_census(rows):
+    """Counts of the records that are not integrated (internal component ends) and of cross-page far ends."""
+    census = Counter()
+    for row in rows:
+        ends = json.loads(row["ends_json"])
+        census[f"records:{row['source_kind']}"] += 1
+        if any(end.get("status") in _WIRE_ROUTE_RESOLVED and not (end.get("category") or "") for end in ends):
+            census["records_with_internal_end"] += 1
+        local = next((end for end in ends if end.get("role") == "LOCAL"), None)
+        for end in ends:
+            if end.get("far_source") != "cross_page":
+                continue
+            census["cross_page_far_ends"] += 1
+            if local is not None and local.get("category") in _WIRE_ROUTE_TERMINALS:
+                census["cross_page_local_terminal"] += 1
+            status = end.get("status")
+            if status == "resolved_by_text":
+                # The target did not resolve to one SW port; the record's text stands in for it.
+                census["cross_page_text_fallback"] += 1
+            elif status != "resolved":
+                census["cross_page_far_unresolved"] += 1
+            elif not end.get("far_text_identity"):
+                census["cross_page_text_absent"] += 1
+            elif _identities_agree(end.get("identity"), end.get("far_text_identity")):
+                census["cross_page_text_agrees"] += 1
+            else:
+                census["cross_page_text_differs"] += 1
+    return dict(census)
+
+
+def _run_wire_route_admission(output, data, *, lines, line_groups, audit_ids, page_map,
+                              strip_rows_by_endpoint, xml_ranks, sheet_numbers):
+    """Resolve the wire-route records read by cad_extract, admit eligible ones, reconcile the rest."""
+    from dwg_audit.extract.superworks_loggen import build_wire_route_rows
+    rows, route_stats = build_wire_route_rows(list(data.wire_route_pages), data, sheet_numbers,
+                                              dict(data.wire_route_failures))
+    admission = _admit_wire_routes(output, data, rows, lines=lines, line_groups=line_groups, audit_ids=audit_ids,
+                                   page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint, xml_ranks=xml_ranks)
+    consumed_stats = Counter()
+    handle_by_line = {line.line_id: line.handle for line in lines}
+    members_by_group = {(group.sheet_id, group.line_group_id): group.member_line_ids for group in line_groups}
+
+    def wires_of(pair):
+        """Wire handles a pair is drawn on: its own wire-route record, or its line group's members."""
+        wires = set()
+        route = (pair.evidence or {}).get("sw_wire_route") or {}
+        if route.get("wire_handle"):
+            wires.add(route["wire_handle"])
+        for line_id in members_by_group.get((pair.sheet_id, pair.line_group_id), []):
+            if line_id in handle_by_line:
+                wires.add(handle_by_line[line_id])
+        return wires
+
+    _reconcile_consumed_wire_routes(rows, _consumed_ports(output), consumed_stats, wires_of)
+    for row in rows:
+        row.setdefault("admission_status", None)
+        if row["admission_status"] is None:
+            row["admission_status"] = "not_admitted"
+    data.wire_route_stats = {**route_stats,
+        "admission": {**dict(admission), **dict(consumed_stats)},
+        "census": _wire_route_census(rows),
+        "status_counts": dict(Counter(row["admission_status"] for row in rows))}
+    data.wire_route_rows = rows
+
+
+def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_groups, pairs, table_mappings,
+                            wire_route_sheet_numbers=None):
     if data is None:
         return pairs,table_mappings,[]
     started=time.perf_counter()
@@ -830,36 +1237,10 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                     evidence["sw_conflicts"]=sorted(set(evidence.get("sw_conflicts", [])) | set(conflicts))
                 replace_claims([before],[replace(before,evidence=evidence)],f"wire:{group.sheet_id}:{group.line_group_id}")
             continue
-        if left["category"]==right["category"]=="端子" and strip_relation:
-            kind="bridge_mapping"
-            bridge_kind="superworks_terminal_strip_same_header"
-        else:
-            kind="ordinary_pair" if left["category"]==right["category"]=="端子" else "wire_component_mapping"
-            bridge_kind=None
-        evidence={"source":"superworks","superworks":{"source":"superworks","left":left,"right":right},
-                  "sw_conflicts":conflicts,"ordinary_pair_eligible":kind=="ordinary_pair",
-                  "electrical_union_eligible":False,"internal_connectivity_inferred":False,
-                  "pair_kind":kind,"sheet_order":page_map[group.sheet_id].sheet_order,
-                  "selected_left_raw_text":left["value"],"selected_right_raw_text":right["value"],
-                  "semantic_marker_texts":[left["value"],right["value"]]}
-        evidence["superworks"]["line_group_origin"]=origin
-        page=page_map.get(group.sheet_id)
-        evidence["view_scope"]=_view_scope(_view_for_page(page),
-            file_id=group.file_id,sheet_id=group.sheet_id,
-            view_key=f"{group.file_id}:{group.sheet_id}:schematic",
-            scope_key=f"{group.file_id}:{group.sheet_id}:{group.line_group_id}",
-            record_id=group.line_group_id,page=page)
-        if strip_relation:
-            evidence["superworks"]["strip_relation"]=strip_relation
-        if bridge_kind:
-            evidence.update(semantic_kind="terminal_bridge_mapping",bridge_mapping_kind=bridge_kind)
-        new=Pair(pair_id=_id(f"wire:{group.sheet_id}:{group.line_group_id}"),line_group_id=group.line_group_id,
-            sheet_id=group.sheet_id,file_id=group.file_id,selected_pair_candidate_id=None,
-            left_value=left["value"],right_value=right["value"],confidence=.99 if not conflicts else .5,
-            status="pass" if not conflicts else "review",rationale="SuperWORKS identity verified against existing wire endpoints" if not conflicts else ";".join(conflicts),
-            confidence_bucket="high" if not conflicts else "review",evidence=evidence,
-            left_text_id=left["text_id"],right_text_id=right["text_id"],left_coord_x=group.start_x,left_coord_y=group.start_y,
-            right_coord_x=group.end_x,right_coord_y=group.end_y,pair_key=f'{left["value"]}->{right["value"]}',pair_kind=kind)
+        new=_wire_pair(pair_id=_id(f"wire:{group.sheet_id}:{group.line_group_id}"),line_group_id=group.line_group_id,
+            sheet_id=group.sheet_id,file_id=group.file_id,coords=(group.start_x,group.start_y,group.end_x,group.end_y),
+            scope_id=group.line_group_id,left=left,right=right,origin=origin,conflicts=conflicts,
+            strip_relation=strip_relation,page_map=page_map)
         replace_claims(old,[new],f"wire:{group.sheet_id}:{group.line_group_id}")
 
     # F1: a wire drawn across one symbol has its span split at the port.  Both
@@ -1044,6 +1425,12 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                 pair_key=f"{label.endpoint_identity}->{destination}"))
         replace_claims(old,new,f"part:{label.record_id}")
     _fill_one_sided_pairs_from_connect_labels(output, data.connect_labels, line_groups, audit_ids, ledger, text_map)
+    # Wire-route admission runs after every line-group, strip and component producer, and before the
+    # dictionary check, so admitted pairs receive the same warnings and strip contract as other SW pairs.
+    if getattr(data, "wire_route_pages", None) and wire_route_sheet_numbers is not None:
+        _run_wire_route_admission(output, data, lines=lines, line_groups=line_groups, audit_ids=audit_ids,
+                                  page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint,
+                                  xml_ranks=xml_ranks, sheet_numbers=wire_route_sheet_numbers)
     # The dictionary is observational; it cannot demote or validate a connection.
     dictionary={_key(v) for v in data.dictionary.get("names",[])}
     strip_names={_key(v) for v in data.dictionary.get("strip_names",[])}

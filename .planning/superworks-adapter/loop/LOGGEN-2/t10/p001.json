@@ -1,0 +1,119 @@
+{
+ "project": "p001",
+ "pairs_reference": 1279,
+ "pairs_new": 1279,
+ "pairs_added": 0,
+ "pairs_added_by": {},
+ "pairs_removed": 0,
+ "pairs_removed_by": {},
+ "pairs_changed": 4,
+ "pairs_changed_detail": [
+  {
+   "pair_id": "PW0255",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "704",
+    "7QD7"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0261",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "703",
+    "7QD6"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0265",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "702",
+    "7QD5"
+   ],
+   "pair_kind": "wire_component_mapping"
+  },
+  {
+   "pair_id": "PW0271",
+   "fields": [
+    "evidence",
+    "pair_key",
+    "right_text_id",
+    "right_value"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    null,
+    null
+   ],
+   "right": [
+    "701",
+    "7QD4"
+   ],
+   "pair_kind": "wire_component_mapping"
+  }
+ ],
+ "added_pairs": [],
+ "issues_reference": 0,
+ "issues_new": 0,
+ "issues_added": [],
+ "issues_removed": [],
+ "findings_differing": [
+  "pairs.parquet",
+  "source_files.parquet",
+  "sw_port_coverage.parquet",
+  "text_assignments.parquet"
+ ],
+ "strict_reference": {
+  "eligible": 663,
+  "consumed": 398
+ },
+ "strict_new": {
+  "eligible": 663,
+  "consumed": 402
+ }
+}

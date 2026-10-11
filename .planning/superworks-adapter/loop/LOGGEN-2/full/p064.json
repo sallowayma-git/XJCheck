@@ -1,0 +1,68 @@
+{
+ "project": "p064",
+ "pairs_reference": 3147,
+ "pairs_new": 3148,
+ "pairs_added": 1,
+ "pairs_added_by": {
+  "review|wire_component_mapping": 1
+ },
+ "pairs_removed": 0,
+ "pairs_removed_by": {},
+ "pairs_changed": 1,
+ "pairs_changed_detail": [
+  {
+   "pair_id": "PW0300",
+   "fields": [
+    "evidence"
+   ],
+   "status": [
+    "review",
+    "review"
+   ],
+   "left": [
+    "14",
+    "14"
+   ],
+   "right": [
+    "Enable remote operate",
+    "Enable remote operate"
+   ],
+   "pair_kind": "semantic_mapping"
+  }
+ ],
+ "added_pairs": [
+  {
+   "pair_id": "PSWb5ce3fa1d44d6847",
+   "file_id": "F0020",
+   "sheet_id": "S0020",
+   "line_group_id": null,
+   "left_value": "1-4n401",
+   "right_value": "1-4n201",
+   "status": "review",
+   "pair_kind": "wire_component_mapping",
+   "rationale": "wire_geometry_missing",
+   "left_text_id": "T2152",
+   "right_text_id": "T2157",
+   "record_id": "SWWR:F0020:LOGGEN:LD_SYMB2LOGGEN_21"
+  }
+ ],
+ "issues_reference": 2,
+ "issues_new": 2,
+ "issues_added": [],
+ "issues_removed": [],
+ "findings_differing": [
+  "entity_coverage_summary.parquet",
+  "pairs.parquet",
+  "source_files.parquet",
+  "sw_port_coverage.parquet",
+  "text_assignments.parquet"
+ ],
+ "strict_reference": {
+  "eligible": 1650,
+  "consumed": 864
+ },
+ "strict_new": {
+  "eligible": 1650,
+  "consumed": 866
+ }
+}

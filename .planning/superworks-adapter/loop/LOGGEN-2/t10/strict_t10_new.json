@@ -1,0 +1,62 @@
+{
+ "total": {
+  "eligible": 8645,
+  "consumed": 5581,
+  "consumed_pass": 5557,
+  "projects": 10,
+  "ratio": 0.6455754771544245,
+  "ratio_pass": 0.6427993059572007
+ },
+ "projects": {
+  "p001": {
+   "eligible": 663,
+   "consumed": 402,
+   "consumed_pass": 398
+  },
+  "p003": {
+   "eligible": 378,
+   "consumed": 242,
+   "consumed_pass": 242
+  },
+  "p022": {
+   "eligible": 747,
+   "consumed": 388,
+   "consumed_pass": 384
+  },
+  "p044": {
+   "eligible": 1315,
+   "consumed": 798,
+   "consumed_pass": 796
+  },
+  "p050": {
+   "eligible": 1134,
+   "consumed": 624,
+   "consumed_pass": 624
+  },
+  "p051": {
+   "eligible": 229,
+   "consumed": 156,
+   "consumed_pass": 156
+  },
+  "p061": {
+   "eligible": 1931,
+   "consumed": 1263,
+   "consumed_pass": 1261
+  },
+  "p071": {
+   "eligible": 200,
+   "consumed": 112,
+   "consumed_pass": 102
+  },
+  "p075": {
+   "eligible": 798,
+   "consumed": 762,
+   "consumed_pass": 762
+  },
+  "p076": {
+   "eligible": 1250,
+   "consumed": 834,
+   "consumed_pass": 832
+  }
+ }
+}

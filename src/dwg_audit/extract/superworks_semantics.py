@@ -115,6 +115,12 @@ class SuperworksData:
     conflict_observations: list[dict[str, Any]] = field(default_factory=list)
     extraction_seconds: float = 0.0
     recognition_seconds: float = 0.0
+    # Wire-route records read from the DXF documents cad_extract already has open
+    # (superworks_loggen.PageWireRoutes), and the resolved rows written after admission.
+    wire_route_pages: list[Any] = field(default_factory=list)
+    wire_route_failures: dict[str, str] = field(default_factory=dict)
+    wire_route_rows: list[dict[str, Any]] = field(default_factory=list)
+    wire_route_stats: dict[str, Any] = field(default_factory=dict)
 
     def extend(self, other):
         for name in ("symbols", "ports", "strip_rows", "part_instances", "connect_labels", "connect_dots",

@@ -705,7 +705,9 @@ def extract_cad_artifacts(
     symbol_port_definition_proposals: list[dict[str, object]] = []
     terminal_port_bindings: list[TerminalPortBinding] = []
     from dwg_audit.extract.superworks_semantics import SuperworksData, extract_superworks_semantics, bind_text_ids, read_project_dictionary
+    from dwg_audit.extract.superworks_loggen import read_page_wire_routes
     superworks = SuperworksData(dictionary=read_project_dictionary(Path(scan.project_root)))
+    wire_routes_enabled = bool((config.get("superworks_wire_routes") or {}).get("enabled", True))
     dxf_reader = EzdxfReader()
     reader_options = ReaderOptions()
 
@@ -855,6 +857,15 @@ def extract_cad_artifacts(
                 file_id=source.file_id,
             )
         )
+        if wire_routes_enabled:
+            # Wire-route records (LD_SYMB2LOGGEN / LD_PARTCONNECTLINE) are read from this open
+            # document; the DXF is not opened a second time. Diagnostic: a failure never stops extraction.
+            try:
+                superworks.wire_route_pages.append(
+                    read_page_wire_routes(doc, file_id=source.file_id, sheet_id=sheet.sheet_id)
+                )
+            except Exception as exc:
+                superworks.wire_route_failures[source.file_id] = type(exc).__name__
 
         sheet_texts: list[TextItem] = []
         sheet_lines: list[LineEntity] = []

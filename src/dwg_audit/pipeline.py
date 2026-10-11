@@ -37,26 +37,19 @@ def _is_downstream_audit_page(page) -> bool:
     )
 
 
-def _write_sw_wire_routes(project_dir, scan, pages, superworks, config, logger) -> None:
-    """Diagnostic output only: sw_wire_routes.parquet. Never feeds pairs or issues."""
-    if superworks is None or not config.get("superworks_wire_routes", {}).get("enabled", True):
+def _write_sw_wire_routes(project_dir, superworks, logger) -> None:
+    """Diagnostic output: sw_wire_routes.parquet and its stats. The rows were resolved during the
+    SuperWORKS extraction (superworks_extractor), from DXF documents already open in cad_extract."""
+    rows = getattr(superworks, "wire_route_rows", None) or []
+    if not rows:
         return
-    from dwg_audit.extract.superworks_loggen import collect_wire_route_rows, write_wire_route_rows
-    sheet_by_file = {page.file_id: page for page in pages}
-    sources = [
-        (source.file_id, sheet_by_file[source.file_id].sheet_id, Path(source.dxf_path))
-        for source in scan.manifest.source_files
-        if source.dxf_path and source.file_id in sheet_by_file
-        and source.conversion_status in {"converted", "cached"}
-    ]
-    sheet_numbers = {page.file_id: page.sheet_no or "" for page in pages}
+    from dwg_audit.extract.superworks_loggen import write_wire_route_rows
     try:
-        rows, stats = collect_wire_route_rows(sources, superworks, sheet_numbers)
         findings = project_dir / "findings"
         findings.mkdir(parents=True, exist_ok=True)
         write_wire_route_rows(findings / "sw_wire_routes.parquet", rows)
         (findings / "sw_wire_routes_stats.json").write_text(
-            json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+            json.dumps(superworks.wire_route_stats, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     except Exception as exc:  # a diagnostic must never fail the project run
         logger.warning("sw_wire_routes skipped: %s", exc)
 
@@ -251,6 +244,7 @@ def analyze_input_root(
         pairs, table_mappings, superworks_supersession = extract_superworks_pairs(
             superworks, pages=audit_pages, texts=audit_texts, lines=audit_lines,
             line_groups=line_groups, pairs=pairs, table_mappings=table_mappings,
+            wire_route_sheet_numbers={page.file_id: page.sheet_no or "" for page in pages},
         )
 
         # Some accessory/backplate pages are primarily routed as Table or Wire
@@ -387,7 +381,7 @@ def analyze_input_root(
             table_mappings=artifacts_table_mappings,
             extraction_gate=extraction_gate,
         )
-        _write_sw_wire_routes(project_dir, scan, pages, superworks, config, logger)
+        _write_sw_wire_routes(project_dir, superworks, logger)
         written.append(project_dir)
         if event_sink is not None:
             event_sink.emit(
