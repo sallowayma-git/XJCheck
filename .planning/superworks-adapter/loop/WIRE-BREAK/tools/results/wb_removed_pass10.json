@@ -1,0 +1,1364 @@
+[
+  {
+    "pid": "p001",
+    "pair_id": "PW0107",
+    "sheet": "S0007",
+    "kind": "bridge_mapping",
+    "left": "1QD4",
+    "right": "1QD7",
+    "group": "GW0107",
+    "span": [
+      57.5,
+      107.5
+    ],
+    "uncovered_gaps": [
+      [
+        80.07,
+        91.32
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0007:S0007:/E6C7",
+      80.07,
+      91.32
+    ]
+  },
+  {
+    "pid": "p003",
+    "pair_id": "PW0057",
+    "sheet": "S0007",
+    "kind": "bridge_mapping",
+    "left": "8QD4",
+    "right": "8QD9",
+    "group": "GW0057",
+    "span": [
+      147.5,
+      197.5
+    ],
+    "uncovered_gaps": [
+      [
+        170.07,
+        181.32
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0007:S0007:/69A",
+      170.07,
+      181.32
+    ]
+  },
+  {
+    "pid": "p022",
+    "pair_id": "PW0237",
+    "sheet": "S0010",
+    "kind": "wire_component_mapping",
+    "left": "1QD2",
+    "right": "1n231",
+    "group": "GW0237",
+    "span": [
+      52.5,
+      180.0
+    ],
+    "uncovered_gaps": [
+      [
+        75.0,
+        85.0
+      ],
+      [
+        127.5,
+        140.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0010:S0010:/1FFFB",
+      75.0,
+      85.0
+    ]
+  },
+  {
+    "pid": "p026",
+    "pair_id": "PW0406",
+    "sheet": "S0016",
+    "kind": "bridge_mapping",
+    "left": "3-4QD2",
+    "right": "3-4QD17",
+    "group": "GW0406",
+    "span": [
+      47.93,
+      102.93
+    ],
+    "uncovered_gaps": [
+      [
+        70.43,
+        81.68
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/19FAB",
+      70.43,
+      81.68
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0605",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD36",
+    "right": "1-21n422",
+    "group": "GW0605",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/23738",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0608",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD31",
+    "right": "1-21n419",
+    "group": "GW0608",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/23719",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0611",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD26",
+    "right": "1-21n416",
+    "group": "GW0611",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/23660",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0614",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD21",
+    "right": "1-21n413",
+    "group": "GW0614",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/23647",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0617",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD16",
+    "right": "1-21n410",
+    "group": "GW0617",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/2362E",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0620",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD11",
+    "right": "1-21n407",
+    "group": "GW0620",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/23615",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0623",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD6",
+    "right": "1-21n404",
+    "group": "GW0623",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/235FC",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p044",
+    "pair_id": "PW0626",
+    "sheet": "S0016",
+    "kind": "wire_component_mapping",
+    "left": "1-21CD1",
+    "right": "1-21n401",
+    "group": "GW0626",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0016:S0016:/235E3",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p051",
+    "pair_id": "PW0089",
+    "sheet": "S0005",
+    "kind": "bridge_mapping",
+    "left": "YD4",
+    "right": "YD13",
+    "group": "GW0089",
+    "span": [
+      152.5,
+      282.5
+    ],
+    "uncovered_gaps": [
+      [
+        195.0,
+        206.25
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0005:S0005:/1A14B",
+      195.0,
+      206.25
+    ]
+  },
+  {
+    "pid": "p051",
+    "pair_id": "PW0090",
+    "sheet": "S0005",
+    "kind": "bridge_mapping",
+    "left": "YD3",
+    "right": "YD12",
+    "group": "GW0090",
+    "span": [
+      152.5,
+      282.5
+    ],
+    "uncovered_gaps": [
+      [
+        195.0,
+        206.25
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0005:S0005:/1A143",
+      195.0,
+      206.25
+    ]
+  },
+  {
+    "pid": "p051",
+    "pair_id": "PW0091",
+    "sheet": "S0005",
+    "kind": "bridge_mapping",
+    "left": "YD2",
+    "right": "YD11",
+    "group": "GW0091",
+    "span": [
+      152.5,
+      282.5
+    ],
+    "uncovered_gaps": [
+      [
+        195.0,
+        206.25
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0005:S0005:/1A131",
+      195.0,
+      206.25
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0185",
+    "sheet": "S0008",
+    "kind": "ordinary_pair",
+    "left": "3-21GD17",
+    "right": "3-21QD31",
+    "group": "GW0185",
+    "span": [
+      52.5,
+      182.5
+    ],
+    "uncovered_gaps": [
+      [
+        97.5,
+        108.75
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0008:S0008:/9170",
+      97.5,
+      108.75
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0192",
+    "sheet": "S0008",
+    "kind": "ordinary_pair",
+    "left": "2-21GD17",
+    "right": "2-21QD31",
+    "group": "GW0192",
+    "span": [
+      52.5,
+      182.5
+    ],
+    "uncovered_gaps": [
+      [
+        97.5,
+        108.75
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0008:S0008:/9156",
+      97.5,
+      108.75
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0209",
+    "sheet": "S0008",
+    "kind": "ordinary_pair",
+    "left": "1-21GD17",
+    "right": "1-21QD77",
+    "group": "GW0209",
+    "span": [
+      52.5,
+      182.5
+    ],
+    "uncovered_gaps": [
+      [
+        97.5,
+        108.75
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0008:S0008:/9108",
+      97.5,
+      108.75
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0224",
+    "sheet": "S0008",
+    "kind": "ordinary_pair",
+    "left": "4-21GD17",
+    "right": "4-21QD71",
+    "group": "GW0224",
+    "span": [
+      52.5,
+      182.5
+    ],
+    "uncovered_gaps": [
+      [
+        97.5,
+        108.75
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0008:S0008:/90D3",
+      97.5,
+      108.75
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0353",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D36",
+    "right": "1-21n427",
+    "group": "GW0353",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F713",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0358",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D31",
+    "right": "1-21n422",
+    "group": "GW0358",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F6D6",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0363",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D26",
+    "right": "1-21n419",
+    "group": "GW0363",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F6BD",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0369",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D21",
+    "right": "1-21n416",
+    "group": "GW0369",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F6A4",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0373",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D16",
+    "right": "1-21n413",
+    "group": "GW0373",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F68B",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0378",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D11",
+    "right": "1-21n410",
+    "group": "GW0378",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F672",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0384",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D6",
+    "right": "1-21n407",
+    "group": "GW0384",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F659",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0391",
+    "sheet": "S0011",
+    "kind": "wire_component_mapping",
+    "left": "1-21C1D1",
+    "right": "1-21n404",
+    "group": "GW0391",
+    "span": [
+      265.0,
+      315.0
+    ],
+    "uncovered_gaps": [
+      [
+        282.5,
+        292.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0011:S0011:/F734",
+      282.5,
+      292.5
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0462",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D36",
+    "right": "2-21n427",
+    "group": "GW0462",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/AE8D",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0466",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D31",
+    "right": "2-21n422",
+    "group": "GW0466",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/AE41",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0471",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D26",
+    "right": "2-21n419",
+    "group": "GW0471",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/AE28",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0476",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D21",
+    "right": "2-21n416",
+    "group": "GW0476",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/AE0F",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0482",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D16",
+    "right": "2-21n413",
+    "group": "GW0482",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/ADF6",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0488",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D11",
+    "right": "2-21n410",
+    "group": "GW0488",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/ADDD",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0493",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D6",
+    "right": "2-21n407",
+    "group": "GW0493",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/ADC4",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0498",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21C1D1",
+    "right": "2-21n404",
+    "group": "GW0498",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/AEAE",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0500",
+    "sheet": "S0013",
+    "kind": "wire_component_mapping",
+    "left": "2-21CD3",
+    "right": "2-21n401",
+    "group": "GW0500",
+    "span": [
+      40.0,
+      155.0
+    ],
+    "uncovered_gaps": [
+      [
+        95.0,
+        105.0
+      ],
+      [
+        117.5,
+        127.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0013:S0013:/A97F",
+      95.0,
+      105.0
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0568",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D36",
+    "right": "3-21n427",
+    "group": "GW0568",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/AE8D",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0572",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D31",
+    "right": "3-21n422",
+    "group": "GW0572",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/AE41",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0577",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D26",
+    "right": "3-21n419",
+    "group": "GW0577",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/AE28",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0582",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D21",
+    "right": "3-21n416",
+    "group": "GW0582",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/AE0F",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0588",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D16",
+    "right": "3-21n413",
+    "group": "GW0588",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/ADF6",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0594",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D11",
+    "right": "3-21n410",
+    "group": "GW0594",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/ADDD",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0599",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D6",
+    "right": "3-21n407",
+    "group": "GW0599",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/ADC4",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0604",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21C1D1",
+    "right": "3-21n404",
+    "group": "GW0604",
+    "span": [
+      267.63,
+      317.63
+    ],
+    "uncovered_gaps": [
+      [
+        285.13,
+        295.13
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/AEAE",
+      285.13,
+      295.13
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0606",
+    "sheet": "S0015",
+    "kind": "wire_component_mapping",
+    "left": "3-21CD3",
+    "right": "3-21n401",
+    "group": "GW0606",
+    "span": [
+      40.0,
+      155.0
+    ],
+    "uncovered_gaps": [
+      [
+        95.0,
+        105.0
+      ],
+      [
+        117.5,
+        127.5
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0015:S0015:/A97F",
+      95.0,
+      105.0
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0723",
+    "sheet": "S0018",
+    "kind": "wire_component_mapping",
+    "left": "4-21CD16",
+    "right": "4-21n413",
+    "group": "GW0723",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0018:S0018:/6A93",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0726",
+    "sheet": "S0018",
+    "kind": "wire_component_mapping",
+    "left": "4-21CD11",
+    "right": "4-21n410",
+    "group": "GW0726",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0018:S0018:/6A7A",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0729",
+    "sheet": "S0018",
+    "kind": "wire_component_mapping",
+    "left": "4-21CD6",
+    "right": "4-21n407",
+    "group": "GW0729",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0018:S0018:/6A61",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0732",
+    "sheet": "S0018",
+    "kind": "wire_component_mapping",
+    "left": "4-21CD1",
+    "right": "4-21n404",
+    "group": "GW0732",
+    "span": [
+      102.5,
+      152.5
+    ],
+    "uncovered_gaps": [
+      [
+        120.0,
+        130.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0018:S0018:/6ACB",
+      120.0,
+      130.0
+    ]
+  },
+  {
+    "pid": "p061",
+    "pair_id": "PW0747",
+    "sheet": "S0019",
+    "kind": "wire_component_mapping",
+    "left": "HD1",
+    "right": "4-21n501",
+    "group": "GW0747",
+    "span": [
+      87.5,
+      127.5
+    ],
+    "uncovered_gaps": [
+      [
+        100.0,
+        110.0
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0019:S0019:/F03F",
+      100.0,
+      110.0
+    ]
+  },
+  {
+    "pid": "p071",
+    "pair_id": "PW0123",
+    "sheet": "S0006",
+    "kind": "bridge_mapping",
+    "left": "YD4",
+    "right": "YD13",
+    "group": "GW0123",
+    "span": [
+      87.5,
+      217.5
+    ],
+    "uncovered_gaps": [
+      [
+        130.0,
+        141.25
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0006:S0006:/25EDE",
+      130.0,
+      141.25
+    ]
+  },
+  {
+    "pid": "p071",
+    "pair_id": "PW0125",
+    "sheet": "S0006",
+    "kind": "bridge_mapping",
+    "left": "YD3",
+    "right": "YD12",
+    "group": "GW0125",
+    "span": [
+      87.5,
+      217.5
+    ],
+    "uncovered_gaps": [
+      [
+        130.0,
+        141.25
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0006:S0006:/25ED6",
+      130.0,
+      141.25
+    ]
+  },
+  {
+    "pid": "p071",
+    "pair_id": "PW0129",
+    "sheet": "S0006",
+    "kind": "bridge_mapping",
+    "left": "YD2",
+    "right": "YD11",
+    "group": "GW0129",
+    "span": [
+      87.5,
+      217.5
+    ],
+    "uncovered_gaps": [
+      [
+        130.0,
+        141.25
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0006:S0006:/239F1",
+      130.0,
+      141.25
+    ]
+  },
+  {
+    "pid": "p071",
+    "pair_id": "PW0130",
+    "sheet": "S0006",
+    "kind": "bridge_mapping",
+    "left": "YD1",
+    "right": "YD10",
+    "group": "GW0130",
+    "span": [
+      87.5,
+      217.5
+    ],
+    "uncovered_gaps": [
+      [
+        130.0,
+        141.25
+      ]
+    ],
+    "symbol_body_inside_span": true,
+    "body": [
+      "SW:F0006:S0006:/239E8",
+      130.0,
+      141.25
+    ]
+  }
+]

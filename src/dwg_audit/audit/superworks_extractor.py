@@ -12,6 +12,8 @@ from dataclasses import asdict, replace
 
 from dwg_audit.domain.models import Pair, SwPort, LineGroup
 from dwg_audit.audit.superworks_device_internal import DEVICE_INTERNAL, device_internal_verdict, label_of
+from dwg_audit.audit.superworks_wire_walk import (device_frame, inside_rect, mark_touches, rectangles,
+                                                 segment_index as walk_segment_index, walk_wire)
 from dwg_audit.extract.superworks_loggen import SYMB2_IDENTITY_SOURCE, SYMB2_STATUS
 from dwg_audit.extract.superworks_semantics import (CONNECT_ANCHOR_COINCIDENT_TOL,
     SuperworksData, normalize)
@@ -763,11 +765,37 @@ def _identities_agree(identity, value, aliases=()):
     return bool(head and any(ch.isalpha() for ch in head) and any(ch.isdigit() for ch in value_key))
 
 
-def _consumed_ports(pairs):
+def _is_provisional_half(pair, cut_group_ids):
+    """WIRE-BREAK: a non-pass pair on a line group that a symbol-body cut created holds no port.
+
+    The cut leaves the wire's far end on a symbol body, which has no text candidate: the group-level pair is then a
+    provisional claim (one-sided, or a review built from a bare number), and the wire-route record of the same wire
+    is the authoritative pair for that end. Pass pairs are verified and keep their ports.
+    """
+    if (pair.evidence or {}).get("sw_wire_route"):
+        return False
+    return (pair.line_group_id in cut_group_ids
+            and (pair.status != "pass" or not pair.left_value or not pair.right_value))
+
+
+def _provisional_pairs_by_port(pairs, cut_group_ids):
+    """port_id -> provisional pairs (see _is_provisional_half) that name the port in their SuperWORKS sides."""
+    result = defaultdict(list)
+    for pair in pairs:
+        if pair.status == "discard" or not _is_provisional_half(pair, cut_group_ids):
+            continue
+        sw = (pair.evidence or {}).get("superworks") or {}
+        for side in ("left", "right"):
+            for port_id in (sw.get(side) or {}).get("port_ids") or []:
+                result[port_id].append(pair)
+    return result
+
+
+def _consumed_ports(pairs, cut_group_ids=frozenset()):
     """port_id -> [(pair, side)] for every non-discard pair that names the port in its SuperWORKS sides."""
     consumed = defaultdict(list)
     for pair in pairs:
-        if pair.status == "discard":
+        if pair.status == "discard" or _is_provisional_half(pair, cut_group_ids):
             continue
         sw = (pair.evidence or {}).get("superworks") or {}
         for side in ("left", "right"):
@@ -956,8 +984,12 @@ def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, pag
         if not line.source_block_name:
             line_by_key.setdefault((line.file_id, line.handle), line)
     groups_by_id = {group.line_group_id: group for group in line_groups}
-    active_groups = {(pair.sheet_id, pair.line_group_id) for pair in output if pair.status != "discard"}
-    consumed = _consumed_ports(output)
+    cut_groups = getattr(data, "topology_cut_group_ids", None) or frozenset()
+    active_groups = {(pair.sheet_id, pair.line_group_id) for pair in output
+                     if pair.status != "discard" and not _is_provisional_half(pair, cut_groups)}
+    consumed = _consumed_ports(output, cut_groups)
+    provisional_by_port = _provisional_pairs_by_port(output, cut_groups)
+    displaced_ids = set()
     symb2_ctx = _symb2_context(rows, data, strip_rows_by_endpoint, texts)
     for row in rows:
         ends = json.loads(row["ends_json"])
@@ -1038,6 +1070,12 @@ def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, pag
             } for i, end in enumerate(ends) if end.get("status") == SYMB2_STATUS]
             stats["admitted:symb2_text_slot"] += 1
         output.append(new)
+        # WIRE-BREAK: a provisional legacy pair on a port this wire-route record now pairs is replaced by it.
+        for port_id in endpoints[0]["port_ids"] + endpoints[1]["port_ids"]:
+            for old in provisional_by_port.get(port_id, ()):
+                if id(old) not in displaced_ids:
+                    displaced_ids.add(id(old))
+                    stats["displaced_provisional"] += 1
         if line_group_id:
             active_groups.add((row["sheet_id"], line_group_id))
         for side, endpoint in (("left", left), ("right", right)):
@@ -1054,6 +1092,8 @@ def _admit_wire_routes(output, data, rows, *, lines, line_groups, audit_ids, pag
         row["admitted_pair_id"] = new.pair_id
         stats[f"admitted:{new.status}"] += 1
         stats[f"admitted:{new.status}:{new.pair_kind}"] += 1
+    if displaced_ids:
+        output[:] = [pair for pair in output if id(pair) not in displaced_ids]
     return stats
 
 
@@ -1218,7 +1258,7 @@ def _run_wire_route_admission(output, data, *, lines, line_groups, audit_ids, pa
                 wires.add(handle_by_line[line_id])
         return wires
 
-    _reconcile_consumed_wire_routes(rows, _consumed_ports(output), consumed_stats, wires_of)
+    _reconcile_consumed_wire_routes(rows, _consumed_ports(output, getattr(data, "topology_cut_group_ids", None) or frozenset()), consumed_stats, wires_of)
     for row in rows:
         row.setdefault("admission_status", None)
         if row["admission_status"] is None:
@@ -1300,8 +1340,153 @@ def _discard_device_internal_pairs(output, data):
     return dict(stats)
 
 
+def _walk_marks(data, sheet_id):
+    """Symbol marks of a sheet: registered ports and unregistered SYMB2 TERMPOINTs, with the device-internal view."""
+    marks = []
+    for port in data.ports:
+        if port.sheet_id != sheet_id:
+            continue
+        label, resolved = label_of({"label": port.label})
+        marks.append({"key": port.symbol_id, "rid": port.record_id,
+                      "segment": (float(port.start_x), float(port.start_y), float(port.end_x), float(port.end_y)),
+                      "other": {"category": port.category or "", "label": label, "label_resolved": resolved,
+                                "unregistered": False, "identity": port.endpoint_identity or ""}})
+    for block in data.unregistered_symb2:
+        if block.get("sheet_id") != sheet_id:
+            continue
+        key = f"SW:{block.get('file_id')}:{sheet_id}:{block.get('instance_path')}"
+        for termpoint in block.get("termpoints") or []:
+            (ax, ay), (bx, by) = termpoint.get("a") or (0.0, 0.0), termpoint.get("b") or (0.0, 0.0)
+            marks.append({"key": key, "rid": f"{block.get('record_id')}#{termpoint.get('number')}",
+                          "segment": (float(ax), float(ay), float(bx), float(by)),
+                          "other": {"category": "", "label": block.get("label_value") or "",
+                                    "label_resolved": bool(block.get("label_resolved")), "unregistered": True,
+                                    "identity": ""}})
+    return marks
+
+
+def _discard_walked_half_pairs(output, data, lines, line_groups, texts=(), block_rows=()):
+    """WIRE-BREAK (rounds 24-25): a one-sided pair on a cut line group, whose resolved end is a device terminal, becomes
+    a device-internal discard when the wire walked from its open end reaches only internal pins of the same device.
+
+    The walk (superworks_wire_walk) follows corners and T junctions over model lines and the visible block lines of
+    element instances, and stops at every SW symbol mark (no connection through a terminal or an element pin).
+    Every symbol reached must be internal to the terminal's device:
+    - a pin with a resolved label: device_internal_verdict must give DEVICE_INTERNAL (rule wire_walk_internal);
+    - a pin with an unresolved label (an SW internal element or coil, or an unregistered block pin): accepted only
+      inside the device frame, which must be unique (rule wire_walk_internal_frame). The frame holds every terminal
+      port and carries the device label text; the walked wire and the reached pins must lie inside it.
+    Any reached terminal, other-device terminal, external pin or object outside the frame keeps the pair as it was.
+    Returns counters walk_discarded:<status> and walk_kept:<reason>.
+    """
+    stats = Counter()
+    if not line_groups or not getattr(data, "topology_cut_group_ids", None):
+        return dict(stats)
+    groups = {group.line_group_id: group for group in line_groups}
+    model = walk_segment_index(lines)
+    walkable = defaultdict(list, {sheet: list(segs) for sheet, segs in model.items()})
+    for sheet_id, x1, y1, x2, y2 in block_rows:
+        walkable[sheet_id].append((float(x1), float(y1), float(x2), float(y2)))
+    text_rows = defaultdict(list)
+    for text in texts:
+        if text.text and str(text.text).strip():
+            text_rows[text.sheet_id].append((str(text.normalized_text or text.text).strip(),
+                                             (float(text.bbox_min_x), float(text.bbox_min_y),
+                                              float(text.bbox_max_x), float(text.bbox_max_y))))
+    frames = {}
+    marks_by_sheet = {}
+    ports_by_id = {port.record_id: port for port in data.ports}
+    for index, pair in enumerate(output):
+        if pair.status == "discard" or not (pair.evidence or {}).get("superworks"):
+            continue
+        if pair.line_group_id not in data.topology_cut_group_ids or bool(pair.left_value) == bool(pair.right_value):
+            continue
+        resolved_side = "left" if pair.left_value else "right"
+        terminal = _pair_end(pair, resolved_side, ports_by_id)
+        if terminal["category"] != "装置端子":
+            continue
+        group = groups.get(pair.line_group_id)
+        if group is None:
+            stats["walk_kept:no_line_group"] += 1
+            continue
+        terminal_ports = [ports_by_id[port_id] for port_id in terminal["port_ids"] if port_id in ports_by_id]
+        terminal_keys = {port.symbol_id for port in terminal_ports}
+        terminal_points = [((port.start_x + port.end_x) / 2.0, (port.start_y + port.end_y) / 2.0)
+                           for port in terminal_ports]
+        ends = [(float(group.start_x), float(group.start_y)), (float(group.end_x), float(group.end_y))]
+
+        def at_terminal(point):
+            return any(mark_touches(point, (port.start_x, port.start_y, port.end_x, port.end_y))
+                       for port in terminal_ports)
+
+        far = [end for end in ends if not at_terminal(end)]
+        if len(far) != 1 or not any(at_terminal(end) for end in ends):
+            stats["walk_kept:no_open_end"] += 1
+            continue
+        if pair.sheet_id not in marks_by_sheet:
+            marks_by_sheet[pair.sheet_id] = _walk_marks(data, pair.sheet_id)
+        marks = marks_by_sheet[pair.sheet_id]
+        by_rid = {mark["rid"]: mark for mark in marks}
+        walk_marks = [(mark["key"], mark["rid"], mark["segment"]) for mark in marks]
+        visited, end_points, reached_keys = walk_wire(walkable.get(pair.sheet_id, []), far[0], walk_marks)
+        reached = [by_rid[rid] for _, rid in sorted(reached_keys)
+                   if rid in by_rid and by_rid[rid]["key"] not in terminal_keys]
+        if not reached:
+            stats["walk_kept:nothing_reached"] += 1
+            continue
+        blocked = None
+        unresolved = []
+        for mark in reached:
+            other = mark["other"]
+            if other["category"] in ("端子", "装置端子") or (other["category"] and not other["unregistered"]
+                                                           and other["category"] not in ("内部元件", "线圈")):
+                blocked = f"other_end_category:{other['category']}"
+                break
+            if not other["label_resolved"]:
+                if other["category"] in ("内部元件", "线圈") or other["unregistered"]:
+                    unresolved.append(mark)
+                    continue
+                blocked = "other_label_unresolved"
+                break
+            verdict = device_internal_verdict(terminal, other)
+            if verdict != DEVICE_INTERNAL:
+                blocked = verdict
+                break
+        if blocked is None and unresolved:
+            if pair.sheet_id not in frames:
+                frames[pair.sheet_id] = rectangles(model.get(pair.sheet_id, []))
+            frame = device_frame(frames[pair.sheet_id], terminal["label"], terminal_points,
+                                 text_rows.get(pair.sheet_id, []))
+            if frame is None:
+                blocked = "no_unique_frame"
+            elif not all(inside_rect(point, frame) for point in end_points):
+                blocked = "walk_leaves_frame"
+            elif not all(inside_rect((m["segment"][0], m["segment"][1]), frame)
+                         and inside_rect((m["segment"][2], m["segment"][3]), frame) for m in reached):
+                blocked = "reached_outside_frame"
+        if blocked is not None:
+            stats["walk_kept:" + blocked] += 1
+            continue
+        rule = "wire_walk_internal_frame" if unresolved else "wire_walk_internal"
+        evidence = copy.deepcopy(pair.evidence or {})
+        evidence["discard_reason"] = DEVICE_INTERNAL_DISCARD
+        evidence["device_internal_discard"] = {
+            "status_before": pair.status, "pair_kind": pair.pair_kind, "terminal_side": resolved_side,
+            "terminal_identity": terminal["identity"], "terminal_label": terminal["label"],
+            "terminal_port_ids": terminal["port_ids"], "other_identity": "", "other_category": "",
+            "other_label": "", "other_port_ids": [], "other_unregistered": False, "rule": rule,
+            "walk_reached": sorted(mark["rid"] for mark in reached), "walk_segments": len(visited),
+            "walk_unresolved": sorted(mark["rid"] for mark in unresolved)}
+        output[index] = replace(pair, status="discard", evidence=evidence,
+            rationale=f"{DEVICE_INTERNAL_DISCARD}: {terminal['identity']} 的导线沿线网络只到达本装置内部引脚（{rule}），不进入匹配")
+        stats[f"walk_discarded:{pair.status}"] += 1
+        if unresolved:
+            stats[f"walk_discarded_frame:{pair.status}"] += 1
+    return dict(stats)
+
+
 def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_groups, pairs, table_mappings,
-                            wire_route_sheet_numbers=None):
+                            wire_route_sheet_numbers=None, block_rows=None):
     if data is None:
         return pairs,table_mappings,[]
     started=time.perf_counter()
@@ -1644,6 +1829,9 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                                   xml_ranks=xml_ranks, sheet_numbers=wire_route_sheet_numbers, texts=texts)
     # DEV-INT-DISCARD: after admission, so admission sees the ports exactly as before this rule.
     data.device_internal_discard_stats = _discard_device_internal_pairs(output, data)
+    # WIRE-BREAK (round 24): one-sided pairs on cut line groups whose open wire reaches only device-internal pins.
+    data.device_internal_discard_stats.update(
+        _discard_walked_half_pairs(output, data, lines, line_groups, texts=texts, block_rows=block_rows or ()))
     # The dictionary is observational; it cannot demote or validate a connection.
     dictionary={_key(v) for v in data.dictionary.get("names",[])}
     strip_names={_key(v) for v in data.dictionary.get("strip_names",[])}
