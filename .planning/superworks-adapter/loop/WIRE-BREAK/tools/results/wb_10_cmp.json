@@ -1,0 +1,2031 @@
+{
+  "p001": {
+    "line_groups": {
+      "base": 1092,
+      "new": 1058,
+      "diff": {
+        "added": 21,
+        "removed": 55,
+        "added_sample": [
+          [
+            "S0007",
+            65.0,
+            145.0,
+            80.0,
+            145.0
+          ],
+          [
+            "S0007",
+            90.0,
+            145.0,
+            185.0,
+            145.0
+          ],
+          [
+            "S0007",
+            65.0,
+            155.0,
+            80.0,
+            155.0
+          ],
+          [
+            "S0007",
+            90.0,
+            155.0,
+            185.0,
+            155.0
+          ],
+          [
+            "S0007",
+            65.0,
+            165.0,
+            80.0,
+            165.0
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0004",
+            235.0,
+            155.0,
+            302.5,
+            155.0
+          ],
+          [
+            "S0004",
+            267.5,
+            195.0,
+            320.0,
+            195.0
+          ],
+          [
+            "S0004",
+            267.5,
+            205.0,
+            320.0,
+            205.0
+          ],
+          [
+            "S0004",
+            267.5,
+            215.0,
+            320.0,
+            215.0
+          ],
+          [
+            "S0004",
+            267.5,
+            225.0,
+            320.0,
+            225.0
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 1324,
+      "new": 1371,
+      "diff": {
+        "added": 52,
+        "removed": 5,
+        "added_sample": [
+          [
+            "S0007",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "909",
+            "910",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "901",
+            "902",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0004",
+            "1522",
+            "",
+            "review",
+            "semantic_mapping"
+          ],
+          [
+            "S0004",
+            "1508",
+            "1507",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0007",
+            "1QD4",
+            "1QD7",
+            "pass",
+            "bridge_mapping"
+          ],
+          [
+            "S0010",
+            "",
+            "7QD7",
+            "review",
+            "wire_component_mapping"
+          ],
+          [
+            "S0010",
+            "",
+            "7QD6",
+            "review",
+            "wire_component_mapping"
+          ],
+          [
+            "S0010",
+            "",
+            "7QD5",
+            "review",
+            "wire_component_mapping"
+          ],
+          [
+            "S0010",
+            "",
+            "7QD4",
+            "review",
+            "wire_component_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 0,
+      "new": 0,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          441,
+          663
+        ],
+        "new": [
+          437,
+          663
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          485,
+          663
+        ],
+        "new": [
+          481,
+          663
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          441,
+          519
+        ],
+        "new": [
+          437,
+          510
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          450,
+          519
+        ],
+        "new": [
+          440,
+          510
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 154,
+      "new": 161
+    },
+    "terminal_splits": {
+      "base": 36,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 79
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  },
+  "p003": {
+    "line_groups": {
+      "base": 646,
+      "new": 615,
+      "diff": {
+        "added": 2,
+        "removed": 33,
+        "added_sample": [
+          [
+            "S0007",
+            181.321,
+            177.499,
+            275.0,
+            177.499
+          ],
+          [
+            "S0007",
+            180.0,
+            240.0,
+            275.0,
+            240.0
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0004",
+            335.0,
+            235.0,
+            387.5,
+            235.0
+          ],
+          [
+            "S0004",
+            335.0,
+            245.0,
+            387.5,
+            245.0
+          ],
+          [
+            "S0004",
+            335.0,
+            255.0,
+            387.5,
+            255.0
+          ],
+          [
+            "S0004",
+            140.0,
+            260.0,
+            187.5,
+            260.0
+          ],
+          [
+            "S0004",
+            335.0,
+            265.0,
+            387.5,
+            265.0
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 655,
+      "new": 685,
+      "diff": {
+        "added": 32,
+        "removed": 2,
+        "added_sample": [
+          [
+            "S0007",
+            "14",
+            "",
+            "review",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "809",
+            "810",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0004",
+            "1508",
+            "1507",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0004",
+            "1505",
+            "1506",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0004",
+            "1503",
+            "1504",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0007",
+            "8QD4",
+            "8QD9",
+            "pass",
+            "bridge_mapping"
+          ],
+          [
+            "S0007",
+            "8QD4",
+            "8YFA-13",
+            "review",
+            "wire_component_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 0,
+      "new": 0,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          256,
+          378
+        ],
+        "new": [
+          256,
+          378
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          281,
+          378
+        ],
+        "new": [
+          280,
+          378
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          256,
+          310
+        ],
+        "new": [
+          256,
+          306
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          263,
+          310
+        ],
+        "new": [
+          260,
+          306
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 70,
+      "new": 76
+    },
+    "terminal_splits": {
+      "base": 24,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 50
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  },
+  "p022": {
+    "line_groups": {
+      "base": 1221,
+      "new": 1158,
+      "diff": {
+        "added": 1,
+        "removed": 64,
+        "added_sample": [
+          [
+            "S0010",
+            85.0,
+            242.5,
+            180.0,
+            242.5
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0006",
+            145.0,
+            75.0,
+            197.5,
+            75.0
+          ],
+          [
+            "S0006",
+            145.0,
+            85.0,
+            197.5,
+            85.0
+          ],
+          [
+            "S0006",
+            145.0,
+            115.0,
+            197.5,
+            115.0
+          ],
+          [
+            "S0006",
+            145.0,
+            125.0,
+            197.5,
+            125.0
+          ],
+          [
+            "S0006",
+            145.0,
+            135.0,
+            197.5,
+            135.0
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 1699,
+      "new": 1761,
+      "diff": {
+        "added": 80,
+        "removed": 18,
+        "added_sample": [
+          [
+            "S0010",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0011",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0012",
+            "301",
+            "302",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0012",
+            "306",
+            "307",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0012",
+            "101",
+            "102",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0010",
+            "1QD2",
+            "1n231",
+            "pass",
+            "wire_component_mapping"
+          ],
+          [
+            "S0011",
+            "421",
+            "1KD15",
+            "discard",
+            "wire_component_mapping"
+          ],
+          [
+            "S0011",
+            "417",
+            "1KD14",
+            "discard",
+            "wire_component_mapping"
+          ],
+          [
+            "S0011",
+            "329",
+            "1KD13",
+            "discard",
+            "wire_component_mapping"
+          ],
+          [
+            "S0011",
+            "429",
+            "1KD12",
+            "discard",
+            "wire_component_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 1,
+      "new": 1,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          450,
+          747
+        ],
+        "new": [
+          444,
+          747
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          521,
+          747
+        ],
+        "new": [
+          515,
+          747
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          450,
+          557
+        ],
+        "new": [
+          444,
+          542
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          471,
+          557
+        ],
+        "new": [
+          465,
+          542
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 209,
+      "new": 223
+    },
+    "terminal_splits": {
+      "base": 50,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 138
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  },
+  "p026": {
+    "line_groups": {
+      "base": 2156,
+      "new": 2030,
+      "diff": {
+        "added": 2,
+        "removed": 128,
+        "added_sample": [
+          [
+            "S0007",
+            110.0,
+            215.0,
+            205.0,
+            215.0
+          ],
+          [
+            "S0013",
+            83.75,
+            55.007,
+            177.5,
+            55.007
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0004",
+            205.0,
+            260.0,
+            252.5,
+            260.0
+          ],
+          [
+            "S0004",
+            205.0,
+            270.0,
+            252.5,
+            270.0
+          ],
+          [
+            "S0006",
+            85.0,
+            255.0,
+            157.5,
+            255.0
+          ],
+          [
+            "S0007",
+            82.5,
+            215.0,
+            205.0,
+            215.0
+          ],
+          [
+            "S0007",
+            127.5,
+            235.0,
+            167.5,
+            235.0
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 2491,
+      "new": 2614,
+      "diff": {
+        "added": 135,
+        "removed": 12,
+        "added_sample": [
+          [
+            "S0007",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0006",
+            "211",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "1515",
+            "1527",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "1513",
+            "1525",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0016",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "1515",
+            "5KD8",
+            "discard",
+            "wire_component_mapping"
+          ],
+          [
+            "S0008",
+            "1513",
+            "5KD7",
+            "discard",
+            "wire_component_mapping"
+          ],
+          [
+            "S0008",
+            "1511",
+            "5KD6",
+            "discard",
+            "wire_component_mapping"
+          ],
+          [
+            "S0008",
+            "1509",
+            "5KD5",
+            "discard",
+            "wire_component_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 0,
+      "new": 0,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          736,
+          1252
+        ],
+        "new": [
+          736,
+          1252
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          871,
+          1252
+        ],
+        "new": [
+          871,
+          1252
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          736,
+          897
+        ],
+        "new": [
+          736,
+          889
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          754,
+          897
+        ],
+        "new": [
+          754,
+          889
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 353,
+      "new": 360
+    },
+    "terminal_splits": {
+      "base": 116,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 198,
+        "body_width_below_min": 1
+      },
+      "unknown_count": 1,
+      "unknown_by_reason": {
+        "body_width_below_min": 1
+      },
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 1
+  },
+  "p044": {
+    "line_groups": {
+      "base": 2058,
+      "new": 2015,
+      "diff": {
+        "added": 5,
+        "removed": 48,
+        "added_sample": [
+          [
+            "S0007",
+            37.513,
+            150.0,
+            167.5,
+            150.0
+          ],
+          [
+            "S0007",
+            37.513,
+            235.0,
+            167.5,
+            235.0
+          ],
+          [
+            "S0014",
+            65.0,
+            225.0,
+            145.0,
+            225.0
+          ],
+          [
+            "S0014",
+            65.0,
+            235.0,
+            145.0,
+            235.0
+          ],
+          [
+            "S0014",
+            72.5,
+            245.0,
+            345.0,
+            245.0
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0007",
+            302.5,
+            109.176,
+            395.0,
+            109.176
+          ],
+          [
+            "S0007",
+            185.0,
+            120.0,
+            237.5,
+            120.0
+          ],
+          [
+            "S0007",
+            185.0,
+            130.0,
+            237.5,
+            130.0
+          ],
+          [
+            "S0007",
+            185.0,
+            140.0,
+            237.5,
+            140.0
+          ],
+          [
+            "S0007",
+            37.513,
+            150.0,
+            220.0,
+            150.0
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 3033,
+      "new": 3088,
+      "diff": {
+        "added": 63,
+        "removed": 8,
+        "added_sample": [
+          [
+            "S0009",
+            "108",
+            "109",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0014",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0007",
+            "612",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0007",
+            "711",
+            "712",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0007",
+            "709",
+            "710",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0016",
+            "1-21CD36",
+            "1-21n422",
+            "pass",
+            "wire_component_mapping"
+          ],
+          [
+            "S0016",
+            "1-21CD31",
+            "1-21n419",
+            "pass",
+            "wire_component_mapping"
+          ],
+          [
+            "S0016",
+            "1-21CD26",
+            "1-21n416",
+            "pass",
+            "wire_component_mapping"
+          ],
+          [
+            "S0016",
+            "1-21CD21",
+            "1-21n413",
+            "pass",
+            "wire_component_mapping"
+          ],
+          [
+            "S0016",
+            "1-21CD16",
+            "1-21n410",
+            "pass",
+            "wire_component_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 1,
+      "new": 1,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          858,
+          1315
+        ],
+        "new": [
+          858,
+          1315
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          858,
+          1315
+        ],
+        "new": [
+          858,
+          1315
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          858,
+          1072
+        ],
+        "new": [
+          858,
+          1071
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          858,
+          1072
+        ],
+        "new": [
+          858,
+          1071
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 243,
+      "new": 245
+    },
+    "terminal_splits": {
+      "base": 37,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 65
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  },
+  "p051": {
+    "line_groups": {
+      "base": 621,
+      "new": 601,
+      "diff": {
+        "added": 0,
+        "removed": 20,
+        "added_sample": [],
+        "removed_sample": [
+          [
+            "S0004",
+            130.0,
+            97.5,
+            180.0,
+            97.5
+          ],
+          [
+            "S0004",
+            140.0,
+            132.5,
+            180.0,
+            132.5
+          ],
+          [
+            "S0004",
+            315.0,
+            132.5,
+            355.0,
+            132.5
+          ],
+          [
+            "S0004",
+            130.0,
+            142.5,
+            180.0,
+            142.5
+          ],
+          [
+            "S0004",
+            305.0,
+            142.5,
+            355.0,
+            142.5
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 797,
+      "new": 817,
+      "diff": {
+        "added": 23,
+        "removed": 3,
+        "added_sample": [
+          [
+            "S0004",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0005",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0005",
+            "YD2",
+            "1-57DK2-11",
+            "review",
+            "wire_component_mapping"
+          ],
+          [
+            "S0005",
+            "YD11",
+            "1-57DK2-12",
+            "review",
+            "wire_component_mapping"
+          ],
+          [
+            "S0005",
+            "YD3",
+            "2-57DK1-11",
+            "review",
+            "wire_component_mapping"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0005",
+            "YD4",
+            "YD13",
+            "pass",
+            "bridge_mapping"
+          ],
+          [
+            "S0005",
+            "YD3",
+            "YD12",
+            "pass",
+            "bridge_mapping"
+          ],
+          [
+            "S0005",
+            "YD2",
+            "YD11",
+            "pass",
+            "bridge_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 0,
+      "new": 0,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          190,
+          229
+        ],
+        "new": [
+          190,
+          229
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          190,
+          229
+        ],
+        "new": [
+          190,
+          229
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          190,
+          213
+        ],
+        "new": [
+          190,
+          213
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          190,
+          213
+        ],
+        "new": [
+          190,
+          213
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 16,
+      "new": 16
+    },
+    "terminal_splits": {
+      "base": 17,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 29
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  },
+  "p061": {
+    "line_groups": {
+      "base": 3136,
+      "new": 2993,
+      "diff": {
+        "added": 18,
+        "removed": 161,
+        "added_sample": [
+          [
+            "S0009",
+            65.0,
+            225.0,
+            145.0,
+            225.0
+          ],
+          [
+            "S0009",
+            65.0,
+            235.0,
+            145.0,
+            235.0
+          ],
+          [
+            "S0009",
+            72.5,
+            245.0,
+            345.0,
+            245.0
+          ],
+          [
+            "S0010",
+            72.5,
+            245.0,
+            345.0,
+            245.0
+          ],
+          [
+            "S0012",
+            65.0,
+            225.0,
+            145.0,
+            225.0
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0004",
+            97.5,
+            130.0,
+            215.0,
+            130.0
+          ],
+          [
+            "S0004",
+            97.5,
+            150.0,
+            215.0,
+            150.0
+          ],
+          [
+            "S0004",
+            97.5,
+            170.0,
+            215.0,
+            170.0
+          ],
+          [
+            "S0004",
+            179.967,
+            225.0,
+            232.467,
+            225.0
+          ],
+          [
+            "S0004",
+            179.967,
+            247.5,
+            232.467,
+            247.5
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 4305,
+      "new": 4495,
+      "diff": {
+        "added": 230,
+        "removed": 40,
+        "added_sample": [
+          [
+            "S0008",
+            "108",
+            "109",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0009",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0011",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0011",
+            "511",
+            "512",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0011",
+            "404",
+            "406",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0004",
+            "",
+            "",
+            "review",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "3-21GD17",
+            "3-21QD31",
+            "pass",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "2-21GD17",
+            "2-21QD31",
+            "pass",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "1-21GD17",
+            "1-21QD77",
+            "pass",
+            "ordinary_pair"
+          ],
+          [
+            "S0008",
+            "4-21GD17",
+            "4-21QD71",
+            "pass",
+            "ordinary_pair"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 0,
+      "new": 0,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          1330,
+          1931
+        ],
+        "new": [
+          1333,
+          1931
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          1594,
+          1931
+        ],
+        "new": [
+          1595,
+          1931
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          1330,
+          1468
+        ],
+        "new": [
+          1333,
+          1460
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          1336,
+          1468
+        ],
+        "new": [
+          1339,
+          1460
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 464,
+      "new": 472
+    },
+    "terminal_splits": {
+      "base": 108,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 224,
+        "body_width_below_min": 1
+      },
+      "unknown_count": 1,
+      "unknown_by_reason": {
+        "body_width_below_min": 1
+      },
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 1
+  },
+  "p071": {
+    "line_groups": {
+      "base": 425,
+      "new": 398,
+      "diff": {
+        "added": 0,
+        "removed": 27,
+        "added_sample": [],
+        "removed_sample": [
+          [
+            "S0004",
+            137.5,
+            202.5,
+            177.5,
+            202.5
+          ],
+          [
+            "S0004",
+            327.5,
+            202.5,
+            367.5,
+            202.5
+          ],
+          [
+            "S0004",
+            127.5,
+            212.5,
+            177.5,
+            212.5
+          ],
+          [
+            "S0004",
+            317.5,
+            212.5,
+            367.5,
+            212.5
+          ],
+          [
+            "S0004",
+            137.5,
+            242.5,
+            177.5,
+            242.5
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 537,
+      "new": 564,
+      "diff": {
+        "added": 31,
+        "removed": 4,
+        "added_sample": [
+          [
+            "S0004",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0005",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0006",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0006",
+            "12",
+            "YD13",
+            "pass",
+            "wire_component_mapping"
+          ],
+          [
+            "S0006",
+            "12",
+            "YD12",
+            "pass",
+            "wire_component_mapping"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0006",
+            "YD4",
+            "YD13",
+            "pass",
+            "bridge_mapping"
+          ],
+          [
+            "S0006",
+            "YD3",
+            "YD12",
+            "pass",
+            "bridge_mapping"
+          ],
+          [
+            "S0006",
+            "YD2",
+            "YD11",
+            "pass",
+            "bridge_mapping"
+          ],
+          [
+            "S0006",
+            "YD1",
+            "YD10",
+            "pass",
+            "bridge_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 3,
+      "new": 3,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          146,
+          200
+        ],
+        "new": [
+          146,
+          200
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          151,
+          200
+        ],
+        "new": [
+          151,
+          200
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          146,
+          190
+        ],
+        "new": [
+          146,
+          188
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          149,
+          190
+        ],
+        "new": [
+          147,
+          188
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 10,
+      "new": 12
+    },
+    "terminal_splits": {
+      "base": 21,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 42
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  },
+  "p074": {
+    "line_groups": {
+      "base": 1645,
+      "new": 1549,
+      "diff": {
+        "added": 0,
+        "removed": 96,
+        "added_sample": [],
+        "removed_sample": [
+          [
+            "S0004",
+            67.415,
+            77.5,
+            184.915,
+            77.5
+          ],
+          [
+            "S0004",
+            255.559,
+            77.25,
+            373.059,
+            77.25
+          ],
+          [
+            "S0004",
+            149.915,
+            127.5,
+            202.415,
+            127.5
+          ],
+          [
+            "S0004",
+            338.059,
+            127.25,
+            390.559,
+            127.25
+          ],
+          [
+            "S0004",
+            149.915,
+            137.5,
+            202.415,
+            137.5
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 2455,
+      "new": 2549,
+      "diff": {
+        "added": 96,
+        "removed": 2,
+        "added_sample": [
+          [
+            "S0004",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0005",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0006",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0007",
+            "",
+            "",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0009",
+            "307",
+            "308",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": [
+          [
+            "S0008",
+            "",
+            "2-25GD11",
+            "review",
+            "wire_component_mapping"
+          ],
+          [
+            "S0008",
+            "",
+            "1-25GD11",
+            "review",
+            "wire_component_mapping"
+          ]
+        ]
+      }
+    },
+    "issues": {
+      "base": 0,
+      "new": 0,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          748,
+          1105
+        ],
+        "new": [
+          748,
+          1105
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          792,
+          1105
+        ],
+        "new": [
+          792,
+          1105
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          748,
+          851
+        ],
+        "new": [
+          748,
+          851
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          748,
+          851
+        ],
+        "new": [
+          748,
+          851
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 256,
+      "new": 256
+    },
+    "terminal_splits": {
+      "base": 94,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 160
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  },
+  "p075": {
+    "line_groups": {
+      "base": 1384,
+      "new": 1378,
+      "diff": {
+        "added": 0,
+        "removed": 6,
+        "added_sample": [],
+        "removed_sample": [
+          [
+            "S0005",
+            152.5,
+            130.0,
+            282.5,
+            130.0
+          ],
+          [
+            "S0005",
+            152.5,
+            140.0,
+            282.5,
+            140.0
+          ],
+          [
+            "S0005",
+            152.5,
+            150.0,
+            282.5,
+            150.0
+          ],
+          [
+            "S0005",
+            152.5,
+            177.5,
+            282.5,
+            177.5
+          ],
+          [
+            "S0005",
+            152.5,
+            187.5,
+            282.5,
+            187.5
+          ]
+        ]
+      }
+    },
+    "pairs": {
+      "base": 2346,
+      "new": 2352,
+      "diff": {
+        "added": 6,
+        "removed": 0,
+        "added_sample": [
+          [
+            "S0005",
+            "111",
+            "113",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0005",
+            "105",
+            "106",
+            "discard",
+            "ordinary_pair"
+          ],
+          [
+            "S0005",
+            "108",
+            "110",
+            "discard",
+            "ordinary_pair"
+          ]
+        ],
+        "removed_sample": []
+      }
+    },
+    "issues": {
+      "base": 4,
+      "new": 4,
+      "diff": {
+        "added": 0,
+        "removed": 0,
+        "added_sample": [],
+        "removed_sample": []
+      }
+    },
+    "coverage": {
+      "strict": {
+        "base": [
+          770,
+          798
+        ],
+        "new": [
+          770,
+          798
+        ]
+      },
+      "with_continuity": {
+        "base": [
+          775,
+          798
+        ],
+        "new": [
+          775,
+          798
+        ]
+      },
+      "strict_excl_device_internal": {
+        "base": [
+          770,
+          792
+        ],
+        "new": [
+          770,
+          786
+        ]
+      },
+      "with_continuity_excl_device_internal": {
+        "base": [
+          775,
+          792
+        ],
+        "new": [
+          770,
+          786
+        ]
+      }
+    },
+    "device_internal_links": {
+      "base": 6,
+      "new": 12
+    },
+    "terminal_splits": {
+      "base": 0,
+      "new": 0
+    },
+    "topology": {
+      "stats": {
+        "symbol_body_gap": 12
+      },
+      "unknown_count": 0,
+      "unknown_by_reason": {},
+      "note": "WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"
+    },
+    "unknown_rows": 0
+  }
+}

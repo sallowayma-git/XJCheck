@@ -230,6 +230,7 @@ def write_superworks_artifacts(artifacts, findings_dir):
         link["overruled_by_pair"]=link["port_id"] in consumed_ports
     _write_device_internal_links(findings_dir,device_internal)
     _write_unregistered_symb2(findings_dir,data)
+    _write_topology_unknown(findings_dir,data)
     main_eligible=[r for r in rows if r["main_two_end_eligible"]]
     summary={"schema_version":2,"project_id":artifacts.scan.manifest.project_id,
         "counts":{attr:len(getattr(data,attr)) for _,attr,_ in specs},
@@ -254,6 +255,10 @@ def write_superworks_artifacts(artifacts, findings_dir):
             "pcl_corroborated":sum(bool(l["pcl_corroborated"]) for l in device_internal["links"]),
             "terminal_splits":len(device_internal["terminal_splits"]),
             "note":"device-internal ports are excluded from the *_excl_device_internal views; their pairs are discarded (discard_reason device_internal) and they raise no issue"},
+        "topology":{"stats":dict(getattr(data,"topology_stats",None) or {}),
+            "unknown_count":len(getattr(data,"topology_unknown",None) or []),
+            "unknown_by_reason":dict(Counter(r["reason_code"] for r in (getattr(data,"topology_unknown",None) or []))),
+            "note":"WIRE-BREAK: symbol bodies cut line groups; unknown rows keep their legacy decision and are listed for review"},
         "cross_page":{"stats":cross_page["stats"],"link_count":len(cross_page["links"]),
             "candidate_counts":dict(Counter(c["candidate"] for c in cross_page["candidates"])),
             "note":"continuity links count as coverage in port_coverage_with_continuity only; they create no pairs"},
@@ -357,6 +362,19 @@ def _device_internal_links(artifacts,data):
         wire_endpoints=dict(getattr(data,"wire_endpoints",{}) or {}),
         terminal_split={"lines":lines,"line_groups":groups,"connect_dots":dots},
         element_identities=element_identities)
+
+
+def _write_topology_unknown(findings_dir,data):
+    """WIRE-BREAK: gaps whose shape the symbol-body rule does not classify (kept merged), for review."""
+    rows=[{"sheet_id":r["sheet_id"],"file_id":r["file_id"],"reason_code":r["reason_code"],"action":r["action"],
+           "orientation":r["orientation"],"gap_start":r["gap_start"],"gap_end":r["gap_end"],"gap_width":r["gap_width"],
+           "cross":r["cross"],"wire_handles":json.dumps(r["wire_handles"],ensure_ascii=False),
+           "line_ids":json.dumps(r["line_ids"],ensure_ascii=False),
+           "left_marks":json.dumps(r["left_marks"],ensure_ascii=False),"right_marks":json.dumps(r["right_marks"],ensure_ascii=False)}
+          for r in (getattr(data,"topology_unknown",None) or [])]
+    columns=["sheet_id","file_id","reason_code","action","orientation","gap_start","gap_end","gap_width","cross",
+             "wire_handles","line_ids","left_marks","right_marks"]
+    pd.DataFrame(rows,columns=columns).to_parquet(findings_dir/"sw_topology_unknown.parquet",index=False)
 
 
 def _write_unregistered_symb2(findings_dir,data):

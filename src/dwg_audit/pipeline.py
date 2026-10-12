@@ -38,6 +38,26 @@ def _is_downstream_audit_page(page) -> bool:
     )
 
 
+def _block_line_rows(primitive_segments) -> list:
+    """WIRE-BREAK round 25: visible LINE primitives of block instances (an element's own leads), as
+    (sheet_id, x1, y1, x2, y2) rows for the wire walk. Model lines come from the line list instead."""
+    if primitive_segments is None:
+        return []
+    rows = []
+    for item in primitive_segments:
+        if getattr(item, "primitive_kind", None) != "LINE" or not getattr(item, "definition_name", None):
+            continue
+        if not getattr(item, "visible", True):
+            continue
+        try:
+            geometry = json.loads(getattr(item, "world_geometry_json", None) or "{}")
+            (x1, y1, _), (x2, y2, _) = geometry["start"], geometry["end"]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        rows.append((item.sheet_id, float(x1), float(y1), float(x2), float(y2)))
+    return rows
+
+
 def _write_sw_wire_routes(project_dir, superworks, logger) -> None:
     """Diagnostic output: sw_wire_routes.parquet and its stats. The rows were resolved during the
     SuperWORKS extraction (superworks_extractor), from DXF documents already open in cad_extract."""
@@ -168,8 +188,13 @@ def analyze_input_root(
         pair_candidates = []
         pairs = []
         # SuperWORKS ports and connect dots tell a real wire break at two terminals from a merged wire.
+        # WIRE-BREAK: TERMPOINT marks of registered ports and unregistered SYMB2 blocks mark symbol bodies.
         wire_break_evidence = (
-            wire_break_evidence_by_sheet(getattr(superworks, "ports", None), getattr(superworks, "connect_dots", None))
+            wire_break_evidence_by_sheet(
+                getattr(superworks, "ports", None),
+                getattr(superworks, "connect_dots", None),
+                getattr(superworks, "unregistered_symb2", None),
+            )
             if superworks is not None else None
         )
         supplemental_table_mappings = []
@@ -246,11 +271,25 @@ def analyze_input_root(
             )
         pairs.extend(table_pairs)
 
+        if superworks is not None and wire_break_evidence:
+            # WIRE-BREAK: unknown-shape rows and counts collected while the line groups were built.
+            superworks.topology_unknown = [row for ev in wire_break_evidence.values() for row in ev.log]
+            topology_counts: dict[str, int] = {}
+            for ev in wire_break_evidence.values():
+                for key, count in ev.stats.items():
+                    topology_counts[key] = topology_counts.get(key, 0) + int(count)
+            superworks.topology_stats = topology_counts
+            # WIRE-BREAK: line groups that end on a symbol-body cut (their legacy half pairs are provisional).
+            from dwg_audit.audit.line_groups import symbol_cut_group_ids
+            superworks.topology_cut_group_ids = symbol_cut_group_ids(line_groups, wire_break_evidence)
+
         from dwg_audit.audit.superworks_extractor import extract_superworks_pairs
+        block_rows = _block_line_rows(primitive_segments)
         pairs, table_mappings, superworks_supersession = extract_superworks_pairs(
             superworks, pages=audit_pages, texts=audit_texts, lines=audit_lines,
             line_groups=line_groups, pairs=pairs, table_mappings=table_mappings,
             wire_route_sheet_numbers={page.file_id: page.sheet_no or "" for page in pages},
+            block_rows=block_rows,
         )
 
         # Some accessory/backplate pages are primarily routed as Table or Wire

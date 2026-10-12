@@ -123,6 +123,10 @@ class SuperworksData:
     wire_route_stats: dict[str, Any] = field(default_factory=dict)
     # DEV-INT-DISCARD: counters of the non-discard pairs the device-internal rule discarded (written after admission).
     device_internal_discard_stats: dict[str, Any] = field(default_factory=dict)
+    # WIRE-BREAK: unknown-shape gap rows of the line-group builder, and its symbol-body counters.
+    topology_unknown: list[dict[str, Any]] = field(default_factory=list)
+    topology_stats: dict[str, int] = field(default_factory=dict)
+    topology_cut_group_ids: set[str] = field(default_factory=set)
     # G1P: INSERTs with LD_SYMB2_LABEL and without LD_SYMB2_SPECIAL (unregistered SYMB2 blocks). They
     # never enter ports or symbols; only device-internal links read their TERMPOINT ends.
     unregistered_symb2: list[dict[str, Any]] = field(default_factory=list)

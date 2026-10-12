@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 import re
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Iterable
+from bisect import bisect_left
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Iterable
 
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
@@ -25,38 +26,109 @@ _NAMED_COMPONENT_BARRIER_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,11}$", re.IGNOR
 _TERMINAL_TOUCH_TOLERANCE = 1.0
 # A text or connect dot counts as inside an empty gap when it reaches this far past either gap end.
 _GAP_EDGE_MARGIN = 0.6
+# WIRE-BREAK: a symbol body is spanned by two TERMPOINT marks of one symbol, one on each side of a gap.
+# A gap narrower than this is not a two-port body (three-pin symbols have a 1.25 pitch) and is kept merged.
+SYMBOL_MIN_BODY_WIDTH = 2.0
+_MARK_CELL = 5.0
+# Unknown-shape reason codes (sw_topology_unknown.parquet). The gap keeps its legacy decision for each.
+UNKNOWN_DOT_IN_SYMBOL_GAP = "dot_in_symbol_gap"
+UNKNOWN_BODY_WIDTH_BELOW_MIN = "body_width_below_min"
+UNKNOWN_NODE_MULTI_SYMBOL = "node_multi_symbol_at_end"
 
 
 @dataclass(frozen=True)
 class WireBreakEvidence:
     """One sheet's SuperWORKS evidence for telling a real wire break from a merged wire.
 
-    ports: (record_id, x1, y1, x2, y2) marker segments of the sheet's SuperWORKS ports.
+    ports: (record_id, x1, y1, x2, y2) marker segments of the sheet's SuperWORKS ports (G2).
     dots: (x, y) centers of the sheet's LD_CONNECT_DOT junction markers.
+    marks: (symbol_key, record_id, x1, y1, x2, y2) TERMPOINT marks of every symbol of the sheet: registered
+        SuperWORKS ports and TERMPOINTs of unregistered SYMB2 blocks. Marks of one symbol share symbol_key.
+    stats / log: filled while the line groups are built (cut counts; unknown-shape rows for the audit table).
     """
 
     ports: tuple[tuple[str, float, float, float, float], ...] = ()
     dots: tuple[tuple[float, float], ...] = ()
+    marks: tuple[tuple[str, str, float, float, float, float], ...] = ()
+    stats: Counter = field(default_factory=Counter, compare=False)
+    log: list = field(default_factory=list, compare=False)
+    cuts: list = field(default_factory=list, compare=False)
 
 
 def wire_break_evidence_by_sheet(
     ports: Iterable[SwPort] | None,
     connect_dots: Iterable[SwConnectDot] | None,
+    unregistered: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, WireBreakEvidence]:
-    """Group SuperWORKS ports (SwPort) and connect dots (SwConnectDot) by sheet_id."""
+    """Group SuperWORKS ports, connect dots and unregistered SYMB2 TERMPOINTs by sheet_id.
+
+    unregistered: the SuperworksData.unregistered_symb2 records (each with file_id, sheet_id, instance_path and
+    termpoints [{number, a, b}]). Their symbol key uses the same format as a registered port's symbol_id.
+    """
     port_rows: dict[str, list[tuple[str, float, float, float, float]]] = defaultdict(list)
+    mark_rows: dict[str, list[tuple[str, str, float, float, float, float]]] = defaultdict(list)
     for port in ports or []:
-        port_rows[port.sheet_id].append(
-            (port.record_id, float(port.start_x), float(port.start_y), float(port.end_x), float(port.end_y))
-        )
+        segment = (float(port.start_x), float(port.start_y), float(port.end_x), float(port.end_y))
+        port_rows[port.sheet_id].append((port.record_id, *segment))
+        symbol_key = port.symbol_id or f"PORT:{port.record_id}"
+        mark_rows[port.sheet_id].append((symbol_key, port.record_id, *segment))
+    for block in unregistered or []:
+        sheet_id = str(block.get("sheet_id") or "")
+        symbol_key = f"SW:{block.get('file_id')}:{sheet_id}:{block.get('instance_path')}"
+        for termpoint in block.get("termpoints") or []:
+            (ax, ay), (bx, by) = termpoint.get("a") or (0.0, 0.0), termpoint.get("b") or (0.0, 0.0)
+            record_id = f"{block.get('record_id')}#{termpoint.get('number')}"
+            mark_rows[sheet_id].append((symbol_key, record_id, float(ax), float(ay), float(bx), float(by)))
     dot_rows: dict[str, list[tuple[float, float]]] = defaultdict(list)
     for dot in connect_dots or []:
         dot_rows[dot.sheet_id].append((float(dot.x), float(dot.y)))
-    sheet_ids = set(port_rows) | set(dot_rows)
+    sheet_ids = set(port_rows) | set(dot_rows) | set(mark_rows)
     return {
-        sheet_id: WireBreakEvidence(ports=tuple(port_rows.get(sheet_id, ())), dots=tuple(dot_rows.get(sheet_id, ())))
+        sheet_id: WireBreakEvidence(
+            ports=tuple(port_rows.get(sheet_id, ())),
+            dots=tuple(dot_rows.get(sheet_id, ())),
+            marks=tuple(mark_rows.get(sheet_id, ())),
+        )
         for sheet_id in sheet_ids
     }
+
+
+class _MarkIndex:
+    """Grid index of symbol TERMPOINT marks: which marks lie within the touch tolerance of a point."""
+
+    def __init__(self, marks: tuple[tuple[str, str, float, float, float, float], ...]) -> None:
+        self._cells: dict[tuple[int, int], list[tuple[str, str, float, float, float, float]]] = defaultdict(list)
+        pad = _TERMINAL_TOUCH_TOLERANCE
+        for mark in marks:
+            _, _, x1, y1, x2, y2 = mark
+            lo_x, hi_x = min(x1, x2) - pad, max(x1, x2) + pad
+            lo_y, hi_y = min(y1, y2) - pad, max(y1, y2) + pad
+            for cx in range(math.floor(lo_x / _MARK_CELL), math.floor(hi_x / _MARK_CELL) + 1):
+                for cy in range(math.floor(lo_y / _MARK_CELL), math.floor(hi_y / _MARK_CELL) + 1):
+                    self._cells[(cx, cy)].append(mark)
+
+    def overlapping(self, x0: float, y0: float, x1: float, y1: float) -> list[tuple[str, str, float, float, float, float]]:
+        """Marks whose bounding box overlaps the rectangle (x0, y0)-(x1, y1), each once."""
+        found: dict[tuple[str, str], tuple[str, str, float, float, float, float]] = {}
+        for cx in range(math.floor(min(x0, x1) / _MARK_CELL), math.floor(max(x0, x1) / _MARK_CELL) + 1):
+            for cy in range(math.floor(min(y0, y1) / _MARK_CELL), math.floor(max(y0, y1) / _MARK_CELL) + 1):
+                for mark in self._cells.get((cx, cy), ()):
+                    key, record_id, mx1, my1, mx2, my2 = mark
+                    if max(mx1, mx2) < min(x0, x1) or min(mx1, mx2) > max(x0, x1):
+                        continue
+                    if max(my1, my2) < min(y0, y1) or min(my1, my2) > max(y0, y1):
+                        continue
+                    found[(key, record_id)] = mark
+        return list(found.values())
+
+
+def _point_segment_distance(px: float, py: float, x1: float, y1: float, x2: float, y2: float) -> float:
+    dx, dy = x2 - x1, y2 - y1
+    length_sq = dx * dx + dy * dy
+    if length_sq <= 0:
+        return math.hypot(px - x1, py - y1)
+    t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / length_sq))
+    return math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
 
 
 def _point_in_bbox(x: float, y: float, bbox: tuple[float, float, float, float] | None) -> bool:
@@ -115,6 +187,17 @@ def build_line_groups(
         candidate_orientation = _ORIENTATION_HORIZONTAL if orientation == _ORIENTATION_GRID else orientation
         candidates = _line_candidates(sheet_lines, sheet, candidate_orientation, tol, min_length)
         candidates = _filter_component_vertical_length_outliers(candidates, sheet, orientation)
+        # WIRE-BREAK: gaps that are symbol bodies (two TERMPOINTs of one symbol on the two sides) never merge.
+        symbol_cuts = _symbol_body_cuts(
+            candidates,
+            sheet_break_evidence,
+            sheet,
+            candidate_orientation,
+            max_gap=sheet_inline_bridge_gap,
+            cross_tol=y_tol,
+        )
+        if sheet_break_evidence is not None and symbol_cuts:
+            sheet_break_evidence.cuts.extend(symbol_cuts)
 
         if orientation == _ORIENTATION_GRID:
             grid_groups = _build_grid_row_bands(
@@ -130,6 +213,7 @@ def build_line_groups(
                 sheet_inline_bridge_gap,
                 inline_bridge_y_tol,
                 wire_break_evidence=sheet_break_evidence,
+                symbol_cuts=symbol_cuts,
             )
             result.extend(grid_groups)
             continue
@@ -157,6 +241,7 @@ def build_line_groups(
                     inline_bridge_gap=sheet_inline_bridge_gap,
                     inline_bridge_y_tol=inline_bridge_y_tol,
                     wire_break_evidence=sheet_break_evidence,
+                    symbol_cuts=symbol_cuts,
                 ):
                     group["start_axis"] = min(group["start_axis"], start_axis)
                     group["end_axis"] = max(group["end_axis"], end_axis)
@@ -266,6 +351,7 @@ def _build_grid_row_bands(
     inline_bridge_y_tol: float,
     *,
     wire_break_evidence: WireBreakEvidence | None = None,
+    symbol_cuts: list[dict[str, float]] | None = None,
 ) -> list[LineGroup]:
     """grid 模式行带聚类：先按 y 容差把水平线分到行带，再在行带内做共线合并。
 
@@ -313,6 +399,7 @@ def _build_grid_row_bands(
                     inline_bridge_gap=inline_bridge_gap,
                     inline_bridge_y_tol=inline_bridge_y_tol,
                     wire_break_evidence=wire_break_evidence,
+                    symbol_cuts=symbol_cuts,
                 ):
                     group["start_axis"] = min(group["start_axis"], start_axis)
                     group["end_axis"] = max(group["end_axis"], end_axis)
@@ -472,6 +559,7 @@ def _can_merge_axis_intervals(
     inline_bridge_gap: float,
     inline_bridge_y_tol: float,
     wire_break_evidence: WireBreakEvidence | None = None,
+    symbol_cuts: list[dict[str, float]] | None = None,
 ) -> bool:
     if abs(first_cross_axis - second_cross_axis) > cross_axis_tol:
         return False
@@ -490,6 +578,16 @@ def _can_merge_axis_intervals(
         next_cross_axis = first_cross_axis
     else:
         return True
+
+    # WIRE-BREAK: a symbol body between the two sides is a wire break whatever bridges it (text or gap width).
+    if _symbol_body_between(
+        symbol_cuts,
+        previous_end_axis,
+        next_start_axis,
+        (previous_cross_axis + next_cross_axis) / 2.0,
+        cross_axis_tol,
+    ):
+        return False
 
     if gap <= gap_tol:
         # A small empty gap between two terminals is a wire break at a terminal strip frame,
@@ -525,6 +623,187 @@ def _can_merge_axis_intervals(
         inline_bridge_gap=inline_bridge_gap,
         inline_bridge_y_tol=inline_bridge_y_tol,
     )
+
+
+_ZERO_GAP = 1e-9
+
+
+def _symbol_body_cuts(
+    candidates: list[dict[str, object]],
+    evidence: WireBreakEvidence | None,
+    sheet: SheetRecord,
+    orientation: str,
+    *,
+    max_gap: float,
+    cross_tol: float,
+) -> list[dict[str, float]]:
+    """WIRE-BREAK: the gaps between two candidate segments that are symbol bodies.
+
+    A gap is a symbol body when, on one line, a symbol has two TERMPOINT marks (distinct marks of one symbol key)
+    that touch the two wire ends on either side of the gap. Such a gap is never merged, whatever lies in it.
+    Ambiguous gaps keep their legacy decision and are logged as unknown shapes (see UNKNOWN_* codes):
+    a connect dot in the gap, a gap narrower than SYMBOL_MIN_BODY_WIDTH, and a wire end that also touches
+    marks of another symbol (the body is still cut).
+    """
+    if evidence is None or not evidence.marks or len(candidates) < 2:
+        return []
+    index = _MarkIndex(evidence.marks)
+    ordered = sorted(candidates, key=lambda item: item["start_axis"])
+    starts = [float(item["start_axis"]) for item in ordered]
+    cuts: list[dict[str, float]] = []
+    seen: set[tuple[float, float, float]] = set()
+    for first in candidates:
+        lo = float(first["end_axis"])
+        for second in ordered[bisect_left(starts, lo):]:
+            hi = float(second["start_axis"])
+            if hi - lo > max_gap:
+                break
+            if hi - lo <= _ZERO_GAP or abs(float(first["cross_axis"]) - float(second["cross_axis"])) > cross_tol:
+                continue
+            cross = (float(first["cross_axis"]) + float(second["cross_axis"])) / 2.0
+            key = (round(lo, 3), round(hi, 3), round(cross, 3))
+            if key in seen:
+                continue
+            verdict, detail = _symbol_gap_verdict(index, evidence.dots, lo, hi, cross, orientation)
+            if verdict is None:
+                continue
+            seen.add(key)
+            if verdict == "body":
+                cuts.append({"lo": lo, "hi": hi, "cross": cross})
+                evidence.stats["symbol_body_gap"] += 1
+                if detail["multi"]:
+                    evidence.stats[UNKNOWN_NODE_MULTI_SYMBOL] += 1
+                    _log_unknown(evidence, sheet, UNKNOWN_NODE_MULTI_SYMBOL, "cut", orientation, lo, hi, cross,
+                                 first, second, detail)
+                continue
+            evidence.stats[verdict] += 1
+            _log_unknown(evidence, sheet, verdict, "kept_merged", orientation, lo, hi, cross, first, second, detail)
+    return cuts
+
+
+def _symbol_gap_verdict(
+    index: _MarkIndex,
+    dots: tuple[tuple[float, float], ...],
+    lo: float,
+    hi: float,
+    cross: float,
+    orientation: str,
+) -> tuple[str | None, dict[str, Any]]:
+    """("body" | unknown reason | None, detail) for the gap (lo, hi) on the line at cross.
+
+    The gap is a symbol body when one symbol has two distinct TERMPOINT marks inside the gap window, one on each
+    side of the gap centre, and at least one of the two touches a wire end of the gap (the symbol spans the break).
+    A symbol whose marks lie wholly on one side is not a body (a terminal hanging on a wire end).
+    """
+    tol = _TERMINAL_TOUCH_TOLERANCE
+    if orientation == _ORIENTATION_VERTICAL:
+        rect = (cross - tol, lo - tol, cross + tol, hi + tol)
+    else:
+        rect = (lo - tol, cross - tol, hi + tol, cross + tol)
+    mid = (lo + hi) / 2.0
+    inside: list[dict[str, Any]] = []
+    for key, record_id, x1, y1, x2, y2 in index.overlapping(*rect):
+        a1, a2 = (y1, y2) if orientation == _ORIENTATION_VERTICAL else (x1, x2)
+        c1, c2 = (x1, x2) if orientation == _ORIENTATION_VERTICAL else (y1, y2)
+        if min(a1, a2) < lo - tol or max(a1, a2) > hi + tol:
+            continue
+        if max(c1, c2) < cross - tol or min(c1, c2) > cross + tol:
+            continue
+        touch_lo = _point_segment_distance(*_axis_point(orientation, lo, cross), x1, y1, x2, y2) <= tol + 1e-8
+        touch_hi = _point_segment_distance(*_axis_point(orientation, hi, cross), x1, y1, x2, y2) <= tol + 1e-8
+        inside.append({"key": key, "rid": record_id, "centre": (a1 + a2) / 2.0,
+                       "touch_lo": touch_lo, "touch_hi": touch_hi})
+    if not any(m["touch_lo"] or m["touch_hi"] for m in inside):
+        return None, {}
+    spans = any(
+        a["key"] == b["key"] and a["rid"] != b["rid"] and a["centre"] < mid < b["centre"]
+        and (a["touch_lo"] or b["touch_hi"])
+        for a in inside for b in inside
+    )
+    if not spans:
+        return None, {}
+    detail = {
+        "left_marks": sorted({m["rid"] for m in inside if m["touch_lo"]}),
+        "right_marks": sorted({m["rid"] for m in inside if m["touch_hi"]}),
+        "multi": len({m["key"] for m in inside if m["touch_lo"]}) > 1
+        or len({m["key"] for m in inside if m["touch_hi"]}) > 1,
+    }
+    if _gap_has_dot(lo, hi, cross, dots, orientation=orientation, cross_axis_tolerance=tol):
+        return UNKNOWN_DOT_IN_SYMBOL_GAP, detail
+    if hi - lo < SYMBOL_MIN_BODY_WIDTH - 1e-9:
+        return UNKNOWN_BODY_WIDTH_BELOW_MIN, detail
+    return "body", detail
+
+
+def _log_unknown(
+    evidence: WireBreakEvidence,
+    sheet: SheetRecord,
+    reason: str,
+    action: str,
+    orientation: str,
+    lo: float,
+    hi: float,
+    cross: float,
+    first: dict[str, object],
+    second: dict[str, object],
+    detail: dict[str, Any],
+) -> None:
+    first_line, second_line = first["line"], second["line"]
+    evidence.log.append(
+        {
+            "sheet_id": sheet.sheet_id,
+            "file_id": sheet.file_id,
+            "reason_code": reason,
+            "action": action,
+            "orientation": orientation,
+            "gap_start": round(lo, 4),
+            "gap_end": round(hi, 4),
+            "gap_width": round(hi - lo, 4),
+            "cross": round(cross, 4),
+            "wire_handles": [first_line.handle, second_line.handle],
+            "line_ids": [first_line.line_id, second_line.line_id],
+            "left_marks": detail.get("left_marks", []),
+            "right_marks": detail.get("right_marks", []),
+        }
+    )
+
+
+def symbol_cut_group_ids(line_groups: list[LineGroup], evidence: dict[str, WireBreakEvidence] | None) -> set[str]:
+    """WIRE-BREAK: ids of the line groups that have an end on a symbol-body cut (the pieces a cut created).
+
+    A group end matches a cut when it lies on the cut's end point (lo or hi) at the cut's cross axis (0.5 tolerance).
+    """
+    result: set[str] = set()
+    for group in line_groups:
+        ev = (evidence or {}).get(group.sheet_id)
+        if ev is None or not ev.cuts:
+            continue
+        vertical = group.orientation == _ORIENTATION_VERTICAL
+        ends = [(group.start_x, group.start_y), (group.end_x, group.end_y)]
+        for cut in ev.cuts:
+            cross = cut["cross"]
+            for lo_or_hi in (cut["lo"], cut["hi"]):
+                for x, y in ends:
+                    axis_value, cross_value = (y, x) if vertical else (x, y)
+                    if abs(axis_value - lo_or_hi) <= 0.5 and abs(cross_value - cross) <= 0.5:
+                        result.add(group.line_group_id)
+    return result
+
+
+def _symbol_body_between(
+    symbol_cuts: list[dict[str, float]] | None,
+    lo: float,
+    hi: float,
+    cross: float,
+    cross_tol: float,
+) -> bool:
+    """True when a symbol body lies inside the gap (lo, hi) of a merge decision."""
+    if not symbol_cuts:
+        return False
+    for cut in symbol_cuts:
+        if cut["lo"] >= lo - 1e-6 and cut["hi"] <= hi + 1e-6 and abs(cut["cross"] - cross) <= cross_tol + 1e-9:
+            return True
+    return False
 
 
 def _is_terminal_wire_break(
