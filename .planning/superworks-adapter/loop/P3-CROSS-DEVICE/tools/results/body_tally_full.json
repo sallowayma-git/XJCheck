@@ -1,0 +1,24 @@
+{
+ "base": {
+  "ordinary_discard_body": 4171,
+  "ordinary_review_body": 387,
+  "ordinary_pass_body": 0,
+  "wire_pass_body": 1042,
+  "wire_pass_ambiguous": 217,
+  "wire_discard_body": 0,
+  "semantic_pass_body": 0,
+  "semantic_review_body": 24,
+  "semantic_discard_body": 0
+ },
+ "new": {
+  "ordinary_discard_body": 283,
+  "ordinary_review_body": 0,
+  "ordinary_pass_body": 0,
+  "wire_pass_body": 6,
+  "wire_pass_ambiguous": 8,
+  "wire_discard_body": 1036,
+  "semantic_pass_body": 0,
+  "semantic_review_body": 0,
+  "semantic_discard_body": 24
+ }
+}

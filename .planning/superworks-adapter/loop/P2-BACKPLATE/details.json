@@ -1,0 +1,282 @@
+{
+ "scope": "round23 full replay (.tmp/superworks_round23_full, 77 projects); backplate virtual-table pass pairs (mapping_mode=backplate_virtual_table) = 15,402; D3-like subset (no identical unordered value pair anywhere in project) = 5,571",
+ "join_key": "external terminal designator R (right value, '@ ' stripped); evidence: E1 same-sheet SW pass pair with R, E2 other-sheet SW pass pair with R, E3 SW strip row (endpoint_identity==R) and its 去向 texts",
+ "identity_rule": {
+  "numeric": "<dev><col digits><2-digit row>, dev ends with 'n' (e.g. 1n0503, 3-21n532); row = last two digits",
+  "alpha": "<dev>n<letter><2-digit row> (e.g. 1-25nA24, 2-25nC18)",
+  "dev_compare": "strip leading 'N-' bay prefix and trailing letters (1-1n == 1nP)"
+ },
+ "classes_D3_like": {
+  "AGREE_SAME_SHEET": 4986,
+  "ROW_AGREE_DEV_DIFF": 225,
+  "AGREE_OTHER_SHEET": 132,
+  "NO_SW_PARTNER": 90,
+  "INTERNAL_ROW_AGREE_DEV_DIFF": 53,
+  "INTERNAL_AGREE_SAME_SHEET": 36,
+  "CONFLICT_SAME_SHEET": 32,
+  "INTERNAL_PARTNER_NONBP_ONLY": 9,
+  "PARTNER_NONBP_ONLY": 6,
+  "INTERNAL_AGREE_OTHER_SHEET": 2
+ },
+ "classes_by_family": {
+  "GJ-73": {
+   "AGREE_OTHER_SHEET": 125,
+   "AGREE_SAME_SHEET": 251,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 2,
+   "INTERNAL_AGREE_SAME_SHEET": 4,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 19,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "GJ-74": {
+   "AGREE_OTHER_SHEET": 7,
+   "AGREE_SAME_SHEET": 60,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 1,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 2,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "GJ-75": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 1317,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 0,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "GJ-76": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 240,
+   "CONFLICT_SAME_SHEET": 22,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 0,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "GJ-79": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 134,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 0,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "GJ-80": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 252,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 5,
+   "INTERNAL_PARTNER_NONBP_ONLY": 9,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 69,
+   "PARTNER_NONBP_ONLY": 6,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "GJ-81": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 60,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 0,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "GJ-85": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 540,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 4,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "N2604": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 1700,
+   "CONFLICT_SAME_SHEET": 10,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 17,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 53,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 225
+  },
+  "PAC-885": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 312,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 4,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  },
+  "变压器测控柜": {
+   "AGREE_OTHER_SHEET": 0,
+   "AGREE_SAME_SHEET": 120,
+   "CONFLICT_SAME_SHEET": 0,
+   "INTERNAL_AGREE_OTHER_SHEET": 0,
+   "INTERNAL_AGREE_SAME_SHEET": 1,
+   "INTERNAL_PARTNER_NONBP_ONLY": 0,
+   "INTERNAL_ROW_AGREE_DEV_DIFF": 0,
+   "NO_SW_PARTNER": 0,
+   "PARTNER_NONBP_ONLY": 0,
+   "ROW_AGREE_DEV_DIFF": 0
+  }
+ },
+ "control": {
+  "method": "give each row the SW partner list of another random row of the same project (20 draws)",
+  "same_sheet_real": 0.895,
+  "same_sheet_chance": 0.026,
+  "other_sheet_restricted_real": "157/585 = 0.268",
+  "other_sheet_restricted_chance": 0.011
+ },
+ "schemes_offline_D3_like": {
+  "A_sw_corroboration_upgrade": {
+   "rows": 5156,
+   "share": 0.925,
+   "parts": {
+    "AGREE_SAME_SHEET": 4986,
+    "AGREE_OTHER_SHEET": 132,
+    "INTERNAL_AGREE": 38
+   },
+   "action": "keep pass, add SW evidence"
+  },
+  "B_contradiction_candidates": {
+   "rows": 310,
+   "share": 0.056,
+   "parts": {
+    "CONFLICT_SAME_SHEET": 32,
+    "ROW_AGREE_DEV_DIFF": 225,
+    "INTERNAL_ROW_AGREE_DEV_DIFF": 53
+   },
+   "action": "review issue; visual check of 10 sampled cases, see judged_cases"
+  },
+  "C_stays_V1_only": {
+   "rows": 105,
+   "share": 0.019,
+   "parts": {
+    "NO_SW_PARTNER": 90,
+    "PARTNER_NONBP_ONLY": 6,
+    "INTERNAL_PARTNER_NONBP_ONLY": 9
+   },
+   "action": "keep V1 as today (or review per user policy)"
+  }
+ },
+ "census_correction": "LEGACY-CENSUS described the D3 backplate rows as SW blind (no SW counterpart). This join finds a same-sheet SW pass on the external terminal R for 4,986 of 5,571 rows; the SW identity differs in text (e.g. V1 '1-1n/NR1181C-3' vs SW '1n0503' on the same R=TD9) so the census value-equality test missed it.",
+ "judged_cases": [
+  {
+   "id": "J1",
+   "project": "p007",
+   "pair": "P0073",
+   "cls": "AGREE_SAME_SHEET",
+   "verdict": "consistent (SW corroborates row 7)"
+  },
+  {
+   "id": "J2",
+   "project": "p065",
+   "pair": "P0001",
+   "cls": "AGREE_SAME_SHEET",
+   "verdict": "consistent"
+  },
+  {
+   "id": "J3",
+   "project": "p001",
+   "pair": "P0073",
+   "cls": "AGREE_OTHER_SHEET",
+   "verdict": "consistent (weak; partner on device-side page)"
+  },
+  {
+   "id": "J4",
+   "project": "p057",
+   "pair": "P0003",
+   "cls": "ROW_AGREE_DEV_DIFF",
+   "verdict": "likely V1 device-prefix error: page labels show 7n, SW says 7n205, V1 composite says 1-1n"
+  },
+  {
+   "id": "J5",
+   "project": "p072",
+   "pair": "P0082",
+   "cls": "ROW_AGREE_DEV_DIFF",
+   "verdict": "likely V1 device-prefix error (page device 4n1101/4n1103); low-res, medium confidence"
+  },
+  {
+   "id": "J6",
+   "project": "p023",
+   "pair": "P0105",
+   "cls": "CONFLICT_SAME_SHEET",
+   "verdict": "likely V1 row misread: row printed as 32 beside R, V1 took 02; SW 832 consistent with the page"
+  },
+  {
+   "id": "J7",
+   "project": "p063",
+   "pair": "P0061",
+   "cls": "CONFLICT_SAME_SHEET",
+   "verdict": "undetermined at render resolution; needs zoom"
+  },
+  {
+   "id": "J8",
+   "project": "p058",
+   "pair": "P0073",
+   "cls": "CONFLICT_SAME_SHEET",
+   "verdict": "undetermined (off-by-one 17/18); needs zoom"
+  },
+  {
+   "id": "J9",
+   "project": "p039",
+   "pair": "V1 pair R=3-2KLP6-1",
+   "cls": "PARTNER_NONBP_ONLY",
+   "verdict": "V1 row alignment visually consistent; SW gives only a non-backplate partner (3-2FD1) -> cannot corroborate"
+  },
+  {
+   "id": "J10",
+   "project": "p001",
+   "pair": "P0007",
+   "cls": "NO_SW_PARTNER",
+   "verdict": "V1 row alignment visually consistent; no SW partner -> stays V1"
+  }
+ ],
+ "png": [
+  "png/P2BP_judge_1.png",
+  "png/P2BP_judge_2.png",
+  "png/P2BP_judge_3.png"
+ ],
+ "tools": [
+  "tools/load_common.py",
+  "tools/classify.py",
+  "tools/control.py",
+  "tools/cases.py",
+  "tools/render_cases.py",
+  "tools/make_figs.py",
+  "tools/fam.py"
+ ],
+ "intermediate": ".tmp/p2bp_work (deletable): bp_class.csv, bp_join.csv, cases.json, fam.json, summary.json"
+}

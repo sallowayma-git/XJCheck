@@ -1,0 +1,168 @@
+{
+ "tag": "ten",
+ "projects": 10,
+ "removed_pair_ids": 0,
+ "pairs_total": {
+  "base": 20296,
+  "new": 20302
+ },
+ "status_changes": {
+  "pass->discard|wire_component_mapping": 106,
+  "pass->review|wire_component_mapping": 20,
+  "review->discard|semantic_mapping": 1
+ },
+ "status_changes_note": "matched on content key (sheet, end text ids, values, kind); unmatched pairs are not counted here",
+ "status_changes_total": 127,
+ "guarded": {
+  "scoped_visible_prefix_external_endpoint_mapping|body|discard": 94,
+  "first_prefixed_external_endpoint_mapping|body|discard": 8,
+  "ordinary_pair|body|discard": 1,
+  "semantic_mapping|ambiguous|review": 1,
+  "inline_body_port_mapping|body|discard": 3,
+  "scoped_visible_prefix_external_endpoint_mapping|ambiguous|review": 20,
+  "schematic_wire_logic_endpoint|body|discard": 1,
+  "semantic_mapping|body|discard": 1
+ },
+ "census_d3_status": {
+  "pass|no_body_on_path": 83,
+  "discard|body": 98,
+  "review|ambiguous": 2
+ },
+ "census_d3_total_all_projects": 1249,
+ "census_d3_total_in_run": 183,
+ "issues_added": [],
+ "issues_removed": [],
+ "issue_total": {
+  "base": 9,
+  "new": 9
+ },
+ "coverage": {
+  "strict": {
+   "base": [
+    5918,
+    8618
+   ],
+   "new": [
+    5924,
+    8618
+   ],
+   "base_pct": 68.67,
+   "new_pct": 68.74
+  },
+  "with_continuity": {
+   "base": [
+    6508,
+    8618
+   ],
+   "new": [
+    6514,
+    8618
+   ],
+   "base_pct": 75.52,
+   "new_pct": 75.59
+  }
+ },
+ "candidates_accepted_to_path_rejected": 695,
+ "per_project": {
+  "p001": {
+   "pairs": [
+    1371,
+    1371
+   ],
+   "issues": [
+    0,
+    0
+   ]
+  },
+  "p003": {
+   "pairs": [
+    685,
+    685
+   ],
+   "issues": [
+    0,
+    0
+   ]
+  },
+  "p022": {
+   "pairs": [
+    1761,
+    1761
+   ],
+   "issues": [
+    1,
+    1
+   ]
+  },
+  "p026": {
+   "pairs": [
+    2614,
+    2615
+   ],
+   "issues": [
+    0,
+    0
+   ]
+  },
+  "p044": {
+   "pairs": [
+    3088,
+    3089
+   ],
+   "issues": [
+    1,
+    1
+   ]
+  },
+  "p051": {
+   "pairs": [
+    817,
+    817
+   ],
+   "issues": [
+    0,
+    0
+   ]
+  },
+  "p061": {
+   "pairs": [
+    4495,
+    4497
+   ],
+   "issues": [
+    0,
+    0
+   ]
+  },
+  "p071": {
+   "pairs": [
+    564,
+    564
+   ],
+   "issues": [
+    3,
+    3
+   ]
+  },
+  "p074": {
+   "pairs": [
+    2549,
+    2551
+   ],
+   "issues": [
+    0,
+    0
+   ]
+  },
+  "p075": {
+   "pairs": [
+    2352,
+    2352
+   ],
+   "issues": [
+    4,
+    4
+   ]
+  }
+ }
+}
