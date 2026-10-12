@@ -419,6 +419,8 @@ class ProjectArtifacts:
     )
     superworks: Any = None
     superworks_supersession: list[dict[str, Any]] = field(default_factory=list)
+    # P2-BACKPLATE: audit-only candidates where a backplate virtual-table pass pair disagrees with SuperWORKS.
+    sw_backplate_contradictions: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

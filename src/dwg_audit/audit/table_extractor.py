@@ -1076,11 +1076,13 @@ def _build_three_column_mappings(
     mappings: list[dict[str, Any]] = []
     row_count = len(rows) - 1
     for row_index in range(row_count):
-        # A value cell carries at most one numeral. A cell with several numerals is an array
+        # A value cell carries at most one numeral. A cell with several different numerals is an array
         # (for example a port-number strip), not a table value, and "the first numeral" picked
-        # from it would pair unrelated items. Notes or header prefixes beside one numeral are fine.
+        # from it would pair unrelated items. Identical text repeated in one cell is one numeral.
+        # Notes or header prefixes beside one numeral are fine.
         if any(
-            sum(1 for item in cell_values.get((row_index, col), []) if _looks_like_numeric_value(item.normalized_text)) > 1
+            len({item.normalized_text for item in cell_values.get((row_index, col), [])
+                 if _looks_like_numeric_value(item.normalized_text)}) > 1
             for col in (0, 1, 2)
         ):
             continue
@@ -1549,7 +1551,7 @@ def _build_backplate_virtual_mappings(
         return []
 
     free_texts = [text for text in audit_texts if not text.source_block_name]
-    device_instance = _resolve_backplate_device_instance(free_texts, sheet)
+    device_instance = _resolve_backplate_device_instance(free_texts, sheet, page_texts=texts)
     headers = [text for text in virtual_texts if _looks_like_backplate_header(text.normalized_text)]
     rows = [text for text in virtual_texts if _looks_like_backplate_row_number(text.normalized_text)]
     endpoints = [
@@ -1740,11 +1742,37 @@ def _build_backplate_virtual_mappings(
     return mappings
 
 
+_REAR_WIRING_CAPTION_PATTERN = re.compile(
+    r"(?i)^\s*(\d+(?:-\d+)*[A-Za-z])\s*REAR\s*WIRING(?:\s*\d+)?\s*$"
+)
+
+
+def _rear_wiring_caption_device(page_texts: list[TextItem]) -> str | None:
+    """Device named by the page's own rear-wiring caption, e.g. "4n REAR WIRING 2" -> "4n".
+
+    The caption is printed on the drawing (title area), so it outranks the template device field
+    that some backplate blocks carry. Only a single distinct device on the page is used; several
+    different captions on one page are ambiguous and fall back to the older rules.
+    """
+    devices = {
+        match.group(1)
+        for text in page_texts
+        for match in [_REAR_WIRING_CAPTION_PATTERN.match(str(text.normalized_text or ""))]
+        if match
+    }
+    return devices.pop() if len(devices) == 1 else None
+
+
 def _resolve_backplate_device_instance(
     free_texts: list[TextItem],
     sheet: SheetRecord,
+    page_texts: list[TextItem] | None = None,
 ) -> str | None:
-    """Whole-device instance above plugin tables, e.g. 1-25n / 2-21n."""
+    """Whole-device instance above plugin tables, e.g. 1-25n / 2-21n.
+
+    Order: sheet title / filename (existing), then the page's rear-wiring caption, then the
+    template device field among free texts (existing fallback).
+    """
     # The extracted rear-wiring title identifies the local device. Whole-page
     # free text can also contain cabinet/title-block references to other devices.
     for blob in (sheet.sheet_title or "", sheet.filename or ""):
@@ -1762,10 +1790,22 @@ def _resolve_backplate_device_instance(
         value = str(text.normalized_text or "").strip()
         if _DEVICE_INSTANCE_PATTERN.fullmatch(value):
             candidates.append((-text.insert_y, text.insert_x, value))
+    template_device = None
     if candidates:
         candidates.sort()
-        return candidates[0][2]
-    return None
+        template_device = candidates[0][2]
+
+    # The caption replaces the template only when they name different devices. A template that
+    # agrees with the caption (same device after dropping the bay prefix and letters) is kept as written.
+    caption_device = _rear_wiring_caption_device(page_texts or [])
+    if caption_device and (template_device is None
+                           or _backplate_device_core(template_device) != _backplate_device_core(caption_device)):
+        return caption_device
+    return template_device
+
+
+def _backplate_device_core(device: str) -> str:
+    return re.sub(r"[A-Z]+$", "", re.sub(r"^\d+-", "", device))
 
 
 def _looks_like_plugin_bay_title(value: str | None) -> bool:

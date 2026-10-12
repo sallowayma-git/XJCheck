@@ -40,6 +40,18 @@ def write_superworks_artifacts(artifacts, findings_dir):
     ledger_columns=["element_key","category","reason","old_pair","new_pairs"]
     pq.write_table(pa.Table.from_pandas(pd.DataFrame(ledger,columns=ledger_columns),schema=pa.schema([(name,pa.string()) for name in ledger_columns]),preserve_index=False),findings_dir/"superworks_supersession.parquet")
 
+    # P2-BACKPLATE: audit-only candidates (backplate virtual-table pass pairs that disagree with a same-project SW pass pair).
+    contradiction_rows=[{key:(json.dumps(value,ensure_ascii=False) if isinstance(value,(list,dict)) else
+                              "" if value is None else value if isinstance(value,str) else str(value))
+                         for key,value in item.items()} for item in (getattr(artifacts,"sw_backplate_contradictions",None) or [])]
+    contradiction_columns=["candidate_id","action","contradiction_type","pair_id","file_id","sheet_id","sheet_no","filename",
+        "left_value","right_value","v1_row","v1_device","v1_header_prefix","v1_header_text_id","v1_middle_text_id",
+        "v1_right_text_id","v1_confidence","sw_pair_id","sw_identity","sw_row","sw_device","sw_same_sheet",
+        "sw_partner_count","sw_partners"]
+    pq.write_table(pa.Table.from_pandas(pd.DataFrame(contradiction_rows,columns=contradiction_columns),
+        schema=pa.schema([(name,pa.string()) for name in contradiction_columns]),preserve_index=False),
+        findings_dir/"sw_backplate_contradictions.parquet")
+
     # F1: same-identity wire groups are diagnostics only.  They never become
     # production pairs, so they are reported here instead of in the pair table.
     diagnostics=[item for item in data.conflict_observations if item.get("kind")=="self_connection"]
