@@ -347,6 +347,9 @@ def analyze_input_root(
         pairs, superworks_supersession = supersede_cell_edge_pairs(
             pairs, superworks_supersession, audit_lines, line_groups, audit_texts,
         )
+        # Every SW and legacy pair now exists: retire legacy pass/review pairs a same-sheet SW pass repeats.
+        from dwg_audit.audit.superworks_extractor import supersede_legacy_duplicates_of_sw
+        pairs, superworks_supersession = supersede_legacy_duplicates_of_sw(pairs, superworks_supersession)
 
         authoritative_component_pairs = [
             pair

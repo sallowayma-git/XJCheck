@@ -2293,6 +2293,111 @@ def supersede_cell_edge_pairs(pairs, ledger, lines, line_groups, texts):
     return result, ledger
 
 
+# Ledger category I: a pure legacy pair (V1 chain, no SuperWORKS evidence, not in the ledger) whose two
+# endpoints name the same terminals as a SuperWORKS pass pair on the same sheet.  The SuperWORKS pair
+# already carries that connection, so the legacy pair is a second derivation of it and is retired.
+LEGACY_DUPLICATE_CATEGORY = "I"
+LEGACY_DUPLICATE_REASON = "legacy_pair_duplicates_same_sheet_sw_pass"
+SW_EVIDENCE_KEYS = ("superworks", "superworks_constraints", "sw_conflicts", "sw_dictionary_warnings")
+
+
+def _is_sw_produced_pair(pair):
+    return (pair.evidence or {}).get("source") == "superworks" or _is_sw_component_row(pair)
+
+
+def _is_pure_legacy_pair(pair, ledger_ids):
+    evidence = pair.evidence or {}
+    if pair.pair_id in ledger_ids or evidence.get("source") == "superworks" or _is_sw_component_row(pair):
+        return False
+    return not any(key in evidence for key in SW_EVIDENCE_KEYS)
+
+
+def _sw_end_aliases(sw, side):
+    """Endpoint aliases SuperWORKS recorded for one side, only when they describe that side's own value."""
+    end = ((sw.evidence or {}).get("superworks") or {}).get(side)
+    if not isinstance(end, dict) or _is_blank_side(end.get("value")):
+        return []
+    if str(end.get("value")) != str(getattr(sw, f"{side}_value")):
+        return []
+    return list(end.get("endpoint_aliases") or [])
+
+
+def _ends_equivalent(legacy_value, sw_value, sw_aliases=()):
+    """One legacy endpoint names the same terminal as one SuperWORKS endpoint.
+
+    Both values are cleaned with the SuperWORKS endpoint rule.  Two ways count:
+    - mutual: each name names the other under the production identity rule (_identities_agree).
+      Both directions are needed, so an end that is wider than the other (a range covering more
+      terminals, a letter prefix on one side only) is a partial match and is left alone;
+    - alias: the legacy text is one of the aliases SuperWORKS recorded for that end, which is the
+      alias branch of _identities_agree on the SuperWORKS side.
+    """
+    if _is_blank_side(legacy_value) or _is_blank_side(sw_value):
+        return False
+    legacy_clean = _clean_sw_endpoint_value(legacy_value)
+    sw_clean = _clean_sw_endpoint_value(sw_value)
+    if not legacy_clean or not sw_clean:
+        return False
+    if _identities_agree(legacy_clean, sw_clean) and _identities_agree(sw_clean, legacy_clean):
+        return True
+    alias_keys = {_key(_clean_sw_endpoint_value(alias)) for alias in sw_aliases or [] if alias}
+    return _key(legacy_clean) in alias_keys
+
+
+def _pair_endpoints_equivalent(legacy, sw):
+    """Unordered endpoint equivalence: left with left and right with right, or crossed."""
+    left_aliases = _sw_end_aliases(sw, "left")
+    right_aliases = _sw_end_aliases(sw, "right")
+    if (_ends_equivalent(legacy.left_value, sw.left_value, left_aliases)
+            and _ends_equivalent(legacy.right_value, sw.right_value, right_aliases)):
+        return True
+    return (_ends_equivalent(legacy.left_value, sw.right_value, right_aliases)
+            and _ends_equivalent(legacy.right_value, sw.left_value, left_aliases))
+
+
+def supersede_legacy_duplicates_of_sw(pairs, ledger):
+    """Retire pure legacy pass/review pairs that a same-sheet SuperWORKS pass pair repeats (category I).
+
+    The SuperWORKS side is any pass pair SuperWORKS produced (source superworks, or a connect-line port
+    component row).  The legacy side must carry no SuperWORKS evidence (see SW_EVIDENCE_KEYS), must not be
+    in the ledger, and must not be owned by an IGNORE panel.  A legacy pair is retired only when every
+    endpoint is equivalent (_pair_endpoints_equivalent); a pair with an extra, missing or partial end is
+    kept.  The SuperWORKS pairs are never changed.  Evidence of a retired pair records superseded_by (the
+    first matching SuperWORKS pair id, sorted), superseded_by_all and supersession_category 'I'.
+    """
+    ledger_ids = set()
+    for entry in ledger:
+        ledger_ids.add((entry.get("old_pair") or {}).get("pair_id"))
+        ledger_ids.update(item.get("pair_id") for item in entry.get("new_pairs") or [])
+    sw_by_sheet = defaultdict(list)
+    for pair in pairs:
+        if pair.status == "pass" and _is_sw_produced_pair(pair):
+            sw_by_sheet[(pair.file_id, pair.sheet_id)].append(pair)
+    if not sw_by_sheet:
+        return pairs, ledger
+    result = list(pairs)
+    for index, pair in enumerate(pairs):
+        if pair.status not in ("pass", "review") or not _is_pure_legacy_pair(pair, ledger_ids):
+            continue
+        if (pair.evidence or {}).get("ignored_panel_family_id"):
+            continue
+        twins = sorted((sw for sw in sw_by_sheet.get((pair.file_id, pair.sheet_id), ())
+                        if _pair_endpoints_equivalent(pair, sw)), key=lambda sw: sw.pair_id)
+        if not twins:
+            continue
+        evidence = copy.deepcopy(pair.evidence or {})
+        evidence["superseded_by"] = twins[0].pair_id
+        evidence["superseded_by_all"] = [sw.pair_id for sw in twins]
+        evidence["supersession_category"] = LEGACY_DUPLICATE_CATEGORY
+        new = replace(pair, status="discard", rationale=f"{LEGACY_DUPLICATE_REASON}: {twins[0].pair_id}",
+                      evidence=evidence)
+        result[index] = new
+        ledger.append({"element_key": f"legacy_duplicate:{pair.sheet_id}:{pair.pair_id}",
+                       "category": LEGACY_DUPLICATE_CATEGORY, "reason": LEGACY_DUPLICATE_REASON,
+                       "old_pair": asdict(pair), "new_pairs": [asdict(sw) for sw in twins]})
+    return result, ledger
+
+
 def build_superworks_issues(context):
     grouped=defaultdict(list)
     for pair in context.pairs:
