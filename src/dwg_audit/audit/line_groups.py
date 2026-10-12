@@ -790,6 +790,112 @@ def symbol_cut_group_ids(line_groups: list[LineGroup], evidence: dict[str, WireB
     return result
 
 
+# P3-CROSS-DEVICE: a straight path between two anchors must end this far inside a mark for the mark to count as on the path.
+_PATH_END_MARGIN = 1.0
+# Anchors closer than this on the minor axis count as one row (or one column) for the path test.
+_PATH_ALIGN_TOLERANCE = 2.5
+
+
+class PathBodyChecker:
+    """P3-CROSS-DEVICE: does the straight path between two anchors run through a symbol body?
+
+    The rule is the WIRE-BREAK body rule applied to a path instead of a gap: a symbol body is crossed when one
+    symbol has two distinct TERMPOINT marks strictly inside the path and on its line, so the path enters the
+    symbol at one terminal and leaves at another (a direct mapping would skip the terminal or component).
+    Unknown shapes keep the pair out of pass: a connect dot between the marks, or marks closer than
+    SYMBOL_MIN_BODY_WIDTH, return "ambiguous". Other paths return None with the reason in the detail
+    (not_axis_aligned, no_body_on_path).
+    Built once per sheet from the same marks and dots as the line-group cuts.
+    """
+
+    def __init__(self, evidence: WireBreakEvidence) -> None:
+        self._index = _MarkIndex(evidence.marks)
+        self._dots = evidence.dots
+
+    def verdict(
+        self,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        *,
+        start_on_wire: bool = False,
+        end_on_wire: bool = False,
+    ) -> tuple[str | None, dict[str, Any]]:
+        """("body" | "ambiguous" | None, detail) for the path from start to end.
+
+        start_on_wire / end_on_wire: that end is a wire end (a line-group end), so a mark touching it is a
+        terminal the path starts at and counts. Otherwise the end is a text anchor and a mark must lie strictly
+        inside it (a text sitting on a terminal does not make the terminal part of the path).
+        """
+        (x1, y1), (x2, y2) = start, end
+        dx, dy = abs(x2 - x1), abs(y2 - y1)
+        if min(dx, dy) > _PATH_ALIGN_TOLERANCE or max(dx, dy) <= _PATH_ALIGN_TOLERANCE:
+            return None, {"reason": "not_axis_aligned"}
+        if dx > dy:
+            orientation = _ORIENTATION_HORIZONTAL
+            lo, hi = sorted((x1, x2))
+            lo_on_wire, hi_on_wire = (start_on_wire, end_on_wire) if x1 <= x2 else (end_on_wire, start_on_wire)
+            cross = (y1 + y2) / 2.0
+        else:
+            orientation = _ORIENTATION_VERTICAL
+            lo, hi = sorted((y1, y2))
+            lo_on_wire, hi_on_wire = (start_on_wire, end_on_wire) if y1 <= y2 else (end_on_wire, start_on_wire)
+            cross = (x1 + x2) / 2.0
+        # The anchors are text insert points, a few units off the wire row they label: the band must reach the row.
+        tol = max(_TERMINAL_TOUCH_TOLERANCE + min(dx, dy) / 2.0, _PATH_ALIGN_TOLERANCE)
+        if orientation == _ORIENTATION_VERTICAL:
+            rect = (cross - tol, lo - tol, cross + tol, hi + tol)
+        else:
+            rect = (lo - tol, cross - tol, hi + tol, cross + tol)
+        low_bound = lo - _TERMINAL_TOUCH_TOLERANCE if lo_on_wire else lo + _PATH_END_MARGIN
+        high_bound = hi + _TERMINAL_TOUCH_TOLERANCE if hi_on_wire else hi - _PATH_END_MARGIN
+        inside: dict[str, list[tuple[float, str]]] = defaultdict(list)
+        for key, record_id, mx1, my1, mx2, my2 in self._index.overlapping(*rect):
+            a1, a2 = (my1, my2) if orientation == _ORIENTATION_VERTICAL else (mx1, mx2)
+            c1, c2 = (mx1, mx2) if orientation == _ORIENTATION_VERTICAL else (my1, my2)
+            centre = (a1 + a2) / 2.0
+            if not (low_bound < centre < high_bound):
+                continue
+            if max(c1, c2) < cross - tol or min(c1, c2) > cross + tol:
+                continue
+            inside[key].append((centre, record_id))
+        best: tuple[float, str, list[tuple[float, str]]] | None = None
+        for key, items in inside.items():
+            if len({rid for _, rid in items}) < 2:
+                continue
+            width = max(c for c, _ in items) - min(c for c, _ in items)
+            if best is None or width > best[0]:
+                best = (width, key, items)
+        if best is None:
+            return None, {"reason": "no_body_on_path"}
+        width, key, items = best
+        centres = [c for c, _ in items]
+        span_lo, span_hi = min(centres), max(centres)
+        detail: dict[str, Any] = {
+            "orientation": orientation,
+            "span": [round(lo, 3), round(hi, 3)],
+            "cross": round(cross, 3),
+            "symbol_key": key,
+            "marks": sorted({rid for _, rid in items}),
+            "body_width": round(width, 3),
+        }
+        if _gap_has_dot(span_lo, span_hi, cross, self._dots, orientation=orientation, cross_axis_tolerance=tol):
+            detail["reason"] = UNKNOWN_DOT_IN_SYMBOL_GAP
+            return "ambiguous", detail
+        if width < SYMBOL_MIN_BODY_WIDTH - 1e-9:
+            detail["reason"] = UNKNOWN_BODY_WIDTH_BELOW_MIN
+            return "ambiguous", detail
+        return "body", detail
+
+
+def path_body_checkers(wire_break_evidence: dict[str, WireBreakEvidence] | None) -> dict[str, PathBodyChecker]:
+    """One PathBodyChecker per sheet that has symbol marks."""
+    return {
+        sheet_id: PathBodyChecker(evidence)
+        for sheet_id, evidence in (wire_break_evidence or {}).items()
+        if evidence is not None and evidence.marks
+    }
+
+
 def _symbol_body_between(
     symbol_cuts: list[dict[str, float]] | None,
     lo: float,

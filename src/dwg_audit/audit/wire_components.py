@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections import defaultdict
 import re
 
+from dwg_audit.audit.line_groups import PathBodyChecker
+from dwg_audit.audit.line_groups import WireBreakEvidence
+from dwg_audit.audit.line_groups import path_body_checkers
 from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
@@ -121,8 +124,14 @@ def extract_component_prefixed_signal_pairs(
     pair_id_factory: IdFactory | None = None,
     first_prefixed_eligible_local_text_ids: set[str] | None = None,
     config: dict | None = None,
+    wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
 ) -> list[Pair]:
-    """Recover narrow wire-component mappings on signal-circuit pages."""
+    """Recover narrow wire-component mappings on signal-circuit pages.
+
+    P3-CROSS-DEVICE: each mapping is a direct wire between two text anchors, so a straight path between the
+    anchors that runs through a symbol body (SuperWORKS or unregistered SYMB2 TERMPOINTs) is not a direct wire.
+    Those pairs are discarded (see guard_pairs_against_symbol_bodies).
+    """
     pair_ids = pair_id_factory or IdFactory("PWCM")
     inline_body_families = _resolve_inline_body_families(config)
     texts_by_sheet: dict[str, list[TextItem]] = defaultdict(list)
@@ -203,7 +212,58 @@ def extract_component_prefixed_signal_pairs(
                 inline_body_families=inline_body_families,
             )
         )
+    guard_pairs_against_symbol_bodies(pairs, path_body_checkers(wire_break_evidence))
     return pairs
+
+
+_CROSS_BODY_DISCARD_NOTE = (
+    "Not a direct wire: the straight path between the two anchors runs through a symbol body "
+    "(two terminals of one symbol lie on the path). Each side is connected through its own terminal or component."
+)
+_CROSS_BODY_REVIEW_NOTE = (
+    "Unconfirmed direct wire: the path between the two anchors meets a symbol body of unknown shape "
+    "(a connect dot inside the body, or a body narrower than the minimum width)."
+)
+
+
+def guard_pairs_against_symbol_bodies(pairs: list[Pair], checkers: dict[str, PathBodyChecker]) -> None:
+    """P3-CROSS-DEVICE: a V1 pair whose straight path runs through a symbol body is not a direct wire.
+
+    body (two TERMPOINTs of one symbol strictly between the anchors, no dot, width >= minimum): discard. The
+    terminals and components on either side are connected by the line-group segments, which stop at the body.
+    ambiguous (dot or narrow body): review, since the body cannot be confirmed. Paths that are not axis-aligned,
+    sheets without symbol marks, and pairs that carry SuperWORKS evidence (SuperWORKS' own decision) are left
+    unchanged.
+    """
+    for pair in pairs:
+        if pair.status == "discard":
+            continue
+        if pair.evidence.get("source") == "superworks" or "superworks" in pair.evidence:
+            continue
+        checker = checkers.get(pair.sheet_id)
+        if checker is None:
+            pair.evidence["symbol_body_path_check"] = {"verdict": None, "reason": "no_symbol_marks_on_sheet"}
+            continue
+        if None in (pair.left_coord_x, pair.left_coord_y, pair.right_coord_x, pair.right_coord_y):
+            continue
+        verdict, detail = checker.verdict(
+            (float(pair.left_coord_x), float(pair.left_coord_y)),
+            (float(pair.right_coord_x), float(pair.right_coord_y)),
+        )
+        if verdict is None:
+            pair.evidence["symbol_body_path_check"] = {"verdict": None, **detail}
+            continue
+        pair.evidence["symbol_body_path_check"] = {"verdict": verdict, **detail}
+        pair.evidence["legacy_rationale"] = pair.rationale
+        if verdict == "body":
+            pair.status = "discard"
+            pair.confidence_bucket = "low"
+            pair.rationale = _CROSS_BODY_DISCARD_NOTE
+            pair.evidence["discard_reason"] = "crosses_symbol_body"
+        else:
+            pair.status = "review"
+            pair.confidence_bucket = "low"
+            pair.rationale = _CROSS_BODY_REVIEW_NOTE
 
 
 def _extract_spmu_signal_panel_row_pairs(

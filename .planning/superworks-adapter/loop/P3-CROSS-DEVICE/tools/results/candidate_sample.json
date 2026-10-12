@@ -1,0 +1,197 @@
+{
+ "population": 695,
+ "sample": [
+  {
+   "project": "p001",
+   "sheet": "S0009",
+   "line_group_id": "GW0282",
+   "side": "left",
+   "text": "613",
+   "value": NaN,
+   "end_xy": [
+    351.2450000000001,
+    230.0
+   ],
+   "text_xy": [
+    329.372905027933,
+    230.6442380509
+   ]
+  },
+  {
+   "project": "p003",
+   "sheet": "S0007",
+   "line_group_id": "GW0060",
+   "side": "left",
+   "text": "遥控复归接点",
+   "value": NaN,
+   "end_xy": [
+    181.25,
+    157.5
+   ],
+   "text_xy": [
+    167.0625,
+    158.7361111111111
+   ]
+  },
+  {
+   "project": "p022",
+   "sheet": "S0011",
+   "line_group_id": "GW0291",
+   "side": "left",
+   "text": "425",
+   "value": NaN,
+   "end_xy": [
+    111.25,
+    182.49999974567424
+   ],
+   "text_xy": [
+    90.66067632069193,
+    183.1718980849367
+   ]
+  },
+  {
+   "project": "p026",
+   "sheet": "S0010",
+   "line_group_id": "GW0278",
+   "side": "left",
+   "text": "107",
+   "value": NaN,
+   "end_xy": [
+    301.25,
+    257.5
+   ],
+   "text_xy": [
+    281.9277854135917,
+    258.1579329608938
+   ]
+  },
+  {
+   "project": "p044",
+   "sheet": "S0016",
+   "line_group_id": "GW0611",
+   "side": "left",
+   "text": "517",
+   "value": NaN,
+   "end_xy": [
+    171.2500012782634,
+    54.99999942559316
+   ],
+   "text_xy": [
+    150.3547498816154,
+    55.66491562671047
+   ]
+  },
+  {
+   "project": "p051",
+   "sheet": "S0005",
+   "line_group_id": "GW0107",
+   "side": "left",
+   "text": "11",
+   "value": NaN,
+   "end_xy": [
+    206.2500001339745,
+    187.5
+   ],
+   "text_xy": [
+    193.7486034859298,
+    188.5027932960894
+   ]
+  },
+  {
+   "project": "p061",
+   "sheet": "S0011",
+   "line_group_id": "GW0415",
+   "side": "left",
+   "text": "419",
+   "value": NaN,
+   "end_xy": [
+    333.7500012782634,
+    133.2372723382174
+   ],
+   "text_xy": [
+    313.1229088627232,
+    133.8952041502976
+   ]
+  },
+  {
+   "project": "p071",
+   "sheet": "S0006",
+   "line_group_id": "GW0129",
+   "side": "left",
+   "text": "Device alarm",
+   "value": NaN,
+   "end_xy": [
+    177.499999732051,
+    152.5000000484898
+   ],
+   "text_xy": [
+    142.9004464675772,
+    152.9013283548542
+   ]
+  },
+  {
+   "project": "p074",
+   "sheet": "S0008",
+   "line_group_id": "GW0433",
+   "side": "left",
+   "text": "2-25GD12",
+   "value": NaN,
+   "end_xy": [
+    167.5,
+    197.4999994263975
+   ],
+   "text_xy": [
+    150.0,
+    189.9999994263975
+   ]
+  },
+  {
+   "project": "p075",
+   "sheet": "S0005",
+   "line_group_id": "GW0056",
+   "side": "left",
+   "text": "108",
+   "value": NaN,
+   "end_xy": [
+    206.25,
+    187.5
+   ],
+   "text_xy": [
+    186.2451272501552,
+    188.1579329608938
+   ]
+  },
+  {
+   "project": "p001",
+   "sheet": "S0004",
+   "line_group_id": "GW0022",
+   "side": "left",
+   "text": "706",
+   "value": NaN,
+   "end_xy": [
+    118.75,
+    174.99999994187016
+   ],
+   "text_xy": [
+    98.12290502793296,
+    175.6579331137206
+   ]
+  },
+  {
+   "project": "p003",
+   "sheet": "S0004",
+   "line_group_id": "GW0017",
+   "side": "left",
+   "text": "1505",
+   "value": NaN,
+   "end_xy": [
+    335.0,
+    245.0000001115695
+   ],
+   "text_xy": [
+    315.625,
+    245.6300001115695
+   ]
+  }
+ ]
+}

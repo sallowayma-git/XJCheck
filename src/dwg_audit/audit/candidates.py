@@ -8,6 +8,7 @@ import math
 from shapely.geometry import box
 from shapely.strtree import STRtree
 
+from dwg_audit.audit.line_groups import PathBodyChecker
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TerminalCandidate
@@ -162,7 +163,10 @@ def build_terminal_candidates(
     config: dict,
     sheets: list[SheetRecord] | None = None,
     candidate_id_factory: IdFactory | None = None,
+    path_checkers: dict[str, PathBodyChecker] | None = None,
 ) -> list[TerminalCandidate]:
+    """path_checkers (P3-CROSS-DEVICE): per-sheet symbol-body checkers; a text whose position along the wire
+    lies beyond a symbol body is rejected (path_crosses_symbol_body). None keeps the legacy search."""
     by_sheet_texts = defaultdict(list)
     for text in texts:
         by_sheet_texts[text.sheet_id].append(text)
@@ -354,6 +358,13 @@ def build_terminal_candidates(
                     status = "rejected"
                     reason = "terminal_strip_column_filtered"
                     score = 0.0
+                elif _candidate_path_crosses_symbol_body(path_checkers, group, endpoint, dx, dy):
+                    # P3-CROSS-DEVICE: the text lies beyond a symbol body along the wire; the wire end is not its end.
+                    status = "rejected"
+                    reason = "path_crosses_symbol_body"
+                    score = 0.0
+                    channel = _CHANNEL_NOISE
+                    channel_detail = reason
                 else:
                     is_block_internal = ":VIRTUAL:" in text.handle.upper() and orientation == _ORIENTATION_GRID
                     score = _candidate_score(
@@ -466,6 +477,30 @@ def _physical_endpoint_binding(text: TextItem, group: LineGroup, side: str, endp
         if math.hypot(px-endpoint[0], py-endpoint[1]) <= 0.25 and (ux*vx + uy*vy)/length >= 0.98:
             matches.append(port)
     return matches[0] if len(matches) == 1 else {}
+
+
+def _candidate_path_crosses_symbol_body(
+    path_checkers: dict[str, PathBodyChecker] | None,
+    group: LineGroup,
+    endpoint: tuple[float, float],
+    dx: float,
+    dy: float,
+) -> bool:
+    """P3-CROSS-DEVICE: the wire from the group end to the text's position along the wire crosses a symbol body."""
+    if not path_checkers:
+        return False
+    checker = path_checkers.get(group.sheet_id)
+    if checker is None:
+        return False
+    # The wire axis comes from the group's own ends (a one-member group may be labelled grid).
+    vertical = abs(group.end_y - group.start_y) > abs(group.end_x - group.start_x)
+    text_x, text_y = endpoint[0] + dx, endpoint[1] + dy
+    if vertical:
+        target = (endpoint[0], text_y)
+    else:
+        target = (text_x, endpoint[1])
+    verdict, _ = checker.verdict(endpoint, target, start_on_wire=True)
+    return verdict == "body"
 
 
 def _candidate_search_bbox(

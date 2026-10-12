@@ -13,11 +13,13 @@ from dwg_audit.audit import component_diagrams
 from dwg_audit.audit.candidates import build_terminal_candidates
 from dwg_audit.audit.component_diagrams import extract_strip_two_port_component_pairs
 from dwg_audit.audit.line_groups import WireBreakEvidence
+from dwg_audit.audit.line_groups import path_body_checkers
 from dwg_audit.audit.line_groups import build_line_groups
 from dwg_audit.audit.pairs import build_pairs
 from dwg_audit.audit.table_extractor import extract_terminal_header_table_pairs
 from dwg_audit.audit.table_extractor import extract_component_panel_port_table_pairs
 from dwg_audit.audit.wire_components import extract_component_prefixed_signal_pairs
+from dwg_audit.audit.wire_components import guard_pairs_against_symbol_bodies
 from dwg_audit.domain.models import BlockRecord
 from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
@@ -182,6 +184,7 @@ def _extract_pairs_for_route(
         config,
         pages,
         candidate_id_factory=IdFactory(f"C{id_stem}"),
+        path_checkers=path_body_checkers(wire_break_evidence),
     )
     pair_candidates, pairs = build_pairs(
         line_groups,
@@ -191,6 +194,9 @@ def _extract_pairs_for_route(
         pair_candidate_id_factory=IdFactory(f"PC{id_stem}"),
         pair_id_factory=IdFactory(f"P{id_stem}"),
     )
+    if executed_extractor == "WireDiagramExtractor":
+        # P3-CROSS-DEVICE: pairs built by pairs.py (e.g. schematic wire-logic endpoints) get the same path rule.
+        guard_pairs_against_symbol_bodies(pairs, path_body_checkers(wire_break_evidence))
     if executed_extractor == "WireDiagramExtractor":
         _mark_inline_wire_split_continuation_pairs(pairs, line_groups, pages, config)
     if executed_extractor == "WireDiagramExtractor":
@@ -204,6 +210,7 @@ def _extract_pairs_for_route(
             lines,
             pair_id_factory=IdFactory(f"P{id_stem}M"),
             config=config,
+            wire_break_evidence=wire_break_evidence,
         )
         _mark_wire_component_covered_ordinary_pairs(pairs, wire_component_pairs)
         pairs.extend(wire_component_pairs)
