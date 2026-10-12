@@ -267,3 +267,12 @@ D3 的构成：背板虚拟端子表 5,516 条，背板几何表 28 条（合计
 - `png/bucket_01..10.png`（c、d 的 Top 10）、`png/d3_01..07.png`（D3 Top 7）：每张含 3 个面板，共 17 张。
 - `tools/`：`build_tagged.py`（标签与 c/d 分类）、`analysis.py`（重复标志与 issue 依赖）、`v2_proposals.py`（V2 提议离线复现）、`buckets.py`（桶与抽样）、`render_buckets.py`（渲染）、`report_tables.py`（details.json）、`make_readme.py`（本文件表格）。复现顺序：`build_tagged` → `v2_proposals` → `analysis` → `buckets`（raw 与 d3）→ `render_buckets`（raw 与 d3）→ `report_tables` → `make_readme`。
 - 中间表：`.tmp/legacy_census_work/`（可删）：`pairs_tagged*.parquet`、`v2_proposals.parquet`、`v2_port_usage.parquet`、`samples*.json`、`analysis.json`、`v2_proposals.log`。
+
+## 更正（P2-BACKPLATE）
+
+本节更正上文第 3 节与 3.1 节中“背板虚拟端子表 5,544 条是 SW 盲区”的说法，并不改动上文的数字与表格。
+
+- 背板虚拟端子表并非约 96% 为 SW 盲区。第二十三轮离线口径下，D3 背板行的 4,986 / 5,571（89.5%）已有同页 SW pass 配对共享同一外部端子 R 且行号一致（随机置换对照约 2.6%）。上文以“两端值对完全相等”判重，因端子文字写法不同（如 V1 `1-1n/NR1181C-3` 对 SW `1n0503`）而漏掉了这一类。
+- 第二十四轮基线的背板虚拟表 pass 为 6,238 条。P2-BACKPLATE 修订后（全量回放 `round25`）：3,910 → 4,047 条获得 SW 佐证；同页行号冲突的 32 条经 J 类取代；装置前缀标题修正使 183 条候选与 SW 一致，剩余 95 条为候选。
+- 修订后背板虚拟表 pass 为 4,254 条，其余为 discard（I 类重复或 J 类取代），每条 discard 都有存活的 SW pass 配对。
+- 仍无 SW 佐证的背板 pass 主要是 V1 没有复合装置名的配对（装置修正后显著减少，但未全部消除），见 `loop/P2-BACKPLATE/IMPL.md` 第 11 节。

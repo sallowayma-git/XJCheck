@@ -2398,6 +2398,180 @@ def supersede_legacy_duplicates_of_sw(pairs, ledger):
     return result, ledger
 
 
+# P2-BACKPLATE: a backplate virtual-table pass pair names an external terminal R and a backplate
+# row/device. A same-project SuperWORKS pass pair that also names R gives the backplate identity of
+# the terminal; its last two digits are the row. Agreement is evidence only (status is unchanged).
+# Disagreement is written as a candidate row for review; it changes no pair and raises no issue.
+BACKPLATE_CORROBORATION_MATCH = "row+terminal+device"
+BACKPLATE_CONTRADICTION_TYPES = ("same_sheet_row_conflict", "device_prefix_differs")
+_BP_NUMERIC_IDENTITY = re.compile(r"^(\d+(?:-\d+)?n)([A-Z]*)(\d{3,})$")   # <dev><col digits><row:2>, e.g. 1n0503, 1nP103
+_BP_ALPHA_IDENTITY = re.compile(r"^(\d+(?:-\d+)?n)([A-Z])(\d{2})$")        # <dev><letter><row:2>, e.g. 1-25nA24
+_BP_BAY_PREFIX = re.compile(r"^\d+-")
+
+
+def _bp_key(value):
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    return re.sub(r"[\s@\u3000]+", "", str(value)) or None
+
+
+def _bp_identity(value):
+    """Backplate identity of a SuperWORKS-style endpoint value, or None when it is not one."""
+    key = _bp_key(value)
+    if not key:
+        return None
+    match = _BP_NUMERIC_IDENTITY.match(key)
+    if match:
+        return {"device": match.group(1), "row": int(match.group(3)[-2:]), "form": "numeric"}
+    match = _BP_ALPHA_IDENTITY.match(key)
+    if match:
+        return {"device": match.group(1), "row": int(match.group(3)), "form": "alpha"}
+    return None
+
+
+def _bp_device_matches(sw_device, v1_device):
+    """Device label agreement after normalization.
+
+    Trailing letters are dropped on the V1 side (1nP -> 1n). A bay prefix (the '1-' of 1-1n) that only
+    one side writes is ignored; when both write it the bays must be equal.
+    """
+    v1_device = re.sub(r"[A-Z]+$", "", v1_device)
+    if sw_device == v1_device:
+        return True
+    if _BP_BAY_PREFIX.match(sw_device) and _BP_BAY_PREFIX.match(v1_device):
+        return False
+    return _BP_BAY_PREFIX.sub("", sw_device) == _BP_BAY_PREFIX.sub("", v1_device)
+
+
+def _backplate_pass_mapping(pair):
+    if pair.status != "pass":
+        return None
+    mapping = (pair.evidence or {}).get("table_mapping") or {}
+    return mapping if mapping.get("mapping_mode") == "backplate_virtual_table" else None
+
+
+def corroborate_backplate_virtual_pairs(pairs):
+    """Corroborate backplate virtual-table pass pairs by same-project SuperWORKS pass pairs on R (P2-BACKPLATE).
+
+    Returns (pairs, contradictions). Only evidence is added to a pair that agrees (row, device and terminal R).
+    A pair with no agreeing partner but a partner that disagrees (same-sheet row conflict, or same row with
+    a different device label) yields one contradiction row per type. Statuses are never changed here.
+    """
+    sw_partners = defaultdict(list)
+    for pair in pairs:
+        if pair.status != "pass" or not _is_sw_produced_pair(pair):
+            continue
+        for mine, other in ((pair.left_value, pair.right_value), (pair.right_value, pair.left_value)):
+            if _bp_key(mine) and _bp_key(other):
+                sw_partners[_bp_key(mine)].append((pair, other))
+    if not sw_partners:
+        return pairs, []
+    result = list(pairs)
+    contradictions = []
+    for index, pair in enumerate(pairs):
+        mapping = _backplate_pass_mapping(pair)
+        if mapping is None:
+            continue
+        terminal = _bp_key(pair.right_value)
+        row = mapping.get("row_number")
+        device = mapping.get("composite_device_instance")
+        if not terminal or row is None or not device:
+            continue
+        matches, device_diff, row_diff = [], [], []
+        for sw, other in sw_partners.get(terminal, ()):
+            identity = _bp_identity(other)
+            if identity is None or sw.pair_id == pair.pair_id:
+                continue
+            same_sheet = sw.file_id == pair.file_id and sw.sheet_id == pair.sheet_id
+            row_ok = identity["row"] == int(row)
+            device_ok = _bp_device_matches(identity["device"], str(device))
+            item = {"sw_pair_id": sw.pair_id, "sw_identity": _bp_key(other), "sw_row": identity["row"],
+                    "sw_device": identity["device"], "same_sheet": same_sheet}
+            if row_ok and device_ok:
+                matches.append(item)
+            elif row_ok:
+                device_diff.append(item)
+            elif device_ok and same_sheet:
+                row_diff.append(item)
+        if matches:
+            best = sorted(matches, key=lambda item: (not item["same_sheet"], item["sw_pair_id"]))[0]
+            evidence = copy.deepcopy(pair.evidence or {})
+            evidence["sw_backplate_corroboration"] = {
+                "sw_pair_id": best["sw_pair_id"], "match": BACKPLATE_CORROBORATION_MATCH,
+                "sw_identity": best["sw_identity"], "same_sheet": best["same_sheet"],
+                "row_number": int(row), "device": str(device), "partner_count": len(matches)}
+            result[index] = replace(pair, evidence=evidence)
+            continue
+        for kind, items in (("same_sheet_row_conflict", row_diff), ("device_prefix_differs", device_diff)):
+            if not items:
+                continue
+            first = sorted(items, key=lambda item: (not item["same_sheet"], item["sw_pair_id"]))[0]
+            contradictions.append({
+                "candidate_id": f"BPC:{pair.pair_id}:{kind}", "contradiction_type": kind,
+                "pair_id": pair.pair_id, "file_id": pair.file_id, "sheet_id": pair.sheet_id,
+                "sheet_no": mapping.get("sheet_no"), "filename": mapping.get("filename") or (pair.evidence or {}).get("filename"),
+                "left_value": pair.left_value, "right_value": pair.right_value,
+                "v1_row": int(row), "v1_device": str(device), "v1_header_prefix": mapping.get("header_prefix"),
+                "v1_header_text_id": mapping.get("header_text_id"), "v1_middle_text_id": mapping.get("middle_text_id"),
+                "v1_right_text_id": pair.right_text_id, "v1_confidence": pair.confidence,
+                "sw_pair_id": first["sw_pair_id"], "sw_identity": first["sw_identity"],
+                "sw_row": first["sw_row"], "sw_device": first["sw_device"], "sw_same_sheet": first["same_sheet"],
+                "sw_partner_count": len(items),
+                "sw_partners": [{k: v for k, v in item.items()} for item in items],
+            })
+    return result, contradictions
+
+
+# P2-BACKPLATE, supersession category J. A backplate virtual-table pass pair reads the row number beside its
+# external terminal R wrongly (the V1 row cell is not the row cell), while a same-sheet SuperWORKS pass pair
+# already states the right backplate identity for R. The judged population of this class is 32 of 32 V1 misreads
+# (loop/P2-BACKPLATE/IMPL.md). The V1 pair is retired as superseded; no issue is raised (the drawing is consistent).
+BACKPLATE_ROW_MISREAD_CATEGORY = "J"
+BACKPLATE_ROW_MISREAD_REASON = "backplate_row_misread_superseded_by_same_sheet_sw"
+BACKPLATE_ROW_MISREAD_TYPES = ("same_sheet_row_conflict",)
+
+
+def supersede_backplate_row_misreads(pairs, ledger, contradictions):
+    """Retire backplate pass pairs whose row number a same-sheet SuperWORKS pass pair contradicts (category J).
+
+    Only candidates of an enabled type are retired, and only pass pairs. Evidence records superseded_by (the
+    SuperWORKS pair), superseded_by_all, supersession_category 'J' and the conflict details. Each candidate row
+    gets action 'superseded_category_J' or 'candidate_only'. A ledger entry is appended per retired pair.
+    """
+    retire = {}
+    for item in contradictions:
+        item["action"] = "candidate_only"
+        if item["contradiction_type"] in BACKPLATE_ROW_MISREAD_TYPES:
+            retire.setdefault(item["pair_id"], item)
+    if not retire:
+        return pairs, ledger
+    result = list(pairs)
+    ledger = list(ledger)
+    for index, pair in enumerate(pairs):
+        item = retire.get(pair.pair_id)
+        if item is None or pair.status != "pass":
+            continue
+        evidence = copy.deepcopy(pair.evidence or {})
+        sw_ids = sorted({item["sw_pair_id"]} | set(
+            partner["sw_pair_id"] for partner in (item.get("sw_partners") or [])
+            if partner.get("same_sheet") and partner.get("sw_pair_id")))
+        evidence["superseded_by"] = sw_ids[0]
+        evidence["superseded_by_all"] = sw_ids
+        evidence["supersession_category"] = BACKPLATE_ROW_MISREAD_CATEGORY
+        evidence["backplate_row_misread"] = {
+            "sw_pair_id": item["sw_pair_id"], "sw_identity": item["sw_identity"], "sw_row": item["sw_row"],
+            "v1_row": item["v1_row"], "contradiction_type": item["contradiction_type"]}
+        new = replace(pair, status="discard", evidence=evidence,
+                      rationale=f"{BACKPLATE_ROW_MISREAD_REASON}: {sw_ids[0]} (SW identity {item['sw_identity']}, "
+                                f"row {item['sw_row']:02d}; V1 row {item['v1_row']:02d})")
+        result[index] = new
+        ledger.append({"element_key": f"backplate_row_misread:{pair.sheet_id}:{pair.pair_id}",
+                       "category": BACKPLATE_ROW_MISREAD_CATEGORY, "reason": BACKPLATE_ROW_MISREAD_REASON,
+                       "old_pair": asdict(pair), "new_pairs": [{"pair_id": sw_id} for sw_id in sw_ids]})
+        item["action"] = "superseded_category_J"
+    return result, ledger
+
+
 def build_superworks_issues(context):
     grouped=defaultdict(list)
     for pair in context.pairs:

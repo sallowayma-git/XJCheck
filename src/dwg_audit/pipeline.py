@@ -350,6 +350,12 @@ def analyze_input_root(
         # Every SW and legacy pair now exists: retire legacy pass/review pairs a same-sheet SW pass repeats.
         from dwg_audit.audit.superworks_extractor import supersede_legacy_duplicates_of_sw
         pairs, superworks_supersession = supersede_legacy_duplicates_of_sw(pairs, superworks_supersession)
+        # P2-BACKPLATE: evidence for backplate virtual-table pairs that a same-project SW pass pair corroborates;
+        # disagreements become audit-only candidate rows (no status change).
+        from dwg_audit.audit.superworks_extractor import corroborate_backplate_virtual_pairs
+        pairs, sw_backplate_contradictions = corroborate_backplate_virtual_pairs(pairs)
+        from dwg_audit.audit.superworks_extractor import supersede_backplate_row_misreads
+        pairs, superworks_supersession = supersede_backplate_row_misreads(pairs, superworks_supersession, sw_backplate_contradictions)
 
         authoritative_component_pairs = [
             pair
@@ -417,6 +423,7 @@ def analyze_input_root(
             symbol_port_definition_proposals=symbol_port_definition_proposals,
             superworks=superworks,
             superworks_supersession=superworks_supersession,
+            sw_backplate_contradictions=sw_backplate_contradictions,
         )
         # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
         artifacts_page_classifications = classifications
