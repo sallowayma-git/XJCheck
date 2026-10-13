@@ -879,11 +879,11 @@ function App() {
     }
   }, [previewClientSessionId])
 
-  async function handleAnalyzeClick() {
+  async function handleAnalyzeClick(inputOverride?: string) {
     if (analysisInFlightRef.current) {
       return
     }
-    const normalizedInputRoot = inputRoot.trim()
+    const normalizedInputRoot = (inputOverride ?? inputRoot).trim()
     if (!normalizedInputRoot) {
       setLoadError("请先选择项目目录。")
       return
@@ -937,18 +937,7 @@ function App() {
         applyProcessEvents(processEventQueueRef.current)
         processEventQueueRef.current = []
       }
-      setRecentProjects((current) => {
-        const seen = new Set<string>()
-        return [...payload.projects, ...current]
-          .filter((project) => {
-            if (seen.has(project.run_id)) {
-              return false
-            }
-            seen.add(project.run_id)
-            return true
-          })
-          .slice(0, 20)
-      })
+      setRecentProjects(await desktopApi.listRecentProjects())
       if (payload.projects[0] && isCurrentRequest(screenIntentGenerationRef.current, screenIntentGeneration)) {
         selectProject(payload.projects[0].project_id, payload.projects[0].run_id)
         await loadProjectResult(payload.projects[0].project_id, payload.projects[0].run_id)
@@ -1652,6 +1641,10 @@ function App() {
                             if (isAnalyzing || isDeletingProjectId || isLoadingProjectId === project.project_id) {
                               return
                             }
+                            if (project.snapshot_available === false) {
+                              setInputRoot(project.input_root)
+                              return
+                            }
                             selectProject(project.project_id, project.run_id)
                             void loadProjectResult(project.project_id, project.run_id)
                           }}
@@ -1668,7 +1661,7 @@ function App() {
                           <td>{project.sheet_count} 页</td>
                           <td>{project.issue_count} 条</td>
                           <td>
-                            <span className={`chip status-${normalizeToken(project.status)}`}>{labelProjectStatus(project.status)}</span>
+                            <span className={`chip status-${normalizeToken(project.status)}`}>{project.snapshot_available === false ? "需重新分析" : labelProjectStatus(project.status)}</span>
                           </td>
                           <td className="actions-col">
                             <div className="row-actions">
@@ -1678,11 +1671,16 @@ function App() {
                                 disabled={isAnalyzing || Boolean(isDeletingProjectId) || isLoadingProjectId === project.project_id}
                                 onClick={(event) => {
                                   event.stopPropagation()
+                                  if (project.snapshot_available === false) {
+                                    setInputRoot(project.input_root)
+                                    void handleAnalyzeClick(project.input_root)
+                                    return
+                                  }
                                   selectProject(project.project_id, project.run_id)
                                   void loadProjectResult(project.project_id, project.run_id)
                                 }}
                               >
-                                {isLoadingProjectId === project.project_id ? "加载中…" : "查看"}
+                                {project.snapshot_available === false ? "重新分析" : isLoadingProjectId === project.project_id ? "加载中…" : "查看"}
                               </button>
                               <button
                                 type="button"

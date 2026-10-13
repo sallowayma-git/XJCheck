@@ -14,6 +14,9 @@ from dwg_audit.desktop.lifecycle import cleanup_transient_workspaces
 from dwg_audit.desktop.lifecycle import compact_session_workspace
 from dwg_audit.desktop.lifecycle import default_preview_cache_root
 from dwg_audit.desktop.lifecycle import default_workspace_root
+from dwg_audit.desktop.lifecycle import session_lease
+from dwg_audit.desktop.lifecycle import _safe_session_path
+from dwg_audit.desktop.lifecycle import remove_workspace_directory
 from dwg_audit.desktop.preview import build_preview_geometry_payloads
 from dwg_audit.desktop.state_store import DesktopStateStore
 from dwg_audit.desktop.state_store import IssueQueryFilters
@@ -55,7 +58,7 @@ def analyze_session(
     resolved_workspace.mkdir(parents=True, exist_ok=True)
     resolved_config = config_path.expanduser().resolve() if config_path else None
     run_session_id = session_id or uuid.uuid4().hex
-    session_workspace = resolved_workspace / run_session_id
+    session_workspace = _safe_session_path(resolved_workspace, run_session_id)
     session_workspace.mkdir(parents=True, exist_ok=True)
     writer = event_writer or DesktopEventWriter()
     state_store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
@@ -67,8 +70,11 @@ def analyze_session(
         workspace_root=str(session_workspace),
         include_audit=include_audit,
     )
+    prepared_projects = []
+    stored_runs: list[dict[str, Any]] = []
     try:
-        result = run_analysis_workflow(
+        with session_lease(resolved_workspace, run_session_id):
+            result = run_analysis_workflow(
             input_root=resolved_input,
             output_root=session_workspace,
             config_path=resolved_config,
@@ -80,25 +86,23 @@ def analyze_session(
                 session_id=run_session_id,
                 project_dir=str(project_dir),
             ),
-        )
+            )
+            for project_dir in result.project_dirs:
+                summary = _store_project_run(
+                    state_store, session_id=run_session_id, project_dir=project_dir,
+                    input_root=resolved_input, include_audit=include_audit, _prepared=prepared_projects,
+                )
+                stored_runs.append(summary)
+            state_store.commit_session_snapshot(run_session_id, prepared_projects)
     except BaseException:
-        shutil.rmtree(session_workspace, ignore_errors=True)
+        try:
+            with session_lease(resolved_workspace, run_session_id):
+                remove_workspace_directory(session_workspace, resolved_workspace, protected=[resolved_input])
+        except BlockingIOError:
+            pass  # Another live analysis owns the workspace; startup recovery will remove this failed session.
         raise
 
-    stored_runs: list[dict[str, Any]] = []
-    for project_dir in result.project_dirs:
-        try:
-            summary = _store_project_run(
-                state_store,
-                session_id=run_session_id,
-                project_dir=project_dir,
-                input_root=resolved_input,
-                include_audit=include_audit,
-            )
-        except BaseException:
-            shutil.rmtree(session_workspace, ignore_errors=True)
-            raise
-        stored_runs.append(summary)
+    for summary in stored_runs:
         writer.emit("project_stored", session_id=run_session_id, **summary)
 
     compact_info: dict[str, Any] | None = None
@@ -251,12 +255,12 @@ def purge_session(
     state_db_path: Path | None = None,
 ) -> dict[str, Any]:
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
-    deleted_runs = store.purge_session(session_id)
-    session_workspace = workspace_root.expanduser().resolve() / session_id
-    removed_workspace = False
-    if session_workspace.exists():
-        shutil.rmtree(session_workspace, ignore_errors=True)
-        removed_workspace = True
+    resolved_workspace = workspace_root.expanduser().resolve()
+    session_workspace = _safe_session_path(resolved_workspace, session_id)
+    with session_lease(resolved_workspace, session_id):
+        protected = [r["input_root"] for r in store.list_all_runs() if r.get("input_root")]
+        deleted_runs = store.purge_session(session_id)
+        removed_workspace = remove_workspace_directory(session_workspace, resolved_workspace, protected=protected)
     return {
         "session_id": session_id,
         "deleted_runs": deleted_runs,
@@ -272,11 +276,24 @@ def delete_project_record(
     state_db_path: Path | None = None,
     preview_cache_root: Path | None = None,
 ) -> dict[str, Any]:
+    root = (workspace_root or default_workspace_root()).expanduser().resolve()
+    with session_lease(root, "delete-project"):
+        return _delete_project_record_unlocked(project_id=project_id, workspace_root=root,
+            state_db_path=state_db_path, preview_cache_root=preview_cache_root)
+
+
+def _delete_project_record_unlocked(
+    *, project_id: str, workspace_root: Path, state_db_path: Path | None,
+    preview_cache_root: Path | None,
+) -> dict[str, Any]:
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
     resolved_workspace = (workspace_root or default_workspace_root()).expanduser().resolve()
     resolved_preview_cache = (preview_cache_root or default_preview_cache_root()).expanduser().resolve()
     runs = store.list_runs_for_project(project_id)
     if not runs:
+        if any(row["project_id"] == project_id for row in store.list_recent_projects()):
+            store.purge_project(project_id)
+            return {"project_id": project_id, "deleted_runs": 0, "removed_paths": []}
         raise FileNotFoundError(f"No stored result found for project_id={project_id}")
 
     removed_paths: list[str] = []
@@ -286,8 +303,7 @@ def delete_project_record(
         artifact_dir = str(run.get("artifact_dir") or "").strip()
         if artifact_dir:
             path = Path(artifact_dir)
-            if path.exists():
-                shutil.rmtree(path, ignore_errors=True)
+            if path.exists() and remove_workspace_directory(path, resolved_workspace, protected=[r["input_root"] for r in runs]):
                 removed_paths.append(str(path))
 
     deleted_runs = store.purge_project(project_id)
@@ -295,7 +311,7 @@ def delete_project_record(
     for session_id in session_ids:
         if not session_id:
             continue
-        session_path = resolved_workspace / session_id
+        session_path = _safe_session_path(resolved_workspace, session_id)
         if session_path.exists():
             remaining = [
                 item
@@ -303,12 +319,11 @@ def delete_project_record(
                 if str(item.get("session_id") or "") == session_id
             ]
             if not remaining:
-                shutil.rmtree(session_path, ignore_errors=True)
-                removed_paths.append(str(session_path))
+                if remove_workspace_directory(session_path, resolved_workspace, protected=[r["input_root"] for r in runs]):
+                    removed_paths.append(str(session_path))
 
-    preview_dir = resolved_preview_cache / project_id
-    if preview_dir.exists():
-        shutil.rmtree(preview_dir, ignore_errors=True)
+    preview_dir = _safe_session_path(resolved_preview_cache, project_id)
+    if preview_dir.exists() and remove_workspace_directory(preview_dir, resolved_preview_cache):
         removed_paths.append(str(preview_dir))
 
     return {
@@ -325,6 +340,7 @@ def _store_project_run(
     project_dir: Path,
     input_root: Path,
     include_audit: bool,
+    _prepared: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     manifest = json.loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
     findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
@@ -347,29 +363,36 @@ def _store_project_run(
         "include_audit": include_audit,
         "manifest_warnings": manifest.get("warnings", []),
         "page_findings_count": int(findings_payload.get("page_findings_count", len(page_findings))),
+        "analysis_status": findings_payload.get("analysis_status", "COMPLETE"),
+        "clean_conclusion_allowed": findings_payload.get("clean_conclusion_allowed", True),
+        "incomplete_page_count": findings_payload.get("incomplete_page_count", 0),
+        "failure_code_counts": findings_payload.get("failure_code_counts", {}),
         "artifacts": {
             "project_dir": str(project_dir),
             "findings_dir": str(project_dir / "findings"),
             "audit_dir": str(project_dir / "audit"),
         },
     }
-    store.record_run(
+    run_payload = dict(
         run_id=run_id,
         session_id=session_id,
         project_id=str(manifest["project_id"]),
         project_name=str(manifest["project_name"]),
         input_root=str(input_root),
         artifact_dir=str(project_dir),
-        status="completed",
+        status="completed" if metadata["clean_conclusion_allowed"] else "incomplete",
         sheet_count=int(manifest.get("sheet_count", 0)),
         pair_count=int(len(pairs)),
         issue_count=int(len(issues)),
         metadata=metadata,
         series_chains=series_chains,
     )
-    store.replace_issue_summaries(run_id, issue_payload)
-    store.replace_page_findings(run_id, page_findings)
-    store.replace_preview_geometries(run_id, build_preview_geometry_payloads(frames))
+    prepared = {"run": run_payload, "issues": issue_payload, "pages": page_findings,
+                "geometries": build_preview_geometry_payloads(frames)}
+    if _prepared is None:
+        store.commit_session_snapshot(session_id, [prepared])
+    else:
+        _prepared.append(prepared)
     return {
         "run_id": run_id,
         "project_id": str(manifest["project_id"]),

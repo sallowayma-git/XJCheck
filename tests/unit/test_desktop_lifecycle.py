@@ -71,7 +71,7 @@ def _record_demo_run(
         session_id=session_id,
         project_id="demo-project",
         project_name="Demo Project",
-        input_root=str(Path(artifact_dir).parent if artifact_dir else Path(".")),
+        input_root=str(Path(artifact_dir).parents[2] / "input" if artifact_dir else Path(".")),
         artifact_dir=artifact_dir,
         status="completed",
         sheet_count=1,
