@@ -25,6 +25,7 @@ from dwg_audit.page_router import enrich_pages_from_classifications
 from dwg_audit.page_router import route_supports_table
 from dwg_audit.report import write_project_artifacts
 from dwg_audit.extract import extract_cad_artifacts
+from dwg_audit.utils.config import resolve_runtime_profile
 
 
 def _is_downstream_audit_page(page) -> bool:
@@ -107,13 +108,14 @@ def analyze_input_root(
                 sheet_count=scan.manifest.sheet_count,
             )
         stage_started = time.perf_counter()
-        page_fact_kwargs = {}
+        include_canonical_scenes = resolve_runtime_profile(config) != "production"
+        page_fact_kwargs = dict(include_canonical_scenes=include_canonical_scenes)
         conversion_sources = scan.manifest.source_files
         if current_page_facts is not None:
             from dwg_audit.extract.cad_extract import page_fact_fingerprint, reusable_page_facts
             fingerprint = page_fact_fingerprint(project_root, config)
             cache = (cached_page_facts or {}).get(str(project_root.resolve()), {})
-            page_fact_kwargs = dict(cached_pages=cache, capture_page_facts=True, fingerprint=fingerprint)
+            page_fact_kwargs.update(cached_pages=cache, capture_page_facts=True, fingerprint=fingerprint)
             # Sequential IDs are part of the legacy contract. Skip conversion of the
             # unchanged prefix; a changed page conservatively converts the suffix.
             conversion_sources = []
@@ -122,7 +124,8 @@ def analyze_input_root(
             sheet_map = {p.file_id: p for p in scan.pages}
             for source in scan.manifest.source_files:
                 payload = cache.get(str(Path(source.path).resolve()))
-                if prefix_unchanged and reusable_page_facts(source, sheet_map[source.file_id], payload, fingerprint, counters):
+                if prefix_unchanged and reusable_page_facts(source, sheet_map[source.file_id], payload, fingerprint, counters,
+                        include_canonical_scenes=include_canonical_scenes):
                     source.conversion_status = "cached"
                     counters = payload["end_counters"]
                 else:
@@ -147,6 +150,7 @@ def analyze_input_root(
         if current_page_facts is not None:
             current_page_facts[str(project_root.resolve())] = getattr(extraction_result, "page_facts", {})
         stage_seconds["cad_extract"] = time.perf_counter() - stage_started
+        cad_extraction_result = extraction_result
         stage_seconds["reused_page_count"] = getattr(extraction_result, "reused_page_count", 0)
         stage_started = time.perf_counter()
         texts, lines, blocks, polylines, pages, extraction_warnings = extraction_result
@@ -588,8 +592,8 @@ def analyze_input_root(
             "config_sha256": hashlib.sha256(json.dumps(config, sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
             "counts": {"pages": len(pages), "lines": len(lines), "pairs": len(pairs),
                        "line_groups": len(line_groups), "terminal_candidates": len(terminal_candidates),
-                       "reused_pages": getattr(extraction_result, "reused_page_count", 0)},
-            "cad_detail_seconds": getattr(extraction_result, "stage_seconds", {}),
+                       "reused_pages": getattr(cad_extraction_result, "reused_page_count", 0)},
+            "cad_detail_seconds": getattr(cad_extraction_result, "stage_seconds", {}),
             "sw_timing": {"extraction_seconds": getattr(superworks, "extraction_seconds", 0.0),
                           "recognition_seconds": getattr(superworks, "recognition_seconds", 0.0)},
             "shared_seconds": dict(shared_context.seconds),
