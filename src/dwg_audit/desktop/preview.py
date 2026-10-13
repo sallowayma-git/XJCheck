@@ -387,6 +387,13 @@ def _with_superworks_display_ports(issue_row, frames):
     evidence = _decode_jsonish(issue_row.get("evidence")) or {}
     proof = evidence.get("pair_evidence", evidence)
     sw = proof.get("superworks") or {}
+    if not sw and evidence.get("source") == "superworks" and evidence.get("record_id"):
+        # Independent observations have real port witnesses but deliberately no Pair.
+        sw = {"source": "superworks", "left": evidence.get("left"), "right": evidence.get("right")}
+        issue_row = issue_row.copy()
+        evidence = {**evidence, "superworks": sw}
+        issue_row["evidence"] = evidence
+        proof = evidence
     parts = frames.get("sw_part_instances", pd.DataFrame())
     if not sw.get("part_id") or parts.empty:
         return issue_row
