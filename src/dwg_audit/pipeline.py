@@ -434,6 +434,8 @@ def analyze_input_root(
             pairs,
             authoritative_component_pairs,
         )
+        from dwg_audit.audit.recognition_coordinator import finalize_evidence
+        pairs = finalize_evidence(pairs, shared_context)
         stage_seconds["merge"] = time.perf_counter() - stage_started
 
         if event_sink is not None:
