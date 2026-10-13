@@ -280,8 +280,8 @@ class DesktopStateStore:
     @staticmethod
     def _retain_session(conn, session_id):
         for table in ("preview_geometries", "page_findings", "issue_summaries", "page_facts"):
-            conn.execute(f"DELETE FROM {table} WHERE run_id IN (SELECT run_id FROM runs WHERE session_id != ?)", (session_id,))
-        conn.execute("DELETE FROM runs WHERE session_id != ?", (session_id,))
+            conn.execute(f"DELETE FROM {table} WHERE run_id IN (SELECT run_id FROM runs WHERE ? IS NULL OR session_id != ?)", (session_id, session_id))
+        conn.execute("DELETE FROM runs WHERE ? IS NULL OR session_id != ?", (session_id, session_id))
 
     def commit_session_snapshot(self, session_id: str, projects: list[dict[str, Any]]) -> None:
         """Replace the whole successful batch atomically; failures retain the previous snapshot."""
@@ -296,6 +296,8 @@ class DesktopStateStore:
                 run = project["run"]
                 if run["status"] != "completed":
                     raise ValueError("An incomplete batch cannot replace the successful snapshot")
+                if run["sheet_count"] <= 0:
+                    raise ValueError("A project without drawing pages cannot replace the successful snapshot")
                 self.record_run(**run, _connection=conn)
                 self.replace_issue_summaries(run["run_id"], project["issues"], _connection=conn)
                 self.replace_page_findings(run["run_id"], project["pages"], _connection=conn)
@@ -910,15 +912,16 @@ class DesktopStateStore:
                 """
             )
 
-            if conn.execute("SELECT 1 FROM desktop_schema WHERE key='single_snapshot_v1'").fetchone() is None:
+            if conn.execute("SELECT 1 FROM desktop_schema WHERE key='single_snapshot_v2'").fetchone() is None:
                 for row in conn.execute("SELECT * FROM runs ORDER BY created_at, run_id").fetchall():
                     payload = {k: row[k] for k in ("run_id", "session_id", "project_id", "project_name", "input_root",
                         "artifact_dir", "updated_at", "status", "sheet_count", "pair_count", "issue_count")}
                     self._remember_recent(conn, payload)
-                latest = conn.execute("SELECT session_id FROM runs WHERE status='completed' ORDER BY created_at DESC, run_id DESC LIMIT 1").fetchone()
-                if latest is not None:
-                    self._retain_session(conn, latest["session_id"])
-                conn.execute("INSERT INTO desktop_schema VALUES ('single_snapshot_v1')")
+                latest = conn.execute("""SELECT session_id FROM runs GROUP BY session_id
+                    HAVING COUNT(*) = SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AND MIN(sheet_count)>0
+                    ORDER BY MAX(created_at) DESC, MAX(run_id) DESC LIMIT 1""").fetchone()
+                self._retain_session(conn, latest["session_id"] if latest else None)
+                conn.execute("INSERT INTO desktop_schema VALUES ('single_snapshot_v2')")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=30.0)

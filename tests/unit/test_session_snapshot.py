@@ -53,6 +53,27 @@ def test_incomplete_batch_does_not_replace_success(tmp_path):
     with pytest.raises(ValueError, match="incomplete"):
         store.commit_session_snapshot("new", [unfinished])
     assert store.list_all_runs()[0]["session_id"] == "old"
+    empty = project("empty")
+    empty["run"]["sheet_count"] = 0
+    with pytest.raises(ValueError, match="without drawing pages"):
+        store.commit_session_snapshot("empty", [empty])
+    assert store.list_all_runs()[0]["session_id"] == "old"
+
+
+def test_sqlite_reuses_free_pages_and_compacts_only_large_idle_space(tmp_path):
+    import os
+    store = DesktopStateStore(tmp_path / "state.db")
+    store.commit_session_snapshot("old", [project("old")])
+    with store._connect() as conn:
+        conn.execute("INSERT INTO page_facts VALUES (?, ?, ?)", ("old:project", "source", os.urandom(34 * 1024 * 1024)))
+    large_size = store.db_path.stat().st_size
+    store.commit_session_snapshot("new", [project("new")])
+    assert store.db_path.stat().st_size == large_size  # freed pages remain available for reuse
+    info = store.compact_database_if_needed()
+    assert info["vacuumed"] and info["free_bytes"] > 32 * 1024 * 1024
+    assert store.db_path.stat().st_size < large_size / 4
+    assert store.load_latest_project_result("project")["issues"][0]["title"] == "new"
+    assert not store.compact_database_if_needed()["vacuumed"]
 
 
 def test_cleanup_skips_live_workspace_and_recovers_after_lease_released(tmp_path):
@@ -95,3 +116,19 @@ def test_legacy_database_migration_retains_latest_complete_session(tmp_path):
     migrated = DesktopStateStore(path)
     assert {r["session_id"] for r in migrated.list_all_runs()} == {"latest"}
     assert migrated.load_latest_project_result("project")["issues"][0]["title"] == "latest"
+
+
+def test_migration_does_not_treat_one_finished_project_as_a_successful_batch(tmp_path):
+    path = tmp_path / "state.db"
+    store = DesktopStateStore(path)
+    store.commit_session_snapshot("good", [project("good")])
+    store.record_run(**project("partial", "finished")["run"])
+    failed = project("partial", "failed")
+    failed["run"]["status"] = "incomplete"
+    store.record_run(**failed["run"])
+    with store._connect() as conn:
+        conn.execute("DELETE FROM desktop_schema WHERE key='single_snapshot_v2'")
+    migrated = DesktopStateStore(path)
+    assert {r["session_id"] for r in migrated.list_all_runs()} == {"good"}
+    assert migrated.load_latest_project_result("project")["issues"][0]["title"] == "good"
+    assert not next(r for r in migrated.list_recent_projects() if r["project_id"] == "finished")["snapshot_available"]
