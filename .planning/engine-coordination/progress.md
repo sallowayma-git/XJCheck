@@ -9,3 +9,5 @@
 开发：T0本地7ff8dea，固定baseline Git对象/输入配置，不复制源码；pipeline/workflow阶段计时，集成1项通过。T1实现事务batch、recent轻量20项、旧DB迁移、root OS锁（同时阻止分析与清理，不留每run锁文件）、safe path/输入保护、压缩门槛及退出先停止工作再spawn cleanup。Python26旧项+6新项通过（包含25批次、rollback/incomplete、迁移、活跃锁和源文件保护）；Rust cargo test32通过，tsc与request20通过。第一次cargo --lib不适用bin项目，改cargo test；首次清理测试2项失败因旧fixture把input_root写成临时session，修正fixture为独立输入，并新增真实保护负例。T2共享context/index/groups兼容入口已实现，page/SW/integration220项通过，p000真实回放正在进行。
 
 T1本地236eb53。T2真实p000重放完成：1506→1506，pair_id/sheet/file/group/value/status/kind/confidence/text_ids逐条相同，issue rule/sheet/message相同。实现一个SharedRecognitionContext，缓存route线组和整页TextSpatialIndex及PathBodyChecker，保留旧签名可选参数。未运行完整77回放；T8统一完成。
+
+T2本地0b86813。T3新增native_only首轮入口（延后依赖最终消费状态的wire-route admission），SW数据保留稳定源句柄/几何观察。完整wire可以不依赖legacy Pair；缺一端、完全无元数据和无Pair的确证冲突均有独立观察。旧extract签名默认行为保持；31项定向通过，含5项新协同行为断言。无Pair观察进入最终规则/UI的接线在T6完成，不声称已前端显示。

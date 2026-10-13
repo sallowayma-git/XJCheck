@@ -113,6 +113,7 @@ class SuperworksData:
     pin_resolution_counts: dict[str, int] = field(default_factory=dict)
     coverage_observations: list[dict[str, Any]] = field(default_factory=list)
     conflict_observations: list[dict[str, Any]] = field(default_factory=list)
+    resolution_observations: list[dict[str, Any]] = field(default_factory=list)
     extraction_seconds: float = 0.0
     recognition_seconds: float = 0.0
     # Wire-route records read from the DXF documents cad_extract already has open
@@ -135,7 +136,7 @@ class SuperworksData:
 
     def extend(self, other):
         for name in ("symbols", "ports", "strip_rows", "part_instances", "connect_labels", "connect_dots",
-                     "coverage_observations", "conflict_observations", "unregistered_symb2"):
+                     "coverage_observations", "conflict_observations", "resolution_observations", "unregistered_symb2"):
             getattr(self, name).extend(getattr(other, name))
         self.wire_endpoints.update(other.wire_endpoints)
         self.extraction_seconds += other.extraction_seconds

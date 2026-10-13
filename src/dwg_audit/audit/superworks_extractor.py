@@ -1486,7 +1486,7 @@ def _discard_walked_half_pairs(output, data, lines, line_groups, texts=(), block
 
 
 def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_groups, pairs, table_mappings,
-                            wire_route_sheet_numbers=None, block_rows=None):
+                            wire_route_sheet_numbers=None, block_rows=None, native_only=False):
     if data is None:
         return pairs,table_mappings,[]
     started=time.perf_counter()
@@ -1515,6 +1515,15 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     xml_ranks = {_key(item.get("name", "")): item.get("rank")
                  for item in data.dictionary.get("strip_order", []) if item.get("name")}
     contacts={(p.sheet_id,c["wire_handle"]) for p in data.ports for c in p.wire_contacts}
+    source_handles = {line.line_id: line.handle for line in lines}
+
+    def observe(group, state, left=None, right=None, reasons=()):
+        handles = sorted({source_handles.get(member, member) for member in group.member_line_ids})
+        key = f"{group.file_id}:{group.sheet_id}:wire:{','.join(handles)}:{group.start_x:.9f},{group.start_y:.9f}:{group.end_x:.9f},{group.end_y:.9f}"
+        data.resolution_observations.append({"record_id": _id(key), "object_key": key,
+            "file_id": group.file_id, "sheet_id": group.sheet_id, "line_group_id": group.line_group_id,
+            "state": state, "reason_codes": list(reasons), "source_handles": handles,
+            "left": left, "right": right, "coords": [group.start_x, group.start_y, group.end_x, group.end_y]})
     # Preserve every legacy group. Supplemental groups are one-to-one source-wire
     # references, not a regrouping of old geometry or an inferred internal union.
     for line in lines:
@@ -1558,6 +1567,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     for group in line_groups:
         index=indices.get(group.sheet_id)
         if index is None:
+            observe(group, "INCOMPLETE", reasons=["no_sw_ports"])
             continue
         endpoints=[]
         for x,y in ((group.start_x,group.start_y),(group.end_x,group.end_y)):
@@ -1585,11 +1595,13 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                     "wire_touched": bool(endpoint.get("wire_touched")),
                     "network_line_ids": endpoint.get("network_line_ids", [])})
         if not left and not right:
+            observe(group, "INCOMPLETE", reasons=["no_sw_endpoint"])
             continue
         reasons=sorted({r for endpoint in endpoints if endpoint for r in endpoint["reason_codes"]})
         conflicts=_true_conflicts(reasons)
         self_reason=_self_connection_reason(left,right)
         if self_reason:
+            observe(group, "EXCLUDED", left, right, [SELF_CONNECTION_REASONS[self_reason]])
             # F1: both ends resolve to one logical identity.  No production pair
             # is emitted and no cross-page / duplicate / cardinality rule sees
             # it; the group is recorded in the SW diagnostics instead.
@@ -1612,6 +1624,8 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                 split_groups.append(group)
             continue
         if not left or not right or not left.get("value") or not right.get("value"):
+            observe(group, "CONFIRMED_CONFLICT" if conflicts else "INCOMPLETE", left, right,
+                    conflicts or reasons or ["endpoint_identity_missing"])
             for before in old:
                 evidence=copy.deepcopy(before.evidence)
                 evidence["superworks"]={"source":"superworks","left":left,"right":right,
@@ -1623,6 +1637,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         conflicts=sorted(set(conflicts))
         strip_relation=_same_strip_relation(left,right,strip_rows_by_endpoint,xml_ranks)
         if (not left.get("wire_touched") or not right.get("wire_touched")) and not conflicts:
+            observe(group, "AMBIGUOUS", left, right, reasons or ["physical_wire_contact_unverified"])
             # The wire graph or old line group is not sufficient proof when neither
             # metadata port has a source-wire contact. Keep old producer output.
             for before in old:
@@ -1637,6 +1652,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
             sheet_id=group.sheet_id,file_id=group.file_id,coords=(group.start_x,group.start_y,group.end_x,group.end_y),
             scope_id=group.line_group_id,left=left,right=right,origin=origin,conflicts=conflicts,
             strip_relation=strip_relation,page_map=page_map)
+        observe(group, "CONFIRMED_CONFLICT" if conflicts else "RESOLVED", left, right, conflicts)
         replace_claims(old,[new],f"wire:{group.sheet_id}:{group.line_group_id}")
 
     # F1: a wire drawn across one symbol has its span split at the port.  Both
@@ -1756,6 +1772,13 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
              and label.text.get("text_id") in (p.left_text_id,p.right_text_id)]
         true_conflicts=_true_conflicts(label.reason_codes)
         if not label.endpoint_identity or label.reason_codes:
+            data.resolution_observations.append({"record_id": _id(f"connect:{label.record_id}"),
+                "object_key": f"connect:{label.record_id}", "file_id": label.file_id, "sheet_id": label.sheet_id,
+                "line_group_id": None, "state": "CONFIRMED_CONFLICT" if true_conflicts else "INCOMPLETE",
+                "reason_codes": true_conflicts or list(label.reason_codes) or ["component_pin_unresolved"],
+                "left": {"value": label.endpoint_identity}, "right": label.text,
+                "coords": [label.start_x, label.start_y, label.end_x, label.end_y],
+                "source_handles": [label.line_handle], "connect_label_id": label.record_id})
             for p in old:
                 current=next((item for item in output if item.pair_id==p.pair_id),p)
                 evidence=copy.deepcopy(current.evidence)
@@ -1823,7 +1846,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     _fill_one_sided_pairs_from_connect_labels(output, data.connect_labels, line_groups, audit_ids, ledger, text_map)
     # Wire-route admission runs after every line-group, strip and component producer, and before the
     # dictionary check, so admitted pairs receive the same warnings and strip contract as other SW pairs.
-    if getattr(data, "wire_route_pages", None) and wire_route_sheet_numbers is not None:
+    if not native_only and getattr(data, "wire_route_pages", None) and wire_route_sheet_numbers is not None:
         _run_wire_route_admission(output, data, lines=lines, line_groups=line_groups, audit_ids=audit_ids,
                                   page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint,
                                   xml_ranks=xml_ranks, sheet_numbers=wire_route_sheet_numbers, texts=texts)
