@@ -32,6 +32,8 @@
 
 ## 当前指标
 
+2026-10-13 接手复核（`loop/LEGACY-ROUND25/README.md`）：第二十五轮纯 V1 pass 2,027，其中同页 SW 非 pass 对应 640、只有其他页旁证 212、全项目无同值 SW 对应 1,175（导线型元件映射 842、表格 218、元件 99、语义桥接 16）。背板佐证 4,047 条已从纯 V1 口径中剔除。V1 暂不整体改为 review；下一切片为剩余元件引脚映射分层核验。I/J 终态退休与存活 pass 伙伴全部核对通过。生产判定不变，issue 38。
+
 第二十五轮全量回放（`.tmp/superworks_round25_full`，代码快照 `round25_full_src`）：issue 38；剔除装置内部后覆盖率：严格 81.99%，含延续 84.40%；pytest tests 全量 2170 passed。
 第二十四轮全量回放（`.tmp/superworks_round24_full`，代码快照 `round24_full_src`，包含 P1+P3）：issue 40；剔除装置内部后覆盖率：严格 81.99%，含延续 84.40%。
 第二十三轮全量回放（`.tmp/superworks_round23_full`，代码快照 `round23_full_src`）：issue 40；剔除装置内部后覆盖率：严格 82.34%，含延续 84.77%（分母 63,109）。

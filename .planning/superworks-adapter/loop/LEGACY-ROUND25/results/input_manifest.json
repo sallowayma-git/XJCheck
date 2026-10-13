@@ -1,0 +1,1234 @@
+[
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p000\\110kV_TSB_TCS_LOCKOUT\\findings\\pairs.parquet",
+    "sha256": "f587fdb23fc9609b0a0a49d65155c720d67ea18c7c0f5e3c166e460ffecc4846"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p000\\110kV_TSB_TCS_LOCKOUT\\findings\\pages.parquet",
+    "sha256": "37b9c9413fadec19e4596affd218ea1124b94aba46ca246921cc83fa7b2b57cc"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p000\\110kV_TSB_TCS_LOCKOUT\\findings\\superworks_supersession.parquet",
+    "sha256": "8b0543f600b9298ed9b948526f34046967e1dd71f3e2bc431bb4559b71bc4da4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p000\\110kV_TSB_TCS_LOCKOUT\\audit\\issues.parquet",
+    "sha256": "3332eabebcea43d41b76eaa6cbdf38cb6044b547d6db1a989c737b5231a65eec"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p001\\110kV\\findings\\pairs.parquet",
+    "sha256": "f3fe02df22d9de5ab89264a62e65dab60d975d30a83beaabf80746b8e125f518"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p001\\110kV\\findings\\pages.parquet",
+    "sha256": "7e9c63fd5e14eda689e15f5a8d080ba49ed473332e3649b111e0ed19b7996827"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p001\\110kV\\findings\\superworks_supersession.parquet",
+    "sha256": "b88126adee18cda9070922f2d0a74b2158668b90bce85411e87207111c2109ed"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p001\\110kV\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p002\\110kV\\findings\\pairs.parquet",
+    "sha256": "1a482fbfac52dc336780f9c60795d9394b8a31473ecc31c05bf2b6080baaf931"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p002\\110kV\\findings\\pages.parquet",
+    "sha256": "5fea17bee686f477c48aa5cf594cfecbfc9f9e48a95f8d7b23a1a8e5fee52ec4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p002\\110kV\\findings\\superworks_supersession.parquet",
+    "sha256": "5ac9bb21a6c484f58b9193486f9e5c95c8b251d5c014bd9bedbe88726ce3b2f7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p002\\110kV\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p003\\-\\findings\\pairs.parquet",
+    "sha256": "5bb6dbdf2260adcb558900b66f58ddd3077b512d867af879c7cfc7284868215e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p003\\-\\findings\\pages.parquet",
+    "sha256": "1ac822dc4295d849aa258bd6c67413b0fb00b7107038bb09cb61fdee85a81383"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p003\\-\\findings\\superworks_supersession.parquet",
+    "sha256": "20ed9928229eb710fd940abd857356f9adc778b0a3b5520f9aa83b9d7fb02343"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p003\\-\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p004\\TSB_TCS_LOCKOUT\\findings\\pairs.parquet",
+    "sha256": "7cf11648451dd0bf9ef5f6805c2b913eb9c4c20dff6f7316759f1e0dfe136a21"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p004\\TSB_TCS_LOCKOUT\\findings\\pages.parquet",
+    "sha256": "5206a10fc345d7c974a80c59743030e4387920a8e500c25763389f0ec0ef7048"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p004\\TSB_TCS_LOCKOUT\\findings\\superworks_supersession.parquet",
+    "sha256": "01fed4ad36daa71c42bdf232acea23ff215319829cfa8360af925aa0b4333558"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p004\\TSB_TCS_LOCKOUT\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p005\\project\\findings\\pairs.parquet",
+    "sha256": "c108972e29e0f999cd29e83541048a4d67dfa87faa4915f1d06f684c94b20a8a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p005\\project\\findings\\pages.parquet",
+    "sha256": "fcdb6e53302ba6934dbc48618b9561aa29bb9604dc5961b03a9bf7d0db9ea601"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p005\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "c85103f9a1ff06b79a4734188cc25ebe4b38f5d46bc05998e962d21cb3cf317a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p005\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p006\\project\\findings\\pairs.parquet",
+    "sha256": "d96681b2c9a66515e7e47838c49563507bdb6c3e7724045cd2573cba91bc6fe3"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p006\\project\\findings\\pages.parquet",
+    "sha256": "a62a1379b6c1300857cc50fbfc28136c70d5f015fcd0286b92b3a4450ba8233f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p006\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "af64b29996de138e001317609f54733c04e0560dbb944daae058beaf59c0551c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p006\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p007\\project\\findings\\pairs.parquet",
+    "sha256": "4fdb4b69d5d656866abf86f6c13ea29a55e450ed4a5ed7ae2e201a6386861007"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p007\\project\\findings\\pages.parquet",
+    "sha256": "626d7d70ff458f25245f5cf3b10fd91a17753cae8bb6d6ce5874fe77588f8d23"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p007\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "666241b210455352785466a9a7d1481c586f49fc8c47c0545b2d6cd175797248"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p007\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p008\\project\\findings\\pairs.parquet",
+    "sha256": "11bb23f7367273e5f024aafe2ba065a687c979d7e644d22a1ff1ba07da234610"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p008\\project\\findings\\pages.parquet",
+    "sha256": "5d630ddb5c96142ac5645b0ee6008cb0a480447bc4a268353ad9d2924cbaf634"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p008\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "d18181b23570e1b9b6cb99cda3e124034b58a2b4631e199d6305f3b126a05606"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p008\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p009\\project\\findings\\pairs.parquet",
+    "sha256": "d341bb1350e46b938a9778a06b32365a24d9bbfa72ccc1b760d0b6f082dccf08"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p009\\project\\findings\\pages.parquet",
+    "sha256": "9572ad7b489336a9c9230f3f6670bfc2ea467db0f1390f556b4e945786a0b50a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p009\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "b8f8103b243e23e8045fbeb12c6e2147c77b768000c382da60ec3f7b9fcbd01c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p009\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p010\\project\\findings\\pairs.parquet",
+    "sha256": "47deb678393e3d3743a3df811997ac9c43c6a230d615045d758d9c53144209cd"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p010\\project\\findings\\pages.parquet",
+    "sha256": "c8ac65d80444e1f33d87855ee20a6ecb6104887af6158809f000531f383c4cd7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p010\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "105734938b3c22c94ae16d15d6570fc1fc5f2c4167c436afa08cc493ce85b365"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p010\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p011\\project\\findings\\pairs.parquet",
+    "sha256": "bdc90416a2a2c1070a1d2ea164393e242d6f5cc94460b685f45896ef24ee9757"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p011\\project\\findings\\pages.parquet",
+    "sha256": "8d79521b314e4016896acb551c4ff08b16d61428a55f5246c405a332af0fa240"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p011\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "27133ed41168d6b45d264980a5ccdf569a14a326ffee127ab0fa5f9070aeb54e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p011\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p012\\project\\findings\\pairs.parquet",
+    "sha256": "e805e938fae4c0c725f7847d72617d07db63e57613ea1ef1f262ad16c71502f7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p012\\project\\findings\\pages.parquet",
+    "sha256": "e4a69ca110a2fd5065dd6ffa8f017ed07160cd5ac154e6fed56fe9eb4b902bd4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p012\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "bcd16422b47ea96c00d0f6f903d6aced2b9050c5ac2f9edbc93f49ee8f5fc423"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p012\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p013\\project\\findings\\pairs.parquet",
+    "sha256": "0d0eb4c67450218f8a49d488bd1cccb56f6d36aefeb155c5098462347134e0cd"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p013\\project\\findings\\pages.parquet",
+    "sha256": "951d865b969f924292ebc035b16d12bd8d70f005d41f6f11b072009a97e72f2c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p013\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "b8f0613d8b347f46483c30a271492a2d9043c6542b77033845fd737d7af6d954"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p013\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p014\\project\\findings\\pairs.parquet",
+    "sha256": "ce34f63f3c837106565a7c4eca1516855fc6383b2935246570da634d8b63be6c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p014\\project\\findings\\pages.parquet",
+    "sha256": "835e870a1b27330e35a5a1c9d3dcf7f19bd5d113216a9b7413baa4389e854d4c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p014\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "716ddd47dfb1df2b9be6c5547414d945cbfb019173b95aab917761200df66a19"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p014\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p015\\project\\findings\\pairs.parquet",
+    "sha256": "ea6628fe2fae477ab8e4d76da230b89834bb1ac5e19886e4ca23270a302394e5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p015\\project\\findings\\pages.parquet",
+    "sha256": "7dbeb0abc4d2c65dc0286d80114d71d84ba5a448a398719f16c9b4b72743e158"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p015\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "4d8fedf3c6c6bc82c7ec362b979ae8cc90e2e6526e9fd0e8b064d7751e62ed1f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p015\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p016\\project\\findings\\pairs.parquet",
+    "sha256": "3668cae875f6b1d5089ae884115f2bf4ef25c9377c2e5b3312a47e06f2d74f23"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p016\\project\\findings\\pages.parquet",
+    "sha256": "4075273d88e4dec5883c9fe72aa2f4b62dfcb01ada23013d1e97264a5661e807"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p016\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "e633a01625e2cfe9b6e0477b79d4d3005866c6e7279cedbcd539cf885c384c21"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p016\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p017\\project\\findings\\pairs.parquet",
+    "sha256": "dd42005c432b3fb330ee67ec2ec3b6f6dbdd60178ecca7b9b3e1a2add7504c98"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p017\\project\\findings\\pages.parquet",
+    "sha256": "6dceab74bb7b535e999890804541a66c6eacfaa3c03867274d993dc4c9dada64"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p017\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "e1e18be2ce65094432f1d0f835c5db4159147b668efd451c745f87f25d72ef3b"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p017\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p018\\project\\findings\\pairs.parquet",
+    "sha256": "e51bd69d9cdc3c81da13b9714f0918dea605c844207368c9dc342c556ba6b2f9"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p018\\project\\findings\\pages.parquet",
+    "sha256": "78392cb92b9b3999e723f4ace395245e54dfef98f8eb0e29f0fb3c37e0a3a32f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p018\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "d33aea4eef7b8c96c03db5c63e56f858680466878ad61e9439e3efc2c9b09acc"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p018\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p019\\project\\findings\\pairs.parquet",
+    "sha256": "d89208f1c9c47354804854ed774304ea879cb3702a3b29d66bd3ce9fda0f5181"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p019\\project\\findings\\pages.parquet",
+    "sha256": "51fbdd609af425691e129bda4eb4c6d24dbdb5d86c0a310237ef3c8e3685b1c1"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p019\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "b7f34cbcb5a68735a4ab1bba9385b12280c0783b06e5fa84de9b522ce43c7eed"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p019\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p020\\project\\findings\\pairs.parquet",
+    "sha256": "7bb344e00266b0932c318e39b67375d773f528e05fa12feec999c942f5db0835"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p020\\project\\findings\\pages.parquet",
+    "sha256": "717941cc92633e63fca0d2f54d82f69ce3d9ee0c96d22881fef313b1099767af"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p020\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "d156b79bacc8f9bb458d40e348558c8207a64feaf8fb49fac53e4042790000af"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p020\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p021\\project\\findings\\pairs.parquet",
+    "sha256": "1b9a6ba38fac3b53550226edc65ae0d588506d42f1111a36ef355acfe26071b5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p021\\project\\findings\\pages.parquet",
+    "sha256": "5becd243a6c7fd689b465a4b729e7b79ac3bdbe62fda5781c9edfd0e4a1ee2b8"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p021\\project\\findings\\superworks_supersession.parquet",
+    "sha256": "c5f2f692ecf5d27e6994fda9cb1301f1aac08be38f50cc565e31dc1e0c3d420c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p021\\project\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p022\\220kV_AB_2_2\\findings\\pairs.parquet",
+    "sha256": "5073e8c1db306b1410d5fb988d686bd2b333e6be8c94467c4a20776a7eed869c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p022\\220kV_AB_2_2\\findings\\pages.parquet",
+    "sha256": "fcc9b80e5b32eda0f960fe62e51dfa2e47df6ee7cb07d430459be7539178bced"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p022\\220kV_AB_2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "5e082d903b8095d50718a4ed75c66987925955d619d3a8e1d7583f793cef9c77"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p022\\220kV_AB_2_2\\audit\\issues.parquet",
+    "sha256": "7491403ce1c13452327297bdbab8923f8b11b6ae98e3c5564771232ded12bae0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p023\\220kV_AB_2\\findings\\pairs.parquet",
+    "sha256": "5a933aff57742ca235c3fadeb023ce4275670489d9ce3d10d42e5e4cee4dfd9e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p023\\220kV_AB_2\\findings\\pages.parquet",
+    "sha256": "8306ca44a2c2a1472a170e97c70a112fdcc5f781a7dfa1b755186e38e102ec89"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p023\\220kV_AB_2\\findings\\superworks_supersession.parquet",
+    "sha256": "c4262b3ecd23efcb5cc25a5d98481c83232ad45c9c1e83240821813be104c4a5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p023\\220kV_AB_2\\audit\\issues.parquet",
+    "sha256": "132518fe0ec7bd541563bd813d77494eb2a58ee5adff2226fce5a2b4c15558a0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p024\\220kV_AB_3\\findings\\pairs.parquet",
+    "sha256": "fad283d45ce1cf5f0b185908e08f4e53d4d3c01b73e72694cca8eb914c7834a4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p024\\220kV_AB_3\\findings\\pages.parquet",
+    "sha256": "55b58f67156b5a076a51bf46ed3ec9dfa6df727df818f6d585b4ba78f1f331eb"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p024\\220kV_AB_3\\findings\\superworks_supersession.parquet",
+    "sha256": "a519223dd0be2cb12bfb253b4da098ea7ff8da8c7fbb56f5ddba8aa1751772ce"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p024\\220kV_AB_3\\audit\\issues.parquet",
+    "sha256": "8d6684a474d67b578bcd64d1d7732d0c69fb032edf3b07ea0c7486874d6881ee"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p025\\220kV_C_2_2\\findings\\pairs.parquet",
+    "sha256": "ebd3a3e5d2d4bfbcc413aac1bfaf5a410b47e18b64099a9e52a5ccdfebf37084"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p025\\220kV_C_2_2\\findings\\pages.parquet",
+    "sha256": "c048f8fdc83ef28b0ca8d53cc24d0b3e898f716990e75a88f561ea77a2f3da3f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p025\\220kV_C_2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "ee25b0a31d9630d14e23284aede5a98a6f84613781815f24cc1bf478c328b899"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p025\\220kV_C_2_2\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p026\\220kV_C_2\\findings\\pairs.parquet",
+    "sha256": "e9ecc9ed60ada00f3461327c65aa907651c2bcff999ea1f52503869ae86c4889"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p026\\220kV_C_2\\findings\\pages.parquet",
+    "sha256": "aa5e59a470f6c711cb671baf5cbe2770a83cf3a135049ce73327319afe358c33"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p026\\220kV_C_2\\findings\\superworks_supersession.parquet",
+    "sha256": "f420c8fc7417682dc6c1f32dbe54405c39f912f925691291d503a79767429de3"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p026\\220kV_C_2\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p027\\220kV_C_3\\findings\\pairs.parquet",
+    "sha256": "0b2eccb4c2e46783efb5aa0e5ed55da171ec8526a67d8e3f00c0237b277b7748"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p027\\220kV_C_3\\findings\\pages.parquet",
+    "sha256": "49132931e5401ed800f6aab7f525e87fa8a4faec322559002448d63a7c8cb5a2"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p027\\220kV_C_3\\findings\\superworks_supersession.parquet",
+    "sha256": "3ad77ad28cb3be24d8ef99f2eaa49c485b9e4739daa9bf59987f8780b5998a60"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p027\\220kV_C_3\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p028\\220kV_AB_2_2\\findings\\pairs.parquet",
+    "sha256": "87f37fea4f806e6ee15c04204fd685dc5ddc355f6b43e0ddaab15de28cc657a4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p028\\220kV_AB_2_2\\findings\\pages.parquet",
+    "sha256": "a4421217303e126862a8bc11d893e66d6e3d330b26abe6134caeb22f5c8a0d20"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p028\\220kV_AB_2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "513bbf99e1fc7e73abc6c0d5a2d8954cba27d87a5551c7438a607fa36d1828a6"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p028\\220kV_AB_2_2\\audit\\issues.parquet",
+    "sha256": "4466f2268aaf77e111c8c88f3ebdf666ce2cefea3344d1862a4c2e5844bceac5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p029\\220kV_A_2_2\\findings\\pairs.parquet",
+    "sha256": "96999dd245424f4a6ef8761317ac2e9bf8e930369afb6c7926df7d4d31145884"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p029\\220kV_A_2_2\\findings\\pages.parquet",
+    "sha256": "ac1dfd4164554af9c71460186076f9a315f37caee9c5f39273fc772fc0424402"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p029\\220kV_A_2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "64df044a1ea4ce0f70c0a48610566b91bd79792fffbe6e3dff82a2a7f66260f5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p029\\220kV_A_2_2\\audit\\issues.parquet",
+    "sha256": "d68f5d01359a487c02a34a3ad85369e3e359db1c3938f58563e2b3440a176c39"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p030\\220kV_A_2\\findings\\pairs.parquet",
+    "sha256": "8ddf4a5e4dae619f46dc6a5ac730ff13b621a006ac427bea13deb3acdc4a2110"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p030\\220kV_A_2\\findings\\pages.parquet",
+    "sha256": "6fc1d13174bab9e3f02e3fdac7cf794ac6153af734744e7bc1b2f6adeaa0179a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p030\\220kV_A_2\\findings\\superworks_supersession.parquet",
+    "sha256": "9ff010c358674543c913b325a7060888a9f2e484e038735ba290934284e32ec9"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p030\\220kV_A_2\\audit\\issues.parquet",
+    "sha256": "f3d28d30d5e95d14af3eab04c02e4b0422de5df6223153fe682e6940ea90e014"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p031\\220kV_A_3\\findings\\pairs.parquet",
+    "sha256": "872ea81c5d4643d010feb22b610400698390abd1ae5d1b3d15cb492c021b5fec"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p031\\220kV_A_3\\findings\\pages.parquet",
+    "sha256": "7db29a25912e5527b540df0fb6083f223cd41a1aa91086e2e5326f000e852fd0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p031\\220kV_A_3\\findings\\superworks_supersession.parquet",
+    "sha256": "fb49a894263e53c5b83972ce42caf10744c3ba853f319bdd3b67fda65f0c5642"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p031\\220kV_A_3\\audit\\issues.parquet",
+    "sha256": "aa4e2f8c2e5b1cd029dcabd4b269c18577c31456b11d716285d2ec26c2a57c9d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p032\\220kV_B_2_2\\findings\\pairs.parquet",
+    "sha256": "3bf12ac54abae72fe6af348717934cce1afaeecad20377143761afd735e06e28"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p032\\220kV_B_2_2\\findings\\pages.parquet",
+    "sha256": "345455f404b2f0c64f9883d7c9c803404c61c7d0839e659756ca5d844f42e295"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p032\\220kV_B_2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "763ac80340f6184b45a811e1ba21d379d06e82c06c375029b5be9941e0fa5c97"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p032\\220kV_B_2_2\\audit\\issues.parquet",
+    "sha256": "9b5af0ad0a710abf1714e35ab84003b3710fa099c07c76dd55d2977c84686de8"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p033\\220kV_B_2\\findings\\pairs.parquet",
+    "sha256": "7afe2a6689a96b82e169305889d494271215d29f0a01f896a1822793cc8038b6"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p033\\220kV_B_2\\findings\\pages.parquet",
+    "sha256": "857443abe822d5310dd4fcc111cdc1c865035c9edc87582e9f85a73d9d0a1150"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p033\\220kV_B_2\\findings\\superworks_supersession.parquet",
+    "sha256": "7a70e539d0574d869d1f43bfd12531b3dc58924bffc246454b99766c20691b16"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p033\\220kV_B_2\\audit\\issues.parquet",
+    "sha256": "3c2130bd6bdc6db7916e41e440eaaae45dd7fa7705cf36a82489fd0fea860240"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p034\\220kV_B_3\\findings\\pairs.parquet",
+    "sha256": "a07ccb1aaee4608e1bfa00f435c5895f7ae163ee0a7ac7918f47dbd7e0eb7b30"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p034\\220kV_B_3\\findings\\pages.parquet",
+    "sha256": "06e211f908aab7f28fdf71c3b912e5b72ed5b18f834237e69d36acc422a0d5c0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p034\\220kV_B_3\\findings\\superworks_supersession.parquet",
+    "sha256": "ee470a8e0449325b146ff97ee7e31fb9b284e565367a57ec330f3726eec5ee11"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p034\\220kV_B_3\\audit\\issues.parquet",
+    "sha256": "cdad68f65bcff52da89e65c8f4aad583bc7218088e64bd40053f08048968223b"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p035\\220kV_C_2_2\\findings\\pairs.parquet",
+    "sha256": "875f1972f16c081ac27c8616aac1659c18b1dd2213dcf5c4c63154ad884a9d19"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p035\\220kV_C_2_2\\findings\\pages.parquet",
+    "sha256": "be523379fd35ab0d3560382f21d5cf8f87e16ebda8956643016686e5b8032373"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p035\\220kV_C_2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "78ddb30ac0319fef587b7bf47e4d86c5fb2abeb7b7326b00ea34c0563bfac230"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p035\\220kV_C_2_2\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p036\\220kV_A\\findings\\pairs.parquet",
+    "sha256": "7d88003e1a58e8a00a7e923e5df14930d660c0807aa9ea3670679bac6a5bb5c6"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p036\\220kV_A\\findings\\pages.parquet",
+    "sha256": "af7dd69ced844d17e17372495d6f5448ee208cadef1c2741a2d28744610d85f7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p036\\220kV_A\\findings\\superworks_supersession.parquet",
+    "sha256": "9f822cb2d15a6ff3bc90f9aa169dfa284993e0a38f96d71bc7843f289128787b"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p036\\220kV_A\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p037\\220kV_B\\findings\\pairs.parquet",
+    "sha256": "9e5686f850fac3a6baadc37a2611a58f7467b979368216ba401018236f390c06"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p037\\220kV_B\\findings\\pages.parquet",
+    "sha256": "f336c1f0fcfcde4bb4ba878c28c6458046ab365a7e04cbc225eafe6d0b862054"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p037\\220kV_B\\findings\\superworks_supersession.parquet",
+    "sha256": "3f026aa9dabeb2ae48b3ef9e4f983c6a68ae7c0a93cc05d316c6e99b2beca0f1"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p037\\220kV_B\\audit\\issues.parquet",
+    "sha256": "0f16a41eb200abf0457acb35282c0b818773ec39801a06826aace4006bbb4a59"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p038\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings\\pairs.parquet",
+    "sha256": "67ddc08a26bc8c5366ebfd38e1739512c7bd15c0b13e570e4883dbe992d0ff87"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p038\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings\\pages.parquet",
+    "sha256": "055c2504c627d40979b31d94663eb18b2fa9bb32b307690edf41db9d49edf867"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p038\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings\\superworks_supersession.parquet",
+    "sha256": "bf0009e533d4c9602514658fb3b15afad8b352f5315ace9ba54ba5747f5aee36"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p038\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p039\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH\\findings\\pairs.parquet",
+    "sha256": "d7be6eefa2b497d60a62e671b7d2da23a4de5bbddf93b362f45361b52e2e0a68"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p039\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH\\findings\\pages.parquet",
+    "sha256": "60c0e2efd5e7ba0c88443ec403f536c67612757567b5ef3b2f8c6cf356fa1274"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p039\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH\\findings\\superworks_supersession.parquet",
+    "sha256": "028e23e4b49ba4c8aebdfa7ccf58dff8d42634396f17b5253e96f26b3a6204c1"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p039\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH\\audit\\issues.parquet",
+    "sha256": "4906c1abe9333891c07a4314fa996efd2dcb9d80c788c22272ebcc3061bbfc58"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p040\\WBH-812E-E1SB_WBH-813E-E1SC_-\\findings\\pairs.parquet",
+    "sha256": "c2e069a014eeb8668bdfe84795ff809558e3b4d05cf49db29cfee19962effc42"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p040\\WBH-812E-E1SB_WBH-813E-E1SC_-\\findings\\pages.parquet",
+    "sha256": "77eabaa35437aa36e99376da3f3979adc1b1b443327e7000bdd4bc3e975d9382"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p040\\WBH-812E-E1SB_WBH-813E-E1SC_-\\findings\\superworks_supersession.parquet",
+    "sha256": "9cbebdd634617ef8c3a0c182d066f3c6e62b5e82cd038ff4b483e69f92b919ab"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p040\\WBH-812E-E1SB_WBH-813E-E1SC_-\\audit\\issues.parquet",
+    "sha256": "3aae67cab74f4901ebd479e10938edaf0a362980af65686ed46b549b411a8c89"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p041\\1WFB-821E_1WFB-822E\\findings\\pairs.parquet",
+    "sha256": "14bb1e226ee31260f0909d7d286390433d083208dc5a690450fb7deab1e86929"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p041\\1WFB-821E_1WFB-822E\\findings\\pages.parquet",
+    "sha256": "452be6425f9147139a7dc208c36a091c9586bdaf2b4546515063b0fc0678df20"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p041\\1WFB-821E_1WFB-822E\\findings\\superworks_supersession.parquet",
+    "sha256": "e3d4e2019a4b6dbb3738fe53a0a2704111f585781794cb4f6c8ef8ce704109ed"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p041\\1WFB-821E_1WFB-822E\\audit\\issues.parquet",
+    "sha256": "db19fbf8d8518e719ee56c73400f87870ff54dbe0caf16ba3d04d71c4686a98f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p042\\1WFB-821E_1WFB-822E\\findings\\pairs.parquet",
+    "sha256": "bc36838ef365c3e1ee83b727d24e0162faaf3ebe9f87a144f8785c8315aaf4d3"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p042\\1WFB-821E_1WFB-822E\\findings\\pages.parquet",
+    "sha256": "5231a9dbc5299799de16bb6bbbf2573d61e81d5a73450f59c3078483305f8f9d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p042\\1WFB-821E_1WFB-822E\\findings\\superworks_supersession.parquet",
+    "sha256": "48f99f8e02d4d75ae826ca10e2ecc5d7dda676d736ad50aa1f4bc02c60474235"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p042\\1WFB-821E_1WFB-822E\\audit\\issues.parquet",
+    "sha256": "0e73b29ba4d8d88a49e5fd90622d2a16320972d87c8c4caf7a3198aec17ec958"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p043\\1WFB-821E_1WFB-822E_FCK-851C\\findings\\pairs.parquet",
+    "sha256": "bf6d2718ff8154c800e6382aa44d74e02963afe5bddadaf6030b45556ffa17d5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p043\\1WFB-821E_1WFB-822E_FCK-851C\\findings\\pages.parquet",
+    "sha256": "aceebaaa86b836f894ca4fdc159dc9c8540391f8ccdb0629db8643d8645c3be0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p043\\1WFB-821E_1WFB-822E_FCK-851C\\findings\\superworks_supersession.parquet",
+    "sha256": "fde065c91fa40c1f71f697e7b368e9d213caa2dba263df52f281ea495c9b3988"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p043\\1WFB-821E_1WFB-822E_FCK-851C\\audit\\issues.parquet",
+    "sha256": "5fef81482fbd3c016a58c9328dd08bfa993954e14ee5d8a9c0ae7d3b7775b8a9"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p044\\1WFB-821E_1WFB-822E_FCK-851C\\findings\\pairs.parquet",
+    "sha256": "dea9843e2f81eec84f8e7f2cc7321cc130c24de3f079aaa7bffa15da8aa20ac6"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p044\\1WFB-821E_1WFB-822E_FCK-851C\\findings\\pages.parquet",
+    "sha256": "8a6bd629aa929cbbd01f521f2b85cbea01a758263a1a47c9ea96a2468188a306"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p044\\1WFB-821E_1WFB-822E_FCK-851C\\findings\\superworks_supersession.parquet",
+    "sha256": "c3c763cad298ddfa689d3553948264467049b0ad93835e9d590da9252b4e4809"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p044\\1WFB-821E_1WFB-822E_FCK-851C\\audit\\issues.parquet",
+    "sha256": "5fb4725e407733d0cb73f3dfafb2ee0b12f216f6491043098a25783d5e3e6ba0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p045\\1_1\\findings\\pairs.parquet",
+    "sha256": "12c0411e94d8574d1f6617ab994bd5139bee7f7da7b4d27ad7b35663ef4386f1"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p045\\1_1\\findings\\pages.parquet",
+    "sha256": "269092cf1cec7a69c17fe315d42bee517451d27299d32eb9f6e6fa3c54fdc9e3"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p045\\1_1\\findings\\superworks_supersession.parquet",
+    "sha256": "a32a0b10023f7db0958e3ccc4071093b46a7483bdf32559cade0ef23966f6fb7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p045\\1_1\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p046\\2\\findings\\pairs.parquet",
+    "sha256": "5ab12d97fd8e097c7374ed8dd161bd24a9565bd366ca070cce118841433d24bf"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p046\\2\\findings\\pages.parquet",
+    "sha256": "4984da0eeed0ce65f11ef36ee7b9803b20f9ab2bc95d54ccaa1ca9866a2b1b41"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p046\\2\\findings\\superworks_supersession.parquet",
+    "sha256": "c1b4f14f9cf0480f2cb0f26c8fcf5241f4a04467c97ea9b2ee5a50ba5d119a35"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p046\\2\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p047\\2_2\\findings\\pairs.parquet",
+    "sha256": "04540066dca98a14f06bdd5f9ab5770e7f1a1ab9db66a71f30e53c1e7f1a30ea"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p047\\2_2\\findings\\pages.parquet",
+    "sha256": "8d7735ab45263d79dd0409d5141dc6f3da7be3c20e462e204aa0f452fe448437"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p047\\2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "c193af03b0d93f2bae5df7460df05e4cb249a5aaa08eb6059f3dddf81b81a39d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p047\\2_2\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p048\\2_3\\findings\\pairs.parquet",
+    "sha256": "e6e9bbaf7fa22e6e877cf089f6544ccfa46e367b3fbcdb79fc7380e68fe22236"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p048\\2_3\\findings\\pages.parquet",
+    "sha256": "2665dd32d25fb394aff4cdaa615e749b33c6d327d29401238999130af90f9f4f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p048\\2_3\\findings\\superworks_supersession.parquet",
+    "sha256": "b94b422df082d5faa77af04d98aadbd9b3497ac325805be01a253aad5a375bb9"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p048\\2_3\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p049\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings\\pairs.parquet",
+    "sha256": "2598f66e85d94b39990cdc18821f715b3733043ed033396bac2bf2bbf8a903b7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p049\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings\\pages.parquet",
+    "sha256": "055c2504c627d40979b31d94663eb18b2fa9bb32b307690edf41db9d49edf867"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p049\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\findings\\superworks_supersession.parquet",
+    "sha256": "93025351ef337b8bb646d1786706d283d957a269be9a2f27e38b843b2fa1ca22"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p049\\WBH-812E-E1SA_WBH-813E-E1SH_WBH-813E-E1SH_WBH-814E-E1SA\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p050\\PAC-885G-H\\findings\\pairs.parquet",
+    "sha256": "c15743614d2c74cb92c6c74c14d9263e5864379875c89011c8ecb8a7cf5d4770"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p050\\PAC-885G-H\\findings\\pages.parquet",
+    "sha256": "d87a3ef23362a99ef1cc739935d02a594d09ff3e735c2f982357c9e0031f0aa4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p050\\PAC-885G-H\\findings\\superworks_supersession.parquet",
+    "sha256": "77e163843afc6e37a0d80d0be70fceb7ddded5d6b11bf7d3a6efc6dba5a960e7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p050\\PAC-885G-H\\audit\\issues.parquet",
+    "sha256": "59fefc6c4e68c762536cdbf3dc61c5030d07aa108d92f3c90c59d303c5859f21"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p051\\10000\\findings\\pairs.parquet",
+    "sha256": "68ca5283bd81c2efe7c1ee953774b727b41cb138e8f79180c340fcb936e28c4d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p051\\10000\\findings\\pages.parquet",
+    "sha256": "c7f2800845068e344cdbcabba855637942c2f22e8b9ad654ef678815cf1ecbc1"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p051\\10000\\findings\\superworks_supersession.parquet",
+    "sha256": "731370466276b102e3d148608dd2e0a1e8240db72e05ccc5ff0825a7b0fd1126"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p051\\10000\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p052\\11000\\findings\\pairs.parquet",
+    "sha256": "bdc4cf5632518ab078e3f239f68c3b93279f6851dc0e32ad3879327e93e28ee7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p052\\11000\\findings\\pages.parquet",
+    "sha256": "4a81c43c3a9256106bd17872eca9949104eada70aae552c48a33670340256c65"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p052\\11000\\findings\\superworks_supersession.parquet",
+    "sha256": "b93a69ee277ee9660084989cb7ab200cdc4c905b1ebf39a068b06a3c3e74e29b"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p052\\11000\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p053\\12000_35kV\\findings\\pairs.parquet",
+    "sha256": "9e79340133c46e2f87091236b50ca86ff7a7efc34a8e4a7e229f798269dcbbd6"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p053\\12000_35kV\\findings\\pages.parquet",
+    "sha256": "91de728eaf896b5b04241c5df3870851e6dd5b28112be4e0c90773117a551adb"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p053\\12000_35kV\\findings\\superworks_supersession.parquet",
+    "sha256": "e7ef7682663e335f9f64a44c253fa22dbaf570690a1745e147aefb2eb03c887e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p053\\12000_35kV\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p054\\13000_A\\findings\\pairs.parquet",
+    "sha256": "e6d5d02173bb707f0b2acbd56c065a1baa1b339ca65037a15e17501b977dbb4d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p054\\13000_A\\findings\\pages.parquet",
+    "sha256": "e3fee991a8098f079e31da778ed4277d3b775a90d57b2f0070e338389764dea0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p054\\13000_A\\findings\\superworks_supersession.parquet",
+    "sha256": "a9db734e90c0e51cde45eb8bdf5388824c6de4be2ab233ef5f80dcff6ae91242"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p054\\13000_A\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p055\\14000_B\\findings\\pairs.parquet",
+    "sha256": "e7b1b665bf8869edda80ccc37271a4274194887f11230f3fd87a3a4ead68d2c3"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p055\\14000_B\\findings\\pages.parquet",
+    "sha256": "53de3ac5763652f6d2b5c43c1a5f75eb5ec58c630ba3f26af3a79f0c2148ea4c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p055\\14000_B\\findings\\superworks_supersession.parquet",
+    "sha256": "9da7a09cd9826ae6aa275bfc9266c0424dfd780674a8250ac1b0102c8bf0d497"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p055\\14000_B\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p056\\15000_220kV\\findings\\pairs.parquet",
+    "sha256": "a7a24b9e8479d3fbadd67e3a612928e1eb4e2ae57383ec67d7094d9dfa3bea0a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p056\\15000_220kV\\findings\\pages.parquet",
+    "sha256": "fe16090b5d58e888a6e81c7219bb0567544afdab551b801fd0023ee1dc399ab9"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p056\\15000_220kV\\findings\\superworks_supersession.parquet",
+    "sha256": "154ebc75dfaa5b2967dad1d2adc4e2e631a9305a4f53da6960870d2509a905e3"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p056\\15000_220kV\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p057\\16000_220kV\\findings\\pairs.parquet",
+    "sha256": "94fab6f1cd5e4a5d223d67c0130df800ee8d2327c8e55ad1f1c2a676b92ffa93"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p057\\16000_220kV\\findings\\pages.parquet",
+    "sha256": "db7aef9856bfa670ceb49da05bd104875ef1c17dd06807510180f739e39baece"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p057\\16000_220kV\\findings\\superworks_supersession.parquet",
+    "sha256": "f36b46a1dbd454f62358eca2c98c46934e9bf57bdcb210f363c551a38c5de252"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p057\\16000_220kV\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p058\\17000\\findings\\pairs.parquet",
+    "sha256": "c7c572afc63215c69c8e9a71098766d8c3150e5890bd4dce6b952eaeb7329c1d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p058\\17000\\findings\\pages.parquet",
+    "sha256": "91f7df06d0caad6e8677b9c19d04c76700d514923eb3b87d85d8a7e26c566a19"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p058\\17000\\findings\\superworks_supersession.parquet",
+    "sha256": "f989cbe4943ec5af0a2ae780e64e435c68f20d1af5e7bfdd91d2838c92c191eb"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p058\\17000\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p059\\18000_220kV\\findings\\pairs.parquet",
+    "sha256": "e08771d7839a4f3f6cd9328c270f355cac3fd48c2ab2e761a9f4b233dc56098a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p059\\18000_220kV\\findings\\pages.parquet",
+    "sha256": "6c588062b74e32c17ac255f190f9ab9bd25374597e23abd0f215874ade700baa"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p059\\18000_220kV\\findings\\superworks_supersession.parquet",
+    "sha256": "aec1c4d3b8f5258cbff7afeb014da6a36fc9d17f5e945fb3d86f57982ee7f9c0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p059\\18000_220kV\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p060\\19000_220kV\\findings\\pairs.parquet",
+    "sha256": "7f1839d12a1f317cf78f28b795f17142bf529f8de198b2dbc3601d919120924e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p060\\19000_220kV\\findings\\pages.parquet",
+    "sha256": "109cddca7dffacd588705c3a020ac219736dc19735f8b52d51b1df49df8f7d1a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p060\\19000_220kV\\findings\\superworks_supersession.parquet",
+    "sha256": "c3ad854a20e32ad6b4af17022a3d17798031ce6238091f25418ea233d84518df"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p060\\19000_220kV\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p061\\20000_1\\findings\\pairs.parquet",
+    "sha256": "34cc040ce326853295a3d78f636db29f4eeae78551030a930df9bf2466229b6c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p061\\20000_1\\findings\\pages.parquet",
+    "sha256": "e8ca29ea73f1a829cdd6dacfefc62ed8f464d4938a0f0a45142e0465f3a4fe61"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p061\\20000_1\\findings\\superworks_supersession.parquet",
+    "sha256": "b3705d150ef0a34ef635c2a4c5213dcaadc870339f555d2f4ee34cdd9ead2284"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p061\\20000_1\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p062\\21000\\findings\\pairs.parquet",
+    "sha256": "f5057cbb078d89e80f028939e3e8cc91213a86b930fc46a0e1617f62031e02bd"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p062\\21000\\findings\\pages.parquet",
+    "sha256": "a8a638a7dddffbf01f5e4a5e97b084b88a40f023f9d8b34c835b14edce347f30"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p062\\21000\\findings\\superworks_supersession.parquet",
+    "sha256": "b5c0aea088368e6405718e4f0458dd7d22847b36472ba4048406de140cb3c90e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p062\\21000\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p063\\22000_1\\findings\\pairs.parquet",
+    "sha256": "a407d13355f962aa738b480c48b1b7c37a03868e71da049c9f853c067211263d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p063\\22000_1\\findings\\pages.parquet",
+    "sha256": "997594049a679979cef2b3da1f497d80f15df6414dd3281ca7be6742f3d1f0be"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p063\\22000_1\\findings\\superworks_supersession.parquet",
+    "sha256": "221cff8727dd3efd76f23a68e430fefcd296eada71e312f34b38c4ee30fc50f5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p063\\22000_1\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p064\\23000_A\\findings\\pairs.parquet",
+    "sha256": "f4c2a819706adbfacae3fb1da06d58cc92504cc28682282c08be91c550f197ef"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p064\\23000_A\\findings\\pages.parquet",
+    "sha256": "0f839664c62c885f172d57dfde54fb4ec4c9beb3474b170317bea5c980f8684f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p064\\23000_A\\findings\\superworks_supersession.parquet",
+    "sha256": "e47d8c52bd1f8ae1a8e557fa2717e629399e079de0403bb488f8768c812977b0"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p064\\23000_A\\audit\\issues.parquet",
+    "sha256": "a82a2df80e9806fbd8f6469c50e088f1fc5424078618c1d2a8b355918509b206"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p065\\24000_220kV_A\\findings\\pairs.parquet",
+    "sha256": "159099ef1ba172aae49b3057cd85a0bc7af20ad3a6857c2646ebfda2026443fa"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p065\\24000_220kV_A\\findings\\pages.parquet",
+    "sha256": "7816ac20d942b97b2e8a447573ea6960b98cba3f23cb5d529450637897ea1fe1"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p065\\24000_220kV_A\\findings\\superworks_supersession.parquet",
+    "sha256": "a91d5a635f8ce1541a6043d4bd4187806f6a5d6fd0c4146283a8ed8ee0dbdc41"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p065\\24000_220kV_A\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p066\\25000_03600_35kV_AB\\findings\\pairs.parquet",
+    "sha256": "21ff9fca071497fc5453ea8bfcef3740a1834f30a27a85e0a526be3e91a8504b"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p066\\25000_03600_35kV_AB\\findings\\pages.parquet",
+    "sha256": "33981ec32969d97f379c27a09b3d6f925c05bec4f711b3cf3f5bbd4a22f1ee81"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p066\\25000_03600_35kV_AB\\findings\\superworks_supersession.parquet",
+    "sha256": "63d6364ddb01b06c576342c819cbff113abbda2137cf4d0a4ebe4e4c1ea4d0db"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p066\\25000_03600_35kV_AB\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p067\\26000_220kV\\findings\\pairs.parquet",
+    "sha256": "9a92a282022091de750f82f38ac9d116ac62c9e116716dc9c59d6b0506924cf8"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p067\\26000_220kV\\findings\\pages.parquet",
+    "sha256": "e654640f7b61761f493cea4bc978c9155a6c9d5a3a674c6be8b3acd1b128820e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p067\\26000_220kV\\findings\\superworks_supersession.parquet",
+    "sha256": "7f18173b95fd4e751d223e4ae88769b2c1f70f916e6d4ef579b460f60c5803e7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p067\\26000_220kV\\audit\\issues.parquet",
+    "sha256": "7c3527a7063095af288081e94105e61b741f953f93ed013c2bb4a09020ff4412"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p068\\27000\\findings\\pairs.parquet",
+    "sha256": "d6f6d2b8a1f5de8152511a8d240fd89eaf3f4118415c8fda04f0a3cdfca42067"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p068\\27000\\findings\\pages.parquet",
+    "sha256": "cdcb868a562b921e6dcb822ece7ba529c7db43324816563960b82ab453e6d35b"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p068\\27000\\findings\\superworks_supersession.parquet",
+    "sha256": "cc9f3843918a03143f39c2571d1f278a450142299a873c25e0b5d0a1cbf9bd8c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p068\\27000\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p069\\28000\\findings\\pairs.parquet",
+    "sha256": "cfb783d9654c684bb1b3c43a5a0606d09dcdec1e7fa02ec477c5f3a94a105946"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p069\\28000\\findings\\pages.parquet",
+    "sha256": "4d543e3c686c27c335e8f2606af6a861799ae579fd01ca634f2d32893eedc330"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p069\\28000\\findings\\superworks_supersession.parquet",
+    "sha256": "c9bce9625712c3cbaf488a1e69b8cc19d43a83613f468354eab1fad2a8fe1451"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p069\\28000\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p070\\29000\\findings\\pairs.parquet",
+    "sha256": "b9acb0d80d5ebd041f72819995ac65b478e2240c8ac1511f176ba1a5eb4a69f7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p070\\29000\\findings\\pages.parquet",
+    "sha256": "d4e0d502c52b946bf96d64346bb34def71bf7f5f015ebb7a6f84f685687a209d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p070\\29000\\findings\\superworks_supersession.parquet",
+    "sha256": "91483a80284c91a881e21389d44c4efb53726894a758b6ff634c7afa1d4075df"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p070\\29000\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p071\\30000\\findings\\pairs.parquet",
+    "sha256": "5c5afb3f2c1627bddc87e9e5c941a8ec3bb7f50922072b378416f65d9722950d"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p071\\30000\\findings\\pages.parquet",
+    "sha256": "799ef4a24ab8bb3757bcdd783e0612f7028a8034fab412678db6bb962dacf3e8"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p071\\30000\\findings\\superworks_supersession.parquet",
+    "sha256": "c2eaec2343c972b24ed154bf1694fd5525e43daa5d0516f0853a689cf5528411"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p071\\30000\\audit\\issues.parquet",
+    "sha256": "7e87fcbf575bd70241106c4bec14d4278da5418e2282e054bd44521dba52fb2e"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p072\\31000_32000_1_2_220kV_A\\findings\\pairs.parquet",
+    "sha256": "39d50bd3f0389eb774b659dde7588951d53d05dd88573eff4b61e8f00117162a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p072\\31000_32000_1_2_220kV_A\\findings\\pages.parquet",
+    "sha256": "e44d6661982497fbac75a05f17c9d2e78306d3fedf49df72a51e97104ff0250c"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p072\\31000_32000_1_2_220kV_A\\findings\\superworks_supersession.parquet",
+    "sha256": "49a30bdbffaa772f3b8d29cd2632b8b842b678ac69eeb7e171caafa6961c7cb4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p072\\31000_32000_1_2_220kV_A\\audit\\issues.parquet",
+    "sha256": "d012c1974f2342750a781a8b61111a3dcfdeb2289ce085ec30d6a076d95d9e0b"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p073\\33000_34000_1_2_220kV_B\\findings\\pairs.parquet",
+    "sha256": "1b66502fb5ebdc295efa6c7a093f62243bf99a3707b582a598e7ae9047d922b5"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p073\\33000_34000_1_2_220kV_B\\findings\\pages.parquet",
+    "sha256": "cd8ac9cf0e05e9d69f2d63af8c19f44133dbb19a6d28116ecae68f4cf014fff4"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p073\\33000_34000_1_2_220kV_B\\findings\\superworks_supersession.parquet",
+    "sha256": "24824f9400de8e1c657ac25e5d887badd426ff74b40553a02be1cfc896b82a74"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p073\\33000_34000_1_2_220kV_B\\audit\\issues.parquet",
+    "sha256": "21202be625b4c1417b4fc9339e0c4b5567d2ac69bb5793f27010ebbe1cdccff7"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p074\\35000_2\\findings\\pairs.parquet",
+    "sha256": "6b350cb5a17b38287c216cb6427c92b816c4e00aaa01dd368bd8da8e13e2736a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p074\\35000_2\\findings\\pages.parquet",
+    "sha256": "06ae4fbc5abe0fedda71b2de81ba70f31efc0c76131e731a8cfcb5fa063aef24"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p074\\35000_2\\findings\\superworks_supersession.parquet",
+    "sha256": "733349e84993e942fc5754c3fba36b48415adf7328682deb72db88e70e0ee048"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p074\\35000_2\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p075\\8000_9000_-\\findings\\pairs.parquet",
+    "sha256": "cd0b239e4bce1766dac8ad9410be3090a81cb89c7ddf3829e1f950726db3c38a"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p075\\8000_9000_-\\findings\\pages.parquet",
+    "sha256": "ef3eef1bcdd1705bf32899e77ecc3bee0bed159ef20922451eba0a08e6f7e742"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p075\\8000_9000_-\\findings\\superworks_supersession.parquet",
+    "sha256": "47730161a76294a32aeafebd539aea0ae721e261508dd0214c863cac23c07ef6"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p075\\8000_9000_-\\audit\\issues.parquet",
+    "sha256": "97b4f07ff3d99a35110a790361f4c3ffb85ca80d0670c0f45c33d314ff186963"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p076\\2_2\\findings\\pairs.parquet",
+    "sha256": "062959e6c8604d3213ace12130b1e713fddf9fe48fa0b7b092ae67617d7f954f"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p076\\2_2\\findings\\pages.parquet",
+    "sha256": "8d7735ab45263d79dd0409d5141dc6f3da7be3c20e462e204aa0f452fe448437"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p076\\2_2\\findings\\superworks_supersession.parquet",
+    "sha256": "1d5d372eac93a1d3dac70be05657dbcddd5ef00c7fe139046c730cf83e753702"
+  },
+  {
+    "path": "F:\\workspace\\XJToolkit\\.tmp\\superworks_round25_full\\p076\\2_2\\audit\\issues.parquet",
+    "sha256": "7b52bac2e42c523659b62c998263d3eb3ea3e8b997d73cc40df41c5a3b60e90f"
+  }
+]
