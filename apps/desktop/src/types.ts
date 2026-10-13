@@ -1,6 +1,7 @@
 export type IssueStatus = "open" | "ignored" | "resolved" | "false_positive" | string
 
 export type RecentProject = {
+  snapshot_available?: boolean
   run_id: string
   session_id: string
   project_id: string

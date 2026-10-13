@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import zlib
+import shutil
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
@@ -66,6 +68,7 @@ class DesktopStateStore:
         issue_count: int,
         metadata: dict[str, Any] | None = None,
         series_chains: dict[str, Any] | None = None,
+        _connection: sqlite3.Connection | None = None,
     ) -> None:
         now = _now_iso()
         payload = json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
@@ -74,7 +77,7 @@ class DesktopStateStore:
             if series_chains is not None
             else None
         )
-        with self._connect() as conn:
+        with (nullcontext(_connection) if _connection is not None else self._connect()) as conn:
             conn.execute(
                 """
                 INSERT INTO runs (
@@ -124,8 +127,12 @@ class DesktopStateStore:
                 ),
             )
 
-    def replace_issue_summaries(self, run_id: str, issues: list[dict[str, Any]]) -> None:
-        with self._connect() as conn:
+            self._remember_recent(conn, dict(run_id=run_id, session_id=session_id, project_id=project_id,
+                project_name=project_name, input_root=input_root, artifact_dir=artifact_dir, updated_at=now,
+                status=status, sheet_count=sheet_count, pair_count=pair_count, issue_count=issue_count))
+
+    def replace_issue_summaries(self, run_id: str, issues: list[dict[str, Any]], *, _connection: sqlite3.Connection | None = None) -> None:
+        with (nullcontext(_connection) if _connection is not None else self._connect()) as conn:
             conn.execute("DELETE FROM issue_summaries WHERE run_id = ?", (run_id,))
             conn.executemany(
                 """
@@ -198,8 +205,8 @@ class DesktopStateStore:
                 ],
             )
 
-    def replace_page_findings(self, run_id: str, page_findings: list[dict[str, Any]]) -> None:
-        with self._connect() as conn:
+    def replace_page_findings(self, run_id: str, page_findings: list[dict[str, Any]], *, _connection: sqlite3.Connection | None = None) -> None:
+        with (nullcontext(_connection) if _connection is not None else self._connect()) as conn:
             conn.execute("DELETE FROM page_findings WHERE run_id = ?", (run_id,))
             conn.executemany(
                 """
@@ -251,42 +258,65 @@ class DesktopStateStore:
 
     def list_recent_projects(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT
-                    run_id,
-                    session_id,
-                    project_id,
-                    project_name,
-                    input_root,
-                    artifact_dir,
-                    updated_at,
-                    status,
-                    sheet_count,
-                    pair_count,
-                    issue_count
-                FROM runs
-                ORDER BY created_at DESC, run_id DESC, project_name ASC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
-        return [
-            {
-                "run_id": row["run_id"],
-                "session_id": row["session_id"],
-                "project_id": row["project_id"],
-                "project_name": row["project_name"],
-                "input_root": row["input_root"],
-                "artifact_dir": row["artifact_dir"],
-                "updated_at": row["updated_at"],
-                "status": row["status"],
-                "sheet_count": int(row["sheet_count"]),
-                "pair_count": int(row["pair_count"]),
-                "issue_count": int(row["issue_count"]),
-            }
-            for row in rows
-        ]
+            rows = conn.execute("""SELECT r.payload_json, u.run_id AS stored_run_id, u.artifact_dir
+                FROM recent_projects r LEFT JOIN runs u ON u.run_id = json_extract(r.payload_json, '$.run_id')
+                ORDER BY r.updated_at DESC, r.rowid DESC LIMIT ?""", (min(20, max(0, limit)),)).fetchall()
+        result = []
+        for row in rows:
+            payload = json.loads(row["payload_json"])
+            payload["snapshot_available"] = row["stored_run_id"] is not None
+            payload["artifact_dir"] = row["artifact_dir"] or ""
+            result.append(payload)
+        return result
+
+    @staticmethod
+    def _remember_recent(conn, payload):
+        conn.execute("""INSERT INTO recent_projects(project_id, updated_at, payload_json) VALUES (?, ?, ?)
+            ON CONFLICT(project_id) DO UPDATE SET updated_at=excluded.updated_at, payload_json=excluded.payload_json""",
+            (payload["project_id"], payload["updated_at"], json.dumps(payload, ensure_ascii=False)))
+        conn.execute("""DELETE FROM recent_projects WHERE project_id NOT IN
+            (SELECT project_id FROM recent_projects ORDER BY updated_at DESC, rowid DESC LIMIT 20)""")
+
+    @staticmethod
+    def _retain_session(conn, session_id):
+        for table in ("preview_geometries", "page_findings", "issue_summaries"):
+            conn.execute(f"DELETE FROM {table} WHERE run_id IN (SELECT run_id FROM runs WHERE session_id != ?)", (session_id,))
+        conn.execute("DELETE FROM runs WHERE session_id != ?", (session_id,))
+
+    def commit_session_snapshot(self, session_id: str, projects: list[dict[str, Any]]) -> None:
+        """Replace the whole successful batch atomically; failures retain the previous snapshot."""
+        if not session_id or not projects:
+            raise ValueError("A snapshot requires a nonempty session and at least one project")
+        run_ids = [p["run"]["run_id"] for p in projects]
+        if len(set(run_ids)) != len(run_ids) or any(p["run"]["session_id"] != session_id for p in projects):
+            raise ValueError("Snapshot projects must have unique run ids and the same session")
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for project in projects:
+                run = project["run"]
+                if run["status"] != "completed":
+                    raise ValueError("An incomplete batch cannot replace the successful snapshot")
+                self.record_run(**run, _connection=conn)
+                self.replace_issue_summaries(run["run_id"], project["issues"], _connection=conn)
+                self.replace_page_findings(run["run_id"], project["pages"], _connection=conn)
+                self.replace_preview_geometries(run["run_id"], project["geometries"], _connection=conn)
+            self._retain_session(conn, session_id)
+
+    def compact_database_if_needed(self) -> dict[str, Any]:
+        """Reclaim a large obsolete snapshot only during idle workspace cleanup."""
+        conn = self._connect()
+        try:
+            pages = conn.execute("PRAGMA page_count").fetchone()[0]
+            free = conn.execute("PRAGMA freelist_count").fetchone()[0]
+            page_size = conn.execute("PRAGMA page_size").fetchone()[0]
+            needed = free * page_size > 32 * 1024 * 1024 and free > pages * 0.25
+            enough_space = shutil.disk_usage(self.db_path.parent).free > 2 * pages * page_size
+            if needed and enough_space:
+                conn.execute("VACUUM")
+            return {"vacuumed": bool(needed and enough_space), "free_bytes": free * page_size}
+        finally:
+            conn.close()
+
 
     def load_latest_project_result(
         self,
@@ -453,7 +483,7 @@ class DesktopStateStore:
             "offset": safe_offset,
         }
 
-    def replace_preview_geometries(self, run_id: str, geometries: list[dict[str, Any]]) -> None:
+    def replace_preview_geometries(self, run_id: str, geometries: list[dict[str, Any]], *, _connection: sqlite3.Connection | None = None) -> None:
         now = _now_iso()
         rows: list[tuple[str, str, int, sqlite3.Binary, str]] = []
         for geometry in geometries:
@@ -483,7 +513,7 @@ class DesktopStateStore:
                 )
             )
 
-        with self._connect() as conn:
+        with (nullcontext(_connection) if _connection is not None else self._connect()) as conn:
             conn.execute("DELETE FROM preview_geometries WHERE run_id = ?", (run_id,))
             conn.executemany(
                 """
@@ -684,6 +714,7 @@ class DesktopStateStore:
             conn.execute("DELETE FROM preview_geometries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM page_findings WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM issue_summaries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
+            conn.execute("DELETE FROM recent_projects WHERE json_extract(payload_json, '$.session_id') = ?", (session_id,))
             deleted = conn.execute("DELETE FROM runs WHERE session_id = ?", (session_id,)).rowcount
         return int(deleted or len(run_ids))
 
@@ -713,6 +744,7 @@ class DesktopStateStore:
 
     def purge_project(self, project_id: str) -> int:
         with self._connect() as conn:
+            conn.execute("DELETE FROM recent_projects WHERE project_id = ?", (project_id,))
             run_ids = [
                 row["run_id"]
                 for row in conn.execute(
@@ -748,6 +780,10 @@ class DesktopStateStore:
         with self._connect() as conn:
             conn.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS recent_projects (
+                    project_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload_json TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS desktop_schema (key TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS runs (
                     run_id TEXT PRIMARY KEY,
                     session_id TEXT NOT NULL,
@@ -860,8 +896,18 @@ class DesktopStateStore:
                 """
             )
 
+            if conn.execute("SELECT 1 FROM desktop_schema WHERE key='single_snapshot_v1'").fetchone() is None:
+                for row in conn.execute("SELECT * FROM runs ORDER BY created_at, run_id").fetchall():
+                    payload = {k: row[k] for k in ("run_id", "session_id", "project_id", "project_name", "input_root",
+                        "artifact_dir", "updated_at", "status", "sheet_count", "pair_count", "issue_count")}
+                    self._remember_recent(conn, payload)
+                latest = conn.execute("SELECT session_id FROM runs WHERE status='completed' ORDER BY created_at DESC, run_id DESC LIMIT 1").fetchone()
+                if latest is not None:
+                    self._retain_session(conn, latest["session_id"])
+                conn.execute("INSERT INTO desktop_schema VALUES ('single_snapshot_v1')")
+
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         _register_sqlite_functions(conn)
         return conn

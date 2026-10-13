@@ -1469,8 +1469,8 @@ fn force_shutdown() -> ! {
     if SHUTTING_DOWN.swap(true, Ordering::SeqCst) {
         std::process::exit(0);
     }
-    let _ = spawn_global_cleanup();
     terminate_descendant_processes();
+    let _ = spawn_global_cleanup();
     std::process::exit(0);
 }
 
