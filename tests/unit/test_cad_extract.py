@@ -22,6 +22,27 @@ class DummyLogger:
         return None
 
 
+def test_optional_shadow_scene_does_not_change_required_cad_facts(tmp_path, monkeypatch):
+    doc = ezdxf.new()
+    child = doc.blocks.new("CHILD")
+    child.add_line((0, 0), (5, 0))
+    child.add_text("101", dxfattribs={"insert": (0, 2)})
+    doc.modelspace().add_blockref("CHILD", (10, 10))
+    path = tmp_path / "scene.dxf"
+    doc.saveas(path)
+    full = extract_cad_artifacts(_scan(), [_source_file(path)], DEFAULT_CONFIG, DummyLogger())
+    calls = []
+    def unexpected_scene(*_args, **_kwargs):
+        calls.append(True)
+        raise AssertionError("Shadow scene built in lean extraction")
+    monkeypatch.setattr("dwg_audit.extract.cad_extract.walk_document", unexpected_scene)
+    lean = extract_cad_artifacts(_scan(), [_source_file(path)], DEFAULT_CONFIG, DummyLogger(), include_canonical_scenes=False)
+    assert calls == [] and lean.canonical_scenes == [] and full.canonical_scenes
+    for name in ("texts", "lines", "blocks", "polylines", "pages", "primitive_segments", "terminal_port_bindings"):
+        assert [asdict(v) for v in getattr(full, name)] == [asdict(v) for v in getattr(lean, name)]
+    assert full.extraction_censuses == lean.extraction_censuses
+
+
 def _source_file(
     dxf_path: Path,
     *,

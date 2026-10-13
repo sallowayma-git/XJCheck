@@ -123,11 +123,12 @@ def decode_page_facts(value):
     return decode(value)
 
 
-def reusable_page_facts(source, sheet, payload, fingerprint, counters):
+def reusable_page_facts(source, sheet, payload, fingerprint, counters, *, include_canonical_scenes=None):
     matched = bool(payload and payload.get("schema_version") == 1 and payload.get("fingerprint") == fingerprint
         and payload.get("source_sha256") == source.sha256 and payload.get("source_path") == str(Path(source.path).resolve())
         and payload.get("file_id") == source.file_id and payload.get("sheet_id") == sheet.sheet_id
         and payload.get("sheet_seed") == json.loads(json.dumps(asdict(sheet)))
+        and (include_canonical_scenes is None or payload.get("canonical_scenes_included") == include_canonical_scenes)
         and payload.get("start_counters") == counters and payload.get("dependency_scope") == "page")
     if not matched:
         return False
@@ -771,6 +772,7 @@ def extract_cad_artifacts(
     cached_pages=None,
     capture_page_facts=False,
     fingerprint=None,
+    include_canonical_scenes=True,
 ) -> CadExtractionResult:
     sheet_map = {sheet.file_id: sheet for sheet in scan.pages}
     text_ids = IdFactory("T")
@@ -809,7 +811,7 @@ def extract_cad_artifacts(
         sheet_seed = json.loads(json.dumps(asdict(sheet)))
         key = str(Path(source.path).resolve())
         cached = (cached_pages or {}).get(key)
-        if reusable_page_facts(source, sheet, cached, fingerprint, counters):
+        if reusable_page_facts(source, sheet, cached, fingerprint, counters, include_canonical_scenes=include_canonical_scenes):
             try:
                 facts = decode_page_facts(cached["facts"])
                 for dest, rows in zip(collections, facts["collections"], strict=True):
@@ -919,46 +921,47 @@ def extract_cad_artifacts(
             }
         )
         stage_seconds["census"] += perf_counter() - stage_started
-        stage_started = perf_counter()
-        try:
-            canonical_scene_payload = walk_document(
-                doc,
-                file_id=source.file_id,
-                document_path=source.dxf_path,
-            ).to_dict()
-        except Exception as exc:  # pragma: no cover - defensive shadow boundary
-            canonical_scene_payload = {
-                "schema_version": "canonical-scene-v1",
-                "algorithm_version": "document-walker-v1",
-                "file_id": source.file_id,
-                "shadow_only": True,
-                "complete": False,
-                "layouts": [],
-                "entities": [],
-                "records": [],
-                "layout_views": [],
-                "views": [],
-                "diagnostics": [
-                    {
-                        "severity": "error",
-                        "code": "CANONICAL_SCENE_BUILD_FAILED",
-                        "message": str(exc),
-                    }
-                ],
-                "unresolved_sources": [],
-                "source_entity_counts": {},
-                "source_space_counts": {},
-            }
-        canonical_scenes.append(
-            {
-                "source_file_id": source.file_id,
-                "sheet_id": sheet.sheet_id,
-                "filename": source.filename,
-                "dxf_path": source.dxf_path,
-                **canonical_scene_payload,
-            }
-        )
-        stage_seconds["canonical_scene"] += perf_counter() - stage_started
+        if include_canonical_scenes:
+            stage_started = perf_counter()
+            try:
+                canonical_scene_payload = walk_document(
+                    doc,
+                    file_id=source.file_id,
+                    document_path=source.dxf_path,
+                ).to_dict()
+            except Exception as exc:  # pragma: no cover - defensive shadow boundary
+                canonical_scene_payload = {
+                    "schema_version": "canonical-scene-v1",
+                    "algorithm_version": "document-walker-v1",
+                    "file_id": source.file_id,
+                    "shadow_only": True,
+                    "complete": False,
+                    "layouts": [],
+                    "entities": [],
+                    "records": [],
+                    "layout_views": [],
+                    "views": [],
+                    "diagnostics": [
+                        {
+                            "severity": "error",
+                            "code": "CANONICAL_SCENE_BUILD_FAILED",
+                            "message": str(exc),
+                        }
+                    ],
+                    "unresolved_sources": [],
+                    "source_entity_counts": {},
+                    "source_space_counts": {},
+                }
+            canonical_scenes.append(
+                {
+                    "source_file_id": source.file_id,
+                    "sheet_id": sheet.sheet_id,
+                    "filename": source.filename,
+                    "dxf_path": source.dxf_path,
+                    **canonical_scene_payload,
+                }
+            )
+            stage_seconds["canonical_scene"] += perf_counter() - stage_started
 
         msp = doc.modelspace()
         sheet.layout_name = "Model"
@@ -1102,6 +1105,7 @@ def extract_cad_artifacts(
             page_facts[key] = {"schema_version": 1, "fingerprint": fingerprint,
                 "source_path": key, "source_sha256": source.sha256, "file_id": source.file_id,
                 "sheet_seed": sheet_seed,
+                "canonical_scenes_included": include_canonical_scenes,
                 "sheet_id": sheet.sheet_id, "start_counters": counters, "end_counters": [f.counter for f in factories],
                 "dependency_scope": "project" if census_payload.get("xref_count") or config.get("extract", {}).get("xref_search_paths") or config.get("runtime", {}).get("profile", "regression") != "production" else "page",
                 "facts": encode_page_facts({"sheet": sheet, "collections": [c[n:] for c, n in zip(collections, start_lengths, strict=True)], "superworks": sw_sheet})}
