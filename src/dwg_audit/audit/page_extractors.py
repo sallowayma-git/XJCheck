@@ -68,6 +68,7 @@ def extract_wire_pairs(
     classifications: dict[str, PageClassification] | None = None,
     terminal_port_bindings: list[TerminalPortBinding] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
+    shared_context=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="WireDiagramExtractor",
@@ -79,6 +80,7 @@ def extract_wire_pairs(
         config=config,
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
+        shared_context=shared_context,
         terminal_port_bindings=terminal_port_bindings,
     )
 
@@ -92,6 +94,7 @@ def extract_component_pairs(
     blocks: list[BlockRecord] | None = None,
     classifications: dict[str, PageClassification] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
+    shared_context=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="ComponentDiagramExtractor",
@@ -103,6 +106,7 @@ def extract_component_pairs(
         config=config,
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
+        shared_context=shared_context,
     )
 
 
@@ -114,6 +118,7 @@ def extract_terminal_pairs(
     *,
     classifications: dict[str, PageClassification] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
+    shared_context=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="TerminalDiagramExtractor",
@@ -124,6 +129,7 @@ def extract_terminal_pairs(
         config=config,
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
+        shared_context=shared_context,
     )
 
 
@@ -135,6 +141,7 @@ def extract_layout_audit_pairs(
     *,
     classifications: dict[str, PageClassification] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
+    shared_context=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="LayoutOnlyAuditFallback",
@@ -145,6 +152,7 @@ def extract_layout_audit_pairs(
         config=config,
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
+        shared_context=shared_context,
     )
 
 
@@ -160,6 +168,7 @@ def _extract_pairs_for_route(
     classifications: dict[str, PageClassification] | None = None,
     terminal_port_bindings: list[TerminalPortBinding] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
+    shared_context=None,
 ) -> PairingExtractionResult:
     id_stem = _extractor_id_stem(executed_extractor)
     route_sheet_ids = {page.sheet_id for page in pages}
@@ -168,23 +177,29 @@ def _extract_pairs_for_route(
         for sheet_id, classification in (classifications or {}).items()
         if sheet_id in route_sheet_ids
     }
-    line_groups = build_line_groups(
-        lines,
-        pages,
-        config,
-        texts,
-        classifications=route_classifications,
-        group_id_factory=IdFactory(f"G{id_stem}"),
-        band_id_factory=IdFactory(f"RB{id_stem}"),
-        wire_break_evidence=wire_break_evidence,
-    )
+    if shared_context is None:
+        line_groups = build_line_groups(
+            lines,
+            pages,
+            config,
+            texts,
+            classifications=route_classifications,
+            group_id_factory=IdFactory(f"G{id_stem}"),
+            band_id_factory=IdFactory(f"RB{id_stem}"),
+            wire_break_evidence=wire_break_evidence,
+        )
+    else:
+        line_groups = shared_context.groups_for_route(id_stem=id_stem, pages=pages, texts=texts,
+            lines=lines, config=config, classifications=route_classifications, wire_break_evidence=wire_break_evidence)
+    checkers = shared_context.path_checkers if shared_context is not None else path_body_checkers(wire_break_evidence)
     terminal_candidates = build_terminal_candidates(
         line_groups,
         texts,
         config,
         pages,
         candidate_id_factory=IdFactory(f"C{id_stem}"),
-        path_checkers=path_body_checkers(wire_break_evidence),
+        path_checkers=checkers,
+        text_indexes=shared_context.text_indexes if shared_context is not None else None,
     )
     pair_candidates, pairs = build_pairs(
         line_groups,
@@ -196,7 +211,7 @@ def _extract_pairs_for_route(
     )
     if executed_extractor == "WireDiagramExtractor":
         # P3-CROSS-DEVICE: pairs built by pairs.py (e.g. schematic wire-logic endpoints) get the same path rule.
-        guard_pairs_against_symbol_bodies(pairs, path_body_checkers(wire_break_evidence))
+        guard_pairs_against_symbol_bodies(pairs, checkers)
     if executed_extractor == "WireDiagramExtractor":
         _mark_inline_wire_split_continuation_pairs(pairs, line_groups, pages, config)
     if executed_extractor == "WireDiagramExtractor":

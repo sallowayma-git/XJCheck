@@ -210,6 +210,8 @@ def analyze_input_root(
             if superworks is not None else None
         )
         supplemental_table_mappings = []
+        from dwg_audit.audit.recognition_coordinator import SharedRecognitionContext
+        shared_context = SharedRecognitionContext.create(audit_texts, wire_break_evidence)
         route_extractors = (
             ("WireDiagramExtractor", extract_wire_pairs),
             ("ComponentDiagramExtractor", extract_component_pairs),
@@ -229,6 +231,7 @@ def analyze_input_root(
                 if sheet_id in classifications
             }
             extractor_kwargs = {"classifications": route_classifications, "wire_break_evidence": wire_break_evidence}
+            extractor_kwargs["shared_context"] = shared_context
             if route_target in {"WireDiagramExtractor", "ComponentDiagramExtractor"}:
                 extractor_kwargs["blocks"] = [
                     block for block in blocks if block.sheet_id in sheet_ids
@@ -466,6 +469,8 @@ def analyze_input_root(
                        "line_groups": len(line_groups), "terminal_candidates": len(terminal_candidates)},
             "sw_timing": {"extraction_seconds": getattr(superworks, "extraction_seconds", 0.0),
                           "recognition_seconds": getattr(superworks, "recognition_seconds", 0.0)},
+            "shared_seconds": dict(shared_context.seconds),
+            "shared_counts": dict(shared_context.counts),
         }
         (project_dir / "performance.json").write_text(json.dumps(performance, ensure_ascii=False, indent=2), encoding="utf-8")
         written.append(project_dir)

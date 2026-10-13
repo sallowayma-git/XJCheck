@@ -7,3 +7,5 @@
 架构完善：三名只读探子分别核对既有精度/性能证据、退出helper/SQLite生命周期与重复存储；全部返回后主线程点验源码。只读汇总round25时间/产物体积及本机空数据库。更新同一架构稿，明确条件首轮选择、小规模留出/同分母评测、一个协调模块、全库一个当前成功session快照、失败保留旧快照、受依赖约束的页级增量、清理顺序/安全根和数据库物理回收。未删除任何数据，未修改生产代码，不再推送远端。
 
 开发：T0本地7ff8dea，固定baseline Git对象/输入配置，不复制源码；pipeline/workflow阶段计时，集成1项通过。T1实现事务batch、recent轻量20项、旧DB迁移、root OS锁（同时阻止分析与清理，不留每run锁文件）、safe path/输入保护、压缩门槛及退出先停止工作再spawn cleanup。Python26旧项+6新项通过（包含25批次、rollback/incomplete、迁移、活跃锁和源文件保护）；Rust cargo test32通过，tsc与request20通过。第一次cargo --lib不适用bin项目，改cargo test；首次清理测试2项失败因旧fixture把input_root写成临时session，修正fixture为独立输入，并新增真实保护负例。T2共享context/index/groups兼容入口已实现，page/SW/integration220项通过，p000真实回放正在进行。
+
+T1本地236eb53。T2真实p000重放完成：1506→1506，pair_id/sheet/file/group/value/status/kind/confidence/text_ids逐条相同，issue rule/sheet/message相同。实现一个SharedRecognitionContext，缓存route线组和整页TextSpatialIndex及PathBodyChecker，保留旧签名可选参数。未运行完整77回放；T8统一完成。

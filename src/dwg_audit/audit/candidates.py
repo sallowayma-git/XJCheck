@@ -164,6 +164,7 @@ def build_terminal_candidates(
     sheets: list[SheetRecord] | None = None,
     candidate_id_factory: IdFactory | None = None,
     path_checkers: dict[str, PathBodyChecker] | None = None,
+    text_indexes: dict | None = None,
 ) -> list[TerminalCandidate]:
     """path_checkers (P3-CROSS-DEVICE): per-sheet symbol-body checkers; a text whose position along the wire
     lies beyond a symbol body is rejected (path_crosses_symbol_body). None keeps the legacy search."""
@@ -171,7 +172,9 @@ def build_terminal_candidates(
     for text in texts:
         by_sheet_texts[text.sheet_id].append(text)
 
-    indexes = {sheet_id: TextSpatialIndex(sheet_texts) for sheet_id, sheet_texts in by_sheet_texts.items()}
+    indexes = text_indexes if text_indexes is not None else {
+        sheet_id: TextSpatialIndex(sheet_texts) for sheet_id, sheet_texts in by_sheet_texts.items()
+    }
     sheet_map = {sheet.sheet_id: sheet for sheet in sheets or []}
     group_map = {group.line_group_id: group for group in line_groups}
     candidate_ids = candidate_id_factory or IdFactory("C")
