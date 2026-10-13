@@ -29,15 +29,19 @@ class SharedRecognitionContext:
     endpoint_cache: dict = field(default_factory=dict)
     native_text_claims: dict = field(default_factory=dict)
     supplemental_for: dict = field(default_factory=dict)
+    text_facts: dict = field(default_factory=dict)
+    native_instance_claims: dict = field(default_factory=dict)
 
     @classmethod
     def create(cls, texts, wire_break_evidence=None):
         started = perf_counter()
         by_sheet = defaultdict(list)
+        text_facts = {}
         for text in texts:
             by_sheet[text.sheet_id].append(text)
+            text_facts[(text.file_id, text.sheet_id, text.text_id)] = text
         result = cls(text_indexes={sid: TextSpatialIndex(rows) for sid, rows in by_sheet.items()},
-                     path_checkers=path_body_checkers(wire_break_evidence))
+                     path_checkers=path_body_checkers(wire_break_evidence), text_facts=text_facts)
         result.seconds["indexes"] = perf_counter() - started
         result.counts["text_indexes_built"] = len(by_sheet)
         return result
@@ -73,6 +77,12 @@ class SharedRecognitionContext:
             if sw.get("part_id"):
                 ids[0].update({pair.evidence.get("component_port_text_id"), pair.evidence.get("component_body_text_id"), sw.get("label_text_id")} - {None, ""})
                 ids[1].update({sw.get("connection_text_id"), pair.evidence.get("external_endpoint_text_id")} - {None, ""})
+                handle = sw.get("symbol_handle")
+                # Virtual definition pins are anchored to their concrete INSERT.
+                # Nested paths need their full instance identity, not a bare handle.
+                if handle and sw.get("instance_path") in (None, "", f"/{handle}"):
+                    for right in ids[1]:
+                        self.native_instance_claims.setdefault((pair.file_id, pair.sheet_id, handle, right), []).append(pair)
             for left in ids[0]:
                 for right in ids[1]:
                     self.native_text_claims.setdefault((pair.file_id, pair.sheet_id, left, right), []).append(pair)
@@ -93,6 +103,21 @@ class ScopedPairIds(IdFactory):
         candidates = list(claims.get((page.file_id, page.sheet_id, left_text_id, right_text_id), []))
         candidates += claims.get((page.file_id, page.sheet_id, right_text_id, left_text_id), [])
         claim = SimpleNamespace(left_value=left_value, right_value=right_value)
+        if kind in {"component_mapping", "ordinary_pair"}:
+            from dwg_audit.audit.superworks_extractor import _ends_equivalent
+            for pin_id, external_id in ((left_text_id, right_text_id), (right_text_id, left_text_id)):
+                pin = self.context.text_facts.get((page.file_id, page.sheet_id, pin_id))
+                external = self.context.text_facts.get((page.file_id, page.sheet_id, external_id))
+                if pin is None or external is None or ":VIRTUAL:" not in pin.handle:
+                    continue
+                handle = pin.handle.split(":VIRTUAL:", 1)[0]
+                for fixed in self.context.native_instance_claims.get((page.file_id, page.sheet_id, handle, external_id), []):
+                    number = str(port_number or pin.normalized_text).strip()
+                    fixed_number = str((fixed.evidence.get("superworks") or {}).get("port_number") or "")
+                    same_pin = number.isdigit() and fixed_number.isdigit() and int(number) == int(fixed_number)
+                    if _pair_endpoints_equivalent(claim, fixed) or (same_pin and _ends_equivalent(external.normalized_text, fixed.right_value)):
+                        self.context.counts["v1_structured_claims_skipped"] += 1
+                        return False
         def covered(fixed):
             if _pair_endpoints_equivalent(claim, fixed):
                 return True
