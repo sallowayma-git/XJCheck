@@ -105,3 +105,42 @@ def test_native_ownership_requires_physical_texts_not_only_same_value():
     assert ids.admit(page, "1XD2", "2-1n323", "different-L", "different-R")
     assert ids.admit(page, "1XD2", "2-1n324", "L", "R")
 
+
+def test_draft_geometry_cannot_use_the_high_confidence_bypass():
+    from dwg_audit.domain.models import Pair
+    from dwg_audit.audit.recognition_coordinator import finalize_evidence
+    from dwg_audit.audit.rules import _high_confidence_source_eligible
+    pair = Pair("P", "G", "S", "F", None, "A1", "B2", .999, "pass", "draft",
+        confidence_bucket="high", evidence={"structured_source": "table_mapping",
+            "selected_right_physical_endpoint": {"topology_state": "UNKNOWN"}})
+    finalize_evidence([pair], SharedRecognitionContext.create([]))
+    assert pair.status == "review" and pair.confidence_bucket == "review"
+    assert pair.evidence["recognition_state"] == "AMBIGUOUS"
+    assert not _high_confidence_source_eligible(pair)
+
+
+def test_verified_geometry_is_a_witness_and_fixed_identity_is_not_overwritten():
+    from dwg_audit.domain.models import Pair
+    from dwg_audit.audit.recognition_coordinator import finalize_evidence
+    pair = Pair("P", "G", "S", "F", None, "A1", "B2", .999, "pass", "geometry",
+        evidence={"superworks": {"partial": True,
+            "left": {"value": "A9", "wire_touched": True, "port_ids": ["native-port"]}},
+            "selected_right_physical_endpoint": {"source": "reciprocal_cad_label_and_terminal_geometry"}})
+    context = SharedRecognitionContext.create([])
+    finalize_evidence([pair], context)
+    assert pair.left_value == "A1"
+    assert pair.status == "review"
+    assert pair.evidence["engine_evidence_conflicts"][0]["fixed_identity"] == "A9"
+    assert pair.evidence["engine_contributors"] == ["v1", "v2", "superworks"]
+    assert context.counts["verified_v2_geometry_bindings"] == 1
+
+
+def test_confirmed_native_conflict_survives_high_scoring_fallback():
+    from dwg_audit.domain.models import Pair
+    from dwg_audit.audit.recognition_coordinator import finalize_evidence
+    pair = Pair("P", "G", "S", "F", None, "A1", "B2", .999, "pass", "fallback",
+        evidence={"sw_conflicts": ["dangling_label_handle"]})
+    finalize_evidence([pair], SharedRecognitionContext.create([]))
+    assert pair.evidence["recognition_state"] == "CONFIRMED_CONFLICT"
+    assert pair.status == "review"
+

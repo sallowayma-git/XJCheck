@@ -1993,6 +1993,8 @@ def _is_native_finite_number(value: object) -> bool:
 
 
 def _high_confidence_source_eligible(pair: Pair) -> bool:
+    if (pair.evidence or {}).get("recognition_state") in {"INCOMPLETE", "AMBIGUOUS", "CONFIRMED_CONFLICT", "ENGINE_FAILURE", "EXCLUDED"}:
+        return False
     if (pair.evidence or {}).get("source")=="superworks":
         if pair.status != "pass" or pair.evidence.get("sw_conflicts"):
             return False

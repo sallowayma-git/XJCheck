@@ -101,3 +101,58 @@ class ScopedPairIds(IdFactory):
             return False
         return True
 
+
+def finalize_evidence(pairs, context):
+    """Admit producer facts, preserve fixed SW sides, and keep draft geometry out of pass."""
+    from dwg_audit.audit.superworks_extractor import _identities_agree, _true_conflicts
+    for pair in pairs:
+        evidence = pair.evidence or {}
+        pair.evidence = evidence
+        if pair.status == "discard":
+            evidence["recognition_state"] = "EXCLUDED"
+            continue
+        conflicts = _true_conflicts(evidence.get("sw_conflicts") or [])
+        sw = evidence.get("superworks") or {}
+        partial = sw.get("partial") or sw.get("validation_only")
+        if partial:
+            for side in ("left", "right"):
+                fixed = sw.get(side) or {}
+                value = getattr(pair, f"{side}_value")
+                identity = fixed.get("value")
+                if not identity or not fixed.get("wire_touched") or fixed.get("reason_codes"):
+                    continue
+                if not value:
+                    continue  # A missing geometric/semantic partner is not fabricated here.
+                if _identities_agree(identity, value, fixed.get("endpoint_aliases", [])):
+                    if str(value).isdigit() and str(identity) != str(value):
+                        evidence.setdefault("fixed_fact_normalizations", []).append(
+                            {"side": side, "before": value, "after": identity, "port_ids": fixed.get("port_ids", [])})
+                        setattr(pair, f"{side}_value", identity)
+                        pair.pair_key = f"{pair.left_value}->{pair.right_value}"
+                        context.counts["fixed_identity_normalizations"] += 1
+                else:
+                    evidence.setdefault("engine_evidence_conflicts", []).append(
+                        {"side": side, "candidate": value, "fixed_identity": identity,
+                         "port_ids": fixed.get("port_ids", [])})
+        physical = [evidence.get(f"selected_{side}_physical_endpoint") or {} for side in ("left", "right")]
+        draft = any(p.get("annotation_status") == "MACHINE_PROPOSED" or
+                    p.get("topology_state") in {"POSSIBLE", "UNKNOWN"} for p in physical)
+        if any(p.get("source") == "reciprocal_cad_label_and_terminal_geometry" for p in physical):
+            context.counts["verified_v2_geometry_bindings"] += 1
+            evidence["engine_contributors"] = ["v1", "v2"] + (["superworks"] if sw else [])
+        if conflicts:
+            state = "CONFIRMED_CONFLICT"
+        elif not pair.left_value or not pair.right_value:
+            state = "INCOMPLETE"
+        elif draft or evidence.get("engine_evidence_conflicts") or pair.status != "pass":
+            state = "AMBIGUOUS"
+        else:
+            state = "RESOLVED"
+        evidence["recognition_state"] = state
+        if state != "RESOLVED":
+            pair.status = "review"
+            pair.confidence_bucket = "review"
+            evidence["structured_source"] = None
+        context.counts[f"final:{state}"] += 1
+    return pairs
+
