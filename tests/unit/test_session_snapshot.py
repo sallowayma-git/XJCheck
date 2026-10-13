@@ -18,14 +18,18 @@ def project(session, name="project", *, geometries=None):
 def test_twenty_batches_retain_only_current_snapshot_and_bounded_recent_projects(tmp_path):
     store = DesktopStateStore(tmp_path / "state.db")
     for n in range(25):
-        store.commit_session_snapshot(f"s{n}", [project(f"s{n}", f"p{n}"), project(f"s{n}", "repeat")])
+        items = [project(f"s{n}", f"p{n}"), project(f"s{n}", "repeat")]
+        for item in items:
+            item.update(project_root=item["run"]["project_id"], page_facts={"page": {"fingerprint": f"s{n}"}})
+        store.commit_session_snapshot(f"s{n}", items)
     assert {r["session_id"] for r in store.list_all_runs()} == {"s24"}
     recent = store.list_recent_projects()
     assert len(recent) == 20
     assert sum(r["snapshot_available"] for r in recent) == 2
     with store._connect() as conn:
-        for table in ("runs", "issue_summaries", "page_findings", "preview_geometries"):
+        for table in ("runs", "issue_summaries", "page_findings", "preview_geometries", "page_facts"):
             assert conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 2
+    assert store.load_current_page_facts()["repeat"]["page"]["fingerprint"] == "s24"
 
 
 def test_second_project_failure_rolls_back_whole_batch(tmp_path):

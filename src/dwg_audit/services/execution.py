@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import json
+import logging
 import time
 from typing import Any
 from typing import Callable
@@ -33,6 +34,8 @@ def run_analysis_workflow(
     log_path: Path | None = None,
     event_sink: Any = None,
     on_project_artifacts_ready: Callable[[Path], None] | None = None,
+    cached_page_facts: dict | None = None,
+    current_page_facts: dict | None = None,
 ) -> AnalysisRunResult:
     resolved_input = input_root.expanduser().resolve()
     resolved_output = output_root.expanduser().resolve()
@@ -48,37 +51,46 @@ def run_analysis_workflow(
     resolved_output.mkdir(parents=True, exist_ok=True)
     config = load_config(resolved_config)
     logger = configure_logging(log_path or (resolved_output / "logs" / "analysis.log"))
-    project_dirs = analyze_input_root(
-        resolved_input,
-        resolved_output,
-        config,
-        logger,
-        event_sink=event_sink,
-    )
+    try:
+        project_dirs = analyze_input_root(
+            resolved_input,
+            resolved_output,
+            config,
+            logger,
+            event_sink=event_sink,
+            **(dict(cached_page_facts=cached_page_facts, current_page_facts=current_page_facts)
+               if current_page_facts is not None else {}),
+        )
 
-    audit_dirs: list[Path] = []
-    for project_dir in project_dirs:
-        if on_project_artifacts_ready is not None:
-            on_project_artifacts_ready(project_dir)
-        if include_audit:
-            audit_started = time.perf_counter()
-            audit_dirs.append(rerun_audit_from_findings(project_dir, config, event_sink=event_sink))
-            performance_path = project_dir / "performance.json"
-            if performance_path.exists():
-                performance = json.loads(performance_path.read_text(encoding="utf-8"))
-                performance["stage_seconds"]["audit"] = time.perf_counter() - audit_started
-                performance["stage_seconds"]["workflow_total"] = (
-                    performance["stage_seconds"]["analysis_total"] + performance["stage_seconds"]["audit"]
-                )
-                performance_path.write_text(json.dumps(performance, ensure_ascii=False, indent=2), encoding="utf-8")
+        audit_dirs: list[Path] = []
+        for project_dir in project_dirs:
+            if on_project_artifacts_ready is not None:
+                on_project_artifacts_ready(project_dir)
+            if include_audit:
+                audit_started = time.perf_counter()
+                audit_dirs.append(rerun_audit_from_findings(project_dir, config, event_sink=event_sink))
+                performance_path = project_dir / "performance.json"
+                if performance_path.exists():
+                    performance = json.loads(performance_path.read_text(encoding="utf-8"))
+                    performance["stage_seconds"]["audit"] = time.perf_counter() - audit_started
+                    performance["stage_seconds"]["workflow_total"] = (
+                        performance["stage_seconds"]["analysis_total"] + performance["stage_seconds"]["audit"]
+                    )
+                    performance_path.write_text(json.dumps(performance, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    run_summary_path = resolved_output / "run_summary.json"
-    return AnalysisRunResult(
-        input_root=resolved_input,
-        output_root=resolved_output,
-        project_dirs=project_dirs,
-        audit_dirs=audit_dirs,
-        config_path=resolved_config,
-        run_summary_path=run_summary_path if run_summary_path.exists() else None,
-        config=config,
-    )
+        run_summary_path = resolved_output / "run_summary.json"
+        return AnalysisRunResult(
+            input_root=resolved_input,
+            output_root=resolved_output,
+            project_dirs=project_dirs,
+            audit_dirs=audit_dirs,
+            config_path=resolved_config,
+            run_summary_path=run_summary_path if run_summary_path.exists() else None,
+            config=config,
+        )
+    finally:
+        # Release Windows file handles before the desktop cleanup helper runs.
+        for handler in list(getattr(logger, "handlers", [])):
+            if isinstance(handler, logging.FileHandler):
+                logger.removeHandler(handler)
+                handler.close()

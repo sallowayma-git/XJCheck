@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from pathlib import Path
 
 from dwg_audit.domain.models import BlockRecord
@@ -51,6 +51,8 @@ class CadExtractionResult:
     )
     terminal_port_bindings: list[TerminalPortBinding] = field(default_factory=list)
     superworks: object = None
+    page_facts: dict = field(default_factory=dict)
+    reused_page_count: int = 0
 
     def __iter__(self):
         # Preserve the public six-value unpacking contract for legacy callers.
@@ -60,6 +62,82 @@ class CadExtractionResult:
         yield self.polylines
         yield self.pages
         yield self.warnings
+
+
+def page_fact_fingerprint(project_root, config):
+    """XML, configuration and installed producer code invalidate the current page facts."""
+    import hashlib
+    from importlib.metadata import version
+    digest = hashlib.sha256(json.dumps(config, sort_keys=True, ensure_ascii=False).encode())
+    digest.update(version("ezdxf").encode())
+    for path in sorted(p for p in Path(project_root).rglob("*") if p.suffix.casefold() in {".xml", ".prj"}):
+        digest.update(str(path.relative_to(project_root)).encode())
+        digest.update(path.read_bytes())
+    for path in sorted(Path(__file__).parents[1].rglob("*.py")):
+        digest.update(str(path.relative_to(Path(__file__).parents[1])).encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def encode_page_facts(value):
+    """Explicit typed JSON, including tuple keys; never deserialize executable objects."""
+    if is_dataclass(value):
+        return {"type": type(value).__name__, "fields": {f.name: encode_page_facts(getattr(value, f.name)) for f in fields(value)}}
+    if isinstance(value, dict):
+        return {"dict": [[encode_page_facts(k), encode_page_facts(v)] for k, v in value.items()]}
+    if isinstance(value, tuple):
+        return {"tuple": [encode_page_facts(v) for v in value]}
+    if isinstance(value, set):
+        return {"set": [encode_page_facts(v) for v in sorted(value)]}
+    if isinstance(value, list):
+        return [encode_page_facts(v) for v in value]
+    return value
+
+
+def decode_page_facts(value):
+    from dwg_audit.domain.models import SwSymbolInstance, SwPort, SwStripRow, SwPartInstance, SwConnectLabel, SwConnectDot
+    from dwg_audit.extract.superworks_semantics import SuperworksData
+    from dwg_audit.extract.superworks_loggen import PageWireRoutes
+    from dwg_audit.domain.models import Pair, PairCandidate, LineGroup, TerminalCandidate
+    registry = {c.__name__: c for c in (TextItem, LineEntity, BlockRecord, PolylineRecord, SheetRecord,
+        ExtractionWarning, PrimitiveSegment, TerminalPortBinding, SwSymbolInstance, SwPort, SwStripRow,
+        SwPartInstance, SwConnectLabel, SwConnectDot, SuperworksData, PageWireRoutes,
+        Pair, PairCandidate, LineGroup, TerminalCandidate)}
+    def decode(item):
+        if isinstance(item, list):
+            return [decode(v) for v in item]
+        if not isinstance(item, dict):
+            return item
+        if "type" in item:
+            return registry[item["type"]](**{k: decode(v) for k, v in item["fields"].items()})
+        if "dict" in item:
+            return {decode(k): decode(v) for k, v in item["dict"]}
+        if "tuple" in item:
+            return tuple(decode(v) for v in item["tuple"])
+        if "set" in item:
+            return set(decode(v) for v in item["set"])
+        raise ValueError("Invalid typed page facts")
+    return decode(value)
+
+
+def reusable_page_facts(source, sheet, payload, fingerprint, counters):
+    matched = bool(payload and payload.get("schema_version") == 1 and payload.get("fingerprint") == fingerprint
+        and payload.get("source_sha256") == source.sha256 and payload.get("source_path") == str(Path(source.path).resolve())
+        and payload.get("file_id") == source.file_id and payload.get("sheet_id") == sheet.sheet_id
+        and payload.get("sheet_seed") == json.loads(json.dumps(asdict(sheet)))
+        and payload.get("start_counters") == counters and payload.get("dependency_scope") == "page")
+    if not matched:
+        return False
+    try:
+        facts = decode_page_facts(payload["facts"])
+        return (isinstance(facts, dict) and isinstance(facts.get("sheet"), SheetRecord)
+            and facts["sheet"].file_id == source.file_id and facts["sheet"].sheet_id == sheet.sheet_id
+            and len(facts["collections"]) == 10 and all(isinstance(rows, list) for rows in facts["collections"])
+            and len(payload["end_counters"]) == 5
+            and all(isinstance(n, int) and n >= before for n, before in zip(payload["end_counters"], counters, strict=True))
+            and type(facts.get("superworks")).__name__ == "SuperworksData")
+    except (KeyError, ValueError, TypeError, AttributeError):
+        return False
 
 
 def _normalize_text(text: str) -> str:
@@ -686,6 +764,10 @@ def extract_cad_artifacts(
     source_files: list[SourceFileRecord],
     config: dict,
     logger,
+    *,
+    cached_pages=None,
+    capture_page_facts=False,
+    fingerprint=None,
 ) -> CadExtractionResult:
     sheet_map = {sheet.file_id: sheet for sheet in scan.pages}
     text_ids = IdFactory("T")
@@ -712,8 +794,39 @@ def extract_cad_artifacts(
     reader_options = ReaderOptions()
 
     numeric_pattern = re.compile(config.get("text", {}).get("numeric_pattern", r"^[0-9]+$"))
+    page_facts = {}
+    reused_page_count = 0
+    factories = [text_ids, line_ids, block_ids, polyline_ids, warning_ids]
+    collections = [all_texts, all_lines, all_blocks, all_polylines, extraction_warnings, primitive_segments,
+        extraction_censuses, canonical_scenes, symbol_port_definition_proposals, terminal_port_bindings]
     for source in source_files:
         sheet = sheet_map[source.file_id]
+        counters = [f.counter for f in factories]
+        sheet_seed = json.loads(json.dumps(asdict(sheet)))
+        key = str(Path(source.path).resolve())
+        cached = (cached_pages or {}).get(key)
+        if reusable_page_facts(source, sheet, cached, fingerprint, counters):
+            try:
+                facts = decode_page_facts(cached["facts"])
+                for dest, rows in zip(collections, facts["collections"], strict=True):
+                    dest.extend(rows)
+                sheet_map[source.file_id] = facts["sheet"]
+                facts["superworks"].extraction_seconds = 0.0
+                superworks.extend(facts["superworks"])
+                superworks.wire_route_pages.extend(facts["superworks"].wire_route_pages)
+                superworks.wire_route_failures.update(facts["superworks"].wire_route_failures)
+                for factory, count in zip(factories, cached["end_counters"], strict=True):
+                    factory.counter = count
+                source.conversion_status = "cached"
+                source.conversion_detail = "Reused verified normalized facts from the current snapshot"
+                page_facts[key] = cached
+                reused_page_count += 1
+                continue
+            except (ValueError, KeyError, TypeError):
+                # Validation happens before conversion is skipped. A mutation
+                # after validation fails the new batch without touching the old one.
+                raise ValueError("Invalid current snapshot page facts")
+        start_lengths = [len(c) for c in collections]
         if source.conversion_status not in {"converted", "cached"} or not source.dxf_path:
             extraction_warnings.append(
                 ExtractionWarning(
@@ -930,6 +1043,8 @@ def extract_cad_artifacts(
         bind_vendor_device_pin_labels(doc, sheet_texts)
         sw_sheet = extract_superworks_semantics(doc, sheet_id=sheet.sheet_id, file_id=source.file_id)
         bind_text_ids(sw_sheet, sheet_texts)
+        sw_sheet.wire_route_pages = [p for p in superworks.wire_route_pages if p.file_id == source.file_id]
+        sw_sheet.wire_route_failures = {k: v for k, v in superworks.wire_route_failures.items() if k == source.file_id}
         superworks.extend(sw_sheet)
         extent = _extent_bbox(sheet_texts, sheet_lines, sheet_blocks)
         if extent is not None:
@@ -965,6 +1080,13 @@ def extract_cad_artifacts(
         all_lines.extend(sheet_lines)
         all_blocks.extend(sheet_blocks)
         all_polylines.extend(sheet_polylines)
+        if capture_page_facts:
+            page_facts[key] = {"schema_version": 1, "fingerprint": fingerprint,
+                "source_path": key, "source_sha256": source.sha256, "file_id": source.file_id,
+                "sheet_seed": sheet_seed,
+                "sheet_id": sheet.sheet_id, "start_counters": counters, "end_counters": [f.counter for f in factories],
+                "dependency_scope": "project" if census_payload.get("xref_count") or config.get("extract", {}).get("xref_search_paths") or config.get("runtime", {}).get("profile", "regression") != "production" else "page",
+                "facts": encode_page_facts({"sheet": sheet, "collections": [c[n:] for c, n in zip(collections, start_lengths, strict=True)], "superworks": sw_sheet})}
 
     _bind_symbol_proposal_fingerprints(
         symbol_port_definition_proposals,
@@ -985,4 +1107,6 @@ def extract_cad_artifacts(
         symbol_port_definition_proposals=symbol_port_definition_proposals,
         terminal_port_bindings=terminal_port_bindings,
         superworks=superworks,
+        page_facts=page_facts,
+        reused_page_count=reused_page_count,
     )

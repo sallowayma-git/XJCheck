@@ -11,3 +11,7 @@
 T1本地236eb53。T2真实p000重放完成：1506→1506，pair_id/sheet/file/group/value/status/kind/confidence/text_ids逐条相同，issue rule/sheet/message相同。实现一个SharedRecognitionContext，缓存route线组和整页TextSpatialIndex及PathBodyChecker，保留旧签名可选参数。未运行完整77回放；T8统一完成。
 
 T2本地0b86813。T3新增native_only首轮入口（延后依赖最终消费状态的wire-route admission），SW数据保留稳定源句柄/几何观察。完整wire可以不依赖legacy Pair；缺一端、完全无元数据和无Pair的确证冲突均有独立观察。旧extract签名默认行为保持；31项定向通过，含5项新协同行为断言。无Pair观察进入最终规则/UI的接线在T6完成，不声称已前端显示。
+
+T4-T6本地6e0492e/28d2511/e997681：native首轮只将完整可靠关系关闭，V1保持完整上下文仅配对目标缺口；已原生覆盖的结构文本不生成重复Pair。p0393357→3101且两项真实多对一问题不变；p0001506→1458，主要减少已覆盖候选，四项numeric partial值补为SW完整身份并保持review。初次试跑发现p000竞争冲突依赖已discard的V1 Pair，已接无Pair观察最终审计后恢复同一冲突对象，另保留原生待审核缺口（不声称为确定图纸错误）。465项定向/集成通过，tsc/request20通过。
+T7：当前SQLite原子快照加入压缩typed页事实与最终关系；不保留DXF或历史链。全相同页面无需CAD或关系重识别，项目审计仍重跑；变化页只读取变化页面，跨页关系仍保守项目重算；ID实体计数变化会使suffix重新抽取；XML/PRJ、配置、producer源码及ezdxf版本失效。xref或非production不复用（诊断nested proposal需源DXF）。测试清理后复用/单页/full结果逐项相同、XML/version、坏缓存和25批存储计数通过。Windows真实集成发现log FileHandler占用导致只剩日志目录，修正workflow finally关闭句柄与真实compacted返回，原始输入完整。
+独立探子复核发现坏typed/缺字段relation导致失败，改为转换前验证并回退；discard不能吞掉原生gap，review分类与group字段已接入；同一symbol竞争组仍合并展示，但保留每个port/contact独立witness与object_key，避免丢定位。首轮全pytest2193通过1跳过144.25s；后续修正后的全套与实际77/性能仍未完成。

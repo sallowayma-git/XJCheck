@@ -279,7 +279,7 @@ class DesktopStateStore:
 
     @staticmethod
     def _retain_session(conn, session_id):
-        for table in ("preview_geometries", "page_findings", "issue_summaries"):
+        for table in ("preview_geometries", "page_findings", "issue_summaries", "page_facts"):
             conn.execute(f"DELETE FROM {table} WHERE run_id IN (SELECT run_id FROM runs WHERE session_id != ?)", (session_id,))
         conn.execute("DELETE FROM runs WHERE session_id != ?", (session_id,))
 
@@ -300,7 +300,16 @@ class DesktopStateStore:
                 self.replace_issue_summaries(run["run_id"], project["issues"], _connection=conn)
                 self.replace_page_findings(run["run_id"], project["pages"], _connection=conn)
                 self.replace_preview_geometries(run["run_id"], project["geometries"], _connection=conn)
+                conn.execute("DELETE FROM page_facts WHERE run_id = ?", (run["run_id"],))
+                if project.get("page_facts"):
+                    conn.execute("INSERT INTO page_facts VALUES (?, ?, ?)", (run["run_id"], project["project_root"],
+                        sqlite3.Binary(zlib.compress(json.dumps(project["page_facts"], ensure_ascii=False, separators=(",", ":")).encode(), 6))))
             self._retain_session(conn, session_id)
+
+    def load_current_page_facts(self) -> dict:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT project_root, facts_blob FROM page_facts f JOIN runs r ON f.run_id=r.run_id WHERE r.status='completed'").fetchall()
+        return {r["project_root"]: json.loads(zlib.decompress(r["facts_blob"])) for r in rows}
 
     def compact_database_if_needed(self) -> dict[str, Any]:
         """Reclaim a large obsolete snapshot only during idle workspace cleanup."""
@@ -711,6 +720,7 @@ class DesktopStateStore:
                     (session_id,),
                 ).fetchall()
             ]
+            conn.execute("DELETE FROM page_facts WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM preview_geometries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM page_findings WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
             conn.execute("DELETE FROM issue_summaries WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = ?)", (session_id,))
@@ -755,6 +765,7 @@ class DesktopStateStore:
             if not run_ids:
                 return 0
             placeholders = ",".join("?" for _ in run_ids)
+            conn.execute(f"DELETE FROM page_facts WHERE run_id IN ({placeholders})", run_ids)
             conn.execute(f"DELETE FROM preview_geometries WHERE run_id IN ({placeholders})", run_ids)
             conn.execute(f"DELETE FROM page_findings WHERE run_id IN ({placeholders})", run_ids)
             conn.execute(f"DELETE FROM issue_summaries WHERE run_id IN ({placeholders})", run_ids)
@@ -784,6 +795,9 @@ class DesktopStateStore:
                     project_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload_json TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS desktop_schema (key TEXT PRIMARY KEY);
+                CREATE TABLE IF NOT EXISTS page_facts (
+                    run_id TEXT PRIMARY KEY, project_root TEXT NOT NULL, facts_blob BLOB NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS runs (
                     run_id TEXT PRIMARY KEY,
                     session_id TEXT NOT NULL,
