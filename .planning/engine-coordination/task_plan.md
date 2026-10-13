@@ -34,7 +34,8 @@
 |---|---|---|
 | T0 基线/计时 | complete | baseline.json固定Git对象和输入；performance记录阶段，后续引擎阶段继续细分 |
 | T1 单快照/清理 | complete | 原子批次/迁移/25次保留验证、失败保留、活跃锁/安全根；Python32项、Rust32项、TS/request20项通过 |
-| T2 共享计算 | in_progress | 预构建线组/索引接口已接入，220项定向通过；真实p000回放运行中 |
+| T2 共享计算 | complete | 预构建线组/索引接口已接入；220项通过，p000的1506配对核心字段和issues与round25逐条相同 |
+| T3 SW独立解析 | in_progress | 增加无legacy Pair的解析观察和冲突/缺口，保持旧调用契约 |
 | T3 SW独立解析 | pending | 无legacy Pair也有关系、缺口、冲突 |
 | T4 局部V1/调度 | pending | SW完整目标不产生V1候选，保留上下文 |
 | T5 V2适配/准入 | pending | 合格证据准入，未知不晋升 |
