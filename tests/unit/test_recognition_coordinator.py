@@ -97,13 +97,26 @@ def test_native_ownership_requires_physical_texts_not_only_same_value():
     page = SheetRecord("S1", "F1", "test.dwg", 1, "1", "test", "二次原理图",
         "primary", "filename", True)
     native = Pair("SW", "G", "S1", "F1", None, "1XD2", "2-1n323", .99, "pass", "verified",
-        left_text_id="L", right_text_id="R", evidence={"source": "superworks"})
+        left_text_id="L", right_text_id="R", evidence={"source": "superworks", "native_resolution_state": "RESOLVED"})
     context = SharedRecognitionContext.create([])
     context.accept_native([native], [])
     ids = context.pair_ids("V1")
     assert not ids.admit(page, "1XD2", "2-1n323", "L", "R")
     assert ids.admit(page, "1XD2", "2-1n323", "different-L", "different-R")
     assert ids.admit(page, "1XD2", "2-1n324", "L", "R")
+
+
+def test_dispatch_uses_parser_state_instead_of_the_final_pair_status():
+    from dwg_audit.domain.models import Pair
+    pair = Pair("P", "G", "S", "F", None, "A1", "B2", .99, "pass", "candidate",
+        evidence={"native_resolution_state": "INCOMPLETE"})
+    context = SharedRecognitionContext.create([])
+    context.accept_native([pair], [])
+    assert ("S", "G") not in context.closed_groups
+    pair.status = "review"
+    pair.evidence["native_resolution_state"] = "RESOLVED"
+    context.accept_native([pair], [])
+    assert ("S", "G") in context.closed_groups
 
 
 def test_draft_geometry_cannot_use_the_high_confidence_bypass():
@@ -128,8 +141,9 @@ def test_verified_geometry_is_a_witness_and_fixed_identity_is_not_overwritten():
             "selected_right_physical_endpoint": {"source": "reciprocal_cad_label_and_terminal_geometry"}})
     context = SharedRecognitionContext.create([])
     finalize_evidence([pair], context)
-    assert pair.left_value == "A1"
+    assert pair.left_value == "A9"
     assert pair.status == "review"
+    assert pair.evidence["engine_evidence_conflicts"][0]["candidate"] == "A1"
     assert pair.evidence["engine_evidence_conflicts"][0]["fixed_identity"] == "A9"
     assert pair.evidence["engine_contributors"] == ["v1", "v2", "superworks"]
     assert context.counts["verified_v2_geometry_bindings"] == 1

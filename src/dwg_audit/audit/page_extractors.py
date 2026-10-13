@@ -70,6 +70,7 @@ def extract_wire_pairs(
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
     target_line_group_ids: set[str] | None = None,
+    fixed_facts=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="WireDiagramExtractor",
@@ -83,6 +84,7 @@ def extract_wire_pairs(
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
         target_line_group_ids=target_line_group_ids,
+        fixed_facts=fixed_facts,
         terminal_port_bindings=terminal_port_bindings,
     )
 
@@ -98,6 +100,7 @@ def extract_component_pairs(
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
     target_line_group_ids: set[str] | None = None,
+    fixed_facts=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="ComponentDiagramExtractor",
@@ -111,6 +114,7 @@ def extract_component_pairs(
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
         target_line_group_ids=target_line_group_ids,
+        fixed_facts=fixed_facts,
     )
 
 
@@ -124,6 +128,7 @@ def extract_terminal_pairs(
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
     target_line_group_ids: set[str] | None = None,
+    fixed_facts=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="TerminalDiagramExtractor",
@@ -136,6 +141,7 @@ def extract_terminal_pairs(
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
         target_line_group_ids=target_line_group_ids,
+        fixed_facts=fixed_facts,
     )
 
 
@@ -149,6 +155,7 @@ def extract_layout_audit_pairs(
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
     target_line_group_ids: set[str] | None = None,
+    fixed_facts=None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="LayoutOnlyAuditFallback",
@@ -161,6 +168,7 @@ def extract_layout_audit_pairs(
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
         target_line_group_ids=target_line_group_ids,
+        fixed_facts=fixed_facts,
     )
 
 
@@ -178,7 +186,13 @@ def _extract_pairs_for_route(
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
     target_line_group_ids: set[str] | None = None,
+    fixed_facts=None,
 ) -> PairingExtractionResult:
+    if fixed_facts is not None:
+        if shared_context is None:
+            from dwg_audit.audit.recognition_coordinator import SharedRecognitionContext
+            shared_context = SharedRecognitionContext.create(texts, wire_break_evidence)
+        shared_context.accept_native(fixed_facts, [])
     id_stem = _extractor_id_stem(executed_extractor)
     route_sheet_ids = {page.sheet_id for page in pages}
     route_classifications = {
@@ -201,6 +215,9 @@ def _extract_pairs_for_route(
         line_groups = shared_context.groups_for_route(id_stem=id_stem, pages=pages, texts=texts,
             lines=lines, config=config, classifications=route_classifications, wire_break_evidence=wire_break_evidence)
     checkers = shared_context.path_checkers if shared_context is not None else path_body_checkers(wire_break_evidence)
+    if fixed_facts is not None and target_line_group_ids is None:
+        target_line_group_ids = {g.line_group_id for g in line_groups
+            if (g.sheet_id, g.line_group_id) not in shared_context.closed_groups}
     target_groups = line_groups if target_line_group_ids is None else [g for g in line_groups if g.line_group_id in target_line_group_ids]
     if target_groups:
         terminal_candidates = build_terminal_candidates(
