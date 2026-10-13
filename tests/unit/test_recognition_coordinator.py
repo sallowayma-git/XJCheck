@@ -56,6 +56,51 @@ def test_component_reconciliation_scopes_repeated_handles_to_the_source_file():
     assert second.evidence["supporting_line_ids"] == ["L2"]
 
 
+def test_virtual_pin_ownership_preserves_native_identity_and_distinct_targets():
+    from dataclasses import replace
+    from dwg_audit.domain.models import Pair
+    from test_component_diagrams import _make_text, _make_sheet
+
+    page = _make_sheet()
+    pin = replace(_make_text("PIN", "1", 0, 0), handle="ABC:VIRTUAL:7")
+    external = _make_text("DEST", "JD8", 10, 0)
+    other_pin = replace(pin, text_id="PIN2", normalized_text="2", handle="ABC:VIRTUAL:8")
+    native = Pair("N", None, page.sheet_id, page.file_id, None, "KZKK-1", "JD8", .99, "pass", "verified",
+        pair_kind="component_mapping", left_text_id="NATIVE_BODY", right_text_id="DEST",
+        evidence={"native_resolution_state": "RESOLVED", "component_submode": "superworks_connect_line_port",
+        "superworks": {"part_id": "SW:ABC", "symbol_handle": "ABC", "instance_path": "/ABC", "port_number": "1"}})
+    context = SharedRecognitionContext.create([pin, other_pin, external])
+    context.accept_native([native], [])
+    ids = context.pair_ids("V1")
+    assert not ids.admit(page, "WRONG_NAME-1", "JD8", "PIN", "DEST", kind="component_mapping", port_number="1")
+    assert not ids.admit(page, "8", "1", "DEST", "PIN", kind="ordinary_pair")
+    assert ids.admit(page, "WRONG_NAME-2", "JD8", "PIN2", "DEST", kind="component_mapping", port_number="2")
+    row = replace(pin, text_id="ROW", handle="SEPARATE_LABEL")
+    context.text_facts[(page.file_id, page.sheet_id, row.text_id)] = row
+    assert ids.admit(page, "circuit", "JD8", "ROW", "DEST", kind="component_mapping")
+    page2 = replace(page, file_id="F2", sheet_id="S2")
+    for text in (pin, external):
+        context.text_facts[("F2", "S2", text.text_id)] = replace(text, file_id="F2", sheet_id="S2")
+    assert ids.admit(page2, "WRONG_NAME-1", "JD8", "PIN", "DEST", kind="component_mapping", port_number="1")
+
+
+def test_unverified_or_nested_native_pin_does_not_claim_a_bare_insert_handle():
+    from dataclasses import replace
+    from dwg_audit.domain.models import Pair
+    from test_component_diagrams import _make_text, _make_sheet
+
+    page = _make_sheet()
+    pin = replace(_make_text("PIN", "1", 0, 0), handle="ABC:VIRTUAL:7")
+    external = _make_text("DEST", "JD8", 10, 0)
+    for state, path in (("AMBIGUOUS", "/ABC"), ("RESOLVED", "/PARENT/ABC")):
+        native = Pair("N", None, page.sheet_id, page.file_id, None, "KZKK-1", "JD8", .99, "pass", "candidate",
+            evidence={"native_resolution_state": state,
+            "superworks": {"part_id": "SW:ABC", "symbol_handle": "ABC", "instance_path": path, "port_number": "1"}})
+        context = SharedRecognitionContext.create([pin, external])
+        context.accept_native([native], [])
+        assert context.pair_ids("V1").admit(page, "OTHER-1", "JD8", "PIN", "DEST", kind="component_mapping")
+
+
 def test_partial_native_wire_retains_gap_and_reliable_side_without_pair():
     doc = ezdxf.new()
     symbol(doc, "端子", "1XD2")

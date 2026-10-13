@@ -235,7 +235,7 @@ def _extract_pairs_for_route(
             pages,
             config,
             pair_candidate_id_factory=IdFactory(f"PC{id_stem}"),
-            pair_id_factory=IdFactory(f"P{id_stem}"),
+            pair_id_factory=shared_context.pair_ids(f"P{id_stem}") if shared_context is not None else IdFactory(f"P{id_stem}"),
         )
     else:
         terminal_candidates, pair_candidates, pairs = [], [], []

@@ -61,6 +61,11 @@ def build_pairs(
         left, right = _scope_wire_logic_endpoint_candidates(left, right)
         left, right = _scope_schematic_semantic_endpoint_candidates(left, right)
         group_pair_candidates: list[PairCandidate] = []
+        admit = getattr(pair_ids, "admit", None)
+        if group_sheet and left and right and callable(admit) and not admit(
+            group_sheet, left[0].value, right[0].value, left[0].text_id, right[0].text_id, kind="ordinary_pair"
+        ):
+            continue
 
         if not left or not right:
             left_item = left[0] if left else None
