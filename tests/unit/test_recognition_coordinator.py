@@ -29,6 +29,28 @@ def test_complete_native_wire_resolves_without_a_legacy_pair():
     assert data.resolution_observations[0]["state"] == "RESOLVED"
 
 
+def test_native_and_supplement_phases_reuse_the_same_port_spatial_index(monkeypatch):
+    doc = ezdxf.new()
+    symbol(doc, "端子", "1XD2")
+    symbol(doc, "装置端子", "2-1n", at=(20, 0), pin_value="323")
+    doc.modelspace().add_line((0, 0), (20, 0))
+    data = extract(doc)
+    context = SharedRecognitionContext.create(text_items(doc))
+    page = SheetRecord("S1", "F1", "test.dwg", 1, "1", "test", "二次原理图",
+        "primary", "filename", True, audit_disposition="audit")
+    groups = [LineGroup("GW1", "S1", "F1", 0, 0, 20, 0, 20, 1)]
+    native, _, _ = extract_superworks_pairs(data, pages=[page], texts=text_items(doc), lines=[],
+        line_groups=groups, pairs=[], table_mappings=[], native_only=True, shared_context=context)
+    context.accept_native(native, data.resolution_observations)
+    monkeypatch.setattr("dwg_audit.audit.superworks_extractor.PortIndex",
+        lambda *_a: (_ for _ in ()).throw(AssertionError("Same port geometry indexed twice")))
+    final, _, _ = extract_superworks_pairs(data, pages=[page], texts=text_items(doc), lines=[],
+        line_groups=groups, pairs=native, table_mappings=[], shared_context=context)
+    assert [(p.left_value, p.right_value, p.status) for p in final] == [("1XD2", "2-1n323", "pass")]
+    assert context.counts["sw_port_indexes_built"] == 1
+    assert context.counts["sw_port_index_reuses"] == 1
+
+
 def test_component_reconciliation_scopes_repeated_handles_to_the_source_file():
     from dataclasses import replace
     from dwg_audit.domain.models import Pair, LineEntity, SwConnectLabel, SwPartInstance
@@ -68,13 +90,19 @@ def test_virtual_pin_ownership_preserves_native_identity_and_distinct_targets():
     native = Pair("N", None, page.sheet_id, page.file_id, None, "KZKK-1", "JD8", .99, "pass", "verified",
         pair_kind="component_mapping", left_text_id="NATIVE_BODY", right_text_id="DEST",
         evidence={"native_resolution_state": "RESOLVED", "component_submode": "superworks_connect_line_port",
-        "superworks": {"part_id": "SW:ABC", "symbol_handle": "ABC", "instance_path": "/ABC", "port_number": "1"}})
+        "superworks": {"part_id": "SW:ABC", "symbol_handle": "ABC", "instance_path": "/ABC", "port_number": "1",
+        "connect_line_geometry_unique": True, "connect_line_id": "REAL_WIRE"}})
     context = SharedRecognitionContext.create([pin, other_pin, external])
     context.accept_native([native], [])
     ids = context.pair_ids("V1")
     assert not ids.admit(page, "WRONG_NAME-1", "JD8", "PIN", "DEST", kind="component_mapping", port_number="1")
     assert not ids.admit(page, "8", "1", "DEST", "PIN", kind="ordinary_pair")
     assert ids.admit(page, "WRONG_NAME-2", "JD8", "PIN2", "DEST", kind="component_mapping", port_number="2")
+    border = LineGroup("BORDER", page.sheet_id, page.file_id, 0, 0, 0, 20, 20, .35,
+        member_line_ids=["VIRTUAL_OUTLINE"], layer_hints=["BORDER"])
+    assert not ids.admit(page, "2", "8", "PIN2", "DEST", kind="ordinary_pair", line_group=border)
+    wire = replace(border, member_line_ids=["OTHER_WIRE"], layer_hints=["CONNECT"])
+    assert ids.admit(page, "2", "8", "PIN2", "DEST", kind="ordinary_pair", line_group=wire)
     row = replace(pin, text_id="ROW", handle="SEPARATE_LABEL")
     context.text_facts[(page.file_id, page.sheet_id, row.text_id)] = row
     assert ids.admit(page, "circuit", "JD8", "ROW", "DEST", kind="component_mapping")
@@ -82,6 +110,42 @@ def test_virtual_pin_ownership_preserves_native_identity_and_distinct_targets():
     for text in (pin, external):
         context.text_facts[("F2", "S2", text.text_id)] = replace(text, file_id="F2", sheet_id="S2")
     assert ids.admit(page2, "WRONG_NAME-1", "JD8", "PIN", "DEST", kind="component_mapping", port_number="1")
+
+
+def test_plugin_slot_and_row_identify_the_native_physical_port_despite_alias_names():
+    from dataclasses import replace
+    from dwg_audit.domain.models import Pair
+    from test_component_diagrams import _make_text, _make_sheet
+
+    page = _make_sheet()
+    pin = replace(_make_text("ROW", "01", 0, 0), handle="ABC:VIRTUAL:7")
+    external = _make_text("DEST", "JD8", 10, 0)
+    native = Pair("N", None, page.sheet_id, page.file_id, None, "device-pulse1+", "JD8", .99, "pass", "verified",
+        left_text_id="BODY", right_text_id="DEST",
+        evidence={"native_resolution_state": "RESOLVED", "superworks": {
+            "part_id": "SW:ABC", "symbol_handle": "ABC", "instance_path": "/ABC", "port_number": "701"}})
+    context = SharedRecognitionContext.create([pin, external])
+    context.accept_native([native], [])
+    assert not context.pair_ids("V1").admit(page, "device701", "JD8", "ROW", "DEST",
+        kind="component_mapping", port_number="701")
+    assert context.pair_ids("V1").admit(page, "device801", "JD8", "ROW", "DEST",
+        kind="component_mapping", port_number="801")
+
+
+def test_xjdz_outline_between_two_external_labels_cannot_create_a_native_pin_relation():
+    from dwg_audit.audit.page_extractors import _promote_xjdz_structural_component_pairs
+    from dwg_audit.domain.models import Pair, LineEntity
+    from test_component_diagrams import _make_text
+
+    pair = Pair("P", "G", "S1", "F1", None, "11", "8", .7, "review", "candidate",
+        left_text_id="LEFT", right_text_id="RIGHT", pair_kind="ordinary_pair")
+    group = LineGroup("G", "S1", "F1", 0, 0, 0, 20, 20, .35, member_line_ids=["OUTLINE"])
+    line = LineEntity("OUTLINE", "S1", "F1", "ABC:VIRTUAL:1", "LINE", "BORDER",
+        0, 0, 0, 20, 20, 90, 0, 0, 0, 20, source_block_name="XJDZ9-02-2B4-001")
+    _promote_xjdz_structural_component_pairs([pair], [group],
+        [_make_text("LEFT", "3-21CD11", 0, 20), _make_text("RIGHT", "3-21CD8", 0, 0)], [line])
+    assert pair.status == "review" and pair.pair_kind == "ordinary_pair"
+    assert (pair.left_value, pair.right_value) == ("11", "8")
 
 
 def test_unverified_or_nested_native_pin_does_not_claim_a_bare_insert_handle():

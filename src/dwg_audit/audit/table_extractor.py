@@ -293,7 +293,8 @@ def extract_component_panel_port_table_pairs(
             continue
         for mapping in mappings:
             if hasattr(pair_ids, "admit") and not pair_ids.admit(sheet, mapping["logical_endpoint"], mapping["right_value"],
-                    mapping["middle_text_id"], mapping["right_text_id"], kind="component_mapping"):
+                    mapping["middle_text_id"], mapping["right_text_id"], kind="component_mapping",
+                    port_number=f"{mapping['plugin_slot']}{mapping['row_number']:02d}"):
                 continue
             pairs.append(_build_component_panel_port_pair(mapping, sheet, pair_ids))
         consumed_group_ids.update(consumed)

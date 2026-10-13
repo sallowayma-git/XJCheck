@@ -63,7 +63,7 @@ def build_pairs(
         group_pair_candidates: list[PairCandidate] = []
         admit = getattr(pair_ids, "admit", None)
         if group_sheet and left and right and callable(admit) and not admit(
-            group_sheet, left[0].value, right[0].value, left[0].text_id, right[0].text_id, kind="ordinary_pair"
+            group_sheet, left[0].value, right[0].value, left[0].text_id, right[0].text_id, kind="ordinary_pair", line_group=group
         ):
             continue
 

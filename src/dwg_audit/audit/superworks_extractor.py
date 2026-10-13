@@ -1505,7 +1505,18 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     for pair in pairs:
         pairs_by_group[(pair.sheet_id,pair.line_group_id)].append(pair)
     text_map={t.text_id:t for t in texts}
-    indices={sid:PortIndex(ports) for sid,ports in ports_by_sheet.items()}
+    indices = {}
+    for sid, ports in ports_by_sheet.items():
+        signature = tuple((id(p), p.start_x, p.start_y, p.end_x, p.end_y, p.tolerance) for p in ports)
+        cached = shared_context.port_indexes.get(sid) if shared_context is not None else None
+        if cached is not None and cached[0] == signature:
+            indices[sid] = cached[1]
+            shared_context.counts["sw_port_index_reuses"] += 1
+        else:
+            indices[sid] = PortIndex(ports)
+            if shared_context is not None:
+                shared_context.port_indexes[sid] = (signature, indices[sid])
+                shared_context.counts["sw_port_indexes_built"] += 1
     networks={}
     represented={line_id for group in line_groups for line_id in group.member_line_ids}
     legacy_groups=list(line_groups)

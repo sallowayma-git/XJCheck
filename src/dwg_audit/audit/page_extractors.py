@@ -3062,7 +3062,7 @@ def _promote_xjdz_structural_component_pairs(
         right_value = _xjdz_structural_endpoint_value(right_text, definition_name)
         if left_value is None or right_value is None:
             continue
-        if left_value[1] == "native_pin" and right_value[1] == "native_pin":
+        if {left_value[1], right_value[1]} != {"native_pin", "external_endpoint"}:
             continue
 
         pair.left_value = left_value[0]

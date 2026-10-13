@@ -31,6 +31,7 @@ class SharedRecognitionContext:
     supplemental_for: dict = field(default_factory=dict)
     text_facts: dict = field(default_factory=dict)
     native_instance_claims: dict = field(default_factory=dict)
+    port_indexes: dict = field(default_factory=dict)
 
     @classmethod
     def create(cls, texts, wire_break_evidence=None):
@@ -96,7 +97,7 @@ class ScopedPairIds(IdFactory):
         super().__init__(stem)
         self.context = context
 
-    def admit(self, page, left_value, right_value, left_text_id, right_text_id, *, kind=None, body_text_id=None, port_number=None):
+    def admit(self, page, left_value, right_value, left_text_id, right_text_id, *, kind=None, body_text_id=None, port_number=None, line_group=None):
         from types import SimpleNamespace
         from dwg_audit.audit.superworks_extractor import _pair_endpoints_equivalent
         claims = self.context.native_text_claims
@@ -115,7 +116,12 @@ class ScopedPairIds(IdFactory):
                     number = str(port_number or pin.normalized_text).strip()
                     fixed_number = str((fixed.evidence.get("superworks") or {}).get("port_number") or "")
                     same_pin = number.isdigit() and fixed_number.isdigit() and int(number) == int(fixed_number)
-                    if _pair_endpoints_equivalent(claim, fixed) or (same_pin and _ends_equivalent(external.normalized_text, fixed.right_value)):
+                    sw = fixed.evidence.get("superworks") or {}
+                    border_candidate = (line_group is not None and
+                        {str(layer).upper() for layer in line_group.layer_hints} == {"BORDER"} and
+                        sw.get("connect_line_geometry_unique") and sw.get("connect_line_id") and
+                        sw["connect_line_id"] not in line_group.member_line_ids)
+                    if _pair_endpoints_equivalent(claim, fixed) or ((same_pin or border_candidate) and _ends_equivalent(external.normalized_text, fixed.right_value)):
                         self.context.counts["v1_structured_claims_skipped"] += 1
                         return False
         def covered(fixed):
