@@ -72,6 +72,7 @@ def analyze_session(
     )
     prepared_projects = []
     stored_runs: list[dict[str, Any]] = []
+    current_page_facts = {}
     try:
         with session_lease(resolved_workspace, run_session_id):
             result = run_analysis_workflow(
@@ -86,11 +87,14 @@ def analyze_session(
                 session_id=run_session_id,
                 project_dir=str(project_dir),
             ),
+            cached_page_facts=state_store.load_current_page_facts(),
+            current_page_facts=current_page_facts,
             )
             for project_dir in result.project_dirs:
                 summary = _store_project_run(
                     state_store, session_id=run_session_id, project_dir=project_dir,
                     input_root=resolved_input, include_audit=include_audit, _prepared=prepared_projects,
+                    page_facts=current_page_facts,
                 )
                 stored_runs.append(summary)
             state_store.commit_session_snapshot(run_session_id, prepared_projects)
@@ -114,15 +118,16 @@ def analyze_session(
         )
         writer.emit("workspace_compacted", **compact_info)
         for summary in stored_runs:
-            summary["artifact_dir"] = ""
-            summary["compacted"] = True
+            if compact_info.get("removed_workspace"):
+                summary["artifact_dir"] = ""
+            summary["compacted"] = bool(compact_info.get("removed_workspace"))
 
     writer.emit(
         "run_finished",
         session_id=run_session_id,
         project_count=len(stored_runs),
         projects=stored_runs,
-        compacted=bool(compact_info),
+        compacted=bool(compact_info and compact_info.get("removed_workspace")),
     )
     return stored_runs
 
@@ -341,6 +346,7 @@ def _store_project_run(
     input_root: Path,
     include_audit: bool,
     _prepared: list[dict[str, Any]] | None = None,
+    page_facts: dict | None = None,
 ) -> dict[str, Any]:
     manifest = json.loads((project_dir / "manifest.json").read_text(encoding="utf-8"))
     findings_payload = json.loads((project_dir / "findings" / "findings.json").read_text(encoding="utf-8"))
@@ -389,6 +395,8 @@ def _store_project_run(
     )
     prepared = {"run": run_payload, "issues": issue_payload, "pages": page_findings,
                 "geometries": build_preview_geometry_payloads(frames)}
+    project_root = str(Path(manifest.get("input_root", input_root)).resolve())
+    prepared.update(project_root=project_root, page_facts=(page_facts or {}).get(project_root, {}))
     if _prepared is None:
         store.commit_session_snapshot(session_id, [prepared])
     else:
