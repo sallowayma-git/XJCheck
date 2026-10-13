@@ -157,7 +157,19 @@ def test_no_pair_native_conflict_is_audited_and_noise_is_not_a_gap():
     issues = build_resolution_issues(data.resolution_observations, [], [])
     assert issues and issues[0].rule_id == "R-SUPERWORKS-CONFLICT"
     assert issues[0].pair_id is None and issues[0].evidence["line_start"] == [0, 0]
+    assert issues[0].evidence["handling_class"] == "review"
+    assert issues[0].evidence["review_group_size"] == 1
     assert build_resolution_issues(data.resolution_observations, [], [], issues) == []
     data = SuperworksData()
     resolve(ezdxf.new(), data)
     assert build_resolution_issues(data.resolution_observations, [], []) == []
+
+
+def test_discarded_fallback_does_not_hide_a_native_gap():
+    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    from dwg_audit.domain.models import Pair
+    observation = {"record_id": "gap", "object_key": "F:handle:port:left", "file_id": "F", "sheet_id": "S", "line_group_id": "G", "state": "INCOMPLETE", "left": {"wire_touched": True, "port_ids": ["port"]}}
+    rejected = Pair("P", "G", "S", "F", None, None, None, .1, "discard", "no evidence")
+    assert len(build_resolution_issues([observation], [rejected], [])) == 1
+    rejected.evidence["discard_reason"] = "device_internal"
+    assert build_resolution_issues([observation], [rejected], []) == []
