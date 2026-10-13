@@ -48,7 +48,7 @@
 
 1. `src/dwg_audit/audit/rules.py:1971` 的 `_high_confidence_pairs` 同时读 `status`、`confidence_bucket` 和 table_mapping。只改为 review 可能仍被某些高置信规则读取，不能保证想要的降级语义。
 2. `rules.py:865` 的 `_run_pair_low_confidence` 对 component_mapping 的处理会受 pass 改 review 影响，人工核验队列可能增加。
-3. `src/dwg_audit/audit/pipeline.py:282` 的 SW 抽取仍消费旧链 line_groups。替换配对判定层不能推导出旧几何提取层可以删除。
+3. `src/dwg_audit/pipeline.py:282` 的 SW 抽取仍消费旧链 line_groups。替换配对判定层不能推导出旧几何提取层可以删除。
 4. V2 既有的端子几何绑定和面板 IGNORE 路径仍需保留。本轮未重新复现 V2 提议，也不把 round23 的 V2 数字冒充 round25 新统计。
 
 ## 后续切片
