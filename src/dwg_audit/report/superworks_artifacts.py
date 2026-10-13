@@ -14,10 +14,17 @@ from dwg_audit.audit.superworks_device_internal import build_device_internal_lin
 from dwg_audit.domain.models import SwSymbolInstance, SwPort, SwStripRow, SwPartInstance, SwConnectLabel, SwConnectDot
 
 
-def write_superworks_artifacts(artifacts, findings_dir):
+def write_superworks_artifacts(artifacts, findings_dir, *, compact=False):
     data=artifacts.superworks
     if data is None:
         return
+    resolution_records = {r["record_id"]: r for r in data.resolution_observations}
+    observation_columns = ["record_id", "object_key", "file_id", "sheet_id", "line_group_id", "state", "reason_codes", "source_handles", "left", "right", "coords", "connect_label_id"]
+    observation_rows = [{key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value
+        for key, value in row.items()} for row in resolution_records.values()]
+    pq.write_table(pa.Table.from_pandas(pd.DataFrame(observation_rows, columns=observation_columns),
+        schema=pa.schema([(name, pa.string()) for name in observation_columns]), preserve_index=False),
+        findings_dir / "sw_resolution_observations.parquet")
     specs=(("sw_symbols","symbols",SwSymbolInstance),("sw_ports","ports",SwPort),
            ("sw_strip_rows","strip_rows",SwStripRow),("sw_part_instances","part_instances",SwPartInstance),
            ("sw_connect_labels","connect_labels",SwConnectLabel),("sw_connect_dots","connect_dots",SwConnectDot))
@@ -36,6 +43,10 @@ def write_superworks_artifacts(artifacts, findings_dir):
         pq.write_table(pa.Table.from_pandas(pd.DataFrame(rows,columns=columns),schema=schema,preserve_index=False),findings_dir/f"{filename}.parquet")
     ledger=[]
     for row in artifacts.superworks_supersession:
+        if compact:
+            keep = {"pair_id", "file_id", "sheet_id", "line_group_id", "left_value", "right_value", "status", "pair_kind"}
+            row = {**row, "old_pair": {k: v for k, v in (row.get("old_pair") or {}).items() if k in keep} or None,
+                "new_pairs": [{k: v for k, v in p.items() if k in keep} for p in row.get("new_pairs", [])]}
         ledger.append({k:json.dumps(v,ensure_ascii=False) if isinstance(v,(list,dict)) else v for k,v in row.items()})
     ledger_columns=["element_key","category","reason","old_pair","new_pairs"]
     pq.write_table(pa.Table.from_pandas(pd.DataFrame(ledger,columns=ledger_columns),schema=pa.schema([(name,pa.string()) for name in ledger_columns]),preserve_index=False),findings_dir/"superworks_supersession.parquet")
@@ -284,6 +295,14 @@ def write_superworks_artifacts(artifacts, findings_dir):
             "split_at_port":sum(1 for item in diagnostics if item.get("split_at_port")),
             "note":"same-identity wire groups are diagnostics only and produce no production pair"},
         "supersession_categories":dict(Counter(r["category"] for r in artifacts.superworks_supersession))}
+    summary["resolution_states"] = dict(Counter(r["state"] for r in resolution_records.values()))
+    if compact:
+        summary["port_coverage"]["unconsumed_count"] = len(summary["port_coverage"].pop("unconsumed"))
+        summary["port_coverage"]["details_artifact"] = "sw_port_coverage.parquet"
+        agreement_rows = [{k: json.dumps(v, ensure_ascii=False) if isinstance(v, (list, dict)) else v for k, v in r.items()} for r in comparisons]
+        pd.DataFrame(agreement_rows, columns=["pair_id", "sheet_id", "terminal", "target", "status", "strip_side", "strip_branch", "row_scope", "strip_destinations", "target_categories"]).to_parquet(findings_dir / "sw_strip_agreement.parquet", index=False)
+        summary["strip_agreement"].pop("comparisons")
+        summary["strip_agreement"]["details_artifact"] = "sw_strip_agreement.parquet"
     (findings_dir/"superworks_summary.json").write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding="utf-8")
 
 

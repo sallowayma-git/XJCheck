@@ -104,6 +104,7 @@ _FINDINGS_FRAME_NAMES = (
     "extraction_warnings",
     "sw_symbols", "sw_ports", "sw_strip_rows", "sw_part_instances",
     "sw_connect_labels", "sw_connect_dots", "superworks_supersession", "sw_port_coverage",
+    "sw_resolution_observations", "sw_strip_agreement",
 )
 _PRODUCTION_CORE_FINDINGS_NAMES = frozenset(
     {
@@ -123,6 +124,7 @@ _PRODUCTION_CORE_FINDINGS_NAMES = frozenset(
         "sw_symbols.parquet", "sw_ports.parquet", "sw_strip_rows.parquet",
         "sw_part_instances.parquet", "sw_connect_labels.parquet", "sw_connect_dots.parquet",
         "superworks_supersession.parquet", "sw_port_coverage.parquet", "superworks_summary.json",
+        "sw_resolution_observations.parquet", "sw_strip_agreement.parquet",
     }
 )
 _ISSUE_STRUCTURED_COLUMNS = ("evidence", "related_pair_ids", "sheet_ids", "values", "evidence_refs")
@@ -494,7 +496,7 @@ def _write_production_core_artifacts(
     coverage_frame.to_parquet(findings_dir / "entity_coverage_summary.parquet", index=False)
     core_frame_names.extend(["text_assignments", "entity_coverage_summary"])
     from dwg_audit.report.superworks_artifacts import write_superworks_artifacts
-    write_superworks_artifacts(artifacts, findings_dir)
+    write_superworks_artifacts(artifacts, findings_dir, compact=True)
     findings_payload = _build_findings_payload(
         artifacts,
         config=config,
@@ -3048,6 +3050,7 @@ def _build_findings_payload(
             "line_groups.parquet",
             "terminal_candidates.parquet",
             "pairs.parquet",
+            "sw_resolution_observations.parquet", "sw_strip_agreement.parquet",
             "text_assignments.parquet",
             "entity_coverage_summary.parquet",
         ]

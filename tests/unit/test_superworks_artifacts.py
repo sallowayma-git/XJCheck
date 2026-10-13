@@ -21,6 +21,20 @@ def test_empty_sw_tables_have_declared_columns(tmp_path):
     assert json.loads((tmp_path/'superworks_summary.json').read_text())['port_coverage']['ratio'] is None
 
 
+def test_compact_summary_keeps_locatable_facts_without_duplicate_lists(tmp_path):
+    from dwg_audit.extract.superworks_semantics import SuperworksData
+    from types import SimpleNamespace
+    data = SuperworksData(resolution_observations=[{"record_id": "gap", "object_key": "F:handle:port", "file_id": "F", "sheet_id": "S", "state": "INCOMPLETE", "coords": [0, 0, 10, 0], "reason_codes": ["missing"]}])
+    artifacts = SimpleNamespace(superworks=data, superworks_supersession=[],
+        scan=SimpleNamespace(manifest=SimpleNamespace(project_id="P"), pages=[]), pairs=[])
+    write_superworks_artifacts(artifacts, tmp_path, compact=True)
+    summary = json.loads((tmp_path / "superworks_summary.json").read_text(encoding="utf-8"))
+    assert "unconsumed" not in summary["port_coverage"]
+    assert "comparisons" not in summary["strip_agreement"]
+    assert summary["resolution_states"] == {"INCOMPLETE": 1}
+    assert json.loads(pd.read_parquet(tmp_path / "sw_resolution_observations.parquet").iloc[0].coords) == [0, 0, 10, 0]
+
+
 def test_unknown_identity_cannot_be_consumed_by_matching_empty_values(tmp_path):
     from types import SimpleNamespace
     from dwg_audit.domain.models import SwPort

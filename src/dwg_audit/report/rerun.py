@@ -57,6 +57,7 @@ _CORE_FRAME_NAMES = (
     "line_groups",
     "terminal_candidates",
     "pairs",
+    "sw_resolution_observations",
 )
 
 _DIAGNOSTIC_AUDIT_NAMES = (
@@ -168,6 +169,16 @@ def rerun_audit_from_findings(
     ]
 
     issues = build_issues(pairs, line_groups, pages, config, terminal_candidates=terminal_candidates)
+    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    observations = frames.get("sw_resolution_observations", pd.DataFrame()).to_dict("records")
+    for item in observations:
+        for name, value in item.items():
+            if isinstance(value, float) and pd.isna(value):
+                item[name] = None
+        for name in ("left", "right", "reason_codes", "source_handles", "coords"):
+            value = item.get(name)
+            item[name] = json.loads(value) if isinstance(value, str) and value else None
+    issues.extend(build_resolution_issues(observations, pairs, pages, issues))
     issues.extend(build_incomplete_extraction_issues(project_dir, issues, pages))
     if event_sink is not None:
         event_sink.emit(

@@ -144,3 +144,20 @@ def test_confirmed_native_conflict_survives_high_scoring_fallback():
     assert pair.evidence["recognition_state"] == "CONFIRMED_CONFLICT"
     assert pair.status == "review"
 
+
+def test_no_pair_native_conflict_is_audited_and_noise_is_not_a_gap():
+    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    doc = ezdxf.new()
+    insert, _ = symbol(doc, "端子", "1XD2")
+    xdata(insert, "LD_SYMB2_LABEL", [(1005, "FFFF")])
+    symbol(doc, "装置端子", "2-1n", at=(20, 0), pin_value="323")
+    doc.modelspace().add_line((0, 0), (20, 0))
+    data = extract(doc)
+    resolve(doc, data)
+    issues = build_resolution_issues(data.resolution_observations, [], [])
+    assert issues and issues[0].rule_id == "R-SUPERWORKS-CONFLICT"
+    assert issues[0].pair_id is None and issues[0].evidence["line_start"] == [0, 0]
+    assert build_resolution_issues(data.resolution_observations, [], [], issues) == []
+    data = SuperworksData()
+    resolve(ezdxf.new(), data)
+    assert build_resolution_issues(data.resolution_observations, [], []) == []
