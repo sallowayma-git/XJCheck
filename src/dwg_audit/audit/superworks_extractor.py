@@ -1801,12 +1801,13 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         mappings.append({"sheet_id":sid,"source":"superworks","mappings":rows})
 
     group_by_id={group.line_group_id:group for group in line_groups}
-    existing_native_parts = {p.evidence.get("superworks", {}).get("connection_handle") for p in pairs
+    existing_native_parts = {(p.file_id, p.sheet_id, p.evidence.get("superworks", {}).get("connection_handle")) for p in pairs
         if _is_sw_component_row(p)} if shared_context is not None and not native_only else set()
+    line_id_by_handle = {(line.file_id, line.sheet_id, line.handle): line.line_id for line in lines}
     for label in data.connect_labels:
         if label.sheet_id not in audit_ids:
             continue
-        if label.text.get("handle") in existing_native_parts:
+        if (label.file_id, label.sheet_id, label.text.get("handle")) in existing_native_parts:
             continue
         old=[p for p in pairs if p.sheet_id==label.sheet_id and p.pair_kind=="component_mapping"
              and label.text.get("text_id") in (p.left_text_id,p.right_text_id)]
@@ -1834,8 +1835,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         part_ports=[port for port in part.ports if str(port.get("port_number"))==str(label.port_number)
                     and port.get("endpoint_identity")==label.endpoint_identity]
         port=part_ports[0] if len(part_ports)==1 else {}
-        line_id_by_handle={line.handle:line.line_id for line in lines}
-        support_line_id=line_id_by_handle.get(label.line_handle)
+        support_line_id=line_id_by_handle.get((label.file_id, label.sheet_id, label.line_handle))
         producer_groups=[g for g in groups_by_member.get(support_line_id,[]) if support_line_id] if support_line_id else []
         line_group_id=producer_groups[0].line_group_id if len(producer_groups)==1 else (old[0].line_group_id if old else None)
         disputed=_legacy_pairs_on_label_anchor_with_other_port(old,label,group_by_id)

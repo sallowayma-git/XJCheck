@@ -29,6 +29,33 @@ def test_complete_native_wire_resolves_without_a_legacy_pair():
     assert data.resolution_observations[0]["state"] == "RESOLVED"
 
 
+def test_component_reconciliation_scopes_repeated_handles_to_the_source_file():
+    from dataclasses import replace
+    from dwg_audit.domain.models import Pair, LineEntity, SwConnectLabel, SwPartInstance
+
+    pages = [SheetRecord("S1", "F1", "one.dwg", 1, "1", "one", "元件接线图",
+        "primary", "filename", True, audit_disposition="audit")]
+    pages.append(replace(pages[0], sheet_id="S2", file_id="F2", filename="two.dwg"))
+    parts = [SwPartInstance(f"PART{n}", f"S{n}", f"F{n}", insert_handle="BODY",
+        label={"text_id": f"TB{n}"}, ports=[{"port_number": "1", "endpoint_identity": f"DK{n}-1",
+        "pin": {"independent_verification": True}}]) for n in (1, 2)]
+    labels = [SwConnectLabel(f"C{n}", f"S{n}", f"F{n}",
+        text={"handle": "SAME", "text_id": f"TD{n}", "value": f"ZD{n}"},
+        line_handle="WIRE", part_id=f"PART{n}", port_number="1", endpoint_identity=f"DK{n}-1") for n in (1, 2)]
+    lines = [LineEntity(f"L{n}", f"S{n}", f"F{n}", "WIRE", "LINE", "CONNECT",
+        0, 0, 1, 0, 1, 0, 0, 0, 1, 0) for n in (1, 2)]
+    native = Pair("NATIVE", None, "S1", "F1", None, "DK1-1", "ZD1", .99, "pass", "verified",
+        pair_kind="component_mapping", evidence={"component_submode": "superworks_connect_line_port",
+        "superworks": {"connection_handle": "SAME"}})
+    output, _, _ = extract_superworks_pairs(SuperworksData(part_instances=parts, connect_labels=labels),
+        pages=pages, texts=[], lines=lines, line_groups=[], pairs=[native], table_mappings=[],
+        shared_context=SharedRecognitionContext.create([]))
+    assert len(output) == 2
+    second = next(p for p in output if p.file_id == "F2")
+    assert (second.left_value, second.right_value) == ("DK2-1", "ZD2")
+    assert second.evidence["supporting_line_ids"] == ["L2"]
+
+
 def test_partial_native_wire_retains_gap_and_reliable_side_without_pair():
     doc = ezdxf.new()
     symbol(doc, "端子", "1XD2")
