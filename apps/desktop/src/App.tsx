@@ -1840,6 +1840,12 @@ function App() {
 
         {screen === "result" && (
           <section className="result-layout">
+            {summaryProject?.metadata?.clean_conclusion_allowed === false && (
+              <div className="panel" role="status">
+                <strong>分析未完成</strong>
+                <p>部分图纸未成功读取，当前结果不能作为无问题结论。请检查失败页面后重新分析。</p>
+              </div>
+            )}
             <article className="panel result-toolbar">
               <div className="result-toolbar-metrics">
                 <div className="metric-card">

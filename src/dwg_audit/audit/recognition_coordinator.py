@@ -156,3 +156,54 @@ def finalize_evidence(pairs, context):
         context.counts[f"final:{state}"] += 1
     return pairs
 
+
+def build_resolution_issues(observations, pairs, pages, existing=()):
+    """Retain native errors and actionable uncovered gaps without inventing a Pair."""
+    import hashlib
+    from dwg_audit.domain.models import Issue
+    from dwg_audit.audit.superworks_extractor import _true_conflicts, _competing_object_id
+    page_map = {p.sheet_id: p for p in pages}
+    covered = {(p.file_id, p.sheet_id, p.line_group_id) for p in pairs}
+    seen = {(i.file_id, i.sheet_id, (i.evidence or {}).get("conflict_object_id"), reason)
+            for i in existing for reason in (i.evidence or {}).get("reason_codes", [])}
+    result = []
+    for item in observations:
+        state = item.get("state")
+        if state not in {"CONFIRMED_CONFLICT", "INCOMPLETE", "AMBIGUOUS"}:
+            continue
+        endpoints = [item.get(side) or {} for side in ("left", "right")]
+        if state != "CONFIRMED_CONFLICT":
+            if (item.get("file_id"), item.get("sheet_id"), item.get("line_group_id")) in covered:
+                continue
+            if not item.get("connect_label_id") and not any(e.get("wire_touched") and e.get("port_ids") for e in endpoints):
+                continue
+            if not item.get("line_group_id") and not item.get("connect_label_id"):
+                continue
+        reasons = _true_conflicts(item.get("reason_codes", [])) if state == "CONFIRMED_CONFLICT" else ["native_relation_incomplete"]
+        port_ids = sorted({pid for e in endpoints for pid in e.get("port_ids", [])})
+        symbols = sorted({str(e["symbol_id"]) for e in endpoints if e.get("symbol_id")})
+        for reason in reasons:
+            object_id = (_competing_object_id(item) if reason.startswith("competing_physical_port") else None) or ",".join(port_ids) or ",".join(symbols) or item.get("connect_label_id") or item.get("line_group_id") or item["record_id"]
+            key = (item.get("file_id"), item.get("sheet_id"), object_id, reason)
+            if key in seen:
+                continue
+            seen.add(key)
+            page = page_map.get(item.get("sheet_id"))
+            coords = item.get("coords") or []
+            evidence = {**item, "source": "superworks", "reason_codes": [reason],
+                "resolution_reason_codes": item.get("reason_codes", []), "conflict_object_id": object_id,
+                "handling_class": "review_required", "recognition_state": state}
+            if len(coords) == 4:
+                evidence.update(line_start=coords[:2], line_end=coords[2:])
+            conflict = state == "CONFIRMED_CONFLICT"
+            message = f"SuperWORKS metadata conflict {reason} on {object_id}." if conflict else "原生关系缺少可核验的端点或连接证据，需要审核。"
+            result.append(Issue("ISW" + hashlib.sha256(repr(key).encode()).hexdigest()[:20],
+                "R-SUPERWORKS-CONFLICT" if conflict else "R-RECOGNITION-GAP", "review", "open", 0.0,
+                message, item.get("sheet_id"), item.get("file_id"), None, item.get("line_group_id"),
+                endpoints[0].get("value"), endpoints[1].get("value"),
+                filename=page.filename if page else None, sheet_no=page.sheet_no if page else None,
+                sheet_order=page.sheet_order if page else None, evidence=evidence,
+                title="SuperWORKS 元数据关联冲突" if conflict else "识别待审核",
+                explanation="保留原始句柄和物理位置；补证没有消除这项冲突或缺口。",
+                recommended_action="在图纸对应位置检查元数据、端点及连接。"))
+    return result
