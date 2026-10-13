@@ -51,6 +51,7 @@ RULE_HANDLING_DEFAULT: dict[str, str] = {
 }
 
 RULE_FAMILY_LABELS: dict[str, str] = {
+    "R-RECOGNITION-GAP": "识别待审核",
     "R-CROSS-PAGE-CONFLICT": "跨页端子冲突",
     "R-TABLE-MAPPING-SOURCE-CONFLICT": "表格与图内映射不一致",
     "R-SEMANTIC-MAPPING-CONFLICT": "端子语义映射冲突",
@@ -249,6 +250,7 @@ def _review_group_key(issue: Issue, handling: str) -> str:
         "R-PAIR-LOW-CONFIDENCE",
         "R-PAIR-MISSING-SIDE",
         "R-DUPLICATE-SAME-LINE",
+        "R-RECOGNITION-GAP",
     }:
         # Flooding rules: group per sheet + family so one page is one work item.
         return f"{handling}|{rule_id}|sheet:{sheet}"

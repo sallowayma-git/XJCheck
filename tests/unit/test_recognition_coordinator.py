@@ -187,3 +187,13 @@ def test_discarded_fallback_does_not_hide_a_native_gap():
     assert len(build_resolution_issues([observation], [rejected], [])) == 1
     rejected.evidence["discard_reason"] = "device_internal"
     assert build_resolution_issues([observation], [rejected], []) == []
+
+
+def test_native_gaps_group_per_sheet_without_dropping_physical_witnesses():
+    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    base = {"file_id": "F", "sheet_id": "S", "state": "INCOMPLETE",
+        "left": {"wire_touched": True, "port_ids": ["port"]}}
+    issues = build_resolution_issues([{**base, "record_id": str(n), "object_key": f"F:handle{n}:left", "line_group_id": f"G{n}"} for n in range(2)], [], [])
+    assert len(issues) == 2 and len({i.evidence["object_key"] for i in issues}) == 2
+    assert len({i.evidence["review_group_id"] for i in issues}) == 1
+    assert all(i.evidence["review_group_size"] == 2 for i in issues)
