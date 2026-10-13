@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import time
 from pathlib import Path
 
 from dwg_audit.audit.line_groups import wire_break_evidence_by_sheet
@@ -87,10 +89,13 @@ def analyze_input_root(
     written: list[Path] = []
     summary: list[dict[str, object]] = []
     for project_root in project_roots:
+        project_started = time.perf_counter()
+        stage_seconds = {}
         logger.info("Analyzing project root: %s", project_root)
         if event_sink is not None:
             event_sink.emit("project_started", project_root=str(project_root))
         scan = scan_project(project_root, config=config)
+        stage_seconds["scan"] = time.perf_counter() - project_started
         if event_sink is not None:
             event_sink.emit(
                 "progress",
@@ -99,6 +104,7 @@ def analyze_input_root(
                 file_count=scan.manifest.file_count,
                 sheet_count=scan.manifest.sheet_count,
             )
+        stage_started = time.perf_counter()
         reader_runs = convert_source_files(
             scan.manifest.source_files,
             output_path,
@@ -106,12 +112,16 @@ def analyze_input_root(
             logger,
             event_sink=event_sink,
         ) or []
+        stage_seconds["convert"] = time.perf_counter() - stage_started
+        stage_started = time.perf_counter()
         extraction_result = extract_cad_artifacts(
             scan,
             scan.manifest.source_files,
             config,
             logger,
         )
+        stage_seconds["cad_extract"] = time.perf_counter() - stage_started
+        stage_started = time.perf_counter()
         texts, lines, blocks, polylines, pages, extraction_warnings = extraction_result
         primitive_segments = getattr(extraction_result, "primitive_segments", [])
         extraction_censuses = getattr(extraction_result, "extraction_censuses", [])
@@ -138,6 +148,8 @@ def analyze_input_root(
         # 基于 extract 后的真实几何特征判定页型，覆盖 scan 阶段的粗推断。
         classifications = classify_pages(pages, texts, lines, polylines, blocks, config)
         enrich_pages_from_classifications(pages, classifications)
+        stage_seconds["classify"] = time.perf_counter() - stage_started
+        stage_started = time.perf_counter()
 
         # Page Router Layer（任务书第 5 层）：
         # 把不同图种分发给不同识别器，而不是所有图都走同一条 PairBuilder。
@@ -270,6 +282,7 @@ def analyze_input_root(
                 }
             )
         pairs.extend(table_pairs)
+        stage_seconds["v1"] = time.perf_counter() - stage_started
 
         if superworks is not None and wire_break_evidence:
             # WIRE-BREAK: unknown-shape rows and counts collected while the line groups were built.
@@ -285,12 +298,15 @@ def analyze_input_root(
 
         from dwg_audit.audit.superworks_extractor import extract_superworks_pairs
         block_rows = _block_line_rows(primitive_segments)
+        stage_started = time.perf_counter()
         pairs, table_mappings, superworks_supersession = extract_superworks_pairs(
             superworks, pages=audit_pages, texts=audit_texts, lines=audit_lines,
             line_groups=line_groups, pairs=pairs, table_mappings=table_mappings,
             wire_route_sheet_numbers={page.file_id: page.sheet_no or "" for page in pages},
             block_rows=block_rows,
         )
+        stage_seconds["superworks"] = time.perf_counter() - stage_started
+        stage_started = time.perf_counter()
 
         # Some accessory/backplate pages are primarily routed as Table or Wire
         # even though they contain repeated component instances.  Recover only
@@ -370,6 +386,7 @@ def analyze_input_root(
             pairs,
             authoritative_component_pairs,
         )
+        stage_seconds["merge"] = time.perf_counter() - stage_started
 
         if event_sink is not None:
             event_sink.emit(
@@ -428,6 +445,7 @@ def analyze_input_root(
         # 把 PageClassification 和 table_mappings 透传给 artifacts 写入层
         artifacts_page_classifications = classifications
         artifacts_table_mappings = table_mappings
+        stage_started = time.perf_counter()
         project_dir = write_project_artifacts(
             artifacts,
             output_path,
@@ -437,6 +455,19 @@ def analyze_input_root(
             extraction_gate=extraction_gate,
         )
         _write_sw_wire_routes(project_dir, superworks, logger)
+        stage_seconds["write"] = time.perf_counter() - stage_started
+        stage_seconds["analysis_total"] = time.perf_counter() - project_started
+        performance = {
+            "schema_version": 1,
+            "stage_seconds": stage_seconds,
+            "inputs": [{"file_id": s.file_id, "sha256": s.sha256} for s in scan.manifest.source_files],
+            "config_sha256": hashlib.sha256(json.dumps(config, sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
+            "counts": {"pages": len(pages), "lines": len(lines), "pairs": len(pairs),
+                       "line_groups": len(line_groups), "terminal_candidates": len(terminal_candidates)},
+            "sw_timing": {"extraction_seconds": getattr(superworks, "extraction_seconds", 0.0),
+                          "recognition_seconds": getattr(superworks, "recognition_seconds", 0.0)},
+        }
+        (project_dir / "performance.json").write_text(json.dumps(performance, ensure_ascii=False, indent=2), encoding="utf-8")
         written.append(project_dir)
         if event_sink is not None:
             event_sink.emit(

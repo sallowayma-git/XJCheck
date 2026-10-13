@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
+import time
 from typing import Any
 from typing import Callable
 
@@ -59,7 +61,16 @@ def run_analysis_workflow(
         if on_project_artifacts_ready is not None:
             on_project_artifacts_ready(project_dir)
         if include_audit:
+            audit_started = time.perf_counter()
             audit_dirs.append(rerun_audit_from_findings(project_dir, config, event_sink=event_sink))
+            performance_path = project_dir / "performance.json"
+            if performance_path.exists():
+                performance = json.loads(performance_path.read_text(encoding="utf-8"))
+                performance["stage_seconds"]["audit"] = time.perf_counter() - audit_started
+                performance["stage_seconds"]["workflow_total"] = (
+                    performance["stage_seconds"]["analysis_total"] + performance["stage_seconds"]["audit"]
+                )
+                performance_path.write_text(json.dumps(performance, ensure_ascii=False, indent=2), encoding="utf-8")
 
     run_summary_path = resolved_output / "run_summary.json"
     return AnalysisRunResult(
