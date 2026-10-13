@@ -279,6 +279,14 @@ export type RunFinishedEvent = {
   projects: RecentProject[]
 }
 
+export type IncompleteExtractionEvent = {
+  event: "incomplete_extraction"
+  project_root: string
+  analysis_status: string
+  incomplete_page_count: number
+  failure_code_counts: Record<string, number>
+}
+
 export type SidecarEvent =
   | RunStartedEvent
   | ProjectStartedEvent
@@ -291,3 +299,4 @@ export type SidecarEvent =
   | AuditFinishedEvent
   | ProjectStoredEvent
   | RunFinishedEvent
+  | IncompleteExtractionEvent
