@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import math
 import re
+from time import perf_counter
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from pathlib import Path
 
@@ -53,6 +55,7 @@ class CadExtractionResult:
     superworks: object = None
     page_facts: dict = field(default_factory=dict)
     reused_page_count: int = 0
+    stage_seconds: dict = field(default_factory=dict)
 
     def __iter__(self):
         # Preserve the public six-value unpacking contract for legacy callers.
@@ -795,6 +798,7 @@ def extract_cad_artifacts(
 
     numeric_pattern = re.compile(config.get("text", {}).get("numeric_pattern", r"^[0-9]+$"))
     page_facts = {}
+    stage_seconds = defaultdict(float)
     reused_page_count = 0
     factories = [text_ids, line_ids, block_ids, polyline_ids, warning_ids]
     collections = [all_texts, all_lines, all_blocks, all_polylines, extraction_warnings, primitive_segments,
@@ -841,7 +845,9 @@ def extract_cad_artifacts(
             continue
 
         try:
+            read_started = perf_counter()
             cad_document = dxf_reader.read(Path(source.dxf_path), reader_options)
+            stage_seconds["cad_read"] += perf_counter() - read_started
             doc = cad_document.native_document
             if doc is None:
                 raise ReaderError(
@@ -880,6 +886,7 @@ def extract_cad_artifacts(
             sheet.warnings.append(f"Failed to read DXF: {exc}")
             continue
 
+        stage_started = perf_counter()
         try:
             census_payload = build_extraction_census(
                 doc,
@@ -911,6 +918,8 @@ def extract_cad_artifacts(
                 **census_payload,
             }
         )
+        stage_seconds["census"] += perf_counter() - stage_started
+        stage_started = perf_counter()
         try:
             canonical_scene_payload = walk_document(
                 doc,
@@ -949,10 +958,12 @@ def extract_cad_artifacts(
                 **canonical_scene_payload,
             }
         )
+        stage_seconds["canonical_scene"] += perf_counter() - stage_started
 
         msp = doc.modelspace()
         sheet.layout_name = "Model"
         sheet.drawing_units = getattr(doc, "units", None) or "unknown"
+        stage_started = perf_counter()
         primitive_segments.extend(
             normalize_document_primitives(
                 doc,
@@ -970,6 +981,7 @@ def extract_cad_artifacts(
                 file_id=source.file_id,
             )
         )
+        stage_seconds["shared_geometry_and_ports"] += perf_counter() - stage_started
         if wire_routes_enabled:
             # Wire-route records (LD_SYMB2LOGGEN / LD_PARTCONNECTLINE) are read from this open
             # document; the DXF is not opened a second time. Diagnostic: a failure never stops extraction.
@@ -1006,6 +1018,7 @@ def extract_cad_artifacts(
                 expand_virtual_insert=expand_virtual_insert,
             )
 
+        stage_started = perf_counter()
         label_port_proposals = []
         definition_handles: dict[str, list[str]] = {}
         for item in sheet_blocks:
@@ -1039,10 +1052,15 @@ def extract_cad_artifacts(
                 }
             )
 
+        stage_seconds["v2_proposals"] += perf_counter() - stage_started
+        stage_started = perf_counter()
         bind_labelled_terminal_ports(doc, sheet_texts, label_port_proposals)
         bind_vendor_device_pin_labels(doc, sheet_texts)
+        stage_seconds["v2_geometry_binding"] += perf_counter() - stage_started
+        stage_started = perf_counter()
         sw_sheet = extract_superworks_semantics(doc, sheet_id=sheet.sheet_id, file_id=source.file_id)
         bind_text_ids(sw_sheet, sheet_texts)
+        stage_seconds["sw_semantics"] += perf_counter() - stage_started
         sw_sheet.wire_route_pages = [p for p in superworks.wire_route_pages if p.file_id == source.file_id]
         sw_sheet.wire_route_failures = {k: v for k, v in superworks.wire_route_failures.items() if k == source.file_id}
         superworks.extend(sw_sheet)
@@ -1109,4 +1127,5 @@ def extract_cad_artifacts(
         superworks=superworks,
         page_facts=page_facts,
         reused_page_count=reused_page_count,
+        stage_seconds=dict(stage_seconds),
     )
