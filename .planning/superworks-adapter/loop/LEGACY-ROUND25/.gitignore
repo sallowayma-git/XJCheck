@@ -1,0 +1,4 @@
+# Regenerable row-level lists; retain summary, issue dependencies and input hashes.
+results/pure_legacy_pass.csv
+results/independent_pass.csv
+__pycache__/
