@@ -133,6 +133,8 @@ type ProcessState = {
   totalSheets: number
   completedPages: number
   failedPages: number
+  analysisIncomplete: boolean
+  failureMessage: string | null
   warningCount: number
   stageCards: RunStageCard[]
   logs: string[]
@@ -203,6 +205,8 @@ function App() {
     totalSheets: 0,
     completedPages: 0,
     failedPages: 0,
+    analysisIncomplete: false,
+    failureMessage: null,
     warningCount: 0,
     stageCards: defaultStageCards(),
     logs: [],
@@ -772,6 +776,10 @@ function App() {
           nextState.warningCount = nextState.warningCount + 1
         }
 
+        if (event.event === "incomplete_extraction") {
+          nextState.analysisIncomplete = true
+        }
+
         if (event.event === "issue_found") {
           nextState.liveIssues = [
             {
@@ -920,6 +928,8 @@ function App() {
       totalSheets: 0,
       completedPages: 0,
       failedPages: 0,
+      analysisIncomplete: false,
+      failureMessage: null,
       warningCount: 0,
       stageCards: defaultStageCards(),
       logs: [],
@@ -944,9 +954,18 @@ function App() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "校验失败，请检查项目目录后重试。"
+      if (processFlushTimerRef.current != null) {
+        window.clearTimeout(processFlushTimerRef.current)
+        processFlushTimerRef.current = null
+      }
+      if (processEventQueueRef.current.length) {
+        applyProcessEvents(processEventQueueRef.current)
+        processEventQueueRef.current = []
+      }
+      setProcessState((current) => ({ ...current, failureMessage: message }))
       setLoadError(message)
       if (isCurrentRequest(screenIntentGenerationRef.current, screenIntentGeneration)) {
-        setScreen("launch")
+        setScreen("process")
       }
     } finally {
       analysisInFlightRef.current = false
@@ -1719,13 +1738,18 @@ function App() {
                   <span>{processStatusText}</span>
                 </div>
               <div className="process-status-banner">
-                <strong>{isAnalyzing ? "校验进行中" : processState.progressRatio >= 1 ? "校验已完成" : "等待开始"}</strong>
+                <strong>{processState.analysisIncomplete ? "分析未完成" : processState.failureMessage ? "校验失败" : isAnalyzing ? "校验进行中" : processState.progressRatio >= 1 ? "校验已完成" : "等待开始"}</strong>
                 <span>{processStatusText}</span>
                 {!isAnalyzing && processState.progressRatio >= 1 ? (
                   <button type="button" className="primary-button" onClick={() => setScreen("result")}>
                     查看问题清单
                   </button>
                 ) : null}
+                {!isAnalyzing && (processState.failureMessage || processState.analysisIncomplete) && (
+                  <button type="button" className="primary-button" onClick={() => void handleAnalyzeClick()}>
+                    重新分析
+                  </button>
+                )}
               </div>
               <div className="stage-grid">
                 {processState.stageCards.map((card) => (
@@ -2782,6 +2806,12 @@ function isSeriousSeverity(value: string | null | undefined): boolean {
 }
 
 function describeProcessStatus(state: ProcessState, analyzing: boolean): string {
+  if (state.analysisIncomplete) {
+    return "部分图纸读取未完成，上一份成功快照保持可用。"
+  }
+  if (state.failureMessage) {
+    return "本次校验失败，上一份成功快照保持可用。"
+  }
   if (!analyzing && state.completedProjects.length) {
     return `校验完成：${state.completedProjects.length} 个项目，共发现 ${state.liveIssues.length} 个问题`
   }
