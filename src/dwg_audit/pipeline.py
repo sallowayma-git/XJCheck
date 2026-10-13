@@ -218,6 +218,41 @@ def analyze_input_root(
             ("TerminalDiagramExtractor", extract_terminal_pairs),
             ("LayoutOnlyExtractor", extract_layout_audit_pairs),
         )
+        stems = {"WireDiagramExtractor": "W", "ComponentDiagramExtractor": "C",
+                 "TerminalDiagramExtractor": "T", "LayoutOnlyExtractor": "L"}
+        for route_target, _ in route_extractors:
+            sheet_ids = route_sheet_ids[route_target]
+            if not sheet_ids:
+                continue
+            line_groups.extend(shared_context.groups_for_route(id_stem=stems[route_target],
+                pages=[p for p in audit_pages if p.sheet_id in sheet_ids],
+                texts=[t for t in audit_texts if t.sheet_id in sheet_ids],
+                lines=[line for line in audit_lines if line.sheet_id in sheet_ids], config=config,
+                classifications={sid: classifications[sid] for sid in sheet_ids if sid in classifications},
+                wire_break_evidence=wire_break_evidence))
+        if superworks is not None and wire_break_evidence:
+            from dwg_audit.audit.line_groups import symbol_cut_group_ids
+            superworks.topology_cut_group_ids = symbol_cut_group_ids(line_groups, wire_break_evidence)
+        from dwg_audit.audit.superworks_extractor import extract_superworks_pairs
+        block_rows = _block_line_rows(primitive_segments)
+        native_started = time.perf_counter()
+        native_pairs, native_mappings, native_ledger = extract_superworks_pairs(
+            superworks, pages=audit_pages, texts=audit_texts, lines=audit_lines,
+            line_groups=line_groups, pairs=[], table_mappings=[], block_rows=block_rows,
+            native_only=True, shared_context=shared_context)
+        # A pin inferred from the strip being audited is not independent authority.
+        # Defer these component candidates until the local V1 geometry is available.
+        deferred_ids = {p.pair_id for p in native_pairs
+            if p.evidence.get("component_submode") == "superworks_connect_line_port"
+            and not p.evidence.get("independent_pin_verification")}
+        if deferred_ids:
+            native_pairs = [p for p in native_pairs if p.pair_id not in deferred_ids]
+            native_ledger = [entry for entry in native_ledger if not any(
+                p.get("pair_id") in deferred_ids for p in entry.get("new_pairs", []))]
+            shared_context.counts["native_component_candidates_deferred"] = len(deferred_ids)
+        stage_seconds["superworks_native"] = time.perf_counter() - native_started
+        shared_context.accept_native(native_pairs, getattr(superworks, "resolution_observations", []))
+        stage_started = time.perf_counter()
         for route_target, extractor in route_extractors:
             sheet_ids = route_sheet_ids[route_target]
             if not sheet_ids:
@@ -232,6 +267,10 @@ def analyze_input_root(
             }
             extractor_kwargs = {"classifications": route_classifications, "wire_break_evidence": wire_break_evidence}
             extractor_kwargs["shared_context"] = shared_context
+            extractor_kwargs["target_line_group_ids"] = {
+                g.line_group_id for g in line_groups if g.sheet_id in sheet_ids
+                and (g.sheet_id, g.line_group_id) not in shared_context.closed_groups
+            }
             if route_target in {"WireDiagramExtractor", "ComponentDiagramExtractor"}:
                 extractor_kwargs["blocks"] = [
                     block for block in blocks if block.sheet_id in sheet_ids
@@ -250,7 +289,6 @@ def analyze_input_root(
                 **extractor_kwargs,
             )
             extractor_runs.append(extraction_result.execution_record())
-            line_groups.extend(extraction_result.line_groups)
             terminal_candidates.extend(extraction_result.terminal_candidates)
             pair_candidates.extend(extraction_result.pair_candidates)
             pairs.extend(extraction_result.pairs)
@@ -268,8 +306,9 @@ def analyze_input_root(
             table_polylines,
             table_pages,
             config,
+            pair_id_factory=shared_context.pair_ids("P"),
         )
-        table_mappings = [*supplemental_table_mappings, *routed_table_mappings]
+        table_mappings = [*native_mappings, *supplemental_table_mappings, *routed_table_mappings]
         if table_pages:
             extractor_runs.append(
                 {
@@ -285,6 +324,7 @@ def analyze_input_root(
                 }
             )
         pairs.extend(table_pairs)
+        pairs.extend(native_pairs)
         stage_seconds["v1"] = time.perf_counter() - stage_started
 
         if superworks is not None and wire_break_evidence:
@@ -307,8 +347,13 @@ def analyze_input_root(
             line_groups=line_groups, pairs=pairs, table_mappings=table_mappings,
             wire_route_sheet_numbers={page.file_id: page.sheet_no or "" for page in pages},
             block_rows=block_rows,
+            shared_context=shared_context,
         )
-        stage_seconds["superworks"] = time.perf_counter() - stage_started
+        stage_seconds["superworks_reconcile"] = time.perf_counter() - stage_started
+        stage_seconds["superworks"] = stage_seconds["superworks_native"] + stage_seconds["superworks_reconcile"]
+        if superworks is not None:
+            superworks.recognition_seconds += stage_seconds["superworks_native"]
+        superworks_supersession = [*native_ledger, *superworks_supersession]
         stage_started = time.perf_counter()
 
         # Some accessory/backplate pages are primarily routed as Table or Wire

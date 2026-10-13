@@ -71,3 +71,37 @@ def test_compatible_route_reuses_shared_index_and_geometry(monkeypatch):
     assert first.line_groups is second.line_groups
     assert context.counts["route_group_builds"] == 1
     assert context.counts["route_group_reuses"] == 1
+
+
+def test_complete_native_target_never_runs_v1_candidate_pairing(monkeypatch):
+    doc = ezdxf.new()
+    symbol(doc, "端子", "1XD2")
+    symbol(doc, "装置端子", "2-1n", at=(20, 0), pin_value="323")
+    doc.modelspace().add_line((0, 0), (20, 0))
+    data = extract(doc)
+    native, _, _ = resolve(doc, data)
+    context = SharedRecognitionContext.create(text_items(doc))
+    context.accept_native(native, data.resolution_observations)
+    page = SheetRecord("S1", "F1", "test.dwg", 1, "1", "test", "二次原理图",
+        "primary", "filename", True, audit_area_bbox=(-5, -5, 30, 30))
+    context.route_groups[("W", ("S1",))] = [LineGroup("GW1", "S1", "F1", 0, 0, 20, 0, 20, 1)]
+    monkeypatch.setattr("dwg_audit.audit.page_extractors.build_terminal_candidates",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("V1 candidates on complete SW target")))
+    result = extract_wire_pairs([page], text_items(doc), [], load_config(None),
+        shared_context=context, target_line_group_ids=set())
+    assert result.terminal_candidates == [] and result.pair_candidates == []
+
+
+def test_native_ownership_requires_physical_texts_not_only_same_value():
+    from dwg_audit.domain.models import Pair
+    page = SheetRecord("S1", "F1", "test.dwg", 1, "1", "test", "二次原理图",
+        "primary", "filename", True)
+    native = Pair("SW", "G", "S1", "F1", None, "1XD2", "2-1n323", .99, "pass", "verified",
+        left_text_id="L", right_text_id="R", evidence={"source": "superworks"})
+    context = SharedRecognitionContext.create([])
+    context.accept_native([native], [])
+    ids = context.pair_ids("V1")
+    assert not ids.admit(page, "1XD2", "2-1n323", "L", "R")
+    assert ids.admit(page, "1XD2", "2-1n323", "different-L", "different-R")
+    assert ids.admit(page, "1XD2", "2-1n324", "L", "R")
+
