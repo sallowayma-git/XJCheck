@@ -70,6 +70,9 @@ class SharedRecognitionContext:
                 endpoint = sw.get(side) or {}
                 ids.append({getattr(pair, f"{side}_text_id"), endpoint.get("text_id"),
                     endpoint.get("label_text_id"), endpoint.get("pin_text_id")} - {None, ""})
+            if sw.get("part_id"):
+                ids[0].update({pair.evidence.get("component_port_text_id"), pair.evidence.get("component_body_text_id"), sw.get("label_text_id")} - {None, ""})
+                ids[1].update({sw.get("connection_text_id"), pair.evidence.get("external_endpoint_text_id")} - {None, ""})
             for left in ids[0]:
                 for right in ids[1]:
                     self.native_text_claims.setdefault((pair.file_id, pair.sheet_id, left, right), []).append(pair)
@@ -83,7 +86,7 @@ class ScopedPairIds(IdFactory):
         super().__init__(stem)
         self.context = context
 
-    def admit(self, page, left_value, right_value, left_text_id, right_text_id, *, kind=None):
+    def admit(self, page, left_value, right_value, left_text_id, right_text_id, *, kind=None, body_text_id=None, port_number=None):
         from types import SimpleNamespace
         from dwg_audit.audit.superworks_extractor import _pair_endpoints_equivalent
         claims = self.context.native_text_claims
@@ -97,7 +100,13 @@ class ScopedPairIds(IdFactory):
             # even when V1 spells the row prefix differently. Never apply this to wires.
             if kind == "table_mapping" and fixed.evidence.get("superworks", {}).get("row_id"):
                 from dwg_audit.audit.superworks_extractor import _ends_equivalent
-                return _ends_equivalent(right_value, fixed.right_value)
+                return _ends_equivalent(left_value if right_text_id == fixed.left_text_id else right_value, fixed.right_value)
+            if kind == "component_mapping" and fixed.evidence.get("superworks", {}).get("part_id"):
+                from dwg_audit.audit.superworks_extractor import _ends_equivalent
+                return (body_text_id == fixed.evidence.get("component_body_text_id") and body_text_id is not None
+                    and left_text_id == fixed.evidence.get("component_port_text_id")
+                    and str(port_number) == str(fixed.evidence.get("component_port"))
+                    and _ends_equivalent(right_value, fixed.right_value))
             return False
         if any(covered(fixed) for fixed in candidates):
             self.context.counts["v1_structured_claims_skipped"] += 1

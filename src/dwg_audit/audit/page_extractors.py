@@ -284,7 +284,7 @@ def _extract_pairs_for_route(
                 pages,
                 texts,
                 line_groups,
-                pair_id_factory=IdFactory(f"P{id_stem}B"),
+                pair_id_factory=scoped_ids(f"P{id_stem}B"),
             )
             component_pairs.extend(endpoint_bridge_pairs)
             consumed_group_ids.update(endpoint_bridge_consumed_group_ids)
@@ -295,7 +295,7 @@ def _extract_pairs_for_route(
                 texts,
                 line_groups,
                 blocks=blocks or [],
-                pair_id_factory=IdFactory(f"P{id_stem}K"),
+                pair_id_factory=scoped_ids(f"P{id_stem}K"),
             )
             component_pairs.extend(kk_pairs)
             consumed_group_ids.update(kk_consumed_group_ids)
@@ -306,7 +306,7 @@ def _extract_pairs_for_route(
                 texts,
                 line_groups,
                 blocks=blocks or [],
-                pair_id_factory=IdFactory(f"P{id_stem}S"),
+                pair_id_factory=scoped_ids(f"P{id_stem}S"),
             )
             component_pairs.extend(small_port_pairs)
             consumed_group_ids.update(small_port_consumed_group_ids)
@@ -319,7 +319,7 @@ def _extract_pairs_for_route(
                 line_groups,
                 lines=lines,
                 consumption_evidence=terminal_strip_borders,
-                pair_id_factory=IdFactory(f"P{id_stem}N"),
+                pair_id_factory=scoped_ids(f"P{id_stem}N"),
             )
             component_pairs.extend(terminal_strip_pairs)
             consumed_group_ids.update(terminal_strip_consumed_group_ids)
@@ -329,7 +329,7 @@ def _extract_pairs_for_route(
                 lines,
                 line_groups,
                 pages,
-                pair_id_factory=IdFactory(f"P{id_stem}V"),
+                pair_id_factory=scoped_ids(f"P{id_stem}V"),
             )
         )
         component_pairs.extend(panel_table_pairs)

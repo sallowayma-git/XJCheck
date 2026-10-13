@@ -292,6 +292,9 @@ def extract_component_panel_port_table_pairs(
         if not mappings:
             continue
         for mapping in mappings:
+            if hasattr(pair_ids, "admit") and not pair_ids.admit(sheet, mapping["logical_endpoint"], mapping["right_value"],
+                    mapping["middle_text_id"], mapping["right_text_id"], kind="component_mapping"):
+                continue
             pairs.append(_build_component_panel_port_pair(mapping, sheet, pair_ids))
         consumed_group_ids.update(consumed)
         tables.append(
@@ -1411,6 +1414,9 @@ def _build_table_pairs(
         return []
 
     pair_key = f"{left_pair_value}->{right_pair_value}"
+    if hasattr(pair_ids, "admit") and not pair_ids.admit(sheet, left_pair_value, right_pair_value,
+            left_text_id, right_text_id, kind="table_mapping"):
+        return []
     evidence = {
         "source": "table_mapping",
         "pair_kind": "table_mapping",

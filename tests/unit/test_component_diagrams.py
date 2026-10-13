@@ -150,6 +150,34 @@ def test_extract_strip_two_port_component_pairs_builds_component_mapping() -> No
     assert first.evidence["external_endpoint_text_id"] == "T3859"
 
 
+def test_native_component_ownership_skips_v1_builders_and_keeps_open_port(monkeypatch):
+    from dwg_audit.audit.recognition_coordinator import SharedRecognitionContext
+    texts = [
+        _make_text("BODY", "5KLP10", 205.0, 205.3, layer="MARK"),
+        _make_text("P1", "1", 208.9, 190.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("P2", "2", 208.9, 175.0, layer="0", source_block_name="FJL-25-2A_Mirror"),
+        _make_text("E1", "5KLP9-1", 204.3, 195.4),
+        _make_text("E2", "5n112", 205.8, 169.8),
+    ]
+    native, _ = extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()])
+    for pair in native:
+        pair.evidence.update(source="superworks", native_resolution_state="RESOLVED", superworks={"part_id": "part", "label_text_id": "BODY"})
+        pair.left_text_id = "BODY"
+    context = SharedRecognitionContext.create(texts)
+    context.accept_native(native, [])
+    import dwg_audit.audit.component_diagrams as module
+    original = module._build_strip_two_port_pair
+    with monkeypatch.context() as closed:
+        closed.setattr(module, "_build_strip_two_port_pair", lambda **_k: (_ for _ in ()).throw(AssertionError("V1 rebuilt native component")))
+        pairs, consumed = extract_strip_two_port_component_pairs([_make_sheet()], texts, [_make_vertical_group()], pair_id_factory=context.pair_ids("V1"))
+    assert pairs == [] and consumed == {"GC0132"}
+    context = SharedRecognitionContext.create(texts)
+    context.accept_native(native[:1], [])
+    pairs, consumed = extract_strip_two_port_component_pairs([_make_sheet()], texts[:-1], [_make_vertical_group()], pair_id_factory=context.pair_ids("V1"))
+    assert len(pairs) == 1 and pairs[0].left_value == "5KLP10-2"
+    assert pairs[0].status == "review" and pairs[0].evidence["missing_side_reason"] == "unlabelled_port"
+
+
 def test_vlp_body_keeps_both_owned_ports_and_external_labels() -> None:
     texts = [
         _make_text("BODY", "5VLP10", 205.0, 205.3, layer="MARK"),

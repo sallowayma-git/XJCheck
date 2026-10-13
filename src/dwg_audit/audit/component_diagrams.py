@@ -93,6 +93,28 @@ _SMALL_PORT_SUPPORT_LINE_Y_TOL = 3.5
 _SMALL_PORT_SUPPORT_LINE_X_TOL = 8.0
 
 
+def _build_uncovered(builder, **kwargs):
+    """Check native physical ownership before invoking a V1 pair producer."""
+    ids = kwargs["pair_ids"]
+    admit = getattr(ids, "admit", None)
+    if callable(admit):
+        if "logical_endpoint" in kwargs:
+            endpoint = kwargs["endpoint"]
+            values = (kwargs["logical_endpoint"], kwargs["endpoint_value"], kwargs["port"].text_id,
+                endpoint.text_id if endpoint else None)
+            extra = dict(kind="component_mapping", body_text_id=kwargs["body"].text_id,
+                port_number=kwargs["port"].normalized_text)
+        elif "left_label" in kwargs:
+            values = (kwargs["left_value"], kwargs["right_value"], kwargs["left_label"].text_id, kwargs["right_label"].text_id)
+            extra = dict(kind="component_mapping")
+        else:
+            values = (kwargs["top_value"], kwargs["bottom_value"], kwargs["top_endpoint"].text_id, kwargs["bottom_endpoint"].text_id)
+            extra = dict(kind="semantic_mapping")
+        if not admit(kwargs["page"], *values, **extra):
+            return None
+    return builder(**kwargs)
+
+
 def extract_strip_two_port_component_pairs(
     pages: list[SheetRecord],
     texts: list[TextItem],
@@ -161,7 +183,7 @@ def extract_strip_two_port_component_pairs(
                 logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
                 for endpoint_value in endpoint_values:
                     built_pairs.append(
-                        _build_strip_two_port_pair(
+                        _build_uncovered(_build_strip_two_port_pair,
                             page=page,
                             body=body,
                             port=port,
@@ -180,8 +202,8 @@ def extract_strip_two_port_component_pairs(
             if len(built_pairs) < 2:
                 continue
             consumed_group_ids.add(support_group.line_group_id)
-            pairs.extend(built_pairs)
-    return pairs, consumed_group_ids
+            pairs.extend(pair for pair in built_pairs if pair is not None)
+    return [pair for pair in pairs if pair is not None], consumed_group_ids
 
 
 def extract_strip_two_port_endpoint_bridge_pairs(
@@ -222,7 +244,7 @@ def extract_strip_two_port_endpoint_bridge_pairs(
                 continue
             consumed_group_ids.add(support_group.line_group_id)
             pairs.append(
-                _build_strip_endpoint_bridge_pair(
+                _build_uncovered(_build_strip_endpoint_bridge_pair,
                     page=page,
                     port_top=port_top,
                     port_bottom=port_bottom,
@@ -235,7 +257,7 @@ def extract_strip_two_port_endpoint_bridge_pairs(
                     overlaps=[overlap for overlap in (top_overlap, bottom_overlap) if overlap is not None],
                 )
             )
-    return pairs, consumed_group_ids
+    return [pair for pair in pairs if pair is not None], consumed_group_ids
 
 
 def extract_kk_multi_port_component_pairs(
@@ -314,7 +336,7 @@ def extract_kk_multi_port_component_pairs(
                 used_endpoint_text_ids.add(endpoint.text_id)
                 consumed_group_ids.add(support_group.line_group_id)
                 pairs.append(
-                    _build_kk_multi_port_pair(
+                    _build_uncovered(_build_kk_multi_port_pair,
                         page=page,
                         block=block,
                         body=body,
@@ -326,7 +348,7 @@ def extract_kk_multi_port_component_pairs(
                         logical_endpoint=logical_endpoint,
                     )
                 )
-    return pairs, consumed_group_ids
+    return [pair for pair in pairs if pair is not None], consumed_group_ids
 
 
 def extract_small_port_box_component_pairs(
@@ -386,7 +408,7 @@ def extract_small_port_box_component_pairs(
                     consumed_group_ids.add(support_group.line_group_id)
                 logical_endpoint = f"{body.normalized_text}-{port.normalized_text}"
                 pairs.append(
-                    _build_small_port_box_pair(
+                    _build_uncovered(_build_small_port_box_pair,
                         page=page,
                         block=block,
                         body=body,
@@ -400,7 +422,7 @@ def extract_small_port_box_component_pairs(
                         instance_items=[body, port, endpoint],
                     )
                 )
-    return pairs, consumed_group_ids
+    return [pair for pair in pairs if pair is not None], consumed_group_ids
 
 
 _TERMINAL_STRIP_PIN_PATTERN = re.compile(r"^\d{1,3}$")
@@ -489,7 +511,7 @@ def extract_terminal_strip_lattice_pairs(
                 if not _is_valid_external_endpoint(right_value):
                     continue
                 pairs.append(
-                    _build_terminal_strip_pair(
+                    _build_uncovered(_build_terminal_strip_pair,
                         page=page,
                         strip=strip,
                         row_index=row_index,
@@ -500,7 +522,7 @@ def extract_terminal_strip_lattice_pairs(
                         pair_ids=pair_ids,
                     )
                 )
-    return pairs, consumed_group_ids
+    return [pair for pair in pairs if pair is not None], consumed_group_ids
 
 
 @dataclass(slots=True)
