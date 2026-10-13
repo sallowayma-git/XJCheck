@@ -35,6 +35,44 @@ def test_compact_summary_keeps_locatable_facts_without_duplicate_lists(tmp_path)
     assert json.loads(pd.read_parquet(tmp_path / "sw_resolution_observations.parquet").iloc[0].coords) == [0, 0, 10, 0]
 
 
+def test_no_pair_conflict_keeps_preview_and_original_after_cleanup(tmp_path):
+    from dwg_audit.audit.superworks_extractor import extract_superworks_pairs
+    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    from dwg_audit.desktop.state_store import DesktopStateStore
+    from dwg_audit.desktop.lifecycle import compact_session_workspace
+    from dwg_audit.desktop.preview import render_project_preview
+    from test_superworks_semantics import xdata, text_items
+    doc = ezdxf.new()
+    insert, _ = symbol(doc, "端子", "1XD2")
+    xdata(insert, "LD_SYMB2_LABEL", [(1005, "FFFF")])
+    symbol(doc, "装置端子", "2-1n", at=(20, 0), pin_value="323")
+    doc.modelspace().add_line((0, 0), (20, 0))
+    data = extract(doc)
+    pairs, _, _ = extract_superworks_pairs(data, pages=[page()], texts=text_items(doc), lines=[],
+        line_groups=[group()], pairs=[], table_mappings=[], native_only=True)
+    assert pairs == []
+    issues = build_resolution_issues(data.resolution_observations, [], [page()])
+    frames = {"pages": pd.DataFrame([asdict(page())]), "line_groups": pd.DataFrame([asdict(group())]),
+        "sw_ports": pd.DataFrame([asdict(p) for p in data.ports])}
+    original = tmp_path / "input" / "test.dwg"
+    original.parent.mkdir()
+    original.write_bytes(b"original drawing")
+    workspace = tmp_path / "sessions"
+    transient = workspace / "success" / "work.dxf"
+    transient.parent.mkdir(parents=True)
+    transient.write_bytes(b"intermediate")
+    store = DesktopStateStore(tmp_path / "state.db")
+    store.commit_session_snapshot("success", [{"run": dict(run_id="success:P", session_id="success", project_id="P",
+        project_name="native", input_root=str(original.parent), artifact_dir=str(transient.parent), status="completed",
+        sheet_count=1, pair_count=0, issue_count=len(issues)), "issues": [asdict(i) for i in issues],
+        "pages": [asdict(page())], "geometries": build_preview_geometry_payloads(frames)}])
+    assert compact_session_workspace(session_id="success", workspace_root=workspace, state_db_path=store.db_path)["removed_workspace"]
+    preview = render_project_preview(project_id="P", sheet_id="S1", issue_id=issues[0].issue_id,
+        state_db_path=store.db_path, output_dir=tmp_path / "preview")
+    assert "<svg" in preview["preview_svg"] and "superworks-ports" in preview["preview_svg"]
+    assert original.read_bytes() == b"original drawing"
+
+
 def test_unknown_identity_cannot_be_consumed_by_matching_empty_values(tmp_path):
     from types import SimpleNamespace
     from dwg_audit.domain.models import SwPort
