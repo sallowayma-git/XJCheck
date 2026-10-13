@@ -163,10 +163,13 @@ def build_resolution_issues(observations, pairs, pages, existing=()):
     from dwg_audit.domain.models import Issue
     from dwg_audit.audit.superworks_extractor import _true_conflicts, _competing_object_id
     page_map = {p.sheet_id: p for p in pages}
-    covered = {(p.file_id, p.sheet_id, p.line_group_id) for p in pairs}
+    covered = {(p.file_id, p.sheet_id, p.line_group_id) for p in pairs
+        if p.status != "discard" or (p.evidence or {}).get("discard_reason") == "device_internal"}
     seen = {(i.file_id, i.sheet_id, (i.evidence or {}).get("conflict_object_id"), reason)
             for i in existing for reason in (i.evidence or {}).get("reason_codes", [])}
     result = []
+    issue_by_key = {(i.file_id, i.sheet_id, (i.evidence or {}).get("conflict_object_id"), reason): i
+        for i in existing for reason in (i.evidence or {}).get("reason_codes", [])}
     for item in observations:
         state = item.get("state")
         if state not in {"CONFIRMED_CONFLICT", "INCOMPLETE", "AMBIGUOUS"}:
@@ -186,13 +189,22 @@ def build_resolution_issues(observations, pairs, pages, existing=()):
             object_id = (_competing_object_id(item) if reason.startswith("competing_physical_port") else None) or ",".join(port_ids) or ",".join(symbols) or item.get("connect_label_id") or item.get("line_group_id") or item["record_id"]
             key = (item.get("file_id"), item.get("sheet_id"), object_id, reason)
             if key in seen:
+                prior = issue_by_key.get(key)
+                if prior is not None:
+                    # Keep one reviewer group for the same competing instances,
+                    # but retain every physical port/contact as a separate witness.
+                    refs = prior.evidence.setdefault("resolution_observations", [])
+                    if not any(r["record_id"] == item["record_id"] for r in refs):
+                        refs.append(item)
+                        prior.evidence_refs.append({"kind": "native_resolution", "object_key": item.get("object_key"),
+                            "sheet_id": item.get("sheet_id"), "coords": item.get("coords"), "port_ids": port_ids})
                 continue
             seen.add(key)
             page = page_map.get(item.get("sheet_id"))
             coords = item.get("coords") or []
             evidence = {**item, "source": "superworks", "reason_codes": [reason],
                 "resolution_reason_codes": item.get("reason_codes", []), "conflict_object_id": object_id,
-                "handling_class": "review_required", "recognition_state": state}
+                "handling_class": "review", "recognition_state": state, "resolution_observations": [item]}
             if len(coords) == 4:
                 evidence.update(line_start=coords[:2], line_end=coords[2:])
             conflict = state == "CONFIRMED_CONFLICT"
@@ -204,6 +216,9 @@ def build_resolution_issues(observations, pairs, pages, existing=()):
                 filename=page.filename if page else None, sheet_no=page.sheet_no if page else None,
                 sheet_order=page.sheet_order if page else None, evidence=evidence,
                 title="SuperWORKS 元数据关联冲突" if conflict else "识别待审核",
+                issue_type="superworks_conflict" if conflict else "recognition_gap",
                 explanation="保留原始句柄和物理位置；补证没有消除这项冲突或缺口。",
                 recommended_action="在图纸对应位置检查元数据、端点及连接。"))
-    return result
+            issue_by_key[key] = result[-1]
+    from dwg_audit.audit.issue_triage import classify_and_group_issues
+    return classify_and_group_issues(result)
