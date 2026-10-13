@@ -212,6 +212,7 @@ def extract_component_prefixed_signal_pairs(
                 inline_body_families=inline_body_families,
             )
         )
+    pairs = [p for p in pairs if p is not None]
     guard_pairs_against_symbol_bodies(pairs, path_body_checkers(wire_break_evidence))
     return pairs
 
@@ -651,6 +652,8 @@ def _build_spmu_signal_panel_row_pair(
     support_lines: list[LineEntity],
     pair_ids: IdFactory,
 ) -> Pair:
+    if hasattr(pair_ids, "admit") and not pair_ids.admit(page, external_endpoint.normalized_text, logical_endpoint, external_endpoint.text_id, local.text_id):
+        return None
     component_bbox = list(enclosure["bbox"])
     evidence = {
         "source": "wire_component_mapping",
@@ -728,6 +731,8 @@ def _build_component_pair(
     logical_endpoint: str,
     pair_ids: IdFactory,
 ) -> Pair:
+    if hasattr(pair_ids, "admit") and not pair_ids.admit(page, logical_endpoint, endpoint.normalized_text, local.text_id, endpoint.text_id):
+        return None
     component_bbox = [
         prefix.insert_x - _PREFIX_X_TOL,
         max(prefix.insert_y - _PREFIX_Y_SPAN, 0.0),
@@ -802,6 +807,8 @@ def _build_scoped_visible_prefix_external_endpoint_pair(
     logical_endpoint: str,
     pair_ids: IdFactory,
 ) -> Pair:
+    if hasattr(pair_ids, "admit") and not pair_ids.admit(page, external_endpoint.normalized_text, logical_endpoint, external_endpoint.text_id, local.text_id):
+        return None
     component_bbox = _component_bbox_from_items([prefix, external_endpoint, local])
     evidence = {
         "source": "wire_component_mapping",
@@ -875,6 +882,8 @@ def _build_input_matrix_wire_pair(
     logical_endpoint: str,
     pair_ids: IdFactory,
 ) -> Pair:
+    if hasattr(pair_ids, "admit") and not pair_ids.admit(page, row_endpoint.normalized_text, logical_endpoint, row_endpoint.text_id, local.text_id):
+        return None
     component_bbox = _component_bbox_from_items([prefix, row_endpoint, local])
     evidence = {
         "source": "wire_component_mapping",
@@ -947,6 +956,8 @@ def _build_first_prefixed_external_endpoint_pair(
     logical_endpoint: str,
     pair_ids: IdFactory,
 ) -> Pair:
+    if hasattr(pair_ids, "admit") and not pair_ids.admit(page, external_endpoint.normalized_text, logical_endpoint, external_endpoint.text_id, local.text_id):
+        return None
     component_bbox = _component_bbox_from_items([external_endpoint, local])
     evidence = {
         "source": "wire_component_mapping",
@@ -1022,6 +1033,8 @@ def _build_inline_component_pair(
     pair_ids: IdFactory,
     inline_body_families: frozenset[str] = _INLINE_COMPONENT_BODY_FAMILIES,
 ) -> Pair:
+    if hasattr(pair_ids, "admit") and not pair_ids.admit(page, logical_endpoint, endpoint_value, port.text_id, endpoint.text_id):
+        return None
     component_submode = _inline_component_submode(
         body.normalized_text,
         inline_body_families=inline_body_families,

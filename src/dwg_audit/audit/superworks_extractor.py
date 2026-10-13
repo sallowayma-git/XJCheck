@@ -1486,7 +1486,7 @@ def _discard_walked_half_pairs(output, data, lines, line_groups, texts=(), block
 
 
 def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_groups, pairs, table_mappings,
-                            wire_route_sheet_numbers=None, block_rows=None, native_only=False):
+                            wire_route_sheet_numbers=None, block_rows=None, native_only=False, shared_context=None):
     if data is None:
         return pairs,table_mappings,[]
     started=time.perf_counter()
@@ -1511,6 +1511,8 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         for member in group.member_line_ids:
             groups_by_member[member].append(group)
     supplemental_for=defaultdict(list)
+    if shared_context is not None and not native_only:
+        supplemental_for.update(shared_context.supplemental_for)
     strip_rows_by_endpoint = _strip_scope_index(data)
     xml_ranks = {_key(item.get("name", "")): item.get("rank")
                  for item in data.dictionary.get("strip_order", []) if item.get("name")}
@@ -1547,6 +1549,8 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         line_groups.append(supplemental)
         for producer in producers:
             supplemental_for[(producer.sheet_id,producer.line_group_id)].append(supplemental.line_group_id)
+    if native_only and shared_context is not None:
+        shared_context.supplemental_for = dict(supplemental_for)
 
     def replace_claims(old,new,key):
         nonlocal output
@@ -1565,12 +1569,19 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
 
     split_groups=[]
     for group in line_groups:
+        group_key = (group.sheet_id, group.line_group_id)
+        if shared_context is not None and not native_only and group_key in shared_context.closed_groups:
+            continue
         index=indices.get(group.sheet_id)
         if index is None:
             observe(group, "INCOMPLETE", reasons=["no_sw_ports"])
             continue
         endpoints=[]
-        for x,y in ((group.start_x,group.start_y),(group.end_x,group.end_y)):
+        cached = shared_context.endpoint_cache.get(group_key) if shared_context is not None else None
+        for side_index, (x,y) in enumerate(((group.start_x,group.start_y),(group.end_x,group.end_y))):
+            if cached is not None:
+                endpoints.append(cached[side_index])
+                continue
             direct=index.find(x,y)
             if direct:
                 endpoints.append(_endpoint(direct))
@@ -1581,6 +1592,8 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                         [d for d in data.connect_dots if d.sheet_id==group.sheet_id],members)
                 reachable=networks[group.sheet_id].reachable(x,y,index,set(group.member_line_ids))
                 endpoints.append(_endpoint([p for p,_ in reachable],sorted({l for _,path in reachable for l in path})))
+        if shared_context is not None:
+            shared_context.endpoint_cache[group_key] = endpoints
         left,right=endpoints
         old=pairs_by_group.get((group.sheet_id,group.line_group_id),[])
         origin = "metadata_wire_reference" if group.line_group_id.startswith("GWSW") else "legacy_line_group"
@@ -1601,11 +1614,11 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         conflicts=_true_conflicts(reasons)
         self_reason=_self_connection_reason(left,right)
         if self_reason:
-            observe(group, "EXCLUDED", left, right, [SELF_CONNECTION_REASONS[self_reason]])
             # F1: both ends resolve to one logical identity.  No production pair
             # is emitted and no cross-page / duplicate / cardinality rule sees
             # it; the group is recorded in the SW diagnostics instead.
             spans=_spans_one_symbol(left,right)
+            observe(group, "EXCLUDED" if spans else "AMBIGUOUS", left, right, [SELF_CONNECTION_REASONS[self_reason]])
             data.conflict_observations.append({
                 "kind":"self_connection","reason_code":SELF_CONNECTION_REASONS[self_reason],
                 "detail":_self_connection_detail(left,right),
@@ -1681,8 +1694,25 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     sw_mappings=defaultdict(list)
     replaced_row_keys=set()
     membership=StripMembership(data)
+    existing_native_rows = {p.evidence.get("superworks", {}).get("row_id") for p in pairs
+        if (p.evidence or {}).get("source") == "superworks"} if shared_context is not None and not native_only else set()
     for row in data.strip_rows:
         if row.sheet_id not in audit_ids:
+            continue
+        if row.record_id in existing_native_rows:
+            native = [p for p in output if p.evidence.get("superworks", {}).get("row_id") == row.record_id]
+            old = [p for p in pairs if (p.evidence or {}).get("source") != "superworks"
+                and p.sheet_id == row.sheet_id and p.pair_kind == "table_mapping"
+                and (p.evidence.get("table_mapping") or {}).get("middle_text_id") == row.row.get("text_id")
+                and (p.evidence.get("table_mapping") or {}).get("header_text_id") == row.header.get("text_id")]
+            if old:
+                remove_ids = {id(p) for p in old}
+                output = [p for p in output if id(p) not in remove_ids]
+                for before in old:
+                    ledger.append({"element_key": f"strip:{row.record_id}", "category": "B",
+                        "reason": "native_row_supersedes_fallback", "old_pair": asdict(before),
+                        "new_pairs": [asdict(p) for p in native]})
+            replaced_row_keys.add((row.sheet_id, row.header.get("text_id"), row.row.get("text_id")))
             continue
         row_id=row.row.get("text_id")
         header_id=row.header.get("text_id")
@@ -1760,13 +1790,19 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
             replaced_row_keys.add(key)
     mappings=copy.deepcopy(table_mappings)
     for item in mappings:
+        if shared_context is not None and item.get("source") == "superworks":
+            continue
         item["mappings"]=[m for m in item.get("mappings",[]) if (item.get("sheet_id") or m.get("sheet_id"),m.get("header_text_id"),m.get("middle_text_id")) not in replaced_row_keys]
     for sid,rows in sw_mappings.items():
         mappings.append({"sheet_id":sid,"source":"superworks","mappings":rows})
 
     group_by_id={group.line_group_id:group for group in line_groups}
+    existing_native_parts = {p.evidence.get("superworks", {}).get("connection_handle") for p in pairs
+        if _is_sw_component_row(p)} if shared_context is not None and not native_only else set()
     for label in data.connect_labels:
         if label.sheet_id not in audit_ids:
+            continue
+        if label.text.get("handle") in existing_native_parts:
             continue
         old=[p for p in pairs if p.sheet_id==label.sheet_id and p.pair_kind=="component_mapping"
              and label.text.get("text_id") in (p.left_text_id,p.right_text_id)]

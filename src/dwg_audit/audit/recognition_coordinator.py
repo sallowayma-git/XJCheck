@@ -21,6 +21,11 @@ class SharedRecognitionContext:
     route_groups: dict = field(default_factory=dict)
     seconds: dict = field(default_factory=lambda: defaultdict(float))
     counts: dict = field(default_factory=lambda: defaultdict(int))
+    native_pairs: list = field(default_factory=list)
+    closed_groups: set = field(default_factory=set)
+    endpoint_cache: dict = field(default_factory=dict)
+    native_text_claims: dict = field(default_factory=dict)
+    supplemental_for: dict = field(default_factory=dict)
 
     @classmethod
     def create(cls, texts, wire_break_evidence=None):
@@ -46,3 +51,53 @@ class SharedRecognitionContext:
         else:
             self.counts["route_group_reuses"] += 1
         return self.route_groups[key]
+
+    def accept_native(self, pairs, observations):
+        self.native_pairs = pairs
+        self.closed_groups = {(p.sheet_id, p.line_group_id) for p in pairs
+            if p.line_group_id and (p.status == "pass" or p.evidence.get("sw_conflicts"))}
+        self.closed_groups.update((r["sheet_id"], r["line_group_id"]) for r in observations
+            if r.get("state") in {"EXCLUDED", "CONFIRMED_CONFLICT"} and r.get("line_group_id"))
+        for pair in pairs:
+            if pair.status != "pass" or not pair.left_value or not pair.right_value:
+                continue
+            sw = pair.evidence.get("superworks") or {}
+            ids = []
+            for side in ("left", "right"):
+                endpoint = sw.get(side) or {}
+                ids.append({getattr(pair, f"{side}_text_id"), endpoint.get("text_id"),
+                    endpoint.get("label_text_id"), endpoint.get("pin_text_id")} - {None, ""})
+            for left in ids[0]:
+                for right in ids[1]:
+                    self.native_text_claims.setdefault((pair.file_id, pair.sheet_id, left, right), []).append(pair)
+
+    def pair_ids(self, stem):
+        return ScopedPairIds(stem, self)
+
+
+class ScopedPairIds(IdFactory):
+    def __init__(self, stem, context):
+        super().__init__(stem)
+        self.context = context
+
+    def admit(self, page, left_value, right_value, left_text_id, right_text_id, *, kind=None):
+        from types import SimpleNamespace
+        from dwg_audit.audit.superworks_extractor import _pair_endpoints_equivalent
+        claims = self.context.native_text_claims
+        candidates = list(claims.get((page.file_id, page.sheet_id, left_text_id, right_text_id), []))
+        candidates += claims.get((page.file_id, page.sheet_id, right_text_id, left_text_id), [])
+        claim = SimpleNamespace(left_value=left_value, right_value=right_value)
+        def covered(fixed):
+            if _pair_endpoints_equivalent(claim, fixed):
+                return True
+            # A reciprocal SW strip row owns its actual row and destination text,
+            # even when V1 spells the row prefix differently. Never apply this to wires.
+            if kind == "table_mapping" and fixed.evidence.get("superworks", {}).get("row_id"):
+                from dwg_audit.audit.superworks_extractor import _ends_equivalent
+                return _ends_equivalent(right_value, fixed.right_value)
+            return False
+        if any(covered(fixed) for fixed in candidates):
+            self.context.counts["v1_structured_claims_skipped"] += 1
+            return False
+        return True
+

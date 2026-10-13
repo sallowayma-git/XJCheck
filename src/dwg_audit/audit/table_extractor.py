@@ -127,6 +127,7 @@ def extract_table_pairs(
     polylines: list[PolylineRecord],
     sheets: list[SheetRecord],
     config: dict | None = None,
+    *, pair_id_factory: IdFactory | None = None,
 ) -> tuple[list[Pair], list[dict[str, Any]]]:
     """对表格型页抽取三列映射 Pair。
 
@@ -144,7 +145,7 @@ def extract_table_pairs(
     verified_profiles_by_sheet: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for profile in build_table_structure_profiles(sheets, lines, config=config):
         verified_profiles_by_sheet[str(profile["sheet_id"])].append(profile)
-    pair_ids = IdFactory("P")
+    pair_ids = pair_id_factory or IdFactory("P")
 
     table_pairs: list[Pair] = []
     table_mappings: list[dict[str, Any]] = []
@@ -1476,6 +1477,9 @@ def _build_header_semantic_pairs(
             continue
         endpoint_text_id = mapping.get("left_text_id") if side_key == "left_value" else mapping.get("right_text_id")
         endpoint_coord = mapping.get("left_coord") if side_key == "left_value" else mapping.get("right_coord")
+        if hasattr(pair_ids, "admit") and not pair_ids.admit(sheet, logical_endpoint, endpoint_value,
+                mapping.get("middle_text_id"), endpoint_text_id, kind="table_mapping"):
+            continue
         evidence = {
             "source": "table_mapping",
             "pair_kind": "table_mapping",

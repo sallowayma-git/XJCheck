@@ -69,6 +69,7 @@ def extract_wire_pairs(
     terminal_port_bindings: list[TerminalPortBinding] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
+    target_line_group_ids: set[str] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="WireDiagramExtractor",
@@ -81,6 +82,7 @@ def extract_wire_pairs(
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
+        target_line_group_ids=target_line_group_ids,
         terminal_port_bindings=terminal_port_bindings,
     )
 
@@ -95,6 +97,7 @@ def extract_component_pairs(
     classifications: dict[str, PageClassification] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
+    target_line_group_ids: set[str] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="ComponentDiagramExtractor",
@@ -107,6 +110,7 @@ def extract_component_pairs(
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
+        target_line_group_ids=target_line_group_ids,
     )
 
 
@@ -119,6 +123,7 @@ def extract_terminal_pairs(
     classifications: dict[str, PageClassification] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
+    target_line_group_ids: set[str] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="TerminalDiagramExtractor",
@@ -130,6 +135,7 @@ def extract_terminal_pairs(
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
+        target_line_group_ids=target_line_group_ids,
     )
 
 
@@ -142,6 +148,7 @@ def extract_layout_audit_pairs(
     classifications: dict[str, PageClassification] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
+    target_line_group_ids: set[str] | None = None,
 ) -> PairingExtractionResult:
     return _extract_pairs_for_route(
         executed_extractor="LayoutOnlyAuditFallback",
@@ -153,6 +160,7 @@ def extract_layout_audit_pairs(
         classifications=classifications,
         wire_break_evidence=wire_break_evidence,
         shared_context=shared_context,
+        target_line_group_ids=target_line_group_ids,
     )
 
 
@@ -169,6 +177,7 @@ def _extract_pairs_for_route(
     terminal_port_bindings: list[TerminalPortBinding] | None = None,
     wire_break_evidence: dict[str, WireBreakEvidence] | None = None,
     shared_context=None,
+    target_line_group_ids: set[str] | None = None,
 ) -> PairingExtractionResult:
     id_stem = _extractor_id_stem(executed_extractor)
     route_sheet_ids = {page.sheet_id for page in pages}
@@ -192,23 +201,28 @@ def _extract_pairs_for_route(
         line_groups = shared_context.groups_for_route(id_stem=id_stem, pages=pages, texts=texts,
             lines=lines, config=config, classifications=route_classifications, wire_break_evidence=wire_break_evidence)
     checkers = shared_context.path_checkers if shared_context is not None else path_body_checkers(wire_break_evidence)
-    terminal_candidates = build_terminal_candidates(
-        line_groups,
-        texts,
-        config,
-        pages,
-        candidate_id_factory=IdFactory(f"C{id_stem}"),
-        path_checkers=checkers,
-        text_indexes=shared_context.text_indexes if shared_context is not None else None,
-    )
-    pair_candidates, pairs = build_pairs(
-        line_groups,
-        terminal_candidates,
-        pages,
-        config,
-        pair_candidate_id_factory=IdFactory(f"PC{id_stem}"),
-        pair_id_factory=IdFactory(f"P{id_stem}"),
-    )
+    target_groups = line_groups if target_line_group_ids is None else [g for g in line_groups if g.line_group_id in target_line_group_ids]
+    if target_groups:
+        terminal_candidates = build_terminal_candidates(
+            target_groups,
+            texts,
+            config,
+            pages,
+            candidate_id_factory=IdFactory(f"C{id_stem}"),
+            path_checkers=checkers,
+            text_indexes=shared_context.text_indexes if shared_context is not None else None,
+        )
+        pair_candidates, pairs = build_pairs(
+            target_groups,
+            terminal_candidates,
+            pages,
+            config,
+            pair_candidate_id_factory=IdFactory(f"PC{id_stem}"),
+            pair_id_factory=IdFactory(f"P{id_stem}"),
+        )
+    else:
+        terminal_candidates, pair_candidates, pairs = [], [], []
+    scoped_ids = (lambda stem: shared_context.pair_ids(stem)) if shared_context is not None else IdFactory
     if executed_extractor == "WireDiagramExtractor":
         # P3-CROSS-DEVICE: pairs built by pairs.py (e.g. schematic wire-logic endpoints) get the same path rule.
         guard_pairs_against_symbol_bodies(pairs, checkers)
@@ -223,7 +237,7 @@ def _extract_pairs_for_route(
             pages,
             texts,
             lines,
-            pair_id_factory=IdFactory(f"P{id_stem}M"),
+            pair_id_factory=scoped_ids(f"P{id_stem}M"),
             config=config,
             wire_break_evidence=wire_break_evidence,
         )
@@ -245,7 +259,7 @@ def _extract_pairs_for_route(
             pages,
             texts,
             line_groups,
-            pair_id_factory=IdFactory(f"P{id_stem}M"),
+            pair_id_factory=scoped_ids(f"P{id_stem}M"),
         )
         endpoint_bridge_extractor = getattr(component_diagrams, "extract_strip_two_port_endpoint_bridge_pairs", None)
         if callable(endpoint_bridge_extractor):
@@ -315,7 +329,7 @@ def _extract_pairs_for_route(
         table_pairs, table_mappings = extract_terminal_header_table_pairs(
             texts,
             pages,
-            pair_id_factory=IdFactory(f"P{id_stem}M"),
+            pair_id_factory=scoped_ids(f"P{id_stem}M"),
             lines=lines,
         )
         retry_pages = _terminal_header_table_retry_pages(pages)
@@ -323,7 +337,7 @@ def _extract_pairs_for_route(
             retry_pairs, retry_mappings = extract_terminal_header_table_pairs(
                 texts,
                 retry_pages,
-                pair_id_factory=IdFactory(f"P{id_stem}MR"),
+                pair_id_factory=scoped_ids(f"P{id_stem}MR"),
                 lines=lines,
             )
             retry_sheet_ids = {page.sheet_id for page in retry_pages}
