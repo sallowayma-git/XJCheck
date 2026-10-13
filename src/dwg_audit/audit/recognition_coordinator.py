@@ -13,6 +13,9 @@ from dwg_audit.audit.candidates import TextSpatialIndex
 from dwg_audit.audit.line_groups import build_line_groups, path_body_checkers
 from dwg_audit.utils.ids import IdFactory
 
+NATIVE_DISPATCH = {"RESOLVED": "retain", "CONFIRMED_CONFLICT": "report", "EXCLUDED": "exclude",
+    "INCOMPLETE": "supplement", "AMBIGUOUS": "supplement", "ENGINE_FAILURE": "incomplete_analysis"}
+
 
 @dataclass(slots=True)
 class SharedRecognitionContext:
@@ -55,11 +58,11 @@ class SharedRecognitionContext:
     def accept_native(self, pairs, observations):
         self.native_pairs = pairs
         self.closed_groups = {(p.sheet_id, p.line_group_id) for p in pairs
-            if p.line_group_id and (p.status == "pass" or p.evidence.get("sw_conflicts"))}
+            if p.line_group_id and NATIVE_DISPATCH.get(p.evidence.get("native_resolution_state")) in {"retain", "report", "exclude"}}
         self.closed_groups.update((r["sheet_id"], r["line_group_id"]) for r in observations
             if r.get("state") in {"EXCLUDED", "CONFIRMED_CONFLICT"} and r.get("line_group_id"))
         for pair in pairs:
-            if pair.status != "pass" or not pair.left_value or not pair.right_value:
+            if pair.evidence.get("native_resolution_state") != "RESOLVED" or not pair.left_value or not pair.right_value:
                 continue
             sw = pair.evidence.get("superworks") or {}
             ids = []
@@ -134,6 +137,8 @@ def finalize_evidence(pairs, context):
                     evidence.setdefault("engine_evidence_conflicts", []).append(
                         {"side": side, "candidate": value, "fixed_identity": identity,
                          "port_ids": fixed.get("port_ids", [])})
+                    setattr(pair, f"{side}_value", identity)
+                    pair.pair_key = f"{pair.left_value}->{pair.right_value}"
         physical = [evidence.get(f"selected_{side}_physical_endpoint") or {} for side in ("left", "right")]
         draft = any(p.get("annotation_status") == "MACHINE_PROPOSED" or
                     p.get("topology_state") in {"POSSIBLE", "UNKNOWN"} for p in physical)

@@ -720,6 +720,7 @@ def _wire_pair(*, pair_id, line_group_id, sheet_id, file_id, coords, scope_id, l
     if bridge_kind:
         evidence.update(semantic_kind="terminal_bridge_mapping",bridge_mapping_kind=bridge_kind)
     blocked=bool(conflicts or review_reasons)
+    evidence["native_resolution_state"] = "CONFIRMED_CONFLICT" if conflicts else "AMBIGUOUS" if review_reasons else "RESOLVED"
     new=Pair(pair_id=pair_id,line_group_id=line_group_id,
         sheet_id=sheet_id,file_id=file_id,selected_pair_candidate_id=None,
         left_value=left["value"],right_value=right["value"],confidence=.99 if not blocked else .5,
@@ -1326,6 +1327,7 @@ def _discard_device_internal_pairs(output, data):
         terminal, other = ends[hit], ends["right" if hit == "left" else "left"]
         evidence = copy.deepcopy(pair.evidence or {})
         evidence["discard_reason"] = DEVICE_INTERNAL_DISCARD
+        evidence["native_resolution_state"] = "EXCLUDED"
         evidence["device_internal_discard"] = {
             "status_before": pair.status, "pair_kind": pair.pair_kind, "terminal_side": hit,
             "terminal_identity": terminal["identity"], "terminal_label": terminal["label"],
@@ -1470,6 +1472,7 @@ def _discard_walked_half_pairs(output, data, lines, line_groups, texts=(), block
         rule = "wire_walk_internal_frame" if unresolved else "wire_walk_internal"
         evidence = copy.deepcopy(pair.evidence or {})
         evidence["discard_reason"] = DEVICE_INTERNAL_DISCARD
+        evidence["native_resolution_state"] = "EXCLUDED"
         evidence["device_internal_discard"] = {
             "status_before": pair.status, "pair_kind": pair.pair_kind, "terminal_side": resolved_side,
             "terminal_identity": terminal["identity"], "terminal_label": terminal["label"],
@@ -1765,6 +1768,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                     left_text_id=row_id,right_text_id=connection.get("text_id"),left_coord_x=row.row.get("x"),left_coord_y=row.row.get("y"),
                     right_coord_x=connection.get("x"),right_coord_y=connection.get("y"),pair_key=f"{row.endpoint_identity}->{destination}",
                     evidence={"source":"superworks","pair_kind":"table_mapping",
+                              "native_resolution_state":"CONFIRMED_CONFLICT" if conflicts else "RESOLVED" if complete else "INCOMPLETE",
                               "structured_source":"table_mapping" if complete and not conflicts else None,
                               "table_mapping":mapping,"sw_conflicts":conflicts,
                               "sw_validation_reasons":sorted(set(reasons)),
@@ -1847,6 +1851,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         for destination in values:
             evidence=copy.deepcopy(old[0].evidence) if old else {}
             evidence.update(structured_source="component_mapping",
+                native_resolution_state="RESOLVED" if (port.get("pin") or {}).get("independent_verification") else "AMBIGUOUS",
                 component_submode="superworks_connect_line_port",logical_endpoint=label.endpoint_identity,
                 external_endpoint=destination,external_endpoint_raw=label.text.get("value"),
                 external_endpoint_split=destination,external_endpoint_text_id=label.text.get("text_id"),
