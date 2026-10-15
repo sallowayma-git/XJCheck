@@ -1,0 +1,13 @@
+{"jobs": [
+ {"project":"p016","file_id":"F0021","sheet_id":"S0021","cx":47.0,"cy":262.0,"half_width":22,"half_height":14,
+  "texts_parquet":"F:/workspace/XJToolkit/.tmp/engine_coordination_full_acceptance/current/p016/project/findings/texts.parquet",
+  "title":"p016 S0021 TF row1: restored V1 1n2001-1UD1 (blue) vs SW TF-1-1n2001 (green), TF-2-1UD1 (orange); GC0098 border (purple)",
+  "footer":"Blue: cur PCN0001 1n2001-1UD1 (V1, pass). Green: cur PSW2bb3 TF-1-1n2001 (SW pass). Orange: cur PSW043 TF-2-1UD1 (SW pass). Purple: GC0098 member L5694 (TSB-14 block BORDER line).",
+  "out":"F:/workspace/XJToolkit/.planning/superworks-adapter/loop/FP-VERIFY/png/L1_p016_S0021_row1_overview.png",
+  "overlays":[
+   {"color":"#7c3aed","points":[[46.544,264.167],[46.544,194.167]],"lw":1.5,"ls":"--"},
+   {"color":"#2563eb","points":[[33.531,260.167],[62.544,260.167]],"lw":2.6,"markers":[[33.531,260.167],[62.544,260.167]],"label":"V1 cur PCN0001 1n2001-1UD1 pass","label_at":[36,250]},
+   {"color":"#16a34a","points":[[46.544,261.667],[45.544,261.667]],"lw":3.2,"markers":[[46.544,261.667],[45.544,261.667]],"label":"SW TF-1-1n2001 pass","label_at":[30,268]},
+   {"color":"#ea580c","points":[[61.544,261.667],[62.544,261.667]],"lw":3.2,"markers":[[61.544,261.667],[62.544,261.667]],"label":"SW TF-2-1UD1 pass","label_at":[63,268]}
+  ]}
+]}

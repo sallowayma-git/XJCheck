@@ -51,15 +51,41 @@ def _contact_gap(left, right):
                for b in ((right.start_x, right.start_y), (right.end_x, right.end_y)))
 
 
-def _coincident_ports(ports, key):
+def _nested_instances(left, right):
+    """Ancestor and descendant instances of one nested definition (/A and /A/B).
+
+    Their ports at one contact are the same physical contact seen from two instance paths, not competitors.
+    """
+    a, b = str(left.instance_path), str(right.instance_path)
+    return a.startswith(b + "/") or b.startswith(a + "/")
+
+
+def _foreign_copy(port, ports):
+    """A port recorded under an ancestor instance whose owner instance records the same TERMPOINT.
+
+    A nested definition is walked from its parent as well as from its own INSERT, so the parent records a copy
+    of the owner's port (instance != definition path). The owner's own record is the physical port and is kept.
+    A copy is dropped only when that owner record is in the same contact group.
+    """
+    owner = (port.validation or {}).get("definition_path")
+    if not owner or owner == port.instance_path:
+        return False
+    return any(other.instance_path == owner and other.marker_handle == port.marker_handle
+               and str(other.port_number) == str(port.port_number) for other in ports)
+
+
+def _coincident_ports(ports, key, same_contact=None):
     """Return the first physically coincident competing port pair, else None.
 
     Distinct positions may legitimately repeat one terminal name; the user has
-    confirmed that only physical contact competition is a conflict.
+    confirmed that only physical contact competition is a conflict. ``same_contact``
+    names pairs that are one contact seen twice and never compete.
     """
     for index, left in enumerate(ports):
         for right in ports[index + 1:]:
             if key(left) == key(right):
+                continue
+            if same_contact is not None and same_contact(left, right):
                 continue
             gap = _contact_gap(left, right)
             if gap <= max(left.tolerance, right.tolerance) + 1e-8:
@@ -171,6 +197,7 @@ class WireNetwork:
 
 
 def _endpoint(ports, path=None):
+    ports=[port for port in ports if not _foreign_copy(port, ports)]
     identities={_key(p.endpoint_identity) for p in ports if p.endpoint_identity}
     conflicts=[]
     for port in ports:
@@ -188,7 +215,7 @@ def _endpoint(ports, path=None):
             competing.append(pair)
     elif len({p.symbol_id for p in ports}) > 1:
         # Competing instances are a conflict only when their contacts coincide.
-        pair = _coincident_ports(ports, lambda port: port.symbol_id)
+        pair = _coincident_ports(ports, lambda port: port.symbol_id, same_contact=_nested_instances)
         if pair:
             conflicts.append("competing_physical_port_instances")
             competing.append(pair)
@@ -223,6 +250,37 @@ def _endpoint(ports, path=None):
 
 def _true_conflicts(reasons):
     return sorted(set(reasons) & _TRUE_CONFLICTS)
+
+
+FRAME_TOUCH_TOL = 0.01
+
+
+def _frame_group_at_stub(label, line_groups):
+    """The one BORDER-only line group a connect stub ends on, or None.
+
+    A component's connect stub meets its frame edge without belonging to the frame line group. Round 25 took
+    that group from the legacy pair on the label; the native-first pass has no legacy pair yet, so the frame
+    is read from the stub's end points. More than one frame on the point is ambiguous and yields None.
+    """
+    ends=((label.start_x,label.start_y),(label.end_x,label.end_y))
+    hits=[]
+    for group in line_groups:
+        if group.file_id!=label.file_id or group.sheet_id!=label.sheet_id:
+            continue
+        if {str(layer).upper() for layer in group.layer_hints}!={"BORDER"}:
+            continue
+        if any(_segment_distance(end,(group.start_x,group.start_y),(group.end_x,group.end_y))<=FRAME_TOUCH_TOL for end in ends):
+            hits.append(group.line_group_id)
+    return hits[0] if len(hits)==1 else None
+
+
+def _report_legacy_disagreement(data, label, disputed):
+    data.conflict_observations.append({"kind":"connect_line_port_disagreement",
+        "reason_code":"connect_line_port_disagrees_with_legacy","connect_label_id":label.record_id,
+        "sheet_id":label.sheet_id,"file_id":label.file_id,"text_id":label.text.get("text_id"),
+        "sw_port_number":label.port_number,"sw_connect_line_handle":label.line_handle,
+        "legacy_pair_ids":[p.pair_id for p in disputed],
+        "legacy_port_numbers":[p.evidence.get("component_port") for p in disputed]})
 
 
 def _legacy_pairs_on_label_anchor_with_other_port(old, label, group_by_id):
@@ -1815,13 +1873,38 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
     existing_native_parts = {(p.file_id, p.sheet_id, p.evidence.get("superworks", {}).get("connection_handle")) for p in pairs
         if _is_sw_component_row(p)} if shared_context is not None and not native_only else set()
     line_id_by_handle = {(line.file_id, line.sheet_id, line.handle): line.line_id for line in lines}
+    def retire_claims(old,kept,key):
+        """Remove legacy claims that a native pair already covers. The native pair is already in output."""
+        nonlocal output
+        removed={id(p) for p in old}
+        output=[p for p in output if id(p) not in removed]
+        for before in old:
+            after=kept[0] if len(kept)==1 else None
+            category=_category(before,after) if after else "F"
+            ledger.append({"element_key":key,"category":category,
+                           "reason":"metadata_and_geometry_conflict" if category=="D" else "validated_superworks_replacement",
+                           "old_pair":asdict(before),"new_pairs":[asdict(p) for p in kept]})
+
     for label in data.connect_labels:
         if label.sheet_id not in audit_ids:
             continue
-        if (label.file_id, label.sheet_id, label.text.get("handle")) in existing_native_parts:
-            continue
         old=[p for p in pairs if p.sheet_id==label.sheet_id and p.pair_kind=="component_mapping"
              and label.text.get("text_id") in (p.left_text_id,p.right_text_id)]
+        if (label.file_id, label.sheet_id, label.text.get("handle")) in existing_native_parts:
+            # The native part already produced this connection, so its row is not generated again. The
+            # legacy claims on its labels are still retired, as round 25 did for every SW-covered label.
+            legacy=[p for p in old if not _is_sw_component_row(p)]
+            if not legacy:
+                continue
+            disputed=_legacy_pairs_on_label_anchor_with_other_port(legacy,label,group_by_id)
+            if disputed:
+                _report_legacy_disagreement(data,label,disputed)
+                continue
+            owned=[p for p in output if _is_sw_component_row(p) and p.file_id==label.file_id
+                   and p.sheet_id==label.sheet_id
+                   and (p.evidence.get("superworks") or {}).get("connection_handle")==label.text.get("handle")]
+            retire_claims(legacy,owned,f"part:{label.record_id}")
+            continue
         true_conflicts=_true_conflicts(label.reason_codes)
         if not label.endpoint_identity or label.reason_codes:
             data.resolution_observations.append({"record_id": _id(f"connect:{label.record_id}"),
@@ -1848,15 +1931,16 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         port=part_ports[0] if len(part_ports)==1 else {}
         support_line_id=line_id_by_handle.get((label.file_id, label.sheet_id, label.line_handle))
         producer_groups=[g for g in groups_by_member.get(support_line_id,[]) if support_line_id] if support_line_id else []
-        line_group_id=producer_groups[0].line_group_id if len(producer_groups)==1 else (old[0].line_group_id if old else None)
+        if len(producer_groups)==1:
+            line_group_id=producer_groups[0].line_group_id
+        elif old:
+            line_group_id=old[0].line_group_id
+        else:
+            # No legacy claim exists yet (native-first pass): the frame the stub ends on owns the connection.
+            line_group_id=_frame_group_at_stub(label,line_groups)
         disputed=_legacy_pairs_on_label_anchor_with_other_port(old,label,group_by_id)
         if disputed:
-            data.conflict_observations.append({"kind":"connect_line_port_disagreement",
-                "reason_code":"connect_line_port_disagrees_with_legacy","connect_label_id":label.record_id,
-                "sheet_id":label.sheet_id,"file_id":label.file_id,"text_id":label.text.get("text_id"),
-                "sw_port_number":label.port_number,"sw_connect_line_handle":label.line_handle,
-                "legacy_pair_ids":[p.pair_id for p in disputed],
-                "legacy_port_numbers":[p.evidence.get("component_port") for p in disputed]})
+            _report_legacy_disagreement(data,label,disputed)
             continue
         new=[]
         for destination in values:
