@@ -1,0 +1,157 @@
+{
+  "p001": {
+    "baseline_gap_issues": 281,
+    "new_gap_issues": 105,
+    "baseline_gap_observations": 346,
+    "new_gap_observations": 197,
+    "new_presentation": {
+      "observation": 51,
+      "terminal": 50,
+      "page_summary": 4
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 0,
+    "new_other": 0
+  },
+  "p003": {
+    "baseline_gap_issues": 147,
+    "new_gap_issues": 65,
+    "baseline_gap_observations": 186,
+    "new_gap_observations": 114,
+    "new_presentation": {
+      "terminal": 27,
+      "observation": 36,
+      "page_summary": 2
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 0,
+    "new_other": 0
+  },
+  "p022": {
+    "baseline_gap_issues": 313,
+    "new_gap_issues": 104,
+    "baseline_gap_observations": 375,
+    "new_gap_observations": 184,
+    "new_presentation": {
+      "observation": 58,
+      "terminal": 42,
+      "page_summary": 4
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 1,
+    "new_other": 1
+  },
+  "p026": {
+    "baseline_gap_issues": 600,
+    "new_gap_issues": 285,
+    "baseline_gap_observations": 760,
+    "new_gap_observations": 483,
+    "new_presentation": {
+      "terminal": 110,
+      "page_summary": 9,
+      "observation": 166
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 0,
+    "new_other": 0
+  },
+  "p044": {
+    "baseline_gap_issues": 475,
+    "new_gap_issues": 190,
+    "baseline_gap_observations": 610,
+    "new_gap_observations": 375,
+    "new_presentation": {
+      "terminal": 155,
+      "observation": 32,
+      "page_summary": 3
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 3,
+    "new_other": 3
+  },
+  "p051": {
+    "baseline_gap_issues": 34,
+    "new_gap_issues": 24,
+    "baseline_gap_observations": 35,
+    "new_gap_observations": 24,
+    "new_presentation": {
+      "terminal": 24
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 0,
+    "new_other": 0
+  },
+  "p061": {
+    "baseline_gap_issues": 793,
+    "new_gap_issues": 142,
+    "baseline_gap_observations": 1124,
+    "new_gap_observations": 719,
+    "new_presentation": {
+      "observation": 47,
+      "terminal": 82,
+      "page_summary": 13
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 4,
+    "new_other": 4
+  },
+  "p071": {
+    "baseline_gap_issues": 50,
+    "new_gap_issues": 30,
+    "baseline_gap_observations": 52,
+    "new_gap_observations": 38,
+    "new_presentation": {
+      "terminal": 29,
+      "page_summary": 1
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 3,
+    "new_other": 3
+  },
+  "p074": {
+    "baseline_gap_issues": 399,
+    "new_gap_issues": 96,
+    "baseline_gap_observations": 450,
+    "new_gap_observations": 186,
+    "new_presentation": {
+      "terminal": 90,
+      "observation": 4,
+      "page_summary": 2
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 0,
+    "new_other": 0
+  },
+  "p075": {
+    "baseline_gap_issues": 11,
+    "new_gap_issues": 5,
+    "baseline_gap_observations": 11,
+    "new_gap_observations": 5,
+    "new_presentation": {
+      "terminal": 5
+    },
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 4,
+    "new_other": 4
+  },
+  "TOTAL": {
+    "baseline_gap_issues": 3103,
+    "new_gap_issues": 1046,
+    "baseline_gap_observations": 3949,
+    "new_gap_observations": 2325,
+    "other_rules_added": 0,
+    "other_rules_removed": 0,
+    "baseline_other": 15,
+    "new_other": 15
+  }
+}

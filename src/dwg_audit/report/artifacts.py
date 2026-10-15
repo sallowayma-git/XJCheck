@@ -104,7 +104,7 @@ _FINDINGS_FRAME_NAMES = (
     "extraction_warnings",
     "sw_symbols", "sw_ports", "sw_strip_rows", "sw_part_instances",
     "sw_connect_labels", "sw_connect_dots", "superworks_supersession", "sw_port_coverage",
-    "sw_resolution_observations", "sw_strip_agreement",
+    "sw_resolution_observations", "sw_strip_agreement", "sw_device_internal_links",
 )
 _PRODUCTION_CORE_FINDINGS_NAMES = frozenset(
     {

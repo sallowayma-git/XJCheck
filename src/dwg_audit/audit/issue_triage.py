@@ -246,6 +246,10 @@ def _review_group_key(issue: Issue, handling: str) -> str:
         anchor = right or left or "value"
         return f"{handling}|{rule_id}|value:{anchor}"
 
+    if rule_id == "R-RECOGNITION-GAP" and evidence.get("presentation") == "page_summary":
+        # GAP-COORD: the per-sheet summary of identity-less element pins is its own work item.
+        return f"{handling}|{rule_id}|sheet:{sheet}|unpinned_element"
+
     if rule_id in {
         "R-PAIR-LOW-CONFIDENCE",
         "R-PAIR-MISSING-SIDE",
@@ -282,6 +286,9 @@ def _review_group_label(issue: Issue, size: int) -> str:
         label = f"{bucket} · {family} · {core}"
     elif issue.rule_id == "R-MANY-TO-ONE" and right:
         label = f"{bucket} · {family} · 端子 {right}"
+    elif issue.rule_id == "R-RECOGNITION-GAP" and (issue.evidence or {}).get("presentation") == "page_summary":
+        count = int((issue.evidence or {}).get("terminal_count") or 0)
+        label = f"{bucket} · 图 {sheet_no or issue.sheet_id or '?'} · 无脚号元件连接（{count} 个端子）"
     elif sheet_no:
         label = f"{bucket} · 图 {sheet_no} · {family}"
     else:

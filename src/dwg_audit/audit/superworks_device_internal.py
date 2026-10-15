@@ -730,3 +730,47 @@ def build_device_internal_links(ports, wire_routes=(), wire_group_of=None, unreg
     stats["linked_ports"] = len(covered)
     return {"links": links, "covered": dict(covered), "stats": dict(stats), "unregistered_decisions": decisions,
             "terminal_splits": terminal_splits}
+
+
+def wire_members_of_links(links, wire_mapping) -> dict:
+    """link_id -> sorted handles of the SuperWORKS wire that the link's terminal contact lies on (GAP-COORD).
+
+    wire_mapping: {(file_id, handle): wire key} as returned by ``split_terminal_wires(...)["mapping"]``. The members of a
+    wire are every handle that maps to the contact's wire key. A contact handle outside the mapping is its own wire.
+    Read only; links are not changed.
+    """
+    by_key = defaultdict(set)
+    for (file_id, handle), key in wire_mapping.items():
+        by_key[key].add(handle)
+    result = {}
+    for link in links:
+        file_id, handle = _text(link.get("file_id")), _text(link.get("wire_handle"))
+        key = wire_mapping.get((file_id, handle), (file_id, handle))
+        members = by_key.get(key) or {handle}
+        result[link["link_id"]] = sorted(set(members) | {handle})
+    return result
+
+
+def device_internal_wire_index(links) -> dict:
+    """(file_id, terminal port_id) -> frozenset of the wire handles of that port's device-internal link (GAP-COORD).
+
+    A terminal has at most one device-internal link (two candidate wires make it ambiguous and no link is built), so
+    the index names the one wire the rule judged internal. Links without ``wire_handles`` fall back to ``wire_handle``.
+    """
+    index = {}
+    for link in links:
+        port_id = _text(link.get("port_id"))
+        if not port_id:
+            continue
+        handles = link.get("wire_handles")
+        if isinstance(handles, str):
+            handles = json.loads(handles or "[]")
+        members = set(handles or []) | {_text(link.get("wire_handle"))}
+        index[(_text(link.get("file_id")), port_id)] = frozenset(h for h in members if h)
+    return index
+
+
+def on_device_internal_wire(index, file_id, port_id, handles) -> bool:
+    """Whether any of the observed segment handles lies on the wire of the port's device-internal link (GAP-COORD)."""
+    members = index.get((_text(file_id), _text(port_id)))
+    return bool(members) and any(_text(handle) in members for handle in handles)

@@ -1,0 +1,31 @@
+{
+  "observations": 10976,
+  "old": {
+    "group_suppressed": 3664,
+    "filtered": 3363,
+    "emitted": 3949
+  },
+  "new": {
+    "filtered": 5834,
+    "emitted:observation": 970,
+    "suppressed:x_element_only": 249,
+    "emitted:terminal": 745,
+    "suppressed:device_internal_pair": 479,
+    "suppressed:physical_v1": 671,
+    "suppressed:device_internal": 1313,
+    "emitted:page_summary": 610,
+    "suppressed:continuity": 69,
+    "suppressed:self_loop": 36
+  },
+  "reappeared_from_group_suppressed": 6,
+  "emitted_before_now_suppressed": 1630,
+  "emitted_before_now_filtered": 0,
+  "per_step": {
+    "suppressed:x_element_only": 249,
+    "suppressed:device_internal_pair": 479,
+    "suppressed:physical_v1": 671,
+    "suppressed:device_internal": 1313,
+    "suppressed:continuity": 69,
+    "suppressed:self_loop": 36
+  }
+}
