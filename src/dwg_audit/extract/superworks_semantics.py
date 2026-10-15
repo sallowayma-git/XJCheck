@@ -486,7 +486,10 @@ def extract_superworks_semantics(doc, *, sheet_id: str, file_id: str) -> Superwo
                         port_number=number, category=category, start_x=float(a.x), start_y=float(a.y), end_x=float(b.x), end_y=float(b.y),
                         direction=first(marker,"LD_DIRECTION_SYMBLIB") or first(marker,"LD_PARTLIB_DOTCONDIRECT"), tolerance=tolerance,
                         endpoint_identity=endpoint, label=label, pin=pin, wire_contacts=contacts, raw_xdata=raw(marker),
-                        validation={**validation, "port_touched_by_wire": bool(contacts)}, reason_codes=port_reasons)
+                        # definition_path is the instance that owns the TERMPOINT. A port recorded under an
+                        # ancestor instance (instance_path != definition_path) is a copy of its owner's port.
+                        validation={**validation, "port_touched_by_wire": bool(contacts), "definition_path": marker_path},
+                        reason_codes=port_reasons)
                     if category:
                         data.ports.append(port)
                     else:
