@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
 from dataclasses import asdict, fields
 
@@ -10,7 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from dwg_audit.audit.superworks_cross_page import build_cross_page_links, short_bridge_pairs
-from dwg_audit.audit.superworks_device_internal import build_device_internal_links, wire_keys_from_lines
+from dwg_audit.audit.superworks_device_internal import build_device_internal_links, split_terminal_wires, wire_keys_from_lines, wire_members_of_links
 from dwg_audit.domain.models import SwSymbolInstance, SwPort, SwStripRow, SwPartInstance, SwConnectLabel, SwConnectDot
 
 
@@ -19,9 +20,11 @@ def write_superworks_artifacts(artifacts, findings_dir, *, compact=False):
     if data is None:
         return
     resolution_records = {r["record_id"]: r for r in data.resolution_observations}
-    observation_columns = ["record_id", "object_key", "file_id", "sheet_id", "line_group_id", "state", "reason_codes", "source_handles", "left", "right", "coords", "connect_label_id"]
+    # GAP-COORD: what lies at the two ends of an element-only gap (no terminal side); read by the gate in recognition_coordinator.
+    end_geometry = _observation_end_geometry(artifacts, data)
+    observation_columns = ["record_id", "object_key", "file_id", "sheet_id", "line_group_id", "state", "reason_codes", "source_handles", "left", "right", "coords", "connect_label_id", "end_geometry"]
     observation_rows = [{key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value
-        for key, value in row.items()} for row in resolution_records.values()]
+        for key, value in {**row, "end_geometry": end_geometry.get(row["record_id"])}.items()} for row in resolution_records.values()]
     pq.write_table(pa.Table.from_pandas(pd.DataFrame(observation_rows, columns=observation_columns),
         schema=pa.schema([(name, pa.string()) for name in observation_columns]), preserve_index=False),
         findings_dir / "sw_resolution_observations.parquet")
@@ -388,11 +391,122 @@ def _device_internal_links(artifacts,data):
                     element_identities.setdefault(port_id,value)
     # GAP2-S: the wire mapping is cut at terminal bodies inside DEV-INT (line groups and pairs are unchanged).
     # G1P: unregistered SYMB2 blocks (TERMPOINT ends) and the end points of every model-space wire.
-    return build_device_internal_links(ports,routes,
+    result=build_device_internal_links(ports,routes,
         unregistered=list(getattr(data,"unregistered_symb2",[]) or []),
         wire_endpoints=dict(getattr(data,"wire_endpoints",{}) or {}),
         terminal_split={"lines":lines,"line_groups":groups,"connect_dots":dots},
         element_identities=element_identities)
+    # GAP-COORD: every handle of the wire each link lies on, so the recognition gate can tell whether an observed
+    # segment is on that wire. Read-only over the same mapping the link rule used.
+    mapping=split_terminal_wires(ports,lines,groups,dots)["mapping"]
+    members=wire_members_of_links(result["links"],mapping)
+    for link in result["links"]:
+        link["wire_handles"]=members[link["link_id"]]
+    return result
+
+
+_GAP_NON_TERMINAL_CATEGORIES=frozenset({"内部元件","线圈","接地","接插件","",None})
+_GAP_UNREG_PIN_DISTANCE=1.5
+_GAP_RAIL_MIN_LENGTH=50.0
+_GAP_RAIL_CONTACT=0.6
+_GAP_RAIL_PIECE_GAP=12.0
+
+
+def _sheet_line_index(artifacts):
+    """{(file_id, sheet_id, vertical): sorted [(coord, low, high, handle)]} for axis-parallel model-space lines."""
+    index=defaultdict(list)
+    for line in getattr(artifacts,"lines",[]) or []:
+        if getattr(line,"source_block_name",None):
+            continue
+        sheet_id=getattr(line,"sheet_id",None)
+        coords=[getattr(line,name,None) for name in ("start_x","start_y","end_x","end_y")]
+        if sheet_id is None or any(c is None for c in coords):
+            continue
+        start_x,start_y,end_x,end_y=coords
+        handle=str(getattr(line,"handle",None) or "")
+        if abs(start_x-end_x)<=1e-6:
+            low,high=sorted((start_y,end_y))
+            index[(line.file_id,sheet_id,True)].append((start_x,low,high,handle))
+        elif abs(start_y-end_y)<=1e-6:
+            low,high=sorted((start_x,end_x))
+            index[(line.file_id,sheet_id,False)].append((start_y,low,high,handle))
+    return {key:sorted(items) for key,items in index.items()}
+
+
+def _reaches_long_line(index,file_id,sheet_id,vertical,coord,along,own_handles):
+    """True when a chain of model-space lines of at least 50 units on this coordinate reaches the point at `along`.
+
+    Pieces are chained when they touch or are split by a gap of at most _GAP_RAIL_PIECE_GAP: a terminal or a junction
+    dot splits a rail into pieces, so splitting never hides a rail; a chain within one gap of the end counts too (a break). The wire under test (its own source handles) is not
+    evidence for a rail and is left out; every other line on the coordinate counts, including one that overlaps it.
+    """
+    items=index.get((file_id,sheet_id,vertical),[])
+    if not items:
+        return False
+    coords=[item[0] for item in items]
+    lo_index=bisect_left(coords,coord-_GAP_RAIL_CONTACT)
+    hi_index=bisect_right(coords,coord+_GAP_RAIL_CONTACT)
+    pieces=sorted((low,high) for _,low,high,handle in items[lo_index:hi_index] if handle not in own_handles)
+    chains=[]
+    for low,high in pieces:
+        if chains and low-chains[-1][1]<=_GAP_RAIL_PIECE_GAP:
+            chains[-1][1]=max(chains[-1][1],high)
+        else:
+            chains.append([low,high])
+    for low,high in chains:
+        # A long chain up to one merge gap beyond the end is the other side of a break in the same wire, so it counts.
+        if high-low>=_GAP_RAIL_MIN_LENGTH and low-_GAP_RAIL_PIECE_GAP<=along<=high+_GAP_RAIL_PIECE_GAP:
+            return True
+    return False
+
+
+def _handle_set(value):
+    if isinstance(value,str):
+        try:
+            value=json.loads(value)
+        except ValueError:
+            value=[value]
+    return {str(item) for item in (value or []) if item not in (None,"")}
+
+
+def _observation_end_geometry(artifacts,data):
+    """GAP-COORD: {record_id: [{unreg_pin, rail_t}, {...}]} for element-only gap observations (audit input of the gate).
+
+    Only observations whose sides are all non-terminal get a value; the others map to None (never element-only).
+    unreg_pin: a SYMB2 TERMPOINT of an unregistered block lies within 1.5 of the end (a terminal block in disguise).
+    rail_t: a chain of model-space lines of at least 50 units (vertical or horizontal, pieces split by a gap of at most
+    12 units merged, which covers the dashes of a dashed rail) reaches the end: a terminal-strip rail or a common line. The wire under test is excluded by its
+    source handles only, so a rail that merely overlaps it still counts.
+    """
+    from dwg_audit.audit.superworks_device_internal import _dist
+    termpoints=defaultdict(list)
+    for block in getattr(data,"unregistered_symb2",[]) or []:
+        for termpoint in block.get("termpoints") or []:
+            for key in ("a","b"):
+                if termpoint.get(key):
+                    termpoints[(block.get("file_id"),block.get("sheet_id"))].append(tuple(termpoint[key]))
+    lines=_sheet_line_index(artifacts)
+    result={}
+    for row in getattr(data,"resolution_observations",[]) or []:
+        if row.get("state") not in {"INCOMPLETE","AMBIGUOUS"}:
+            continue
+        sides=[row.get("left") or {},row.get("right") or {}]
+        if any(side.get("category") not in _GAP_NON_TERMINAL_CATEGORIES for side in sides):
+            continue
+        coords=row.get("coords") or []
+        if len(coords)!=4:
+            continue
+        key=(row.get("file_id"),row.get("sheet_id"))
+        x1,y1,x2,y2=(float(v) for v in coords)
+        ends=[]
+        own=_handle_set(row.get("source_handles"))
+        for point in ((x1,y1),(x2,y2)):
+            unreg=any(_dist(point,pin)<=_GAP_UNREG_PIN_DISTANCE for pin in termpoints.get(key,()))
+            rail=(_reaches_long_line(lines,key[0],key[1],True,point[0],point[1],own)
+                or _reaches_long_line(lines,key[0],key[1],False,point[1],point[0],own))
+            ends.append({"unreg_pin":unreg,"rail_t":rail})
+        result[row["record_id"]]=ends
+    return result
 
 
 def _write_topology_unknown(findings_dir,data):

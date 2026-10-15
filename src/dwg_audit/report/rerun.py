@@ -49,6 +49,8 @@ _AUDIT_COPY_NAMES = (
     "failure_queue_summary.json",
     "series_chains.json",
     "runtime_profile.json",
+    "sw_recognition_diagnostics.parquet",
+    "sw_recognition_gate.json",
 )
 
 _CORE_FRAME_NAMES = (
@@ -58,6 +60,8 @@ _CORE_FRAME_NAMES = (
     "terminal_candidates",
     "pairs",
     "sw_resolution_observations",
+    "sw_port_coverage",
+    "sw_device_internal_links",
 )
 
 _DIAGNOSTIC_AUDIT_NAMES = (
@@ -169,16 +173,19 @@ def rerun_audit_from_findings(
     ]
 
     issues = build_issues(pairs, line_groups, pages, config, terminal_candidates=terminal_candidates)
-    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    from dwg_audit.audit.recognition_coordinator import resolve_recognition_gaps
     observations = frames.get("sw_resolution_observations", pd.DataFrame()).to_dict("records")
     for item in observations:
         for name, value in item.items():
             if isinstance(value, float) and pd.isna(value):
                 item[name] = None
-        for name in ("left", "right", "reason_codes", "source_handles", "coords"):
+        for name in ("left", "right", "reason_codes", "source_handles", "coords", "end_geometry"):
             value = item.get(name)
             item[name] = json.loads(value) if isinstance(value, str) and value else None
-    issues.extend(build_resolution_issues(observations, pairs, pages, issues))
+    gap = resolve_recognition_gaps(
+        observations, pairs, pages, issues, facts=_gap_facts(project_dir, frames, line_groups))
+    issues.extend(gap.issues)
+    _write_gap_diagnostics(project_dir / "audit", gap)
     issues.extend(build_incomplete_extraction_issues(project_dir, issues, pages))
     if event_sink is not None:
         event_sink.emit(
@@ -406,6 +413,62 @@ def rerun_audit_from_findings(
         report_formats=report_formats,
         event_sink=event_sink,
         issue_count=len(issues),
+    )
+
+
+def _frame_records(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    return [
+        {name: (None if isinstance(value, float) and pd.isna(value) else value) for name, value in row.items()}
+        for row in frame.to_dict("records")
+    ]
+
+
+def _gap_facts(project_dir: Path, frames: dict[str, pd.DataFrame], line_groups: list[LineGroup]):
+    """GAP-COORD facts for the R-RECOGNITION-GAP gate. A fact family is None when its artifact is absent."""
+    from dwg_audit.audit.recognition_coordinator import GapFacts
+    from dwg_audit.audit.superworks_device_internal import device_internal_wire_index
+
+    findings = project_dir / "findings"
+    internal_wires = None
+    if (findings / "sw_device_internal_links.parquet").is_file():
+        internal_wires = device_internal_wire_index(
+            _frame_records(frames.get("sw_device_internal_links", pd.DataFrame())))
+    continuity_ports = None
+    if (findings / "sw_port_coverage.parquet").is_file():
+        continuity_ports = frozenset(
+            str(row["port_id"]) for row in _frame_records(frames.get("sw_port_coverage", pd.DataFrame()))
+            if _json_list(row.get("continuity_link_ids"))
+        )
+    line_geometry = {
+        (group.file_id, group.sheet_id, group.line_group_id): ((group.start_x, group.start_y), (group.end_x, group.end_y))
+        for group in line_groups
+    }
+    return GapFacts(internal_wires=internal_wires, continuity_ports=continuity_ports, line_geometry=line_geometry)
+
+
+_GAP_DIAGNOSTIC_COLUMNS = (
+    "record_id", "object_key", "file_id", "sheet_id", "line_group_id", "state", "suppressed_by",
+    "reason_codes", "terminal_port_ids", "coords", "left_category", "right_category", "left_value", "right_value",
+    "pair_id",
+)
+
+
+def _write_gap_diagnostics(audit_dir: Path, gap) -> None:
+    """Observations the gate moved out of the issue list, with the step that did it (audit only)."""
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {name: (json.dumps(value, ensure_ascii=False) if isinstance(value, (list, dict, tuple)) else value)
+         for name, value in row.items()}
+        for row in gap.suppressed
+    ]
+    pd.DataFrame(rows, columns=list(_GAP_DIAGNOSTIC_COLUMNS)).to_parquet(
+        audit_dir / "sw_recognition_diagnostics.parquet", index=False)
+    by_step: dict[str, int] = {}
+    for row in gap.suppressed:
+        by_step[row["suppressed_by"]] = by_step.get(row["suppressed_by"], 0) + 1
+    (audit_dir / "sw_recognition_gate.json").write_text(
+        json.dumps({"suppressed_by": by_step, "stats": gap.stats}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
     )
 
 

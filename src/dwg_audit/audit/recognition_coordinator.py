@@ -5,11 +5,14 @@ No engine scores are compared and no possible geometry is promoted to a fact.
 """
 from __future__ import annotations
 
-from collections import defaultdict
+import json
+import math
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from time import perf_counter
 
-from dwg_audit.audit.candidates import TextSpatialIndex
+from dwg_audit.audit.candidates import GROUND_NETWORK_NAME_PATTERN, TextSpatialIndex
+from dwg_audit.audit.superworks_device_internal import on_device_internal_wire
 from dwg_audit.audit.line_groups import build_line_groups, path_body_checkers
 from dwg_audit.utils.ids import IdFactory
 
@@ -202,36 +205,273 @@ def finalize_evidence(pairs, context):
     return pairs
 
 
-def build_resolution_issues(observations, pairs, pages, existing=()):
-    """Retain native errors and actionable uncovered gaps without inventing a Pair."""
+# GAP-COORD: gate, presentation and diagnostics for R-RECOGNITION-GAP.
+GAP_STEPS = ("device_internal", "continuity", "physical_v1", "x_element_only", "self_loop")
+TERMINAL_CATEGORIES = frozenset({"装置端子", "端子"})
+DEVICE_TERMINAL = "装置端子"
+ELEMENT_CATEGORIES = frozenset({"内部元件", "线圈"})
+NON_TERMINAL_CATEGORIES = frozenset({"内部元件", "线圈", "接地", "接插件", "", None})
+PHYSICAL_OVERLAP_RATIO = 0.8
+PHYSICAL_COLLINEAR_TOL = 0.8
+UNPINNED_GAP_CLASS = "unpinned_element"
+
+
+@dataclass(slots=True)
+class GapFacts:
+    """Facts the gate reads from the SuperWORKS artifacts of one project. A None field disables its step."""
+    internal_wires: dict | None = None  # (file_id, device port_id) -> wire handles of that port's device-internal link
+    continuity_ports: frozenset | None = None  # port ids covered by a cross-page continuity link (covers_target)
+    line_geometry: dict = field(default_factory=dict)  # (file_id, sheet_id, line_group_id) -> ((x1, y1), (x2, y2))
+
+
+@dataclass(slots=True)
+class GapResolution:
+    issues: list
+    suppressed: list
+    stats: dict
+
+
+def _ident_key(value) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if GROUND_NETWORK_NAME_PATTERN.fullmatch(text):
+        return "gnd"  # G-1: the shared ground network name is one identity on every side
+    return text.casefold()
+
+
+def _json_list(value) -> list:
+    if isinstance(value, str):
+        return json.loads(value) if value else []
+    return list(value or [])
+
+
+def _side(item, name) -> dict:
+    return item.get(name) or {}
+
+
+def _is_terminal_side(side) -> bool:
+    return side.get("category") in TERMINAL_CATEGORIES and bool(side.get("port_ids"))
+
+
+def _terminal_port_ids(endpoints) -> list:
+    return sorted({pid for side in endpoints if side.get("category") in TERMINAL_CATEGORIES
+                   for pid in side.get("port_ids", [])})
+
+
+def _segment_on_geometry(segment, geometry, tol=PHYSICAL_COLLINEAR_TOL) -> float:
+    """Fraction of the observed segment that lies on the geometry line (0.0 unless collinear within tol)."""
+    (x1, y1), (x2, y2) = segment
+    (ax, ay), (bx, by) = geometry
+    length = math.hypot(x2 - x1, y2 - y1)
+    span = math.hypot(bx - ax, by - ay)
+    if length < 1e-6 or span < 1e-6:
+        return 0.0
+    ux, uy = (bx - ax) / span, (by - ay) / span
+    for px, py in ((x1, y1), (x2, y2)):
+        if abs((px - ax) * uy - (py - ay) * ux) > tol:
+            return 0.0
+    t1 = (x1 - ax) * ux + (y1 - ay) * uy
+    t2 = (x2 - ax) * ux + (y2 - ay) * uy
+    low, high = min(t1, t2), max(t1, t2)
+    return max(0.0, min(high, span) - max(low, 0.0)) / length
+
+
+def _pair_geometry(pair, facts):
+    geometry = None
+    if pair.line_group_id:
+        geometry = facts.line_geometry.get((pair.file_id, pair.sheet_id, pair.line_group_id))
+    if geometry is None:
+        evidence = pair.evidence or {}
+        start, end = evidence.get("line_start"), evidence.get("line_end")
+        if start and end and len(start) >= 2 and len(end) >= 2:
+            geometry = ((float(start[0]), float(start[1])), (float(end[0]), float(end[1])))
+    return geometry
+
+
+def _same_identity(pair_value, observed, aliases) -> bool:
+    """Production identity rule (_ends_equivalent) with the G-1 ground name as one identity."""
+    from dwg_audit.audit.superworks_extractor import _ends_equivalent
+    if not pair_value or not observed:
+        return False
+    if _ident_key(pair_value) and _ident_key(pair_value) == _ident_key(observed):
+        return True
+    return _ends_equivalent(pair_value, observed, aliases)
+
+
+def _physical_v1_pair(endpoints, coords, sheet_pairs):
+    """pair_id of a non-discard V1 pair on the same physical segment whose identities name every identified side."""
+    if not coords or len(coords) != 4:
+        return None
+    identified = [(side.get("value"), side.get("candidate_values") or ()) for side in endpoints if _ident_key(side.get("value"))]
+    if not identified:
+        return None
+    segment = ((float(coords[0]), float(coords[1])), (float(coords[2]), float(coords[3])))
+    for pair, geometry in sheet_pairs:
+        if _segment_on_geometry(segment, geometry) < PHYSICAL_OVERLAP_RATIO:
+            continue
+        values = [pair.left_value, pair.right_value]
+        if all(any(_same_identity(value, observed, aliases) for value in values) for observed, aliases in identified):
+            return pair.pair_id
+    return None
+
+
+def _x_element_only(endpoints, end_geometry) -> bool:
+    """Both ends are elements (no terminal side), with no SYMB2 termpoint and no vertical terminal rail at either end."""
+    if any(side.get("category") not in NON_TERMINAL_CATEGORIES for side in endpoints):
+        return False
+    if not end_geometry or len(end_geometry) != 2:
+        return False
+    return not any(end.get("unreg_pin") or end.get("rail_t") for end in end_geometry)
+
+
+def _self_loop(endpoints) -> bool:
+    """Two contacts of one identity on the same SuperWORKS ports (the same logical terminal, F1)."""
+    if any(not side.get("port_ids") for side in endpoints):
+        return False
+    keys = [_ident_key(side.get("value")) for side in endpoints]
+    return bool(keys[0]) and keys[0] == keys[1]
+
+
+def _unpinned_element(endpoints) -> bool:
+    """One identified terminal side, and the other side an element whose pin carries no identity on the drawing."""
+    terminal = [side for side in endpoints if _is_terminal_side(side) and _ident_key(side.get("value"))]
+    element = [side for side in endpoints if side.get("category") in ELEMENT_CATEGORIES and not _ident_key(side.get("value"))]
+    return len(terminal) == 1 and len(element) == 1 and terminal[0] is not element[0]
+
+
+def _gate_device_internal(endpoints, handles, file_id, facts, steps):
+    """'device_internal' or 'continuity' when every terminal side is covered by the step, else None."""
+    terminal_sides = [side for side in endpoints if side.get("category") in TERMINAL_CATEGORIES and side.get("port_ids")]
+    if not terminal_sides:
+        return None
+    used_continuity = False
+    for side in terminal_sides:
+        ports = side.get("port_ids", [])
+        by_wire = ("device_internal" in steps and facts.internal_wires is not None
+            and side.get("category") == DEVICE_TERMINAL
+            and any(on_device_internal_wire(facts.internal_wires, file_id, pid, handles) for pid in ports))
+        if by_wire:
+            continue
+        by_continuity = ("continuity" in steps and facts.continuity_ports is not None
+            and any(pid in facts.continuity_ports for pid in ports))
+        if by_continuity:
+            used_continuity = True
+            continue
+        return None
+    return "continuity" if used_continuity else "device_internal"
+
+
+def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=None, steps=GAP_STEPS) -> GapResolution:
+    """Retain native errors and actionable uncovered gaps without inventing a Pair.
+
+    Gate for an INCOMPLETE/AMBIGUOUS observation (a CONFIRMED_CONFLICT is never suppressed), in order:
+    1. a device-internal discarded pair on the same line group (existing rule);
+    2. ``device_internal``: every terminal side is a device terminal whose device-internal line link is on this wire;
+       ``continuity``: every terminal side is covered by a cross-page continuity link (covers_target);
+    3. ``physical_v1``: a non-discard V1 pair on the same physical segment (>= 80% overlap) whose identities include
+       every identified side of the observation (line-group id is no longer the test);
+    4. ``x_element_only``: no terminal side, and no termpoint or vertical terminal rail at either end;
+    5. ``self_loop``: two contacts of one identity on SuperWORKS ports (F1).
+    Suppressed observations are returned in ``suppressed`` for diagnostics. Presentation: one issue per uncovered
+    terminal port; an identity-less element pin at a terminal is summarised as one issue per sheet.
+    """
     import hashlib
     from dwg_audit.domain.models import Issue
     from dwg_audit.audit.superworks_extractor import _true_conflicts, _competing_object_id
+    facts = facts or GapFacts()
+    steps = frozenset(steps)
+    stats = Counter()
     page_map = {p.sheet_id: p for p in pages}
-    covered = {(p.file_id, p.sheet_id, p.line_group_id) for p in pairs
-        if p.status != "discard" or (p.evidence or {}).get("discard_reason") == "device_internal"}
+    internal_groups = {(p.file_id, p.sheet_id, p.line_group_id) for p in pairs
+        if p.status == "discard" and (p.evidence or {}).get("discard_reason") == "device_internal"}
+    sheet_pairs = defaultdict(list)
+    for pair in pairs:
+        if pair.status == "discard":
+            continue
+        geometry = _pair_geometry(pair, facts)
+        if geometry is not None:
+            sheet_pairs[(pair.file_id, pair.sheet_id)].append((pair, geometry))
     seen = {(i.file_id, i.sheet_id, (i.evidence or {}).get("conflict_object_id"), reason)
             for i in existing for reason in (i.evidence or {}).get("reason_codes", [])}
-    result = []
     issue_by_key = {(i.file_id, i.sheet_id, (i.evidence or {}).get("conflict_object_id"), reason): i
         for i in existing for reason in (i.evidence or {}).get("reason_codes", [])}
+    suppressed, kept, result = [], [], []
     for item in observations:
         state = item.get("state")
         if state not in {"CONFIRMED_CONFLICT", "INCOMPLETE", "AMBIGUOUS"}:
             continue
-        endpoints = [item.get(side) or {} for side in ("left", "right")]
-        if state != "CONFIRMED_CONFLICT":
-            if (item.get("file_id"), item.get("sheet_id"), item.get("line_group_id")) in covered:
-                continue
-            if not item.get("connect_label_id") and not any(e.get("wire_touched") and e.get("port_ids") for e in endpoints):
-                continue
-            if not item.get("line_group_id") and not item.get("connect_label_id"):
-                continue
-        reasons = _true_conflicts(item.get("reason_codes", [])) if state == "CONFIRMED_CONFLICT" else ["native_relation_incomplete"]
+        endpoints = [_side(item, side) for side in ("left", "right")]
+        if state == "CONFIRMED_CONFLICT":
+            kept.append((item, endpoints))
+            continue
+        if (item.get("file_id"), item.get("sheet_id"), item.get("line_group_id")) in internal_groups:
+            suppressed.append(_suppressed_row(item, "device_internal_pair", endpoints))
+            stats["suppressed:device_internal_pair"] += 1
+            continue
+        if not item.get("connect_label_id") and not any(e.get("wire_touched") and e.get("port_ids") for e in endpoints):
+            continue
+        if not item.get("line_group_id") and not item.get("connect_label_id"):
+            continue
+        gate, pair_id = _gate(item, endpoints, facts, steps, sheet_pairs)
+        if gate is not None:
+            suppressed.append({**_suppressed_row(item, gate, endpoints), "pair_id": pair_id})
+            stats[f"suppressed:{gate}"] += 1
+            continue
+        kept.append((item, endpoints))
+    stats["kept_observations"] = len(kept)
+    individual_terminals = set()
+    for item, endpoints in kept:
+        if item.get("state") != "CONFIRMED_CONFLICT" and not _unpinned_element(endpoints):
+            individual_terminals.update(_terminal_port_ids(endpoints))
+    individual, page_items = [], defaultdict(list)
+    for item, endpoints in kept:
+        pinless = item.get("state") != "CONFIRMED_CONFLICT" and _unpinned_element(endpoints)
+        if pinless and not (set(_terminal_port_ids(endpoints)) & individual_terminals):
+            page_items[(item.get("file_id"), item.get("sheet_id"))].append((item, endpoints))
+        else:
+            if _unpinned_element(endpoints):
+                stats["unpinned_folded_into_terminal"] += 1
+            individual.append((item, endpoints))
+    # Terminal dedupe: observations that share a terminal port are one work item, so every uncovered terminal
+    # appears in exactly one issue (union-find over the terminal ports of the individual observations).
+    parent: dict[str, str] = {}
+
+    def _root(port: str) -> str:
+        parent.setdefault(port, port)
+        while parent[port] != port:
+            parent[port] = parent[parent[port]]
+            port = parent[port]
+        return port
+
+    for item, endpoints in individual:
+        if item.get("state") == "CONFIRMED_CONFLICT":
+            continue
+        terminals = _terminal_port_ids(endpoints)
+        for other in terminals[1:]:
+            parent[_root(other)] = _root(terminals[0])
+        if terminals:
+            _root(terminals[0])
+    component_terminals: dict[str, set] = defaultdict(set)
+    for item, endpoints in individual:
+        terminals = _terminal_port_ids(endpoints) if item.get("state") != "CONFIRMED_CONFLICT" else []
+        if terminals:
+            component_terminals[_root(terminals[0])].update(terminals)
+    for item, endpoints in individual:
+        state = item.get("state")
+        if state == "CONFIRMED_CONFLICT":
+            reasons = _true_conflicts(item.get("reason_codes", []))
+            terminals = []
+        else:
+            reasons = ["native_relation_incomplete"]
+            terminals = sorted(component_terminals[_root(_terminal_port_ids(endpoints)[0])]) if _terminal_port_ids(endpoints) else []
         port_ids = sorted({pid for e in endpoints for pid in e.get("port_ids", [])})
         symbols = sorted({str(e["symbol_id"]) for e in endpoints if e.get("symbol_id")})
         for reason in reasons:
-            object_id = (_competing_object_id(item) if reason.startswith("competing_physical_port") else None) or ",".join(port_ids) or ",".join(symbols) or item.get("connect_label_id") or item.get("line_group_id") or item["record_id"]
+            if terminals:
+                object_id = ",".join(terminals)
+            else:
+                object_id = (_competing_object_id(item) if reason.startswith("competing_physical_port") else None) or ",".join(port_ids) or ",".join(symbols) or item.get("connect_label_id") or item.get("line_group_id") or item["record_id"]
             key = (item.get("file_id"), item.get("sheet_id"), object_id, reason)
             if key in seen:
                 prior = issue_by_key.get(key)
@@ -249,7 +489,8 @@ def build_resolution_issues(observations, pairs, pages, existing=()):
             coords = item.get("coords") or []
             evidence = {**item, "source": "superworks", "reason_codes": [reason],
                 "resolution_reason_codes": item.get("reason_codes", []), "conflict_object_id": object_id,
-                "handling_class": "review", "recognition_state": state, "resolution_observations": [item]}
+                "handling_class": "review", "recognition_state": state, "resolution_observations": [item],
+                "presentation": "terminal" if terminals else "observation", "terminal_port_ids": terminals}
             if len(coords) == 4:
                 evidence.update(line_start=coords[:2], line_end=coords[2:])
             conflict = state == "CONFIRMED_CONFLICT"
@@ -265,5 +506,74 @@ def build_resolution_issues(observations, pairs, pages, existing=()):
                 explanation="保留原始句柄和物理位置；补证没有消除这项冲突或缺口。",
                 recommended_action="在图纸对应位置检查元数据、端点及连接。"))
             issue_by_key[key] = result[-1]
+            stats["emitted:terminal" if terminals else "emitted:observation"] += 1
+    for (file_id, sheet_id), items in sorted(page_items.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))):
+        result.append(_page_summary_issue(file_id, sheet_id, items, page_map))
+        stats["emitted:page_summary"] += 1
+        stats["page_summary_observations"] += len(items)
     from dwg_audit.audit.issue_triage import classify_and_group_issues
-    return classify_and_group_issues(result)
+    return GapResolution(classify_and_group_issues(result), suppressed, dict(stats))
+
+
+def _gate(item, endpoints, facts, steps, sheet_pairs):
+    """(gate step, closing pair id) for the first step that suppresses this observation, else (None, None)."""
+    file_id, sheet_id = item.get("file_id"), item.get("sheet_id")
+    handles = [str(h) for h in _json_list(item.get("source_handles"))]
+    gate = _gate_device_internal(endpoints, handles, file_id, facts, steps)
+    if gate is not None:
+        return gate, None
+    if "physical_v1" in steps:
+        pair_id = _physical_v1_pair(endpoints, _json_list(item.get("coords")), sheet_pairs.get((file_id, sheet_id), []))
+        if pair_id:
+            return "physical_v1", pair_id
+    if "x_element_only" in steps and item.get("end_geometry") is not None:
+        if _x_element_only(endpoints, _json_list(item.get("end_geometry"))):
+            return "x_element_only", None
+    if "self_loop" in steps and _self_loop(endpoints):
+        return "self_loop", None
+    return None, None
+
+
+def build_resolution_issues(observations, pairs, pages, existing=(), *, facts=None, steps=GAP_STEPS):
+    """Issues only. See resolve_recognition_gaps for the gate, the presentation and the diagnostics rows."""
+    return resolve_recognition_gaps(observations, pairs, pages, existing, facts=facts, steps=steps).issues
+
+
+def _suppressed_row(item, gate, endpoints) -> dict:
+    return {"record_id": item.get("record_id"), "object_key": item.get("object_key"), "file_id": item.get("file_id"),
+        "sheet_id": item.get("sheet_id"), "line_group_id": item.get("line_group_id"), "state": item.get("state"),
+        "suppressed_by": gate, "reason_codes": list(_json_list(item.get("reason_codes"))),
+        "terminal_port_ids": _terminal_port_ids(endpoints), "coords": _json_list(item.get("coords")),
+        "left_category": endpoints[0].get("category"), "right_category": endpoints[1].get("category"),
+        "left_value": endpoints[0].get("value"), "right_value": endpoints[1].get("value")}
+
+
+def _page_summary_issue(file_id, sheet_id, items, page_map):
+    """One review issue for the terminals whose far end is an element pin with no identity on the drawing."""
+    import hashlib
+    from dwg_audit.domain.models import Issue
+    terminals, observation_ids = {}, []
+    for item, endpoints in items:
+        observation_ids.append(item.get("record_id"))
+        for side in endpoints:
+            if _is_terminal_side(side):
+                for pid in side.get("port_ids", []):
+                    terminals.setdefault(pid, {"port_id": pid, "endpoint_identity": str(side.get("value") or "").strip(),
+                        "coords": _json_list(item.get("coords")), "sheet_id": sheet_id, "file_id": file_id})
+    page = page_map.get(sheet_id)
+    sheet_label = (page.sheet_no if page else None) or str(sheet_id)
+    count = len(terminals)
+    key = (file_id, sheet_id, f"page:{UNPINNED_GAP_CLASS}", "native_relation_incomplete")
+    message = f"图 {sheet_label} 有 {count} 个端子接到图面无脚号的元件引脚，已汇总为一条待审核，逐个端口见 terminal_ports。"
+    evidence = {"source": "superworks", "presentation": "page_summary", "gap_class": UNPINNED_GAP_CLASS,
+        "reason_codes": ["native_relation_incomplete"], "conflict_object_id": f"page:{sheet_id}:{UNPINNED_GAP_CLASS}",
+        "handling_class": "review", "recognition_state": "INCOMPLETE", "terminal_count": count,
+        "terminal_ports": list(terminals.values()), "observation_ids": observation_ids,
+        "resolution_observations": [item for item, _ in items]}
+    return Issue("ISW" + hashlib.sha256(repr(key).encode()).hexdigest()[:20],
+        "R-RECOGNITION-GAP", "review", "open", 0.0, message, sheet_id, file_id, None, None, None, None,
+        filename=page.filename if page else None, sheet_no=page.sheet_no if page else None,
+        sheet_order=page.sheet_order if page else None, evidence=evidence,
+        title="无脚号元件连接待审核", issue_type="recognition_gap",
+        explanation="端子另一端接到的元件引脚在图面上没有脚号，无法由现有证据确定其身份。",
+        recommended_action="在图纸上核对这些端子接入的元件引脚，并补充脚号或确认外部接线。")
