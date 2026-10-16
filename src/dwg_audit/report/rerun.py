@@ -56,10 +56,13 @@ _AUDIT_COPY_NAMES = (
 _CORE_FRAME_NAMES = (
     "pages",
     "texts",
+    "lines",
     "line_groups",
     "terminal_candidates",
     "pairs",
     "sw_resolution_observations",
+    "sw_ports",
+    "sw_connect_dots",
     "sw_port_coverage",
     "sw_device_internal_links",
 )
@@ -427,6 +430,7 @@ def _gap_facts(project_dir: Path, frames: dict[str, pd.DataFrame], line_groups: 
     """GAP-COORD facts for the R-RECOGNITION-GAP gate. A fact family is None when its artifact is absent."""
     from dwg_audit.audit.recognition_coordinator import GapFacts
     from dwg_audit.audit.superworks_device_internal import device_internal_wire_index
+    from dwg_audit.audit.superworks_wire_walk import FRAME_LABEL_GAP, rectangles
 
     findings = project_dir / "findings"
     internal_wires = None
@@ -443,13 +447,90 @@ def _gap_facts(project_dir: Path, frames: dict[str, pd.DataFrame], line_groups: 
         (group.file_id, group.sheet_id, group.line_group_id): ((group.start_x, group.start_y), (group.end_x, group.end_y))
         for group in line_groups
     }
-    return GapFacts(internal_wires=internal_wires, continuity_ports=continuity_ports, line_geometry=line_geometry)
+    frame_artifacts_available = all((findings / f"{name}.parquet").is_file()
+                                    for name in ("lines", "texts", "sw_connect_dots", "sw_ports"))
+    frame_boundaries = None
+    frame_connect_dots = None
+    frame_port_labels = None
+    if frame_artifacts_available:
+        segments_by_sheet: dict[tuple[str, str], list[tuple[float, float, float, float]]] = {}
+        for row in _frame_records(frames.get("lines", pd.DataFrame())):
+            if row.get("source_block_name") not in (None, ""):
+                continue
+            coords = [row.get(name) for name in ("start_x", "start_y", "end_x", "end_y")]
+            try:
+                segment = tuple(float(value) for value in coords)
+            except (TypeError, ValueError):
+                continue
+            if not all(pd.notna(value) for value in segment):
+                continue
+            key = (str(row.get("file_id") or ""), str(row.get("sheet_id") or ""))
+            segments_by_sheet.setdefault(key, []).append(segment)
+
+        texts_by_sheet: dict[tuple[str, str], list[tuple[str, tuple[float, float, float, float]]]] = {}
+        for row in _frame_records(frames.get("texts", pd.DataFrame())):
+            value = str(row.get("normalized_text") or row.get("text") or "").strip()
+            bbox = [row.get(name) for name in ("bbox_min_x", "bbox_min_y", "bbox_max_x", "bbox_max_y")]
+            try:
+                box = tuple(float(item) for item in bbox)
+            except (TypeError, ValueError):
+                continue
+            if not value or not all(pd.notna(item) for item in box):
+                continue
+            key = (str(row.get("file_id") or ""), str(row.get("sheet_id") or ""))
+            texts_by_sheet.setdefault(key, []).append((value, box))
+
+        def is_frame_caption(value: str, bbox: tuple[float, float, float, float], rect) -> bool:
+            if not any(char.isalpha() or "\u4e00" <= char <= "\u9fff" for char in value):
+                return False
+            x0, _, x1, y1 = rect
+            tx0, ty0, tx1, ty1 = bbox
+            if tx1 < x0 - FRAME_LABEL_GAP or tx0 > x1 + FRAME_LABEL_GAP:
+                return False
+            top_band = max(FRAME_LABEL_GAP, min((rect[3] - rect[1]) * 0.25, 12.0))
+            return ty1 >= y1 - top_band and ty0 <= y1 + FRAME_LABEL_GAP
+
+        frame_boundaries = {}
+        for key, segments in segments_by_sheet.items():
+            unique_rectangles = sorted(set(rectangles(segments)))
+            labelled = []
+            for rect in unique_rectangles:
+                captions = sorted({value for value, bbox in texts_by_sheet.get(key, [])
+                                   if is_frame_caption(value, bbox, rect)})
+                if captions:
+                    labelled.append({"rect": rect, "label": " | ".join(captions), "captions": captions})
+            frame_boundaries[key] = labelled
+
+        frame_connect_dots = {}
+        for row in _frame_records(frames.get("sw_connect_dots", pd.DataFrame())):
+            try:
+                point = (float(row["x"]), float(row["y"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not all(pd.notna(value) for value in point):
+                continue
+            key = (str(row.get("file_id") or ""), str(row.get("sheet_id") or ""))
+            frame_connect_dots.setdefault(key, []).append(point)
+
+        frame_port_labels = {}
+        for row in _frame_records(frames.get("sw_ports", pd.DataFrame())):
+            port_id = str(row.get("record_id") or "")
+            label = _json_dict(row.get("label"))
+            value = str(label.get("normalized") or label.get("value") or "").strip()
+            if not port_id or not value:
+                continue
+            key = (str(row.get("file_id") or ""), str(row.get("sheet_id") or ""))
+            frame_port_labels.setdefault(key, {})[port_id] = value
+
+    return GapFacts(internal_wires=internal_wires, continuity_ports=continuity_ports, line_geometry=line_geometry,
+                    frame_boundaries=frame_boundaries, frame_connect_dots=frame_connect_dots,
+                    frame_port_labels=frame_port_labels)
 
 
 _GAP_DIAGNOSTIC_COLUMNS = (
     "record_id", "object_key", "file_id", "sheet_id", "line_group_id", "state", "suppressed_by",
     "reason_codes", "terminal_port_ids", "coords", "left_category", "right_category", "left_value", "right_value",
-    "pair_id",
+    "pair_id", "frame_rect", "frame_label", "frame_contact",
 )
 
 

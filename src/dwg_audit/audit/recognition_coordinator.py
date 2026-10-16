@@ -206,13 +206,15 @@ def finalize_evidence(pairs, context):
 
 
 # GAP-COORD: gate, presentation and diagnostics for R-RECOGNITION-GAP.
-GAP_STEPS = ("device_internal", "continuity", "physical_v1", "x_element_only", "self_loop")
+GAP_STEPS = ("device_internal", "continuity", "physical_v1", "terminal_frame_boundary", "x_element_only", "self_loop")
 TERMINAL_CATEGORIES = frozenset({"装置端子", "端子"})
 DEVICE_TERMINAL = "装置端子"
 ELEMENT_CATEGORIES = frozenset({"内部元件", "线圈"})
 NON_TERMINAL_CATEGORIES = frozenset({"内部元件", "线圈", "接地", "接插件", "", None})
 PHYSICAL_OVERLAP_RATIO = 0.8
 PHYSICAL_COLLINEAR_TOL = 0.8
+FRAME_BOUNDARY_TOL = 0.6
+FRAME_STUB_MAX_LENGTH = 50.0
 UNPINNED_GAP_CLASS = "unpinned_element"
 
 
@@ -222,6 +224,9 @@ class GapFacts:
     internal_wires: dict | None = None  # (file_id, device port_id) -> wire handles of that port's device-internal link
     continuity_ports: frozenset | None = None  # port ids covered by a cross-page continuity link (covers_target)
     line_geometry: dict = field(default_factory=dict)  # (file_id, sheet_id, line_group_id) -> ((x1, y1), (x2, y2))
+    frame_boundaries: dict | None = None  # (file_id, sheet_id) -> [{"rect": (x0, y0, x1, y1), "label": caption}]
+    frame_connect_dots: dict | None = None  # (file_id, sheet_id) -> [(x, y)] explicit SW connection points
+    frame_port_labels: dict | None = None  # (file_id, sheet_id) -> {port_id: exact SW terminal/device label}
 
 
 @dataclass(slots=True)
@@ -340,6 +345,133 @@ def _unpinned_element(endpoints) -> bool:
     return len(terminal) == 1 and len(element) == 1 and terminal[0] is not element[0]
 
 
+def _terminal_port_contacts(endpoints):
+    """Contact points and tolerances recorded by the endpoint's own SuperWORKS ports."""
+    contacts = []
+    for side in endpoints:
+        if side.get("category") not in TERMINAL_CATEGORIES or not side.get("port_ids"):
+            continue
+        for port in _json_list(side.get("ports")):
+            start, end = port.get("start"), port.get("end")
+            if not isinstance(start, (list, tuple)) or not isinstance(end, (list, tuple)) or len(start) < 2 or len(end) < 2:
+                continue
+            try:
+                point = ((float(start[0]) + float(end[0])) / 2.0,
+                         (float(start[1]) + float(end[1])) / 2.0)
+                tolerance = float(port.get("tolerance") or FRAME_BOUNDARY_TOL)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(tolerance):
+                contacts.append((point, max(FRAME_BOUNDARY_TOL, tolerance), str(port.get("port_id") or "")))
+    return contacts
+
+
+def _inside_frame(point, rect, tol=FRAME_BOUNDARY_TOL):
+    x0, y0, x1, y1 = rect
+    return x0 - tol <= point[0] <= x1 + tol and y0 - tol <= point[1] <= y1 + tol
+
+
+def _frame_boundary_contacts(segment, rect, tol=FRAME_BOUNDARY_TOL):
+    """Orthogonal intersections of a short lead and a rectangle edge; overlapping an edge is not a contact."""
+    x1, y1, x2, y2 = segment
+    x0, y0, rx1, ry1 = rect
+    dx, dy = x2 - x1, y2 - y1
+    contacts = []
+    if abs(dy) <= tol and abs(dx) > tol:
+        y = (y1 + y2) / 2.0
+        if abs(y - y0) <= tol or abs(y - ry1) <= tol:
+            return []  # The observation lies along the frame's horizontal edge.
+        if y0 - tol <= y <= ry1 + tol:
+            for x in (x0, rx1):
+                if min(x1, x2) - tol <= x <= max(x1, x2) + tol:
+                    contacts.append((x, y))
+    elif abs(dx) <= tol and abs(dy) > tol:
+        x = (x1 + x2) / 2.0
+        if abs(x - x0) <= tol or abs(x - rx1) <= tol:
+            return []  # The observation lies along the frame's vertical edge.
+        if x0 - tol <= x <= rx1 + tol:
+            for y in (y0, ry1):
+                if min(y1, y2) - tol <= y <= max(y1, y2) + tol:
+                    contacts.append((x, y))
+    return list(dict.fromkeys(contacts))
+
+
+def _frame_caption_matches_port(label, caption_keys):
+    """Match the exact SW label, or its device prefix followed only by a numeric terminal suffix."""
+    normalized = str(label or "").strip().casefold()
+    if not normalized:
+        return False
+    for caption in caption_keys:
+        if normalized == caption:
+            return True
+        if normalized.startswith(caption):
+            suffix = normalized[len(caption):]
+            if suffix and suffix.isdigit():
+                return True
+    return False
+
+
+def _terminal_frame_boundary(item, endpoints, facts):
+    """A short lead whose frame-edge intersection is itself a segment endpoint."""
+    if facts.frame_boundaries is None or facts.frame_connect_dots is None or facts.frame_port_labels is None:
+        return None
+    coords = _json_list(item.get("coords"))
+    if len(coords) != 4:
+        return None
+    try:
+        segment = tuple(float(value) for value in coords)
+    except (TypeError, ValueError):
+        return None
+    length = math.hypot(segment[2] - segment[0], segment[3] - segment[1])
+    if length <= FRAME_BOUNDARY_TOL or length > FRAME_STUB_MAX_LENGTH:
+        return None
+    terminal_contacts = _terminal_port_contacts(endpoints)
+    segment_endpoints = ((segment[0], segment[1]), (segment[2], segment[3]))
+    if not any(math.hypot(point[0] - endpoint[0], point[1] - endpoint[1]) <= tolerance
+               for point, tolerance, _ in terminal_contacts for endpoint in segment_endpoints):
+        return None
+    key = (item.get("file_id"), item.get("sheet_id"))
+    dots = facts.frame_connect_dots.get(key, ())
+    port_labels = facts.frame_port_labels.get(key, {})
+    candidates = []
+    for frame in facts.frame_boundaries.get(key, ()):
+        rect = frame.get("rect") if isinstance(frame, dict) else None
+        label = str(frame.get("label") or "").strip() if isinstance(frame, dict) else ""
+        if not rect or len(rect) != 4 or not label:
+            continue
+        captions = frame.get("captions") or (label,)
+        caption_keys = {str(caption).strip().casefold() for caption in captions if str(caption).strip()}
+        contacts = _frame_boundary_contacts(segment, rect)
+        if len(contacts) != 1:
+            continue
+        contact = contacts[0]
+        boundary_endpoints = [index for index, endpoint in enumerate(segment_endpoints)
+                              if math.hypot(contact[0] - endpoint[0], contact[1] - endpoint[1]) <= FRAME_BOUNDARY_TOL]
+        if len(boundary_endpoints) != 1:
+            continue  # A frame-edge intersection inside the observed segment is a crossing, not a stop.
+        terminal_endpoint = segment_endpoints[1 - boundary_endpoints[0]]
+        if any(math.hypot(contact[0] - point[0], contact[1] - point[1]) <= tolerance
+               for point, tolerance, _ in terminal_contacts):
+            continue  # A terminal port on the frame edge is a real endpoint, not a frame stop.
+        inside_port_ids = {port_id for point, tolerance, port_id in terminal_contacts
+                           if _inside_frame(point, rect)
+                           and math.hypot(terminal_endpoint[0] - point[0],
+                                          terminal_endpoint[1] - point[1]) <= tolerance}
+        matching_inner_ports = {port_id for point, tolerance, port_id in terminal_contacts
+                                if port_id in port_labels
+                                and _frame_caption_matches_port(port_labels[port_id], caption_keys)
+                                and _inside_frame(point, rect)
+                                and math.hypot(terminal_endpoint[0] - point[0],
+                                               terminal_endpoint[1] - point[1]) <= tolerance}
+        if len(inside_port_ids) != 1 or matching_inner_ports != inside_port_ids:
+            continue  # That inside terminal port's own SuperWORKS label must appear on the frame.
+        if any(math.hypot(contact[0] - float(dot[0]), contact[1] - float(dot[1])) <= FRAME_BOUNDARY_TOL
+               for dot in dots if isinstance(dot, (list, tuple)) and len(dot) >= 2):
+            continue
+        candidates.append({"rect": tuple(float(value) for value in rect), "label": label, "contact": contact})
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def _gate_device_internal(endpoints, handles, file_id, facts, steps):
     """'device_internal' or 'continuity' when every terminal side is covered by the step, else None."""
     terminal_sides = [side for side in endpoints if side.get("category") in TERMINAL_CATEGORIES and side.get("port_ids")]
@@ -371,8 +503,11 @@ def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=N
        ``continuity``: every terminal side is covered by a cross-page continuity link (covers_target);
     3. ``physical_v1``: a non-discard V1 pair on the same physical segment (>= 80% overlap) whose identities include
        every identified side of the observation (line-group id is no longer the test);
-    4. ``x_element_only``: no terminal side, and no termpoint or vertical terminal rail at either end;
-    5. ``self_loop``: two contacts of one identity on SuperWORKS ports (F1).
+    4. ``terminal_frame_boundary``: a short lead ends exactly at one unique closed captioned frame; the opposite
+       endpoint must match one inside SuperWORKS terminal label and no connection dot may mark the contact;
+       a segment whose frame-edge intersection lies in its interior remains reviewable;
+    5. ``x_element_only``: no terminal side, and no termpoint or vertical terminal rail at either end;
+    6. ``self_loop``: two contacts of one identity on SuperWORKS ports (F1).
     Suppressed observations are returned in ``suppressed`` for diagnostics. Presentation: one issue per uncovered
     terminal port; an identity-less element pin at a terminal is summarised as one issue per sheet.
     """
@@ -413,9 +548,9 @@ def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=N
             continue
         if not item.get("line_group_id") and not item.get("connect_label_id"):
             continue
-        gate, pair_id = _gate(item, endpoints, facts, steps, sheet_pairs)
+        gate, pair_id, gate_details = _gate(item, endpoints, facts, steps, sheet_pairs)
         if gate is not None:
-            suppressed.append({**_suppressed_row(item, gate, endpoints), "pair_id": pair_id})
+            suppressed.append({**_suppressed_row(item, gate, endpoints, gate_details), "pair_id": pair_id})
             stats[f"suppressed:{gate}"] += 1
             continue
         kept.append((item, endpoints))
@@ -516,22 +651,26 @@ def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=N
 
 
 def _gate(item, endpoints, facts, steps, sheet_pairs):
-    """(gate step, closing pair id) for the first step that suppresses this observation, else (None, None)."""
+    """(gate step, closing pair id, audit details) for the first suppression, else (None, None, {})."""
     file_id, sheet_id = item.get("file_id"), item.get("sheet_id")
     handles = [str(h) for h in _json_list(item.get("source_handles"))]
     gate = _gate_device_internal(endpoints, handles, file_id, facts, steps)
     if gate is not None:
-        return gate, None
+        return gate, None, {}
     if "physical_v1" in steps:
         pair_id = _physical_v1_pair(endpoints, _json_list(item.get("coords")), sheet_pairs.get((file_id, sheet_id), []))
         if pair_id:
-            return "physical_v1", pair_id
+            return "physical_v1", pair_id, {}
+    if "terminal_frame_boundary" in steps:
+        frame = _terminal_frame_boundary(item, endpoints, facts)
+        if frame is not None:
+            return "terminal_frame_boundary", None, frame
     if "x_element_only" in steps and item.get("end_geometry") is not None:
         if _x_element_only(endpoints, _json_list(item.get("end_geometry"))):
-            return "x_element_only", None
+            return "x_element_only", None, {}
     if "self_loop" in steps and _self_loop(endpoints):
-        return "self_loop", None
-    return None, None
+        return "self_loop", None, {}
+    return None, None, {}
 
 
 def build_resolution_issues(observations, pairs, pages, existing=(), *, facts=None, steps=GAP_STEPS):
@@ -539,13 +678,17 @@ def build_resolution_issues(observations, pairs, pages, existing=(), *, facts=No
     return resolve_recognition_gaps(observations, pairs, pages, existing, facts=facts, steps=steps).issues
 
 
-def _suppressed_row(item, gate, endpoints) -> dict:
-    return {"record_id": item.get("record_id"), "object_key": item.get("object_key"), "file_id": item.get("file_id"),
+def _suppressed_row(item, gate, endpoints, details=None) -> dict:
+    row = {"record_id": item.get("record_id"), "object_key": item.get("object_key"), "file_id": item.get("file_id"),
         "sheet_id": item.get("sheet_id"), "line_group_id": item.get("line_group_id"), "state": item.get("state"),
         "suppressed_by": gate, "reason_codes": list(_json_list(item.get("reason_codes"))),
         "terminal_port_ids": _terminal_port_ids(endpoints), "coords": _json_list(item.get("coords")),
         "left_category": endpoints[0].get("category"), "right_category": endpoints[1].get("category"),
         "left_value": endpoints[0].get("value"), "right_value": endpoints[1].get("value")}
+    if gate == "terminal_frame_boundary" and details:
+        row.update(frame_rect=list(details["rect"]), frame_label=details["label"],
+                   frame_contact=list(details["contact"]))
+    return row
 
 
 def _page_summary_issue(file_id, sheet_id, items, page_map):

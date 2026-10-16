@@ -1,0 +1,151 @@
+{
+  "snapshot": ".tmp\\precision_loop_20261016\\frame_rule_src_final4",
+  "cases": [
+    {
+      "case": "positive_frame",
+      "project_id": "p000",
+      "file_id": "F0008",
+      "input_sha256": "f7c790b6dc5734d9aafc203f06fb428fb09135a60615251b1b1eeb0099dfc0af",
+      "dxf_sha256": "9a7a3c7cd7d90563576af883f4ffa32075b59bd112d2a3295049b72f154f0479",
+      "analyzed_page_count": 1,
+      "issue_count": 4,
+      "frame_suppression_count": 7,
+      "target_frame_suppressed": true,
+      "negative_control_retained": false,
+      "target_suppression_details": [
+        {
+          "record_id": "PSWe491714897f2d328",
+          "object_key": "F0001:S0001:wire:13A54:187.500000000,237.500000000:190.000000000,237.500000000",
+          "file_id": "F0001",
+          "sheet_id": "S0001",
+          "line_group_id": "GWSWfadb416b14c78472",
+          "state": "INCOMPLETE",
+          "suppressed_by": "terminal_frame_boundary",
+          "reason_codes": "[\"endpoint_identity_missing\"]",
+          "terminal_port_ids": "[\"SW:F0001:S0001:/E763:/E763:E3AC:2\"]",
+          "coords": "[187.5, 237.5, 190.0, 237.5]",
+          "left_category": "装置端子",
+          "right_category": NaN,
+          "left_value": "1n908",
+          "right_value": NaN,
+          "pair_id": NaN,
+          "frame_rect": "[130.0, 210.0, 190.0, 265.0]",
+          "frame_label": "1n | Protection action | WXH-813-D1F | 保护动作 | 重合闸动作",
+          "frame_contact": "[190.0, 237.5]"
+        }
+      ],
+      "gate_summary": {
+        "suppressed_by": {
+          "device_internal_pair": 14,
+          "physical_v1": 1,
+          "device_internal": 8,
+          "terminal_frame_boundary": 7
+        },
+        "stats": {
+          "suppressed:device_internal_pair": 14,
+          "suppressed:physical_v1": 1,
+          "suppressed:device_internal": 8,
+          "suppressed:terminal_frame_boundary": 7,
+          "kept_observations": 11,
+          "unpinned_folded_into_terminal": 2,
+          "emitted:terminal": 3,
+          "emitted:page_summary": 1,
+          "page_summary_observations": 5
+        }
+      },
+      "project_dir": ".tmp\\precision_loop_20261016\\frame_rule_single_page_final4_retry1\\positive_frame\\output\\input"
+    },
+    {
+      "case": "negative_real_T_dot",
+      "project_id": "p020",
+      "file_id": "F0016",
+      "input_sha256": "758647a97561660fc2d448faa7a1b8b5468973897e1c9f3d63d3d4ae0ed35648",
+      "dxf_sha256": "c73f3f67997f95f81e27af7eb59bb916e58db1cd647e010e8dae1ac065257234",
+      "analyzed_page_count": 1,
+      "issue_count": 7,
+      "frame_suppression_count": 0,
+      "target_frame_suppressed": false,
+      "negative_control_retained": true,
+      "target_suppression_details": [],
+      "gate_summary": {
+        "suppressed_by": {
+          "x_element_only": 1,
+          "device_internal": 56
+        },
+        "stats": {
+          "suppressed:x_element_only": 1,
+          "suppressed:device_internal": 56,
+          "kept_observations": 86,
+          "emitted:observation": 3,
+          "emitted:terminal": 3,
+          "emitted:page_summary": 1,
+          "page_summary_observations": 25
+        }
+      },
+      "project_dir": ".tmp\\precision_loop_20261016\\frame_rule_single_page_final4_retry1\\negative_real_T_dot\\output\\input"
+    },
+    {
+      "case": "negative_wire_crosses_frame",
+      "project_id": "p013",
+      "file_id": "F0015",
+      "input_sha256": "bc452fbb1281cc7f5a5b587d98d87b5b617a5047ddc3eaf8e73fb781aaaef86a",
+      "dxf_sha256": "7e589a3f4c5225e5ad0bccd65b5f07adcd2563d2589bd4fd9443809d2786cd24",
+      "analyzed_page_count": 1,
+      "issue_count": 2,
+      "frame_suppression_count": 16,
+      "target_frame_suppressed": false,
+      "negative_control_retained": true,
+      "target_suppression_details": [],
+      "gate_summary": {
+        "suppressed_by": {
+          "device_internal": 29,
+          "device_internal_pair": 5,
+          "physical_v1": 10,
+          "terminal_frame_boundary": 16
+        },
+        "stats": {
+          "suppressed:device_internal": 29,
+          "suppressed:device_internal_pair": 5,
+          "suppressed:physical_v1": 10,
+          "suppressed:terminal_frame_boundary": 16,
+          "kept_observations": 2,
+          "emitted:terminal": 2
+        }
+      },
+      "project_dir": ".tmp\\precision_loop_20261016\\frame_rule_single_page_final4_retry1\\negative_wire_crosses_frame\\output\\input"
+    },
+    {
+      "case": "negative_frame_crossing_to_terminal",
+      "project_id": "p027",
+      "file_id": "F0018",
+      "input_sha256": "d49df45a6a79454aa780b5adf3c538ac16eb02e8fcc7f87a4bb60ab965302167",
+      "dxf_sha256": "e6b079633d2cd39f6327a7a190c7e84e94cd91b26612d592a2a90d293a3b712a",
+      "analyzed_page_count": 1,
+      "issue_count": 42,
+      "frame_suppression_count": 0,
+      "target_frame_suppressed": false,
+      "negative_control_retained": true,
+      "target_suppression_details": [],
+      "gate_summary": {
+        "suppressed_by": {
+          "physical_v1": 3,
+          "device_internal_pair": 18,
+          "x_element_only": 12,
+          "device_internal": 4
+        },
+        "stats": {
+          "suppressed:physical_v1": 3,
+          "suppressed:device_internal_pair": 18,
+          "suppressed:x_element_only": 12,
+          "suppressed:device_internal": 4,
+          "kept_observations": 61,
+          "emitted:observation": 29,
+          "emitted:terminal": 12,
+          "emitted:page_summary": 1,
+          "page_summary_observations": 8
+        }
+      },
+      "project_dir": ".tmp\\precision_loop_20261016\\frame_rule_single_page_final4_retry1\\negative_frame_crossing_to_terminal\\output\\input"
+    }
+  ]
+}
