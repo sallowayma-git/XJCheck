@@ -1,0 +1,83 @@
+{
+  "previous_run": "F:\\workspace\\XJToolkit\\.tmp\\p1_fpfix_full77",
+  "current_run": "F:\\workspace\\XJToolkit\\.tmp\\precision_loop_20261015\\p057_slice_10",
+  "stable_key": [
+    "project",
+    "file_id",
+    "sheet_id",
+    "left_text_id",
+    "right_text_id",
+    "pair_kind"
+  ],
+  "population": 158,
+  "population_by_project": {
+    "p072": 79,
+    "p073": 79
+  },
+  "changes_by_project_and_header": {
+    "p072|NR1181C": 12,
+    "p072|NR1502A": 20,
+    "p072|NR1548C": 4,
+    "p072|NR1551A": 25,
+    "p072|NR1552A": 12,
+    "p072|RX1": 3,
+    "p072|TX2": 3,
+    "p073|NR1181C": 12,
+    "p073|NR1502A": 20,
+    "p073|NR1548C": 4,
+    "p073|NR1551A": 25,
+    "p073|NR1552A": 12,
+    "p073|RX1": 3,
+    "p073|TX2": 3
+  },
+  "sample_size": 30,
+  "sample_by_project": {
+    "p072": 15,
+    "p073": 15
+  },
+  "sample_by_project_and_header": {
+    "p072|NR1181C": 2,
+    "p072|NR1502A": 3,
+    "p072|NR1548C": 1,
+    "p072|NR1551A": 2,
+    "p072|NR1552A": 3,
+    "p072|RX1": 2,
+    "p072|TX2": 2,
+    "p073|NR1181C": 2,
+    "p073|NR1502A": 2,
+    "p073|NR1548C": 1,
+    "p073|NR1551A": 5,
+    "p073|NR1552A": 2,
+    "p073|RX1": 1,
+    "p073|TX2": 2
+  },
+  "seed": 20261016,
+  "unique_sample_pairs": 30,
+  "missing_screenshots": [],
+  "dxf_hashes": {
+    "p072": "40070200502952448ab6a8aaa361c1c84c5a1cc3d02f4afbef10a333ef16e299",
+    "p073": "8430d81e6b153cf56928ac1038b50705527b6e7a0ca0c6d0aa6560865841db5d"
+  },
+  "source_dwg_hashes": {
+    "p072": "b08ebee842407bc84b01678cfdb35ddd144bcd100760c55dc53651504ebb3af6",
+    "p073": "90107d3f2acc2083a1d1823f12ee8b401e72ba44dd80422c868d7f48c42585ce"
+  },
+  "judgments": {
+    "yes": 30
+  },
+  "judgments_by_project": {
+    "p072": {
+      "yes": 15
+    },
+    "p073": {
+      "yes": 15
+    }
+  },
+  "unique_screenshot_paths": 30,
+  "unique_screenshot_sha256": 30,
+  "screenshot_dimensions": [
+    "1320x1144"
+  ],
+  "manual_visual_reviewed_cases": 30,
+  "visual_review_basis": "Original DXF page caption, visible identity text, visible table header/row crop; no SuperWORKS overlay or pipeline output used as identity truth."
+}
