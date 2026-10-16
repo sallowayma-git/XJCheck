@@ -1,0 +1,305 @@
+{
+  "run": ".tmp\\precision_loop_20261016\\frame_rule_final4_full77",
+  "reviewed_candidate_n": 78,
+  "actual_rule_closures_in_review": 37,
+  "true_frame_stops_among_reviewed_candidates": 39,
+  "false_suppressions": [],
+  "rule_closure_rows": [
+    {
+      "project_id": "p000",
+      "record_id": "PSW1f6336c3f9fba61f",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p000_0001_PSW1f6336c3f9fba61f.png",
+      "sha256": "46a03370eae2ea7b7e12bb8f9d99cbe32e4e9bfd35dd7fb6688bcbe15fbc4af1"
+    },
+    {
+      "project_id": "p002",
+      "record_id": "PSW0dc994f315d4d037",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p002_0001_PSW0dc994f315d4d037.png",
+      "sha256": "3cbb6560db7656b54f103504ecb89c935b12f8574bdbd3fb99d838e89865d5c4"
+    },
+    {
+      "project_id": "p003",
+      "record_id": "PSW69182e0392c8b06e",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p003_0001_PSW69182e0392c8b06e.png",
+      "sha256": "468aa37b59c72a7f3b96e3cd10ec4c4aded1aaffd8323e0ff57e3a67653dbbc6"
+    },
+    {
+      "project_id": "p005",
+      "record_id": "PSWe8e2c760745a1872",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p005_0001_PSWe8e2c760745a1872.png",
+      "sha256": "668eaff8d3c98ce8c74ed65720cc05eed3b647e042807697f3f273c197d34a94"
+    },
+    {
+      "project_id": "p007",
+      "record_id": "PSWd34c94aac8b700d4",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p007_0001_PSWd34c94aac8b700d4.png",
+      "sha256": "cfa514856b5fd301ff8467f1e31760ca542cf9899a2c75e48ac2385a5e31b35e"
+    },
+    {
+      "project_id": "p009",
+      "record_id": "PSWc4269cae7c869792",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p009_0001_PSWc4269cae7c869792.png",
+      "sha256": "17721e51808dca5b33993c557deaefc22f56bc00d5263385fc1bfaa28f986f53"
+    },
+    {
+      "project_id": "p009",
+      "record_id": "PSW1ef49f34070b5913",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p009_0002_PSW1ef49f34070b5913.png",
+      "sha256": "0cbd732b276ab971a9b6f5aa6ba4fba18e57a4d46026c7b51fd29af5d79e46c5"
+    },
+    {
+      "project_id": "p010",
+      "record_id": "PSWdac51037c5db250f",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p010_0001_PSWdac51037c5db250f.png",
+      "sha256": "afaf67df25f85264d665195cc54a960aa1bf2199b5886ee3742f3cce2f1e383c"
+    },
+    {
+      "project_id": "p011",
+      "record_id": "PSWd3fe53c55b3d81ed",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p011_0001_PSWd3fe53c55b3d81ed.png",
+      "sha256": "58391fb6222954f01fea285e1dbd39f1876a9faa34c7471012aec44be6ade5a6"
+    },
+    {
+      "project_id": "p011",
+      "record_id": "PSW84e5f725581cb1a1",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p011_0002_PSW84e5f725581cb1a1.png",
+      "sha256": "1ccc21898e9e72f630b3b69df9d7641d592dd45bd00aeabbb09b17efe11860ac"
+    },
+    {
+      "project_id": "p012",
+      "record_id": "PSW1f75dfad9e6e981e",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p012_0002_PSW1f75dfad9e6e981e.png",
+      "sha256": "0209b8a16ea9625ae34e7882e320dca09c9f49b9e70de55bf3f045664f9f5287"
+    },
+    {
+      "project_id": "p012",
+      "record_id": "PSW3b27d10ea606c437",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p012_0001_PSW3b27d10ea606c437.png",
+      "sha256": "0f51213dce4e7cb194aa446d32c97a1dcd71223fc28add00fc089332995dbd3b"
+    },
+    {
+      "project_id": "p013",
+      "record_id": "PSWb7a63ebf9939380c",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p013_0002_PSWb7a63ebf9939380c.png",
+      "sha256": "2e8029589eee0846ea8e5c893243aa7d79da7009fca82c2c115f6271f212f6d3"
+    },
+    {
+      "project_id": "p014",
+      "record_id": "PSW864ac30ef4212842",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p014_0001_PSW864ac30ef4212842.png",
+      "sha256": "8e366afca07f09a07dba9c1a817045f678057c46d12a1ef616ae84fa07d0c631"
+    },
+    {
+      "project_id": "p015",
+      "record_id": "PSW182b73a08581a82e",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p015_0003_PSW182b73a08581a82e.png",
+      "sha256": "bdd8359e7d16872839863d39dffad782d88780f45c416d9845f45cc8ab9dbc47"
+    },
+    {
+      "project_id": "p015",
+      "record_id": "PSW09e10423d3889046",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p015_0002_PSW09e10423d3889046.png",
+      "sha256": "d47844d54ce195ed5550d78bf9afb057e763a57e46d03bec5ccc869c0817b984"
+    },
+    {
+      "project_id": "p017",
+      "record_id": "PSW6aaf91ed5e87feef",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p017_0001_PSW6aaf91ed5e87feef.png",
+      "sha256": "1635015bd466a5ae1c1c6813cf28f872b5192882d0757bf1a43e4f29cfe6774d"
+    },
+    {
+      "project_id": "p017",
+      "record_id": "PSW802f1e530f9cc5ef",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p017_0002_PSW802f1e530f9cc5ef.png",
+      "sha256": "37ae427838493b1a3db9506df9175bab5b9b2ed4ad08389a5c2e8c15a776f778"
+    },
+    {
+      "project_id": "p018",
+      "record_id": "PSW018a00f78a3fa16e",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p018_0002_PSW018a00f78a3fa16e.png",
+      "sha256": "f6b28e233007a3f0150ae229364b41897980035fd129c730922d1b4453947a65"
+    },
+    {
+      "project_id": "p018",
+      "record_id": "PSW84e5f725581cb1a1",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p018_0001_PSW84e5f725581cb1a1.png",
+      "sha256": "e20f638d3668ea63d965b0d553caa420ee18401cd3f196c3dada20e4a3427f0f"
+    },
+    {
+      "project_id": "p018",
+      "record_id": "PSWe3b21484a24f2925",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p018_0003_PSWe3b21484a24f2925.png",
+      "sha256": "43d5418ea8e82bfc0f1c6d6afcf24c17b68367ebb897ace2a0794654e66f5b83"
+    },
+    {
+      "project_id": "p019",
+      "record_id": "PSWb6cf17e7e8e199d5",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p019_0001_PSWb6cf17e7e8e199d5.png",
+      "sha256": "785b19a2f315245dfed1732843b3e8838f7bc834e3b90b962b4214519b99ca69"
+    },
+    {
+      "project_id": "p020",
+      "record_id": "PSWaf09a1c215d84037",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p020_0001_PSWaf09a1c215d84037.png",
+      "sha256": "8453e4db540feddf73b817b70dcd13533de1a28e35db85f8386802e9e9a61737"
+    },
+    {
+      "project_id": "p021",
+      "record_id": "PSW12876c02226ecb6b",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p021_0001_PSW12876c02226ecb6b.png",
+      "sha256": "a80bbb1818a4707ae6364fb6bc03251001ba10c220ee77a3eeec941960a11b6b"
+    },
+    {
+      "project_id": "p021",
+      "record_id": "PSW24b7e1ca146d836e",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p021_0002_PSW24b7e1ca146d836e.png",
+      "sha256": "f84c33434691e7d42d445de0518c7dbc14a8c85154e653396a15946b8629ff15"
+    },
+    {
+      "project_id": "p026",
+      "record_id": "PSW96b2a110dfca6a98",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p026_0003_PSW96b2a110dfca6a98.png",
+      "sha256": "b350ed1596bdc95a537b9f76b2fd45ae833a280e9f19e091f5509d6e106b2b00"
+    },
+    {
+      "project_id": "p026",
+      "record_id": "PSW20097267144a5500",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p026_0002_PSW20097267144a5500.png",
+      "sha256": "ee3e63c286344a7a4e4916fb82aaa72276ae9944eea390b3c583956c2f606772"
+    },
+    {
+      "project_id": "p026",
+      "record_id": "PSW6b6eb7f86e3fcee9",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p026_0001_PSW6b6eb7f86e3fcee9.png",
+      "sha256": "03fd43e0c49548f296a233ee691f115b8cc5e7541e3a555cebfa5dc80d7f544d"
+    },
+    {
+      "project_id": "p027",
+      "record_id": "PSWb7caaf86d322231e",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p027_0003_PSWb7caaf86d322231e.png",
+      "sha256": "a21c4c60ed0e0f2c3eb41e9a3aa95d130d4128d2d4d5d2c1abd749b04745019f"
+    },
+    {
+      "project_id": "p027",
+      "record_id": "PSW334a088d40e76f98",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p027_0002_PSW334a088d40e76f98.png",
+      "sha256": "cbe69ed255fa126a6842add6af243d63c71698dc7da6add5b4b9b57827e12a51"
+    },
+    {
+      "project_id": "p027",
+      "record_id": "PSWded42459b9879e3a",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p027_0001_PSWded42459b9879e3a.png",
+      "sha256": "1f71d875304a45096fe75e2fd5c8bce5d27a818c22cd67b580afc9f27ba4eb7b"
+    },
+    {
+      "project_id": "p033",
+      "record_id": "PSW37b8b7a37ebe75e5",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p033_0001_PSW37b8b7a37ebe75e5.png",
+      "sha256": "144c8ba2ea7f794e427d229bb2ad7f4b88bff72d2dd72f4d962e0b0b1331cce5"
+    },
+    {
+      "project_id": "p064",
+      "record_id": "PSWa81e59c28d89ad71",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p064_0001_PSWa81e59c28d89ad71.png",
+      "sha256": "62a104888aa04866f65dc5e514ac4e22a957e233b68025f2a0010bfab48e6f18"
+    },
+    {
+      "project_id": "p065",
+      "record_id": "PSW87bb167e6ba58a03",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p065_0001_PSW87bb167e6ba58a03.png",
+      "sha256": "cc1b8c6759647201cee96bc18c8f4e289dcb2bbea81ca3dde11516ba6eebf747"
+    },
+    {
+      "project_id": "p066",
+      "record_id": "PSWa63c99310f3246c1",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p066_0001_PSWa63c99310f3246c1.png",
+      "sha256": "4a82656294b91142b5f48e0a2e5c41530099b404ecc9f6a4a795eb54aa80d2cb"
+    },
+    {
+      "project_id": "p066",
+      "record_id": "PSWb23d022f263bdedc",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p066_0002_PSWb23d022f263bdedc.png",
+      "sha256": "7e4f679d492e2bfbf62e99cb9a3045a8dd8c4860333f0e4838dbc9376667181e"
+    },
+    {
+      "project_id": "p072",
+      "record_id": "PSW0988c426c938d549",
+      "wide_frame_judgment": "yes",
+      "manual_review_need": "no",
+      "screenshot": "wide_screenshots/p072_0001_PSW0988c426c938d549.png",
+      "sha256": "5b87c808104a120ec5851cf91dca62383ab5406f99fcf6d29744372a7570fc44"
+    }
+  ]
+}

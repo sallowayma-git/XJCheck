@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 from dwg_audit.audit.recognition_coordinator import (
     GapFacts,
+    _frame_caption_matches_port,
     build_resolution_issues,
     resolve_recognition_gaps,
 )
@@ -180,6 +181,134 @@ def test_suppressed_rows_record_the_step_and_the_closing_pair():
     assert row["suppressed_by"] == "physical_v1"
     assert row["pair_id"] == "PG"
     assert row["terminal_port_ids"] == ["PD"]
+
+
+def _frame_test_terminal(category, value, port_id, point):
+    x, y = point
+    return side(category, value, [port_id], ports=[{
+        "port_id": port_id, "start": [x - 0.5, y], "end": [x + 0.5, y], "tolerance": 0.6,
+    }])
+
+
+def _frame_test_facts(*, dots=(), frames=None, labels=None):
+    return GapFacts(
+        frame_boundaries={("F1", "S1"): frames or [{
+            "rect": (0.0, 0.0, 40.0, 30.0), "label": "From BCU", "captions": ["From BCU"],
+        }]},
+        frame_connect_dots={("F1", "S1"): list(dots)},
+        frame_port_labels={("F1", "S1"): labels or {"PT1": "From BCU"}},
+    )
+
+
+def _frame_test_observation(**kwargs):
+    values = {
+        "left": _frame_test_terminal(TERM, "1n1", "PT1", (20.0, 15.0)),
+        "right": side(INT, None, ["PE"]),
+        "coords": (20.0, 15.0, 40.0, 15.0),
+    }
+    values.update(kwargs)
+    return observation("frame-short-lead", **values)
+
+
+def test_frame_caption_matches_numeric_terminal_suffix_only():
+    captions = {"2-7n", "1-7n"}
+    assert _frame_caption_matches_port("2-7n832", captions)
+    assert _frame_caption_matches_port("1-7n1", captions)
+    assert not _frame_caption_matches_port("2-7nAux", captions)
+    assert not _frame_caption_matches_port("12-7n832", captions)
+
+
+def test_terminal_frame_rule_accepts_numeric_terminal_suffix_only_when_segment_ends_at_frame():
+    at_frame_edge = _frame_test_observation()
+    numeric_suffix = gate_only([at_frame_edge], facts=_frame_test_facts(
+        labels={"PT1": "From BCU832"},
+    ))
+    other_suffix = gate_only([at_frame_edge], facts=_frame_test_facts(
+        labels={"PT1": "From BCUAux"},
+    ))
+    crossing_frame = _frame_test_observation(
+        left=_frame_test_terminal(TERM, "2-7QD9", "PT1", (-8.74, 15.0)),
+        right=_frame_test_terminal(TERM, "832", "PT2", (2.5, 15.0)),
+        coords=(-8.74, 15.0, 2.5, 15.0),
+    )
+    crossed_edge = gate_only([crossing_frame], facts=_frame_test_facts(
+        labels={"PT1": "2-7QD9", "PT2": "From BCU832"},
+    ))
+    long_crossing_frame = _frame_test_observation(
+        left=_frame_test_terminal(TERM, "2-7QD9", "PT1", (-12.5, 15.0)),
+        right=_frame_test_terminal(TERM, "832", "PT2", (20.0, 15.0)),
+        coords=(-12.5, 15.0, 20.0, 15.0),
+    )
+    long_crossed_edge = gate_only([long_crossing_frame], facts=_frame_test_facts(
+        labels={"PT1": "2-7QD9", "PT2": "From BCU832"},
+    ))
+    assert numeric_suffix.suppressed[0]["suppressed_by"] == "terminal_frame_boundary"
+    assert other_suffix.suppressed == []
+    assert len(other_suffix.issues) == 1
+    assert crossed_edge.suppressed == []
+    assert len(crossed_edge.issues) == 1
+    assert long_crossed_edge.suppressed == []
+    assert len(long_crossed_edge.issues) == 1
+
+
+def test_terminal_short_lead_at_one_captioned_frame_edge_is_closed_with_audit_details():
+    result = gate_only([_frame_test_observation()], facts=_frame_test_facts())
+    assert result.issues == []
+    assert len(result.suppressed) == 1
+    row = result.suppressed[0]
+    assert row["suppressed_by"] == "terminal_frame_boundary"
+    assert row["frame_rect"] == [0.0, 0.0, 40.0, 30.0]
+    assert row["frame_label"] == "From BCU"
+    assert row["frame_contact"] == [40.0, 15.0]
+
+
+def test_terminal_frame_rule_keeps_a_gap_without_endpoint_port_contact_or_with_a_connection_dot():
+    unrelated_terminal = _frame_test_terminal(TERM, "1n1", "PT1", (20.0, 10.0))
+    unrelated = _frame_test_observation(left=unrelated_terminal)
+    with_dot = _frame_test_observation()
+    crossing = _frame_test_observation(
+        right=_frame_test_terminal(TERM, "1n2", "PT2", (45.0, 15.0)), coords=(20.0, 15.0, 45.0, 15.0),
+    )
+    frame_port = _frame_test_observation(
+        right=_frame_test_terminal(TERM, "1n2", "PT2", (40.0, 15.0)),
+    )
+    assert gate_only([unrelated], facts=_frame_test_facts()).issues
+    assert gate_only([with_dot], facts=_frame_test_facts(dots=[(40.0, 15.0)])).issues
+    assert gate_only([crossing], facts=_frame_test_facts()).issues
+    assert gate_only([frame_port], facts=_frame_test_facts()).issues
+
+
+def test_terminal_frame_rule_requires_a_unique_closed_captioned_frame_contact():
+    unlabelled = _frame_test_facts(frames=[{"rect": (0.0, 0.0, 40.0, 30.0), "label": ""}])
+    ambiguous = _frame_test_facts(frames=[
+        {"rect": (0.0, 0.0, 40.0, 30.0), "label": "From BCU", "captions": ["From BCU"]},
+        {"rect": (5.0, 5.0, 40.0, 25.0), "label": "From BCU", "captions": ["From BCU"]},
+    ])
+    wrong_device_label = _frame_test_facts(frames=[{
+        "rect": (0.0, 0.0, 40.0, 30.0), "label": "Relay unit", "captions": ["Relay unit"],
+    }])
+    candidate_port_label = _frame_test_facts()
+    candidate_port_label.frame_port_labels[("F1", "S1")] = {"PT1": "Other", "PT2": "From BCU"}
+    competing_inside_ports = _frame_test_observation(
+        right=_frame_test_terminal(TERM, "1n2", "PT2", (20.0, 15.0)),
+    )
+    edge_overlap = _frame_test_observation(
+        left=_frame_test_terminal(TERM, "1n1", "PT1", (40.0, 8.0)),
+        right=_frame_test_terminal(TERM, "1n2", "PT2", (40.0, 20.0)),
+        coords=(40.0, 8.0, 40.0, 20.0),
+    )
+    assert gate_only([_frame_test_observation()], facts=unlabelled).issues
+    assert gate_only([_frame_test_observation()], facts=ambiguous).issues
+    assert gate_only([_frame_test_observation()], facts=wrong_device_label).issues
+    assert gate_only([competing_inside_ports], facts=candidate_port_label).issues
+    assert gate_only([edge_overlap], facts=_frame_test_facts()).issues
+
+
+def test_terminal_frame_rule_never_closes_a_confirmed_conflict():
+    conflict = _frame_test_observation(state="CONFIRMED_CONFLICT", reason_codes=["dangling_pin_handle"])
+    result = gate_only([conflict], facts=_frame_test_facts())
+    assert result.suppressed == []
+    assert len(result.issues) == 1
 
 
 def _line(handle, start, end, *, block=None):
