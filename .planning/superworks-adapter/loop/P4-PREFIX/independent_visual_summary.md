@@ -17,6 +17,8 @@ Pair manual decisions: yes 54, no 56, uncertain 2; manual rate among decided pai
 
 Full identity has 98 visually confirmed correct, 0 visually contradicted, and 14 uncertain. The 100% accuracy is among the 98 determinate examples; 87.5% of all 112 are confirmed correct. Uncertain cases are excluded from the accuracy denominator and retained as unresolved.
 
+Numeric suffixes were independently judged correct in all 112 cases. This is a separate field-level result and does not establish the complete device identity.
+
 ## By format class
 
 | format_class | n | correct | wrong | uncertain | Accuracy among determined | pair manual yes | no | pair uncertain | Manual rate among decided |
@@ -64,4 +66,4 @@ Full identity has 98 visually confirmed correct, 0 visually contradicted, and 14
 
 - `independent_visual_judgments.csv`: 112 row-level judgments; includes old verdict, suffix verdict, full identity judgment/reason, pair manual decision, raw screenshot file/panel, and expanded screenshot reference where used.
 - `independent_visual_summary.md`: this summary and marginal counts.
-- Raw screenshot assets are under `.tmp/precision_loop_20261015/P4-PREFIX-v2/full_identity_review/screenshots/`; original contact sheets have no audit overlay.
+- Durable raw screenshot assets are under [`raw_identity_screenshots/`](raw_identity_screenshots/); the folder contains 28 original contact sheets and 55 expanded single-case views, all without SW or pipeline identity overlays. [`raw_screenshot_validation.csv`](raw_screenshot_validation.csv) records SHA-256 and dimensions for all 83 files.

@@ -8,185 +8,302 @@
   },
   "audit": {
     "sample_rows": 112,
-    "identity_correct": 112,
-    "identity_wrong_or_uncertain": 0,
+    "identity_correct": 98,
+    "identity_wrong_or_uncertain": 14,
     "observed_identity_precision": 1.0,
     "identity_wilson_95_descriptive": null,
-    "identity_manual_yes": 0,
-    "pair_manual_yes": 59,
-    "pair_manual_no": 53,
+    "identity_manual_yes": 14,
+    "pair_manual_yes": 54,
+    "pair_manual_no": 56,
     "pair_manual_rate_in_audit_sample": 0.5268,
     "by_format": {
       "alpha-num": {
         "n": 9,
         "identity_correct": 9,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
+        "identity_wrong": 0,
+        "identity_uncertain": 0,
+        "identity_determined_n": 9,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 1.0,
         "identity_manual_yes": 0,
         "pair_manual_yes": 9,
-        "pair_manual_no": 0
+        "pair_manual_no": 0,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 1.0
       },
       "alpha-num-hyphen-num": {
         "n": 13,
         "identity_correct": 13,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
+        "identity_wrong": 0,
+        "identity_uncertain": 0,
+        "identity_determined_n": 13,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 1.0,
         "identity_manual_yes": 0,
         "pair_manual_yes": 13,
-        "pair_manual_no": 0
+        "pair_manual_no": 0,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 1.0
       },
       "n-number": {
         "n": 34,
-        "identity_correct": 34,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
+        "identity_correct": 32,
+        "identity_wrong": 0,
+        "identity_uncertain": 2,
+        "identity_determined_n": 32,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.9411764705882353,
+        "identity_manual_yes": 2,
         "pair_manual_yes": 17,
-        "pair_manual_no": 17
+        "pair_manual_no": 17,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.5
       },
       "section-n-number": {
         "n": 56,
-        "identity_correct": 56,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 20,
-        "pair_manual_no": 36
+        "identity_correct": 44,
+        "identity_wrong": 0,
+        "identity_uncertain": 12,
+        "identity_determined_n": 44,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.7857142857142857,
+        "identity_manual_yes": 12,
+        "pair_manual_yes": 15,
+        "pair_manual_no": 39,
+        "pair_manual_uncertain": 2,
+        "pair_manual_rate_decided": 0.2777777777777778
       }
     },
     "seeded_random_sample_by_format": {
       "n-number": {
         "n": 30,
-        "identity_correct": 30,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
+        "identity_correct": 28,
+        "identity_wrong": 0,
+        "identity_uncertain": 2,
+        "identity_determined_n": 28,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.9333333333333333,
+        "identity_manual_yes": 2,
         "pair_manual_yes": 17,
         "pair_manual_no": 13,
-        "identity_wilson_95": [
-          0.8865,
-          1.0
-        ]
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.5666666666666667
       },
       "section-n-number": {
         "n": 30,
-        "identity_correct": 30,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 18,
-        "pair_manual_no": 12,
-        "identity_wilson_95": [
-          0.8865,
-          1.0
-        ]
+        "identity_correct": 22,
+        "identity_wrong": 0,
+        "identity_uncertain": 8,
+        "identity_determined_n": 22,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.7333333333333333,
+        "identity_manual_yes": 8,
+        "pair_manual_yes": 15,
+        "pair_manual_no": 13,
+        "pair_manual_uncertain": 2,
+        "pair_manual_rate_decided": 0.5357142857142857
       }
     },
     "by_selection_reason": {
       "all_pass_pairs": {
         "n": 6,
         "identity_correct": 6,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
+        "identity_wrong": 0,
+        "identity_uncertain": 0,
+        "identity_determined_n": 6,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 1.0,
         "identity_manual_yes": 0,
         "pair_manual_yes": 0,
-        "pair_manual_no": 6
+        "pair_manual_no": 6,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.0
       },
       "census_rare_format": {
         "n": 22,
         "identity_correct": 22,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
+        "identity_wrong": 0,
+        "identity_uncertain": 0,
+        "identity_determined_n": 22,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 1.0,
         "identity_manual_yes": 0,
         "pair_manual_yes": 22,
-        "pair_manual_no": 0
+        "pair_manual_no": 0,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 1.0
       },
       "seeded_random_distinct_source_sample": {
         "n": 60,
-        "identity_correct": 60,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 35,
-        "pair_manual_no": 25
+        "identity_correct": 50,
+        "identity_wrong": 0,
+        "identity_uncertain": 10,
+        "identity_determined_n": 50,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.8333333333333334,
+        "identity_manual_yes": 10,
+        "pair_manual_yes": 32,
+        "pair_manual_no": 26,
+        "pair_manual_uncertain": 2,
+        "pair_manual_rate_decided": 0.5517241379310345
       },
       "wire_review_source_census": {
         "n": 24,
-        "identity_correct": 24,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 2,
-        "pair_manual_no": 22
+        "identity_correct": 20,
+        "identity_wrong": 0,
+        "identity_uncertain": 4,
+        "identity_determined_n": 20,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.8333333333333334,
+        "identity_manual_yes": 4,
+        "pair_manual_yes": 0,
+        "pair_manual_no": 24,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.0
       }
     },
     "by_pair_kind_and_status": {
       "ordinary_pair/review": {
         "n": 30,
-        "identity_correct": 30,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
+        "identity_correct": 27,
+        "identity_wrong": 0,
+        "identity_uncertain": 3,
+        "identity_determined_n": 27,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.9,
+        "identity_manual_yes": 3,
         "pair_manual_yes": 30,
-        "pair_manual_no": 0
+        "pair_manual_no": 0,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 1.0
       },
       "semantic_mapping/review": {
         "n": 46,
-        "identity_correct": 46,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 27,
-        "pair_manual_no": 19
+        "identity_correct": 41,
+        "identity_wrong": 0,
+        "identity_uncertain": 5,
+        "identity_determined_n": 41,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.8913043478260869,
+        "identity_manual_yes": 5,
+        "pair_manual_yes": 24,
+        "pair_manual_no": 20,
+        "pair_manual_uncertain": 2,
+        "pair_manual_rate_decided": 0.5454545454545454
       },
       "wire_component_mapping/pass": {
         "n": 6,
         "identity_correct": 6,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
+        "identity_wrong": 0,
+        "identity_uncertain": 0,
+        "identity_determined_n": 6,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 1.0,
         "identity_manual_yes": 0,
         "pair_manual_yes": 0,
-        "pair_manual_no": 6
+        "pair_manual_no": 6,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.0
       },
       "wire_component_mapping/review": {
         "n": 30,
-        "identity_correct": 30,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 2,
-        "pair_manual_no": 28
+        "identity_correct": 24,
+        "identity_wrong": 0,
+        "identity_uncertain": 6,
+        "identity_determined_n": 24,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.8,
+        "identity_manual_yes": 6,
+        "pair_manual_yes": 0,
+        "pair_manual_no": 30,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.0
       }
     },
     "by_recognition_state": {
       "AMBIGUOUS": {
         "n": 51,
-        "identity_correct": 51,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 4,
-        "pair_manual_no": 47
+        "identity_correct": 43,
+        "identity_wrong": 0,
+        "identity_uncertain": 8,
+        "identity_determined_n": 43,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.8431372549019608,
+        "identity_manual_yes": 8,
+        "pair_manual_yes": 0,
+        "pair_manual_no": 49,
+        "pair_manual_uncertain": 2,
+        "pair_manual_rate_decided": 0.0
       },
       "INCOMPLETE": {
         "n": 55,
-        "identity_correct": 55,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
-        "identity_manual_yes": 0,
-        "pair_manual_yes": 55,
-        "pair_manual_no": 0
+        "identity_correct": 49,
+        "identity_wrong": 0,
+        "identity_uncertain": 6,
+        "identity_determined_n": 49,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.8909090909090909,
+        "identity_manual_yes": 6,
+        "pair_manual_yes": 54,
+        "pair_manual_no": 1,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.9818181818181818
       },
       "RESOLVED": {
         "n": 6,
         "identity_correct": 6,
-        "identity_wrong_or_uncertain": 0,
-        "identity_precision": 1.0,
+        "identity_wrong": 0,
+        "identity_uncertain": 0,
+        "identity_determined_n": 6,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 1.0,
         "identity_manual_yes": 0,
         "pair_manual_yes": 0,
-        "pair_manual_no": 6
+        "pair_manual_no": 6,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.0
       }
-    }
+    },
+    "n": 112,
+    "identity_wrong": 0,
+    "identity_uncertain": 14,
+    "identity_determined_n": 98,
+    "identity_precision_among_determined": 1.0,
+    "confirmed_correct_rate_all_sample": 0.875,
+    "pair_manual_uncertain": 2,
+    "pair_manual_rate_decided": 0.4909090909090909,
+    "confirmed_identity_rate_all_sample": 0.875,
+    "by_status": {
+      "pass": {
+        "n": 6,
+        "identity_correct": 6,
+        "identity_wrong": 0,
+        "identity_uncertain": 0,
+        "identity_determined_n": 6,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 0,
+        "pair_manual_no": 6,
+        "pair_manual_uncertain": 0,
+        "pair_manual_rate_decided": 0.0
+      },
+      "review": {
+        "n": 106,
+        "identity_correct": 92,
+        "identity_wrong": 0,
+        "identity_uncertain": 14,
+        "identity_determined_n": 92,
+        "identity_precision_among_determined": 1.0,
+        "confirmed_correct_rate_all_sample": 0.8679245283018868,
+        "identity_manual_yes": 14,
+        "pair_manual_yes": 54,
+        "pair_manual_no": 50,
+        "pair_manual_uncertain": 2,
+        "pair_manual_rate_decided": 0.5192307692307693
+      }
+    },
+    "source_of_truth": "independent_visual_judgments.csv (raw-DXF screenshot adjudication); the former merge script hardcoded the identity label and its output was superseded."
   },
   "design": {
     "n-number": {
@@ -231,9 +348,10 @@
     }
   },
   "limitations": [
-    "The 112 visual judgements are audit observations, not a weighted estimate of all 1,389 events.",
-    "The two large-format random strata sample one review event per distinct source DWG; rare formats, wire-review sources, and pass events are census/oversample strata.",
+    "The 112 identity judgments are a stratified audit observation, not a weighted estimate of all 1,389 normalization events.",
+    "Full device identity is 98 correct, 0 contradicted, and 14 uncertain; 100% applies only among the 98 determinate cases, while 87.5% of all sampled cases are visually confirmed correct.",
     "Identity correctness and whole-pair manual review are distinct outcomes; pair_manual_yes does not mean the P4 normalized identity was wrong.",
-    "Wilson intervals are shown only for the two seeded random source-DWG strata and remain descriptive; they do not model finite-population or event-level weighting."
+    "The two large-format random strata each contain 30 distinct-source-DWG cases; rare formats and pass events were fully enumerated or oversampled.",
+    "Wilson intervals are descriptive for seeded random format strata and do not create a weighted estimate for all events."
   ]
 }
