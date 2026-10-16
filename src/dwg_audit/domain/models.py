@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
@@ -110,6 +111,9 @@ class TextItem:
     # Source DXF height before the engine's min-1.0 clamp (cad_extract._append_text).
     # None means "not recorded" (legacy artifacts); such texts are treated as visible.
     raw_height: float | None = None
+    # Effective visibility from the DXF entity and its layer/INSERT ancestry.
+    # None means the source visibility could not be established (legacy artifacts).
+    dxf_visible: bool | None = None
 
 
 # DXF text whose own height is below this is drawn invisibly (e.g. SuperWORKS
@@ -125,6 +129,35 @@ def is_invisible_text(text: "TextItem") -> bool:
         return float(raw) < INVISIBLE_TEXT_RAW_HEIGHT
     except (TypeError, ValueError):
         return False
+
+
+def dxf_text_visibility(text: "TextItem") -> bool | None:
+    """Return captured DXF visibility, treating null/NaN legacy values as unknown."""
+    raw = getattr(text, "dxf_visible", None)
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        value = raw.strip().casefold()
+        if value in {"true", "1", "yes"}:
+            return True
+        if value in {"false", "0", "no"}:
+            return False
+        return None
+    try:
+        numeric = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(numeric):
+        return None
+    return bool(numeric)
+
+
+def is_dxf_invisible_text(text: "TextItem") -> bool:
+    return dxf_text_visibility(text) is False
+
+
+def is_dxf_visible_text(text: "TextItem") -> bool:
+    return dxf_text_visibility(text) is True
 
 
 @dataclass(slots=True)

@@ -21,6 +21,8 @@ from dwg_audit.domain.models import LineEntity
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.domain.models import dxf_text_visibility
+from dwg_audit.domain.models import is_dxf_invisible_text
 from dwg_audit.domain.models import is_invisible_text
 from dwg_audit.extract.cad_extract import _extract_graphic_entity
 from dwg_audit.utils.config import DEFAULT_CONFIG
@@ -44,9 +46,17 @@ def _sheet() -> SheetRecord:
     )
 
 
-def _extract_single_text(height: float, text: str = "7") -> list[TextItem]:
+def _extract_single_text(
+    height: float,
+    text: str = "7",
+    *,
+    invisible: bool = False,
+    layer_visible: bool = True,
+) -> list[TextItem]:
     doc = ezdxf.new("R2018")
     entity = doc.modelspace().add_text(text, dxfattribs={"height": height, "insert": (8.0, 20.0)})
+    if invisible:
+        entity.dxf.invisible = 1
     sheet_texts: list[TextItem] = []
     _extract_graphic_entity(
         entity,
@@ -60,6 +70,7 @@ def _extract_single_text(height: float, text: str = "7") -> list[TextItem]:
         sheet_lines=[],
         sheet_blocks=[],
         sheet_polylines=[],
+        layer_visibility_by_name={"0": layer_visible},
     )
     return sheet_texts
 
@@ -96,9 +107,20 @@ def test_extraction_keeps_raw_height_and_engine_height_unchanged() -> None:
     assert hidden.height == 1.0
     assert hidden.raw_height == 1e-05
     assert is_invisible_text(hidden) is True
+    assert dxf_text_visibility(hidden) is True
     assert visible.height == 2.5
     assert visible.raw_height == 2.5
     assert is_invisible_text(visible) is False
+    assert dxf_text_visibility(visible) is True
+
+
+def test_dxf_visibility_captures_entity_and_layer_state() -> None:
+    entity_hidden = _extract_single_text(2.5, invisible=True)[0]
+    layer_hidden = _extract_single_text(2.5, layer_visible=False)[0]
+
+    assert dxf_text_visibility(entity_hidden) is False
+    assert is_dxf_invisible_text(entity_hidden) is True
+    assert dxf_text_visibility(layer_hidden) is False
 
 
 def test_hidden_numeral_is_rejected_as_invisible_text_candidate() -> None:
@@ -139,13 +161,19 @@ def test_legacy_parquet_without_raw_height_column_reads_as_visible(tmp_path: Pat
     current = _text("T1", "7", 8.0, raw_height=None)
     row = dataclasses.asdict(current)
     row.pop("raw_height")
+    row.pop("dxf_visible")
     path = tmp_path / "texts.parquet"
     pd.DataFrame([row]).to_parquet(path, index=False)
 
     frame = pd.read_parquet(path)
     assert "raw_height" not in frame.columns
-    legacy = TextItem(**{key: value for key, value in frame.iloc[0].to_dict().items() if key != "raw_height"})
+    assert "dxf_visible" not in frame.columns
+    legacy = TextItem(**{
+        key: value for key, value in frame.iloc[0].to_dict().items()
+        if key not in {"raw_height", "dxf_visible"}
+    })
     assert is_invisible_text(legacy) is False
+    assert dxf_text_visibility(legacy) is None
 
     candidates = build_terminal_candidates([_line_group()], [legacy], DEFAULT_CONFIG)
     left = next(item for item in candidates if item.side == "left" and item.text_id == "T1")
@@ -163,6 +191,7 @@ def test_parquet_with_null_raw_height_column_reads_as_visible(tmp_path: Path) ->
     assert pd.isna(value)
     restored = TextItem(**frame.iloc[0].to_dict())
     assert is_invisible_text(restored) is False
+    assert dxf_text_visibility(restored) is None
 
 
 def test_hidden_text_does_not_suppress_visible_neighbour() -> None:

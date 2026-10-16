@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from collections import defaultdict
+import math
 import re
 from statistics import median
 from typing import Any
@@ -29,6 +30,8 @@ from dwg_audit.domain.models import Pair
 from dwg_audit.domain.models import PolylineRecord
 from dwg_audit.domain.models import SheetRecord
 from dwg_audit.domain.models import TextItem
+from dwg_audit.domain.models import dxf_text_visibility
+from dwg_audit.domain.models import is_dxf_visible_text
 from dwg_audit.domain.models import is_invisible_text
 from dwg_audit.audit.table_structure import build_table_structure_profiles
 from dwg_audit.utils.ids import IdFactory
@@ -1756,6 +1759,13 @@ def _build_backplate_virtual_mappings(
 _REAR_WIRING_CAPTION_PATTERN = re.compile(
     r"(?i)^\s*(\d+(?:-\d+)*[A-Za-z])\s*REAR\s*WIRING(?:\s*\d+)?\s*$"
 )
+_STANDALONE_REAR_WIRING_CAPTION_PATTERN = re.compile(r"(?i)^\s*REAR\s*WIRING(?:\s*\d+)?\s*$")
+_BARE_BACKPLATE_DEVICE_PATTERN = re.compile(r"(?i)^\d+[A-Z]$")
+_BACKPLATE_MODEL_PATTERN = re.compile(r"(?i)^(?=.{6,}$)(?=.*[A-Z])(?=.*\d)[A-Z0-9]+(?:-[A-Z0-9]+)+$")
+
+
+def _device_selector_text_allowed(text: TextItem) -> bool:
+    return not is_invisible_text(text) and dxf_text_visibility(text) is not False
 
 
 def _rear_wiring_caption_device(page_texts: list[TextItem]) -> str | None:
@@ -1768,6 +1778,7 @@ def _rear_wiring_caption_device(page_texts: list[TextItem]) -> str | None:
     devices = {
         match.group(1)
         for text in page_texts
+        if _device_selector_text_allowed(text)
         for match in [_REAR_WIRING_CAPTION_PATTERN.match(str(text.normalized_text or ""))]
         if match
     }
@@ -1798,6 +1809,8 @@ def _resolve_backplate_device_instance(
 
     candidates: list[tuple[float, float, str]] = []
     for text in free_texts:
+        if not _device_selector_text_allowed(text):
+            continue
         value = str(text.normalized_text or "").strip()
         if _DEVICE_INSTANCE_PATTERN.fullmatch(value):
             candidates.append((-text.insert_y, text.insert_x, value))
@@ -1812,7 +1825,61 @@ def _resolve_backplate_device_instance(
     if caption_device and (template_device is None
                            or _backplate_device_core(template_device) != _backplate_device_core(caption_device)):
         return caption_device
+    if template_device is None:
+        standalone_device = _visible_standalone_backplate_device(free_texts, page_texts or [])
+        if standalone_device:
+            return standalone_device
     return template_device
+
+
+def _visible_standalone_backplate_device(
+    free_texts: list[TextItem],
+    page_texts: list[TextItem],
+) -> str | None:
+    if not any(
+        is_dxf_visible_text(text)
+        and not is_invisible_text(text)
+        and _STANDALONE_REAR_WIRING_CAPTION_PATTERN.fullmatch(str(text.normalized_text or ""))
+        for text in page_texts
+    ):
+        return None
+
+    visible_texts = [
+        text for text in free_texts
+        if is_dxf_visible_text(text) and not is_invisible_text(text)
+    ]
+    bare_devices: dict[str, tuple[str, list[TextItem]]] = {}
+    models: dict[str, tuple[str, list[TextItem]]] = {}
+    for text in visible_texts:
+        value = str(text.normalized_text or "").strip()
+        key = value.casefold()
+        if _BARE_BACKPLATE_DEVICE_PATTERN.fullmatch(value):
+            existing = bare_devices.get(key)
+            if existing is None:
+                bare_devices[key] = (value, [text])
+            else:
+                existing[1].append(text)
+        elif _BACKPLATE_MODEL_PATTERN.fullmatch(value):
+            existing = models.get(key)
+            if existing is None:
+                models[key] = (value, [text])
+            else:
+                existing[1].append(text)
+    if len(bare_devices) != 1 or not models:
+        return None
+
+    device, device_texts = next(iter(bare_devices.values()))
+    matched_models: set[str] = set()
+    for _, model_texts in models.values():
+        if any(
+            math.hypot(device_text.insert_x - model_text.insert_x,
+                       device_text.insert_y - model_text.insert_y)
+            <= 4.0 * max(float(device_text.height), float(model_text.height), 0.0)
+            for device_text in device_texts
+            for model_text in model_texts
+        ):
+            matched_models.add(str(model_texts[0].normalized_text or "").strip().casefold())
+    return device if len(matched_models) == 1 else None
 
 
 def _backplate_device_core(device: str) -> str:

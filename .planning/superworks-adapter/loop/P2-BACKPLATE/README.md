@@ -1,5 +1,7 @@
 # P2-BACKPLATE：背板虚拟端子表的 SW 身份与佐证调研
 
+后续实现与最新精度结果（含 p057/p067 DXF 可见性修复）见 [实施记录](IMPL.md) 第 14 节。
+
 分支 `superworks-loop`。只读调研：未修改 `src/`、`tests/`，未执行 git，未删除任何 `.tmp` 目录。数据为第二十三轮全量回放 `.tmp/superworks_round23_full`（77 个项目），未读取 `round24_full`。冻结 DXF 经 `corpus_manifest.json` 只读访问。控制台 `PYTHONIOENCODING=utf-8`。
 
 ## 0. 结论摘要

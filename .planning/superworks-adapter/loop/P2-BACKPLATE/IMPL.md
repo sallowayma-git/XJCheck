@@ -1,6 +1,8 @@
 # P2-BACKPLATE 实施记录（修订二）：背板虚拟端子表的 SW 佐证、J 类取代与装置前缀修正
 
-分支 `superworks-loop`，基于 HEAD `c05defd` 之上的工作区改动。未执行 git commit / push。未改 V2 模块与 `symbol_port_proposal.py`，未加 PDF / OCR，未删除 V1 代码，未按项目、句柄或值特判。
+> 最新状态（2026-10-16）：第 14 节记录 DXF 可见性后续修复。此前 §6 关于 p057 的 95 条仍未修正，是当时的阶段结论，现已由可见性证据解决；p067 的 42 条连带变化也已逐张截图复核。
+
+分支 `superworks-loop`。§0–§13 是此前修订的实施快照；本轮可见性修复及最新验证见 §14。未改 V2 模块与 `symbol_port_proposal.py`，未加 PDF / OCR，未删除 V1 代码，未按项目、句柄或值特判。
 
 ## 0. 结论
 
@@ -228,3 +230,33 @@
 | 129 | census | 同页行号冲突 | p074 | P0061 | 13 | row 01 | row 02 | V1 错 | 成对端子左侧序号（01/03）被取，R 挂在右侧（02/04） |
 | 130 | census | 同页行号冲突 | p074 | P0063 | 13 | row 03 | row 04 | V1 错 | 成对端子左侧序号（01/03）被取，R 挂在右侧（02/04） |
 | 132 | census | 同页行号冲突 | p074 | P0193 | 14 | row 03 | row 04 | V1 错 | 成对端子左侧序号（01/03）被取，R 挂在右侧（02/04） |
+
+## 14. 2026-10-16 DXF 可见性后续修复
+
+### 根因与通用判据
+
+上一修订依赖图面的 REAR WIRING 装置文字和模板字段，但没有记录 DXF 实体的实际显示状态。p057 的模板提取把 DXF 中标记为不可见的 MARK 文字 `1-1n` 当成装置身份。现在抽取端记录 `TextItem.dxf_visible`，合并实体隐藏标志、ATTRIB/ATTDEF 标志、图层关闭/冻结状态和 INSERT 祖先可见性；缺少该字段的旧数据保留为 unknown。
+
+装置解析只排除有明确隐藏证据的文字。没有复合模板字段时，新增的保守回退要求同页存在可见的 `REAR WIRING` 标题、唯一的可见纯装置号，以及唯一相邻的可见型号文字（距离不超过较大字高的 4 倍）。图面证据不唯一或可见性未知时不推断。已有可见复合模板字段仍保持优先。规则不依赖项目、文件名、句柄、装置值或块名；未改 V2 或 `symbol_port_proposal.py`。
+
+### 逐页与逐例结果
+
+| 页 | 旧错误映射 | 截图核验 | 单页重跑 |
+|---|---:|---:|---|
+| p057 F0009/S0009 | 95 条 `1-1n` 前缀 | 95/95 旧前缀判错；可见 MARK `7n` 位于型号 `ZYQ-820E-02` 上方 | 95/95 改为 `7n`，均因与同页 SW 配对重复而 discard；0 个 issue，0 条背板矛盾 |
+| p067 F0013/S0013 | 42 条 `1-8n` 前缀 | 独立逐图复核 42/42；每例表格行、外部端子、可见 MARK `8n` 与可见 `8n REAR WIRING` 均支持新前缀 | 42/42 改为 `8n`；37 条重复映射 discard，5 条仍 pass；0 个 issue，0 条背板矛盾 |
+
+两个受影响页共 137 个旧前缀全部错误；重算后 137/137 前缀与可见页面身份一致。p057 的 95 条及 p067 的 37 条不再占 pass 集合，因为已有同页 SW 配对；p067 另 5 条仍是 pass 且逐例正确。p067 证据：`png/P2BP_visibility_p067_P0001.png` 展示 discard 行，`png/P2BP_visibility_p067_P0032.png` 展示仍为 pass 的 TD1 行；p057 证据见 `png/P2BP_visibility_p057_P0001.png`。全量 42 张 p067 逐例截图与双组独立判定台账在 `.tmp/precision_loop_20261015/p067_visibility_screenshots/`。
+
+### 回放、问题与覆盖
+
+- 全量 `python -m pytest tests -q`：**2240 passed, 1 skipped**（含 integration）。
+- 单页 p057 与 p067：上述映射结果均与完整回放中的同页结果一致；无新增 issue。
+- 10 项目回放（含 p057、p067）：issue 新增/移除均为 0。状态变化只有 p057 95 条 `pass→discard` 和 p067 37 条 `pass→discard`；其余项目无配对变化。
+- 77 项目回放：`run.json` 为 `COMPLETE`，77 项目、0 失败；测试快照与 10 项目回放的 111 个 Python 文件哈希一致。issue 新增/移除均为 0；配对状态变化仅 p057 与 p067 两页。所有项目页级覆盖行和覆盖总量相同。
+- 覆盖台账中的 assignment-kind 计数有重分流：重复项从 `structured_mapping_endpoint` / `semantic_evidence` 分类转为 `covered_discard`；页级覆盖行及各项目覆盖总量不变。这是重复配对状态改变带来的记账类别变化，不是覆盖丢失。
+- 比较明细：10 项目 `.tmp/precision_loop_20261015/p067_slice_10_comparison.json`；77 项目 `.tmp/precision_loop_20261015/p057_slice_77_comparison.json`；p057、p067 单页汇总分别在对应的 `p057_single_current_visibility_with_prj/summary.json`、`p067_single_visibility_with_prj/summary.json`。
+
+实现与回归测试：`domain.models.TextItem` 和可见性辅助函数；`cad_extract._entity_visibility` 及 INSERT 可见性继承；`table_extractor._resolve_backplate_device_instance`、`_visible_standalone_backplate_device`。新增测试位于 `test_superworks_loop_invisible_text.py` 与 `test_superworks_backplate_corroboration.py`。截图生成器和单页重跑脚本见 `tools/p067_visibility_screenshots.py`、`tools/p067_single_page_replay.py`；完整逐例材料保存在 `.tmp`，规划目录只保留三张代表图。
+
+**限制：** 当前可见性口径涵盖实体隐藏位、属性标志、图层开关/冻结和 INSERT 祖先；其他依赖 CAD 视口或打印配置的显示条件未建模。unknown 可见性不会触发新的纯装置号回退。
