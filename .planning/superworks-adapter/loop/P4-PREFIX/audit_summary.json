@@ -1,0 +1,239 @@
+{
+  "population": {
+    "normalization_events": 1389,
+    "review": 1383,
+    "pass": 6,
+    "projects": 68,
+    "unique_source_dwg_hashes": 251
+  },
+  "audit": {
+    "sample_rows": 112,
+    "identity_correct": 112,
+    "identity_wrong_or_uncertain": 0,
+    "observed_identity_precision": 1.0,
+    "identity_wilson_95_descriptive": null,
+    "identity_manual_yes": 0,
+    "pair_manual_yes": 59,
+    "pair_manual_no": 53,
+    "pair_manual_rate_in_audit_sample": 0.5268,
+    "by_format": {
+      "alpha-num": {
+        "n": 9,
+        "identity_correct": 9,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 9,
+        "pair_manual_no": 0
+      },
+      "alpha-num-hyphen-num": {
+        "n": 13,
+        "identity_correct": 13,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 13,
+        "pair_manual_no": 0
+      },
+      "n-number": {
+        "n": 34,
+        "identity_correct": 34,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 17,
+        "pair_manual_no": 17
+      },
+      "section-n-number": {
+        "n": 56,
+        "identity_correct": 56,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 20,
+        "pair_manual_no": 36
+      }
+    },
+    "seeded_random_sample_by_format": {
+      "n-number": {
+        "n": 30,
+        "identity_correct": 30,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 17,
+        "pair_manual_no": 13,
+        "identity_wilson_95": [
+          0.8865,
+          1.0
+        ]
+      },
+      "section-n-number": {
+        "n": 30,
+        "identity_correct": 30,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 18,
+        "pair_manual_no": 12,
+        "identity_wilson_95": [
+          0.8865,
+          1.0
+        ]
+      }
+    },
+    "by_selection_reason": {
+      "all_pass_pairs": {
+        "n": 6,
+        "identity_correct": 6,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 0,
+        "pair_manual_no": 6
+      },
+      "census_rare_format": {
+        "n": 22,
+        "identity_correct": 22,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 22,
+        "pair_manual_no": 0
+      },
+      "seeded_random_distinct_source_sample": {
+        "n": 60,
+        "identity_correct": 60,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 35,
+        "pair_manual_no": 25
+      },
+      "wire_review_source_census": {
+        "n": 24,
+        "identity_correct": 24,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 2,
+        "pair_manual_no": 22
+      }
+    },
+    "by_pair_kind_and_status": {
+      "ordinary_pair/review": {
+        "n": 30,
+        "identity_correct": 30,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 30,
+        "pair_manual_no": 0
+      },
+      "semantic_mapping/review": {
+        "n": 46,
+        "identity_correct": 46,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 27,
+        "pair_manual_no": 19
+      },
+      "wire_component_mapping/pass": {
+        "n": 6,
+        "identity_correct": 6,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 0,
+        "pair_manual_no": 6
+      },
+      "wire_component_mapping/review": {
+        "n": 30,
+        "identity_correct": 30,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 2,
+        "pair_manual_no": 28
+      }
+    },
+    "by_recognition_state": {
+      "AMBIGUOUS": {
+        "n": 51,
+        "identity_correct": 51,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 4,
+        "pair_manual_no": 47
+      },
+      "INCOMPLETE": {
+        "n": 55,
+        "identity_correct": 55,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 55,
+        "pair_manual_no": 0
+      },
+      "RESOLVED": {
+        "n": 6,
+        "identity_correct": 6,
+        "identity_wrong_or_uncertain": 0,
+        "identity_precision": 1.0,
+        "identity_manual_yes": 0,
+        "pair_manual_yes": 0,
+        "pair_manual_no": 6
+      }
+    }
+  },
+  "design": {
+    "n-number": {
+      "population": 1010,
+      "review_population": 1007,
+      "review_sample": 30,
+      "unique_review_source_population": 133,
+      "unique_review_sources_sampled": 30,
+      "pass_population_and_sample": 3,
+      "method": "one seeded random review event from each sampled unique source DWG; all pass events included"
+    },
+    "section-n-number": {
+      "population": 357,
+      "review_population": 354,
+      "review_sample": 30,
+      "unique_review_source_population": 110,
+      "unique_review_sources_sampled": 30,
+      "pass_population_and_sample": 3,
+      "method": "one seeded random review event from each sampled unique source DWG; all pass events included"
+    },
+    "alpha-num-hyphen-num": {
+      "population": 13,
+      "sample": 13,
+      "method": "census of the format class"
+    },
+    "alpha-num": {
+      "population": 9,
+      "sample": 9,
+      "method": "census of the format class"
+    },
+    "wire_component_review_by_format": {
+      "section-n-number": {
+        "wire_review_population": 140,
+        "unique_source_dwgs": 24,
+        "sampled_source_dwgs": 24
+      },
+      "n-number": {
+        "wire_review_population": 2,
+        "unique_source_dwgs": 1,
+        "sampled_source_dwgs": 1
+      }
+    }
+  },
+  "limitations": [
+    "The 112 visual judgements are audit observations, not a weighted estimate of all 1,389 events.",
+    "The two large-format random strata sample one review event per distinct source DWG; rare formats, wire-review sources, and pass events are census/oversample strata.",
+    "Identity correctness and whole-pair manual review are distinct outcomes; pair_manual_yes does not mean the P4 normalized identity was wrong.",
+    "Wilson intervals are shown only for the two seeded random source-DWG strata and remain descriptive; they do not model finite-population or event-level weighting."
+  ]
+}
