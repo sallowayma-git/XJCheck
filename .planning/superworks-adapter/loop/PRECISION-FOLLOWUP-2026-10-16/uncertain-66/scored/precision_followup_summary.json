@@ -1,0 +1,77 @@
+{
+  "reviewed_uncertain_cases": 66,
+  "reviewed_uncertain_correct": 66,
+  "reviewed_uncertain_wrong": 0,
+  "reviewed_uncertain_still_uncertain": 0,
+  "reviewed_uncertain_manual_needed": 0,
+  "source_stratified_sample_n": 227,
+  "source_population_n": 78993,
+  "design_weighted_point_precision": 1.0,
+  "design_weighted_exact_95pct_simultaneous_interval": {
+    "lower": 0.9257782335143621,
+    "upper": 1.0,
+    "method": "one-sided exact hypergeometric lower limits per source stratum, Bonferroni alpha=0.05/6; finite population weights"
+  },
+  "by_source_stratum": [
+    {
+      "stratum": "backplate_corroborated",
+      "population_n": 4010,
+      "sample_n": 20,
+      "correct_n": 20,
+      "wrong_n": 0,
+      "uncertain_n": 0,
+      "exact_95pct_simultaneous_lower_correct_n": 3159,
+      "point_precision": 1.0
+    },
+    {
+      "stratum": "partial_superworks",
+      "population_n": 70,
+      "sample_n": 20,
+      "correct_n": 20,
+      "wrong_n": 0,
+      "uncertain_n": 0,
+      "exact_95pct_simultaneous_lower_correct_n": 58,
+      "point_precision": 1.0
+    },
+    {
+      "stratum": "pure_v1_no_literal_sw_peer",
+      "population_n": 1720,
+      "sample_n": 20,
+      "correct_n": 20,
+      "wrong_n": 0,
+      "uncertain_n": 0,
+      "exact_95pct_simultaneous_lower_correct_n": 1356,
+      "point_precision": 1.0
+    },
+    {
+      "stratum": "superworks_native",
+      "population_n": 45027,
+      "sample_n": 91,
+      "correct_n": 91,
+      "wrong_n": 0,
+      "uncertain_n": 0,
+      "exact_95pct_simultaneous_lower_correct_n": 42722,
+      "point_precision": 1.0
+    },
+    {
+      "stratum": "sw_annotated_or_v1_supported",
+      "population_n": 27954,
+      "sample_n": 56,
+      "correct_n": 56,
+      "wrong_n": 0,
+      "uncertain_n": 0,
+      "exact_95pct_simultaneous_lower_correct_n": 25666,
+      "point_precision": 1.0
+    },
+    {
+      "stratum": "v1_literal_sw_corroborated",
+      "population_n": 212,
+      "sample_n": 20,
+      "correct_n": 20,
+      "wrong_n": 0,
+      "uncertain_n": 0,
+      "exact_95pct_simultaneous_lower_correct_n": 169,
+      "point_precision": 1.0
+    }
+  ]
+}

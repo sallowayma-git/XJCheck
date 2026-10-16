@@ -1,0 +1,14 @@
+{
+  "scope": "status=pass, source-stratum uncertain judgments",
+  "sample_count": 66,
+  "rendered_count": 66,
+  "render_failures": [],
+  "strata": {
+    "backplate_corroborated": 1,
+    "superworks_native": 20,
+    "sw_annotated_or_v1_supported": 34,
+    "v1_literal_sw_corroborated": 11
+  },
+  "output": "screenshots/",
+  "evidence_policy": "Raw DXF only; no pair-route, endpoint, or classifier overlays."
+}
