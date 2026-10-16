@@ -91,6 +91,28 @@ def test_nested_insert_preserves_path_transform_and_world_geometry() -> None:
     assert len(json.loads(lines[0].transform_json)["chain"]) == 2
 
 
+def test_layer_zero_entities_inherit_enclosing_insert_layer() -> None:
+    doc = ezdxf.new()
+    inner = doc.blocks.new("INNER")
+    inner.add_line((0, 0), (1, 0))
+    inner.add_line((0, 1), (1, 1), dxfattribs={"layer": "PIN"})
+    outer = doc.blocks.new("OUTER")
+    outer.add_line((0, 2), (1, 2))
+    outer.add_blockref("INNER", (0, 0))
+    doc.modelspace().add_blockref("OUTER", (10, 20), dxfattribs={"layer": "WIRE"})
+
+    records = normalize_document_primitives(
+        doc,
+        sheet_id="S001",
+        file_id="F001",
+        reader_backend="ezdxf",
+        reader_version="test",
+    )
+
+    line_layers = sorted(record.layer for record in records if record.primitive_kind == "LINE")
+    assert line_layers == ["PIN", "WIRE", "WIRE"]
+
+
 def test_unknown_entity_is_retained_without_becoming_connectivity() -> None:
     doc = ezdxf.new()
     doc.modelspace().add_point((1, 2))
