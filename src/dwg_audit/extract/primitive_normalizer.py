@@ -10,7 +10,7 @@ from dwg_audit.extract.text_geometry import cad_text_geometry
 
 
 PRIMITIVE_SCHEMA_VERSION = "primitive-segment-v1"
-PRIMITIVE_ALGORITHM_VERSION = "ezdxf-normalizer-v1"
+PRIMITIVE_ALGORITHM_VERSION = "ezdxf-normalizer-v2"
 
 
 @dataclass(slots=True)
@@ -83,6 +83,7 @@ def normalize_document_primitives(
         primitive_kind_override: str | None = None,
         transform_override: dict[str, Any] | None = None,
         inherited_visible: bool = True,
+        effective_layer: str | None = None,
     ) -> None:
         source_type = source.dxftype()
         world_type = world.dxftype()
@@ -123,7 +124,11 @@ def normalize_document_primitives(
                 primitive_kind=primitive_kind_override or world_type,
                 definition_name=definition_name,
                 nested_path="/".join(path),
-                layer=str(getattr(world.dxf, "layer", "0") or "0"),
+                layer=(
+                    effective_layer
+                    if effective_layer is not None
+                    else str(getattr(world.dxf, "layer", "0") or "0")
+                ),
                 layer_role_candidate="UNKNOWN",
                 layer_role_reason_code="LAYER_ROLE_UNCLASSIFIED",
                 linetype=str(getattr(world.dxf, "linetype", "BYLAYER") or "BYLAYER"),
@@ -176,8 +181,11 @@ def normalize_document_primitives(
                 path=insert_path,
                 transform_override={"chain": child_transform_chain},
                 inherited_visible=inherited_visible,
+                effective_layer=effective_layer,
             )
             for index, attrib in enumerate(getattr(world, "attribs", ())):
+                attrib_layer = str(getattr(attrib.dxf, "layer", "0") or "0")
+                attrib_effective_layer = effective_layer if attrib_layer == "0" else attrib_layer
                 emit(
                     attrib,
                     attrib,
@@ -187,8 +195,9 @@ def normalize_document_primitives(
                     segment_index=index,
                     transform_override={"chain": child_transform_chain},
                     inherited_visible=inherited_visible and entity_visible(
-                        attrib, effective_layer if attrib.dxf.layer == "0" else attrib.dxf.layer
+                        attrib, attrib_effective_layer
                     ),
+                    effective_layer=attrib_effective_layer,
                 )
             try:
                 source_children = list(source.block())
@@ -230,6 +239,7 @@ def normalize_document_primitives(
                         local_geometry_override=_geometry(source_part),
                         transform_override={"chain": transform_chain},
                         inherited_visible=inherited_visible,
+                        effective_layer=effective_layer,
                     )
                 return
             local_segments = _flattened_segments(source)
@@ -253,6 +263,7 @@ def normalize_document_primitives(
                         primitive_kind_override="LINE",
                         transform_override={"chain": transform_chain},
                         inherited_visible=inherited_visible,
+                        effective_layer=effective_layer,
                     )
                 return
 
@@ -272,6 +283,7 @@ def normalize_document_primitives(
             source_status="normalized" if supported else "unsupported_retained",
             transform_override={"chain": transform_chain},
             inherited_visible=inherited_visible,
+            effective_layer=effective_layer,
         )
 
     for entity in document.modelspace():

@@ -1,0 +1,66 @@
+{
+  "input_project": "p000",
+  "input_file_id": "F0010",
+  "full_replay_sheet_id": "S0010",
+  "single_page_sheet_id": "S0001",
+  "representative_source_handle": "194B0",
+  "representative_parent_insert_handles": [
+    "195AC",
+    "195B2",
+    "195DA"
+  ],
+  "representative_primitive_kind": "HATCH",
+  "representative_segment_count": 3,
+  "layer": "ECT_CONN_GENERAL_WIRES",
+  "one_page_primitive_count": 713,
+  "one_page_pair_count": 21,
+  "full_page_pair_count": 21,
+  "pair_semantic_projection_equal": true,
+  "full_page_pair_kind_counts": [
+    {
+      "status": "pass",
+      "pair_kind": "bridge_mapping",
+      "count": 7
+    },
+    {
+      "status": "pass",
+      "pair_kind": "ordinary_pair",
+      "count": 1
+    },
+    {
+      "status": "pass",
+      "pair_kind": "wire_component_mapping",
+      "count": 9
+    },
+    {
+      "status": "review",
+      "pair_kind": "wire_component_mapping",
+      "count": 4
+    }
+  ],
+  "one_page_pair_kind_counts": [
+    {
+      "status": "pass",
+      "pair_kind": "ordinary_pair",
+      "count": 8
+    },
+    {
+      "status": "pass",
+      "pair_kind": "wire_component_mapping",
+      "count": 9
+    },
+    {
+      "status": "review",
+      "pair_kind": "wire_component_mapping",
+      "count": 4
+    }
+  ],
+  "pair_kind_projection_equal": false,
+  "one_page_issue_count": 17,
+  "full_page_issue_count": 17,
+  "issue_semantic_projection_equal": true,
+  "one_page_pairs_minus_full_page": [],
+  "full_page_pairs_minus_one_page": [],
+  "one_page_issues_minus_full_page": [],
+  "full_page_issues_minus_one_page": []
+}
