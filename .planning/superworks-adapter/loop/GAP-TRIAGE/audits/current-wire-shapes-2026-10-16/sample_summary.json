@@ -1,0 +1,151 @@
+{
+  "generated": "2026-10-16",
+  "scope": "Eight E subclasses within current R-RECOGNITION-GAP; 30 cases per class; local screenshot manual-review need only.",
+  "replay_projects": 77,
+  "r_recognition_gap_population": 12436,
+  "e_subclass_population": 7527,
+  "remaining_r_gap_population_not_in_this_audit": 4909,
+  "sample_n": 240,
+  "unique_group_sample_keys": 240,
+  "unique_project_issue_keys": 240,
+  "unique_screenshot_paths": 240,
+  "missing_screenshots": 0,
+  "judgment_corrections": 30,
+  "classes": {
+    "E_rail_T": {
+      "population_n": 1777,
+      "sample_n": 30,
+      "manual_yes_n": 4,
+      "manual_no_n": 26,
+      "uncertain_n": 0,
+      "observed_manual_need_lower": 0.13333333333333333,
+      "observed_manual_need_upper": 0.13333333333333333,
+      "estimated_manual_lower_n": 236.93333333333334,
+      "estimated_manual_upper_n": 236.93333333333334
+    },
+    "E_bus_T": {
+      "population_n": 1295,
+      "sample_n": 30,
+      "manual_yes_n": 16,
+      "manual_no_n": 14,
+      "uncertain_n": 0,
+      "observed_manual_need_lower": 0.5333333333333333,
+      "observed_manual_need_upper": 0.5333333333333333,
+      "estimated_manual_lower_n": 690.6666666666666,
+      "estimated_manual_upper_n": 690.6666666666666
+    },
+    "E_reg_element_no_port": {
+      "population_n": 1453,
+      "sample_n": 30,
+      "manual_yes_n": 23,
+      "manual_no_n": 3,
+      "uncertain_n": 4,
+      "observed_manual_need_lower": 0.7666666666666667,
+      "observed_manual_need_upper": 0.9,
+      "estimated_manual_lower_n": 1113.9666666666667,
+      "estimated_manual_upper_n": 1307.7
+    },
+    "E_port_both_ends": {
+      "population_n": 708,
+      "sample_n": 30,
+      "manual_yes_n": 22,
+      "manual_no_n": 8,
+      "uncertain_n": 0,
+      "observed_manual_need_lower": 0.7333333333333333,
+      "observed_manual_need_upper": 0.7333333333333333,
+      "estimated_manual_lower_n": 519.1999999999999,
+      "estimated_manual_upper_n": 519.1999999999999
+    },
+    "E_unreg_pin": {
+      "population_n": 951,
+      "sample_n": 30,
+      "manual_yes_n": 30,
+      "manual_no_n": 0,
+      "uncertain_n": 0,
+      "observed_manual_need_lower": 1.0,
+      "observed_manual_need_upper": 1.0,
+      "estimated_manual_lower_n": 951.0,
+      "estimated_manual_upper_n": 951.0
+    },
+    "E_unreg_element": {
+      "population_n": 742,
+      "sample_n": 30,
+      "manual_yes_n": 30,
+      "manual_no_n": 0,
+      "uncertain_n": 0,
+      "observed_manual_need_lower": 1.0,
+      "observed_manual_need_upper": 1.0,
+      "estimated_manual_lower_n": 742.0,
+      "estimated_manual_upper_n": 742.0
+    },
+    "E_open": {
+      "population_n": 505,
+      "sample_n": 30,
+      "manual_yes_n": 16,
+      "manual_no_n": 6,
+      "uncertain_n": 8,
+      "observed_manual_need_lower": 0.5333333333333333,
+      "observed_manual_need_upper": 0.8,
+      "estimated_manual_lower_n": 269.3333333333333,
+      "estimated_manual_upper_n": 404.0
+    },
+    "E_text_only": {
+      "population_n": 96,
+      "sample_n": 30,
+      "manual_yes_n": 30,
+      "manual_no_n": 0,
+      "uncertain_n": 0,
+      "observed_manual_need_lower": 1.0,
+      "observed_manual_need_upper": 1.0,
+      "estimated_manual_lower_n": 96.0,
+      "estimated_manual_upper_n": 96.0
+    }
+  },
+  "e_weighted_manual_need": {
+    "manual_yes_estimate_n": 4619.099999999999,
+    "manual_no_estimate_n": 2579.5000000000005,
+    "uncertain_estimate_n": 328.4,
+    "manual_need_lower_n": 4619.099999999999,
+    "manual_need_upper_n": 4947.5,
+    "manual_need_lower_rate": 0.6136707851733758,
+    "manual_need_upper_rate": 0.6573003852796598,
+    "lower_95_ci": [
+      0.5587528927324187,
+      0.6685886776143329
+    ],
+    "upper_95_ci": [
+      0.6069377216930749,
+      0.7076630488662448
+    ],
+    "method": "Population-weighted within the eight E subclasses; 30 screenshot cases per class. 95% CIs use stratified SRSWOR variance with finite population correction. Uncertain cases are excluded for the lower estimate and included for the upper estimate."
+  },
+  "wide_frame_recheck": {
+    "date": "2026-10-16",
+    "sample_n": 60,
+    "window_scale": "4x",
+    "classes": {
+      "E_rail_T": {
+        "sample_n": 30,
+        "manual_yes_n": 4,
+        "manual_no_n": 26,
+        "uncertain_n": 0,
+        "frame_boundary_n": 17,
+        "frame_boundary_manual_no_n": 17
+      },
+      "E_port_both_ends": {
+        "sample_n": 30,
+        "manual_yes_n": 22,
+        "manual_no_n": 8,
+        "uncertain_n": 0,
+        "frame_boundary_n": 7,
+        "frame_boundary_manual_no_n": 7
+      }
+    },
+    "changed_verdicts": 29,
+    "frame_boundary_rule": "A vertical line visually identified as a closed/dashed device outline with a device label is classified as a terminal short ending at the device frame; close as internal/non-wire and no manual review.",
+    "evidence_files": [
+      "wide_recheck_rail_T_2026-10-16.csv",
+      "wide_recheck_port_both_ends_2026-10-16.csv"
+    ]
+  }
+}
