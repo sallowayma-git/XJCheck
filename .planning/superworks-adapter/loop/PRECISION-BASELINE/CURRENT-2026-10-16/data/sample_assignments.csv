@@ -1,0 +1,1651 @@
+﻿entity_kind,entity_id,project_id,status,margin,stratum,population_n,target_n,selection_seed
+pair,pair:p050:P0290,p050,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p043:P0318,p043,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p006:P0171,p006,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p036:P0024,p036,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p047:P0139,p047,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p039:P0094,p039,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p040:P0252,p040,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p056:P0268,p056,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p023:P0012,p023,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p030:P0008,p030,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p034:P0200,p034,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p063:P0223,p063,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p061:P0222,p061,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p072:P0019,p072,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p018:P0151,p018,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p033:P0005,p033,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p001:P0101,p001,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p059:P0285,p059,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p005:P0036,p005,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p000:P0054,p000,pass,source,backplate_corroborated,4010,20,683382710
+pair,pair:p035:PW0040,p035,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p026:PW0364,p026,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p025:PW0106,p025,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p021:PW0307,p021,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p034:PW0286,p034,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p066:PW0267,p066,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p037:PW0077,p037,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p027:PW0467,p027,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p032:PW0274,p032,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p064:PW0247,p064,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p066:PW0263,p066,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p064:PW0241,p064,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p065:PW0238,p065,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p036:PW0135,p036,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p026:PW0102,p026,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p036:PW0088,p036,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p038:PW0450,p038,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p006:PW0129,p006,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p067:PW0051,p067,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p025:PW0368,p025,pass,source,partial_superworks,70,20,3877524716
+pair,pair:p020:PWM0008,p020,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p038:PWM0030,p038,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p061:PWM0064,p061,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p044:PWM0025,p044,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p047:PWM0063,p047,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p016:PWM0010,p016,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p049:PWM0013,p049,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p039:PCM0014,p039,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p001:PWM0001,p001,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p069:PTMR0003,p069,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p001:P0106,p001,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p011:PWM0004,p011,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p075:PWM0012,p075,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p021:PAB0002,p021,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p000:PWM0014,p000,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p061:PWM0008,p061,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p001:P0012,p001,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p001:PWM0013,p001,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p017:PWM0009,p017,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p030:PWM0016,p030,pass,source,pure_v1_no_literal_sw_peer,1720,20,2242215078
+pair,pair:p029:PSW9128a06cb6aed97f,p029,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p043:PSW279e63dc21433bb4,p043,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p050:PSW323ae18e499da946,p050,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p064:PSWaaf72ec27672e6fa,p064,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p074:PSWc264a236a5bff1ca,p074,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p076:PSWf93c20f9f120d6d4,p076,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p008:PSW49b8d28e1b540bca,p008,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p061:PSWf490183f74378ec4,p061,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p033:PSWc92777dcfc8b1aac,p033,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p032:PSW3652e210a63910de,p032,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p058:PSW55f7e82fe2c404cc,p058,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p010:PSWc0de8a23324dcb1b,p010,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p017:PSW75f2f1c7ae3f85ea,p017,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p026:PSWc91b19b24bd994e4,p026,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p015:PSW51f23247c3833b43,p015,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p009:PSW6c68413d6e611480,p009,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p056:PSW5fd16fde044ed46e,p056,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p038:PSWeb8418074191442d,p038,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p022:PSW45a924be8b69e755,p022,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p016:PSWbd947638ee726aed,p016,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p009:PSWf406d3892934c78d,p009,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p032:PSW8b5f2f0fedddd95c,p032,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p035:PSW33469bf2a7263603,p035,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p042:PSW301ea4a11cc54b3e,p042,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p023:PSW2bee4bf7e6312f88,p023,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p045:PSWc2bfb4645d332b56,p045,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p011:PSWa70074102beb156e,p011,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p061:PSW6c8cf3d972bdf4bf,p061,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p009:PSW4005728cc91740c4,p009,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p021:PSWdaf951b361d127c3,p021,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p000:PSW98a8cacaad3124db,p000,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p025:PSW1d1068917bf18c57,p025,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p009:PSW42239b1ca9aaa824,p009,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p020:PSWb5ddbc879e24d989,p020,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p036:PSW32fd4d45e7d29da1,p036,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p014:PSW0689847cb2e24562,p014,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p032:PSW8fb8f1f8fe4584cf,p032,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p070:PSWf3358b56a5ae8a5c,p070,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p017:PSWa703515e393efd59,p017,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p009:PSWf14e1295c66e9a83,p009,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p035:PSW7bb8e9836a6f76da,p035,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p063:PSWd69476b0d8841abe,p063,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p031:PSW6a3e77c263a7e10b,p031,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p037:PSW7c7698cddfc63d3d,p037,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p029:PSWb8445da3ba567df9,p029,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p009:PSW653c2e4854b3055a,p009,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p018:PSW65f11d9eb1fb4b05,p018,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p076:PSW45d07ffe9b94052a,p076,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p038:PSW7af4ff3253d73b5a,p038,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p024:PSW09756eef859fdca3,p024,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p006:PSW091f3b8e6301ff17,p006,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p061:PSW030d8cec039062e1,p061,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p047:PSW4b70f32dd6aff0af,p047,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p015:PSW075fb7238d724a90,p015,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p075:PSW1f6b9fad6b66f8c1,p075,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p007:PSW2a709382fb60c2ad,p007,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p072:PSWe388aca4e69a36eb,p072,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p046:PSWda1d8c36389578ae,p046,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p025:PSW8484e96159acda6c,p025,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p061:PSW449ad4931f24b4d8,p061,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p019:PSW80dd4d229e46eef8,p019,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p009:PSWb9f7f52ecbd60927,p009,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p013:PSW388957e7dcb3fe77,p013,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p074:PSWfba5e0684b97b4fd,p074,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p029:PSW117885d98ba7c694,p029,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p052:PSW1aecfc037a28f089,p052,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p024:PSW21f627e0e0c12327,p024,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p060:PSWbaaa81d2aa729253,p060,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p019:PSW6d670d0e6c320cc2,p019,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p034:PSW0e8341a87f61a7db,p034,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p014:PSWe25f6ae86cf130a2,p014,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p063:PSW9d639383e7a3bc43,p063,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p020:PSW5f057c89c1727be8,p020,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p049:PSWf06b56ff894783e8,p049,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p040:PSWf9a6628d7937901c,p040,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p002:PSW6e5deb33aeff303f,p002,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p027:PSW7e26198ca9cc191f,p027,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p030:PSW4663966e4bd12430,p030,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p008:PSW9ec3b833a982c40f,p008,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p056:PSWa7d69f202c0c02d8,p056,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p046:PSW037576240182fedc,p046,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p064:PSW068d610b8a4eb102,p064,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p048:PSWb6b8a6a3898d94ed,p048,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p023:PSW422e81c35acd7f6a,p023,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p066:PSW80cb596498857d65,p066,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p047:PSW63fa045dd4284130,p047,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p072:PSWa53226704acb52a1,p072,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p001:PSW5c140e9c6873ad5f,p001,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p067:PSWd14b4781959b89ab,p067,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p043:PSW63e03c2c2fcf8cc4,p043,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p066:PSWc6fd07aab8b65804,p066,pass,source,superworks_native,45027,91,1893087561
+pair,pair:p019:PSWd5b44fb271d11a17,p019,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p031:PSW9d84395dea9f1067,p031,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p031:PSW67d3e8704e00257f,p031,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p027:PSW82ab7d695d353c11,p027,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p065:PSW203b8a8e66d776aa,p065,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p035:PSWc0977afb0f3091aa,p035,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p032:PSWd0ad7dff7bc683fa,p032,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p071:PSW3d1b16e8c4249467,p071,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p059:PSW0a06f115da4317ed,p059,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p060:PSWf61de0ff0a3e884b,p060,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p027:PSWea0bc371ab2ed3d4,p027,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p004:PSW19de01fbb8f635d7,p004,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p064:PSWab85c2e7d9053c46,p064,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p030:PSW1c5def7e851c17e5,p030,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p055:PSWbc68a2ee0b32a55f,p055,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p075:PSW2a9d07ed855d7a39,p075,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p036:PSW6a80073fbbb7b97a,p036,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p029:PSW23eebac16f92b540,p029,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p014:PSWf00f7d8d8315044d,p014,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p034:PSW87727de43ed94064,p034,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p060:PSW124630cbdd8de949,p060,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p074:PSW90ff90bd00101783,p074,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p021:PSWe20ddd5d324ba21a,p021,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p064:PSW45d8f60d6555feec,p064,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p059:PSW3c4c15a1a8d3792c,p059,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p004:PSWcc735514562a8116,p004,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p015:PSW845029d36e15dd2a,p015,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p075:PSWb0bd11c39a4c7a2a,p075,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p021:PSWc77e0733e2c6ddd1,p021,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p059:PSWdf636aabe414708a,p059,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p021:PSW55add1a133b52d70,p021,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p007:PSW9b13fff450600c48,p007,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p025:PSWa0c18da71c43fc08,p025,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p073:PSW2c3ffbdddc19cd69,p073,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p021:PSWe38c9651efb5eefa,p021,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p052:PSWae4b2b76d54efb55,p052,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p045:PSW3be844ef8ebb11d5,p045,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p026:PSW57852f904e9f0675,p026,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p029:PSWe6587a7745ad2f5a,p029,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p074:PSWc81f3307e190af04,p074,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p035:PSWf3b227af312d5e5d,p035,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p044:PSWbc9357db9b9d6fd6,p044,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p025:PSW84dbe028a72fba2f,p025,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p027:PSWbe836676f9809c12,p027,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p013:PSWd702be3d783f9b9e,p013,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p075:PCV0024,p075,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p062:PSWdf33b07c64856c12,p062,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p007:PSWd49dae9c3958bd27,p007,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p010:PSW630e36f0b8a697b1,p010,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p058:PSW13a7e58f2e6edf75,p058,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p046:PSWfb33d10f67ebf92c,p046,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p047:PSW63321ab67b802c38,p047,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p074:PSW90876a4c6018f49c,p074,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p029:PSWa5474b54a7e83dbe,p029,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p023:PSWa4ea32d83c849c1a,p023,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p021:PSWd9c510daed29a51b,p021,pass,source,sw_annotated_or_v1_supported,27954,56,1365057612
+pair,pair:p001:PCS0003,p001,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p003:PCK0008,p003,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:P0009,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:PCM0051,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p001:PCM0039,p001,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:PCK0008,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p003:PCM0006,p003,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p050:PWM0015,p050,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:PCK0023,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:PCK0004,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:PCM0095,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p001:PCK0012,p001,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p003:PCM0010,p003,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p007:PWM0017,p007,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:P0311,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:PCK0009,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:P0143,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p039:P0181,p039,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p001:PCM0021,p001,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p001:PCM0026,p001,pass,source,v1_literal_sw_corroborated,212,20,1274224322
+pair,pair:p076:PSWd2093dd165a50b11,p076,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p036:PSW503c617a07669d02,p036,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p065:PSWa3ebcfbc2d245d23,p065,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p014:PSWa5af1f6a5e55e9d6,p014,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p045:PSW2904d2f7ca3b3377,p045,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p009:PSWecde1c0455d52bb0,p009,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p007:PSW46d2560e5f76a0ec,p007,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p036:PSW5b61b7c319329e37,p036,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p044:PSW65e79fb6ffa6566b,p044,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p055:PSW40dd73fc0fad5f70,p055,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p071:PSW542643c5c0a0197f,p071,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p061:PSWf30709f5546101c6,p061,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p046:PSW29a4415427c058ed,p046,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p012:PSW8560d94bf1fba4d2,p012,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p069:PSW26e82edbfb59cff9,p069,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p045:PSW417b45f38cf8eeb2,p045,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p059:PSW587f324a2d58a893,p059,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p031:PSWe0a1b812b995b861,p031,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p075:PSW729fba64bf6823f5,p075,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p010:PSW16a4f7433c65879a,p010,pass,pair_kind,bridge_mapping,5559,20,3240350437
+pair,pair:p006:PSW6d16ebcbba7fed9d,p006,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p017:PSW620bae074ff4d214,p017,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p019:PSW6c03e9049ca0c9ef,p019,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p071:PSW39eeac5b59cbf2ee,p071,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p074:PSWc0ef35a9bc422c95,p074,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p034:PSW04b2c3784c13d2c7,p034,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p004:PSW8e20c2fa9329c744,p004,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p041:PSW2d57418c5502518d,p041,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p021:PSW3d8fafa00707b20e,p021,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p024:PSW0e5de82e2cbbfdef,p024,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p033:PSW2f3f04f35d9945d5,p033,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p064:PSW9d91d34e75437709,p064,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p017:PSW2a08a7faeed5e11e,p017,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p042:PSWe526cc4684edb4f3,p042,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p027:PSW5f8e73bea2f2bf92,p027,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p026:PSW0bd7062ec144a093,p026,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p042:PSW3956cfea1c8af84b,p042,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p021:PSW570a8352b90bcca2,p021,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p021:PSWd831c0cc03ad6a8d,p021,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p065:PSW5f099ca4a0b4ef40,p065,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p008:PSW0e880f9220728ac2,p008,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p014:PSWd31c8ceee5263abf,p014,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p028:PSW5724c8c7eb377769,p028,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p031:PSWeb9112f6ff039e6f,p031,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p025:PSWf48683681b94f980,p025,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p056:PSW736d8b39ff3be172,p056,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p046:PSW9b7de4ab4264908b,p046,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p050:PSW447eb6ed48936b6e,p050,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p009:PSWaaaf3b63d671fe25,p009,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p044:PSWaee615284b1be811,p044,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p028:PSW72dfd97ebf9ea970,p028,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p013:PSWca3809deb6fab605,p013,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p060:PSWd5003e05b64e19d5,p060,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p072:PSW52c205ac308a6b86,p072,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p046:PSW89eb2dbb8217df6d,p046,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p070:PSWd928e8c1ba3f22e2,p070,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p013:PSW19bce1338fe5e78e,p013,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p036:PSWc00a894d3c835239,p036,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p056:PSWbabc8bf6a0702bdb,p056,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p011:PSW1d91bcc682d92555,p011,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p036:PSWd408616c4bb57493,p036,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p033:PSW9a8b303b1f2b48eb,p033,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p019:PSW2bc9bc1a41771263,p019,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p061:PSW7d253bf9a4a29e0e,p061,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p060:PSW7ae5124acb79f8bb,p060,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p032:PSWcc52305c90f2df21,p032,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p014:PSW2790c515e6a2471e,p014,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p006:PSWee43bda2cac5d443,p006,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p031:PSWe30b6ca5b328dade,p031,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p028:PSW27d0df00a7e2bde5,p028,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p025:PSWc41003ce05d2612e,p025,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p056:PSW9348c493b952e5d5,p056,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p006:PSW1fdb0935e5bbbc1a,p006,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p056:PSW8efea1f6734571a9,p056,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p023:PSW8fef1973b6ab241b,p023,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p020:PSW47087b726a169a99,p020,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p006:PSW29f8e4ba5b4a3e40,p006,pass,pair_kind,component_mapping,28284,57,242371065
+pair,pair:p065:PSW5df10b11347b14f5,p065,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p025:PSWd46d119b6b416568,p025,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p038:PSWaaa26b387e8931dc,p038,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p039:PSW4cdbeda6f7f194d6,p039,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p067:PSW82d40e61dfbd1b33,p067,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p015:PSW82031b48173cb15b,p015,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p017:PSWdec75a94b0011d7c,p017,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p021:PSW278443f23332eb4e,p021,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p009:PSWfe0ec903095e6ead,p009,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p002:PSW195f5a3addce5c7e,p002,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p027:PSW8715f97507eae56b,p027,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p015:PSWf35bf57f1f61a3ee,p015,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p036:PSWb61862fca56a15ab,p036,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p015:PSWf64d0e5e7fea8a9e,p015,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p029:PSW7a7881052959b6bf,p029,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p037:PSW423d12d7d887cb0e,p037,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p025:PSWb9fca61021dffb9d,p025,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p013:PSW29ebc8aec0363ed6,p013,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p033:PSW1d7fc8e4f33c4469,p033,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p015:PSWce76ab3475d5d0e7,p015,pass,pair_kind,ordinary_pair,1401,20,1558141777
+pair,pair:p039:PCB0001,p039,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p061:PCB0001,p061,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p076:PCB0001,p076,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p059:PCB0001,p059,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p060:PCB0002,p060,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p039:PCB0002,p039,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p048:PCB0002,p048,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p061:PCB0003,p061,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p076:PCB0002,p076,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p006:PCB0001,p006,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p059:PCB0002,p059,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p060:PCB0001,p060,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p047:PCB0002,p047,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p061:PCB0002,p061,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p048:PCB0001,p048,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p047:PCB0001,p047,pass,pair_kind,semantic_mapping,16,16,960119910
+pair,pair:p075:PSW0a7b42ad2f6c8f21,p075,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p030:PSWc241d1ed42c96c40,p030,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p047:P0148,p047,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p024:PSW32e9d3fef2cb0caf,p024,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p074:PSWd5b398661e53e494,p074,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p056:PSWc4a026fae80f27c3,p056,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p024:PSW6503be035eedfbd6,p024,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p038:PSWf5cf0b64aa0db17a,p038,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p030:PSW4582f225fbd4216d,p030,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p026:PSW9c354ffd9e5f6318,p026,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p019:PSW30b53596e8cb0df3,p019,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p066:PSW454bed92f6e90e9f,p066,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p010:PSW2ae8f66dd8b2b5f8,p010,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p008:PSWfadb1c72c252035f,p008,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p040:P0252,p040,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p034:PSW93eae96e256d1cee,p034,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p021:P0251,p021,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p043:PSW2c79d244342b8449,p043,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p074:P0240,p074,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p032:P0015,p032,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p020:PSWba80cd0313f84163,p020,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p060:PSWa4781deab94a2528,p060,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p046:P0105,p046,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p001:PSW33fac33567feae2b,p001,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p016:PSWb251329c4d468a50,p016,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p064:PSW48bfa93df397dba1,p064,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p043:PSW9ffe076914e055c2,p043,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p001:PSW13120d2aee773e21,p001,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p011:PSW6b30b6bbf6b91332,p011,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p013:PSW0a3b21b45d36a5d8,p013,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p046:PSW33733447ba3478f4,p046,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p060:PSWe77b0d6385603a15,p060,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p074:PSWa80c9a9dc6f9581d,p074,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p015:PSW44409b045e6cabfe,p015,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p039:P0094,p039,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p047:P0105,p047,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p039:PSWc55ac2546a78420f,p039,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p028:PSWcd065cfd6dd44c91,p028,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p010:PSW8d75d5d558cfc4a8,p010,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p065:PSW2dde5db2ed3c19d1,p065,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p035:PSW598e43c1328fe250,p035,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p011:PSW30be6f893b07b22b,p011,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p026:PSWd8e25167f21d40ff,p026,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p000:P0053,p000,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p022:PSW8f525f3c91288ca6,p022,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p034:PSWfa15aa7f83cb2b39,p034,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p001:P0014,p001,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p050:PSWcd36cbd95e21a02b,p050,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p008:PSWbd5902e4624c2388,p008,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p045:PSWa9c54edb04988a94,p045,pass,pair_kind,table_mapping,24967,50,580262070
+pair,pair:p034:PSW6097a3349b3cd6f0,p034,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p046:PSW5e514d10af6b5176,p046,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p075:PSW117b29cf427acc1a,p075,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p063:PSW018e11fade5470b8,p063,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p034:PSW71a54e6c67295b6c,p034,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p017:PSW301ea4a11cc54b3e,p017,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p009:PSW6b820a98dd2e85a2,p009,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p052:PSW6055450775c127f8,p052,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p053:PSW3741f1bf4764ac0f,p053,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p028:PSWdeffb5287d64baf3,p028,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p050:PSW3543839f0aaf8e1e,p050,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p064:PSWbad13fd6f010d6c7,p064,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p038:PSW5c27e21f5a92cf4d,p038,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p039:PSW511d3370c3c05fdc,p039,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p065:PSW66782c63a574d8fe,p065,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p032:PSW1b9933d7acfdd8a3,p032,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p044:PSW117734a9c462e2c7,p044,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p001:PSW2b4c430eaa2c3e86,p001,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p050:PSW4f51653134bf009b,p050,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p063:PSWf7dc6d4e967fed5e,p063,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p026:PSW0f7eafe66538b6d9,p026,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p015:PSWf0fbabeedf641ab3,p015,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p031:PSW4438a87f7602e244,p031,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p069:PSW0c04719ba21b7995,p069,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p028:PSW2156ea61a0a7e4fc,p028,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p057:PSW67be21c50a17bb94,p057,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p010:PSW8e778f55e76d5ac1,p010,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p007:PSW1afd2a5c4ca1aca9,p007,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p045:PSWd2efed869909d3de,p045,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p018:PSW39894f935a492b40,p018,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p033:PWM0010,p033,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p031:PSW983aade0468b7c16,p031,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p027:PSW0b4ca739450bea5c,p027,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p075:PSW8d388b07050ef701,p075,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p056:PSW8a3dec581efb7c80,p056,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p009:PSWa8b137b2956b2389,p009,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p061:PSW77c869578656c0bb,p061,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p043:PSWd8682e561d36fd0e,p043,pass,pair_kind,wire_component_mapping,18766,38,1811737741
+pair,pair:p044:PSWc10069d532b3dfc9,p044,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p025:PSW9e81ce06d43e1a12,p025,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p034:PSWf6348f7a867238e2,p034,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p065:PSW37e1dd21ee38122c,p065,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p059:PSW944c2c7ef512cd90,p059,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p045:PSW347ba5bf18cc4e44,p045,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p068:PSW94af59a1923cdc1d,p068,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p005:PSW84af54207c988113,p005,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p026:PSW7438151077dd5f18,p026,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p039:PSWa02824f6d397f446,p039,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p021:PSW85355835d3f42062,p021,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p024:PSW7d1977948c14d868,p024,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p039:PSWc53f3949e197b60f,p039,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p003:PSW27bd0b1479821c22,p003,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p032:PSWb0b445d744adfe12,p032,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p011:PSW1f5286efa8b63416,p011,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p064:PSW447ed65dc662e767,p064,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p061:PSW2eda0826d63d119b,p061,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p016:PSW44e28f9124b03af3,p016,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p060:PSW86b2f00a165130ac,p060,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p060:PWM0059,p060,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p002:PSW57f135607918f052,p002,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p012:PSWe25f6ae86cf130a2,p012,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p076:PSWa1daef46c065d38a,p076,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p072:PSW7a8377b71527ed23,p072,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p063:PSWee52472d85f80f06,p063,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p066:PSWf4c5307f0eff30bf,p066,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p016:PSW516fbaf00f534029,p016,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p007:PSW1ef54f7d6e6e9859,p007,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p014:PSW090bf9f60a5efa87,p014,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p019:PSWa341441d23c9e0b3,p019,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p046:PSW730bbdc074609f87,p046,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p056:PSWb54b17d274368b4d,p056,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p046:PSW856d25bf61d295e2,p046,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p014:PSWcdf8f1f281321786,p014,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p024:PSW2dfd23ca6f7c9398,p024,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p021:PSW37e2bca0c6e49d46,p021,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p045:PWM0072,p045,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p072:PSW16d461110ffe4b2b,p072,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p049:PSWde24ab81038f5211,p049,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p021:PSW86dbf31354150191,p021,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p020:PSW44e95607eec25837,p020,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p070:PSW18b7ed509647d432,p070,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p002:PSW22015056227d0977,p002,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p065:PSW69d097e7bc49b8f3,p065,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p022:PSWebdf4b170a366529,p022,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p058:PSW28f1fe110a1ee766,p058,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p039:PSW20fc00cc7c908cd4,p039,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p023:PSWcf35b8cac7649ab7,p023,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p076:PSWc8da89e83b7c3668,p076,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p062:PSWf0ffedad6600a8ad,p062,pass,page_type,二次原理图,25419,51,1305114615
+pair,pair:p039:PCK0006,p039,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p007:PSW1171d496a878a2e6,p007,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p053:PSW2b29ba5da7baef50,p053,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p019:PSW07bc8a12e00996aa,p019,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p041:PSW6635c4dc18cc930d,p041,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p020:PSW8edbb423b42351f2,p020,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p018:PSW6afb7836b7fbc26a,p018,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p008:PSWfb4e80f76809e503,p008,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p034:PSW5f7a0077817a4936,p034,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p039:PCM0056,p039,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p038:PSW4fca791fe58d861a,p038,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p025:PSWd490e4d84c3b9e89,p025,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p010:PSW504f62585c59b1f5,p010,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p063:PSWb09fb26328874595,p063,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p015:PSW039357e16128ef9e,p015,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p002:PSW30a85e1a005e9416,p002,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p067:PSWaef0f6dfa6710c0b,p067,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p063:PSW110df85cb4fc51b1,p063,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p007:PSW8bc3504cfd7dd1a1,p007,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p027:PSW5003fbfcc33391b8,p027,pass,page_type,元件接线图,9936,20,3708472234
+pair,pair:p058:PSWc19351cf13469d1b,p058,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p076:PSWda620967feb55f36,p076,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p021:PSW9bdf66ca87dbed74,p021,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p001:PSW88b0815c12165dbd,p001,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p032:PSW188c5ef38ea6bf0f,p032,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p027:PSWc60553e47608c08a,p027,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p043:PSW80225ca274228239,p043,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p059:PSW2c6929e78c86c8c1,p059,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p049:PSW8484333a10345b61,p049,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p066:PSWae3954c7f154586a,p066,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p019:PSWdb4b129e843b9daa,p019,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p074:PSW42b34447a2dd6499,p074,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p034:PSWf1fedc6a20e8539e,p034,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p015:PSW649849ed7e62f04c,p015,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p030:PSWb33203bf043b1c5a,p030,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p032:PSW75b1bb0bc9a217a6,p032,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p061:PSW7897559eee2c5c0a,p061,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p063:PSW52b19a2a7f1d2556,p063,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p071:PSW098dcbbd58198fae,p071,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p027:PSW79cc168126db9f06,p027,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p052:PSW2475573fa0debb1a,p052,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p046:PSWebe77ad6eacf7087,p046,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p033:PSW41dec75007d66f68,p033,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p056:PSW657555ce9c3c85f3,p056,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p027:PSW6617070ede4ca222,p027,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p010:PSWbfae97595fb29f81,p010,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p030:PSW3e5385c8230f68a5,p030,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p047:PSWd907020c504bd8c5,p047,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p017:PSW1610311e25c1700a,p017,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p036:PSW9bf62574ef46a91a,p036,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p011:PSW0865811d6395bb23,p011,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p063:PSWca3ce16060e51e77,p063,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p063:PSWb03b56b2eb7ea1d9,p063,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p021:PSWa11b187edac4a4cd,p021,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p019:PSWb2c00f656915da3d,p019,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p071:PSW243178db685b9fea,p071,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p045:PSW041c2d147f089251,p045,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p014:PSWf4f2c8a6b5411767,p014,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p044:PSW4897a7b91734808f,p044,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p059:PSWa8a32e7b5575a27e,p059,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p036:PSW3d6b31df910f6fa7,p036,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p073:PSWe6b36d1171657254,p073,pass,page_type,屏端子图,20845,42,1267903560
+pair,pair:p030:PSWdc12e6ce96145138,p030,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p027:PSW4d01063118316f1f,p027,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p031:PSW6a35e5e28958d57f,p031,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p063:PSW4a26d14fd9f3082c,p063,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p014:PSWc0511669f3d5893e,p014,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p033:PSW20e93e5aa90d5bbb,p033,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p002:P0152,p002,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p067:PSW3a94f53ae9076923,p067,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p036:PSW6126680ab760d892,p036,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p047:PSW8aeb5e09fa4d630e,p047,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p014:PSWb4c8dc8e22508f76,p014,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p063:PSW77306711ed52683d,p063,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p028:PSWeacfe9c7a7211044,p028,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p012:PSWa6572c2c426736a1,p012,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p032:PSWd53c5b5a7c194cc6,p032,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p030:PSW837754b8775698c7,p030,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p059:P0243,p059,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p014:PSWe64ac21aa9a2d177,p014,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p020:PSWb2786926f5588b09,p020,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p071:PSW14aa67f78a66a79e,p071,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p065:PSW00c731b83faa1477,p065,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p046:P0273,p046,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p034:PSW81582e1608e5396f,p034,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p044:PSWe7f0896ef8866c86,p044,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p060:P0122,p060,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p045:PSW1ff1ed8165e4c200,p045,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p058:PSW5be6591f99afe989,p058,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p044:P0328,p044,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p061:PSW61a084991c762146,p061,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p024:PSW9eaf225e160f7579,p024,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p057:PSWe8a322dd65b72f39,p057,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p048:P0372,p048,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p011:PSW91c0338d38182820,p011,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p018:PSWb9ed4d1311d2755f,p018,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p047:P0131,p047,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p047:PSW0b4f411428edb9fe,p047,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p038:PSW6640d2cb0e199362,p038,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p035:PSWfdec616921d09a72,p035,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p014:PSWc57ee368d047b295,p014,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p061:PSWc87c797a428d1385,p061,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p009:PSWcccb651b3931c7b0,p009,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p047:PSW3d7ca52c926caa64,p047,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p044:PSW905227446f5a6c5e,p044,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p026:PSWd0bfa6381fc194f3,p026,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p000:PSW2e8f6494260150dd,p000,pass,page_type,背板表格型图,22368,45,2824686318
+pair,pair:p044:PSW2dcf0f557cc12587,p044,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p061:PSWf1c71cbfba4e835e,p061,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p031:PSWd6d6ea1fc82f1cea,p031,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p042:PSW41d15c4871e5fbaa,p042,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p029:PSWefd252e69b93937f,p029,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p004:PSW2ce2c5bd5c0ddad0,p004,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p031:PSWdd9e4704d437077b,p031,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p031:PSWd8e859421117cbc0,p031,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p029:PSWe6698aa81450a242,p029,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p004:PSW21daaa7c66f015b8,p004,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p035:PSW3db2a8ec593e96f3,p035,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p031:PSW5e95540f03beea46,p031,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p031:PSW8e32492e6310b9ee,p031,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p029:PSW50897bdcee0fae7b,p029,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p029:PSWd7d66dc9fcc5c66f,p029,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p070:PSW491f6f1602d0735a,p070,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p000:PSW2171e067d28ff3c2,p000,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p031:PSWb916e7f659b205bd,p031,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p004:PSWc94837c789728df3,p004,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p028:PSW7926488078e1605b,p028,pass,page_type,表格型图,425,20,2400477159
+pair,pair:p007:PSWe7b9fae172a6dc4f,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSW36886adb4010a087,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSW2c0426db551259d9,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSW5754ac366a6ef59f,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSWbe752d24a7679ce9,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSWc795bae830099e64,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSW8ca762773a4fc90a,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSW5549c245426e2c7c,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSW64daa81814a85f2f,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSWd865b98a0d90e82c,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSWecb709fd20887333,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSW0dd461d1fa7412c0,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSW30e5deee46b15406,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSW3af1707d1ab73097,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSWd2fe73ac298a4b63,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSW75abbdf5f6079aef,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSW3557534d13a3e340,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSWbab6cf05aaa94f66,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p016:PSW7f522ab28860b814,p016,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p007:PSW764319a775b92504,p007,pass,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),2285,20,3578973646
+pair,pair:p038:PSWe4c9c38f9cc845ad,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PSW28e46d20c3f36151,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSWc03b4c308820d164,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSW8b2d399c462c6cca,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PSWd92849700154ba67,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSW60546c6ae50d12b3,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PSWafd274f4d7613d5a,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PWM0038,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSWb79d3e43e4274aa4,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSW4ba2bd5658ef4b6d,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSW0fd1c5a4a34542e0,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PSWd686736c3547cac4,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSWbfcb85683adbb09d,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PSW5eb970da04979ecb,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSW60aa81d8508b2e1f,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PWM0024,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSWc9d1c3ac2c3143b5,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p049:PSWaa13dd9e5465cb57,p049,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PSW9a72de8fdac9d4b2,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p038:PSWbe246d6f08dc0a8b,p038,pass,project_family,110kV变压器保护柜,2198,20,1359551603
+pair,pair:p039:P0106,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:P0262,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PCK0007,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PCB0001,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:P0265,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:P0042,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:P0286,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSW49431f391275f1ae,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PCM0052,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSW1341ad3354d5fa28,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSW26c13e71bd1e04b1,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSW7650cec91ab8444b,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PWM0004,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:P0188,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSW734f0c12f3676641,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:P0148,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PCM0019,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSW5d4c5331d799625e,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSW871feb4e02f59511,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p039:PSWc570320666043b30,p039,pass,project_family,35kV变压器保护测控柜,1556,20,950971189
+pair,pair:p000:PWM0021,p000,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:P0110,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:PSW117b29cf427acc1a,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:PSWc680b979079f9367,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p002:PSW8247a6f303cfed42,p002,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p002:PSWc6ec2376793b31b0,p002,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p002:PSW5d919b21af52bd9e,p002,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p000:PSWecc5478d7d51d5cc,p000,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:P0137,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p002:P0128,p002,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p000:PSW69cdd5c22fb27937,p000,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p002:P0137,p002,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p000:PSW572d9acd2bebd5cd,p000,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:PCM0032,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p000:PSW4df4b9bc30dcb59d,p000,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:P0035,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:PSWeb65adee82031f3c,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:PSWfb88ab3d26925b2f,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:P0080,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p001:PCM0024,p001,pass,project_family,GJ-73 WXH-813-D1F国产化,2218,20,61992324
+pair,pair:p004:PSW09c6862c2d5ccd52,p004,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p004:PSW636c558843aa960d,p004,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p006:PSW164d227f71b41b3f,p006,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p006:PSW4bd52e16aa313d2a,p006,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p005:PSW229f92b8012bed35,p005,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p004:PSWb59e46d92788f5d7,p004,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p004:PSW5e90e855a27845f7,p004,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p004:PSWe87fce16f292f949,p004,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p005:PWM0007,p005,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p003:P0003,p003,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p006:PSWc3fc180f5af12b8d,p006,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p003:PSW89577992c6160959,p003,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p006:PSW6aad700654f94482,p006,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p006:PSW6c5486619bf8e19b,p006,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p006:PSW7efa51338a3fa3bb,p006,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p003:PCM0003,p003,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p005:P0038,p005,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p005:PSW0bab0524401df406,p005,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p006:PSW0cf989840f7a08e0,p006,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p004:PSWcee762498f03f931,p004,pass,project_family,GJ-74 WDLK-861-D1C国产化,2529,20,3753501184
+pair,pair:p037:PSW34011400b5272ccd,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSW31a5bc415a9ce6f8,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSW3c5da5456f150596,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:P0052,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSW36a2dd1375e78d6c,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:PSW5ef11c463b8f780c,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSW99bcd1946436cd00,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:PSW1648d2aac5c7a510,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSW6fb87155f36668b7,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:PSW912caf025fd8fd27,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:PSW90a48a3dccd73c08,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSWb4f98e4355aadcae,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:PSW8029ccbe91159afe,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:PSW19a37b8d69c4e85d,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSWab81e1b6e7f29521,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:P0047,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSW4fe292ea7131ed43,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:P0045,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p037:PSWa96d8b54f01df6c8,p037,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p036:P0055,p036,pass,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,1850,20,889222974
+pair,pair:p040:PSW2ef217147e3d525e,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:P0076,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW40ba04cba0fa7368,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW5218ffca5fbc44dd,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW0048fdd3806365d3,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW0248458ffb779fda,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:P0071,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW3e8ca6871fa1262a,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSWd62b857d41124bd9,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSWb1c031071119f0e3,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:P0078,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW53816ae4739791e6,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW3fd93fd84c2459b1,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW4d2a2936792bdc27,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSWb21ca7be90e3bbb4,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW916be5f23cbdcdc0,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW3a5477cb0e4a8ed0,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW803f579673cb96c4,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW9184eda7e8ca672a,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p040:PSW8b6b3672163f8818,p040,pass,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,1322,20,2078736838
+pair,pair:p041:PSW207f528d4db556f2,p041,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p043:P0315,p043,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p043:PSW00ddaeb908fc0aa9,p043,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p043:PSW4bec72d446ec112c,p043,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p043:PSW5c1938c9d59176f2,p043,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p041:PSWb28b79c1a00204f7,p041,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p042:PSW935607d4947fffbd,p042,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p043:PSW11e30779b37e4521,p043,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p044:PSW8229ed267808b8fb,p044,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p044:PSW9708294808bafd7a,p044,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p042:PSW45d215a8b71086f1,p042,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p041:PSWa2b28c8f3bdf2c4a,p041,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p044:PSW2f355d08ef6cf51b,p044,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p041:PSW19b7d0a5c69632f5,p041,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p042:PSW1ef8e9d4be1e8de9,p042,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p044:PSW8927b61e1c497fe9,p044,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p044:P0325,p044,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p044:PSW48685d2f2ee195d3,p044,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p041:PSW553e72773f30b158,p041,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p044:PSW313e045832ffdce7,p044,pass,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,4290,20,1742199295
+pair,pair:p047:PSW132c2963d275ffbe,p047,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p047:PSWd1a9e2bdba0ff442,p047,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p048:PSW1b769927e0cbbcbe,p048,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p048:PSW96a45bb17f502788,p048,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p047:PSW9c087f4b3da8b291,p047,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p045:PSW71d75b6899796d53,p045,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p046:PSW2d4bffcaee8e0d50,p046,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p048:PSW81c7e93f363ace76,p048,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p048:PSW991b82f66ec2af65,p048,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p047:PSW2e584cba47c9a33a,p047,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p045:PSW95a87ea6f2ab090e,p045,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p048:PSW8b067e7f66452541,p048,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p046:PSW264e45e81a143dd7,p046,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p048:PSW7b1488228bc5ebbd,p048,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p045:PWM0103,p045,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p046:PSWc6252b2fc4b8fcc3,p046,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p048:PSWbb954c49babc373c,p048,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p045:PSW9bf68cd067a39fa2,p045,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p047:PSWc98790d73cde5a8b,p047,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p046:PSW7a2e9348a451c906,p046,pass,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,6081,20,4285339924
+pair,pair:p050:PSW60507dadb8c8a433,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW08b4adf7104f2c74,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:PSWcb0d053ae449e980,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW5e23d0149dd8c665,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW49d62552024893c5,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW537a11d0b802d7f8,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW62dfbebd1d3d53f4,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:PSW0f290e14ad945938,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:PSW598ec89e2d60cdfa,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:P0228,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:PSW41250d0b2f079fd6,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:P0267,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:P0089,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:PSW0ff7387bcfe63ed4,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSWb0dca173eb677711,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW074d4e20296c4a23,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW6377b06bf0de2fbc,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p076:PSW3fabfa70c8b7af79,p076,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:P0240,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p050:PSW706e39f91f9874c0,p050,pass,project_family,test,2861,20,1680034528
+pair,pair:p056:PSW22ac919c3b3961ef,p056,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p065:PSW48ca190b3dac5f42,p065,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p056:PSW2726c11b9fd885bf,p056,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p052:PSW82aa990feb7922ae,p052,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p060:P0168,p060,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p057:PSW8a6b84e7587f0469,p057,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p059:PSW944c2c7ef512cd90,p059,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p072:PSWd27e09a1aac3a3de,p072,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p064:PSW03ed5a7c4b31adf9,p064,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p072:PSWe4043f7a0fd12431,p072,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p067:PSW2dff53d2fdb41d52,p067,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p064:PSW62fa055038aeeb46,p064,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p072:PSW77896b16fea35382,p072,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p071:PSW4dfd15b444820d98,p071,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p070:PSW2bee743e868f9a45,p070,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p066:PSWbe005a3a2c28db4a,p066,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p058:PSW8c219d1080020f4a,p058,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p074:PSW682b7968b57b7f89,p074,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p067:PSW34ca8b42829ae321,p067,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p065:PSWbcd782a1e8cbb1ab,p065,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p075:PSW0e7e34b76c39778c,p075,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p063:P0103,p063,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p065:PSWbd283dcdd1ab1cea,p065,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p068:PSWfba69317fbccb779,p068,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p074:PSWaf61509c07fa7529,p074,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p066:PSW5d8dda5eb1136b59,p066,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p073:P0006,p073,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p061:PSW055b91381ed34131,p061,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p061:PSW0ecb1353b6832472,p061,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p062:PSW397d57acf37bbc9c,p062,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p060:PSWae500363b699e82a,p060,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p063:PSWe5bce6d56220c731,p063,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p056:PSW3cbd5c9d824092e7,p056,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p075:PSWb678ba5d1a596eff,p075,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p075:PSWcc4c929a76eff259,p075,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p059:PSW2ceba73183faa9cf,p059,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p063:P0082,p063,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p063:PSW8bfedbd22f334b75,p063,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p070:PSW7d5e75c605874d92,p070,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p058:PSW6428e225de7a4066,p058,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p074:PSW1e6e264c334f0694,p074,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p074:PSW6b7d16323f16cb14,p074,pass,project_family,【出原理图】N2604HBJ20732J合同,20716,42,2101626708
+pair,pair:p010:PSW4dad0e77eb5ef0bf,p010,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p014:PSWb8f008daac327b8c,p014,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p012:PSW50de350b2611eba0,p012,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p012:PSW8e90cf6a4daee9bb,p012,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p011:PSW23710fbc5698ca22,p011,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p009:PSWec9e9e455f9d0cd8,p009,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p011:PSW1b0910ba81d943e9,p011,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p014:PSW347a0e2caf4d8cba,p014,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p014:PSWd2cd5963f467cbdd,p014,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p012:PSW4a66f2d21266d375,p012,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p015:PSW7c1c6aba70ce59aa,p015,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p009:PSW0aad371da8e3b822,p009,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p013:PSWeef139b2000611cc,p013,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p015:PSWbc9895a4ba98ebeb,p015,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p014:PSW0bdb22358b8dff69,p014,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p012:PSWcbb25890dd5f691e,p012,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p008:PSW22bd44448226d7bd,p008,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p011:PSWb79ab4b077137a59,p011,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p009:PSWacd2e6895593f423,p009,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p013:PSW5df59850bd9d0556,p013,pass,project_family,不带TSB,9406,20,852926610
+pair,pair:p017:PSW5386b8df68e2ca0f,p017,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p019:PSWb8445da3ba567df9,p019,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p020:PSWf428a420f6295a32,p020,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p017:PSWb2b0d7d269d307dc,p017,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p021:PSWe3a0c4f306774d9e,p021,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p017:PSW56adbca5a13c8eb0,p017,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p021:PSW3eca64b04ef29cf9,p021,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p019:PSWfe7130434ad5dbf0,p019,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p019:PSWe1847068ecce43fa,p019,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p019:PSW91f82f2f4d90ff2b,p019,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p017:PSW13a79c7d57a1d00c,p017,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p020:PSW7925adc405a9bdf1,p020,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p019:PSWac198418781bb80e,p019,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p021:PSW7310367fdf688e20,p021,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p021:PSWbf1722a6641c3aad,p021,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p019:PSW03f8a05f3f18ccca,p019,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p021:PSWe06a3c95506514af,p021,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p021:PSW1f03788f5fc86a99,p021,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p020:PSW9568a77f28275bd3,p020,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p019:PSW45ed6032d3f4ddf6,p019,pass,project_family,带TSB，项目上需要按照实际间隔数修改图纸,5898,20,3954326133
+pair,pair:p025:PSW7bbd1dd0d495fc00,p025,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p027:PSWac34016cb777c4b7,p027,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p025:PWM0009,p025,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p027:PSWada4ddaa6c5de999,p027,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p023:PSW2b0d3e8f9fc7bcf1,p023,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p022:PSWef0a18a14d8c8bda,p022,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p023:PSW359a813dcf4c5cd2,p023,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p025:PSW2bbcd06b3a555b54,p025,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p026:PSW770bda466e88e917,p026,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p025:PSW338d3bbd68525f40,p025,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p024:PSWf98619d5109739b4,p024,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p024:PSWae500a915eb083f9,p024,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p027:PSWda87e5a2f4ecc738,p027,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p026:PSW3c48966adea671b7,p026,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p027:PSWe9960e6c26f2968f,p027,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p027:PSWfd47624a6c6a92ec,p027,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p023:PSWa6dd037e6a66ebe9,p023,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p022:PSWe3ba60816c48fadf,p022,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p022:PSWdf377e3e639a2cd4,p022,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p024:PSW32e7f6140dfcfa5c,p024,pass,project_family,带操作箱,5668,20,243435354
+pair,pair:p032:PSW6f0f4e1883f3b4a1,p032,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p028:PSW4ed192cc59a557d6,p028,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p035:PSW0a84cb10cd08c8b7,p035,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p033:PWM0023,p033,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p030:P0001,p030,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p032:PSW363081d324237371,p032,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p028:PSW45473641c69cbba3,p028,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p033:PSWb0b7bc7fd137f944,p033,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p030:PSW12080e4ef3e1fbe5,p030,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p032:PSWe619f81df3c11ec8,p032,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p032:PSWb484112c46fb5eb4,p032,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p032:PSWcb26742a96c3869f,p032,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p029:PSW56814f1bf467e678,p029,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p029:PSWc318f5c966ca1404,p029,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p034:PSW8fdc4976f423c180,p034,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p032:PSW1a76c385f181fbc1,p032,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p028:PSW7130049c2f4728fb,p028,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p034:PSW11fa75e58168f6f0,p034,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p034:PSW52af4be8ea5cd6be,p034,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p032:PSWedf2427b816fb790,p032,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p029:PSW628d58b6b3b2e090,p029,pass,project_family,带继电器,10115,21,1047287853
+pair,pair:p014:PW0465,p014,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p013:PW0365,p013,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p014:PW0572,p014,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p065:PW0361,p065,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p010:PW0353,p010,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p015:PW0444,p015,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p041:PW0236,p041,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p015:PW0420,p015,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p059:PW0030,p059,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p006:PW0082,p006,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p033:PW0135,p033,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p041:PW0223,p041,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p011:PW0413,p011,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p044:PW0019,p044,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p040:PW0337,p040,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p056:PW0145,p056,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p007:PW0355,p007,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p010:PW0391,p010,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p025:PW0477,p025,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p049:PW0051,p049,review,source,partial_superworks,1491,20,3877524716
+pair,pair:p046:PSWab80b97896cb905d,p046,review,source,pin_identity,5401,20,415628191
+pair,pair:p060:PSW44cbf8fdc178ea80,p060,review,source,pin_identity,5401,20,415628191
+pair,pair:p056:PSW43f3e19784614ebd,p056,review,source,pin_identity,5401,20,415628191
+pair,pair:p061:PSWd3cc8bd94495f907,p061,review,source,pin_identity,5401,20,415628191
+pair,pair:p059:PSWfa0d0be05dd7de6f,p059,review,source,pin_identity,5401,20,415628191
+pair,pair:p061:PSW1ced2abde28766fa,p061,review,source,pin_identity,5401,20,415628191
+pair,pair:p076:PSW99c1453d727c2a67,p076,review,source,pin_identity,5401,20,415628191
+pair,pair:p015:PSW24a743f15152fa72,p015,review,source,pin_identity,5401,20,415628191
+pair,pair:p038:PSW9b61fb9aea43eb1b,p038,review,source,pin_identity,5401,20,415628191
+pair,pair:p046:PSWb1e53dcf6a081397,p046,review,source,pin_identity,5401,20,415628191
+pair,pair:p029:PSW0d4ec097c8388285,p029,review,source,pin_identity,5401,20,415628191
+pair,pair:p020:PSW4a9d99e271fbcca2,p020,review,source,pin_identity,5401,20,415628191
+pair,pair:p061:PSWc0f129da2e57f043,p061,review,source,pin_identity,5401,20,415628191
+pair,pair:p044:PSWdc522edd3f408425,p044,review,source,pin_identity,5401,20,415628191
+pair,pair:p024:PSW4c57ea8d4e3b51ce,p024,review,source,pin_identity,5401,20,415628191
+pair,pair:p043:PSWce046c4a7a71dc8e,p043,review,source,pin_identity,5401,20,415628191
+pair,pair:p019:PSW02511744a53f2d03,p019,review,source,pin_identity,5401,20,415628191
+pair,pair:p020:PSWeaeef9ed4dca04ea,p020,review,source,pin_identity,5401,20,415628191
+pair,pair:p073:PSW63befa5280f98d53,p073,review,source,pin_identity,5401,20,415628191
+pair,pair:p016:PSWe106530574058d91,p016,review,source,pin_identity,5401,20,415628191
+pair,pair:p071:PSW24c5d7c64cc00c8a,p071,review,source,superworks_native,7,7,1893087561
+pair,pair:p071:PSW53ec9ca86b44e7b8,p071,review,source,superworks_native,7,7,1893087561
+pair,pair:p071:PSW5aea1254bdf4fd12,p071,review,source,superworks_native,7,7,1893087561
+pair,pair:p071:PSW600f78901137a63e,p071,review,source,superworks_native,7,7,1893087561
+pair,pair:p064:PSW0719d4be5a89286d,p064,review,source,superworks_native,7,7,1893087561
+pair,pair:p064:PSW7c89c74458451498,p064,review,source,superworks_native,7,7,1893087561
+pair,pair:p071:PSWc6a5adf8c2216d29,p071,review,source,superworks_native,7,7,1893087561
+pair,pair:p075:PC0393,p075,review,source,sw_annotated_or_v1_supported,4,4,1365057612
+pair,pair:p075:PC0331,p075,review,source,sw_annotated_or_v1_supported,4,4,1365057612
+pair,pair:p075:PC0185,p075,review,source,sw_annotated_or_v1_supported,4,4,1365057612
+pair,pair:p075:PC0123,p075,review,source,sw_annotated_or_v1_supported,4,4,1365057612
+pair,pair:p057:PT0046,p057,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p063:PT0084,p063,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p069:PT0320,p069,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p021:PT0175,p021,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p068:PT0088,p068,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p042:PT0058,p042,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p018:PT0155,p018,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p032:PT0181,p032,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p066:PT0162,p066,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p064:PT0094,p064,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p003:PT0033,p003,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p039:PW0111,p039,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p041:PT0188,p041,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p011:PT0441,p011,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p029:PT0322,p029,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p006:PW0118,p006,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p075:PT0161,p075,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p012:PT0172,p012,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p011:PT0518,p011,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p048:PT0071,p048,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p015:PT0448,p015,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p001:PT0209,p001,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p032:PT0442,p032,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p012:PT0126,p012,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p022:PT0058,p022,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p047:PT0163,p047,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p013:PT0441,p013,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p061:PC0194,p061,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p015:PT0071,p015,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p058:PT0186,p058,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p034:PT0451,p034,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p009:PT0420,p009,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p037:PT0252,p037,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p016:PT0270,p016,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p038:PT0315,p038,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p044:PT0070,p044,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p065:PT0334,p065,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p015:PT0060,p015,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p036:PT0101,p036,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p057:PT0094,p057,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p035:PT0102,p035,review,source,v1_review_no_sw_peer,20025,41,255695265
+pair,pair:p018:PSWadd7ecca19484049,p018,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p020:PSW013bd8f3ca2d5a20,p020,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p020:PSW19fb5c66c4c6d6bf,p020,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p016:PSW0e6c4876915c6925,p016,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p019:PSWf55076a5d816b3a2,p019,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p020:PSWe13feb0269883f35,p020,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p027:PSWa59634864052e774,p027,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p019:PSWbf2ea78465800e50,p019,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p019:PSW0e6c4876915c6925,p019,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p061:PSWd8d638b42794958b,p061,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p020:PSW177d69813c0edce7,p020,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p070:PSWff763b218cbd0092,p070,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p020:PSW7b1f0d427d35f9f4,p020,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p064:PSWb5ce3fa1d44d6847,p064,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p070:PSW800507611e188bc0,p070,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p021:PSW1b0e434ec86259d8,p021,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p016:PSWf973c60a0dbb174a,p016,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p070:PSWcb9c0e469ce84458,p070,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p021:PSW7b1f0d427d35f9f4,p021,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p017:PSW177d69813c0edce7,p017,review,source,wire_route_loggen,113,20,2487016524
+pair,pair:p076:PT0099,p076,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p047:PT0095,p047,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p040:PT0330,p040,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p026:PT0116,p026,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p047:PT0103,p047,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p049:PT0305,p049,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p048:PT0480,p048,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p040:PT0170,p040,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p064:PSW7c89c74458451498,p064,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p071:PSW600f78901137a63e,p071,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p040:PT0158,p040,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p041:PSWd00db053dcd45aea,p041,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p039:PT0031,p039,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p046:PT0115,p046,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p045:PT0121,p045,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p049:PT0312,p049,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p036:PT0142,p036,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p041:PT0131,p041,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p043:PT0054,p043,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p036:PT0146,p036,review,pair_kind,bridge_mapping,76,20,3240350437
+pair,pair:p004:PCM0001,p004,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p067:PCM0002,p067,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p064:PCM0003,p064,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p064:PCM0002,p064,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p028:PCM0002,p028,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p004:PCM0002,p004,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p006:PCM0002,p006,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p064:PCM0001,p064,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p044:PCM0001,p044,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p005:PCM0002,p005,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p041:PCM0001,p041,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p067:PCM0001,p067,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p043:PCM0001,p043,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p028:PCM0001,p028,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p005:PCM0001,p005,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p006:PCM0001,p006,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p042:PCM0001,p042,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p064:PCM0004,p064,review,pair_kind,component_mapping,18,18,242371065
+pair,pair:p025:PT0216,p025,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p026:PT0058,p026,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p018:PT0314,p018,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p048:PT0281,p048,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p058:PT0357,p058,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p049:PT0285,p049,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p056:PT0133,p056,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p016:PT0044,p016,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p021:PT0004,p021,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p045:PT0143,p045,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p064:PT0180,p064,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p075:PT0284,p075,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p029:PT0063,p029,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p046:PT0204,p046,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p042:PT0176,p042,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p050:PT0036,p050,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p074:PT0166,p074,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p059:PT0259,p059,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p040:PT0019,p040,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p038:PT0134,p038,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p058:PT0036,p058,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p032:PT0256,p032,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p061:PT0347,p061,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p059:PT0240,p059,review,pair_kind,continuation,11946,24,2160779714
+pair,pair:p039:PW0134,p039,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p027:PW0008,p027,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p016:PW0414,p016,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p018:PW0396,p018,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p070:PW0093,p070,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p013:PW0442,p013,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p015:PW0408,p015,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p017:PW0346,p017,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p017:PW0293,p017,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p006:PW0462,p006,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p008:PW0411,p008,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p066:PW0339,p066,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p002:PW0214,p002,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p043:PW0229,p043,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p008:PW0371,p008,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p017:PW0341,p017,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p013:PW0366,p013,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p016:PW0491,p016,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p010:PW0290,p010,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p010:PW0351,p010,review,pair_kind,ordinary_pair,1233,20,1558141777
+pair,pair:p020:PT0360,p020,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p009:PT0446,p009,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p017:PT0314,p017,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p004:PT0165,p004,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p015:PT0464,p015,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p021:PT0437,p021,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p065:PT0304,p065,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p060:PT0198,p060,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p010:PT0184,p010,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p067:PT0059,p067,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p021:PT0335,p021,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p038:PW0155,p038,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p066:PT0309,p066,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p027:PT0384,p027,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p059:PT0389,p059,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p040:PW0128,p040,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p040:PT0180,p040,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p011:PT0556,p011,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p007:PT0209,p007,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p046:PT0201,p046,review,pair_kind,semantic_mapping,8031,20,960119910
+pair,pair:p063:PSW72400cd9e0bd9ad5,p063,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p036:PSWf9e32844119eb4ad,p036,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p058:PSWfeb3064e48673d1c,p058,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p036:PSW231b1cd9f09053b3,p036,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p045:PSW662e5740ea977058,p045,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p009:PSWdee8cddd74f35417,p009,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p044:PSWa9b5bf5a52e6b0b2,p044,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p032:PSW7a16641354efeb19,p032,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p017:PSW8da794f01c221367,p017,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p003:PSW7e86f57a593693e0,p003,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p014:PSW725c279ab30c927f,p014,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p048:PSW299878d5d22c70a9,p048,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p016:PSW3a7d27f9eb734172,p016,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p014:PSW8ce95876c987b690,p014,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p027:PSW268045bbf79b43b1,p027,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p044:PSW47304882d3f54983,p044,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p032:PSWcffeb0a6d7a5177b,p032,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p055:PSW662e5740ea977058,p055,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p044:PSW2ec4dfc12edb6673,p044,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p035:PSW2e38d08b0e311bd2,p035,review,pair_kind,wire_component_mapping,5737,20,1811737741
+pair,pair:p076:PSW9e09c61bb5c73c20,p076,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p029:PSW43d2f7ebb51b58a0,p029,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p040:PSW40081948a3143031,p040,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p043:PSW422652640ab7ae8a,p043,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p064:PSW406aed9310399ecc,p064,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p039:PW0616,p039,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p072:PSW50c3ede7fc0743cb,p072,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p063:PSW5c61588052eab429,p063,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p042:PSW9fe55708860a1228,p042,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p058:PSWb494af17df6c76ea,p058,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p016:PSWed3da23c938cdda7,p016,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p032:PSW19538984f496f8e2,p032,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p006:PW0294,p006,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p060:PSWcd439f5774bb55af,p060,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p044:PSWdb98aaeb75a4d705,p044,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p043:PSWa46e901598e08c3d,p043,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p017:PW0350,p017,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p014:PSWff3ee2852aab4c99,p014,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p031:PSW22ef971a8a2b92e8,p031,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p048:PSW5169d607f67391a6,p048,review,page_type,二次原理图,7539,20,1305114615
+pair,pair:p061:PC0192,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p064:PCM0002,p064,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0177,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p051:PC0058,p051,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p064:PCM0004,p064,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p006:PCM0001,p006,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0188,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p041:PCM0001,p041,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0154,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0152,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0181,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0193,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p064:PCM0001,p064,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p005:PCM0002,p005,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0168,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0187,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p043:PCM0001,p043,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0145,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p028:PCM0001,p028,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p061:PC0164,p061,review,page_type,元件接线图,56,20,3708472234
+pair,pair:p047:PT0004,p047,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p066:PT0303,p066,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p028:PT0224,p028,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p037:PT0261,p037,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p046:PT0017,p046,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p020:PT0543,p020,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p007:PT0223,p007,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p013:PT0452,p013,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p065:PT0244,p065,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p073:PT0062,p073,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p033:PT0236,p033,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p069:PT0152,p069,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p035:PT0284,p035,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p072:PT0211,p072,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p039:PT0032,p039,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p044:PT0380,p044,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p076:PT0122,p076,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p009:PT0618,p009,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p016:PT0229,p016,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p075:PT0235,p075,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p036:PT0051,p036,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p015:PT0358,p015,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p074:PT0244,p074,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p026:PT0137,p026,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p011:PT0395,p011,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p072:PT0017,p072,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p021:PT0414,p021,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p059:PT0025,p059,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p043:PT0132,p043,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p034:PT0071,p034,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p007:PT0026,p007,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p011:PT0541,p011,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p016:PT0013,p016,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p010:PT0281,p010,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p026:PT0384,p026,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p045:PT0430,p045,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p065:PT0247,p065,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p011:PT0427,p011,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p015:PT0091,p015,review,page_type,屏端子图,19337,39,1267903560
+pair,pair:p029:PSW28f0086b21eef86d,p029,review,page_type,表格型图,109,20,2400477159
+pair,pair:p029:PSWff6039df0ad1d2a1,p029,review,page_type,表格型图,109,20,2400477159
+pair,pair:p061:PSW268045bbf79b43b1,p061,review,page_type,表格型图,109,20,2400477159
+pair,pair:p029:PSWeb94b071df6be72f,p029,review,page_type,表格型图,109,20,2400477159
+pair,pair:p028:PSW00de2cafe79209ec,p028,review,page_type,表格型图,109,20,2400477159
+pair,pair:p029:PSWf2013e8611b382d5,p029,review,page_type,表格型图,109,20,2400477159
+pair,pair:p061:PSW83473cc0e3eaf57d,p061,review,page_type,表格型图,109,20,2400477159
+pair,pair:p070:PSW82904ec2f7ddc1e6,p070,review,page_type,表格型图,109,20,2400477159
+pair,pair:p070:PSW2ec4dfc12edb6673,p070,review,page_type,表格型图,109,20,2400477159
+pair,pair:p031:PSW2c629c0ec526e025,p031,review,page_type,表格型图,109,20,2400477159
+pair,pair:p035:PSW24a743f15152fa72,p035,review,page_type,表格型图,109,20,2400477159
+pair,pair:p070:PSW6e9f8168d12f4c14,p070,review,page_type,表格型图,109,20,2400477159
+pair,pair:p070:PSW55fdecc952892773,p070,review,page_type,表格型图,109,20,2400477159
+pair,pair:p029:PSWe6a8cb606a5e8f22,p029,review,page_type,表格型图,109,20,2400477159
+pair,pair:p070:PSW0118d5f0a4d40d19,p070,review,page_type,表格型图,109,20,2400477159
+pair,pair:p031:PSW521d47143ed48577,p031,review,page_type,表格型图,109,20,2400477159
+pair,pair:p070:PSW5cf11a16966dd5c2,p070,review,page_type,表格型图,109,20,2400477159
+pair,pair:p028:PSWeaeef9ed4dca04ea,p028,review,page_type,表格型图,109,20,2400477159
+pair,pair:p070:PSW5c61588052eab429,p070,review,page_type,表格型图,109,20,2400477159
+pair,pair:p031:PSWff6039df0ad1d2a1,p031,review,page_type,表格型图,109,20,2400477159
+pair,pair:p016:PT0352,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PT0132,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0065,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PT0010,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0363,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PT0254,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PW0319,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0284,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0121,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PT0315,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PT0239,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PSW1496d3bf39c04b33,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0277,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p007:PT0026,p007,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0252,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0392,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0069,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0446,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0452,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p016:PT0315,p016,review,project_family,10kV35kV母线保护(单分线+不含失灵+用于单母分段主接线中超过22个支路的情况),912,20,3578973646
+pair,pair:p038:PT0064,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PT0392,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PSW0118d5cdeb26914b,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PW0111,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PT0020,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PT0219,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PT0093,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PT0306,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PW0126,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PSWe2991319c92b1886,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PW0125,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PT0087,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PT0091,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PSWea26c3251a91b1c5,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PT0294,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PSW16c71189a3acb7d0,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PT0120,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PSW090f018fec11781d,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p049:PT0057,p049,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p038:PT0029,p038,review,project_family,110kV变压器保护柜,812,20,1359551603
+pair,pair:p039:PSW7b1f0d427d35f9f4,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PSW6ce4cb332b6f92b9,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0096,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0088,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0004,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0519,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PW0526,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0512,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0409,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PSW4c0eaab1a18c402e,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PW0041,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0070,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0178,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PSW4cb3d48bac138bbc,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0302,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0442,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0338,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0085,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0505,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p039:PT0094,p039,review,project_family,35kV变压器保护测控柜,531,20,950971189
+pair,pair:p001:PT0102,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p002:PT0213,p002,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PT0132,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PT0189,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PT0182,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p002:PT0224,p002,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p000:PT0182,p000,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p000:PT0095,p000,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PT0075,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p002:PT0161,p002,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PT0212,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PSW0cb5377d240c64c6,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p002:PT0027,p002,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p002:PT0181,p002,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p000:PT0083,p000,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PT0192,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p002:PT0189,p002,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p002:PSW3c484ffafe3f7520,p002,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PT0122,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p001:PW0068,p001,review,project_family,GJ-73 WXH-813-D1F国产化,720,20,61992324
+pair,pair:p005:PT0095,p005,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PSWa9e3b0049988e788,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p004:PT0109,p004,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PT0390,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PT0191,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PT0096,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p005:PT0241,p005,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PT0241,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PW0143,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p005:PW0240,p005,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PSW0cb5377d240c64c6,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PT0080,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PT0326,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PT0293,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p003:PSWaaac9145c573d3ee,p003,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p003:PT0150,p003,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p006:PSWa90cddd744d24ba8,p006,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p005:PT0022,p005,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p005:PT0077,p005,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p005:PSW5874376dc0401792,p005,review,project_family,GJ-74 WDLK-861-D1C国产化,1016,20,3753501184
+pair,pair:p036:PT0140,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PSWcbc47156c4524234,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0319,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0089,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PSW0cb98a3a43b465e9,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p036:PT0094,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PSWf280b4ee1c8ae4d1,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p036:PT0280,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0136,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0145,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0143,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0106,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p036:PT0098,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0263,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p036:PT0256,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p036:PT0176,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p036:PT0195,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0064,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p037:PT0096,p037,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p036:PSWff3ee2852aab4c99,p036,review,project_family,GJ-79 WBH-801-D1RT+WBH-802-D1RA+操作箱-国产化电抗器,661,20,889222974
+pair,pair:p040:PT0053,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0003,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0287,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PSWd55feb31ac3c4ade,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PSW36bfe99272393fa8,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PW0059,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0251,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0008,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0269,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PW0417,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0170,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0308,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0210,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0300,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0298,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PSW61c1dfeb424bae11,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0044,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0225,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PSW7ae1460000bc56af,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p040:PT0081,p040,review,project_family,GJ-80 WBH-812E+WBH-813E+WBH-814E,394,20,2078736838
+pair,pair:p044:PW0281,p044,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p044:PT0351,p044,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p042:PT0091,p042,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p042:PT0254,p042,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p043:PSWf4bf4a5996a96560,p043,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p041:PT0171,p041,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p044:PT0049,p044,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p042:PW0184,p042,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p044:PT0384,p044,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p044:PW0073,p044,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p043:PT0223,p043,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p042:PT0236,p042,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p043:PT0309,p043,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p043:PSW143716a935f766a6,p043,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p044:PSW0c55685342bbcbb8,p044,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p044:PSW412e0d186fcda8d5,p044,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p042:PT0077,p042,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p041:PT0194,p041,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p042:PT0131,p042,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p042:PSW332621e0999ec492,p042,review,project_family,GJ-81 WFB-821E+WFB-822E-FCK-851C,1484,20,1742199295
+pair,pair:p045:PT0075,p045,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p045:PSW86b5829fbc289114,p045,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p048:PT0011,p048,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p046:PT0021,p046,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p046:PT0283,p046,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p046:PT0278,p046,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p048:PT0508,p048,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p045:PSW02d7af72b3996e8a,p045,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p048:PSW60e00e27f8d07d15,p048,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p046:PT0305,p046,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p045:PSWad3e993e09e6cda6,p045,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p048:PSW412e0d186fcda8d5,p048,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p046:PT0342,p046,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p047:PSW6baf663e9309b585,p047,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p048:PSWc30b6842e2013000,p048,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p046:PSWa4e966421fce615e,p046,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p047:PT0102,p047,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p045:PT0443,p045,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p045:PW0129,p045,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p048:PT0025,p048,review,project_family,GJ-85 FCK-851C组柜图纸（仅91路开入）,1938,20,4285339924
+pair,pair:p050:PT0175,p050,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0175,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0139,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0021,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PSW6d9e05429b1fa7e3,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PSW7b59b2ff9561af3a,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0387,p076,review,project_family,test,823,20,1680034528
+pair,pair:p050:PT0230,p050,review,project_family,test,823,20,1680034528
+pair,pair:p050:PSWf440a4a74837ce27,p050,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0425,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0041,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PSW422652640ab7ae8a,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0020,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0212,p076,review,project_family,test,823,20,1680034528
+pair,pair:p050:PT0177,p050,review,project_family,test,823,20,1680034528
+pair,pair:p050:PT0320,p050,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0317,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0352,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PT0019,p076,review,project_family,test,823,20,1680034528
+pair,pair:p076:PSWcd439f5774bb55af,p076,review,project_family,test,823,20,1680034528
+pair,pair:p062:PSWfdb539a7e6ac796a,p062,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p059:PW0092,p059,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p065:PW0353,p065,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p069:PT0244,p069,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p065:PSW87a110b9880e1edf,p065,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p058:PT0191,p058,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p059:PSW83f8d65bef9f00a0,p059,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p059:PT0192,p059,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p064:PW0134,p064,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p064:PT0411,p064,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p064:PW0115,p064,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p059:PT0324,p059,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p058:PT0399,p058,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p066:PT0218,p066,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p059:PSW6e04c4625e6c82af,p059,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p061:PT0535,p061,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p060:PSW66ee3de382b28689,p060,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p072:PW0305,p072,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p059:PT0001,p059,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p060:PT0113,p060,review,project_family,【出原理图】N2604HBJ20732J合同,6710,20,2101626708
+pair,pair:p009:PT0665,p009,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p011:PT0397,p011,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p009:PT0403,p009,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p008:PT0278,p008,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p009:PT0634,p009,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p010:PW0367,p010,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p009:PSW1df6b299bcb81b20,p009,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p010:PT0356,p010,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p010:PT0247,p010,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p014:PT0489,p014,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p015:PT0055,p015,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p010:PW0380,p010,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p009:PSWeacb22b3dbce9c99,p009,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p012:PW0374,p012,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p011:PT0532,p011,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p012:PT0335,p012,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p010:PT0010,p010,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p008:PT0347,p008,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p013:PT0465,p013,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p012:PT0321,p012,review,project_family,不带TSB,4047,20,852926610
+pair,pair:p017:PT0263,p017,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p020:PT0360,p020,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p021:PSWd0b10703283d83ad,p021,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p018:PW0352,p018,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p021:PT0382,p021,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p020:PT0243,p020,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p019:PW0408,p019,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p019:PW0456,p019,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p018:PW0338,p018,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p019:PT0305,p019,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p019:PW0420,p019,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p019:PSW5b2308f4c9d93b7f,p019,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p018:PT0031,p018,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p021:PT0097,p021,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p020:PT0437,p020,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p018:PW0283,p018,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p021:PT0491,p021,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p020:PT0350,p020,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p021:PT0087,p021,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p018:PT0094,p018,review,project_family,带TSB，项目上需要按照实际间隔数修改图纸,2015,20,3954326133
+pair,pair:p023:PT0109,p023,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0072,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0049,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0276,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p025:PT0006,p025,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0229,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p025:PT0444,p025,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0383,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p024:PT0265,p024,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p026:PT0161,p026,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p026:PT0046,p026,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p026:PW0300,p026,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p026:PW0230,p026,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0178,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0232,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p026:PT0228,p026,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p027:PT0086,p027,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p026:PT0274,p026,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p026:PSW3d7d2f5e7e265c1d,p026,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p025:PT0093,p025,review,project_family,带操作箱,2207,20,243435354
+pair,pair:p032:PT0199,p032,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p028:PT0046,p028,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p034:PSWe4b62f4f3be8d439,p034,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p032:PSWd74bd72fe483a620,p032,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p033:PT0377,p033,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p028:PT0081,p028,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p033:PT0331,p033,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p033:PT0272,p033,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p035:PSW9f66deca079d9447,p035,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p028:PT0032,p028,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p028:PSW42ecf2cedfe8dbde,p028,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p035:PT0030,p035,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p029:PSWb0a8115f5f6da590,p029,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p030:PT0149,p030,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p030:PT0009,p030,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p029:PT0206,p029,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p031:PT0229,p031,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p033:PT0162,p033,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p031:PT0055,p031,review,project_family,带继电器,2771,20,1047287853
+pair,pair:p034:PT0254,p034,review,project_family,带继电器,2771,20,1047287853
+issue,issue:p050:I0001,p050,issue,rule_id,R-CROSS-PAGE-CONFLICT,1,1,668127553
+issue,issue:p039:I0002,p039,issue,rule_id,R-MANY-TO-ONE,3,3,1780848779
+issue,issue:p040:I0001,p040,issue,rule_id,R-MANY-TO-ONE,3,3,1780848779
+issue,issue:p039:I0001,p039,issue,rule_id,R-MANY-TO-ONE,3,3,1780848779
+issue,issue:p075:I0003,p075,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p067:I0001,p067,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p067:I0002,p067,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p075:I0001,p075,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p073:I0003,p073,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p072:I0001,p072,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p072:I0003,p072,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p073:I0001,p073,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p064:I0002,p064,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p072:I0002,p072,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p075:I0004,p075,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p073:I0002,p073,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p075:I0002,p075,issue,rule_id,R-PAIR-LOW-CONFIDENCE,13,13,1666604986
+issue,issue:p044:I0001,p044,issue,rule_id,R-PAIR-MISSING-SIDE,4,4,2655681245
+issue,issue:p042:I0001,p042,issue,rule_id,R-PAIR-MISSING-SIDE,4,4,2655681245
+issue,issue:p041:I0001,p041,issue,rule_id,R-PAIR-MISSING-SIDE,4,4,2655681245
+issue,issue:p043:I0001,p043,issue,rule_id,R-PAIR-MISSING-SIDE,4,4,2655681245
+issue,issue:p030:ISWc61744fd3a4d069fb728,p030,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p027:ISW80302482a73454e7d7f8,p027,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p020:ISWb74c688cc9eab76417d9,p020,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p076:ISW8fa1ce54aa350fbd62cb,p076,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p072:ISWc5b986e3324b16a25392,p072,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p017:ISWec8e68a935c4780a83c7,p017,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p029:ISW65719aea6f933db44b20,p029,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p025:ISWec43fcbe01f19db6febd,p025,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p072:ISWe23ecb475bb42aff54af,p072,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p057:ISWf2977bc265b7b8c58bb7,p057,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p060:ISW89c6603683eadefcc77f,p060,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p006:ISW49d8aa3d3aa49479ad27,p006,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p064:ISW9658708be1672c1274fc,p064,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p031:ISW8dc27abf82fc0a0f0225,p031,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p011:ISW0be82c95ae887f44c02c,p011,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p033:ISWe7488060724ad8736baa,p033,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p063:ISWa7a3db7a053cec94fa9e,p063,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p013:ISWc085a9c97527a31d684b,p013,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p025:ISW6264aba36b7fc7d49d36,p025,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p064:ISWe7488060724ad8736baa,p064,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p046:ISW60b21a66e9f14b4a3377,p046,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p017:ISW4efb5afbab803e50520f,p017,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p069:ISW8969f0156affa3b68b43,p069,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p048:ISWc3c0f6e6cd9ef2624101,p048,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p013:ISW69ec2797c4031f9fdd1c,p013,issue,rule_id,R-RECOGNITION-GAP,12436,25,2341116779
+issue,issue:p030:ISWd7af9543d541b6112f04,p030,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p000:ISW5e43bbc7421dff59ed71,p000,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p028:ISWd7af9543d541b6112f04,p028,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p033:ISWd7af9543d541b6112f04,p033,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p037:ISW9de9eaba41b712c9925d,p037,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p024:ISW1a30a0bbfdb9aeec660c,p024,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p032:ISWd7af9543d541b6112f04,p032,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p034:ISW702a9a22b3556adece18,p034,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p031:ISW702a9a22b3556adece18,p031,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p072:ISW66842c38e2f1b4faf193,p072,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p029:ISWd7af9543d541b6112f04,p029,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p022:ISW3e47889deb2dd5070fa4,p022,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p064:I0001,p064,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p071:ISW1326c0aca8f2610fc326,p071,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p023:ISW3e47889deb2dd5070fa4,p023,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p071:I0001,p071,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p071:I0002,p071,issue,rule_id,R-SUPERWORKS-CONFLICT,17,17,1994034376
+issue,issue:p032:ISW1cba79727c0254dea30d,p032,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p033:ISWf25e52040d22b81c0068,p033,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p002:ISW08f0b39efcc2d3619911,p002,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p026:ISW805ac3020b60d44b95be,p026,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p037:ISW77b3548df6c60fa18464,p037,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p045:ISWcc83e1974d378bbb748f,p045,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p039:ISW287924768e9e3e5eb5f0,p039,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p031:ISWc72b69cb99532c8fc69f,p031,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p033:ISWa2bd71b7b3ecc4532955,p033,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p016:ISWed619470d385a501937a,p016,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p049:ISWc62d2896a40ea6c57c13,p049,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p018:ISW77134bdd1bbd4571fd19,p018,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p020:ISW01f17fb0e02571ad84ca,p020,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p049:ISWa53216324991ae8419ac,p049,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p016:ISW1fe652333ec2a814b1d6,p016,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p065:ISW204898b3faf5fd37c7a4,p065,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p023:ISWcec9748f5deacb73f556,p023,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p021:ISWcf33fbc45f4079bde3da,p021,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p067:ISWf633260b90238ae4fc6b,p067,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p009:ISW7d9ec84850829148feef,p009,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p005:ISWd1c68e0e5cd517bae6a1,p005,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p020:ISW3af14dd0b158347e8c8b,p020,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p021:ISWc8d938d0c90594583b6f,p021,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p029:ISW59bb280afc7442d04bc9,p029,issue,gap_class,(missing),12436,25,2367000524
+issue,issue:p013:ISWdaa6a1ea7cfdbaa1af32,p013,issue,gap_class,(missing),12436,25,2367000524
