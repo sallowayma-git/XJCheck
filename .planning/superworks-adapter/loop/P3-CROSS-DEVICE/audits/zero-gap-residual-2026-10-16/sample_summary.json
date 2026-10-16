@@ -1,0 +1,25 @@
+{
+  "population_n": 283,
+  "current_replay": "77 projects / 172,193 pairs",
+  "population_definition": "ordinary_pair + discard + PathBodyChecker verdict body",
+  "population_projects": 68,
+  "population_unique_project_sheet_line_group": 283,
+  "sample_n": 42,
+  "seed": 20261016,
+  "sampling": "stratified simple random by body_width; rare width strata fully enumerated",
+  "population_by_body_width": {
+    "11.25": 245,
+    "10.0": 32,
+    "7.5": 4,
+    "2.5": 2
+  },
+  "sample_by_body_width": {
+    "11.25": 30,
+    "10.0": 6,
+    "7.5": 4,
+    "2.5": 2
+  },
+  "screenshot_count": 42,
+  "contact_sheet_count": 7,
+  "render_failures": 0
+}
