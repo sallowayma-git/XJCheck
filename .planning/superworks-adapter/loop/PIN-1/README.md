@@ -164,3 +164,16 @@ round17 与 HEAD 在这 10 个项目上的 pair、issue、严格覆盖完全相�
 - `tools/`：`01_pool.py`（候选池，含身份的物理引脚计数）、`02_render.py`（渲染）、`03_sample.py`（分层抽样）、`cov_summary.py`（覆盖率）。
 - 单测：`tests/unit/test_superworks_pin_admission.py`。
 - 临时目录：`.tmp/loop_pin1_src`（快照）、`.tmp/loop_pin1_head_src`（HEAD 快照）、`.tmp/loop_pin1` / `.tmp/loop_pin1_full` / `.tmp/loop_pin1_head10`（回放输出）、`.tmp/superworks_round17_full`（基线）。
+
+## 10. 2026-10-16 独立二次审核
+
+对当前回放 `.tmp/p1_fpfix_full77` 的 5,401 条 review 候选按证据分层抽取 172 张独立源图：有导线句柄 148 例，无导线句柄 24 例。172 个项目/配对键均在回放中匹配为 review，源 DXF 哈希与冻结清单一致，截图文件全部存在。
+
+| 层 | 样本 | 图面明确吻合 | 需人工复核 | 确证错配 |
+|---|---:|---:|---:|---:|
+| 有导线句柄 | 148 | 122 | 26 | 0 |
+| 无导线句柄 | 24 | 24 | 0 | 0 |
+
+有导线句柄层的 26/148（17.57%）截图不足以确认脚号或连线路径，保留人工核对；无句柄层的 24 例均确认。两层抽样比例不同，且无句柄样本是历史源图排除后的 24 张，不代表无句柄总体的 52 张，因此不合并为总体精度。仅 146 例获得明确确认，不能满足旧报告采用的 98% 单侧下限门槛；这次审核未发现确证错配，也就没有可依据修复的产品错误。**决策：symb2_text_slot 配对继续保持 review，不整体提升为 pass。**
+
+这次审计对应 HEAD `29a6c079`；后续 DXF 可见性切片的 77 项比较只改变 p057/p067 的 table_mapping 状态，未改变 PIN-1 配对。逐例判定与源图哈希记录在 `independent_audit_2026-10-16.csv`，分层统计在 `.json`，方法与边界说明见 `.md`。完整审计截图在 `.tmp/precision_loop_20261015/`；这里仅保留代表例： [W001 明确吻合](png/PIN1_independent_W001_clear.png)、[W076 需人工复核](png/PIN1_independent_W076_manual_review.png)、[Q001 无导线句柄且明确吻合](png/PIN1_independent_Q001_no_wire.png)。
