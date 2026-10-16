@@ -1,0 +1,67 @@
+{
+  "as_of_date": "2026-10-16",
+  "replay": ".tmp/p1_fpfix_full77",
+  "head": "29a6c0793c437d41e1d8560c8d1f0a85307f6d2c",
+  "population": {
+    "candidate_rows": 5401,
+    "by_evidence_group": {
+      "wire_confirmed": 5300,
+      "no_wire_handle": 101
+    },
+    "unique_source_dxf_by_group": {
+      "wire_confirmed": 459,
+      "no_wire_handle": 52
+    },
+    "historical_unique_source_hashes_excluded": 138
+  },
+  "sample": {
+    "wire_confirmed": {
+      "n": 148,
+      "unique_source_dxf": 148,
+      "verdicts": {
+        "correct": 122,
+        "plausible": 26
+      },
+      "clear_confirmation_rate": 0.8243243243243243,
+      "manual_review_share": 0.17567567567567569,
+      "confirmed_mismatches": 0,
+      "scope_note": "Fresh unique-source drawing sample; rows were assigned by project-scoped (pid, pair_id) evidence, not the earlier legacy sample label."
+    },
+    "no_wire_handle": {
+      "n": 24,
+      "unique_source_dxf": 24,
+      "verdicts": {
+        "correct": 24,
+        "plausible": 0,
+        "unverifiable": 0,
+        "incorrect": 0
+      },
+      "clear_confirmation_rate": 1.0,
+      "manual_review_share": 0.0,
+      "confirmed_mismatches": 0,
+      "origin_counts": {
+        "supplement": 10,
+        "pilot": 14
+      },
+      "scope_note": "Census of all 24 eligible unique unseen source drawings remaining after historical-source exclusion; this is not all 52 source drawings in the no-wire population."
+    },
+    "combined_rows": 172,
+    "cross_stratum_source_hash_overlap": 0
+  },
+  "legacy_group_label_crosscheck": {
+    "legacy_wire_confirmed_actual_wire_confirmed": 148,
+    "legacy_wire_confirmed_actual_no_wire_handle": 1,
+    "legacy_no_wire_handle_actual_wire_confirmed": 17,
+    "legacy_no_wire_handle_actual_no_wire_handle": 13,
+    "handling": "The 17 mislabeled wire rows and one mislabeled no-wire row were excluded from the primary wire estimate; no-wire estimate uses the separately re-audited 24-case Q set."
+  },
+  "wire_sample_root_adjudications": {
+    "false_positive_incorrect_calls_reversed": [
+      "W017",
+      "W039",
+      "W050"
+    ],
+    "reason": "DXF TERMPOINT physical pin index was separated from slot/sequence text; adjacent terminal labels were not attributed to the sampled pin."
+  },
+  "decision": "No confirmed PIN-1 mismatch was observed. Keep these pairs at review; 26/148 wire-confirmed sample cases require manual review because the screenshot evidence is plausible but not decisive. No code repair is justified by this audit alone."
+}
