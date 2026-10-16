@@ -1,7 +1,7 @@
 # FP-FIX：修复 2594dbe 的三处误报回退（2026-10-15）
 
 基线：HEAD `2594dbe`（分支 superworks-loop）。误报来源：`FP-VERIFY/README.md`（三项结论）与 `STATUS-2026-10-15/README.md`。
-范围：只改 `src/dwg_audit/audit/superworks_extractor.py` 与 `src/dwg_audit/extract/superworks_semantics.py`；未改 `recognition_coordinator.py`、`pipeline.py`、V2 模块、`symbol_port_proposal.py`，未加 PDF/OCR，未做项目/句柄/值特判，未 commit / push。
+范围：只改 `src/dwg_audit/audit/superworks_extractor.py` 与 `src/dwg_audit/extract/superworks_semantics.py`；未改 `recognition_coordinator.py`、`pipeline.py`、V2 模块、`symbol_port_proposal.py`，未加 PDF/OCR，未做项目/句柄/值特判。实现已提交为 `aa36f75`；本切片回放使用的源码快照为 `29a6c07`，验收见 §7。
 
 ## 0. 结论
 
@@ -92,9 +92,9 @@
 
 1. `ScopedPairIds.admit` 未加门禁（禁改文件），由 §2 项 1 的退役替代，输出等价；生成端门禁待主线程决定。
 2. 相对 round25，原生行的组号不完全一致（见 §4）：431 条“两边都有组但不同”（lattice 端子排虚拟边框上，几何选中的框线与 round25 取的 V1 遗留配对组不同）、1346 条 round25 有组而修复后为空（round25 取值依赖 V1 遗留部件配对，而原生首轮时该配对尚不存在）、40 条修复后有组而 round25 为空。组号决定框线闭合集合，本次经回放 pass 集合与 round25 逐条一致；要逐条对齐 round25 的组号，需要在 `coordinator.accept_native` 之前拿到遗留配对，属于调度改动，本次未做。
-3. 20 条新增 R-RECOGNITION-GAP 为 review 级，是否接受由 coordinator 的裁决决定（FP-VERIFY §6-3 已列）。
+3. 20 条新增 R-RECOGNITION-GAP 为 review 级；装置内部复核为 0/20，完整 77 项目回放新增的 401 条同类缺口也已逐张截图复核，均确为待核验项（401/401），没有误报。
 4. `_endpoint` 代表端口选择（残留，见 §2 项 2）。
-5. 未跑 77 项目全量（按任务要求由主线程统一跑）。`FRAME_TOUCH_TOL`、框线取值只在 13 项目上验证。
+5. 本文最初记录的 `FRAME_TOUCH_TOL`、框线取值验证范围是 13 个项目；主线程后续对当前 HEAD 做了 77 项目全量回放，结果见 §7。
 
 ## 6. 复现
 
@@ -108,3 +108,16 @@ python -X utf8 .planning/superworks-adapter/loop/FP-FIX/tools/new_observations.p
 ```
 
 工具：`tools/compare_fix.py`（pass 内容键、lattice、按规则 issue 计数）、`tools/pair_delta.py`（pair 类型/状态增减、discard 来源、原生组号一致性）、`tools/new_observations.py`（新增观察与装置内部判定）、`tools/make_snapshot.sh`（HEAD + 自有文件的隔离快照）。
+
+## 7. FP-FIX 切片回放验收（2026-10-16，源码快照 `29a6c07`）
+
+修复代码已在 `aa36f75`。以下结果对应源码快照 `29a6c07`，记录该 FP-FIX 切片的测试、单页、10 项目、77 项目和新增问题截图审核；不表示后续精度审计或图层继承切片的结果：
+
+- 全量测试：`pytest`，2235 passed、1 skipped。
+- 单页回放：p016 的 V1 `terminal_strip_lattice` pass 为 0，两条原生 SuperWORKS 路由仍在。
+- 10 项目回放：p016–p022、p041–p042、p061。与 2594dbe 相比，`pass/component_mapping` −425、`discard/ordinary_pair` −111、`review/ordinary_pair` −4；54 条新增 `R-RECOGNITION-GAP` 均逐张截图确认是有效待核验项。10 个项目的 SuperWORKS port coverage 核心标记不变。
+- 全量回放：77/77 项目完成，无失败。pair/status 与 10 项目相同；逐行差异为删除 541 条、增加 1 条 p061 `ordinary_pair/discard`（`9 -> 9`，ambiguous candidate ordering）。删除的 pass 全为 p016–p021 的 425 条 V1 `terminal_strip_lattice` 配对；另有 106 条结构性框线 discard、6 条 p061 discard 和 4 条 p061 review 被清理。
+- 全量问题差异：33,652 → 12,474；删除 21,579 条，新增 401 条。401 条新增项均为 71 个项目中的 `R-RECOGNITION-GAP/unpinned_element` 页面摘要。全部 401 条均有单独截图并逐例判断为 `valid_review`，false positive 0、ambiguous 0、截图缺失 0。54 条 10 项目样本包含在此 401 条全量审阅中。
+- 覆盖保持：127,089 条 port 行的 `port_id` 和 8 项核心标记逐行一致；四个汇总视图也相同：strict 53,322/82,680，含 continuity 60,416/82,680，排除 device-internal 后 strict 53,322/63,857，含 continuity 54,826/63,857。
+
+回放输入位于本机临时目录 `.tmp/p1_fpfix_full77`，隔离源码快照位于 `.tmp/p1_fpfix_src_29a6`。401 条新增问题的逐例判定、摘要、截图清单、401 张逐例截图和 67 张联系表已归档在 [`issue-review-2026-10-16/`](issue-review-2026-10-16/)；文件校验值见其中的 `artifact_hashes.csv`。判定表里的截图路径相对于归档目录，截图清单里的截图路径相对于 `screenshots/` 目录；DXF 路径相对于原回放根目录记录。
