@@ -203,12 +203,12 @@ def test_no_row_conflict_means_no_supersession():
     assert cands == [] and ledger == []
 
 
-def _text(text_id, value, x=0.0, y=0.0, block=None):
+def _text(text_id, value, x=0.0, y=0.0, block=None, *, dxf_visible=None):
     from dwg_audit.domain.models import TextItem
     return TextItem(text_id=text_id, sheet_id="S1", file_id="F1", handle=text_id, entity_type="TEXT",
                     text=value, normalized_text=value, is_numeric_candidate=False, layer="0", rotation_deg=0.0,
                     height=2.5, insert_x=x, insert_y=y, bbox_min_x=x, bbox_min_y=y, bbox_max_x=x + 1,
-                    bbox_max_y=y + 1, source_block_name=block)
+                    bbox_max_y=y + 1, source_block_name=block, dxf_visible=dxf_visible)
 
 
 def _sheet(title="4000908886-016000", filename="14 操作箱背板接线图.dwg"):
@@ -259,3 +259,55 @@ def test_template_that_agrees_with_caption_is_kept_as_written():
     caption = _text("T2", "8n REAR WIRING", 318.5, 9.8)
     assert _resolve_backplate_device_instance([template], _sheet(), page_texts=[caption]) == "1-8n"
     assert _resolve_backplate_device_instance([template], _sheet(), page_texts=[_text("T3", "4n REAR WIRING", 318.5, 9.8)]) == "4n"
+
+
+def _standalone_rear_wiring_fixture(*, device="7n", model="ZYQ-820E-02", device_visibility=True,
+                                    model_visibility=True, heading_visibility=True, model_x=213.86,
+                                    model_y=264.63):
+    hidden_template = _text("T1", "1-1n", 210.3, 281.5, dxf_visible=False)
+    visible_device = _text("T2", device, 221.10, 268.40, dxf_visible=device_visibility)
+    model_text = _text("T3", model, model_x, model_y, dxf_visible=model_visibility)
+    heading = _text("T4", "REAR WIRING", 320.37, 9.78, dxf_visible=heading_visibility)
+    return [hidden_template, visible_device, model_text], [hidden_template, visible_device, model_text, heading]
+
+
+def test_standalone_rear_wiring_uses_unique_visible_device_and_adjacent_model():
+    from dwg_audit.audit.table_extractor import _resolve_backplate_device_instance
+    free_texts, page_texts = _standalone_rear_wiring_fixture()
+
+    assert _resolve_backplate_device_instance(free_texts, _sheet(), page_texts=page_texts) == "7n"
+
+
+def test_standalone_rear_wiring_fallback_requires_visible_heading_and_model_pair():
+    from dwg_audit.audit.table_extractor import _resolve_backplate_device_instance
+    free_texts, page_texts = _standalone_rear_wiring_fixture()
+
+    assert _resolve_backplate_device_instance(free_texts, _sheet(), page_texts=page_texts[:-1]) is None
+    assert _resolve_backplate_device_instance(
+        free_texts, _sheet(), page_texts=[*page_texts[:-1], _text("T4", "REAR WIRING", 320.37, 9.78,
+                                                                 dxf_visible=False)]
+    ) is None
+    distant = _standalone_rear_wiring_fixture(model_x=250.0, model_y=250.0)
+    assert _resolve_backplate_device_instance(distant[0], _sheet(), page_texts=distant[1]) is None
+    hidden_model = _standalone_rear_wiring_fixture(model_visibility=False)
+    assert _resolve_backplate_device_instance(hidden_model[0], _sheet(), page_texts=hidden_model[1]) is None
+
+
+def test_standalone_rear_wiring_fallback_rejects_ambiguous_or_unknown_evidence():
+    from dwg_audit.audit.table_extractor import _resolve_backplate_device_instance
+    free_texts, page_texts = _standalone_rear_wiring_fixture()
+    ambiguous = [*free_texts, _text("T5", "8n", 240.0, 240.0, dxf_visible=True)]
+    assert _resolve_backplate_device_instance(ambiguous, _sheet(), page_texts=page_texts) is None
+
+    unknown = _standalone_rear_wiring_fixture(device_visibility=None, model_visibility=None,
+                                               heading_visibility=None)
+    assert _resolve_backplate_device_instance(unknown[0], _sheet(), page_texts=unknown[1]) is None
+
+
+def test_standalone_rear_wiring_does_not_replace_a_visible_compound_template():
+    from dwg_audit.audit.table_extractor import _resolve_backplate_device_instance
+    free_texts, page_texts = _standalone_rear_wiring_fixture()
+    visible_template = _text("T6", "2-4n", 205.0, 285.0, dxf_visible=True)
+
+    assert _resolve_backplate_device_instance([*free_texts, visible_template], _sheet(),
+                                              page_texts=page_texts) == "2-4n"

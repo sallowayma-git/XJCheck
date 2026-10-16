@@ -424,6 +424,7 @@ def _append_text(
     color_index: int | None = None,
     true_color: int | None = None,
     text_geometry: dict | None = None,
+    dxf_visible: bool | None = None,
 ) -> None:
     text = _normalize_text(raw_text)
     if not text:
@@ -453,6 +454,7 @@ def _append_text(
             true_color=true_color,
             text_geometry_json=json.dumps(text_geometry or {}, ensure_ascii=False),
             raw_height=float(height),
+            dxf_visible=dxf_visible,
         )
     )
 
@@ -507,6 +509,52 @@ def _optional_dxf_int(entity, attribute: str) -> int | None:
         return None
 
 
+def _layer_visibility_by_name(doc) -> dict[str, bool | None]:
+    visibility: dict[str, bool | None] = {}
+    try:
+        layers = doc.layers
+    except Exception:
+        return visibility
+    for layer in layers:
+        name = str(getattr(layer.dxf, "name", "") or "").casefold()
+        flags = _optional_dxf_int(layer, "flags")
+        color = _optional_dxf_int(layer, "color")
+        if not name or flags is None or color is None:
+            continue
+        visibility[name] = not (bool(flags & 1) or color < 0)
+    return visibility
+
+
+def _combine_visibility(*values: bool | None) -> bool | None:
+    if any(value is False for value in values):
+        return False
+    if all(value is True for value in values):
+        return True
+    return None
+
+
+def _entity_visibility(
+    entity,
+    *,
+    dxftype: str,
+    layer: str,
+    layer_visibility_by_name: dict[str, bool | None] | None,
+    inherited_visibility: bool | None,
+) -> bool | None:
+    # DXF group 60 defaults to 0 (visible); attribute flags use bit 0 for
+    # invisible ATTRIB/ATTDEF text.
+    visible = _optional_dxf_int(entity, "invisible") != 1
+    if dxftype in {"ATTRIB", "ATTDEF"}:
+        attribute_flags = _optional_dxf_int(entity, "flags")
+        if attribute_flags is not None and attribute_flags & 1:
+            visible = False
+    if layer_visibility_by_name is None:
+        layer_visible: bool | None = True
+    else:
+        layer_visible = layer_visibility_by_name.get(layer.casefold())
+    return _combine_visibility(visible, layer_visible, inherited_visibility)
+
+
 def _extract_graphic_entity(
     entity,
     *,
@@ -524,12 +572,21 @@ def _extract_graphic_entity(
     capture_block_record: bool = False,
     expand_virtual_insert: bool = False,
     source_block_name: str | None = None,
+    layer_visibility_by_name: dict[str, bool | None] | None = None,
+    inherited_visibility: bool | None = True,
 ) -> None:
     dxftype = entity.dxftype()
     handle = synthetic_handle or str(getattr(entity.dxf, "handle", "") or f"virtual:{dxftype}")
     layer = str(getattr(entity.dxf, "layer", "0") or "0")
     color_index = _optional_dxf_int(entity, "color")
     true_color = _optional_dxf_int(entity, "true_color")
+    entity_visibility = _entity_visibility(
+        entity,
+        dxftype=dxftype,
+        layer=layer,
+        layer_visibility_by_name=layer_visibility_by_name,
+        inherited_visibility=inherited_visibility,
+    )
 
     if dxftype == "TEXT":
         insert = entity.dxf.insert
@@ -550,6 +607,7 @@ def _extract_graphic_entity(
             color_index,
             true_color,
             cad_text_geometry(entity),
+            entity_visibility,
         )
         return
 
@@ -572,6 +630,7 @@ def _extract_graphic_entity(
             color_index,
             true_color,
             cad_text_geometry(entity),
+            entity_visibility,
         )
         return
 
@@ -594,6 +653,7 @@ def _extract_graphic_entity(
             color_index,
             true_color,
             cad_text_geometry(entity),
+            entity_visibility,
         )
         return
 
@@ -729,6 +789,8 @@ def _extract_graphic_entity(
                     capture_block_record=False,
                     expand_virtual_insert=expand_virtual_insert,
                     source_block_name=str(entity.dxf.name),
+                    layer_visibility_by_name=layer_visibility_by_name,
+                    inherited_visibility=entity_visibility,
                 )
 
         if expand_virtual_insert:
@@ -753,6 +815,8 @@ def _extract_graphic_entity(
                     capture_block_record=False,
                     expand_virtual_insert=expand_virtual_insert,
                     source_block_name=str(entity.dxf.name),
+                    layer_visibility_by_name=layer_visibility_by_name,
+                    inherited_visibility=entity_visibility,
                 )
         return
 
@@ -964,6 +1028,7 @@ def extract_cad_artifacts(
             stage_seconds["canonical_scene"] += perf_counter() - stage_started
 
         msp = doc.modelspace()
+        layer_visibility_by_name = _layer_visibility_by_name(doc)
         sheet.layout_name = "Model"
         sheet.drawing_units = getattr(doc, "units", None) or "unknown"
         stage_started = perf_counter()
@@ -1019,6 +1084,7 @@ def extract_cad_artifacts(
                 sheet_polylines=sheet_polylines,
                 capture_block_record=True,
                 expand_virtual_insert=expand_virtual_insert,
+                layer_visibility_by_name=layer_visibility_by_name,
             )
 
         stage_started = perf_counter()
