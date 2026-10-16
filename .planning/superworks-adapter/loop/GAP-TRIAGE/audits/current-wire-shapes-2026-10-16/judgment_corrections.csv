@@ -1,0 +1,31 @@
+﻿group,sample_no,issue_id,project,original_verdict,corrected_verdict,reason,reviewer
+E_text_only,23,ISWaa07609ff55017cf8ea8,p040,no,yes,"Blue candidate segment reaches the LAN2 side, but the open end is labeled only MMS B; the label does not establish canonical identity or cross-sheet net, so manual review remains necessary.",root plus independent reviewer recheck
+E_rail_T,1,ISWeec2814e2ceace8c0541,p000,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 908 横短线止于装置框右边；框内为保护动作/重合闸/过负荷等行，框顶有 WWH-813-D1F 标签。,4x wide screenshot re-review
+E_rail_T,2,ISW4698db7db7f7597cca8c,p002,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 907 短线止于同一类装置框的右边；闭合虚线外框和顶部标签可见。,4x wide screenshot re-review
+E_rail_T,3,ISW6d88c8cc92033ff1eb80,p005,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 312 短线止于标有 ZSZ-812E 的闭合装置框右边。,4x wide screenshot re-review
+E_rail_T,5,ISW2e7a60fae319a0454bab,p011,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 924 短线止于支路跳闸输出虚线框右边；框内有 Branch6 trip 1/2 等成组行。,4x wide screenshot re-review
+E_rail_T,6,ISW187b8902157e68f835b8,p014,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 2610 短线落在 CT 输入模块虚线框最右边；框内按 IA/IB/IC 行排列。,4x wide screenshot re-review
+E_rail_T,7,ISW0cc2c2ea1df3595c2a00,p017,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 2612 短线止于 CT 输入虚线模块右边界；整页只见该模块和旁侧支路框。,4x wide screenshot re-review
+E_rail_T,8,ISWda9e11bc67dea8aa429e,p018,yes,no,右侧二进制输入模块的蓝线越过虚线左边框，抵达模块内部带黑节点的绿色竖母线；不是框边。,4x wide screenshot re-review
+E_rail_T,9,ISW2e7a60fae319a0454bab,p018,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 924 短线止于标有 WJH-800-DTC 的支路跳闸输出虚线框右边。,4x wide screenshot re-review
+E_rail_T,10,ISW2850f8085301918face6,p018,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 1204 短线止于 WJH-800-DTC 输出框右边；相邻行同样收止在该框边。,4x wide screenshot re-review
+E_rail_T,11,ISW8ea6589b17f3b06dd962,p018,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 1220 短线止于同一输出框右边；框内与相邻行的边界关系一致。,4x wide screenshot re-review
+E_rail_T,12,ISW9012ffb605bd037c6172,p019,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 2522 短线止于 CT 输入模块的右侧虚线框边；整页 CT 输入组明确。,4x wide screenshot re-review
+E_rail_T,13,ISW72625cd3d63402d199dd,p020,uncertain,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色候选线沿 BI 行到中间模块的右侧闭合虚线边；模块标题和整页三组模块布局可见。,4x wide screenshot re-review
+E_rail_T,14,ISW021244995a37851ff6aa,p021,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 2506 短线止于 CT 输入模块右侧虚线边；外框内外的长短线关系清楚。,4x wide screenshot re-review
+E_rail_T,15,ISWd9582b1bb8c6f529feb3,p026,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 818 短线止于 ZSZ-812E 虚线装置框右边；整页可见该框包围多行接点。,4x wide screenshot re-review
+E_rail_T,16,ISWde1f790db12e3cf208c2,p026,uncertain,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 127 短线止于 ZSZ-812E 闭合虚线框右边；框内多行端子/接点。,4x wide screenshot re-review
+E_rail_T,17,ISW6dbe48e978f372425396,p026,no,yes,蓝线连接到装置内部竖导线的 T 形交点，但该交点没有黑色连接点；同图相邻明确连接行有黑点，无法仅凭线条位置确认闭合。,4x wide screenshot re-review
+E_rail_T,18,ISWecae2a7a2f108378ebfa,p031,no,yes,蓝色 2YQ1D 支路在模块内抵达竖导线，但交点未见黑色连接点；相邻支路有黑点，当前截图不能确认该支路已闭合。,4x wide screenshot re-review
+E_rail_T,19,ISW29488d523c49bd1b363d,p031,yes,no,扩大的本页视图显示蓝线从带黑点的竖向母线直接抵达远方复归接点 1FA 的 13 号端子；13/14 端子号和 Remote reset 标注可辨，端点身份及端子侧连接可由截图确定。,4x wide screenshot re-review
+E_rail_T,20,ISWe843d73dd10d0506ab0d,p034,no,yes,蓝色 2YQ1D 支路在模块内抵达竖导线；该 T 形交点没有与相邻行一致的黑色连接点，连接闭合仍需人工判断。,4x wide screenshot re-review
+E_rail_T,25,ISWb7fa73d4d9fb0d1537f3,p064,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 115 短线止于标有 ZSZ-812E 的虚线装置框右边；完整页面显示框上下边及多行接点。,4x wide screenshot re-review
+E_rail_T,27,ISWed619470d385a501937a,p065,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 920 短线止于 Branch5 trip 2 所在的跳闸输出虚线模块右边。,4x wide screenshot re-review
+E_rail_T,28,ISW37ae4cec9305f0db4449,p066,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。蓝色 1008 短线止于 Branch11 trip 2 所在的跳闸输出虚线模块右边。,4x wide screenshot re-review
+E_port_both_ends,3,ISWcaef9bdbcab72db473a1,p027,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。端子短线止于装置框。标注 From BCU 的闭合虚线矩形右边界位于蓝色候选段两端之间。,4x wide screenshot re-review
+E_port_both_ends,17,ISW68f8ca76e1ac2e4d74ce,p044,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。端子短线止于装置框。标注 WFB-82E 的闭合设备框左侧虚线竖边穿过 1-1Q2D21 至 1-1n202 候选线。,4x wide screenshot re-review
+E_port_both_ends,18,ISWa31f475fb9907029b259,p044,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。端子短线止于装置框。连续竖向框边位于 1-1n201 与 1-1CD5 两端之间；旁侧可见“操作机构箱”封闭矩形。,4x wide screenshot re-review
+E_port_both_ends,19,ISWba693d8e928e81e8ce0e,p044,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。端子短线止于装置框。右侧控制回路闭合框左侧竖边位于 1-1Q2D17 与 1-1n230 两端之间。,4x wide screenshot re-review
+E_port_both_ends,20,ISWcbf27330a6fe3f1a164b,p044,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。端子短线止于装置框。操作机构箱/控制区域左侧竖向闭合边落在 1-1n206 与 1-1CD2 两端之间。,4x wide screenshot re-review
+E_port_both_ends,21,ISWe5ccd7e2870509d169bc,p044,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。端子短线止于装置框。闭合控制区域左侧竖边穿过 1-1n232 与 1-1CD4 间候选段。,4x wide screenshot re-review
+E_port_both_ends,30,ISW81a4c88cee6849ed669e,p053,yes,no,复核分类：端子短线止于装置框；按装置内部/非导线规则关闭，不计人工核对。端子短线止于装置框。GND 候选短线到达标注 DGICOM4000 的 DC/DC 闭合矩形左边界；框边正处在两端之间。,4x wide screenshot re-review
