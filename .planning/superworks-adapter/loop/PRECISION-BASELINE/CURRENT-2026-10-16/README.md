@@ -54,7 +54,7 @@
 
 此前提到的“错配形态消失”是 FP-FIX 退役旧 V1 `terminal_strip_lattice` 配对的结果：425 条 lattice 行在 p016–p021 不再生成。它不是本轮精度审计的修复成果；本轮样本没有确认任何通过错配形态。
 
-截图逐例索引在 [render_index.csv](data/render_index.csv)，930 个新案例的联系表索引在 [contact_index_930.csv](data/contact_index_930.csv)。截图和联系表图片保存在工作区 `.tmp/precision_loop_20261015/current_baseline_screenshots/`、`.tmp/precision_loop_20261015/current_baseline_contact_sheets/`，索引中每张截图路径均已核验存在。逐例判定见 [judgments.csv](data/judgments.csv)；标签更正见 [judgment_corrections.csv](data/judgment_corrections.csv)。
+截图逐例索引在 [render_index.csv](data/render_index.csv)，930 个新案例的联系表索引在 [contact_index_930.csv](data/contact_index_930.csv)。1,633 张逐例截图保存在 `data/screenshots/`，联系表索引引用的 234 张图保存在 `data/contact_sheets/`；两份索引均使用相对路径并记录 SHA-256。逐例判定见 [judgments.csv](data/judgments.csv)；标签更正见 [judgment_corrections.csv](data/judgment_corrections.csv)。
 
 ## 下一步
 

@@ -1,0 +1,113 @@
+{
+  "weighted_pass_precision": {
+    "population_n": 78993,
+    "conservative_precision": 0.6558528555110531,
+    "precision_if_uncertain_correct": 1.0,
+    "ci95_low_conservative": 0.5889164267475249,
+    "ci95_high_conservative": 0.7227892842745813,
+    "ci95_low_if_uncertain_correct": 1.0,
+    "ci95_high_if_uncertain_correct": 1.0,
+    "by_source": [
+      {
+        "source": "backplate_corroborated",
+        "population_n": 4010,
+        "sample_n": 20,
+        "correct_n": 19,
+        "wrong_n": 0,
+        "uncertain_n": 1,
+        "unclassified_n": 0,
+        "precision_conservative": 0.95,
+        "precision_if_uncertain_correct": 1.0,
+        "weight": 0.05076399174610408
+      },
+      {
+        "source": "partial_superworks",
+        "population_n": 70,
+        "sample_n": 20,
+        "correct_n": 20,
+        "wrong_n": 0,
+        "uncertain_n": 0,
+        "unclassified_n": 0,
+        "precision_conservative": 1.0,
+        "precision_if_uncertain_correct": 1.0,
+        "weight": 0.0008861544693833631
+      },
+      {
+        "source": "pure_v1_no_literal_sw_peer",
+        "population_n": 1720,
+        "sample_n": 20,
+        "correct_n": 20,
+        "wrong_n": 0,
+        "uncertain_n": 0,
+        "unclassified_n": 0,
+        "precision_conservative": 1.0,
+        "precision_if_uncertain_correct": 1.0,
+        "weight": 0.021774081247705492
+      },
+      {
+        "source": "superworks_native",
+        "population_n": 45027,
+        "sample_n": 91,
+        "correct_n": 71,
+        "wrong_n": 0,
+        "uncertain_n": 20,
+        "unclassified_n": 0,
+        "precision_conservative": 0.7802197802197802,
+        "precision_if_uncertain_correct": 1.0,
+        "weight": 0.570012532756067
+      },
+      {
+        "source": "sw_annotated_or_v1_supported",
+        "population_n": 27954,
+        "sample_n": 56,
+        "correct_n": 22,
+        "wrong_n": 0,
+        "uncertain_n": 34,
+        "unclassified_n": 0,
+        "precision_conservative": 0.39285714285714285,
+        "precision_if_uncertain_correct": 1.0,
+        "weight": 0.35387945767346474
+      },
+      {
+        "source": "v1_literal_sw_corroborated",
+        "population_n": 212,
+        "sample_n": 20,
+        "correct_n": 9,
+        "wrong_n": 0,
+        "uncertain_n": 11,
+        "unclassified_n": 0,
+        "precision_conservative": 0.45,
+        "precision_if_uncertain_correct": 1.0,
+        "weight": 0.0026837821072753284
+      }
+    ]
+  },
+  "weighted_review_manual_need_estimate": {
+    "margin": "source",
+    "population_n": 27041,
+    "sample_n": 112,
+    "manual_yes_n": 19,
+    "manual_no_n": 71,
+    "uncertain_n": 22,
+    "estimated_manual_lower_n": 2853.5439024390244,
+    "estimated_manual_upper_n": 3506.6439024390243,
+    "estimated_rate_lower": 0.10552656715502476,
+    "estimated_rate_upper": 0.12967878046074569
+  },
+  "weighted_issue_manual_need_estimate": {
+    "margin": "rule_id",
+    "population_n": 12474,
+    "sample_n": 63,
+    "manual_yes_n": 62,
+    "manual_no_n": 0,
+    "uncertain_n": 1,
+    "estimated_manual_lower_n": 11976.56,
+    "estimated_manual_upper_n": 12474.0,
+    "estimated_rate_lower": 0.9601218534551867,
+    "estimated_rate_upper": 1.0
+  },
+  "missing_pass_judgments": 0,
+  "missing_review_pair_manual_judgments": 0,
+  "missing_issue_manual_judgments": 0,
+  "sampled_entity_count": 1633
+}

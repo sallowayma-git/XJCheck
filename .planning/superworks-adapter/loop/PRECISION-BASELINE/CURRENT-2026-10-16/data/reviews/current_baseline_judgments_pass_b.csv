@@ -1,0 +1,262 @@
+entity_id,visual_judgment,error_morphology,judgment_note
+pair:p036:PSW8029ccbe91159afe,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p036:PSW90a48a3dccd73c08,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p036:PSW912caf025fd8fd27,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p036:PSWc00a894d3c835239,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p036:PSWd408616c4bb57493,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p037:P0047,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p037:P0052,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p037:PSW31a5bc415a9ce6f8,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p037:PSW34011400b5272ccd,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p037:PSW36a2dd1375e78d6c,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p037:PSW3c5da5456f150596,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p037:PSW4fe292ea7131ed43,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p037:PSW6fb87155f36668b7,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p037:PSW99bcd1946436cd00,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p037:PSWa96d8b54f01df6c8,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p037:PSWab81e1b6e7f29521,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p037:PSWb4f98e4355aadcae,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSW28e46d20c3f36151,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSW4fca791fe58d861a,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSW5eb970da04979ecb,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p038:PSW6640d2cb0e199362,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSW9a72de8fdac9d4b2,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p038:PSWafd274f4d7613d5a,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSWbe246d6f08dc0a8b,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSWd686736c3547cac4,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSWd92849700154ba67,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSWe4c9c38f9cc845ad,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PSWf5cf0b64aa0db17a,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p038:PWM0024,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PWM0030,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p038:PWM0038,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:P0042,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:P0094,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:P0106,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:P0148,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:P0188,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:P0262,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:P0265,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:P0286,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:PCK0006,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:PCK0007,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:PCM0014,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:PCM0019,uncertain,,One endpoint identity is clipped or not independently visible in the component crop.
+pair:p039:PCM0052,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:PCM0056,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:PSW1341ad3354d5fa28,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p039:PSW26c13e71bd1e04b1,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:PSW49431f391275f1ae,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p039:PSW5d4c5331d799625e,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:PSW734f0c12f3676641,correct,,The marked endpoints and route agree with the visible endpoint labels.
+pair:p039:PSW7650cec91ab8444b,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:PSW871feb4e02f59511,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:PSWc55ac2546a78420f,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p039:PSWc570320666043b30,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p039:PWM0004,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:P0071,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:P0076,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:P0078,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:P0252,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:PSW0048fdd3806365d3,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:PSW0248458ffb779fda,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:PSW2ef217147e3d525e,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:PSW3a5477cb0e4a8ed0,uncertain,,The component labels overlap and the expected left terminal identity is not independently visible.
+pair:p040:PSW3e8ca6871fa1262a,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p040:PSW3fd93fd84c2459b1,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p040:PSW40ba04cba0fa7368,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:PSW4d2a2936792bdc27,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p040:PSW5218ffca5fbc44dd,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:PSW53816ae4739791e6,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p040:PSW803f579673cb96c4,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:PSW8b6b3672163f8818,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:PSW916be5f23cbdcdc0,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:PSW9184eda7e8ca672a,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p040:PSWb1c031071119f0e3,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:PSWb21ca7be90e3bbb4,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p040:PSWd62b857d41124bd9,correct,,The marked endpoints and route agree with the visible endpoint labels.
+pair:p041:PSW19b7d0a5c69632f5,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p041:PSW207f528d4db556f2,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p041:PSW2d57418c5502518d,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p041:PSW553e72773f30b158,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p041:PSW6635c4dc18cc930d,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p041:PSWa2b28c8f3bdf2c4a,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p041:PSWb28b79c1a00204f7,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p042:PSW1ef8e9d4be1e8de9,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p042:PSW3956cfea1c8af84b,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p042:PSW45d215a8b71086f1,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p042:PSW935607d4947fffbd,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p042:PSWe526cc4684edb4f3,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p043:P0315,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p043:P0318,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p043:PSW00ddaeb908fc0aa9,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p043:PSW11e30779b37e4521,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p043:PSW2c79d244342b8449,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p043:PSW4bec72d446ec112c,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p043:PSW5c1938c9d59176f2,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p043:PSW9ffe076914e055c2,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p044:P0325,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p044:P0328,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p044:PSW2f355d08ef6cf51b,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p044:PSW313e045832ffdce7,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p044:PSW48685d2f2ee195d3,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p044:PSW8229ed267808b8fb,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p044:PSW8927b61e1c497fe9,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p044:PSW905227446f5a6c5e,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p044:PSW9708294808bafd7a,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p044:PSWaee615284b1be811,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p044:PSWe7f0896ef8866c86,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p044:PWM0025,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p045:PSW1ff1ed8165e4c200,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p045:PSW71d75b6899796d53,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p045:PSW9bf68cd067a39fa2,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p045:PSWa9c54edb04988a94,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p045:PWM0103,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p046:P0105,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p046:P0273,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p046:PSW264e45e81a143dd7,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p046:PSW2d4bffcaee8e0d50,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p046:PSW33733447ba3478f4,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p046:PSW7a2e9348a451c906,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p046:PSW89eb2dbb8217df6d,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p046:PSW9b7de4ab4264908b,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p046:PSWc6252b2fc4b8fcc3,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:P0105,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p047:P0131,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p047:P0139,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p047:P0148,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p047:PSW0b4f411428edb9fe,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:PSW132c2963d275ffbe,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:PSW2e584cba47c9a33a,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p047:PSW3d7ca52c926caa64,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:PSW8aeb5e09fa4d630e,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:PSW9c087f4b3da8b291,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:PSWc98790d73cde5a8b,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:PSWd1a9e2bdba0ff442,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p047:PWM0063,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p048:P0372,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p048:PSW1b769927e0cbbcbe,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p048:PSW7b1488228bc5ebbd,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p048:PSW81c7e93f363ace76,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p048:PSW8b067e7f66452541,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p048:PSW96a45bb17f502788,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p048:PSW991b82f66ec2af65,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p048:PSWbb954c49babc373c,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p049:PSW0fd1c5a4a34542e0,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p049:PSW4ba2bd5658ef4b6d,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p049:PSW60546c6ae50d12b3,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p049:PSW60aa81d8508b2e1f,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p049:PSW8b2d399c462c6cca,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p049:PSWaa13dd9e5465cb57,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p049:PSWb79d3e43e4274aa4,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p049:PSWbfcb85683adbb09d,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p049:PSWc9d1c3ac2c3143b5,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p049:PWM0013,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p050:P0089,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p050:P0228,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p050:P0240,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p050:P0290,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p050:PSW0f290e14ad945938,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p050:PSW0ff7387bcfe63ed4,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p050:PSW598ec89e2d60cdfa,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p050:PSW60507dadb8c8a433,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p050:PSW706e39f91f9874c0,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p050:PSWcb0d053ae449e980,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p050:PSWcd36cbd95e21a02b,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p052:PSW82aa990feb7922ae,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p053:PSW2b29ba5da7baef50,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p056:P0268,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p056:PSW22ac919c3b3961ef,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p056:PSW2726c11b9fd885bf,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p056:PSW3cbd5c9d824092e7,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p056:PSW736d8b39ff3be172,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p056:PSW8efea1f6734571a9,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p056:PSW9348c493b952e5d5,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p056:PSWc4a026fae80f27c3,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p057:PSW8a6b84e7587f0469,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p057:PSWe8a322dd65b72f39,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p058:PSW5be6591f99afe989,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p058:PSW6428e225de7a4066,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p058:PSW8c219d1080020f4a,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p059:P0243,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p059:P0285,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p059:PSW2ceba73183faa9cf,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p060:P0122,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p060:P0168,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p060:PSW7ae5124acb79f8bb,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p060:PSWa4781deab94a2528,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p060:PSWae500363b699e82a,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p060:PSWd5003e05b64e19d5,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p060:PSWe77b0d6385603a15,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p061:P0222,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p061:PSW055b91381ed34131,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p061:PSW0ecb1353b6832472,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p061:PSW61a084991c762146,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p061:PSW7d253bf9a4a29e0e,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p061:PSWc87c797a428d1385,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p061:PWM0008,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p061:PWM0064,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p062:PSW397d57acf37bbc9c,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p063:P0082,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p063:P0103,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p063:P0223,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p063:PSW110df85cb4fc51b1,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p063:PSW4a26d14fd9f3082c,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p063:PSW77306711ed52683d,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p063:PSW8bfedbd22f334b75,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p063:PSWb09fb26328874595,uncertain,,Both crops visibly show AK-2; the expected A'-1 endpoint is not independently visible.
+pair:p063:PSWe5bce6d56220c731,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p064:PSW03ed5a7c4b31adf9,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p064:PSW48bfa93df397dba1,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p064:PSW62fa055038aeeb46,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p064:PSW9d91d34e75437709,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p065:PSW00c731b83faa1477,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p065:PSW2dde5db2ed3c19d1,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p065:PSW48ca190b3dac5f42,correct,,The marked endpoints align with the visible bridge terminals and bridge geometry.
+pair:p065:PSW5f099ca4a0b4ef40,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p065:PSWbcd782a1e8cbb1ab,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p065:PSWbd283dcdd1ab1cea,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p066:PSW454bed92f6e90e9f,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p066:PSW5d8dda5eb1136b59,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p066:PSWbe005a3a2c28db4a,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p067:PSW2dff53d2fdb41d52,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p067:PSW34ca8b42829ae321,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p067:PSW3a94f53ae9076923,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p067:PSWaef0f6dfa6710c0b,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p068:PSWfba69317fbccb779,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p069:PTMR0003,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p070:PSW2bee743e868f9a45,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p070:PSW7d5e75c605874d92,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p070:PSWd928e8c1ba3f22e2,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p071:PSW14aa67f78a66a79e,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p071:PSW39eeac5b59cbf2ee,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p071:PSW4dfd15b444820d98,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p072:P0019,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p072:PSW52c205ac308a6b86,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p072:PSW77896b16fea35382,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p072:PSWd27e09a1aac3a3de,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p072:PSWe4043f7a0fd12431,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p073:P0006,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p074:P0240,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p074:PSW1e6e264c334f0694,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p074:PSW682b7968b57b7f89,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p074:PSW6b7d16323f16cb14,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p074:PSWa80c9a9dc6f9581d,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p074:PSWaf61509c07fa7529,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p074:PSWc0ef35a9bc422c95,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p074:PSWd5b398661e53e494,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p075:PSW0a7b42ad2f6c8f21,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p075:PSW0e7e34b76c39778c,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p075:PSWb678ba5d1a596eff,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p075:PSWcc4c929a76eff259,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p075:PWM0012,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p076:P0267,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p076:PSW074d4e20296c4a23,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p076:PSW08b4adf7104f2c74,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p076:PSW3fabfa70c8b7af79,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p076:PSW49d62552024893c5,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p076:PSW537a11d0b802d7f8,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p076:PSW5e23d0149dd8c665,correct,,Both marked endpoints align with the same visible table row and endpoint labels.
+pair:p076:PSW62dfbebd1d3d53f4,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p076:PSW6377b06bf0de2fbc,correct,,Both marked endpoints align with the visible component terminals and labels.
+pair:p076:PSWb0dca173eb677711,uncertain,,"The bridge geometry is visible, but both terminal labels are clipped in the crop."
