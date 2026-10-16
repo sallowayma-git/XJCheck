@@ -1,0 +1,13 @@
+{
+  "audited_count": 401,
+  "screenshot_manifest_count": 401,
+  "first_index": 1,
+  "last_index": 401,
+  "valid_review": 401,
+  "false_positive": 0,
+  "ambiguous": 0,
+  "unreadable": 0,
+  "screenshot_files_missing": 0,
+  "duplicate_indices": 0,
+  "screenshots_dir": "screenshots"
+}
