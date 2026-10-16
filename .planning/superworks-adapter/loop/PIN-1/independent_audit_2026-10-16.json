@@ -16,16 +16,16 @@
   },
   "sample": {
     "wire_confirmed": {
-      "n": 148,
-      "unique_source_dxf": 148,
+      "n": 149,
+      "unique_source_dxf": 149,
       "verdicts": {
-        "correct": 122,
+        "correct": 123,
         "plausible": 26
       },
-      "clear_confirmation_rate": 0.8243243243243243,
-      "manual_review_share": 0.17567567567567569,
+      "clear_confirmation_rate": 0.825503355704698,
+      "manual_review_share": 0.174496644295302,
       "confirmed_mismatches": 0,
-      "scope_note": "Fresh unique-source drawing sample; rows were assigned by project-scoped (pid, pair_id) evidence, not the earlier legacy sample label."
+      "scope_note": "Fresh unique-source drawing sample plus one independently selected, project-unique source drawing (W150); rows were assigned by project-scoped (pid, pair_id) evidence, not the earlier legacy sample label."
     },
     "no_wire_handle": {
       "n": 24,
@@ -45,7 +45,7 @@
       },
       "scope_note": "Census of all 24 eligible unique unseen source drawings remaining after historical-source exclusion; this is not all 52 source drawings in the no-wire population."
     },
-    "combined_rows": 172,
+    "combined_rows": 173,
     "cross_stratum_source_hash_overlap": 0
   },
   "legacy_group_label_crosscheck": {
@@ -63,5 +63,5 @@
     ],
     "reason": "DXF TERMPOINT physical pin index was separated from slot/sequence text; adjacent terminal labels were not attributed to the sampled pin."
   },
-  "decision": "No confirmed PIN-1 mismatch was observed. Keep these pairs at review; 26/148 wire-confirmed sample cases require manual review because the screenshot evidence is plausible but not decisive. No code repair is justified by this audit alone."
+  "decision": "No confirmed PIN-1 mismatch was observed. Keep these pairs at review; 26/149 wire-confirmed sample cases require manual review because the screenshot evidence is plausible but not decisive. No code repair is justified by this audit alone."
 }
