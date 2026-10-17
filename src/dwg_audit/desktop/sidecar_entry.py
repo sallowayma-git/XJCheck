@@ -14,6 +14,7 @@ _LIGHTWEIGHT_COMMANDS = {
     "load-result",
     "load-result-summary",
     "load-result-issues",
+    "load-result-diagnostics",
     "load-result-issue-detail",
     "set-issue-status",
 }
@@ -90,6 +91,11 @@ def _run_lightweight_command(argv: list[str]) -> bool:
         parser.add_argument("--status-filter")
         parser.add_argument("--triage")
         parser.add_argument("--handling")
+    elif command == "load-result-diagnostics":
+        parser.add_argument("--project-id", required=True)
+        parser.add_argument("--run-id")
+        parser.add_argument("--limit", type=_bounded_page_size, default=100)
+        parser.add_argument("--offset", type=_non_negative_int, default=0)
     elif command == "load-result-issue-detail":
         parser.add_argument("--project-id", required=True)
         parser.add_argument("--issue-id", required=True)
@@ -146,6 +152,18 @@ def _run_lightweight_command(argv: list[str]) -> bool:
                 triage=options.triage,
                 handling=options.handling,
             ),
+        )
+        if payload is None:
+            parser.error(f"No stored result found for project_id={options.project_id}")
+    elif command == "load-result-diagnostics":
+        from dwg_audit.desktop.sidecar import load_project_diagnostics
+
+        payload = load_project_diagnostics(
+            project_id=options.project_id,
+            run_id=options.run_id,
+            limit=options.limit,
+            offset=options.offset,
+            state_db_path=db_path,
         )
         if payload is None:
             parser.error(f"No stored result found for project_id={options.project_id}")

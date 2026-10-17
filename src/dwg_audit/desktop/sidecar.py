@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 
+from dwg_audit.domain.issue_layers import USER_VISIBLE_RULE_IDS
 from dwg_audit.desktop.lifecycle import cleanup_transient_workspaces
 from dwg_audit.desktop.lifecycle import compact_session_workspace
 from dwg_audit.desktop.lifecycle import default_preview_cache_root
@@ -144,7 +145,10 @@ def load_project_result(
     state_db_path: Path | None = None,
 ) -> dict[str, Any] | None:
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
-    return store.load_latest_project_result(project_id, run_id=run_id)
+    payload = store.load_latest_project_result(project_id, run_id=run_id)
+    if payload is not None:
+        _enrich_run_recognition_summary(payload["run"])
+    return payload
 
 
 def load_project_summary(
@@ -159,7 +163,34 @@ def load_project_summary(
     """
 
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
-    return store.load_project_summary(project_id, run_id=run_id)
+    payload = store.load_project_summary(project_id, run_id=run_id)
+    if payload is not None:
+        _enrich_run_recognition_summary(payload["run"])
+    return payload
+
+
+def load_project_diagnostics(
+    *,
+    project_id: str,
+    run_id: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    state_db_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """Return one page of internal diagnostic findings, separate from issues."""
+    store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
+    payload = store.load_project_diagnostics_page(
+        project_id,
+        run_id=run_id,
+        limit=limit,
+        offset=offset,
+    )
+    if payload is not None:
+        _enrich_run_recognition_summary(payload["run"])
+        payload["recognition_summary"] = (payload["run"].get("metadata") or {}).get(
+            "recognition_summary", {}
+        )
+    return payload
 
 
 def load_project_issues(
@@ -356,7 +387,21 @@ def _store_project_run(
     )
     pairs = frames.get("pairs", pd.DataFrame())
     issues = frames.get("issues", pd.DataFrame())
+    if not issues.empty and "rule_id" in issues.columns:
+        issues = issues.copy()
+        user_mask = issues["rule_id"].astype(str).isin(USER_VISIBLE_RULE_IDS)
+        diagnostic_frame = issues.loc[~user_mask].copy()
+        issues = issues.loc[user_mask].copy()
+    else:
+        diagnostic_frame = pd.DataFrame()
+    diagnostics_path = project_dir / "audit" / "recognition_gap_diagnostics.jsonl"
+    if diagnostics_path.is_file():
+        try:
+            diagnostic_frame = pd.read_json(diagnostics_path, lines=True)
+        except (OSError, ValueError):
+            diagnostic_frame = pd.DataFrame()
     issue_payload = _issue_payloads(issues)
+    diagnostic_payload = _issue_payloads(diagnostic_frame)
     page_findings = findings_payload.get("page_findings", [])
     series_chains_path = project_dir / "audit" / "series_chains.json"
     series_chains = (
@@ -373,6 +418,11 @@ def _store_project_run(
         "clean_conclusion_allowed": findings_payload.get("clean_conclusion_allowed", True),
         "incomplete_page_count": findings_payload.get("incomplete_page_count", 0),
         "failure_code_counts": findings_payload.get("failure_code_counts", {}),
+        "recognition_summary": _build_recognition_summary(
+            findings_payload,
+            project_dir / "audit",
+            diagnostic_frame=diagnostic_frame,
+        ),
         "artifacts": {
             "project_dir": str(project_dir),
             "findings_dir": str(project_dir / "findings"),
@@ -393,7 +443,7 @@ def _store_project_run(
         metadata=metadata,
         series_chains=series_chains,
     )
-    prepared = {"run": run_payload, "issues": issue_payload, "pages": page_findings,
+    prepared = {"run": run_payload, "issues": issue_payload, "diagnostics": diagnostic_payload, "pages": page_findings,
                 "geometries": build_preview_geometry_payloads(frames)}
     project_root = str(Path(manifest.get("input_root", input_root)).resolve())
     prepared.update(project_root=project_root, page_facts=(page_facts or {}).get(project_root, {}))
@@ -409,6 +459,123 @@ def _store_project_run(
         "sheet_count": int(manifest.get("sheet_count", 0)),
         "pair_count": int(len(pairs)),
         "issue_count": int(len(issues)),
+        "diagnostic_count": int(metadata["recognition_summary"].get("diagnostic_count", 0)),
+        "coverage_ratio": metadata["recognition_summary"].get("coverage_ratio"),
+    }
+
+
+def _enrich_run_recognition_summary(run: dict[str, Any]) -> None:
+    metadata = run.setdefault("metadata", {})
+    existing = metadata.get("recognition_summary")
+    if isinstance(existing, dict) and "coverage_ratio" in existing and "unclosed_count" in existing:
+        return
+    artifact_dir_value = str(run.get("artifact_dir") or "").strip()
+    if not artifact_dir_value:
+        metadata["recognition_summary"] = {
+            "coverage_ratio": None,
+            "unclosed_count": 0,
+            "diagnostic_count": 0,
+            "by_rule": {},
+            "by_presentation": {},
+            "by_reason_code": {},
+            "suppressed_count": 0,
+            "suppressed_by": {},
+            "by_page": [],
+        }
+        return
+    artifact_dir = Path(artifact_dir_value)
+    findings_path = artifact_dir / "findings" / "findings.json"
+    audit_dir = artifact_dir / "audit"
+    try:
+        findings_payload = json.loads(findings_path.read_text(encoding="utf-8")) if findings_path.is_file() else {}
+    except (OSError, ValueError):
+        findings_payload = {}
+    issues_path = audit_dir / "issues.parquet"
+    diagnostic_frame = pd.DataFrame()
+    if issues_path.is_file():
+        try:
+            all_issues = pd.read_parquet(issues_path)
+            if "rule_id" in all_issues.columns:
+                diagnostic_frame = all_issues.loc[
+                    ~all_issues["rule_id"].astype(str).isin(USER_VISIBLE_RULE_IDS)
+                ]
+        except Exception:
+            diagnostic_frame = pd.DataFrame()
+    metadata["recognition_summary"] = _build_recognition_summary(
+        findings_payload, audit_dir, diagnostic_frame=diagnostic_frame
+    )
+
+
+def _build_recognition_summary(
+    findings_payload: dict[str, Any],
+    audit_dir: Path,
+    *,
+    diagnostic_frame: pd.DataFrame | None = None,
+) -> dict[str, Any]:
+    coverage = findings_payload.get("entity_coverage_summary") or {}
+    summary_path = audit_dir / "recognition_gap_diagnostic_summary.json"
+    try:
+        diagnostic_summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.is_file() else {}
+    except (OSError, ValueError):
+        diagnostic_summary = {}
+    frame = diagnostic_frame if diagnostic_frame is not None else pd.DataFrame()
+    by_rule = dict(diagnostic_summary.get("by_rule") or {})
+    by_presentation = dict(diagnostic_summary.get("by_presentation") or {})
+    by_reason = dict(diagnostic_summary.get("by_reason_code") or {})
+    by_observation_reason = dict(diagnostic_summary.get("by_observation_reason_code") or {})
+    unclosed_by_sheet: dict[str, int] = {}
+    diagnostic_count = int(diagnostic_summary.get("diagnostic_count") or 0)
+    unclosed_count = int(diagnostic_summary.get("unclosed_count") or 0)
+    if not diagnostic_summary and not frame.empty:
+        by_rule = frame.get("rule_id", pd.Series(dtype=str)).astype(str).value_counts().to_dict()
+        diagnostic_count = int(len(frame))
+        unclosed_mask = frame.get("rule_id", pd.Series(dtype=str)).astype(str).eq("R-RECOGNITION-GAP")
+        unclosed_count = int(unclosed_mask.sum())
+        for _, row in frame.loc[unclosed_mask].iterrows():
+            sheet_id = str(row.get("sheet_id") or "project")
+            unclosed_by_sheet[sheet_id] = unclosed_by_sheet.get(sheet_id, 0) + 1
+            evidence = _decode_jsonish(row.get("evidence"))
+            presentation = str(evidence.get("presentation") or "observation")
+            by_presentation[presentation] = int(by_presentation.get(presentation, 0)) + 1
+            reasons = evidence.get("resolution_reason_codes") or [
+                reason
+                for observation in evidence.get("resolution_observations") or []
+                for reason in (observation.get("reason_codes") or [])
+            ] or evidence.get("reason_codes") or ["unspecified"]
+            for reason in reasons:
+                by_reason[str(reason)] = int(by_reason.get(str(reason), 0)) + 1
+            for reason in evidence.get("reason_codes") or []:
+                by_observation_reason[str(reason)] = int(by_observation_reason.get(str(reason), 0)) + 1
+    else:
+        unclosed_by_sheet = {
+            str(item.get("sheet_id") or "project"): int(item.get("unclosed_count") or 0)
+            for item in diagnostic_summary.get("by_sheet", [])
+        }
+    pages = []
+    for page in coverage.get("page_summaries", []) or []:
+        if page.get("summary_scope") != "page":
+            continue
+        sheet_id = str(page.get("sheet_id") or "")
+        pages.append(
+            {
+                "sheet_id": page.get("sheet_id"),
+                "sheet_no": page.get("sheet_no"),
+                "filename": page.get("filename"),
+                "coverage_ratio": page.get("coverage_ratio"),
+                "unclosed_count": unclosed_by_sheet.get(sheet_id, 0),
+            }
+        )
+    return {
+        "coverage_ratio": coverage.get("coverage_ratio"),
+        "unclosed_count": unclosed_count,
+        "diagnostic_count": diagnostic_count,
+        "by_rule": by_rule,
+        "by_presentation": by_presentation,
+        "by_reason_code": by_reason,
+        "by_observation_reason_code": by_observation_reason,
+        "suppressed_count": int(diagnostic_summary.get("suppressed_count") or 0),
+        "suppressed_by": diagnostic_summary.get("suppressed_by") or {},
+        "by_page": pages,
     }
 
 

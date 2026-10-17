@@ -132,6 +132,21 @@ def test_store_project_run_keeps_chain_json_for_desktop_result(tmp_path: Path, m
     )
     chain_report = {"chain_count": 1, "continuation_count": 0, "chains": [{"junction_value": "1UD1"}]}
     (audit_dir / "series_chains.json").write_text(json.dumps(chain_report), encoding="utf-8")
+    (audit_dir / "recognition_gap_diagnostics.jsonl").write_text(
+        json.dumps(
+            {
+                "issue_id": "GAP-1",
+                "rule_id": "R-RECOGNITION-GAP",
+                "title": "Unresolved endpoint",
+                "severity": "review",
+                "status": "open",
+                "confidence": 0.2,
+                "sheet_id": "S1",
+                "evidence": {"presentation": "terminal", "reason_codes": ["unresolved_endpoint_identity"]},
+            }
+        ) + "\n",
+        encoding="utf-8",
+    )
     empty_frames = {name: pd.DataFrame() for name in ("pairs", "issues", "pages", "lines", "texts", "line_groups", "blocks")}
     monkeypatch.setattr(sidecar_module, "load_report_frames", lambda *_args, **_kwargs: empty_frames)
     monkeypatch.setattr(sidecar_module, "build_preview_geometry_payloads", lambda _frames: [])
@@ -148,6 +163,10 @@ def test_store_project_run_keeps_chain_json_for_desktop_result(tmp_path: Path, m
     loaded = store.load_latest_project_result("demo-project")
     assert loaded is not None
     assert loaded["series_chains"] == chain_report
+    diagnostics = store.load_project_diagnostics_page("demo-project", run_id="session-chain:demo-project")
+    assert diagnostics is not None
+    assert diagnostics["total"] == 1
+    assert diagnostics["items"][0]["issue_id"] == "GAP-1"
 
 
 def test_cleanup_transient_workspaces_clears_sessions_and_preview_cache(tmp_path: Path) -> None:
