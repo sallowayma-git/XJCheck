@@ -7,9 +7,9 @@ import math
 import ezdxf
 import pytest
 
-from dwg_audit.audit.superworks_extractor import (
-    _clear_numeric_candidates_owned_by_nearer_sw_wire, extract_superworks_pairs)
-from dwg_audit.domain.models import Pair, SheetRecord, LineGroup, LineEntity, SwConnectDot, SwPort
+from dwg_audit.audit.superworks_extractor import (_clear_numeric_candidates_owned_by_nearer_sw_wire,
+    _connect_label_stub_lines, extract_superworks_pairs)
+from dwg_audit.domain.models import Pair, SheetRecord, LineGroup, LineEntity, SwConnectDot, SwConnectLabel, SwPort
 from dwg_audit.extract.superworks_semantics import SuperworksData
 from test_superworks_semantics import symbol,extract,text_items,xdata
 
@@ -311,6 +311,19 @@ def test_nearer_wire_filter_uses_unregistered_symb2_termpoint_without_port_ids()
     assert witness["identity"] == "5YFA-13"
     assert witness["terminal_handle"] == "TERM"
     assert witness["distance_to_foreign_endpoint"] <= 0.6
+
+
+def test_connect_label_stub_pair_uses_short_symbol_lines_and_ignores_long_frame_edge():
+    label = SwConnectLabel("C1", "S1", "F1", text={"anchor_x": 393.0, "anchor_y": 153.0})
+    lines = [
+        _line_entity("STUB1", "S1", (390.5, 153.0), (392.0, 153.0), source_block_name="symbol"),
+        _line_entity("STUB2", "S2", (390.0, 153.5), (392.5, 153.5), source_block_name="symbol"),
+        _line_entity("DUPLICATE", "S3", (390.0, 153.5), (392.5, 153.5), source_block_name="symbol"),
+        _line_entity("FRAME", "FRAME", (370.0, 152.5), (390.0, 152.5), source_block_name="table"),
+    ]
+    support = _connect_label_stub_lines(label, (390.0, 152.5), lines)
+    assert {line.line_id for line in support} == {"STUB1", "STUB2", "DUPLICATE"}
+    assert "FRAME" not in {line.line_id for line in support}
 
 
 def test_two_metadata_destinations_replacing_one_legacy_pair_have_unique_ids():
