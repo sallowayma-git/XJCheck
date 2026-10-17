@@ -1,9 +1,20 @@
+import io
+import subprocess
+import sys
+from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from dwg_audit.desktop import sidecar as sidecar_module
+from dwg_audit.desktop.sidecar import DesktopEventWriter
 from dwg_audit.desktop.state_store import DesktopStateStore
 from dwg_audit.desktop.lifecycle import session_lease, cleanup_stale_workspaces, cleanup_transient_workspaces
+from dwg_audit.domain.models import ProjectArtifacts
+from dwg_audit.ingest.project_scanner import discover_project_roots, scan_project
+from dwg_audit.report.artifacts import write_project_artifacts
+from dwg_audit.utils.config import DEFAULT_CONFIG
 
 
 def project(session, name="project", *, geometries=None):
@@ -89,6 +100,88 @@ def test_cleanup_skips_live_workspace_and_recovers_after_lease_released(tmp_path
         assert cleanup_transient_workspaces(workspace_root=root, state_db_path=db)["skipped_active"]
     cleanup_stale_workspaces(workspace_root=root, state_db_path=db, older_than_seconds=0)
     assert not session.exists()
+
+
+def test_multi_project_snapshot_disambiguates_unicode_slug_collisions(tmp_path, monkeypatch):
+    input_root = tmp_path / "项目 空间（全角）" / "多项目 总目录（审计）"
+    project_names = ("110kV线路保护柜（单跳圈）", "110kV线路保护柜（双跳圈）")
+    for name in project_names:
+        project_root = input_root / name
+        project_root.mkdir(parents=True)
+        (project_root / "01 交流回路图.dwg").write_bytes(b"AC1018demo")
+
+    production_config = deepcopy(DEFAULT_CONFIG)
+    production_config["runtime"]["profile"] = "production"
+
+    def fake_analysis_workflow(**kwargs):
+        discovered = discover_project_roots(kwargs["input_root"])
+        return SimpleNamespace(
+            project_dirs=[
+                write_project_artifacts(
+                    ProjectArtifacts(scan=scan_project(root, production_config)),
+                    kwargs["output_root"],
+                    config=production_config,
+                )
+                for root in discovered
+            ]
+        )
+
+    monkeypatch.setattr(sidecar_module, "run_analysis_workflow", fake_analysis_workflow)
+    db_path = tmp_path / "desktop_state.db"
+    result = sidecar_module.analyze_session(
+        input_root=input_root,
+        workspace_root=tmp_path / "sessions",
+        state_db_path=db_path,
+        session_id="session-multi-unicode",
+        event_writer=DesktopEventWriter(io.StringIO()),
+        compact_after_store=False,
+    )
+
+    store = DesktopStateStore(db_path)
+    runs = store.list_all_runs()
+    assert {run["project_id"] for run in runs} == set(project_names)
+    assert len({run["artifact_dir"] for run in runs}) == 2
+    assert all(run["session_id"] == "session-multi-unicode" for run in runs)
+    assert len(result) == 2
+    manifests = [
+        (Path(run["artifact_dir"]) / "manifest.json").read_text(encoding="utf-8")
+        for run in runs
+    ]
+    assert all(any(f'"project_id": "{name}"' in raw for raw in manifests) for name in project_names)
+
+
+def test_crashed_workspace_lock_is_recovered_without_removing_saved_session(tmp_path):
+    root = tmp_path / "sessions"
+    crashed_session = root / "crashed-session"
+    crashed_session.mkdir(parents=True)
+    saved_state = tmp_path / "state.db"
+    store = DesktopStateStore(saved_state)
+    store.commit_session_snapshot("saved-session", [project("saved-session")])
+
+    source_root = Path(__file__).resolve().parents[2] / "src"
+    code = """
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from dwg_audit.desktop.lifecycle import session_lease
+root = Path(sys.argv[2])
+session = Path(sys.argv[3])
+with session_lease(root, "crashed-session"):
+    (session / "unfinished.dxf").write_text("temporary", encoding="utf-8")
+    os._exit(0)
+"""
+    subprocess.run(
+        [sys.executable, "-c", code, str(source_root), str(root), str(crashed_session)],
+        check=True,
+    )
+
+    assert (root.parent / ".sessions.workspace.lock").exists()
+    cleanup_stale_workspaces(workspace_root=root, state_db_path=saved_state, older_than_seconds=0)
+
+    assert not crashed_session.exists()
+    assert [run["session_id"] for run in store.list_all_runs()] == ["saved-session"]
+    assert store.load_latest_project_result("project")["run"]["session_id"] == "saved-session"
 
 
 def test_persisted_artifact_path_cannot_authorize_deleting_input(tmp_path):

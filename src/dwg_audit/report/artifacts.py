@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections import defaultdict
+import hashlib
 import json
 import re
 import shutil
@@ -454,6 +455,37 @@ def _slugify(value: str) -> str:
     return slug or "project"
 
 
+def _project_artifact_directory(output_dir: Path, project_id: str) -> Path:
+    """Return a project-owned directory, disambiguating lossy ASCII slug collisions."""
+    slug = _slugify(project_id)
+    candidate = output_dir / slug
+    if not candidate.exists():
+        return candidate
+
+    def owner(path: Path) -> str | None:
+        manifest_path = path / "manifest.json"
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        value = payload.get("project_id") if isinstance(payload, dict) else None
+        return str(value) if value is not None else None
+
+    existing_owner = owner(candidate)
+    if existing_owner is None or existing_owner == project_id:
+        return candidate
+
+    digest = hashlib.sha256(project_id.encode("utf-8")).hexdigest()
+    for suffix_length in (12, len(digest)):
+        candidate = output_dir / f"{slug}_{digest[:suffix_length]}"
+        if not candidate.exists():
+            return candidate
+        existing_owner = owner(candidate)
+        if existing_owner == project_id:
+            return candidate
+    raise FileExistsError(f"Could not allocate a unique artifact directory for project {project_id!r}")
+
+
 def _write_production_core_artifacts(
     *,
     artifacts: ProjectArtifacts,
@@ -551,8 +583,7 @@ def write_project_artifacts(
     table_mappings: list[dict[str, Any]] | None = None,
     extraction_gate: Any | None = None,
 ) -> Path:
-    project_slug = _slugify(artifacts.scan.manifest.project_id)
-    project_dir = output_dir / project_slug
+    project_dir = _project_artifact_directory(output_dir, artifacts.scan.manifest.project_id)
     findings_dir = project_dir / "findings"
     persist_page_findings = bool((config or {}).get("runtime", {}).get("persist_page_findings_files", False))
     page_findings_dir = findings_dir / "page_findings"
