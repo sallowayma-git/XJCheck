@@ -660,7 +660,64 @@ def _outline_distance(point, corners):
     return min(_segment_distance(point, corners[i], corners[(i + 1) % count]) for i in range(count))
 
 
-def _fill_one_sided_pairs_from_connect_labels(output, connect_labels, line_groups, audit_ids, ledger, text_map):
+def _connect_label_stub_lines(label, missing_end, lines):
+    """Find a unique pair of short, parallel symbol strokes beside an unresolved connect label.
+
+    These strokes are independent physical support for the SW label. A long legacy line group can
+    end on a table edge beside the symbol, so it must not be reused as the connect-line witness.
+    The match uses only geometry and source-block membership; no drawing, value, or block name is
+    part of the rule.
+    """
+    text = label.text or {}
+    anchor_x = text.get("anchor_x", text.get("x"))
+    anchor_y = text.get("anchor_y", text.get("y"))
+    try:
+        anchor = (float(anchor_x), float(anchor_y))
+        missing = (float(missing_end[0]), float(missing_end[1]))
+    except (TypeError, ValueError, IndexError):
+        return []
+
+    candidates = {}
+    for line in lines:
+        if line.file_id != label.file_id or line.sheet_id != label.sheet_id or not line.source_block_name:
+            continue
+        x1, y1 = float(line.start_x), float(line.start_y)
+        x2, y2 = float(line.end_x), float(line.end_y)
+        if abs(y1 - y2) > 0.02 or not 1.2 <= float(line.length) <= 3.1:
+            continue
+        x0, xmax = min(x1, x2), max(x1, x2)
+        y = (y1 + y2) / 2.0
+        gap = anchor[0] - xmax
+        if not -0.2 <= gap <= 2.0 or abs(y - anchor[1]) > 0.8:
+            continue
+        projected = (max(x0, min(xmax, missing[0])), y)
+        if math.hypot(missing[0] - projected[0], missing[1] - projected[1]) > 1.1:
+            continue
+        geometry = (line.source_block_name, round(x0, 2), round(y, 2), round(xmax, 2))
+        entry = candidates.setdefault(geometry, {"geometry": geometry, "lines": []})
+        entry["lines"].append(line)
+
+    shapes = {}
+    entries = list(candidates.values())
+    for index, first in enumerate(entries):
+        block, x0, y0, x1 = first["geometry"]
+        for second in entries[index + 1:]:
+            other_block, ox0, oy, ox1 = second["geometry"]
+            if block != other_block:
+                continue
+            shorter = min(x1 - x0, ox1 - ox0)
+            overlap = max(0.0, min(x1, ox1) - max(x0, ox0))
+            if (0.35 <= abs(y0 - oy) <= 0.65 and shorter > 0
+                    and overlap >= 0.6 * shorter and abs(x1 - ox1) <= 0.75):
+                key = tuple(sorted((first["geometry"], second["geometry"])))
+                shapes[key] = (first, second)
+    if len(shapes) != 1:
+        return []
+    first, second = next(iter(shapes.values()))
+    return sorted(first["lines"] + second["lines"], key=lambda line: line.line_id)
+
+
+def _fill_one_sided_pairs_from_connect_labels(output, connect_labels, line_groups, audit_ids, ledger, text_map, lines=()):
     """Complete one-sided legacy pairs from unclaimed SuperWORKS connect texts.
 
     Fail-closed: a pair is completed only when exactly one unclaimed connect text on the same
@@ -724,6 +781,11 @@ def _fill_one_sided_pairs_from_connect_labels(output, connect_labels, line_group
         label, value, _, height = labels[li]
         d_missing, d_present, second, tolerance = measures[(position, li)]
         text_id = label.text.get("text_id")
+        stub_lines = _connect_label_stub_lines(label, missing_end, lines)
+        stub_line_ids = sorted({line.line_id for line in stub_lines})
+        frame_group = group_by_id.get(pair.line_group_id)
+        frame_member_line_ids = list(frame_group.member_line_ids) if frame_group is not None else []
+        geometry_verified = bool(stub_line_ids)
         evidence = copy.deepcopy(pair.evidence)
         evidence["sw_missing_side_fill"] = {"source": "superworks_connect_label", "side": missing_side,
             "connect_label_id": label.record_id, "text_id": text_id,
@@ -732,12 +794,23 @@ def _fill_one_sided_pairs_from_connect_labels(output, connect_labels, line_group
             "bbox_distance": round(d_missing, 4), "present_end_bbox_distance": round(d_present, 4),
             "second_end_distance": None if math.isinf(second) else round(second, 4),
             "tolerance": round(tolerance, 4), "separation_min": SW_LABEL_SEPARATION,
-            "scoring": "not_applicable_review"}
+            "scoring": "superworks_label_and_unique_symbol_stub" if geometry_verified else "not_applicable_review",
+            "frame_group_id_rejected_as_support": pair.line_group_id,
+            "frame_member_line_ids_rejected_as_support": frame_member_line_ids,
+            "support_line_ids": stub_line_ids,
+            "support_geometry_verified": geometry_verified}
+        if geometry_verified:
+            evidence["ordinary_pair_eligible"] = False
+            evidence["electrical_union_eligible"] = False
         new = replace(pair,
             **{f"{missing_side}_value": value, f"{missing_side}_text_id": text_id,
                f"{missing_side}_coord_x": label.text.get("x"), f"{missing_side}_coord_y": label.text.get("y")},
-            status="review", confidence_bucket="review",
-            rationale=f"SuperWORKS connect text supplies the missing {missing_side} endpoint; legacy score does not apply, retained for review",
+            status="pass" if geometry_verified else "review",
+            confidence=0.99 if geometry_verified else pair.confidence,
+            confidence_bucket="high" if geometry_verified else "review",
+            rationale=(f"SuperWORKS connect text and unique symbol stub verify the missing {missing_side} endpoint"
+                       if geometry_verified else
+                       f"SuperWORKS connect text supplies the missing {missing_side} endpoint; legacy score does not apply, retained for review"),
             evidence=evidence)
         output[index] = new
         ledger.append({"element_key": f"sw_missing_side:{label.record_id}", "category": _category(pair, new),
@@ -2195,7 +2268,7 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
                 left_coord_x=label.start_x,left_coord_y=label.start_y,right_coord_x=label.end_x,right_coord_y=label.end_y,
                 pair_key=f"{label.endpoint_identity}->{destination}"))
         replace_claims(old,new,f"part:{label.record_id}")
-    _fill_one_sided_pairs_from_connect_labels(output, data.connect_labels, line_groups, audit_ids, ledger, text_map)
+    _fill_one_sided_pairs_from_connect_labels(output, data.connect_labels, line_groups, audit_ids, ledger, text_map, lines=lines)
     # Wire-route admission runs after every line-group, strip and component producer, and before the
     # dictionary check, so admitted pairs receive the same warnings and strip contract as other SW pairs.
     if not native_only and getattr(data, "wire_route_pages", None) and wire_route_sheet_numbers is not None:
