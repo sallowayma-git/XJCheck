@@ -71,7 +71,9 @@ def test_pipeline_persists_incomplete_extraction_machine_status(tmp_path: Path) 
 
     audit_dir = rerun_audit_from_findings(project_dir, load_config())
     issues = pd.read_parquet(audit_dir / "issues.parquet")
+    diagnostics = pd.read_json(audit_dir / "recognition_gap_diagnostics.jsonl", lines=True)
     assert len(pd.read_parquet(project_dir / "findings" / "pairs.parquet")) == 0
-    assert set(issues["rule_id"]) == {"R-DATA-INCOMPLETE-EXTRACTION"}
-    assert issues.iloc[0]["status"] == "review"
-    assert issues.iloc[0]["pair_id"] is None
+    assert issues.empty
+    assert set(diagnostics["rule_id"]) == {"R-DATA-INCOMPLETE-EXTRACTION"}
+    assert diagnostics.iloc[0]["status"] == "review"
+    assert pd.isna(diagnostics.iloc[0]["pair_id"])

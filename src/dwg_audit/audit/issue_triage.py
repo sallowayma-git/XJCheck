@@ -1,13 +1,13 @@
-"""User-facing issue triage: handling class + review groups.
+"""User-facing triage for approved actionable issue families.
 
-Electrical reviewers need three clear certainty buckets, not raw rule IDs:
+Electrical reviewers need three clear certainty buckets for actionable findings:
 
 - error:   确定性错误 — hard conflicts the engine is confident about (fail-closed)
 - warning: 可能有错误 — important anomalies / topology that may still be wrong
-- review:  须人工校验 — machine-uncertain extraction; must not be auto-cleared
+- review:  须人工校验 — an actionable drawing finding whose pairing needs review
 
-Principle: 可以误报，但不能错过真实错误 (false positives allowed; false
-negatives on real conflicts are not).
+Uncertain recognition and incomplete extraction stay in diagnostics. They do not
+become user issue rows until their rule family is reviewed and promoted.
 
 Also assigns review_group_* so the desktop can collapse hundreds of
 similar symptoms (e.g. low-confidence pairs on the same sheet) into
@@ -20,6 +20,24 @@ from collections import Counter
 from typing import Any
 
 from dwg_audit.domain.models import Issue
+from dwg_audit.domain.issue_layers import USER_VISIBLE_RULE_IDS
+
+
+# Only rule families that have passed the user-facing evidence/actionability
+# contract belong in the issue queue. Everything else remains available in the
+# audit diagnostics until that rule family is reviewed and promoted.
+def split_issue_layers(issues: list[Issue]) -> tuple[list[Issue], list[Issue]]:
+    """Split issues into actionable user findings and internal diagnostics.
+
+    Rule promotion is deliberate: an unreviewed uncertainty must not silently
+    become an item in the user's work queue just because it has an Issue row.
+    """
+    user_issues: list[Issue] = []
+    diagnostic_issues: list[Issue] = []
+    for issue in issues:
+        target = user_issues if issue.rule_id in USER_VISIBLE_RULE_IDS else diagnostic_issues
+        target.append(issue)
+    return user_issues, diagnostic_issues
 
 # rule_id -> stable issue_type (reserved catalog on AuditRule.output_issue_type)
 RULE_ISSUE_TYPES: dict[str, str] = {
@@ -130,8 +148,12 @@ def classify_and_group_issues(issues: list[Issue]) -> list[Issue]:
 
 
 def summarize_handling(issues: list[Issue] | list[dict[str, Any]]) -> dict[str, int]:
+    """Count only user-queue issues; internal diagnostics are not issue counts."""
     counts = {"error": 0, "warning": 0, "review": 0, "other": 0}
     for item in issues:
+        rule_id = item.rule_id if isinstance(item, Issue) else str(item.get("rule_id") or "")
+        if rule_id not in USER_VISIBLE_RULE_IDS:
+            continue
         if isinstance(item, Issue):
             handling = str((item.evidence or {}).get("handling_class") or "")
             if not handling:

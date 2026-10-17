@@ -1,5 +1,6 @@
 from dwg_audit.audit.issue_triage import classify_and_group_issues
 from dwg_audit.audit.issue_triage import summarize_handling
+from dwg_audit.audit.issue_triage import split_issue_layers
 from dwg_audit.audit.rule_base import IssueFactory
 from dwg_audit.domain.models import LineGroup
 from dwg_audit.domain.models import Pair
@@ -57,8 +58,12 @@ def test_classify_and_group_issues_assigns_handling_buckets_and_sheet_groups() -
     counts = summarize_handling(classified)
 
     assert counts["error"] == 1
-    assert counts["warning"] == 1
+    assert counts["warning"] == 0
     assert counts["review"] == 2
+
+    user_issues, diagnostic_issues = split_issue_layers(classified)
+    assert {issue.issue_id for issue in user_issues} == {low_a.issue_id, low_b.issue_id, conflict.issue_id}
+    assert [issue.issue_id for issue in diagnostic_issues] == [branch.issue_id]
 
     by_id = {issue.issue_id: issue for issue in classified}
     assert by_id[conflict.issue_id].evidence["handling_class"] == "error"

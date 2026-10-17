@@ -22,6 +22,7 @@ from dwg_audit.report.artifacts import export_existing_reports
 from dwg_audit.report.artifacts import load_report_frames
 from dwg_audit.audit.audit_v2 import build_audit_v2_issue_clusters
 from dwg_audit.audit.audit_v2 import summarize_audit_v2
+from dwg_audit.audit.issue_triage import split_issue_layers
 from dwg_audit.audit.failure_queue import build_failure_queue
 from dwg_audit.audit.failure_queue import summarize_failure_queue
 from dwg_audit.audit.series_chains import build_terminal_series_chains
@@ -51,6 +52,8 @@ _AUDIT_COPY_NAMES = (
     "runtime_profile.json",
     "sw_recognition_diagnostics.parquet",
     "sw_recognition_gate.json",
+    "recognition_gap_diagnostics.jsonl",
+    "recognition_gap_diagnostic_summary.json",
 )
 
 _CORE_FRAME_NAMES = (
@@ -109,6 +112,8 @@ def _finalize_rerun(
     report_formats: list[str],
     event_sink: Any = None,
     issue_count: int,
+    diagnostic_count: int,
+    coverage_ratio: float | None,
 ) -> Path:
     _prune_profile_artifacts(audit_dir, profile, report_formats)
     (audit_dir / "runtime_profile.json").write_text(
@@ -137,6 +142,8 @@ def _finalize_rerun(
             project_dir=str(project_dir),
             audit_dir=str(audit_dir),
             issue_count=issue_count,
+            diagnostic_count=diagnostic_count,
+            coverage_ratio=coverage_ratio,
             run_profile=profile,
         )
 
@@ -187,9 +194,11 @@ def rerun_audit_from_findings(
             item[name] = json.loads(value) if isinstance(value, str) and value else None
     gap = resolve_recognition_gaps(
         observations, pairs, pages, issues, facts=_gap_facts(project_dir, frames, line_groups))
-    issues.extend(gap.issues)
-    _write_gap_diagnostics(project_dir / "audit", gap)
-    issues.extend(build_incomplete_extraction_issues(project_dir, issues, pages))
+    all_issues = [*issues, *gap.issues]
+    all_issues.extend(build_incomplete_extraction_issues(project_dir, all_issues, pages))
+    issues, diagnostic_issues = split_issue_layers(all_issues)
+    _write_gap_diagnostics(project_dir / "audit", gap, diagnostic_issues)
+    coverage_ratio = _coverage_ratio(project_dir)
     if event_sink is not None:
         event_sink.emit(
             "progress",
@@ -197,6 +206,8 @@ def rerun_audit_from_findings(
             project_dir=str(project_dir),
             pair_count=len(pairs),
             issue_count=len(issues),
+            diagnostic_count=len(diagnostic_issues),
+            coverage_ratio=coverage_ratio,
         )
         for issue in issues:
             evidence = issue.evidence or {}
@@ -270,6 +281,8 @@ def rerun_audit_from_findings(
             report_formats=report_formats,
             event_sink=event_sink,
             issue_count=len(issues),
+            diagnostic_count=len(diagnostic_issues),
+            coverage_ratio=coverage_ratio,
         )
 
     # Phase 120: Audit V2 clusters + Failure Queue (shadow; legacy issues retained).
@@ -313,7 +326,7 @@ def rerun_audit_from_findings(
             endpoint_identities = None
 
     audit_v2_clusters = build_audit_v2_issue_clusters(
-        issues,
+        all_issues,
         equivalence=equivalence,
         endpoint_identities=endpoint_identities,
     )
@@ -321,7 +334,7 @@ def rerun_audit_from_findings(
         cluster.setdefault("issue_count", len(cluster.get("issue_ids") or []))
         cluster.setdefault("schema_version", "audit-v2-cluster-v1")
     audit_v2_summary = {
-        **summarize_audit_v2(audit_v2_clusters, issues),
+        **summarize_audit_v2(audit_v2_clusters, all_issues),
         "legacy_issue_stream_retained": True,
     }
     cross_page_candidate_count = _parquet_count(
@@ -416,6 +429,8 @@ def rerun_audit_from_findings(
         report_formats=report_formats,
         event_sink=event_sink,
         issue_count=len(issues),
+        diagnostic_count=len(diagnostic_issues),
+        coverage_ratio=coverage_ratio,
     )
 
 
@@ -534,8 +549,8 @@ _GAP_DIAGNOSTIC_COLUMNS = (
 )
 
 
-def _write_gap_diagnostics(audit_dir: Path, gap) -> None:
-    """Observations the gate moved out of the issue list, with the step that did it (audit only)."""
+def _write_gap_diagnostics(audit_dir: Path, gap, diagnostic_issues: list) -> None:
+    """Persist full non-user issue details and observations closed by the gate."""
     audit_dir.mkdir(parents=True, exist_ok=True)
     rows = [
         {name: (json.dumps(value, ensure_ascii=False) if isinstance(value, (list, dict, tuple)) else value)
@@ -551,6 +566,78 @@ def _write_gap_diagnostics(audit_dir: Path, gap) -> None:
         json.dumps({"suppressed_by": by_step, "stats": gap.stats}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    from collections import Counter, defaultdict
+
+    issue_frame = _issue_frame(diagnostic_issues)
+    (audit_dir / "recognition_gap_diagnostics.jsonl").write_text(
+        issue_frame.to_json(orient="records", lines=True, force_ascii=False),
+        encoding="utf-8",
+    )
+    by_rule = Counter()
+    by_handling = Counter()
+    by_presentation = Counter()
+    by_reason = Counter()
+    by_observation_reason = Counter()
+    by_sheet = defaultdict(lambda: {"issue_count": 0, "unclosed_count": 0, "issue_ids": [], "sheet_id": None,
+                                    "sheet_no": None, "filename": None})
+    for issue in diagnostic_issues:
+        evidence = issue.evidence or {}
+        by_rule[issue.rule_id] += 1
+        by_handling[str(evidence.get("handling_class") or "other")] += 1
+        by_presentation[str(evidence.get("presentation") or "issue")] += 1
+        resolution_reasons = evidence.get("resolution_reason_codes")
+        if not resolution_reasons:
+            resolution_reasons = [
+                reason
+                for observation in evidence.get("resolution_observations") or []
+                for reason in (observation.get("reason_codes") or [])
+            ]
+        if not resolution_reasons:
+            resolution_reasons = evidence.get("reason_codes") or ["unspecified"]
+        for reason in resolution_reasons:
+            by_reason[str(reason)] += 1
+        for reason in evidence.get("reason_codes") or []:
+            by_observation_reason[str(reason)] += 1
+        sheet_key = str(issue.sheet_id or "project")
+        sheet = by_sheet[sheet_key]
+        sheet["sheet_id"] = issue.sheet_id
+        sheet["sheet_no"] = issue.sheet_no
+        sheet["filename"] = issue.filename
+        sheet["issue_count"] += 1
+        if issue.rule_id == "R-RECOGNITION-GAP":
+            sheet["unclosed_count"] += 1
+        sheet["issue_ids"].append(issue.issue_id)
+    summary = {
+        "schema_version": "recognition-diagnostics-v1",
+        "diagnostic_count": len(diagnostic_issues),
+        "unclosed_count": sum(1 for issue in diagnostic_issues if issue.rule_id == "R-RECOGNITION-GAP"),
+        "by_rule": dict(sorted(by_rule.items())),
+        "by_handling_class": dict(sorted(by_handling.items())),
+        "by_presentation": dict(sorted(by_presentation.items())),
+        "by_reason_code": dict(sorted(by_reason.items())),
+        "by_observation_reason_code": dict(sorted(by_observation_reason.items())),
+        "by_sheet": sorted(by_sheet.values(), key=lambda item: (str(item["sheet_no"] or ""), str(item["sheet_id"] or ""))),
+        "suppressed_count": len(gap.suppressed),
+        "suppressed_by": dict(sorted(by_step.items())),
+        "gate_stats": gap.stats,
+    }
+    (audit_dir / "recognition_gap_diagnostic_summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _coverage_ratio(project_dir: Path) -> float | None:
+    findings_path = project_dir / "findings" / "findings.json"
+    if not findings_path.is_file():
+        return None
+    try:
+        findings = json.loads(findings_path.read_text(encoding="utf-8"))
+        value = findings.get("entity_coverage_summary", {}).get("coverage_ratio")
+        return float(value) if value is not None else None
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
 
 
 def _sheet_record(row: pd.Series) -> SheetRecord:
