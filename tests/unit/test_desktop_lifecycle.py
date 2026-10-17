@@ -571,3 +571,102 @@ def test_render_project_preview_focus_boxes_work_without_an_issue(tmp_path: Path
     assert 'data-focus-count="1"' in svg
     focus = preview["focus_bbox"]
     assert focus[0] <= 145.0 and focus[2] >= 175.0 and focus[1] <= 60.0 and focus[3] >= 70.0
+
+
+
+_LOCATED_EVIDENCE = {
+    "filename": "01.dwg",
+    "sheet_no": "01",
+    "locations": [
+        {
+            "location_id": "L1",
+            "role": "wire",
+            "sheet_id": "S1",
+            "file_id": "F1",
+            "filename": "01.dwg",
+            "sheet_no": "01",
+            "sheet_title": "",
+            "sheet_order": 1,
+            "terminal": None,
+            "peer": None,
+            "text_id": None,
+            "point": None,
+            "bbox": [10.0, 20.0, 90.0, 40.0],
+            "renderable": True,
+        }
+    ],
+}
+
+
+def test_render_project_preview_flags_missing_sheet_geometry_for_located_issue(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    _record_demo_run(
+        store,
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        artifact_dir="",
+        issue=_issue_payload(evidence=dict(_LOCATED_EVIDENCE)),
+    )
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    assert preview["source"] == "sqlite_summary"
+    assert preview["geometry_missing"] is True
+    assert preview["geometry_missing_message"] == "该图纸几何数据缺失，请重新校验项目"
+
+
+def test_render_project_preview_does_not_flag_unlocated_issue_as_missing_geometry(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    _record_demo_run(
+        store,
+        run_id="session-a:demo-project",
+        session_id="session-a",
+        artifact_dir="",
+        issue=_issue_payload(evidence={}),
+    )
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    assert preview["source"] == "sqlite_summary"
+    assert preview["geometry_missing"] is False
+    assert preview["geometry_missing_message"] is None
+
+
+def test_render_project_preview_does_not_flag_missing_geometry_when_sheet_geometry_is_retained(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    run_id = "session-a:demo-project"
+    _record_demo_run(
+        store,
+        run_id=run_id,
+        session_id="session-a",
+        artifact_dir="",
+        issue=_issue_payload(evidence=dict(_LOCATED_EVIDENCE)),
+    )
+    store.replace_preview_geometries(
+        run_id,
+        [{"schema_version": 1, "sheet_id": "S1", "pages": [], "lines": [], "texts": [], "line_groups": [], "blocks": []}],
+    )
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+    )
+
+    assert preview["source"] == "sqlite_summary"
+    assert preview["geometry_missing"] is False
+    assert preview["geometry_missing_message"] is None

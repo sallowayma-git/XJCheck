@@ -27,6 +27,7 @@ import {
   loadUiScale,
   persistUiScale,
 } from "./lib/uiScale"
+import { loadPreviewMode, persistPreviewMode, type PreviewMode } from "./lib/previewPolicy"
 import { loadResultToolbarCollapsed, saveResultToolbarCollapsed } from "./lib/viewPrefs"
 import {
   beginRequest,
@@ -49,6 +50,12 @@ import type { DiagnosticPage, IssueQuery, IssueSummary, ProjectResult, ProjectSu
 type Screen = "launch" | "process" | "result" | "settings"
 
 const ISSUE_STATUS_OPTIONS = ["open", "ignored", "resolved", "false_positive"] as const
+
+const PREVIEW_MODE_OPTIONS: ReadonlyArray<{ value: PreviewMode; label: string; hint: string }> = [
+  { value: "auto", label: "自动预览", hint: "选中问题即渲染图纸位置" },
+  { value: "manual-only", label: "手动预览", hint: "点击“生成预览”后再渲染" },
+  { value: "off", label: "关闭预览", hint: "不渲染图纸，只显示文字说明" },
+]
 const RESULT_ISSUE_PAGE_SIZE = 500
 
 function buildIssueQuery(
@@ -218,6 +225,7 @@ function App() {
   const projectLoadGenerationRef = useRef(createRequestGeneration())
   const screenIntentGenerationRef = useRef(createRequestGeneration())
   const [uiScale, setUiScale] = useState<number>(loadUiScale)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(loadPreviewMode)
   const [settings, setSettings] = useState<DesktopSettings>(loadSettings)
   const [settingsSnapshot, setSettingsSnapshot] = useState<DesktopSettings | null>(null)
   const [settingsSaving, setSettingsSaving] = useState(false)
@@ -281,6 +289,11 @@ function App() {
     setSettings((prev) => {
       return normalizeSettings({ ...prev, ...patch })
     })
+  }
+
+  function updatePreviewMode(next: PreviewMode): void {
+    setPreviewMode(next)
+    persistPreviewMode(next)
   }
 
   function updateUiScale(next: number): void {
@@ -2104,6 +2117,7 @@ function App() {
                   runId={result?.run.run_id ?? null}
                   clientSessionId={previewClientSessionId}
                   clientSessionEpoch={previewClientSessionEpoch}
+                  previewMode={previewMode}
                   statusDraft={issueStatusDraft}
                   statusOptions={ISSUE_STATUS_OPTIONS}
                   statusLabel={labelIssueStatus}
@@ -2162,6 +2176,29 @@ function App() {
               </div>
               <div className="ui-scale-sample">
                 示例：图纸端子校验 · 跨页核对 · 110kV 变压器保护柜
+              </div>
+            </div>
+
+            <div className="panel panel-pad">
+              <div className="section-heading">
+                <h3>图纸预览</h3>
+                <span>{PREVIEW_MODE_OPTIONS.find((option) => option.value === previewMode)?.label}</span>
+              </div>
+              <p className="muted">选中问题后在结果页预览图纸位置。设置仅保存在本机，切换后立即生效。</p>
+              <div className="preview-mode-control" role="radiogroup" aria-label="图纸预览方式">
+                {PREVIEW_MODE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={previewMode === option.value}
+                    className={`preview-mode-option${previewMode === option.value ? " is-active" : ""}`}
+                    onClick={() => updatePreviewMode(option.value)}
+                  >
+                    <strong>{option.label}</strong>
+                    <span>{option.hint}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
