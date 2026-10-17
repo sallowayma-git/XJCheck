@@ -8,6 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+from dwg_audit.desktop.lifecycle import session_lease
 from dwg_audit.desktop.sidecar_entry import _configure_text_stream_utf8
 from dwg_audit.desktop.sidecar_entry import _run_lightweight_command
 from dwg_audit.desktop.sidecar_entry import _run_oda_worker_command
@@ -218,6 +221,52 @@ def test_python_sidecar_entrypoint_lists_projects_without_full_cli(tmp_path: Pat
     assert handled is True
     assert json.loads(capsys.readouterr().out) == {"projects": []}
 
+
+def test_python_sidecar_entrypoint_batch_deletes_without_full_cli(tmp_path: Path, capsys) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace = tmp_path / "sessions"
+
+    handled = _run_lightweight_command(
+        [
+            "delete-project-records",
+            "--project-id",
+            "ghost-a",
+            "--project-id",
+            "ghost-b",
+            "--workspace-root",
+            str(workspace),
+            "--state-db",
+            str(state_db),
+        ]
+    )
+
+    assert handled is True
+    payload = json.loads(capsys.readouterr().out)
+    assert [item["project_id"] for item in payload["results"]] == ["ghost-a", "ghost-b"]
+    assert all(item["ok"] and item["not_found"] for item in payload["results"])
+    assert payload["failed_count"] == 0
+
+
+def test_python_sidecar_entrypoint_batch_delete_reports_busy_workspace(tmp_path: Path, capsys) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace = tmp_path / "sessions"
+
+    with session_lease(workspace, "analysis"):
+        with pytest.raises(SystemExit) as exc_info:
+            _run_lightweight_command(
+                [
+                    "delete-project-records",
+                    "--project-id",
+                    "ghost-a",
+                    "--workspace-root",
+                    str(workspace),
+                    "--state-db",
+                    str(state_db),
+                ]
+            )
+
+    assert exc_info.value.code == 1
+    assert "分析进行中" in capsys.readouterr().err
 
 def test_python_sidecar_entrypoint_cleans_workspace_without_full_cli(tmp_path: Path, capsys) -> None:
     state_db = tmp_path / "desktop_state.db"

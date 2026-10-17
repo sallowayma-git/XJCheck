@@ -491,23 +491,23 @@ async fn desktop_set_issue_status(
     run_sidecar_json_async(app, args).await
 }
 
+/// Deletes several project records in one sidecar call. The sidecar takes the
+/// workspace lease once and reports a per-project outcome, so the frontend can
+/// roll back only the projects that failed.
 #[tauri::command]
-async fn desktop_delete_project(app: AppHandle, project_id: String) -> Result<Value, String> {
+async fn desktop_delete_projects(app: AppHandle, project_ids: Vec<String>) -> Result<Value, String> {
     let workspace_root = default_workspace_root()?;
     let state_db = default_state_db_path()?;
-    run_sidecar_json_async(
-        app,
-        vec![
-            "delete-project-record".to_string(),
-            "--project-id".to_string(),
-            project_id,
-            "--workspace-root".to_string(),
-            workspace_root.to_string_lossy().to_string(),
-            "--state-db".to_string(),
-            state_db.to_string_lossy().to_string(),
-        ],
-    )
-    .await
+    let mut args = vec!["delete-project-records".to_string()];
+    for project_id in project_ids {
+        args.push("--project-id".to_string());
+        args.push(project_id);
+    }
+    args.push("--workspace-root".to_string());
+    args.push(workspace_root.to_string_lossy().to_string());
+    args.push("--state-db".to_string());
+    args.push(state_db.to_string_lossy().to_string());
+    run_sidecar_json_async(app, args).await
 }
 
 #[tauri::command]
@@ -1869,7 +1869,7 @@ fn main() {
             desktop_render_preview,
             desktop_cancel_preview,
             desktop_set_issue_status,
-            desktop_delete_project,
+            desktop_delete_projects,
             desktop_cleanup_workspaces,
             desktop_read_settings,
             desktop_write_settings
