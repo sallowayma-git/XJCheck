@@ -29,3 +29,6 @@ apps/desktop/.vite/
 
 # Local release deliverables (built installers / exe copies)
 release/
+
+# Local Claude Code project settings (launch configs, personal permissions)
+.claude/
