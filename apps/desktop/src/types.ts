@@ -13,6 +13,8 @@ export type RecentProject = {
   sheet_count: number
   pair_count: number
   issue_count: number
+  diagnostic_count?: number
+  coverage_ratio?: number | null
 }
 
 export type ProjectRun = RecentProject & {
@@ -93,6 +95,36 @@ export type ProjectSummary = {
   page_finding_count: number
   issue_stats: IssueStats
   filter_options: IssueFilterOptions
+}
+
+export type RecognitionPageSummary = {
+  sheet_id: string | null
+  sheet_no: string | null
+  filename: string | null
+  coverage_ratio: number | null
+  unclosed_count: number
+}
+
+export type RecognitionSummary = {
+  coverage_ratio: number | null
+  unclosed_count: number
+  diagnostic_count: number
+  by_rule: Record<string, number>
+  by_presentation: Record<string, number>
+  by_reason_code: Record<string, number>
+  by_observation_reason_code?: Record<string, number>
+  suppressed_count: number
+  suppressed_by: Record<string, number>
+  by_page: RecognitionPageSummary[]
+}
+
+export type DiagnosticPage = {
+  run: ProjectRun
+  items: IssueSummary[]
+  total: number
+  limit: number
+  offset: number
+  recognition_summary: RecognitionSummary
 }
 
 export type IssueStats = {
@@ -258,6 +290,8 @@ export type AuditFinishedEvent = {
   project_dir: string
   audit_dir?: string
   issue_count: number
+  diagnostic_count?: number
+  coverage_ratio?: number | null
 }
 
 export type ProjectStoredEvent = {
@@ -270,6 +304,8 @@ export type ProjectStoredEvent = {
   sheet_count: number
   pair_count: number
   issue_count: number
+  diagnostic_count?: number
+  coverage_ratio?: number | null
 }
 
 export type RunFinishedEvent = {

@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog"
 import type { UnlistenFn } from "@tauri-apps/api/event"
 
 import { emitMockAnalyzeSessionEvents, getMockPreview, getMockProjectResult, getMockRecentProjects } from "./mockData"
-import type { AnalyzeSessionRequest, AnalyzeSessionResult, IssueDetail, IssueFilterOptions, IssuePage, IssueQuery, IssueStats, IssueStatus, IssueSummary, PreviewPayload, ProjectResult, ProjectSummary, RecentProject, SidecarEvent } from "../types"
+import type { AnalyzeSessionRequest, AnalyzeSessionResult, DiagnosticPage, IssueDetail, IssueFilterOptions, IssuePage, IssueQuery, IssueStats, IssueStatus, IssueSummary, PreviewPayload, ProjectResult, ProjectSummary, RecentProject, SidecarEvent } from "../types"
 import type { DesktopSettings } from "./settings"
 import { defaultSettings, normalizeSettings } from "./settings"
 
@@ -16,6 +16,7 @@ const COMMANDS = {
   loadResult: "desktop_load_result",
   loadResultSummary: "desktop_load_result_summary",
   loadResultIssues: "desktop_load_result_issues",
+  loadResultDiagnostics: "desktop_load_result_diagnostics",
   loadResultIssueDetail: "desktop_load_result_issue_detail",
   cancelResultLoad: "desktop_cancel_result_load",
   registerPreviewSession: "desktop_register_preview_session",
@@ -180,6 +181,54 @@ export const desktopApi = {
       }
     } catch (error) {
       throw toDesktopError("加载问题列表失败。", error)
+    }
+  },
+
+  async loadResultDiagnostics(
+    projectId: string,
+    limit = 100,
+    offset = 0,
+    runId: string | null = null,
+  ): Promise<DiagnosticPage> {
+    if (!isTauri()) {
+      const mock = getMockProjectResult(projectId)
+      return {
+        run: mock.run,
+        items: [],
+        total: 0,
+        limit,
+        offset,
+        recognition_summary: {
+          coverage_ratio: null,
+          unclosed_count: 0,
+          diagnostic_count: 0,
+          by_rule: {},
+          by_presentation: {},
+          by_reason_code: {},
+          by_observation_reason_code: {},
+          suppressed_count: 0,
+          suppressed_by: {},
+          by_page: [],
+        },
+      }
+    }
+    try {
+      const page = await invoke<DiagnosticPage>(COMMANDS.loadResultDiagnostics, {
+        projectId,
+        runId,
+        limit,
+        offset,
+      })
+      return {
+        ...page,
+        run: normalizeRecentProject(page.run),
+        items: page.items.map(normalizeIssueSummary),
+        total: Number(page.total ?? page.items.length),
+        limit: Number(page.limit ?? limit),
+        offset: Number(page.offset ?? offset),
+      }
+    } catch (error) {
+      throw toDesktopError("加载诊断明细失败。", error)
     }
   },
 
