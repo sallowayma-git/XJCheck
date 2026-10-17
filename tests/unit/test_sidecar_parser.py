@@ -39,3 +39,21 @@ def test_parse_terminal_xml(tmp_path: Path, sample_terminal_xml: str) -> None:
     assert len(strips) == 2
     assert strips[0].name == "ZD"
     assert extract_device_name(xml_path) == "示例项目.prj"
+
+
+def test_parse_text_prj_strips_trailing_tab_from_title(tmp_path: Path) -> None:
+    prj = tmp_path / "tabbed.prj"
+    content = (
+        "$BEGIN CONTENT OF PRJ\n"
+        "二次原理图:\n"
+        "4 4000908886-030000\t.dwg<>\n"
+        "$END CONTENT OF PRJ\n"
+    )
+    prj.write_text(content, encoding="utf-8")
+
+    entries, _notes, _encoding, _warnings = parse_prj(prj)
+
+    assert len(entries) == 1
+    assert entries[0].title == "4000908886-030000"
+    assert entries[0].filename == "4 4000908886-030000.dwg"
+    assert "\t" not in entries[0].title

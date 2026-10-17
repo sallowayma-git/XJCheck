@@ -94,14 +94,53 @@ function bboxFromPoints(points: Array<unknown>, padding: number): BBox | null {
   return [Math.min(...xs) - padding, Math.min(...ys) - padding, Math.max(...xs) + padding, Math.max(...ys) + padding]
 }
 
-function stripDrawingExtension(filename: string): string {
-  return filename.replace(/\.(dwg|dxf)$/i, "").trim()
+/** 去掉首尾空白（含 \t）；非字符串视为空。 */
+export function cleanText(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim()
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value)
+  }
+  return ""
+}
+
+export function stripDrawingExtension(filename: unknown): string {
+  return cleanText(filename).replace(/\.(dwg|dxf)$/i, "").trim()
+}
+
+export type SheetNameSource = "title" | "file" | "page" | "none"
+
+export type SheetName = {
+  /** 主标签：图名，回退到文件名、页码、未标注 */
+  name: string
+  source: SheetNameSource
+  /** 页码原文（trim 后），仅作副文字 */
+  page: string
+}
+
+/**
+ * 图纸主标签的唯一来源（问题列表、详情、位置、对比句、差异表共用）。
+ * 回退顺序：图名（sheet_title）→ 文件名去 .dwg/.dxf → “第 N 页” → “未标注图纸”。
+ */
+export function resolveSheetName(input: { sheetTitle?: unknown; filename?: unknown; sheetNo?: unknown }): SheetName {
+  const page = cleanText(input.sheetNo)
+  const title = cleanText(input.sheetTitle)
+  if (title) {
+    return { name: title, source: "title", page }
+  }
+  const file = stripDrawingExtension(input.filename)
+  if (file) {
+    return { name: file, source: "file", page }
+  }
+  if (page) {
+    return { name: `第 ${page} 页`, source: "page", page }
+  }
+  return { name: "未标注图纸", source: "none", page }
 }
 
 function buildSheetLabel(sheetNo: string, sheetTitle: string, filename: string): string {
-  const number = sheetNo.trim()
-  const head = number ? `图 ${number}` : stripDrawingExtension(filename) || "未标注图号"
-  return [head, sheetTitle.trim()].filter(Boolean).join(" ")
+  return resolveSheetName({ sheetTitle, filename, sheetNo }).name
 }
 
 const UNNUMBERED_TERMINAL = "无编号"
@@ -126,14 +165,14 @@ function buildLocationTitle(view: Pick<LocationView, "role" | "sheetLabel" | "te
 function viewFromLocation(location: IssueLocation, index: number): LocationView {
   const bbox = normalizeBBox(location.bbox) ?? bboxFromPoints([location.point, location.wire?.start, location.wire?.end], 12)
   const role = location.role
-  const sheetLabel = buildSheetLabel(location.sheet_no ?? "", location.sheet_title ?? "", location.filename ?? "")
+  const sheetLabel = buildSheetLabel(cleanText(location.sheet_no), cleanText(location.sheet_title), cleanText(location.filename))
   const base = {
     key: location.location_id || `loc-${index}`,
     role,
     roleLabel: LOCATION_ROLE_LABELS[role] ?? LOCATION_ROLE_LABELS.reference,
     sheetId: location.sheet_id ?? null,
-    sheetNo: location.sheet_no ?? "",
-    sheetTitle: location.sheet_title ?? "",
+    sheetNo: cleanText(location.sheet_no),
+    sheetTitle: cleanText(location.sheet_title),
     sheetLabel,
     terminal: location.terminal ?? "",
     peer: location.peer ?? "",
@@ -250,7 +289,7 @@ export function summarizeLocations(views: LocationView[]): string {
   if (!first) {
     return "未定位"
   }
-  const head = first.sheetNo ? `图 ${first.sheetNo}` : first.sheetLabel
+  const head = first.sheetLabel
   return views.length > 1 ? `${head} 等 ${views.length} 处` : head
 }
 
@@ -271,8 +310,7 @@ function describeSheet(view: LocationView | undefined): string {
   if (!view) {
     return "【未标注图纸】"
   }
-  const number = view.sheetNo ? `图 ${view.sheetNo}` : "图纸"
-  return `【${[number, view.sheetTitle].filter(Boolean).join(" ")}】`
+  return `【${view.sheetLabel}】`
 }
 
 function firstTerminal(views: LocationView[], fallback: string): string {
@@ -293,11 +331,11 @@ export function buildComparisonSentence(views: LocationView[]): string | null {
   const peers = new Set(picked.map((view) => view.peer).filter(Boolean))
   if (peers.size > 1) {
     return picked
-      .map((view) => `${view.sheetNo ? `图 ${view.sheetNo}` : view.sheetLabel} 接到 ${view.peer || "未识别"}`)
+      .map((view) => `${view.sheetLabel} 接到 ${view.peer || "未识别"}`)
       .join("，")
   }
   return picked
-    .map((view) => `${view.sheetNo ? `图 ${view.sheetNo}` : view.sheetLabel} 的 ${view.terminal || "未识别"}`)
+    .map((view) => `${view.sheetLabel} 的 ${view.terminal || "未识别"}`)
     .join(" 与 ")
     .concat(peers.size === 1 ? ` 都接到了 ${Array.from(peers)[0]}` : "")
 }
@@ -323,7 +361,7 @@ export function buildComparisonRows(views: LocationView[]): ComparisonRow[] {
   const allDiffer = counts.size > 1 && modes.length > 1
   return views.map((view) => ({
     key: view.key,
-    sheetLabel: view.sheetNo ? `图 ${view.sheetNo}${view.sheetTitle ? ` ${view.sheetTitle}` : ""}` : view.sheetLabel,
+    sheetLabel: view.sheetLabel,
     terminal: view.terminal || "—",
     peer: view.peer || "—",
     roleLabel: view.roleLabel,
@@ -435,7 +473,7 @@ export function buildIssueNarrative(
         "warning",
         "请确认",
         "多个端子接到了同一个端子",
-        `端子 ${shared || "—"} 同时被 ${l1 || "—"}（${v1?.sheetNo ? `图 ${v1.sheetNo}` : "未标注图纸"}）与 ${l2}（${v2?.sheetNo ? `图 ${v2.sheetNo}` : "未标注图纸"}）连接。一个端子通常只接一根线，请确认是否重复连线。`,
+        `端子 ${shared || "—"} 同时被 ${l1 || "—"}（${v1?.sheetLabel ?? "未标注图纸"}）与 ${l2}（${v2?.sheetLabel ?? "未标注图纸"}）连接。一个端子通常只接一根线，请确认是否重复连线。`,
         "若是并联或分支，在图上标注保留；否则修正其中一个端子号。",
       )
     }

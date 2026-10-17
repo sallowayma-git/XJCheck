@@ -169,11 +169,11 @@ def scan_project(input_path: Path, config: dict) -> ProjectScanResult:
         prj_entry = prj_map.get(dwg_path.name)
         prefix_match = _PAGE_PREFIX_PATTERN.match(dwg_path.stem)
         page_no = prefix_match.group("page") if prefix_match else None
-        title = prefix_match.group("title") if prefix_match else dwg_path.stem
+        title = (prefix_match.group("title") if prefix_match else dwg_path.stem).strip()
         page_source = "filename" if prefix_match else "unknown"
 
         if prj_entry:
-            title = prj_entry.title
+            title = prj_entry.title.strip()
             page_no = prj_entry.page_no or page_no
             page_source = "prj"
 

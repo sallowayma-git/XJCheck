@@ -16,7 +16,13 @@ import logoUrl from "./assets/logo.png"
 import { AuditFlowDiagram, type AuditFlowDot, type AuditFlowCoverage } from "./components/AuditFlowDiagram"
 import { desktopApi } from "./lib/desktopApi"
 import { IssueInspector, type InspectorTechnicalRow } from "./components/IssueInspector"
-import { getIssueLocations, summarizeLocations } from "./lib/issueLocations"
+import {
+  cleanText,
+  getIssueLocations,
+  resolveSheetName,
+  stripDrawingExtension,
+  summarizeLocations,
+} from "./lib/issueLocations"
 import {
   UI_SCALE_DEFAULT,
   UI_SCALE_MAX,
@@ -1610,7 +1616,6 @@ function App() {
                             <td>
                               <div className="issue-title-cell">
                                 <strong>{issue.title}</strong>
-                                <span className="muted">{labelIssueCategory(issue)}</span>
                               </div>
                             </td>
                             <td>{formatPair(issue)}</td>
@@ -1776,7 +1781,7 @@ function App() {
                           <strong>逐页覆盖</strong>
                           {recognitionSummary.by_page.map((page) => (
                             <span key={page.sheet_id ?? page.sheet_no ?? page.filename ?? "page"}>
-                              图 {page.sheet_no || page.filename || page.sheet_id || "?"} · 覆盖率 {formatCoverageRatio(page.coverage_ratio)} · {page.unclosed_count} 处未闭合
+                              {resolveSheetName({ filename: page.filename, sheetNo: page.sheet_no }).name} · 覆盖率 {formatCoverageRatio(page.coverage_ratio)} · {page.unclosed_count} 处未闭合
                             </span>
                           ))}
                         </div>
@@ -1807,7 +1812,7 @@ function App() {
                                   : "诊断项"
                                 return (
                                   <tr key={issue.issue_id}>
-                                    <td>{issue.sheet_no || issue.filename || issue.sheet_id || "项目级"}</td>
+                                    <td>{issue.sheet_no || issue.filename ? formatSourcePage(issue).label : issue.sheet_id || "项目级"}</td>
                                     <td>{issue.title || issue.summary}</td>
                                     <td>{[issue.left_value, issue.right_value].filter(Boolean).join(" → ") || "未识别"}</td>
                                     <td>{reasons}</td>
@@ -2035,7 +2040,6 @@ function App() {
                                     <td>
                                       <div className="issue-title-cell">
                                         <strong>{issue.title}</strong>
-                                        <span className="muted">{labelIssueCategory(issue)}</span>
                                       </div>
                                     </td>
                                     <td>{formatPair(issue)}</td>
@@ -2620,63 +2624,29 @@ function shortenPath(path: string, max = 48): string {
 }
 
 function formatDrawingName(filename: string | null | undefined): string {
-  if (!filename) {
-    return ""
-  }
-  return filename.replace(/\.(dwg|dxf)$/i, "")
+  return stripDrawingExtension(filename)
 }
 
-function readSheetTitle(issue: Pick<IssueSummary, "evidence" | "filename">): string {
-  const fromEvidence = issue.evidence?.sheet_title
-  if (typeof fromEvidence === "string" && fromEvidence.trim()) {
-    return fromEvidence.trim()
-  }
-  const stem = formatDrawingName(issue.filename)
-  if (!stem) {
-    return ""
-  }
-  // Common project naming: "05 差动保护回路图" → title after leading page number.
-  const matched = stem.match(/^\s*\d+[A-Za-z]?\s+(.+)$/)
-  return matched?.[1]?.trim() || stem
-}
-
+/** 来源图纸：主标签是图名（回退见 resolveSheetName），页码只作副文字且仅在主标签是图名时显示。 */
 function formatSourcePage(
   issue: Pick<IssueSummary, "filename" | "sheet_no" | "evidence">,
 ): { label: string; secondary: string; detail: string } {
-  const sheetNo = String(issue.sheet_no || issue.evidence?.sheet_no || "").trim()
-  const title = readSheetTitle(issue)
-  const fileLabel = formatDrawingName(issue.filename) || String(issue.evidence?.filename || "").replace(/\.(dwg|dxf)$/i, "")
+  const sheetNo = cleanText(issue.sheet_no) || cleanText(issue.evidence?.sheet_no)
+  const fileName = cleanText(issue.filename) || cleanText(issue.evidence?.filename)
+  const sheet = resolveSheetName({ sheetTitle: issue.evidence?.sheet_title, filename: fileName, sheetNo })
+  const pageText = sheetNo ? `第 ${sheetNo} 页` : ""
+  const showPage = sheet.source === "title" || sheet.source === "file"
+  const fileLabel = stripDrawingExtension(fileName)
   const detailParts = [
-    sheetNo ? `图号 ${sheetNo}` : null,
-    title || null,
-    fileLabel && fileLabel !== title ? `文件 ${fileLabel}` : null,
+    sheet.name,
+    pageText || null,
+    fileLabel && fileLabel !== sheet.name ? `文件 ${fileLabel}` : null,
   ].filter((value): value is string => Boolean(value))
-
-  if (sheetNo && title) {
-    return {
-      label: `图号 ${sheetNo}`,
-      secondary: title,
-      detail: detailParts.join(" · "),
-    }
+  return {
+    label: sheet.name,
+    secondary: showPage ? pageText : "",
+    detail: detailParts.join(" · "),
   }
-  if (sheetNo) {
-    return {
-      label: `图号 ${sheetNo}`,
-      secondary: fileLabel && fileLabel !== sheetNo ? fileLabel : "",
-      detail: detailParts.join(" · ") || `图号 ${sheetNo}`,
-    }
-  }
-  if (title) {
-    return {
-      label: title,
-      secondary: fileLabel && fileLabel !== title ? fileLabel : "",
-      detail: detailParts.join(" · ") || title,
-    }
-  }
-  if (fileLabel) {
-    return { label: fileLabel, secondary: "", detail: fileLabel }
-  }
-  return { label: "来源页未识别", secondary: "", detail: "未能关联到具体图纸页" }
 }
 
 function readSuperworksEvidence(issue: Pick<IssueSummary, "evidence">): Record<string, unknown> | null {
