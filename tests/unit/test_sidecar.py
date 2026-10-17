@@ -674,3 +674,60 @@ def _write_preview_project_output(project_dir: Path) -> None:
             }
         ]
     ).to_parquet(audit / "issues.parquet", index=False)
+
+
+def test_sidecar_issue_payload_carries_locations_for_legacy_frames() -> None:
+    from dwg_audit.desktop.sidecar import _issue_payloads
+
+    frame = pd.DataFrame(
+        [
+            {
+                "issue_id": "I-LEG",
+                "rule_id": "R-MANY-TO-ONE",
+                "issue_type": "many_to_one",
+                "title": "多对一配对",
+                "summary": "多对一配对",
+                "severity": "review",
+                "status": "open",
+                "confidence": 0.8,
+                "sheet_id": "S1",
+                "file_id": "F1",
+                "line_group_id": "G1",
+                "left_value": "101",
+                "right_value": "201",
+                "primary_pair_id": "P1",
+                "related_pair_ids": json.dumps(["P2"]),
+                "sheet_ids": json.dumps(["S1"]),
+                "values": json.dumps(["101", "201"]),
+                "evidence_refs": json.dumps(
+                    [
+                        {"pair_id": "P1", "sheet_id": "S1", "file_id": "F1", "filename": "01.dwg", "sheet_no": "01",
+                         "line_group_id": "G1", "line_start": [0, 0], "line_end": [10, 0], "left_value": "101",
+                         "right_value": "201", "point": [1, 2], "peer_point": [12, 2]},
+                    ]
+                ),
+                "evidence": json.dumps({"filename": "01.dwg", "sheet_no": "01"}),
+            },
+            {
+                "issue_id": "I-DIAG",
+                "rule_id": "R-SOME-DIAGNOSTIC",
+                "issue_type": "diagnostic",
+                "title": "诊断",
+                "severity": "info",
+                "status": "open",
+                "confidence": 0.1,
+                "sheet_id": "S1",
+                "evidence": json.dumps({}),
+                "evidence_refs": json.dumps([]),
+            },
+        ]
+    )
+
+    payloads = {payload["issue_id"]: payload for payload in _issue_payloads(frame)}
+
+    legacy = payloads["I-LEG"]["locations"]
+    assert len(legacy) == 1
+    assert legacy[0]["sheet_id"] == "S1" and legacy[0]["terminal"] == "201" and legacy[0]["peer"] == "101"
+    assert legacy[0]["renderable"] is True and legacy[0]["bbox"] is not None
+    assert payloads["I-LEG"]["evidence_refs"][0]["pair_id"] == "P1"
+    assert payloads["I-DIAG"]["locations"] == []

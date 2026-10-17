@@ -65,6 +65,10 @@ class IssueFactory:
             "rationale": pair.rationale,
             "pair_evidence": pair.evidence,
         }
+        left_point = _pair_text_point(pair, "left")
+        right_point = _pair_text_point(pair, "right")
+        evidence["left_point"] = left_point
+        evidence["right_point"] = right_point
         if extra:
             evidence.update(extra)
 
@@ -77,6 +81,7 @@ class IssueFactory:
                 {
                     "pair_id": related_pair.pair_id,
                     "sheet_id": related_pair.sheet_id,
+                    "file_id": related_pair.file_id,
                     "filename": related_sheet.filename if related_sheet else None,
                     "sheet_no": related_sheet.sheet_no if related_sheet else None,
                     "sheet_title": related_sheet.sheet_title if related_sheet else None,
@@ -88,6 +93,13 @@ class IssueFactory:
                     "line_end": (
                         [related_group.end_x, related_group.end_y] if related_group else None
                     ),
+                    "left_value": related_pair.left_value,
+                    "right_value": related_pair.right_value,
+                    "left_text_id": related_pair.left_text_id,
+                    "right_text_id": related_pair.right_text_id,
+                    "point": _pair_text_point(related_pair, "left"),
+                    "peer_point": _pair_text_point(related_pair, "right"),
+                    "source_kind": _pair_source_kind(related_pair),
                 }
             )
 
@@ -126,6 +138,22 @@ class IssueFactory:
             values=sorted(set(values)),
             evidence_refs=evidence_refs,
         )
+
+
+def _pair_text_point(pair: Pair, side: str) -> list[float] | None:
+    """Terminal text insert point of one side of a pair, or None when the text was not located."""
+    x = getattr(pair, f"{side}_coord_x", None)
+    y = getattr(pair, f"{side}_coord_y", None)
+    if x is None or y is None:
+        return None
+    return [float(x), float(y)]
+
+
+def _pair_source_kind(pair: Pair) -> str:
+    """Whether a pair came from a table mapping or an ordinary drawn connection."""
+    if (pair.evidence or {}).get("source") == "table_mapping" or pair.pair_kind == "table_mapping":
+        return "table_mapping"
+    return "ordinary_pair"
 
 
 @dataclass(slots=True)

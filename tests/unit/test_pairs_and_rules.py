@@ -209,6 +209,102 @@ def test_rules_detect_cross_page_conflict() -> None:
     assert sorted(conflict.evidence["conflicting_values"]) == ["201", "202"]
     assert conflict.evidence["one_to_many_classification"] == "conflict"
     assert conflict.evidence_refs[0]["filename"] == "a.dwg"
+    locations = conflict.evidence["locations"]
+    assert len(locations) == 2
+    assert {loc["sheet_id"] for loc in locations} == {"S1", "S2"}
+    assert {loc["terminal"] for loc in locations} == {"101"}
+    assert sorted(loc["peer"] for loc in locations) == ["201", "202"]
+    for loc in locations:
+        assert loc["role"] == "conflict_party"
+        assert loc["renderable"] is True
+        x0, y0, x1, y1 = loc["bbox"]
+        assert x0 <= 0.0 <= 10.0 <= x1 and y0 <= 0.0 <= y1
+        assert loc["wire"]["line_group_id"] in {"G1", "G2"}
+
+
+def test_cross_page_location_bbox_contains_terminal_text_points() -> None:
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"},
+             left_text_id="T1", right_text_id="T2", left_coord_x=1.0, left_coord_y=2.0, right_coord_x=12.0, right_coord_y=2.0),
+        Pair("P2", "G2", "S2", "F2", "PC2", "101", "202", 0.96, "pass", "ok", [], "high", {"filename": "b.dwg"},
+             left_text_id="T3", right_text_id="T4", left_coord_x=3.0, left_coord_y=5.0, right_coord_x=13.0, right_coord_y=5.0),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S2", "F2", 0, 0, 10, 0, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [
+        SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True),
+        SheetRecord("S2", "F2", "b.dwg", 2, "02", "B", "二次原理图", "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    conflict = next(issue for issue in issues if issue.rule_id == "R-CROSS-PAGE-CONFLICT")
+    assert conflict.evidence["left_point"] == [1.0, 2.0]
+    assert conflict.evidence["right_point"] == [12.0, 2.0]
+    by_sheet = {loc["sheet_id"]: loc for loc in conflict.evidence["locations"]}
+    first = by_sheet["S1"]
+    assert first["point"] == [1.0, 2.0] and first["peer_point"] == [12.0, 2.0]
+    assert first["text_id"] == "T1" and first["pair_id"] == "P1"
+    x0, y0, x1, y1 = first["bbox"]
+    assert x0 <= 1.0 and x1 >= 12.0 and y0 <= 2.0 and y1 >= 2.0
+    assert by_sheet["S2"]["filename"] == "b.dwg" and by_sheet["S2"]["sheet_no"] == "02"
+
+
+def test_many_to_one_locations_use_shared_right_value_as_terminal() -> None:
+    pairs = [
+        Pair("P1", "G1", "S1", "F1", "PC1", "101", "201", 0.97, "pass", "ok", [], "high", {"filename": "a.dwg"},
+             left_text_id="T1", right_text_id="T2", left_coord_x=1.0, left_coord_y=2.0, right_coord_x=12.0, right_coord_y=2.0),
+        Pair("P2", "G2", "S1", "F1", "PC2", "102", "201", 0.96, "pass", "ok", [], "high", {"filename": "a.dwg"},
+             left_text_id="T3", right_text_id="T4", left_coord_x=3.0, left_coord_y=5.0, right_coord_x=12.0, right_coord_y=2.0),
+    ]
+    groups = [
+        LineGroup("G1", "S1", "F1", 0, 0, 10, 0, 10, 0.9, ["L1"], ["CONNECT"]),
+        LineGroup("G2", "S1", "F1", 0, 4, 10, 4, 10, 0.9, ["L2"], ["CONNECT"]),
+    ]
+    sheets = [SheetRecord("S1", "F1", "a.dwg", 1, "01", "A", "二次原理图", "primary", "filename", True)]
+
+    issues = build_issues(pairs, groups, sheets, DEFAULT_CONFIG)
+
+    many = [issue for issue in issues if issue.rule_id == "R-MANY-TO-ONE"]
+    assert many
+    locations = many[0].evidence["locations"]
+    assert len(locations) == 2
+    assert {loc["terminal"] for loc in locations} == {"201"}
+    assert sorted(loc["peer"] for loc in locations) == ["101", "102"]
+    assert all(loc["renderable"] for loc in locations)
+
+
+def test_table_mapping_conflict_locations_mark_table_row_and_wire() -> None:
+    pairs = [
+        Pair(
+            pair_id="P0001", line_group_id=None, sheet_id="S0001", file_id="F0001", selected_pair_candidate_id=None,
+            left_value="101", right_value="102", confidence=0.95, status="pass", rationale="table mapping",
+            confidence_bucket="high", evidence={"source": "table_mapping"}, pair_kind="table_mapping",
+            left_text_id="TA", left_coord_x=5.0, left_coord_y=5.0, right_coord_x=6.0, right_coord_y=5.0,
+        ),
+        Pair(
+            pair_id="P0002", line_group_id="G9", sheet_id="S0002", file_id="F0002", selected_pair_candidate_id=None,
+            left_value="101", right_value="103", confidence=0.96, status="pass", rationale="ordinary",
+            confidence_bucket="high", evidence={}, pair_kind="ordinary_pair",
+            left_text_id="TB", left_coord_x=7.0, left_coord_y=7.0, right_coord_x=8.0, right_coord_y=7.0,
+        ),
+    ]
+    groups = [LineGroup("G9", "S0002", "F0002", 7, 7, 30, 7, 23, 0.9, ["L9"], ["CONNECT"])]
+    sheets = [
+        SheetRecord("S0001", "F0001", "t1.dwg", 1, "01", "t1", None, "primary", "filename", True),
+        SheetRecord("S0002", "F0002", "t2.dwg", 2, "02", "t2", None, "primary", "filename", True),
+    ]
+
+    issues = build_issues(pairs, groups, sheets, deepcopy(DEFAULT_CONFIG))
+
+    table = [issue for issue in issues if issue.rule_id == "R-TABLE-MAPPING-SOURCE-CONFLICT"]
+    assert table
+    by_role = {loc["role"]: loc for loc in table[0].evidence["locations"]}
+    assert by_role["table_row"]["sheet_id"] == "S0001" and by_role["table_row"]["peer"] == "102"
+    assert by_role["wire"]["sheet_id"] == "S0002" and by_role["wire"]["wire"]["line_group_id"] == "G9"
+    assert by_role["wire"]["renderable"] is True
 
 
 def test_rules_accept_schematic_backplate_inline_component_correspondence() -> None:

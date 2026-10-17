@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from dwg_audit.domain.issue_locations import attach_locations
 from dwg_audit.domain.models import Issue
 from dwg_audit.domain.issue_layers import USER_VISIBLE_RULE_IDS
 
@@ -130,6 +131,7 @@ def classify_and_group_issues(issues: list[Issue]) -> list[Issue]:
         issue.evidence["issue_family"] = family
         group_key = _review_group_key(issue, handling)
         issue.evidence["review_group_key"] = group_key
+        attach_locations(issue)
 
     group_sizes = Counter(
         str((issue.evidence or {}).get("review_group_key") or issue.issue_id) for issue in issues

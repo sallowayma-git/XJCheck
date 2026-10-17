@@ -408,6 +408,7 @@ async fn desktop_render_preview(
     issue_id: Option<String>,
     sheet_id: Option<String>,
     line_group_id: Option<String>,
+    focus_json: Option<String>,
 ) -> Result<Value, String> {
     let state_db = default_state_db_path()?;
     let mut args = vec![
@@ -428,6 +429,11 @@ async fn desktop_render_preview(
     }
     if let Some(value) = line_group_id {
         args.push("--line-group-id".to_string());
+        args.push(value);
+    }
+    // JSON array of [x0, y0, x1, y1] location boxes; the CLI validates it.
+    if let Some(value) = focus_json.filter(|value| !value.trim().is_empty()) {
+        args.push("--focus-json".to_string());
         args.push(value);
     }
     let token = begin_preview_request(

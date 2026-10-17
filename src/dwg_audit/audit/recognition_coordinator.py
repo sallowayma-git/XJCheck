@@ -616,8 +616,7 @@ def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=N
                     refs = prior.evidence.setdefault("resolution_observations", [])
                     if not any(r["record_id"] == item["record_id"] for r in refs):
                         refs.append(item)
-                        prior.evidence_refs.append({"kind": "native_resolution", "object_key": item.get("object_key"),
-                            "sheet_id": item.get("sheet_id"), "coords": item.get("coords"), "port_ids": port_ids})
+                        prior.evidence_refs.append(_observation_ref(item, endpoints, port_ids, page_map))
                 continue
             seen.add(key)
             page = page_map.get(item.get("sheet_id"))
@@ -628,6 +627,8 @@ def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=N
                 "presentation": "terminal" if terminals else "observation", "terminal_port_ids": terminals}
             if len(coords) == 4:
                 evidence.update(line_start=coords[:2], line_end=coords[2:])
+            if page is not None:
+                evidence.update(sheet_title=page.sheet_title)
             conflict = state == "CONFIRMED_CONFLICT"
             message = f"SuperWORKS metadata conflict {reason} on {object_id}." if conflict else "原生关系缺少可核验的端点或连接证据，需要审核。"
             result.append(Issue("ISW" + hashlib.sha256(repr(key).encode()).hexdigest()[:20],
@@ -640,6 +641,7 @@ def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=N
                 issue_type="superworks_conflict" if conflict else "recognition_gap",
                 explanation="保留原始句柄和物理位置；补证没有消除这项冲突或缺口。",
                 recommended_action="在图纸对应位置检查元数据、端点及连接。"))
+            result[-1].evidence_refs = [_observation_ref(item, endpoints, port_ids, page_map, primary=True)]
             issue_by_key[key] = result[-1]
             stats["emitted:terminal" if terminals else "emitted:observation"] += 1
     for (file_id, sheet_id), items in sorted(page_items.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))):
@@ -648,6 +650,24 @@ def resolve_recognition_gaps(observations, pairs, pages, existing=(), *, facts=N
         stats["page_summary_observations"] += len(items)
     from dwg_audit.audit.issue_triage import classify_and_group_issues
     return GapResolution(classify_and_group_issues(result), suppressed, dict(stats))
+
+
+def _observation_ref(item, endpoints, port_ids, page_map, *, primary=False) -> dict:
+    """Witness reference for one SuperWORKS observation: where it is, which ports it touches, what it says."""
+    page = page_map.get(item.get("sheet_id"))
+    coords = _json_list(item.get("coords"))
+    has_line = len(coords) == 4
+    sides = [{"value": side.get("value"), "category": side.get("category"),
+              "ports": _json_list(side.get("ports"))} for side in endpoints]
+    return {"kind": "native_resolution", "primary": primary, "record_id": item.get("record_id"),
+        "object_key": item.get("object_key"), "file_id": item.get("file_id"), "sheet_id": item.get("sheet_id"),
+        "filename": page.filename if page else None, "sheet_no": page.sheet_no if page else None,
+        "sheet_title": page.sheet_title if page else None, "sheet_order": page.sheet_order if page else None,
+        "line_group_id": item.get("line_group_id"),
+        "line_start": coords[:2] if has_line else None, "line_end": coords[2:] if has_line else None,
+        "coords": item.get("coords"), "port_ids": port_ids,
+        "left_value": endpoints[0].get("value"), "right_value": endpoints[1].get("value"),
+        "left": sides[0], "right": sides[1]}
 
 
 def _gate(item, endpoints, facts, steps, sheet_pairs):

@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from dwg_audit.domain.issue_locations import derive_locations_from_refs
 from dwg_audit.domain.issue_layers import USER_VISIBLE_RULE_IDS
 
 
@@ -1369,7 +1370,7 @@ def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:
                 "review": "须人工校验",
             }.get(handling_class, "须人工校验"),
         }
-    return {
+    summary = {
         "issue_id": row["issue_id"],
         "rule_id": row["rule_id"],
         "issue_type": row["issue_type"] or row["rule_id"],
@@ -1406,6 +1407,9 @@ def _issue_row_to_summary(row: sqlite3.Row) -> dict[str, Any]:
         "sheet_ids": json.loads(row["sheet_ids_json"] or "[]"),
         "values": json.loads(row["values_json"] or "[]"),
     }
+    # Results stored before locations existed are normalized from their refs; DB rows are unchanged.
+    summary["locations"] = derive_locations_from_refs(summary)
+    return summary
 
 
 def _row_to_run(row: sqlite3.Row) -> dict[str, Any]:

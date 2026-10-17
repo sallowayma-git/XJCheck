@@ -334,3 +334,61 @@ def test_native_gaps_group_per_sheet_without_dropping_physical_witnesses():
     assert len(issues) == 2 and len({i.evidence["object_key"] for i in issues}) == 2
     assert len({i.evidence["review_group_id"] for i in issues}) == 1
     assert all(i.evidence["review_group_size"] == 2 for i in issues)
+
+
+def test_coordinator_conflict_locations_cover_every_port_on_the_same_sheet():
+    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    page = SheetRecord("S1", "F1", "01.dwg", 1, "01", "Focus", "二次原理图", "primary", "filename", True)
+
+    def port(port_id, identity, start, end):
+        return {"port_id": port_id, "endpoint_identity": identity, "start": start, "end": end, "tolerance": 1.0,
+            "category": "端子", "symbol_id": "SYM1", "port_number": 1, "validation": {}}
+
+    observation = {"record_id": "R1", "object_key": "F1:h1:left", "file_id": "F1", "sheet_id": "S1",
+        "line_group_id": "G1", "state": "CONFIRMED_CONFLICT", "reason_codes": ["dangling_label_handle"],
+        "coords": [0, 0, 20, 0], "source_handles": [],
+        "left": {"category": "端子", "value": "1XD2", "port_ids": ["P1", "P2"], "wire_touched": True,
+            "ports": [port("P1", "1XD2", [0, 0], [1, 1]), port("P2", "1XD2", [0, 2], [1, 3])]},
+        "right": {"category": "内部元件", "value": None, "port_ids": ["P3"], "wire_touched": True,
+            "ports": [{"port_id": "P3", "endpoint_identity": "", "start": [20, 0], "end": [21, 1], "tolerance": 1.0,
+                "category": "内部元件", "symbol_id": "SYM2", "port_number": 2, "validation": {}}]}}
+
+    issues = build_resolution_issues([observation], [], [page])
+
+    conflict = [issue for issue in issues if issue.rule_id == "R-SUPERWORKS-CONFLICT"]
+    assert len(conflict) == 1
+    locations = conflict[0].evidence["locations"]
+    assert len(locations) == 3
+    assert {loc["sheet_id"] for loc in locations} == {"S1"}
+    assert all(loc["renderable"] and loc["bbox"] for loc in locations)
+    terminals = sorted(loc["terminal"] for loc in locations)
+    assert terminals == ["1XD2", "1XD2", "无编号"]
+    unnumbered = next(loc for loc in locations if loc["terminal"] == "无编号")
+    assert unnumbered["role"] == "unnumbered_symbol"
+    assert unnumbered["point"] == [20.5, 0.5]
+    # The primary observation is the first reference, with its sheet and line geometry.
+    primary_ref = conflict[0].evidence_refs[0]
+    assert primary_ref["primary"] is True and primary_ref["sheet_id"] == "S1"
+    assert primary_ref["filename"] == "01.dwg" and primary_ref["line_start"] == [0, 0]
+
+
+def test_merged_witness_observation_is_a_reference_of_the_same_review_item():
+    from dwg_audit.audit.recognition_coordinator import build_resolution_issues
+    page = SheetRecord("S1", "F1", "01.dwg", 1, "01", "Focus", "二次原理图", "primary", "filename", True)
+    ports = {"left": {"category": "端子", "value": "1XD2", "port_ids": ["P1"], "wire_touched": True,
+        "ports": [{"port_id": "P1", "endpoint_identity": "1XD2", "start": [0, 0], "end": [1, 1], "tolerance": 1.0,
+            "category": "端子", "symbol_id": "SYM1", "port_number": 1, "validation": {}}]},
+        "right": {"category": "装置端子", "value": "323", "port_ids": ["P2"], "wire_touched": True,
+        "ports": [{"port_id": "P2", "endpoint_identity": "323", "start": [20, 0], "end": [21, 1], "tolerance": 1.0,
+            "category": "装置端子", "symbol_id": "SYM2", "port_number": 1, "validation": {}}]}}
+    base = {"file_id": "F1", "sheet_id": "S1", "line_group_id": "G1", "state": "CONFIRMED_CONFLICT",
+        "reason_codes": ["dangling_label_handle"], "coords": [0, 0, 20, 0], "source_handles": []}
+    observations = [{**base, "record_id": f"R{n}", "object_key": f"F1:h{n}:left", **ports} for n in (1, 2)]
+
+    issues = build_resolution_issues(observations, [], [page])
+
+    assert len([issue for issue in issues if issue.rule_id == "R-SUPERWORKS-CONFLICT"]) == 1
+    refs = next(issue for issue in issues if issue.rule_id == "R-SUPERWORKS-CONFLICT").evidence_refs
+    assert [ref["kind"] for ref in refs] == ["native_resolution", "native_resolution"]
+    assert refs[0]["primary"] is True and refs[1]["primary"] is False
+    assert refs[1]["filename"] == "01.dwg" and refs[1]["line_end"] == [20, 0]

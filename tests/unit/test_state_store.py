@@ -494,3 +494,65 @@ def test_diagnostics_are_stored_separately_from_user_issue_pages(tmp_path: Path)
     assert diagnostics_page is not None
     assert diagnostics_page["total"] == 1
     assert [item["issue_id"] for item in diagnostics_page["items"]] == ["GAP-1"]
+
+
+def test_issue_summary_exposes_locations_and_derives_them_for_legacy_results(tmp_path: Path) -> None:
+    store = DesktopStateStore(tmp_path / "desktop_state.db")
+    store.record_run(
+        run_id="session-loc:demo-project",
+        session_id="session-loc",
+        project_id="demo-project",
+        project_name="Demo Project",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=2,
+        pair_count=2,
+        issue_count=2,
+        metadata={"demo": True},
+    )
+    legacy = {
+        "issue_id": "I-LEGACY",
+        "rule_id": "R-CROSS-PAGE-CONFLICT",
+        "issue_type": "cross_page_conflict",
+        "title": "跨页配对冲突",
+        "severity": "critical",
+        "status": "open",
+        "confidence": 0.9,
+        "sheet_id": "S1",
+        "file_id": "F1",
+        "filename": "01.dwg",
+        "sheet_no": "01",
+        "line_group_id": "G1",
+        "left_value": "101",
+        "right_value": "201",
+        "primary_pair_id": "P1",
+        "evidence": {"filename": "01.dwg", "sheet_no": "01"},
+        "evidence_refs": [
+            {"pair_id": "P1", "sheet_id": "S1", "file_id": "F1", "filename": "01.dwg", "sheet_no": "01",
+             "line_group_id": "G1", "line_start": [0, 0], "line_end": [10, 0], "left_value": "101",
+             "right_value": "201", "left_text_id": "T1", "point": [1.0, 2.0], "peer_point": [12.0, 2.0]},
+            {"pair_id": "P2", "sheet_id": "S2", "file_id": "F2", "filename": "02.dwg", "sheet_no": "02",
+             "line_group_id": "G2", "line_start": [0, 0], "line_end": [10, 0], "left_value": "101",
+             "right_value": "202", "left_text_id": "T3", "point": [3.0, 5.0], "peer_point": [13.0, 5.0]},
+        ],
+        "related_pair_ids": ["P2"],
+        "sheet_ids": ["S1", "S2"],
+        "values": ["101", "201", "202"],
+    }
+    stored = {**legacy, "issue_id": "I-STORED", "evidence": {
+        "filename": "01.dwg", "sheet_no": "01",
+        "locations": [{"location_id": "I-STORED#1", "role": "conflict_party", "sheet_id": "S9", "renderable": True,
+                       "bbox": [0, 0, 1, 1], "terminal": "101", "peer": "201"}]}}
+    store.replace_issue_summaries("session-loc:demo-project", [legacy, stored])
+
+    loaded = {issue["issue_id"]: issue for issue in store.load_latest_project_result("demo-project")["issues"]}
+
+    derived = loaded["I-LEGACY"]["locations"]
+    assert [loc["sheet_id"] for loc in derived] == ["S1", "S2"]
+    assert [loc["peer"] for loc in derived] == ["201", "202"]
+    assert all(loc["renderable"] and loc["bbox"] for loc in derived)
+    assert derived[0]["point"] == [1.0, 2.0] and derived[0]["wire"]["line_group_id"] == "G1"
+    # Stored locations are kept as they are; the DB row itself is not rewritten.
+    assert loaded["I-STORED"]["locations"][0]["sheet_id"] == "S9"
+    assert loaded["I-LEGACY"]["evidence_refs"][0]["pair_id"] == "P1"
