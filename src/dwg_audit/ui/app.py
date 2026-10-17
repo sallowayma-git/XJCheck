@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import streamlit as st
 
+from dwg_audit.audit.issue_triage import USER_VISIBLE_RULE_IDS
 from dwg_audit.report import load_report_frames
 from dwg_audit.ui.actions import discover_project_outputs
 from dwg_audit.ui.actions import run_ui_analysis
@@ -147,6 +149,39 @@ def _sort_issues(issues: pd.DataFrame, sort_key: str) -> pd.DataFrame:
     return ranked
 
 
+def _user_visible_issues(issues: pd.DataFrame) -> pd.DataFrame:
+    """Keep only reviewed, actionable rule families in every issue surface."""
+    if issues.empty or "rule_id" not in issues.columns:
+        return issues.iloc[0:0].copy()
+    return issues.loc[issues["rule_id"].astype(str).isin(USER_VISIBLE_RULE_IDS)].copy()
+
+
+def _load_issue_diagnostics(project_dir: Path, all_issues: pd.DataFrame) -> pd.DataFrame:
+    """Load the complete internal stream, including legacy mixed issue files."""
+    path = project_dir / "audit" / "recognition_gap_diagnostics.jsonl"
+    if path.is_file():
+        try:
+            return pd.read_json(path, lines=True)
+        except (OSError, ValueError):
+            return pd.DataFrame()
+    if all_issues.empty or "rule_id" not in all_issues.columns:
+        return pd.DataFrame()
+    return all_issues.loc[
+        ~all_issues["rule_id"].astype(str).isin(USER_VISIBLE_RULE_IDS)
+    ].copy()
+
+
+def _load_diagnostic_summary(project_dir: Path) -> dict[str, Any]:
+    path = project_dir / "audit" / "recognition_gap_diagnostic_summary.json"
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def _persist_issue_status(project_dir: Path, issue_id: str, status: str) -> None:
     audit_dir = project_dir / "audit"
     parquet_path = audit_dir / "issues.parquet"
@@ -174,7 +209,7 @@ def _default_project_index(project_dirs: list[Path]) -> int:
 
 def _summary_metrics(manifest: dict[str, Any], frames: dict[str, pd.DataFrame]) -> dict[str, int]:
     pairs = frames.get("pairs", pd.DataFrame())
-    issues = frames.get("issues", pd.DataFrame())
+    issues = _user_visible_issues(frames.get("issues", pd.DataFrame()))
     return {
         "files": int(manifest.get("file_count", 0)),
         "valid_dwg": int(manifest.get("valid_dwg_files", 0)),
@@ -361,22 +396,43 @@ def main() -> None:
     manifest: dict[str, Any] = {}
     frames: dict[str, pd.DataFrame] = {}
     findings_payload: dict[str, Any] = {}
+    all_issues = pd.DataFrame()
+    diagnostic_issues = pd.DataFrame()
+    diagnostic_summary: dict[str, Any] = {}
     metrics = {"files": 0, "valid_dwg": 0, "pairs": 0, "issues": 0}
     if selected is not None:
         manifest = json.loads((selected / "manifest.json").read_text(encoding="utf-8"))
         frames = load_report_frames(selected)
+        all_issues = frames.get("issues", pd.DataFrame())
+        diagnostic_issues = _load_issue_diagnostics(selected, all_issues)
+        frames["issues"] = _user_visible_issues(all_issues)
+        diagnostic_summary = _load_diagnostic_summary(selected)
         findings_payload = _load_findings_payload(selected)
         metrics = _summary_metrics(manifest, frames)
+    coverage_summary = findings_payload.get("entity_coverage_summary") or {}
+    coverage_ratio = coverage_summary.get("coverage_ratio")
+    if coverage_ratio is not None:
+        coverage_percent = float(coverage_ratio) * 100 if abs(float(coverage_ratio)) <= 1 else float(coverage_ratio)
+        coverage_label = f"{coverage_percent:.1f}%"
+    else:
+        coverage_label = "Not provided"
+    diagnostic_count = int(diagnostic_summary.get("diagnostic_count") or len(diagnostic_issues))
+    if not diagnostic_issues.empty and "rule_id" in diagnostic_issues.columns:
+        unclosed_count = int(diagnostic_issues["rule_id"].astype(str).eq("R-RECOGNITION-GAP").sum())
+    else:
+        unclosed_count = int(diagnostic_summary.get("unclosed_count") or 0)
 
     with summary_tab:
         if selected is None:
             st.info("No project artifacts found yet. Use the Analyze tab to import and process a project directory.")
         else:
-            metric_cols = st.columns(4)
+            metric_cols = st.columns(6)
             metric_cols[0].metric("Files", metrics["files"])
             metric_cols[1].metric("Valid DWG", metrics["valid_dwg"])
             metric_cols[2].metric("Pairs", metrics["pairs"])
             metric_cols[3].metric("Issues", metrics["issues"])
+            metric_cols[4].metric("Recognition Coverage", coverage_label)
+            metric_cols[5].metric("Unclosed", unclosed_count)
             st.json(
                 {
                     "project_name": manifest["project_name"],
@@ -384,6 +440,21 @@ def main() -> None:
                     "warnings": manifest.get("warnings", []),
                 }
             )
+            with st.expander(f"Recognition diagnostics · {diagnostic_count} items", expanded=False):
+                st.write(
+                    {
+                        "diagnostic_count": diagnostic_count,
+                        "unclosed_count": unclosed_count,
+                        "by_rule": diagnostic_summary.get("by_rule", {}),
+                        "by_presentation": diagnostic_summary.get("by_presentation", {}),
+                        "by_reason_code": diagnostic_summary.get("by_reason_code", {}),
+                        "by_observation_reason_code": diagnostic_summary.get("by_observation_reason_code", {}),
+                    }
+                )
+                if not diagnostic_issues.empty:
+                    st.dataframe(diagnostic_issues, use_container_width=True, height=420)
+                else:
+                    st.caption("No internal diagnostic details are available for this project.")
             one_to_many_rows = _one_to_many_cluster_rows(findings_payload)
             if not one_to_many_rows.empty:
                 review_table = findings_payload.get("one_to_many_review_table", {})
@@ -402,9 +473,9 @@ def main() -> None:
         if selected is None:
             st.info("No project selected.")
         else:
-            issues = frames.get("issues", pd.DataFrame())
+            issues = _user_visible_issues(frames.get("issues", pd.DataFrame()))
             if issues.empty:
-                st.info("No issues available yet. Analyze with audit enabled or run `dwg-audit run-audit` for this project.")
+                st.info("No actionable drawing issues are currently available. Recognition gaps remain in the collapsed diagnostics summary.")
             else:
                 issues = issues.copy()
                 issues["one_to_many_classification"] = issues.apply(_issue_one_to_many_classification, axis=1)
@@ -536,13 +607,31 @@ def main() -> None:
             st.info("No project selected.")
         else:
             audit_dir = selected / "audit"
-            for filename in (
-                "audit_report.md",
-                "audit_report.html",
-                "issues.json",
-                "issues.xlsx",
-                "series_chains.json",
-            ):
+            has_separate_diagnostics = (audit_dir / "recognition_gap_diagnostics.jsonl").is_file()
+            has_unverified_issue_reports = not has_separate_diagnostics
+            if has_unverified_issue_reports:
+                st.info("Legacy report files are hidden until the audit is rerun with separated diagnostics, so recognition gaps cannot appear as drawing issues.")
+            visible_issue_frame = _user_visible_issues(frames.get("issues", pd.DataFrame()))
+            issues_json = visible_issue_frame.to_json(orient="records", force_ascii=False, indent=2)
+            st.download_button(
+                label="Download actionable issues.json",
+                data=issues_json,
+                file_name="issues.json",
+                mime="application/json",
+            )
+            xlsx_buffer = BytesIO()
+            with pd.ExcelWriter(xlsx_buffer) as writer:
+                visible_issue_frame.to_excel(writer, index=False, sheet_name="Issues")
+            st.download_button(
+                label="Download actionable issues.xlsx",
+                data=xlsx_buffer.getvalue(),
+                file_name="issues.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+            filenames = ["series_chains.json"]
+            if not has_unverified_issue_reports:
+                filenames = ["audit_report.md", "audit_report.html", *filenames]
+            for filename in filenames:
                 path = audit_dir / filename
                 if not path.exists():
                     continue

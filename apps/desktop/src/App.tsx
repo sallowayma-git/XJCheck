@@ -49,7 +49,7 @@ import {
   type DesktopSettings,
 } from "./lib/settings"
 import type { PreviewMode } from "./lib/previewPolicy"
-import type { IssueQuery, IssueSummary, ProjectResult, ProjectSummary, RecentProject, RunStageCard, SidecarEvent } from "./types"
+import type { DiagnosticPage, IssueQuery, IssueSummary, ProjectResult, ProjectSummary, RecentProject, RecognitionSummary, RunStageCard, SidecarEvent } from "./types"
 
 type Screen = "launch" | "process" | "result" | "settings"
 
@@ -158,6 +158,11 @@ function App() {
   const [result, setResult] = useState<ProjectResult | null>(null)
   const [resultSummary, setResultSummary] = useState<ProjectSummary | null>(null)
   const [resultIssueTotal, setResultIssueTotal] = useState(0)
+  const [diagnosticItems, setDiagnosticItems] = useState<IssueSummary[]>([])
+  const [diagnosticTotal, setDiagnosticTotal] = useState(0)
+  const [diagnosticLoadedRunId, setDiagnosticLoadedRunId] = useState<string | null>(null)
+  const [isLoadingDiagnostics, setIsLoadingDiagnostics] = useState(false)
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [previewOutputContextKey, setPreviewOutputContextKey] = useState<string | null>(null)
@@ -498,6 +503,10 @@ function App() {
     setResult(null)
     setResultSummary(null)
     setResultIssueTotal(0)
+    setDiagnosticItems([])
+    setDiagnosticTotal(0)
+    setDiagnosticLoadedRunId(null)
+    setDiagnosticError(null)
     issuePageLoadInFlightRef.current = null
     issuePageQueryKeyRef.current = null
     appliedIssueQueryKeyRef.current = null
@@ -540,6 +549,7 @@ function App() {
         run: summary.run,
         issues: firstPage.items,
         page_findings: [],
+        series_chains: null,
       }
       setResultSummary(summary)
       setResult(loaded)
@@ -565,6 +575,30 @@ function App() {
       }
     }
   })
+
+  const loadDiagnostics = async (offset = 0) => {
+    const projectId = result?.run.project_id ?? selectedProjectId
+    const runId = result?.run.run_id ?? selectedRunId
+    if (!projectId || !runId || isLoadingDiagnostics) {
+      return
+    }
+    setIsLoadingDiagnostics(true)
+    setDiagnosticError(null)
+    try {
+      const requestedRunId = runId
+      const page: DiagnosticPage = await desktopApi.loadResultDiagnostics(projectId, 100, offset, requestedRunId)
+      if (page.run.run_id !== requestedRunId) {
+        return
+      }
+      setDiagnosticItems((current) => (offset === 0 ? page.items : [...current, ...page.items]))
+      setDiagnosticTotal(page.total)
+      setDiagnosticLoadedRunId(page.run.run_id)
+    } catch (error) {
+      setDiagnosticError(error instanceof Error ? error.message : "加载诊断明细失败。")
+    } finally {
+      setIsLoadingDiagnostics(false)
+    }
+  }
 
   const loadMoreIssues = useEffectEvent(async () => {
     const current = result
@@ -1031,6 +1065,10 @@ function App() {
         setResult(null)
         setResultSummary(null)
         setResultIssueTotal(0)
+        setDiagnosticItems([])
+        setDiagnosticTotal(0)
+        setDiagnosticLoadedRunId(null)
+        setDiagnosticError(null)
         setSelectedIssueId(null)
         setPreviewSrc(null)
         setPreviewOutputContextKey(null)
@@ -1065,6 +1103,8 @@ function App() {
     statuses: [],
     triages: [],
   }
+
+  const recognitionSummary = (resultSummary?.run.metadata?.recognition_summary ?? null) as RecognitionSummary | null
 
   const selectedIssue = useMemo(() => {
     if (!filteredIssues.length) {
@@ -1864,7 +1904,7 @@ function App() {
 
         {screen === "result" && (
           <section className="result-layout">
-            {summaryProject?.metadata?.clean_conclusion_allowed === false && (
+            {result?.run.metadata?.clean_conclusion_allowed === false && (
               <div className="panel" role="status">
                 <strong>分析未完成</strong>
                 <p>部分图纸未成功读取，当前结果不能作为无问题结论。请检查失败页面后重新分析。</p>
@@ -1899,6 +1939,113 @@ function App() {
                 <span className="muted" title={summaryProject?.project_name ?? undefined}>
                   {summaryProject?.project_name ?? "未加载项目"}
                 </span>
+              </div>
+              <div className="recognition-summary" aria-label="识别覆盖率与未闭合诊断">
+                <span>
+                  识别覆盖率 <strong>{formatCoverageRatio(recognitionSummary?.coverage_ratio)}</strong>
+                </span>
+                <span>
+                  <strong>{recognitionSummary?.unclosed_count ?? 0}</strong> 处未闭合
+                </span>
+                <span className="muted">{recognitionSummary?.diagnostic_count ?? 0} 条内部诊断</span>
+                <details
+                  className="diagnostic-details"
+                  onToggle={(event) => {
+                    if (event.currentTarget.open && diagnosticLoadedRunId !== result?.run.run_id && !isLoadingDiagnostics) {
+                      void loadDiagnostics(0)
+                    }
+                  }}
+                >
+                  <summary>展开诊断明细</summary>
+                  {recognitionSummary ? (
+                    <div className="diagnostic-summary-content">
+                      <div className="diagnostic-breakdown">
+                        <span>按来源</span>
+                        {Object.entries(recognitionSummary.by_presentation ?? {}).map(([key, count]) => (
+                          <span key={key}>{labelDiagnosticPresentation(key)} {count}</span>
+                        ))}
+                        <span>按原因</span>
+                        {Object.entries(recognitionSummary.by_reason_code ?? {}).map(([key, count]) => (
+                          <span key={key}>{labelDiagnosticReason(key)} {count}</span>
+                        ))}
+                        {Object.keys(recognitionSummary.by_observation_reason_code ?? {}).length ? (
+                          <>
+                            <span className="diagnostic-breakdown-label">按识别状态</span>
+                            {Object.entries(recognitionSummary.by_observation_reason_code ?? {}).map(([key, count]) => (
+                              <span key={key}>{labelDiagnosticReason(key)} {count}</span>
+                            ))}
+                          </>
+                        ) : null}
+                      </div>
+                      {recognitionSummary.by_page?.length ? (
+                        <div className="diagnostic-page-summary">
+                          <strong>逐页覆盖</strong>
+                          {recognitionSummary.by_page.map((page) => (
+                            <span key={page.sheet_id ?? page.sheet_no ?? page.filename ?? "page"}>
+                              图 {page.sheet_no || page.filename || page.sheet_id || "?"} · 覆盖率 {formatCoverageRatio(page.coverage_ratio)} · {page.unclosed_count} 处未闭合
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {diagnosticError ? <p className="diagnostic-error">{diagnosticError}</p> : null}
+                      {diagnosticItems.length ? (
+                        <div className="table-wrap diagnostic-table-wrap">
+                          <table className="data-table compact">
+                            <thead>
+                              <tr>
+                                <th>来源图纸</th>
+                                <th>诊断</th>
+                                <th>端点</th>
+                                <th>原因</th>
+                                <th>类别</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {diagnosticItems.map((issue) => {
+                                const reasonCodes = Array.isArray(issue.evidence.resolution_reason_codes)
+                                  ? issue.evidence.resolution_reason_codes
+                                  : issue.evidence.reason_codes
+                                const reasons = Array.isArray(reasonCodes)
+                                  ? reasonCodes.map(String).map(labelDiagnosticReason).join("、")
+                                  : "未分类"
+                                const presentation = typeof issue.evidence.presentation === "string"
+                                  ? labelDiagnosticPresentation(issue.evidence.presentation)
+                                  : "诊断项"
+                                return (
+                                  <tr key={issue.issue_id}>
+                                    <td>{issue.sheet_no || issue.filename || issue.sheet_id || "项目级"}</td>
+                                    <td>{issue.title || issue.summary}</td>
+                                    <td>{[issue.left_value, issue.right_value].filter(Boolean).join(" → ") || "未识别"}</td>
+                                    <td>{reasons}</td>
+                                    <td>{presentation}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : isLoadingDiagnostics ? (
+                        <p className="muted">正在加载诊断明细…</p>
+                      ) : (
+                        <p className="muted">当前项目没有未闭合诊断。</p>
+                      )}
+                      {diagnosticItems.length < diagnosticTotal ? (
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          disabled={isLoadingDiagnostics}
+                          onClick={() => void loadDiagnostics(diagnosticItems.length)}
+                        >
+                          {isLoadingDiagnostics ? "加载中…" : `加载更多（${diagnosticItems.length}/${diagnosticTotal}）`}
+                        </button>
+                      ) : diagnosticItems.length ? (
+                        <span className="muted">已显示 {diagnosticItems.length}/{diagnosticTotal} 条诊断</span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="muted">当前项目未提供识别覆盖率诊断摘要。</p>
+                  )}
+                </details>
               </div>
               {result?.series_chains && (
                 <div className="section-heading">
@@ -2732,6 +2879,39 @@ function formatPair(issue: Pick<IssueSummary, "left_value" | "right_value">): st
   const left = issue.left_value?.trim() || "未识别"
   const right = issue.right_value?.trim() || "未识别"
   return `${left} → ${right}`
+}
+
+function formatCoverageRatio(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "未提供"
+  }
+  const percentage = Math.abs(value) <= 1 ? value * 100 : value
+  return `${percentage.toFixed(1)}%`
+}
+
+function labelDiagnosticPresentation(value: string): string {
+  const labels: Record<string, string> = {
+    terminal: "端子级",
+    observation: "识别观察",
+    page_summary: "页面汇总",
+    issue: "其他诊断",
+  }
+  return labels[value] ?? value.replaceAll("_", " ")
+}
+
+function labelDiagnosticReason(value: string): string {
+  const labels: Record<string, string> = {
+    unresolved_endpoint_identity: "端点身份未定",
+    unresolved_pin_text: "脚号文字未定",
+    endpoint_identity_missing: "缺少端点身份",
+    missing_label_reference: "缺少标签引用",
+    same_physical_port: "疑似同一物理端口",
+    label_far_from_symbol: "标签离符号较远",
+    unpinned_element: "元件脚号未识别",
+    native_relation_incomplete: "SuperWORKS 原生关系不完整",
+    unspecified: "未分类",
+  }
+  return labels[value] ?? value.replaceAll("_", " ")
 }
 
 function resolveHandlingClass(issue: Pick<IssueSummary, "handling_class" | "rule_id" | "severity" | "confidence" | "evidence" | "one_to_many_classification">): string {

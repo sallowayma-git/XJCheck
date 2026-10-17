@@ -9,8 +9,11 @@ from dwg_audit.ui.app import _filter_issues
 from dwg_audit.ui.app import _issue_many_to_one_classification
 from dwg_audit.ui.app import _issue_one_to_many_classification
 from dwg_audit.ui.app import _issue_review_classification
+from dwg_audit.ui.app import _load_issue_diagnostics
 from dwg_audit.ui.app import _one_to_many_cluster_rows
 from dwg_audit.ui.app import _persist_issue_status
+from dwg_audit.ui.app import _summary_metrics
+from dwg_audit.ui.app import _user_visible_issues
 
 
 def test_filter_issues_filters_by_status_rule_sheet_and_value() -> None:
@@ -47,6 +50,28 @@ def test_filter_issues_filters_by_status_rule_sheet_and_value() -> None:
     )
 
     assert filtered["issue_id"].tolist() == ["I1"]
+
+
+def test_issue_surfaces_keep_gaps_as_collapsed_internal_diagnostics(tmp_path: Path) -> None:
+    all_issues = pd.DataFrame(
+        [
+            {"issue_id": "I1", "rule_id": "R-CROSS-PAGE-CONFLICT"},
+            {"issue_id": "G1", "rule_id": "R-RECOGNITION-GAP"},
+            {"issue_id": "B1", "rule_id": "R-ONE-TO-MANY"},
+        ]
+    )
+    visible = _user_visible_issues(all_issues)
+    assert visible["issue_id"].tolist() == ["I1"]
+    assert _summary_metrics({}, {"issues": all_issues})["issues"] == 1
+
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir()
+    (audit_dir / "recognition_gap_diagnostics.jsonl").write_text(
+        json.dumps({"issue_id": "G1", "rule_id": "R-RECOGNITION-GAP"}) + "\n",
+        encoding="utf-8",
+    )
+    diagnostics = _load_issue_diagnostics(tmp_path, all_issues)
+    assert diagnostics["issue_id"].tolist() == ["G1"]
 
 
 def test_persist_issue_status_updates_parquet_and_json(tmp_path: Path) -> None:

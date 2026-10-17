@@ -1447,3 +1447,69 @@
   background: var(--surface-1);
   z-index: 1;
 }
+
+.recognition-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.recognition-summary strong {
+  color: var(--text-primary);
+}
+
+.diagnostic-details {
+  flex-basis: 100%;
+  border-top: 1px solid var(--border-strong);
+  padding-top: 7px;
+}
+
+.diagnostic-details > summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 600;
+  user-select: none;
+}
+
+.diagnostic-summary-content {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.diagnostic-breakdown,
+.diagnostic-page-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.diagnostic-breakdown > span:first-child,
+.diagnostic-breakdown > span:nth-child(1) {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.diagnostic-page-summary strong {
+  width: 100%;
+}
+
+.diagnostic-table-wrap {
+  max-height: 340px;
+  overflow: auto;
+}
+
+.diagnostic-error {
+  margin: 0;
+  color: var(--danger);
+}
