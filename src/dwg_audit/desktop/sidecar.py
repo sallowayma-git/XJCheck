@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 
+from dwg_audit.domain.issue_locations import derive_locations_from_refs
 from dwg_audit.domain.issue_layers import USER_VISIBLE_RULE_IDS
 from dwg_audit.desktop.lifecycle import cleanup_transient_workspaces
 from dwg_audit.desktop.lifecycle import compact_session_workspace
@@ -589,7 +590,7 @@ def _issue_payloads(frame: pd.DataFrame) -> list[dict[str, Any]]:
         related_pair_ids = _decode_jsonish(row.get("related_pair_ids"))
         sheet_ids = _decode_jsonish(row.get("sheet_ids"))
         values = _decode_jsonish(row.get("values"))
-        payloads.append(
+        payload = (
             {
                 "issue_id": row.get("issue_id"),
                 "rule_id": row.get("rule_id"),
@@ -623,6 +624,8 @@ def _issue_payloads(frame: pd.DataFrame) -> list[dict[str, Any]]:
                 "values": values if isinstance(values, list) else [],
             }
         )
+        payload["locations"] = derive_locations_from_refs(payload)
+        payloads.append(payload)
     return payloads
 
 

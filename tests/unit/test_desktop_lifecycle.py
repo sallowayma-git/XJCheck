@@ -12,6 +12,7 @@ from dwg_audit.desktop import sidecar as sidecar_module
 from dwg_audit.desktop.lifecycle import cleanup_stale_workspaces
 from dwg_audit.desktop.preview import _expand_focus_extent_for_pan
 from dwg_audit.desktop.preview import build_preview_geometry_payloads
+from dwg_audit.desktop.preview import _normalize_focus_boxes
 from dwg_audit.desktop.preview import render_project_preview
 from dwg_audit.desktop.sidecar import cleanup_transient_workspaces
 from dwg_audit.desktop.sidecar import compact_session_workspace
@@ -393,8 +394,8 @@ def test_render_project_preview_uses_retained_geometry_without_artifacts(tmp_pat
 
     svg = Path(preview["preview_path"]).read_text(encoding="utf-8")
     assert preview["source"] == "sqlite_geometry"
-    assert preview["viewport_scale"] == 2.1
-    assert preview["overscan_factor"] == 2.1
+    assert preview["viewport_scale"] == 2.52
+    assert preview["overscan_factor"] == 2.52
     assert "LOWER-CONNECTION" in svg
     assert 'id="page-blocks"' in svg
     assert "DEVICE-A" in svg
@@ -471,3 +472,102 @@ def test_render_project_preview_uses_summary_when_sqlite_issue_has_no_coordinate
     assert preview["focus_bbox"] is None
     assert preview["cropped_to_issue"] is False
     assert preview["lightweight"] is True
+
+
+def _focus_geometry_payload() -> list[dict]:
+    return [
+        {
+            "schema_version": 1,
+            "sheet_id": "S1",
+            "pages": [
+                {
+                    "sheet_id": "S1",
+                    "filename": "01.dwg",
+                    "sheet_no": "01",
+                    "sheet_title": "Focus Sheet",
+                    "extent_bbox": [0.0, 0.0, 200.0, 100.0],
+                    "frame_bbox": [0.0, 0.0, 200.0, 100.0],
+                    "audit_area_bbox": [0.0, 0.0, 200.0, 100.0],
+                }
+            ],
+            "lines": [
+                {"line_id": "L1", "sheet_id": "S1", "start_x": 20.0, "start_y": 20.0, "end_x": 40.0, "end_y": 20.0},
+                {"line_id": "L2", "sheet_id": "S1", "start_x": 150.0, "start_y": 65.0, "end_x": 170.0, "end_y": 65.0},
+            ],
+            "texts": [],
+            "line_groups": [],
+            "blocks": [],
+        }
+    ]
+
+
+def test_render_project_preview_focus_bboxes_draws_each_location_box(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    run_id = "session-focus:demo-project"
+    _record_demo_run(store, run_id=run_id, session_id="session-focus", artifact_dir="")
+    store.replace_preview_geometries(run_id, _focus_geometry_payload())
+    boxes = [[15.0, 15.0, 45.0, 25.0], [145.0, 60.0, 175.0, 70.0]]
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        sheet_id="S1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+        focus_bboxes=boxes,
+    )
+
+    svg = Path(preview["preview_path"]).read_text(encoding="utf-8")
+    assert preview["cropped_to_issue"] is True
+    assert 'data-focus-count="2"' in svg
+    assert svg.count("data-focus-index=") == 2
+    assert ">A</text>" in svg and ">B</text>" in svg
+    focus = preview["focus_bbox"]
+    for x0, y0, x1, y1 in boxes:
+        assert focus[0] <= x0 and focus[1] <= y0 and focus[2] >= x1 and focus[3] >= y1
+
+
+def test_render_project_preview_drops_malformed_focus_boxes(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    run_id = "session-focus-one:demo-project"
+    _record_demo_run(store, run_id=run_id, session_id="session-focus-one", artifact_dir="")
+    store.replace_preview_geometries(run_id, _focus_geometry_payload())
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        issue_id="I1",
+        sheet_id="S1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+        focus_bboxes=[[15.0, 15.0, 45.0, 25.0], [15.0, 15.0, 45.0, 25.0], ["bad"]],
+    )
+
+    svg = Path(preview["preview_path"]).read_text(encoding="utf-8")
+    assert 'data-focus-count="2"' in svg
+    assert ">A</text>" in svg
+    assert _normalize_focus_boxes([[45, 25, 15, 15], [1, 2, 3], [0, 0, float("nan"), 1]]) == [(15.0, 15.0, 45.0, 25.0)]
+
+
+def test_render_project_preview_focus_boxes_work_without_an_issue(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    store = DesktopStateStore(state_db)
+    run_id = "session-focus-sheet:demo-project"
+    _record_demo_run(store, run_id=run_id, session_id="session-focus-sheet", artifact_dir="")
+    store.replace_preview_geometries(run_id, _focus_geometry_payload())
+
+    preview = render_project_preview(
+        project_id="demo-project",
+        sheet_id="S1",
+        state_db_path=state_db,
+        output_dir=tmp_path / "previews",
+        focus_bboxes=[[145.0, 60.0, 175.0, 70.0]],
+    )
+
+    svg = Path(preview["preview_path"]).read_text(encoding="utf-8")
+    assert preview["cropped_to_issue"] is True
+    assert preview["issue_id"] is None
+    assert 'data-focus-count="1"' in svg
+    focus = preview["focus_bbox"]
+    assert focus[0] <= 145.0 and focus[2] >= 175.0 and focus[1] <= 60.0 and focus[3] >= 70.0

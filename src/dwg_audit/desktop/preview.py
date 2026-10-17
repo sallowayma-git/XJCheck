@@ -23,7 +23,7 @@ _MAX_PREVIEW_LINES = 480
 _MAX_PREVIEW_TEXTS = 240
 _MAX_PREVIEW_BLOCKS = 80
 _PREVIEW_GEOMETRY_SCHEMA_VERSION = 2
-_PREVIEW_OVERSCAN_FACTOR = 2.1
+_PREVIEW_OVERSCAN_FACTOR = 2.52
 _PREVIEW_DOWNWARD_SHARE = 0.68
 _RETAINED_PREVIEW_LIMITS = {
     "pages": 4,
@@ -189,7 +189,10 @@ def render_project_preview(
     line_group_id: str | None = None,
     output_dir: Path | None = None,
     state_db_path: Path | None = None,
+    focus_bboxes: list[list[float]] | None = None,
 ) -> dict[str, Any]:
+    """Render one sheet crop. ``focus_bboxes`` ([x0,y0,x1,y1] world boxes on ``sheet_id``) replaces the
+    line-group/issue highlight: the crop covers the boxes and each box is drawn (A, B, ... when several)."""
     store = DesktopStateStore((state_db_path or default_state_db_path()).expanduser().resolve())
     run = store.load_run_for_project(project_id, run_id=run_id)
     if run is None:
@@ -271,11 +274,13 @@ def render_project_preview(
     )
     issue_sheet_id = str(issue_row.get("sheet_id") or "") if issue_row is not None else ""
     focus_issue_row = issue_row if not issue_sheet_id or issue_sheet_id == sheet_id else None
+    focus_boxes = _normalize_focus_boxes(focus_bboxes)
     highlight = _resolve_highlight(
         issue_row,
         line_groups,
         line_group_id=line_group_id,
         selected_sheet_id=sheet_id,
+        focus_bboxes=focus_boxes,
     )
     line_semantics = _resolve_line_semantics(issue_row, line_groups, line_group_id=line_group_id)
 
@@ -317,7 +322,7 @@ def render_project_preview(
     sheet_texts = texts[texts["sheet_id"].astype(str) == sheet_id] if not texts.empty else pd.DataFrame()
     sheet_blocks = blocks[blocks["sheet_id"].astype(str) == sheet_id] if not blocks.empty else pd.DataFrame()
     sheet_primitives = primitives[primitives["sheet_id"].astype(str) == sheet_id] if not primitives.empty else pd.DataFrame()
-    if sheet_lines.empty and highlight is not None:
+    if sheet_lines.empty and highlight is not None and _has_segment(highlight):
         sheet_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
     if sheet_texts.empty and focus_issue_row is not None:
         sheet_texts = _synthetic_text_frame(focus_issue_row, sheet_id=sheet_id)
@@ -338,10 +343,13 @@ def render_project_preview(
         if highlight is not None
         else precise_focus_extent
     )
+    if focus_boxes:
+        # The crop must contain every located box even when page clamping moved it.
+        focus_extent = _cover_extents(focus_extent, _union_bbox(focus_boxes))
     visible_lines = _filter_lines_in_extent(sheet_lines, focus_extent)
     visible_texts = _filter_texts_in_extent(sheet_texts, focus_extent)
     visible_blocks = _filter_blocks_in_extent(sheet_blocks, focus_extent)
-    if visible_lines.empty and highlight is not None:
+    if visible_lines.empty and highlight is not None and _has_segment(highlight):
         visible_lines = _synthetic_line_frame(highlight, sheet_id=sheet_id)
 
     crop_token = "issue" if highlight is not None else "sheet"
@@ -514,7 +522,10 @@ def _build_svg(
             )
         svg_lines.append("</g>")
 
-    if highlight is not None:
+    focus_boxes_svg = list((highlight or {}).get("boxes") or [])
+    if focus_boxes_svg:
+        svg_lines.extend(_focus_box_markup(focus_boxes_svg, sx, sy, issue_row))
+    elif highlight is not None:
         start = highlight["start"]
         end = highlight["end"]
         min_hx = min(start[0], end[0])
@@ -805,6 +816,8 @@ def _resolve_focus_extent(
     """Prefer a tight crop around the issue geometry instead of the full sheet."""
     if highlight is None:
         return page_extent
+    if "bbox" in highlight:
+        return _extent_from_highlight(highlight) or page_extent
 
     start = highlight["start"]
     end = highlight["end"]
@@ -905,7 +918,7 @@ def _expand_focus_extent_for_pan(
     downward_share: float,
 ) -> tuple[float, float, float, float]:
     """Expand a precise crop for panning, with more CAD space below the issue."""
-    factor = min(max(float(factor), 1.8), 2.3)
+    factor = min(max(float(factor), 1.8), 3.0)
     downward_share = min(max(float(downward_share), 0.5), 0.8)
     focus_min_x, focus_min_y, focus_max_x, focus_max_y = focus_extent
     page_min_x, page_min_y, page_max_x, page_max_y = page_extent
@@ -1134,6 +1147,10 @@ def _resolve_page_row(
 def _extent_from_highlight(highlight: dict[str, Any] | None) -> tuple[float, float, float, float] | None:
     if highlight is None:
         return None
+    if "bbox" in highlight:
+        min_x, min_y, max_x, max_y = (float(v) for v in highlight["bbox"])
+        pad = max(max(max_x - min_x, max_y - min_y) * 0.8, 20.0)
+        return (min_x - pad, min_y - pad, max_x + pad, max_y + pad)
     start = highlight["start"]
     end = highlight["end"]
     min_x = min(start[0], end[0])
@@ -1222,7 +1239,11 @@ def _resolve_highlight(
     *,
     line_group_id: str | None = None,
     selected_sheet_id: str | None = None,
+    focus_bboxes: list[tuple[float, float, float, float]] | None = None,
 ) -> dict[str, Any] | None:
+    if focus_bboxes:
+        # Explicit location boxes replace the line-group lookup entirely.
+        return {"bbox": _union_bbox(focus_bboxes), "boxes": list(focus_bboxes)}
     if line_group_id and not line_groups.empty:
         matches = line_groups[line_groups["line_group_id"].astype(str) == line_group_id]
         if not matches.empty:
@@ -1323,6 +1344,83 @@ def _normalize_jsonish(value: Any) -> Any:
         except (TypeError, ValueError):
             pass
     return value
+
+
+def _has_segment(highlight: dict[str, Any]) -> bool:
+    return "start" in highlight and "end" in highlight
+
+
+def _normalize_focus_boxes(value: object) -> list[tuple[float, float, float, float]]:
+    """Valid [x0,y0,x1,y1] boxes ordered min/max; malformed entries are dropped."""
+    boxes: list[tuple[float, float, float, float]] = []
+    for item in value if isinstance(value, (list, tuple)) else []:
+        box = _json_bbox(item)
+        if box is None or not all(math.isfinite(component) for component in box):
+            continue
+        x0, y0, x1, y1 = box
+        boxes.append((min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)))
+    return boxes
+
+
+def _union_bbox(boxes: list[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
+    return (
+        min(box[0] for box in boxes),
+        min(box[1] for box in boxes),
+        max(box[2] for box in boxes),
+        max(box[3] for box in boxes),
+    )
+
+
+def _cover_extents(
+    first: tuple[float, float, float, float],
+    second: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    return (
+        min(first[0], second[0]),
+        min(first[1], second[1]),
+        max(first[2], second[2]),
+        max(first[3], second[3]),
+    )
+
+
+def _focus_box_markup(
+    boxes: list[tuple[float, float, float, float]],
+    sx: Any,
+    sy: Any,
+    issue_row: pd.Series | None,
+) -> list[str]:
+    """Rectangles for location boxes, labelled A, B, ... when a finding has several places."""
+    markup = [f'<g id="issue-highlight" data-focus-count="{len(boxes)}">']
+    for index, (x0, y0, x1, y1) in enumerate(boxes):
+        left = sx(x0)
+        top = sy(y1)
+        width = round(abs(sx(x1) - left), 2)
+        height = round(abs(sy(y0) - top), 2)
+        markup.append(
+            f'<rect data-focus-index="{index}" x="{left}" y="{top}" width="{width}" height="{height}" '
+            'fill="rgba(176, 45, 32, 0.08)" stroke="#b02d20" stroke-width="3.2" />'
+        )
+        if len(boxes) > 1:
+            label = chr(ord("A") + index) if index < 26 else str(index + 1)
+            markup.append(
+                f'<text x="{round(left + 4, 2)}" y="{round(top + 15, 2)}" font-size="14" font-weight="700" '
+                f'fill="#b02d20" font-family="Segoe UI, sans-serif">{label}</text>'
+            )
+    if issue_row is not None:
+        left_label = html.escape(str(issue_row.get("left_value") or "").strip())
+        right_label = html.escape(str(issue_row.get("right_value") or "").strip())
+        if left_label:
+            markup.append(
+                '<text x="14" y="528" font-size="14" fill="#8a1f16" font-weight="700" '
+                f'font-family="Segoe UI, sans-serif">识别左端: {left_label}</text>'
+            )
+        if right_label:
+            markup.append(
+                '<text x="400" y="528" font-size="14" fill="#8a1f16" font-weight="700" '
+                f'font-family="Segoe UI, sans-serif">识别右端: {right_label}</text>'
+            )
+    markup.append("</g>")
+    return markup
 
 
 def _json_bbox(value: object) -> tuple[float, float, float, float] | None:

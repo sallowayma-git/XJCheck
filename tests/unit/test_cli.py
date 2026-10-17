@@ -582,6 +582,43 @@ def test_render_preview_cli_returns_preview_payload(monkeypatch, tmp_path: Path)
     assert captured["line_group_id"] == "G2"
 
 
+def test_render_preview_cli_passes_focus_boxes(monkeypatch, tmp_path: Path) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+
+    def fake_render_project_preview(**kwargs):
+        captured.update(kwargs)
+        return {"project_id": "demo-project", "preview_path": str(tmp_path / "preview.svg")}
+
+    monkeypatch.setattr("dwg_audit.cli.render_project_preview", fake_render_project_preview)
+
+    result = runner.invoke(
+        app,
+        [
+            "render-preview", "--project-id", "demo-project", "--sheet-id", "S1",
+            "--focus-json", "[[1, 2, 30, 40], [5.5, 6, 7, 8]]",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["focus_bboxes"] == [[1.0, 2.0, 30.0, 40.0], [5.5, 6.0, 7.0, 8.0]]
+
+
+def test_render_preview_cli_rejects_malformed_focus_json(monkeypatch) -> None:
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "dwg_audit.cli.render_project_preview",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("must not render")),
+    )
+
+    for raw in ("not-json", "[]", "[[1, 2, 3]]", '[[1, 2, "x", 4]]'):
+        result = runner.invoke(
+            app,
+            ["render-preview", "--project-id", "demo-project", "--sheet-id", "S1", "--focus-json", raw],
+        )
+        assert result.exit_code != 0, raw
+
+
 def test_set_issue_status_cli_returns_updated_payload(monkeypatch) -> None:
     runner = CliRunner()
 

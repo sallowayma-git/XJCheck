@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import math
 
 import typer
 
@@ -633,6 +634,30 @@ def delete_project_record_cmd(
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def _parse_focus_json(raw: str | None) -> list[list[float]] | None:
+    """Validate --focus-json: a non-empty list of finite [x0, y0, x1, y1] boxes."""
+    if raw is None or not raw.strip():
+        return None
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"--focus-json is not valid JSON: {exc}") from exc
+    if not isinstance(value, list) or not value:
+        raise typer.BadParameter("--focus-json must be a non-empty list of [x0, y0, x1, y1] boxes.")
+    boxes: list[list[float]] = []
+    for item in value:
+        if not isinstance(item, list) or len(item) != 4:
+            raise typer.BadParameter("--focus-json entries must be [x0, y0, x1, y1].")
+        try:
+            box = [float(component) for component in item]
+        except (TypeError, ValueError) as exc:
+            raise typer.BadParameter("--focus-json entries must contain numbers.") from exc
+        if not all(math.isfinite(component) for component in box):
+            raise typer.BadParameter("--focus-json entries must be finite numbers.")
+        boxes.append(box)
+    return boxes
+
+
 @app.command("render-preview")
 def render_preview(
     project_id: str = typer.Option(..., "--project-id"),
@@ -640,9 +665,15 @@ def render_preview(
     sheet_id: str | None = typer.Option(None, "--sheet-id"),
     issue_id: str | None = typer.Option(None, "--issue-id"),
     line_group_id: str | None = typer.Option(None, "--line-group-id"),
+    focus_json: str | None = typer.Option(
+        None,
+        "--focus-json",
+        help='Location boxes on the sheet as JSON, e.g. \'[[x0,y0,x1,y1],[x0,y0,x1,y1]]\'. Overrides the line-group highlight.',
+    ),
     output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False, dir_okay=True, resolve_path=True),
     state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
 ) -> None:
+    focus_bboxes = _parse_focus_json(focus_json)
     try:
         payload = render_project_preview(
             project_id=project_id,
@@ -652,6 +683,7 @@ def render_preview(
             line_group_id=line_group_id,
             output_dir=output_dir,
             state_db_path=state_db,
+            focus_bboxes=focus_bboxes,
         )
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
