@@ -15,6 +15,7 @@ import {
 
 import "./App.css"
 import logoUrl from "./assets/logo.png"
+import { AuditFlowDiagram, type AuditFlowDot, type AuditFlowCoverage } from "./components/AuditFlowDiagram"
 import { desktopApi } from "./lib/desktopApi"
 import {
   clampPreviewPan,
@@ -131,8 +132,12 @@ type ProcessState = {
   progressRatio: number
   activeStage: string
   totalSheets: number
+  currentProjectRoot: string | null
+  currentProjectName: string | null
+  currentProjectSheetCount: number
   completedPages: number
   failedPages: number
+  totalIssueCount: number
   analysisIncomplete: boolean
   failureMessage: string | null
   warningCount: number
@@ -140,7 +145,12 @@ type ProcessState = {
   logs: string[]
   liveIssues: IssueSummary[]
   completedProjects: RecentProject[]
+  coverageByProject: Array<{ projectName: string; coverageRatio: number | null }>
+  flowDots: AuditFlowDot[]
 }
+
+const MAX_FLOW_DOTS = 12
+const MAX_PROCESS_LOG_LINES = 500
 
 type LaunchImportStatusTone = "info" | "ready" | "warn"
 
@@ -208,8 +218,12 @@ function App() {
     progressRatio: 0,
     activeStage: "scan",
     totalSheets: 0,
+    currentProjectRoot: null,
+    currentProjectName: null,
+    currentProjectSheetCount: 0,
     completedPages: 0,
     failedPages: 0,
+    totalIssueCount: 0,
     analysisIncomplete: false,
     failureMessage: null,
     warningCount: 0,
@@ -217,9 +231,13 @@ function App() {
     logs: [],
     liveIssues: [],
     completedProjects: [],
+    coverageByProject: [],
+    flowDots: [],
   })
   const processEventQueueRef = useRef<SidecarEvent[]>([])
   const processFlushTimerRef = useRef<number | null>(null)
+  const logStreamRef = useRef<HTMLPreElement | null>(null)
+  const logAutoFollowRef = useRef(true)
   const analysisInFlightRef = useRef(false)
   const projectLoadGenerationRef = useRef(createRequestGeneration())
   const previewRequestGenerationRef = useRef(createRequestGeneration())
@@ -743,6 +761,13 @@ function App() {
     }
   }, [])
 
+  useLayoutEffect(() => {
+    const logStream = logStreamRef.current
+    if (logStream && logAutoFollowRef.current) {
+      logStream.scrollTop = logStream.scrollHeight
+    }
+  }, [processState.logs])
+
   useEffect(() => {
     if (
       screen !== "result" ||
@@ -771,15 +796,24 @@ function App() {
         logs: [...current.logs],
         stageCards: current.stageCards.map((item) => ({ ...item })),
         liveIssues: [...current.liveIssues],
+        completedProjects: [...current.completedProjects],
+        coverageByProject: [...current.coverageByProject],
+        flowDots: [...current.flowDots],
       }
       for (const event of events) {
         nextState = {
           ...nextState,
-          logs: [...nextState.logs, formatSidecarLog(event)].slice(-40),
+          logs: [...nextState.logs, formatSidecarLog(event)].slice(-MAX_PROCESS_LOG_LINES),
         }
 
         if (event.event === "run_started") {
           nextState.sessionId = event.session_id
+        }
+
+        if (event.event === "project_started") {
+          nextState.currentProjectRoot = event.project_root
+          nextState.currentProjectName = getPathBaseName(event.project_root)
+          nextState.currentProjectSheetCount = 0
         }
 
         if (event.event === "progress") {
@@ -787,6 +821,20 @@ function App() {
           nextState.progressRatio = stageProgress(event.stage)
           if (event.stage === "scan") {
             nextState.totalSheets = event.sheet_count ?? nextState.totalSheets
+            nextState.currentProjectSheetCount = event.sheet_count ?? nextState.currentProjectSheetCount
+          }
+          if (event.stage === "extract") {
+            nextState.flowDots = moveProjectFlowDots(
+              nextState.flowDots,
+              nextState.currentProjectRoot,
+              "superworks",
+            )
+          } else if (event.stage === "pair" || event.stage === "audit") {
+            nextState.flowDots = moveProjectFlowDots(
+              nextState.flowDots,
+              nextState.currentProjectRoot,
+              "coordination",
+            )
           }
           nextState.stageCards = nextState.stageCards.map((item) =>
             item.stage === event.stage
@@ -801,9 +849,37 @@ function App() {
           )
         }
 
+        if (event.event === "page_started" && event.stage === "convert") {
+          const projectName = nextState.currentProjectName ?? getPathBaseName(nextState.currentProjectRoot ?? inputRoot)
+          const id = `${nextState.currentProjectRoot ?? inputRoot}|${event.file_id}`
+          const dot: AuditFlowDot = {
+            id,
+            label: event.sheet_order != null ? `图 ${event.sheet_order}` : `图 ${formatLogDrawingName(event.filename)}`,
+            title: event.filename,
+            projectName,
+            projectRoot: nextState.currentProjectRoot ?? inputRoot,
+            phase: "input",
+            failed: false,
+          }
+          nextState.flowDots = [...nextState.flowDots.filter((item) => item.id !== id), dot].slice(-MAX_FLOW_DOTS)
+        }
+
         if (event.event === "page_finished" && event.stage === "convert") {
           nextState.completedPages = nextState.completedPages + 1
           nextState.failedPages = nextState.failedPages + (isFailedPageStatus(event.status) ? 1 : 0)
+          const projectName = nextState.currentProjectName ?? getPathBaseName(nextState.currentProjectRoot ?? inputRoot)
+          const id = `${nextState.currentProjectRoot ?? inputRoot}|${event.file_id}`
+          const existingDot = nextState.flowDots.find((item) => item.id === id)
+          const finishedDot: AuditFlowDot = {
+            id,
+            label: existingDot?.label ?? `图 ${formatLogDrawingName(event.filename)}`,
+            title: event.filename,
+            projectName,
+            projectRoot: nextState.currentProjectRoot ?? inputRoot,
+            phase: "superworks",
+            failed: isFailedPageStatus(event.status),
+          }
+          nextState.flowDots = [...nextState.flowDots.filter((item) => item.id !== id), finishedDot].slice(-MAX_FLOW_DOTS)
         }
 
         if (event.event === "warning") {
@@ -815,6 +891,7 @@ function App() {
         }
 
         if (event.event === "issue_found") {
+          nextState.totalIssueCount += 1
           nextState.liveIssues = [
             {
               issue_id: event.issue_id,
@@ -854,9 +931,18 @@ function App() {
           ].slice(0, 50)
         }
 
+        if (event.event === "audit_finished") {
+          if (nextState.currentProjectName) {
+            nextState.coverageByProject = upsertProjectCoverage(
+              nextState.coverageByProject,
+              nextState.currentProjectName,
+              event.coverage_ratio ?? null,
+            )
+          }
+        }
+
         if (event.event === "project_stored") {
-          nextState.completedProjects = [
-            {
+          const storedProject: RecentProject = {
               run_id: event.run_id,
               session_id: nextState.sessionId ?? "session-runtime",
               project_id: event.project_id,
@@ -868,14 +954,33 @@ function App() {
               sheet_count: event.sheet_count,
               pair_count: event.pair_count,
               issue_count: event.issue_count,
-            },
+              diagnostic_count: event.diagnostic_count,
+              coverage_ratio: event.coverage_ratio ?? null,
+          }
+          nextState.completedProjects = [
+            ...nextState.completedProjects.filter((project) => project.run_id !== storedProject.run_id),
+            storedProject,
           ]
+          nextState.totalIssueCount = nextState.completedProjects.reduce((sum, project) => sum + project.issue_count, 0)
+          nextState.coverageByProject = upsertProjectCoverage(
+            nextState.coverageByProject,
+            event.project_name,
+            event.coverage_ratio ?? null,
+          )
+          nextState.flowDots = moveProjectFlowDots(nextState.flowDots, event.project_name, "result")
         }
 
         if (event.event === "run_finished") {
           nextState.progressRatio = 1
           nextState.stageCards = nextState.stageCards.map((item) => ({ ...item, done: true }))
           nextState.completedProjects = event.projects
+          nextState.totalSheets = event.projects.reduce((sum, project) => sum + project.sheet_count, 0)
+          nextState.totalIssueCount = event.projects.reduce((sum, project) => sum + project.issue_count, 0)
+          nextState.coverageByProject = event.projects.map((project) => ({
+            projectName: project.project_name,
+            coverageRatio: project.coverage_ratio ?? null,
+          }))
+          nextState.flowDots = nextState.flowDots.map((dot) => ({ ...dot, phase: "result" }))
         }
       }
       return nextState
@@ -955,13 +1060,18 @@ function App() {
     setLoadError(null)
     setIsAnalyzing(true)
     setScreen("process")
+    logAutoFollowRef.current = true
     setProcessState({
       sessionId: null,
       progressRatio: 0.02,
       activeStage: "scan",
       totalSheets: 0,
+      currentProjectRoot: null,
+      currentProjectName: null,
+      currentProjectSheetCount: 0,
       completedPages: 0,
       failedPages: 0,
+      totalIssueCount: 0,
       analysisIncomplete: false,
       failureMessage: null,
       warningCount: 0,
@@ -969,6 +1079,8 @@ function App() {
       logs: [],
       liveIssues: [],
       completedProjects: [],
+      coverageByProject: [],
+      flowDots: [],
     })
 
     try {
@@ -1576,6 +1688,17 @@ function App() {
     ? `正在校验 ${Math.round(processState.progressRatio * 100)}%`
     : summaryProject?.project_name ?? "尚未打开项目"
   const processStatusText = describeProcessStatus(processState, isAnalyzing)
+  const completedFlowSheets = processState.completedProjects.reduce((sum, project) => sum + project.sheet_count, 0)
+  const flowInputName = !isAnalyzing && processState.completedProjects.length
+    ? getPathBaseName(inputRoot)
+    : processState.currentProjectName ?? getPathBaseName(inputRoot)
+  const flowInputPageCount = !isAnalyzing && processState.completedProjects.length
+    ? completedFlowSheets
+    : processState.currentProjectSheetCount || processState.totalSheets
+  const flowCoverage: AuditFlowCoverage[] = processState.coverageByProject.map((item) => ({
+    projectName: item.projectName,
+    value: formatCoverageRatio(item.coverageRatio),
+  }))
 
   return (
     <div className="shell">
@@ -1811,8 +1934,8 @@ function App() {
               </div>
               <div className="progress-meta">
                 <div className="metric-inline">
-                  <strong>{processState.totalSheets}</strong>
-                  <span>图纸总数</span>
+                  <strong>{isAnalyzing ? processState.currentProjectSheetCount || processState.totalSheets : processState.totalSheets}</strong>
+                  <span>{isAnalyzing ? "当前项目图纸" : "图纸总数"}</span>
                 </div>
                 <div className="metric-inline">
                   <strong>{processState.completedPages}</strong>
@@ -1827,7 +1950,7 @@ function App() {
                   <span>提醒</span>
                 </div>
                 <div className="metric-inline">
-                  <strong>{processState.liveIssues.length}</strong>
+                  <strong>{processState.totalIssueCount}</strong>
                   <span>已发现问题</span>
                 </div>
               </div>
@@ -1891,14 +2014,32 @@ function App() {
             </article>
 
             <article className="panel process-logs">
-              <div className="panel-pad" style={{ paddingBottom: 0 }}>
-                <div className="section-heading">
-                  <h3>运行提示</h3>
-                  <span>{processState.logs.length} 条</span>
-                </div>
+              <div className="process-log-rail" aria-label="运行提示">
+                <h3>运行提示</h3>
+                <span>{processState.logs.length} 条</span>
               </div>
-              <pre className="log-stream">{processState.logs.length ? processState.logs.join("\n") : "点击“开始校验”后，这里会显示当前步骤。"}</pre>
+              <pre
+                ref={logStreamRef}
+                className="log-stream"
+                onScroll={(event) => {
+                  const element = event.currentTarget
+                  logAutoFollowRef.current = element.scrollHeight - element.clientHeight - element.scrollTop <= 18
+                }}
+              >
+                {processState.logs.length ? processState.logs.join("\n") : "点击“开始校验”后，这里会显示当前步骤。"}
+              </pre>
             </article>
+
+            <AuditFlowDiagram
+              projectName={flowInputName || "等待读取项目"}
+              pageCount={flowInputPageCount}
+              totalIssues={processState.totalIssueCount}
+              coverageByProject={flowCoverage}
+              activeStage={processState.activeStage}
+              isAnalyzing={isAnalyzing}
+              isComplete={!isAnalyzing && processState.progressRatio >= 1}
+              flowDots={processState.flowDots}
+            />
           </section>
         )}
 
@@ -2768,6 +2909,37 @@ function stageProgress(stage: string): number {
 
 function stageOrder(stage: string): number {
   return ["scan", "convert", "extract", "pair", "audit", "render"].indexOf(stage)
+}
+
+function getPathBaseName(path: string): string {
+  const segments = path.replace(/[\\/]+$/, "").split(/[\\/]+/)
+  return segments[segments.length - 1] || path
+}
+
+function moveProjectFlowDots(
+  dots: AuditFlowDot[],
+  projectKey: string | null,
+  phase: AuditFlowDot["phase"],
+): AuditFlowDot[] {
+  if (!projectKey) {
+    return dots
+  }
+  return dots.map((dot) =>
+    dot.projectRoot === projectKey || dot.projectName === projectKey
+      ? { ...dot, phase }
+      : dot,
+  )
+}
+
+function upsertProjectCoverage(
+  coverage: ProcessState["coverageByProject"],
+  projectName: string,
+  coverageRatio: number | null,
+): ProcessState["coverageByProject"] {
+  return [
+    ...coverage.filter((item) => item.projectName !== projectName),
+    { projectName, coverageRatio },
+  ]
 }
 
 function labelStage(stage: string): string {
