@@ -307,9 +307,10 @@ export const desktopApi = {
     clientSessionId: string | null = null,
     clientSessionEpoch: number | null = null,
     runId: string | null = null,
+    focus: number[][] | null = null,
   ): Promise<PreviewPayload> {
     if (!isTauri()) {
-      return getMockPreview(projectId, issueId, requestId)
+      return getMockPreview(projectId, issueId, requestId, sheetId, focus)
     }
 
     try {
@@ -323,6 +324,8 @@ export const desktopApi = {
         requestGeneration,
         clientSessionId,
         clientSessionEpoch,
+        // 与 locations[i].bbox 同一 CAD 坐标系；无框时传 null（Rust Option<String>）
+        focusJson: focus && focus.length ? JSON.stringify(focus) : null,
       })
       const normalized = normalizePreviewPayload(payload)
       if (normalized.request_id !== requestId) {

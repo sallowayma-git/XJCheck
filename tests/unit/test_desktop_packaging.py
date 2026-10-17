@@ -183,13 +183,15 @@ def test_preview_commands_use_request_scoped_ownership() -> None:
         r"COMMANDS\.cancelPreview,\s*\{\s*requestId,\s*requestGeneration,\s*clientSessionId,\s*clientSessionEpoch,?",
         desktop_api,
     )
-    assert "preview.request_id !== requestId" in app_tsx
+    location_pane = (DESKTOP_ROOT / "src" / "components" / "LocationPreviewPane.tsx").read_text(encoding="utf-8")
+    assert "payload.request_id !== requestId" in location_pane
+    assert "isCurrentRequest(state, token)" in location_pane
+    inspector = (DESKTOP_ROOT / "src" / "components" / "IssueInspector.tsx").read_text(encoding="utf-8")
+    assert "<LocationPreviewPane" in inspector
     assert "previewClientSessionId" in app_tsx
     assert "previewClientSessionEpoch" in app_tsx
-    assert "createPreviewContextKey" in app_tsx
     assert "normalized.project_id !== projectId" in desktop_api
     assert "normalized.issue_id !== issueId" in desktop_api
-    assert "previewMode" in app_tsx
     assert "projectLoadGenerationRef" in app_tsx
     assert app_tsx.count("isCurrentRequest(projectLoadGenerationRef.current, generation)") >= 2
 
