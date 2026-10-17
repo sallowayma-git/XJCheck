@@ -114,6 +114,20 @@ cd apps\desktop
 npm run tauri:build
 ```
 
+## 本地覆盖安装与无界面冒烟（中文要点）
+
+- 安装模式为 `currentUser`，覆盖安装不需要管理员权限，不会触发 UAC。
+- 覆盖前先关闭 `dwg_audit_desktop.exe` 与 `dwg-audit-sidecar.exe`。
+- 静默覆盖：安装参数必须作为一个整体字符串传入，否则 `/D=` 会被拆坏，安装目录可能变成异常路径。
+
+```powershell
+Start-Process -FilePath 'release\DWG-Audit-Desktop_0.1.0_x64-setup_<date>.exe' -ArgumentList '/S /D=E:\TMPXJ' -Wait
+```
+
+- 验证：安装目录内 `dwg_audit_desktop.exe` 文件版本 0.1.0；`sidecar\dwg-audit-sidecar.exe` 的 sha256 与 `src-tauri\resources\sidecar\dwg-audit-sidecar.exe` 一致；注册表 `HKCU\...\Uninstall\DWG Audit Desktop` 的 `InstallLocation` 指向安装目录。
+- 无界面冒烟：用已安装的 sidecar 对小项目运行 `analyze-session`（输入目录只读，`--workspace-root` 与 `--state-db` 指向独立目录），再用 `load-result-summary` / `load-result-issues` 读取结果。
+- 交付副本统一放在仓库根 `release/`（已 gitignore），文件名带版本与日期。
+
 ## Output artifacts
 
 | Artifact | Typical path |
