@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 import math
 
 import ezdxf
 import pytest
 
-from dwg_audit.audit.superworks_extractor import extract_superworks_pairs
-from dwg_audit.domain.models import Pair, SheetRecord, LineGroup, LineEntity, SwConnectDot
+from dwg_audit.audit.superworks_extractor import (
+    _clear_numeric_candidates_owned_by_nearer_sw_wire, extract_superworks_pairs)
+from dwg_audit.domain.models import Pair, SheetRecord, LineGroup, LineEntity, SwConnectDot, SwPort
 from dwg_audit.extract.superworks_semantics import SuperworksData
 from test_superworks_semantics import symbol,extract,text_items,xdata
 
@@ -211,6 +213,104 @@ def test_conflicted_strip_pair_cannot_become_high_confidence_audit_fact():
     from dwg_audit.audit.rules import _high_confidence_source_eligible
     conflict=replace(pair(),pair_kind="table_mapping",status="review",evidence={"source":"superworks","sw_conflicts":["invalid_strip_header_reference"]})
     assert _high_confidence_source_eligible(conflict) is False
+
+
+def _line_entity(line_id, handle, start, end, *, source_block_name=None):
+    length = math.dist(start, end)
+    return LineEntity(line_id=line_id, sheet_id="S1", file_id="F1", handle=handle,
+        source_entity_type="LINE", layer="0", start_x=start[0], start_y=start[1],
+        end_x=end[0], end_y=end[1], length=length, angle_deg=0.0,
+        bbox_min_x=min(start[0], end[0]), bbox_min_y=min(start[1], end[1]),
+        bbox_max_x=max(start[0], end[0]), bbox_max_y=max(start[1], end[1]),
+        source_block_name=source_block_name)
+
+
+def _numeric_pin_pair():
+    evidence = {"source": "wire_component_mapping", "pair_key": "5QD3->13",
+        "selected_pair_candidate_id": "PC1", "selected_right_candidate_id": "C13",
+        "selected_right_text_id": "T13", "selected_right_raw_text": "13",
+        "selected_right_channel": "terminal_numeric_channel", "numeric_endpoint": "13",
+        "numeric_endpoint_text_id": "T13", "numeric_endpoint_raw": "13", "selected_score": 0.8,
+        "score_breakdown": {"left_score": 1.0, "right_score": 0.8},
+        "superworks": {"left": {"value": "5QD3", "category": "端子", "wire_touched": True},
+            "right": {"value": None, "endpoint_identity": None, "category": "内部元件", "wire_touched": True,
+                "ports": [{"start": [0.0, -0.5], "end": [0.0, 0.5]}]}}}
+    return Pair("P1", "G1", "S1", "F1", "PC1", "5QD3", "13", 0.8, "review", "low confidence",
+        evidence=evidence, right_candidate_id="C13", left_text_id="TQD", right_text_id="T13",
+        left_coord_x=0.5, left_coord_y=0.0, right_coord_x=9.0, right_coord_y=0.0,
+        left_score=1.0, right_score=0.8, pair_key="5QD3->13", pair_kind="wire_component_mapping")
+
+
+def _ownership_fixture(slot_text="13", add_second_owner=False, unregistered_route_end=False):
+    pair = _numeric_pin_pair()
+    own_line = _line_entity("OWN_L", "OWN", (0.0, 0.0), (1.0, 0.0))
+    foreign_line = _line_entity("FOREIGN_L", "FOREIGN", (10.0, 0.0), (12.0, 0.0))
+    lines = [own_line, foreign_line]
+    groups = [LineGroup("G1", "S1", "F1", 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, ["OWN_L"]),
+        LineGroup("G2", "S1", "F1", 10.0, 0.0, 12.0, 0.0, 2.0, 1.0, ["FOREIGN_L"])]
+    wire = SwPort("FP", "S1", "F1", category="端子", start_x=10.0, start_y=0.0,
+        end_x=10.5, end_y=0.0, wire_contacts=[{"wire_handle": "FOREIGN"}])
+    ends = [{"status": "resolved_by_symb2_text", "identity_source": "symb2_text_slot",
+        "identity": f"5YFA-{slot_text}", "port_ids": [] if unregistered_route_end else ["FP"],
+        "terminal_handle": "TERM", "port_number": "1",
+        "symb2": {"slot_text": slot_text}}, {"status": "resolved", "identity_source": "sw_port",
+        "identity": "5QD3", "port_ids": ["FP"]}]
+    routes = [{"record_id": "ROUTE1", "file_id": "F1", "sheet_id": "S1", "wire_handle": "FOREIGN",
+        "both_ends_resolved": True, "ends_json": json.dumps(ends), "admission_status": "consumed_unchecked"}]
+    if add_second_owner:
+        second_line = _line_entity("FOREIGN2_L", "FOREIGN2", (8.0, 0.0), (7.0, 0.0))
+        lines.append(second_line)
+        groups.append(LineGroup("G3", "S1", "F1", 8.0, 0.0, 7.0, 0.0, 1.0, 1.0, ["FOREIGN2_L"]))
+        second_wire = SwPort("FP2", "S1", "F1", category="端子", start_x=8.0, start_y=0.0,
+            end_x=8.5, end_y=0.0, wire_contacts=[{"wire_handle": "FOREIGN2"}])
+        wire2_ends = [{"status": "resolved_by_symb2_text", "identity_source": "symb2_text_slot",
+            "identity": f"1FA-{slot_text}", "port_ids": ["FP2"], "symb2": {"slot_text": slot_text}},
+            {"status": "resolved", "identity_source": "sw_port", "identity": "1QD3", "port_ids": ["FP2"]}]
+        routes.append({"record_id": "ROUTE2", "file_id": "F1", "sheet_id": "S1", "wire_handle": "FOREIGN2",
+            "both_ends_resolved": True, "ends_json": json.dumps(wire2_ends), "admission_status": "consumed_unchecked"})
+        return pair, groups, lines, SuperworksData(ports=[wire, second_wire], wire_route_rows=routes)
+    data = SuperworksData(ports=[wire], wire_route_rows=routes)
+    if unregistered_route_end:
+        data.unregistered_symb2 = [{"file_id": "F1", "sheet_id": "S1", "insert_handle": "TERM",
+            "termpoints": [{"number": "1", "a": (10.0, -0.5), "b": (10.5, 0.5)}]}]
+    return pair, groups, lines, data
+
+
+def test_nearer_resolved_sw_wire_rejects_only_the_unowned_numeric_pin_candidate():
+    pair, groups, lines, data = _ownership_fixture()
+    output = [pair]
+    changed = _clear_numeric_candidates_owned_by_nearer_sw_wire(output, data, groups, lines, [])
+    assert changed == 1
+    result = output[0]
+    assert (result.status, result.left_value, result.right_value) == ("review", "5QD3", None)
+    assert result.right_candidate_id is None and result.right_text_id is None
+    assert result.selected_pair_candidate_id is None
+    assert result.pair_key == "5QD3->?"
+    assert result.evidence["numeric_endpoint"] is None
+    assert result.evidence["rejected_numeric_candidate"]["route_witnesses"][0]["identity"] == "5YFA-13"
+    assert "端点为无编号元件引脚" in result.rationale
+
+
+def test_nearer_wire_filter_requires_matching_slot_and_unambiguous_owner():
+    pair, groups, lines, data = _ownership_fixture(slot_text="14")
+    output = [pair]
+    assert _clear_numeric_candidates_owned_by_nearer_sw_wire(output, data, groups, lines, []) == 0
+    assert output[0] is pair and output[0].right_value == "13"
+
+    pair, groups, lines, data = _ownership_fixture(add_second_owner=True)
+    output = [pair]
+    assert _clear_numeric_candidates_owned_by_nearer_sw_wire(output, data, groups, lines, []) == 0
+    assert output[0] is pair and output[0].right_value == "13"
+
+
+def test_nearer_wire_filter_uses_unregistered_symb2_termpoint_without_port_ids():
+    pair, groups, lines, data = _ownership_fixture(unregistered_route_end=True)
+    output = [pair]
+    assert _clear_numeric_candidates_owned_by_nearer_sw_wire(output, data, groups, lines, []) == 1
+    witness = output[0].evidence["rejected_numeric_candidate"]["route_witnesses"][0]
+    assert witness["identity"] == "5YFA-13"
+    assert witness["terminal_handle"] == "TERM"
+    assert witness["distance_to_foreign_endpoint"] <= 0.6
 
 
 def test_two_metadata_destinations_replacing_one_legacy_pair_have_unique_ids():
