@@ -7,6 +7,7 @@ import { emitMockAnalyzeSessionEvents, getMockPreview, getMockProjectResult, get
 import type { AnalyzeSessionRequest, AnalyzeSessionResult, DiagnosticPage, IssueDetail, IssueFilterOptions, IssuePage, IssueQuery, IssueStats, IssueStatus, IssueSummary, PreviewPayload, ProjectResult, ProjectSummary, RecentProject, SidecarEvent } from "../types"
 import type { DesktopSettings } from "./settings"
 import { defaultSettings, normalizeSettings } from "./settings"
+import { createSerialQueue, humanizeDeleteErrorMessage, type ProjectDeleteOutcome } from "./projectDeletion"
 
 const DESKTOP_EVENT_NAME = "dwg-audit://sidecar-event"
 
@@ -23,13 +24,16 @@ const COMMANDS = {
   renderPreview: "desktop_render_preview",
   cancelPreview: "desktop_cancel_preview",
   setIssueStatus: "desktop_set_issue_status",
-  deleteProject: "desktop_delete_project",
+  deleteProjects: "desktop_delete_projects",
   cleanupWorkspaces: "desktop_cleanup_workspaces",
   readSettings: "desktop_read_settings",
   writeSettings: "desktop_write_settings",
 } as const
 
 const mockIssueStatuses = new Map<string, IssueStatus>()
+
+// Every delete goes through one queue so two deletes never race for the sidecar workspace lease.
+const enqueueProjectDelete = createSerialQueue()
 
 export type DesktopRuntimeMode = "native" | "browser-mock"
 
@@ -382,15 +386,42 @@ export const desktopApi = {
     }
   },
 
-  async deleteProject(projectId: string): Promise<void> {
+  /**
+   * Deletes project records, one outcome per requested id. Never rejects: a
+   * whole-call failure (for example the workspace is busy) is reported as a
+   * failure for every id, so the caller can roll each one back.
+   */
+  async deleteProjects(projectIds: readonly string[]): Promise<ProjectDeleteOutcome[]> {
+    const ids = [...projectIds]
+    if (ids.length === 0) {
+      return []
+    }
     if (!isTauri()) {
-      return
+      return ids.map((projectId) => ({ project_id: projectId, ok: true, not_found: false, error: null }))
     }
-    try {
-      await invoke(COMMANDS.deleteProject, { projectId })
-    } catch (error) {
-      throw toDesktopError("删除项目记录失败。", error)
-    }
+    return enqueueProjectDelete(async () => {
+      try {
+        const payload = await invoke<{ results?: Array<Partial<ProjectDeleteOutcome>> }>(COMMANDS.deleteProjects, {
+          projectIds: ids,
+        })
+        const byId = new Map((payload.results ?? []).map((item) => [String(item.project_id ?? ""), item]))
+        return ids.map((projectId) => {
+          const item = byId.get(projectId)
+          if (!item) {
+            return { project_id: projectId, ok: false, not_found: false, error: "删除结果缺失。" }
+          }
+          return {
+            project_id: projectId,
+            ok: item.ok === true,
+            not_found: item.not_found === true,
+            error: item.ok === true ? null : humanizeDeleteErrorMessage(String(item.error ?? "")),
+          }
+        })
+      } catch (error) {
+        const message = error instanceof Error ? humanizeDeleteErrorMessage(error.message) : "删除项目记录失败。"
+        return ids.map((projectId) => ({ project_id: projectId, ok: false, not_found: false, error: message }))
+      }
+    })
   },
 
   async cleanupWorkspaces(): Promise<void> {

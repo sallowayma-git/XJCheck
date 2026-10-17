@@ -6,10 +6,12 @@ import time
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from dwg_audit.desktop import preview as preview_module
 from dwg_audit.desktop import sidecar as sidecar_module
 from dwg_audit.desktop.lifecycle import cleanup_stale_workspaces
+from dwg_audit.desktop.lifecycle import session_lease
 from dwg_audit.desktop.preview import _expand_focus_extent_for_pan
 from dwg_audit.desktop.preview import build_preview_geometry_payloads
 from dwg_audit.desktop.preview import _normalize_focus_boxes
@@ -17,6 +19,7 @@ from dwg_audit.desktop.preview import render_project_preview
 from dwg_audit.desktop.sidecar import cleanup_transient_workspaces
 from dwg_audit.desktop.sidecar import compact_session_workspace
 from dwg_audit.desktop.sidecar import delete_project_record
+from dwg_audit.desktop.sidecar import delete_project_records
 from dwg_audit.desktop.sidecar import load_project_result
 from dwg_audit.desktop.sidecar import list_recent_projects
 from dwg_audit.desktop.state_store import DesktopStateStore
@@ -267,6 +270,109 @@ def test_delete_project_record_removes_sqlite_and_local_artifacts(tmp_path: Path
     assert not preview_dir.exists()
     assert list_recent_projects(state_db_path=state_db) == []
     assert load_project_result(project_id="demo-project", state_db_path=state_db) is None
+
+
+def _record_project(store: DesktopStateStore, *, project_id: str, artifact_dir: Path) -> None:
+    session_id = f"session-{project_id}"
+    store.record_run(
+        run_id=f"{session_id}:{project_id}",
+        session_id=session_id,
+        project_id=project_id,
+        project_name=project_id,
+        input_root=str(artifact_dir.parent / "input"),
+        artifact_dir=str(artifact_dir),
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=1,
+        metadata={"demo": True},
+    )
+    store.replace_issue_summaries(f"{session_id}:{project_id}", [_issue_payload(evidence={})])
+
+
+def test_delete_project_records_batch_removes_each_and_treats_missing_as_done(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace_root = tmp_path / "workspace"
+    store = DesktopStateStore(state_db)
+    artifact_dirs = {}
+    for project_id in ("alpha-project", "beta-project"):
+        artifact_dir = workspace_root / f"session-{project_id}" / project_id
+        artifact_dir.mkdir(parents=True)
+        (artifact_dir / "tmp.txt").write_text("tmp", encoding="utf-8")
+        artifact_dirs[project_id] = artifact_dir
+        _record_project(store, project_id=project_id, artifact_dir=artifact_dir)
+
+    payload = delete_project_records(
+        project_ids=["alpha-project", "ghost-project", "beta-project"],
+        workspace_root=workspace_root,
+        state_db_path=state_db,
+    )
+
+    assert [item["project_id"] for item in payload["results"]] == ["alpha-project", "ghost-project", "beta-project"]
+    assert all(item["ok"] for item in payload["results"])
+    ghost = payload["results"][1]
+    assert ghost["not_found"] is True
+    assert payload["results"][0]["deleted_runs"] == 1
+    assert payload["deleted_count"] == 3
+    assert payload["failed_count"] == 0
+    assert not artifact_dirs["alpha-project"].exists()
+    assert not artifact_dirs["beta-project"].exists()
+    assert list_recent_projects(state_db_path=state_db) == []
+
+
+def test_delete_project_records_reports_failure_per_project_and_continues(tmp_path: Path, monkeypatch) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace_root = tmp_path / "workspace"
+    store = DesktopStateStore(state_db)
+    for project_id in ("alpha-project", "bad-project", "gamma-project"):
+        artifact_dir = workspace_root / f"session-{project_id}" / project_id
+        artifact_dir.mkdir(parents=True)
+        _record_project(store, project_id=project_id, artifact_dir=artifact_dir)
+
+    original = sidecar_module._delete_project_record_unlocked
+
+    def flaky(*, project_id, **kwargs):
+        if project_id == "bad-project":
+            raise RuntimeError("disk unavailable")
+        return original(project_id=project_id, **kwargs)
+
+    monkeypatch.setattr(sidecar_module, "_delete_project_record_unlocked", flaky)
+
+    payload = delete_project_records(
+        project_ids=["bad-project", "alpha-project", "gamma-project"],
+        workspace_root=workspace_root,
+        state_db_path=state_db,
+    )
+
+    by_id = {item["project_id"]: item for item in payload["results"]}
+    assert by_id["bad-project"]["ok"] is False
+    assert "disk unavailable" in by_id["bad-project"]["error"]
+    assert by_id["alpha-project"]["ok"] is True
+    assert by_id["gamma-project"]["ok"] is True
+    assert payload["failed_count"] == 1
+    assert payload["deleted_count"] == 2
+    remaining = {item["project_id"] for item in list_recent_projects(state_db_path=state_db)}
+    assert remaining == {"bad-project"}
+
+
+def test_delete_project_records_refuses_while_analysis_holds_workspace(tmp_path: Path) -> None:
+    state_db = tmp_path / "desktop_state.db"
+    workspace_root = tmp_path / "workspace"
+    store = DesktopStateStore(state_db)
+    artifact_dir = workspace_root / "session-alpha" / "alpha-project"
+    artifact_dir.mkdir(parents=True)
+    _record_project(store, project_id="alpha-project", artifact_dir=artifact_dir)
+
+    with session_lease(workspace_root, "analysis"):
+        with pytest.raises(BlockingIOError):
+            delete_project_records(
+                project_ids=["alpha-project"],
+                workspace_root=workspace_root,
+                state_db_path=state_db,
+            )
+
+    assert artifact_dir.exists()
+    assert [item["project_id"] for item in list_recent_projects(state_db_path=state_db)] == ["alpha-project"]
 
 
 def test_expand_focus_extent_for_pan_adds_more_context_below() -> None:

@@ -2,6 +2,7 @@ import { isTauri } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useEffectEvent,
@@ -14,7 +15,17 @@ import {
 import "./App.css"
 import logoUrl from "./assets/logo.png"
 import { AuditFlowDiagram, type AuditFlowDot, type AuditFlowCoverage } from "./components/AuditFlowDiagram"
+import { ToastStack, type ToastItem } from "./components/ToastStack"
 import { desktopApi } from "./lib/desktopApi"
+import {
+  deleteFailureToast,
+  excludeProjectIds,
+  humanizeDeleteErrorMessage,
+  settleProjectDeletes,
+  toggleAllProjectSelection,
+  toggleProjectSelection,
+  type ProjectDeleteSettlement,
+} from "./lib/projectDeletion"
 import { IssueInspector, type InspectorTechnicalRow } from "./components/IssueInspector"
 import { getIssueLocations, summarizeLocations } from "./lib/issueLocations"
 import {
@@ -186,7 +197,10 @@ function App() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isDropTargetActive, setIsDropTargetActive] = useState(false)
   const [launchImportStatus, setLaunchImportStatus] = useState<LaunchImportStatus | null>(null)
-  const [isDeletingProjectId, setIsDeletingProjectId] = useState<string | null>(null)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [batchDeleteMode, setBatchDeleteMode] = useState(false)
+  const [selectedDeleteIds, setSelectedDeleteIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [toasts, setToasts] = useState<ToastItem[]>([])
   const deferredIssueSearch = useDeferredValue(issueSearch)
   const [processState, setProcessState] = useState<ProcessState>({
     sessionId: null,
@@ -230,6 +244,11 @@ function App() {
   const previewClientSessionEpochRef = useRef<number | null>(null)
   const previewClientSessionRegistrationRef = useRef<Promise<number> | null>(null)
   const appDisposedRef = useRef(false)
+  // Mirror of pendingDeleteIds for reads inside async callbacks.
+  const pendingDeleteIdsRef = useRef<ReadonlySet<string>>(new Set())
+  // Ids the sidecar confirmed deleted. Hides stale list responses that predate the delete.
+  const confirmedDeleteIdsRef = useRef<Set<string>>(new Set())
+  const toastIdRef = useRef(0)
   const activeIssueQuery = useMemo(
     () =>
       buildIssueQuery(
@@ -314,9 +333,19 @@ function App() {
   const refreshRecentProjects = useEffectEvent(async () => {
     try {
       const projects = await desktopApi.listRecentProjects()
-      setRecentProjects(projects)
-      if (!selectedProjectId && projects[0]) {
-        selectProject(projects[0].project_id, projects[0].run_id)
+      // An id the sidecar no longer reports is fully gone, so stop tracking it.
+      const reportedIds = new Set(projects.map((project) => project.project_id))
+      for (const projectId of confirmedDeleteIdsRef.current) {
+        if (!reportedIds.has(projectId)) {
+          confirmedDeleteIdsRef.current.delete(projectId)
+        }
+      }
+      // Pending deletes stay in the stored list; they are hidden at render time.
+      const stored = excludeProjectIds(projects, confirmedDeleteIdsRef.current)
+      setRecentProjects(stored)
+      const firstVisible = excludeProjectIds(stored, pendingDeleteIdsRef.current)[0]
+      if (!selectedProjectId && firstVisible) {
+        selectProject(firstVisible.project_id, firstVisible.run_id)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "刷新最近项目失败。"
@@ -1058,7 +1087,9 @@ function App() {
         applyProcessEvents(processEventQueueRef.current)
         processEventQueueRef.current = []
       }
-      setRecentProjects(await desktopApi.listRecentProjects())
+      const refreshedProjects = await desktopApi.listRecentProjects()
+      confirmedDeleteIdsRef.current = new Set()
+      setRecentProjects(refreshedProjects)
       if (payload.projects[0] && isCurrentRequest(screenIntentGenerationRef.current, screenIntentGeneration)) {
         selectProject(payload.projects[0].project_id, payload.projects[0].run_id)
         await loadProjectResult(payload.projects[0].project_id, payload.projects[0].run_id)
@@ -1107,14 +1138,107 @@ function App() {
     }
   }
 
-  async function handleDeleteProject(projectId: string, projectName: string) {
-    if (!projectId) {
-      return
-    }
-    if (isDeletingProjectId) {
-      return
+  function deleteBlockReason(): string | null {
+    if (isAnalyzing) {
+      return "校验进行中，暂不能删除项目记录。"
     }
     if (isLoadingProjectId) {
+      return "正在加载校验结果，请稍后再删除。"
+    }
+    return null
+  }
+
+  function addPendingDeletes(projectIds: readonly string[]): void {
+    const next = new Set(pendingDeleteIdsRef.current)
+    projectIds.forEach((projectId) => next.add(projectId))
+    pendingDeleteIdsRef.current = next
+    setPendingDeleteIds(next)
+  }
+
+  function removePendingDeletes(projectIds: readonly string[]): void {
+    const next = new Set(pendingDeleteIdsRef.current)
+    projectIds.forEach((projectId) => next.delete(projectId))
+    pendingDeleteIdsRef.current = next
+    setPendingDeleteIds(next)
+  }
+
+  const pushToast = useCallback((message: string) => {
+    toastIdRef.current += 1
+    const id = toastIdRef.current
+    setToasts((current) => [...current, { id, message }])
+  }, [])
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id))
+  }, [])
+
+  // Clears the open result page right away when its project is being deleted.
+  // A failed delete does not bring the page back.
+  function clearOpenProjectIfDeleted(projectIds: readonly string[]): void {
+    const openProjectId = selectedProjectIdRef.current
+    if (!openProjectId || !projectIds.includes(openProjectId)) {
+      return
+    }
+    const generation = projectLoadGenerationRef.current.current
+    void desktopApi.cancelResultLoad(generation, previewClientSessionId, previewClientSessionEpochRef.current).catch(() => undefined)
+    invalidateRequests(projectLoadGenerationRef.current)
+    issuePageLoadInFlightRef.current = null
+    issuePageQueryKeyRef.current = null
+    setIsLoadingMoreIssues(false)
+    setIsReloadingIssueQuery(false)
+    selectProject(null)
+    setResult(null)
+    setResultSummary(null)
+    setResultIssueTotal(0)
+    setDiagnosticItems([])
+    setDiagnosticTotal(0)
+    setDiagnosticLoadedRunId(null)
+    setDiagnosticError(null)
+    setSelectedIssueId(null)
+    setScreen("launch")
+  }
+
+  /**
+   * Optimistic delete: the rows are hidden at once, then the sidecar outcome
+   * decides each one. Success removes the row for good. Failure only un-hides
+   * it, so it returns in its original place, and a toast explains why.
+   */
+  async function runProjectDeletion(projectIds: readonly string[]): Promise<void> {
+    const ids = [...new Set(projectIds)]
+    if (ids.length === 0) {
+      return
+    }
+    setLoadError(null)
+    clearOpenProjectIfDeleted(ids)
+    addPendingDeletes(ids)
+
+    let settlement: ProjectDeleteSettlement
+    try {
+      const outcomes = await desktopApi.deleteProjects(ids)
+      settlement = settleProjectDeletes(ids, outcomes)
+    } catch (error) {
+      const message = error instanceof Error ? humanizeDeleteErrorMessage(error.message) : "删除项目记录失败。"
+      settlement = { succeededIds: [], failed: ids.map((projectId) => ({ projectId, message })) }
+    }
+
+    if (settlement.succeededIds.length > 0) {
+      settlement.succeededIds.forEach((projectId) => confirmedDeleteIdsRef.current.add(projectId))
+      const deleted = new Set(settlement.succeededIds)
+      setRecentProjects((current) => excludeProjectIds(current, deleted))
+    }
+    removePendingDeletes(ids)
+    if (settlement.failed.length > 0) {
+      pushToast(deleteFailureToast(settlement.failed, ids.length))
+    }
+  }
+
+  async function handleDeleteProject(projectId: string, projectName: string) {
+    if (!projectId || pendingDeleteIdsRef.current.has(projectId)) {
+      return
+    }
+    const blocked = deleteBlockReason()
+    if (blocked) {
+      pushToast(blocked)
       return
     }
     const confirmed = window.confirm(
@@ -1123,38 +1247,35 @@ function App() {
     if (!confirmed) {
       return
     }
-    setIsDeletingProjectId(projectId)
-    setLoadError(null)
-    try {
-      if (isTauri()) {
-        await desktopApi.deleteProject(projectId)
-      }
-      setRecentProjects((current) => current.filter((item) => item.project_id !== projectId))
-      if (selectedProjectIdRef.current === projectId) {
-        const generation = projectLoadGenerationRef.current.current
-        void desktopApi.cancelResultLoad(generation, previewClientSessionId, previewClientSessionEpochRef.current).catch(() => undefined)
-        invalidateRequests(projectLoadGenerationRef.current)
-        issuePageLoadInFlightRef.current = null
-        issuePageQueryKeyRef.current = null
-        setIsLoadingMoreIssues(false)
-        setIsReloadingIssueQuery(false)
-        selectProject(null)
-        setResult(null)
-        setResultSummary(null)
-        setResultIssueTotal(0)
-        setDiagnosticItems([])
-        setDiagnosticTotal(0)
-        setDiagnosticLoadedRunId(null)
-        setDiagnosticError(null)
-        setSelectedIssueId(null)
-        setScreen("launch")
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "删除项目记录失败。"
-      setLoadError(message)
-    } finally {
-      setIsDeletingProjectId(null)
+    await runProjectDeletion([projectId])
+  }
+
+  async function handleBatchDelete() {
+    const blocked = deleteBlockReason()
+    if (blocked) {
+      pushToast(blocked)
+      return
     }
+    const projectIds = visibleRecentProjects
+      .filter((project) => selectedDeleteIds.has(project.project_id))
+      .map((project) => project.project_id)
+    if (projectIds.length === 0) {
+      return
+    }
+    const confirmed = window.confirm(
+      `确认删除所选的 ${projectIds.length} 个项目记录？\n将移除应用内保存的问题清单与定位信息，且不可恢复。`,
+    )
+    if (!confirmed) {
+      return
+    }
+    setBatchDeleteMode(false)
+    setSelectedDeleteIds(new Set())
+    await runProjectDeletion(projectIds)
+  }
+
+  function cancelBatchDelete(): void {
+    setBatchDeleteMode(false)
+    setSelectedDeleteIds(new Set())
   }
 
   const filteredIssues = useMemo(() => result?.issues ?? [], [result?.issues])
@@ -1211,13 +1332,19 @@ function App() {
     issueRowVirtualizer.scrollToOffset(0)
   }, [deferredIssueSearch, handlingFilter, issueRowVirtualizer, ruleFilter, severityFilter, statusFilter, triageFilter, result?.run.run_id])
 
+  const visibleRecentProjects = useMemo(
+    () => excludeProjectIds(recentProjects, pendingDeleteIds),
+    [pendingDeleteIds, recentProjects],
+  )
+  const selectedVisibleCount = visibleRecentProjects.filter((project) => selectedDeleteIds.has(project.project_id)).length
+  const allVisibleSelected = visibleRecentProjects.length > 0 && selectedVisibleCount === visibleRecentProjects.length
   const summaryProject =
     result?.run ??
-    recentProjects.find(
+    visibleRecentProjects.find(
       (project) =>
         project.project_id === selectedProjectId && (!selectedRunId || project.run_id === selectedRunId),
     ) ??
-    recentProjects[0] ??
+    visibleRecentProjects[0] ??
     null
   const inputHealth = describeInputRoot(inputRoot)
   function toggleResultToolbar(): void {
@@ -1411,31 +1538,81 @@ function App() {
               <div className="panel-pad">
                 <div className="section-heading">
                   <h3>最近校验</h3>
-                  <button type="button" className="ghost-button" onClick={() => void refreshRecentProjects()}>
-                    刷新
-                  </button>
+                  <div className="section-actions">
+                    {batchDeleteMode ? (
+                      <>
+                        <button
+                          type="button"
+                          className="danger-button"
+                          disabled={selectedVisibleCount === 0 || isAnalyzing || Boolean(isLoadingProjectId)}
+                          onClick={() => void handleBatchDelete()}
+                        >
+                          删除所选（{selectedVisibleCount}）
+                        </button>
+                        <button type="button" className="ghost-button" onClick={cancelBatchDelete}>
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          disabled={visibleRecentProjects.length === 0 || isAnalyzing || Boolean(isLoadingProjectId)}
+                          onClick={() => setBatchDeleteMode(true)}
+                        >
+                          批量删除
+                        </button>
+                        <button type="button" className="ghost-button" onClick={() => void refreshRecentProjects()}>
+                          刷新
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="table-wrap launch-recent-table">
                 <table className="data-table compact">
                   <thead>
                     <tr>
+                      {batchDeleteMode ? (
+                        <th className="select-col">
+                          <input
+                            type="checkbox"
+                            aria-label="全选"
+                            checked={allVisibleSelected}
+                            disabled={visibleRecentProjects.length === 0}
+                            onChange={() =>
+                              setSelectedDeleteIds(
+                                toggleAllProjectSelection(
+                                  visibleRecentProjects.map((project) => project.project_id),
+                                  selectedDeleteIds,
+                                ),
+                              )
+                            }
+                          />
+                        </th>
+                      ) : null}
                       <th>项目</th>
                       <th>校验时间</th>
                       <th>图纸</th>
                       <th>问题</th>
                       <th>状态</th>
-                      <th className="actions-col">操作</th>
+                      {batchDeleteMode ? null : <th className="actions-col">操作</th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {recentProjects.length ? (
-                      recentProjects.map((project) => (
+                    {visibleRecentProjects.length ? (
+                      visibleRecentProjects.map((project) => (
                         <tr
                           key={project.run_id}
                           className={project.run_id === selectedRunId ? "selected-row" : ""}
                           onClick={() => {
-                            if (isAnalyzing || isDeletingProjectId || isLoadingProjectId === project.project_id) {
+                            if (batchDeleteMode) {
+                              setSelectedDeleteIds((current) => toggleProjectSelection(current, project.project_id))
+                              return
+                            }
+                            if (isAnalyzing || isLoadingProjectId === project.project_id) {
                               return
                             }
                             if (project.snapshot_available === false) {
@@ -1446,6 +1623,17 @@ function App() {
                             void loadProjectResult(project.project_id, project.run_id)
                           }}
                         >
+                          {batchDeleteMode ? (
+                            <td className="select-col">
+                              <input
+                                type="checkbox"
+                                aria-label={`选择 ${project.project_name}`}
+                                checked={selectedDeleteIds.has(project.project_id)}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={() => setSelectedDeleteIds((current) => toggleProjectSelection(current, project.project_id))}
+                              />
+                            </td>
+                          ) : null}
                           <td>
                             <div className="issue-title-cell">
                               <strong>{project.project_name}</strong>
@@ -1460,12 +1648,13 @@ function App() {
                           <td>
                             <span className={`chip status-${normalizeToken(project.status)}`}>{project.snapshot_available === false ? "需重新分析" : labelProjectStatus(project.status)}</span>
                           </td>
+                          {batchDeleteMode ? null : (
                           <td className="actions-col">
                             <div className="row-actions">
                               <button
                                 type="button"
                                 className="ghost-button"
-                                disabled={isAnalyzing || Boolean(isDeletingProjectId) || isLoadingProjectId === project.project_id}
+                                disabled={isAnalyzing || isLoadingProjectId === project.project_id}
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   if (project.snapshot_available === false) {
@@ -1482,16 +1671,17 @@ function App() {
                               <button
                                 type="button"
                                 className="danger-button"
-                                disabled={Boolean(isDeletingProjectId) || Boolean(isLoadingProjectId) || isAnalyzing}
+                                disabled={Boolean(isLoadingProjectId) || isAnalyzing}
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   void handleDeleteProject(project.project_id, project.project_name)
                                 }}
                               >
-                                {isDeletingProjectId === project.project_id ? "删除中…" : "删除"}
+                                删除
                               </button>
                             </div>
                           </td>
+                          )}
                         </tr>
                       ))
                     ) : (
@@ -2253,6 +2443,7 @@ function App() {
           </section>
         )}
       </main>
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }
