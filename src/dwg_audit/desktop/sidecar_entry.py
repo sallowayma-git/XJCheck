@@ -10,6 +10,7 @@ _LIGHTWEIGHT_COMMANDS = {
     "cleanup-stale-workspaces",
     "cleanup-workspaces",
     "compact-session-workspace",
+    "delete-project-records",
     "list-recent-projects",
     "load-result",
     "load-result-summary",
@@ -100,6 +101,9 @@ def _run_lightweight_command(argv: list[str]) -> bool:
         parser.add_argument("--project-id", required=True)
         parser.add_argument("--issue-id", required=True)
         parser.add_argument("--run-id")
+    elif command == "delete-project-records":
+        parser.add_argument("--project-id", action="append", required=True)
+        parser.add_argument("--workspace-root", type=Path)
     elif command == "set-issue-status":
         parser.add_argument("--project-id", required=True)
         parser.add_argument("--issue-id", required=True)
@@ -209,6 +213,18 @@ def _run_lightweight_command(argv: list[str]) -> bool:
             "status": options.status,
             "issue": issue,
         }
+    elif command == "delete-project-records":
+        from dwg_audit.desktop.sidecar import DELETE_BUSY_MESSAGE
+        from dwg_audit.desktop.sidecar import delete_project_records
+
+        try:
+            payload = delete_project_records(
+                project_ids=list(options.project_id),
+                workspace_root=options.workspace_root,
+                state_db_path=db_path,
+            )
+        except BlockingIOError:
+            parser.exit(1, DELETE_BUSY_MESSAGE + "\n")
     else:
         from dwg_audit.desktop.lifecycle import cleanup_stale_workspaces
         from dwg_audit.desktop.lifecycle import cleanup_transient_workspaces

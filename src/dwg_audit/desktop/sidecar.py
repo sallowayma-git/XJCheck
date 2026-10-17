@@ -319,6 +319,72 @@ def delete_project_record(
             state_db_path=state_db_path, preview_cache_root=preview_cache_root)
 
 
+DELETE_BUSY_MESSAGE = "分析进行中，请稍后再删除"
+
+
+def delete_project_records(
+    *,
+    project_ids: list[str],
+    workspace_root: Path | None = None,
+    state_db_path: Path | None = None,
+    preview_cache_root: Path | None = None,
+) -> dict[str, Any]:
+    """Delete several project records under a single workspace lease.
+
+    The lease is taken once for the whole batch. Each id is attempted on its
+    own: a failure is reported in that id's entry and the rest still run.
+    A missing record counts as success (``not_found`` is set). A concurrent
+    analysis makes the lease fail with ``BlockingIOError`` before anything runs.
+    """
+    root = (workspace_root or default_workspace_root()).expanduser().resolve()
+    results: list[dict[str, Any]] = []
+    with session_lease(root, "delete-project"):
+        for project_id in dict.fromkeys(str(item) for item in project_ids):
+            if not project_id.strip():
+                results.append(_delete_outcome(project_id, ok=False, error="项目编号为空。"))
+                continue
+            try:
+                payload = _delete_project_record_unlocked(
+                    project_id=project_id,
+                    workspace_root=root,
+                    state_db_path=state_db_path,
+                    preview_cache_root=preview_cache_root,
+                )
+            except FileNotFoundError:
+                results.append(_delete_outcome(project_id, ok=True, not_found=True))
+            except Exception as exc:  # report per project; keep the batch going
+                results.append(_delete_outcome(project_id, ok=False, error=str(exc) or type(exc).__name__))
+            else:
+                results.append(_delete_outcome(project_id, ok=True, payload=payload))
+    return {
+        "results": results,
+        "deleted_count": sum(1 for item in results if item["ok"]),
+        "failed_count": sum(1 for item in results if not item["ok"]),
+    }
+
+
+def _delete_outcome(
+    project_id: str,
+    *,
+    ok: bool,
+    not_found: bool = False,
+    error: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    outcome: dict[str, Any] = {
+        "project_id": project_id,
+        "ok": ok,
+        "not_found": not_found,
+        "error": error,
+        "deleted_runs": 0,
+        "removed_paths": [],
+    }
+    if payload is not None:
+        outcome["deleted_runs"] = payload.get("deleted_runs", 0)
+        outcome["removed_paths"] = payload.get("removed_paths", [])
+    return outcome
+
+
 def _delete_project_record_unlocked(
     *, project_id: str, workspace_root: Path, state_db_path: Path | None,
     preview_cache_root: Path | None,

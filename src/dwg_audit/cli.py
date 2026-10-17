@@ -13,6 +13,8 @@ from dwg_audit.desktop import DesktopEventWriter
 from dwg_audit.desktop import analyze_session as run_desktop_session
 from dwg_audit.desktop import cleanup_transient_workspaces as cleanup_desktop_workspaces
 from dwg_audit.desktop import delete_project_record as delete_desktop_project_record
+from dwg_audit.desktop import delete_project_records as delete_desktop_project_records
+from dwg_audit.desktop.sidecar import DELETE_BUSY_MESSAGE
 from dwg_audit.desktop import list_recent_projects as load_recent_projects
 from dwg_audit.desktop import load_project_result as load_desktop_project_result
 from dwg_audit.desktop import purge_session as purge_desktop_session
@@ -631,6 +633,24 @@ def delete_project_record_cmd(
         )
     except FileNotFoundError as exc:
         raise typer.BadParameter(str(exc)) from exc
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+@app.command("delete-project-records")
+def delete_project_records_cmd(
+    project_ids: list[str] = typer.Option(..., "--project-id", help="Repeat once per project."),
+    workspace_root: Path | None = typer.Option(None, "--workspace-root", file_okay=False, dir_okay=True, resolve_path=True),
+    state_db: Path | None = typer.Option(None, "--state-db", file_okay=True, dir_okay=False, resolve_path=True),
+) -> None:
+    try:
+        payload = delete_desktop_project_records(
+            project_ids=project_ids,
+            workspace_root=workspace_root,
+            state_db_path=state_db,
+        )
+    except BlockingIOError as exc:
+        typer.echo(DELETE_BUSY_MESSAGE, err=True)
+        raise typer.Exit(1) from exc
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
