@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 
@@ -263,6 +264,84 @@ def test_rerun_audit_from_findings_generates_audit_outputs(tmp_path: Path, monke
     assert evidence["line_end"].tolist() == issue.evidence["line_end"]
 
 
+def test_rerun_keeps_recognition_gaps_in_diagnostics_not_user_reports(tmp_path: Path, monkeypatch) -> None:
+    project_dir = tmp_path / "project"
+    visible_issue = _sample_issue()
+    gap_issue = Issue(
+        issue_id="GAP-1",
+        rule_id="R-RECOGNITION-GAP",
+        severity="review",
+        status="open",
+        confidence=0.2,
+        message="endpoint remains unresolved",
+        sheet_id="S0001",
+        file_id="F0001",
+        pair_id=None,
+        line_group_id="G0001",
+        left_value=None,
+        right_value=None,
+        filename="04.dwg",
+        sheet_no="04",
+        evidence={"presentation": "terminal", "reason_codes": ["unresolved_endpoint_identity"]},
+    )
+    uncertain_issue = Issue(
+        issue_id="UNCERTAIN-1",
+        rule_id="R-ONE-TO-MANY",
+        severity="review",
+        status="open",
+        confidence=0.7,
+        message="branch classification remains uncertain",
+        sheet_id="S0001",
+        file_id="F0001",
+        pair_id=None,
+        line_group_id="G0001",
+        left_value="101",
+        right_value="201",
+        filename="04.dwg",
+        sheet_no="04",
+        evidence={"one_to_many_classification": "review"},
+    )
+
+    class EventSink:
+        def __init__(self) -> None:
+            self.events: list[tuple[str, dict]] = []
+
+        def emit(self, event: str, **payload) -> None:
+            self.events.append((event, payload))
+
+    sink = EventSink()
+    monkeypatch.setattr("dwg_audit.report.rerun.load_report_frames", lambda path: _sample_frames())
+    monkeypatch.setattr("dwg_audit.report.rerun.build_issues", lambda *args, **kwargs: [visible_issue])
+    monkeypatch.setattr(
+        "dwg_audit.audit.recognition_coordinator.resolve_recognition_gaps",
+        lambda *args, **kwargs: SimpleNamespace(
+            issues=[gap_issue, uncertain_issue], suppressed=[], stats={"unclosed_count": 1}
+        ),
+    )
+    monkeypatch.setattr("dwg_audit.report.rerun.export_existing_reports", lambda path: _write_report_stubs(path))
+
+    audit_dir = rerun_audit_from_findings(project_dir, {}, event_sink=sink)
+
+    issues = json.loads((audit_dir / "issues.json").read_text(encoding="utf-8"))
+    diagnostics = [
+        json.loads(line)
+        for line in (audit_dir / "recognition_gap_diagnostics.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    summary = json.loads((audit_dir / "recognition_gap_diagnostic_summary.json").read_text(encoding="utf-8"))
+    assert [row["rule_id"] for row in issues] == ["R-CROSS-PAGE-CONFLICT"]
+    assert {row["rule_id"] for row in diagnostics} == {"R-RECOGNITION-GAP", "R-ONE-TO-MANY"}
+    assert summary["diagnostic_count"] == 2
+    assert summary["unclosed_count"] == 1
+    assert summary["by_rule"] == {"R-ONE-TO-MANY": 1, "R-RECOGNITION-GAP": 1}
+    assert summary["by_reason_code"] == {"unresolved_endpoint_identity": 1, "unspecified": 1}
+    assert summary["by_observation_reason_code"] == {"unresolved_endpoint_identity": 1}
+    issue_events = [payload for name, payload in sink.events if name == "issue_found"]
+    assert [payload["rule_id"] for payload in issue_events] == ["R-CROSS-PAGE-CONFLICT"]
+    finished = [payload for name, payload in sink.events if name == "audit_finished"][-1]
+    assert finished["issue_count"] == 1
+    assert finished["diagnostic_count"] == 2
+
+
 def test_rerun_audit_from_findings_copies_outputs_to_output_dir(tmp_path: Path, monkeypatch) -> None:
     project_dir = tmp_path / "project"
     output_dir = tmp_path / "copied-audit"
@@ -286,6 +365,8 @@ def test_rerun_audit_from_findings_copies_outputs_to_output_dir(tmp_path: Path, 
         "issues.xlsx",
         "topology_shadow_report.json",
         "topology_shadow_report.md",
+        "recognition_gap_diagnostics.jsonl",
+        "recognition_gap_diagnostic_summary.json",
     ):
         assert (audit_dir / name).exists()
         assert (output_dir / name).exists()
