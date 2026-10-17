@@ -10,6 +10,7 @@ import {
   type LocationView,
   type SheetGroup,
 } from "../lib/issueLocations"
+import type { PreviewMode } from "../lib/previewPolicy"
 import type { IssueSummary } from "../types"
 import { LocationPreviewPane } from "./LocationPreviewPane"
 
@@ -26,6 +27,8 @@ export type IssueInspectorProps = {
   runId: string | null
   clientSessionId: string
   clientSessionEpoch: number | null
+  /** 预览方式（设置页）：自动 / 手动 / 关闭。 */
+  previewMode: PreviewMode
   statusDraft: string
   statusOptions: readonly string[]
   statusLabel: (value: string) => string
@@ -79,6 +82,7 @@ export function IssueInspector({
   runId,
   clientSessionId,
   clientSessionEpoch,
+  previewMode,
   statusDraft,
   statusOptions,
   statusLabel,
@@ -165,12 +169,14 @@ export function IssueInspector({
               subcaption={group ? `${group.views.length} 处位置` : ""}
               projectId={projectId}
               runId={runId}
-              issueId={null}
+              issueId={issue.issue_id}
+              lineGroupId={group?.sheetId && group.sheetId === issue.sheet_id ? issue.line_group_id ?? null : null}
               sheetId={group?.sheetId ?? null}
               focus={focusFor(group, activeView)}
               highlightBox={highlightFor(group, activeView)}
               clientSessionId={clientSessionId}
               clientSessionEpoch={clientSessionEpoch}
+              previewMode={previewMode}
               emptyText="当前问题没有可定位的图纸区域，请阅读文字说明。"
             />
           ))}

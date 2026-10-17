@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from "react"
 
-import { desktopApi } from "../lib/desktopApi"
+import { desktopApi, DesktopOperationError } from "../lib/desktopApi"
 import type { BBox } from "../lib/issueLocations"
 import { beginRequest, createRequestGeneration, invalidateRequests, isCurrentRequest } from "../lib/requestGeneration"
 import { normalizePreviewScale, type PreviewSize } from "../lib/previewPan"
 import { boxToCanvasPercent, type PreviewExtent } from "../lib/previewGeometry"
+import {
+  createPreviewContextKey,
+  resolvePreviewEmptyState,
+  shouldRenderPreview,
+  type PreviewMode,
+} from "../lib/previewPolicy"
 import { usePreviewViewport } from "../lib/usePreviewViewport"
 import type { PreviewPayload } from "../types"
 
 const PANE_REQUEST_TIMEOUT_MS = 20_000
 const PANE_REQUEST_DELAY_MS = 120
+const PANE_ERROR_TITLE = "无法生成该位置的图纸预览。"
+const PANE_MISSING_FALLBACK = "该图纸几何数据缺失，请重新校验项目"
 
 let paneRequestSequence = 0
 
@@ -40,8 +48,10 @@ export type LocationPreviewPaneProps = {
   subcaption: string
   projectId: string | null
   runId: string | null
-  /** 位置预览按图纸与取景框请求，不依赖问题编号（后端只需 sheetId + focusJson）。 */
+  /** 问题编号：后端据此恢复问题高亮；无问题时为 null。 */
   issueId: string | null
+  /** 问题所在线组（仅当与图纸一致时传入），用于恢复线端高亮。 */
+  lineGroupId: string | null
   sheetId: string | null
   /** 需要取景的包围盒列表；null 表示渲染整张图。 */
   focus: number[][] | null
@@ -49,8 +59,12 @@ export type LocationPreviewPaneProps = {
   highlightBox: BBox | null
   clientSessionId: string
   clientSessionEpoch: number | null
+  /** 预览方式（设置页切换，立即生效）。 */
+  previewMode: PreviewMode
   emptyText: string
 }
+
+type PaneStatus = "idle" | "loading" | "ready" | "error" | "missing"
 
 /**
  * 单个图纸位置的预览面板。独立发起 renderPreview，拥有自己的请求代次；
@@ -62,26 +76,39 @@ export function LocationPreviewPane({
   projectId,
   runId,
   issueId,
+  lineGroupId,
   sheetId,
   focus,
   highlightBox,
   clientSessionId,
   clientSessionEpoch,
+  previewMode,
   emptyText,
 }: LocationPreviewPaneProps) {
   const generationRef = useRef(createRequestGeneration())
   const [preview, setPreview] = useState<PreviewPayload | null>(null)
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
+  const [status, setStatus] = useState<PaneStatus>("idle")
   const [errorText, setErrorText] = useState<string | null>(null)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [natural, setNatural] = useState<PreviewSize | null>(null)
+  /** 用户在本面板点击“生成预览”或“重新预览”的记录，并记下当时的目标上下文。 */
+  const [manualRequest, setManualRequest] = useState<{ id: number; contextKey: string } | null>(null)
 
   const focusKey = focus ? JSON.stringify(focus) : "sheet"
+  const contextKey = `${createPreviewContextKey({ projectId, runId, issueId, sheetId, lineGroupId })}|${focusKey}`
+  const manualAdmitted = manualRequest !== null && manualRequest.contextKey === contextKey
+  const admitted = shouldRenderPreview(previewMode, manualAdmitted ? 1 : 0, 0)
 
   useEffect(() => {
     setPreview(null)
     setErrorText(null)
+    setErrorDetail(null)
     setNatural(null)
     if (!projectId || !sheetId || clientSessionEpoch === null) {
+      setStatus("idle")
+      return
+    }
+    if (!admitted) {
       setStatus("idle")
       return
     }
@@ -102,16 +129,22 @@ export function LocationPreviewPane({
         requestId,
         token,
         sheetId,
-        null,
+        lineGroupId,
         clientSessionId,
         clientSessionEpoch,
         runId,
         focus,
       )
-      void withTimeout(pending, PANE_REQUEST_TIMEOUT_MS, "Preview request timed out.")
+      void withTimeout(pending, PANE_REQUEST_TIMEOUT_MS, "操作超时，请稍后重试。")
         .then((payload) => {
           settled = true
           if (!isCurrentRequest(state, token) || payload.request_id !== requestId) {
+            return
+          }
+          if (payload.geometry_missing) {
+            setPreview(null)
+            setErrorText(payload.geometry_missing_message || PANE_MISSING_FALLBACK)
+            setStatus("missing")
             return
           }
           setPreview(payload)
@@ -122,7 +155,13 @@ export function LocationPreviewPane({
           if (!isCurrentRequest(state, token)) {
             return
           }
-          setErrorText(error instanceof Error && error.message ? error.message : "无法生成该位置的图纸预览。")
+          if (error instanceof DesktopOperationError) {
+            setErrorText(error.prefix || PANE_ERROR_TITLE)
+            setErrorDetail(error.detail)
+          } else {
+            setErrorText(PANE_ERROR_TITLE)
+            setErrorDetail(error instanceof Error && error.message ? error.message : null)
+          }
           setStatus("error")
         })
     }, PANE_REQUEST_DELAY_MS)
@@ -133,9 +172,9 @@ export function LocationPreviewPane({
         void desktopApi.cancelPreview(requestId, token, clientSessionId, clientSessionEpoch).catch(() => undefined)
       }
     }
-    // focus 的内容由 focusKey 唯一确定。
+    // focus 的内容由 focusKey 唯一确定；manualRequest 的变化用于触发手动生成与重新预览。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, runId, issueId, sheetId, focusKey, clientSessionEpoch])
+  }, [projectId, runId, issueId, lineGroupId, sheetId, focusKey, clientSessionEpoch, previewMode, admitted, manualRequest])
 
   const viewport = usePreviewViewport({
     baseScale: normalizePreviewScale(preview?.viewport_scale),
@@ -147,11 +186,33 @@ export function LocationPreviewPane({
   const extent = preview?.focus_bbox && preview.focus_bbox.length === 4 ? (preview.focus_bbox as PreviewExtent) : null
   const frame = extent && highlightBox ? boxToCanvasPercent(highlightBox, extent) : null
 
+  const emptyState = resolvePreviewEmptyState({
+    hasIssue: Boolean(projectId && sheetId),
+    isLoading: status === "loading",
+    mode: previewMode,
+    hasError: status === "error",
+    hasPreviewOptions: Boolean(projectId && sheetId),
+  })
+
+  function requestPreview(): void {
+    setManualRequest((current) => ({ id: (current?.id ?? 0) + 1, contextKey }))
+  }
+
+  const userTriggered = manualRequest !== null
+  const showAction = !src && (status === "error" || previewMode === "manual-only" || (status === "loading" && userTriggered))
+  const actionLabel = status === "loading" ? "生成中…" : status === "error" ? "重新预览" : "生成预览"
+
   let message = emptyText
-  if (status === "loading") {
-    message = "正在生成区域预览…"
+  if (status === "missing") {
+    message = errorText ?? PANE_MISSING_FALLBACK
   } else if (status === "error") {
-    message = errorText ?? "无法生成该位置的图纸预览，可稍后重试。"
+    message = errorText ?? PANE_ERROR_TITLE
+  } else if (emptyState === "loading") {
+    message = "正在生成区域预览…"
+  } else if (emptyState === "off") {
+    message = "预览已关闭，可在设置中开启"
+  } else if (emptyState === "manual-only") {
+    message = "点击下方按钮生成预览"
   }
 
   return (
@@ -196,8 +257,9 @@ export function LocationPreviewPane({
               }
               onError={() => {
                 setPreview(null)
-                setStatus("error")
                 setErrorText("预览图未能显示，可稍后重试。")
+                setErrorDetail(null)
+                setStatus("error")
               }}
             />
             {frame ? (
@@ -208,7 +270,15 @@ export function LocationPreviewPane({
             ) : null}
           </div>
         ) : (
-          <div className={`preview-empty${status === "loading" ? " is-loading" : ""}`}>{message}</div>
+          <div className={`preview-empty${status === "loading" ? " is-loading" : ""}`}>
+            <span>{message}</span>
+            {status === "error" && errorDetail ? <span className="preview-error-detail">{errorDetail}</span> : null}
+            {showAction ? (
+              <button type="button" className="ghost-button tb-small-button" disabled={status === "loading"} onClick={requestPreview}>
+                {actionLabel}
+              </button>
+            ) : null}
+          </div>
         )}
         {viewport.canPan ? <span className="preview-pan-hint">拖动查看周边</span> : null}
       </div>

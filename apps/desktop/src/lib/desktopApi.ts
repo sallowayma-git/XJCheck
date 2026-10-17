@@ -629,12 +629,25 @@ function normalizePreviewPayload(payload: Omit<PreviewPayload, "preview_src"> & 
   }
 }
 
+/** 带可展示原因的操作错误：message 仍是 “前缀 + 原因”，detail 单独给界面在下方展示。 */
+export class DesktopOperationError extends Error {
+  readonly prefix: string
+  readonly detail: string | null
+
+  constructor(prefix: string, detail: string | null) {
+    super(detail ? `${prefix} ${detail}` : prefix)
+    this.name = "DesktopOperationError"
+    this.prefix = prefix
+    this.detail = detail
+  }
+}
+
 function toDesktopError(prefix: string, error: unknown): Error {
   if (error instanceof Error) {
     const message = humanizeDesktopErrorMessage(error.message)
-    return new Error(message ? `${prefix} ${message}` : prefix)
+    return new DesktopOperationError(prefix, message || null)
   }
-  return new Error(prefix)
+  return new DesktopOperationError(prefix, null)
 }
 
 function humanizeAnalyzeErrorMessage(error: unknown): string {

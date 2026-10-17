@@ -23,6 +23,7 @@ _MAX_PREVIEW_LINES = 480
 _MAX_PREVIEW_TEXTS = 240
 _MAX_PREVIEW_BLOCKS = 80
 _PREVIEW_GEOMETRY_SCHEMA_VERSION = 2
+GEOMETRY_MISSING_MESSAGE = "该图纸几何数据缺失，请重新校验项目"
 _PREVIEW_OVERSCAN_FACTOR = 2.52
 _PREVIEW_DOWNWARD_SHARE = 0.68
 _RETAINED_PREVIEW_LIMITS = {
@@ -302,6 +303,10 @@ def render_project_preview(
             line_semantics=line_semantics,
         )
         target_path.write_text(svg_text, encoding="utf-8")
+        # Only a located problem can be missing its sheet geometry: an issue without any
+        # coordinates legitimately renders as a text summary.
+        has_location = bool(focus_boxes) or _issue_has_geometry_evidence(issue_row) or _issue_has_located_summary(sqlite_issue)
+        geometry_missing = bool(has_location and retained_geometry is None and source != "artifacts")
         return {
             "project_id": project_id,
             "run_id": resolved_run_id,
@@ -316,6 +321,8 @@ def render_project_preview(
             "lightweight": True,
             "viewport_scale": 1.0,
             "overscan_factor": 1.0,
+            "geometry_missing": geometry_missing,
+            "geometry_missing_message": GEOMETRY_MISSING_MESSAGE if geometry_missing else None,
         }
 
     sheet_lines = lines[lines["sheet_id"].astype(str) == sheet_id] if not lines.empty else pd.DataFrame()
@@ -1089,6 +1096,19 @@ def _issue_has_geometry_evidence(issue_row: pd.Series | None) -> bool:
     if not isinstance(evidence, dict):
         return False
     return _is_point_pair(evidence.get("line_start")) and _is_point_pair(evidence.get("line_end"))
+
+
+def _issue_has_located_summary(issue: dict[str, Any] | None) -> bool:
+    """True when a stored issue carries at least one bbox or point, even if no sheet geometry is retained."""
+    if not issue:
+        return False
+    for location in issue.get("locations") or []:
+        if not isinstance(location, dict):
+            continue
+        bbox = location.get("bbox")
+        if (isinstance(bbox, (list, tuple)) and len(bbox) == 4) or _is_point_pair(location.get("point")):
+            return True
+    return False
 
 
 def _issue_row_from_sqlite(issues: list[dict[str, Any]], issue_id: str) -> pd.Series | None:
