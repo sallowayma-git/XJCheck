@@ -64,8 +64,8 @@ def test_state_store_migrates_legacy_issue_summary_schema(tmp_path: Path) -> Non
         [
             {
                 "issue_id": "I1",
-                "rule_id": "R-ONE-TO-MANY",
-                "issue_type": "one_to_many",
+                "rule_id": "R-PAIR-LOW-CONFIDENCE",
+                "issue_type": "pair_low_confidence",
                 "title": "One-to-many requires review",
                 "summary": "One-to-many cluster requires review.",
                 "explanation": "Multiple targets share one source value.",
@@ -95,7 +95,7 @@ def test_state_store_migrates_legacy_issue_summary_schema(tmp_path: Path) -> Non
 
     assert loaded is not None
     issue = loaded["issues"][0]
-    assert issue["issue_type"] == "one_to_many"
+    assert issue["issue_type"] == "pair_low_confidence"
     assert issue["summary"] == "One-to-many cluster requires review."
     assert issue["one_to_many_classification"] == "review"
     assert issue["related_pair_ids"] == ["P2"]
@@ -222,7 +222,7 @@ def test_pinned_project_pages_cannot_fall_back_to_another_run(tmp_path: Path) ->
         )
         store.replace_issue_summaries(
             run_id,
-            [{"issue_id": "I1", "rule_id": "R", "title": title, "severity": "review", "status": "open", "confidence": 0.5, "evidence": {}}],
+            [{"issue_id": "I1", "rule_id": "R-PAIR-LOW-CONFIDENCE", "title": title, "severity": "review", "status": "open", "confidence": 0.5, "evidence": {}}],
         )
 
     page = store.load_project_issues_page("demo-project", run_id="old", limit=10)
@@ -291,18 +291,18 @@ def test_summary_facets_and_filtered_pages_use_the_whole_pinned_run(tmp_path: Pa
 
     summary = store.load_project_summary("project", run_id="run")
     assert summary is not None
-    assert summary["issue_count"] == 3
+    assert summary["issue_count"] == 2
     assert summary["issue_stats"] == {
-        "total": 3,
-        "open_count": 2,
+        "total": 2,
+        "open_count": 1,
         "serious_open_count": 1,
         "resolved_count": 1,
         "error_count": 1,
-        "warning_count": 1,
+        "warning_count": 0,
         "review_count": 1,
         "group_count": 2,
     }
-    assert summary["filter_options"]["triages"] == ["branch", "review"]
+    assert summary["filter_options"]["triages"] == ["review"]
 
     warning_page = store.load_project_issues_page(
         "project",
@@ -311,8 +311,8 @@ def test_summary_facets_and_filtered_pages_use_the_whole_pinned_run(tmp_path: Pa
         filters=IssueQueryFilters(handling="warning"),
     )
     assert warning_page is not None
-    assert warning_page["total"] == 1
-    assert [item["issue_id"] for item in warning_page["items"]] == ["warning"]
+    assert warning_page["total"] == 0
+    assert warning_page["items"] == []
 
     search_page = store.load_project_issues_page(
         "project",
@@ -361,7 +361,7 @@ def test_issue_page_count_and_rows_start_inside_one_read_transaction(tmp_path: P
     )
     store.replace_issue_summaries(
         "run",
-        [{"issue_id": "I1", "rule_id": "R", "title": "Issue", "severity": "review", "status": "open", "confidence": 0.5, "evidence": {}}],
+        [{"issue_id": "I1", "rule_id": "R-PAIR-LOW-CONFIDENCE", "title": "Issue", "severity": "review", "status": "open", "confidence": 0.5, "evidence": {}}],
     )
     traces: list[str] = []
 
@@ -378,3 +378,51 @@ def test_issue_page_count_and_rows_start_inside_one_read_transaction(tmp_path: P
     begin_index = next(index for index, statement in enumerate(traces) if statement == "BEGIN")
     count_index = next(index for index, statement in enumerate(traces) if "SELECT COUNT(*)" in statement)
     assert begin_index < count_index
+
+
+def test_diagnostics_are_stored_separately_from_user_issue_pages(tmp_path: Path) -> None:
+    store = DesktopStateStore(tmp_path / "desktop_state.db")
+    store.record_run(
+        run_id="run",
+        session_id="session",
+        project_id="project",
+        project_name="Project",
+        input_root=str(tmp_path),
+        artifact_dir="",
+        status="completed",
+        sheet_count=1,
+        pair_count=1,
+        issue_count=1,
+        metadata={},
+    )
+    visible = {
+        "issue_id": "VISIBLE-1",
+        "rule_id": "R-CROSS-PAGE-CONFLICT",
+        "title": "Cross-page conflict",
+        "severity": "critical",
+        "status": "open",
+        "confidence": 0.98,
+        "evidence": {},
+    }
+    gap = {
+        "issue_id": "GAP-1",
+        "rule_id": "R-RECOGNITION-GAP",
+        "title": "Unresolved endpoint",
+        "severity": "review",
+        "status": "open",
+        "confidence": 0.2,
+        "evidence": {"presentation": "terminal"},
+    }
+    store.replace_issue_summaries("run", [visible, gap])
+    store.replace_diagnostic_summaries("run", [gap])
+
+    issues_page = store.load_project_issues_page("project", run_id="run", limit=10)
+    diagnostics_page = store.load_project_diagnostics_page("project", run_id="run", limit=10)
+
+    assert issues_page is not None
+    assert issues_page["total"] == issues_page["run"]["issue_count"] == 1
+    assert [item["issue_id"] for item in issues_page["items"]] == ["VISIBLE-1"]
+    assert store.load_project_issue_detail("project", run_id="run", issue_id="GAP-1") is None
+    assert diagnostics_page is not None
+    assert diagnostics_page["total"] == 1
+    assert [item["issue_id"] for item in diagnostics_page["items"]] == ["GAP-1"]

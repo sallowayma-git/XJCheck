@@ -10,7 +10,7 @@ def project(session, name="project", *, geometries=None):
     return {"run": dict(run_id=f"{session}:{name}", session_id=session, project_id=name,
         project_name=name, input_root="C:/user/input", artifact_dir="", status="completed",
         sheet_count=1, pair_count=1, issue_count=1),
-        "issues": [{"issue_id": "I1", "title": session}],
+        "issues": [{"issue_id": "I1", "rule_id": "R-PAIR-LOW-CONFIDENCE", "title": session}],
         "pages": [{"sheet_id": "S1"}],
         "geometries": geometries if geometries is not None else [{"sheet_id": "S1", "schema_version": 2}]}
 

@@ -11,8 +11,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from dwg_audit.domain.issue_layers import USER_VISIBLE_RULE_IDS
+
 
 _PREVIEW_GEOMETRY_SCHEMA_VERSION = 2
+_USER_VISIBLE_RULE_IDS = tuple(sorted(USER_VISIBLE_RULE_IDS))
+_USER_VISIBLE_RULES_SQL = ",".join("?" for _ in _USER_VISIBLE_RULE_IDS)
 
 
 def default_state_db_path() -> Path:
@@ -132,6 +136,10 @@ class DesktopStateStore:
                 status=status, sheet_count=sheet_count, pair_count=pair_count, issue_count=issue_count))
 
     def replace_issue_summaries(self, run_id: str, issues: list[dict[str, Any]], *, _connection: sqlite3.Connection | None = None) -> None:
+        issues = [
+            issue for issue in issues
+            if str(issue.get("rule_id") or "") in USER_VISIBLE_RULE_IDS
+        ]
         with (nullcontext(_connection) if _connection is not None else self._connect()) as conn:
             conn.execute("DELETE FROM issue_summaries WHERE run_id = ?", (run_id,))
             conn.executemany(
@@ -205,6 +213,29 @@ class DesktopStateStore:
                 ],
             )
 
+    def replace_diagnostic_summaries(
+        self,
+        run_id: str,
+        diagnostics: list[dict[str, Any]],
+        *,
+        _connection: sqlite3.Connection | None = None,
+    ) -> None:
+        rows = [
+            (
+                run_id,
+                str(item.get("issue_id") or ""),
+                str(item.get("rule_id") or ""),
+                json.dumps(item, ensure_ascii=False, sort_keys=True),
+            )
+            for item in diagnostics
+        ]
+        with (nullcontext(_connection) if _connection is not None else self._connect()) as conn:
+            conn.execute("DELETE FROM diagnostic_summaries WHERE run_id = ?", (run_id,))
+            conn.executemany(
+                "INSERT INTO diagnostic_summaries (run_id, diagnostic_id, rule_id, payload_json) VALUES (?, ?, ?, ?)",
+                rows,
+            )
+
     def replace_page_findings(self, run_id: str, page_findings: list[dict[str, Any]], *, _connection: sqlite3.Connection | None = None) -> None:
         with (nullcontext(_connection) if _connection is not None else self._connect()) as conn:
             conn.execute("DELETE FROM page_findings WHERE run_id = ?", (run_id,))
@@ -258,14 +289,20 @@ class DesktopStateStore:
 
     def list_recent_projects(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute("""SELECT r.payload_json, u.run_id AS stored_run_id, u.artifact_dir
+            rows = conn.execute(f"""SELECT r.payload_json, u.run_id AS stored_run_id, u.artifact_dir,
+                    (SELECT COUNT(*) FROM issue_summaries i
+                     WHERE i.run_id = u.run_id AND i.rule_id IN ({_USER_VISIBLE_RULES_SQL})) AS visible_issue_count
                 FROM recent_projects r LEFT JOIN runs u ON u.run_id = json_extract(r.payload_json, '$.run_id')
-                ORDER BY r.updated_at DESC, r.rowid DESC LIMIT ?""", (min(20, max(0, limit)),)).fetchall()
+                ORDER BY r.updated_at DESC, r.rowid DESC LIMIT ?""",
+                (*_USER_VISIBLE_RULE_IDS, min(20, max(0, limit))),
+            ).fetchall()
         result = []
         for row in rows:
             payload = json.loads(row["payload_json"])
             payload["snapshot_available"] = row["stored_run_id"] is not None
             payload["artifact_dir"] = row["artifact_dir"] or ""
+            if row["stored_run_id"] is not None:
+                payload["issue_count"] = int(row["visible_issue_count"] or 0)
             result.append(payload)
         return result
 
@@ -279,7 +316,7 @@ class DesktopStateStore:
 
     @staticmethod
     def _retain_session(conn, session_id):
-        for table in ("preview_geometries", "page_findings", "issue_summaries", "page_facts"):
+        for table in ("preview_geometries", "page_findings", "issue_summaries", "diagnostic_summaries", "page_facts"):
             conn.execute(f"DELETE FROM {table} WHERE run_id IN (SELECT run_id FROM runs WHERE ? IS NULL OR session_id != ?)", (session_id, session_id))
         conn.execute("DELETE FROM runs WHERE ? IS NULL OR session_id != ?", (session_id, session_id))
 
@@ -300,6 +337,9 @@ class DesktopStateStore:
                     raise ValueError("A project without drawing pages cannot replace the successful snapshot")
                 self.record_run(**run, _connection=conn)
                 self.replace_issue_summaries(run["run_id"], project["issues"], _connection=conn)
+                self.replace_diagnostic_summaries(
+                    run["run_id"], project.get("diagnostics", []), _connection=conn
+                )
                 self.replace_page_findings(run["run_id"], project["pages"], _connection=conn)
                 self.replace_preview_geometries(run["run_id"], project["geometries"], _connection=conn)
                 conn.execute("DELETE FROM page_facts WHERE run_id = ?", (run["run_id"],))
@@ -340,10 +380,10 @@ class DesktopStateStore:
             if run_row is None:
                 return None
             issue_rows = conn.execute(
-                """
+                f"""
                 SELECT *
                 FROM issue_summaries
-                WHERE run_id = ?
+                WHERE run_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})
                 ORDER BY
                     CASE severity
                         WHEN 'critical' THEN 0
@@ -355,7 +395,7 @@ class DesktopStateStore:
                     confidence DESC,
                     issue_id ASC
                 """,
-                (run_row["run_id"],),
+                (run_row["run_id"], *_USER_VISIBLE_RULE_IDS),
             ).fetchall()
             page_rows = conn.execute(
                 """
@@ -367,7 +407,7 @@ class DesktopStateStore:
                 (run_row["run_id"],),
             ).fetchall()
         return {
-            "run": _row_to_run(run_row),
+            "run": {**_row_to_run(run_row), "issue_count": len(issue_rows)},
             "issues": [_issue_row_to_summary(row) for row in issue_rows],
             "series_chains": (
                 json.loads(run_row["series_chains_json"])
@@ -436,8 +476,10 @@ class DesktopStateStore:
                 (row["run_id"],),
             ).fetchone()
             issue_metadata = self._load_issue_metadata_conn(conn, run_id=row["run_id"])
+        run = _row_to_run(row)
+        run["issue_count"] = int(issue_metadata["issue_stats"]["total"])
         return {
-            "run": _row_to_run(row),
+            "run": run,
             "issue_count": int(issue_metadata["issue_stats"]["total"]),
             "page_finding_count": int(page_count[0]) if page_count is not None else 0,
             **issue_metadata,
@@ -446,8 +488,8 @@ class DesktopStateStore:
     def count_issues(self, run_id: str) -> int:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT COUNT(*) FROM issue_summaries WHERE run_id = ?",
-                (run_id,),
+                f"SELECT COUNT(*) FROM issue_summaries WHERE run_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})",
+                (run_id, *_USER_VISIBLE_RULE_IDS),
             ).fetchone()
         return int(row[0]) if row is not None else 0
 
@@ -593,6 +635,10 @@ class DesktopStateStore:
             row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
             if row is None:
                 return None
+            visible_issue_count = conn.execute(
+                f"SELECT COUNT(*) FROM issue_summaries WHERE run_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})",
+                (row["run_id"], *_USER_VISIBLE_RULE_IDS),
+            ).fetchone()
             total, rows = self._list_issue_summaries_page_conn(
                 conn,
                 run_id=row["run_id"],
@@ -601,8 +647,60 @@ class DesktopStateStore:
                 filters=filters,
             )
         return {
-            "run": _row_to_run(row),
+            "run": {**_row_to_run(row), "issue_count": int(visible_issue_count[0]) if visible_issue_count else 0},
             "items": [_issue_row_to_summary(item) for item in rows],
+            "total": total,
+            "limit": safe_limit,
+            "offset": safe_offset,
+        }
+
+    def load_project_diagnostics_page(
+        self,
+        project_id: str,
+        *,
+        run_id: str | None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any] | None:
+        safe_limit = max(1, min(int(limit), 500))
+        safe_offset = max(0, int(offset))
+        with self._connect() as conn:
+            conn.execute("BEGIN")
+            run_row = self._select_run_row(conn, project_id=project_id, run_id=run_id)
+            if run_row is None:
+                return None
+            stored_count = conn.execute(
+                "SELECT COUNT(*) FROM diagnostic_summaries WHERE run_id = ?",
+                (run_row["run_id"],),
+            ).fetchone()
+            total = int(stored_count[0]) if stored_count is not None else 0
+            if total:
+                rows = conn.execute(
+                    """
+                    SELECT payload_json FROM diagnostic_summaries
+                    WHERE run_id = ? ORDER BY diagnostic_id ASC LIMIT ? OFFSET ?
+                    """,
+                    (run_row["run_id"], safe_limit, safe_offset),
+                ).fetchall()
+                items = [json.loads(row["payload_json"]) for row in rows]
+            else:
+                total_row = conn.execute(
+                    f"SELECT COUNT(*) FROM issue_summaries WHERE run_id = ? AND rule_id NOT IN ({_USER_VISIBLE_RULES_SQL})",
+                    (run_row["run_id"], *_USER_VISIBLE_RULE_IDS),
+                ).fetchone()
+                total = int(total_row[0]) if total_row is not None else 0
+                rows = conn.execute(
+                    f"""
+                    SELECT * FROM issue_summaries
+                    WHERE run_id = ? AND rule_id NOT IN ({_USER_VISIBLE_RULES_SQL})
+                    ORDER BY issue_id ASC LIMIT ? OFFSET ?
+                    """,
+                    (run_row["run_id"], *_USER_VISIBLE_RULE_IDS, safe_limit, safe_offset),
+                ).fetchall()
+                items = [_issue_row_to_summary(row) for row in rows]
+        return {
+            "run": {**_row_to_run(run_row), "issue_count": self.count_issues(str(run_row["run_id"]))},
+            "items": items,
             "total": total,
             "limit": safe_limit,
             "offset": safe_offset,
@@ -611,12 +709,12 @@ class DesktopStateStore:
     def load_issue_summary(self, run_id: str, issue_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                """
+                f"""
                 SELECT *
                 FROM issue_summaries
-                WHERE run_id = ? AND issue_id = ?
+                WHERE run_id = ? AND issue_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})
                 """,
-                (run_id, issue_id),
+                (run_id, issue_id, *_USER_VISIBLE_RULE_IDS),
             ).fetchone()
         return _issue_row_to_summary(row) if row is not None else None
 
@@ -635,16 +733,19 @@ class DesktopStateStore:
             if run_row is None:
                 return None
             issue_row = conn.execute(
-                """
+                f"""
                 SELECT *
                 FROM issue_summaries
-                WHERE run_id = ? AND issue_id = ?
+                WHERE run_id = ? AND issue_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})
                 """,
-                (run_row["run_id"], issue_id),
+                (run_row["run_id"], issue_id, *_USER_VISIBLE_RULE_IDS),
             ).fetchone()
         if issue_row is None:
             return None
-        return {"run": _row_to_run(run_row), "issue": _issue_row_to_summary(issue_row)}
+        return {
+            "run": {**_row_to_run(run_row), "issue_count": self.count_issues(str(run_row["run_id"]))},
+            "issue": _issue_row_to_summary(issue_row),
+        }
 
     def load_page_findings(self, run_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -684,12 +785,12 @@ class DesktopStateStore:
         now = _now_iso()
         with self._connect() as conn:
             updated = conn.execute(
-                """
+                f"""
                 UPDATE issue_summaries
                 SET status = ?
-                WHERE run_id = ? AND issue_id = ?
+                WHERE run_id = ? AND issue_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})
                 """,
-                (status, run_id, issue_id),
+                (status, run_id, issue_id, *_USER_VISIBLE_RULE_IDS),
             ).rowcount
             if not updated:
                 return None
@@ -856,6 +957,16 @@ class DesktopStateStore:
                     PRIMARY KEY (run_id, issue_id)
                 );
 
+                CREATE TABLE IF NOT EXISTS diagnostic_summaries (
+                    run_id TEXT NOT NULL,
+                    diagnostic_id TEXT NOT NULL,
+                    rule_id TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    PRIMARY KEY (run_id, diagnostic_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_diagnostic_summaries_run_rule
+                ON diagnostic_summaries(run_id, rule_id);
+
                 CREATE TABLE IF NOT EXISTS page_findings (
                     run_id TEXT NOT NULL,
                     sheet_id TEXT NOT NULL,
@@ -952,9 +1063,9 @@ class DesktopStateStore:
                     issue_id
                 )) AS group_count
             FROM issue_summaries
-            WHERE run_id = ?
+            WHERE run_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})
             """,
-            (run_id,),
+            (run_id, *_USER_VISIBLE_RULE_IDS),
         ).fetchone()
 
         def distinct_values(column: str) -> list[str]:
@@ -967,10 +1078,11 @@ class DesktopStateStore:
                 f"""
                 SELECT DISTINCT {value_sql} AS value
                 FROM issue_summaries
-                WHERE run_id = ? AND TRIM(COALESCE({value_sql}, '')) <> ''
+                WHERE run_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})
+                  AND TRIM(COALESCE({value_sql}, '')) <> ''
                 ORDER BY value ASC
                 """,
-                (run_id,),
+                (run_id, *_USER_VISIBLE_RULE_IDS),
             ).fetchall()
             return [str(item["value"]) for item in rows]
 
@@ -1101,8 +1213,8 @@ END
 
 def _issue_query_where(run_id: str, filters: IssueQueryFilters | None) -> tuple[str, tuple[Any, ...]]:
     filters = filters or IssueQueryFilters()
-    clauses = ["run_id = ?"]
-    params: list[Any] = [run_id]
+    clauses = [f"run_id = ? AND rule_id IN ({_USER_VISIBLE_RULES_SQL})"]
+    params: list[Any] = [run_id, *_USER_VISIBLE_RULE_IDS]
 
     for column, value in (
         ("severity", filters.severity),

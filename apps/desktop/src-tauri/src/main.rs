@@ -299,6 +299,39 @@ async fn desktop_load_result_issues(
 }
 
 #[tauri::command]
+async fn desktop_load_result_diagnostics(
+    app: AppHandle,
+    project_id: String,
+    run_id: Option<String>,
+    limit: Option<u64>,
+    offset: Option<u64>,
+    request_generation: Option<u64>,
+    client_session_id: Option<String>,
+    client_session_epoch: Option<u64>,
+) -> Result<Value, String> {
+    let mut args = vec![
+        "load-result-diagnostics".to_string(),
+        "--project-id".to_string(),
+        project_id,
+        "--state-db".to_string(),
+        default_state_db_path()?.to_string_lossy().to_string(),
+        "--limit".to_string(),
+        limit.unwrap_or(100).to_string(),
+        "--offset".to_string(),
+        offset.unwrap_or(0).to_string(),
+    ];
+    push_optional_arg(&mut args, "--run-id", run_id);
+    run_result_sidecar_json_async(
+        app,
+        args,
+        request_generation,
+        client_session_id,
+        client_session_epoch,
+    )
+    .await
+}
+
+#[tauri::command]
 async fn desktop_load_result_issue_detail(
     app: AppHandle,
     project_id: String,
@@ -1823,6 +1856,7 @@ fn main() {
             desktop_load_result,
             desktop_load_result_summary,
             desktop_load_result_issues,
+            desktop_load_result_diagnostics,
             desktop_load_result_issue_detail,
             desktop_cancel_result_load,
             desktop_register_preview_session,
