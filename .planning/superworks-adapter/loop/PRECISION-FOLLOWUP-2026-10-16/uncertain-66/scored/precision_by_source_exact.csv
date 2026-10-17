@@ -1,7 +1,0 @@
-﻿stratum,population_n,sample_n,correct_n,wrong_n,uncertain_n,exact_95pct_simultaneous_lower_correct_n,point_precision
-backplate_corroborated,4010,20,20,0,0,3159,1.0
-partial_superworks,70,20,20,0,0,58,1.0
-pure_v1_no_literal_sw_peer,1720,20,20,0,0,1356,1.0
-superworks_native,45027,91,91,0,0,42722,1.0
-sw_annotated_or_v1_supported,27954,56,56,0,0,25666,1.0
-v1_literal_sw_corroborated,212,20,20,0,0,169,1.0
