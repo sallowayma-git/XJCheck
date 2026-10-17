@@ -1,8 +1,11 @@
 .shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--topbar-h) auto 1fr;
+  width: 100%;
   height: 100vh;
   min-height: 100vh;
+  min-width: 0;
   overflow: hidden;
   background: var(--bg-body);
   color: var(--text-primary);
@@ -10,7 +13,7 @@
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(170px, 220px) 1fr auto;
+  grid-template-columns: minmax(170px, 220px) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   height: var(--topbar-h);
@@ -183,7 +186,9 @@
 .workspace {
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-height: 0;
+  min-width: 0;
   height: 100%;
   overflow: hidden;
   padding: var(--space-2);
