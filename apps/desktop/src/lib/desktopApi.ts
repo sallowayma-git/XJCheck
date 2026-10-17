@@ -58,7 +58,7 @@ export const desktopApi = {
         projects: payload.projects.map(normalizeRecentProject),
       }
     } catch (error) {
-      throw toDesktopError("审计任务启动失败。", error)
+      throw new Error(humanizeAnalyzeErrorMessage(error))
     } finally {
       unlisten?.()
     }
@@ -632,6 +632,45 @@ function toDesktopError(prefix: string, error: unknown): Error {
     return new Error(message ? `${prefix} ${message}` : prefix)
   }
   return new Error(prefix)
+}
+
+function humanizeAnalyzeErrorMessage(error: unknown): string {
+  const text = error instanceof Error ? error.message.trim() : String(error ?? "").trim()
+  if (!text) {
+    return "审计未能完成，请检查所选项目目录后重试。"
+  }
+
+  const lower = text.toLowerCase()
+  const knownCauses: Array<[string, string]> = [
+    ["snapshot projects must have unique run ids", "多个子项目生成了重名结果目录，本次结果未保存；请更新应用后重试。"],
+    ["an incomplete batch cannot replace the successful snapshot", "部分图纸未能完整提取，本次未替换已有校验结果；请检查失败图纸后重试。"],
+    ["a project without drawing pages", "所选目录中没有找到可用的 DWG 图纸，请选择包含图纸的项目目录。"],
+    ["input path not found", "找不到所选项目文件夹，请确认路径存在且磁盘已连接。"],
+    ["config path not found", "找不到审计配置文件，请检查配置后重试。"],
+    ["database is locked", "本机校验数据库正被另一个任务占用，请等待当前任务结束后重试。"],
+    ["database disk image is malformed", "本机校验数据库无法读取；原有会话文件未被自动删除，请联系支持并提供日志。"],
+    ["no such column", "本机旧版校验数据库升级未完成；已有会话数据未被自动删除，请检查数据库权限后重启应用。"],
+    ["failed to start dwg audit sidecar", "未能启动本地图纸审计引擎，请修复或重新安装程序后重试。"],
+    ["permission", "程序没有访问项目或会话数据的权限，请检查文件夹权限后重试。"],
+    ["access is denied", "程序没有访问项目或会话数据的权限，请检查文件夹权限后重试。"],
+    ["timed out", "审计处理超时，项目文件仍保留；请检查磁盘状态后重试。"],
+    ["timeout", "审计处理超时，项目文件仍保留；请检查磁盘状态后重试。"],
+  ]
+  const match = knownCauses.find(([needle]) => lower.includes(needle))
+  if (match) {
+    return match[1]
+  }
+
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const exceptionLine = [...lines].reverse().find((line) =>
+    /^(?:[A-Za-z_][\w.]*Error|Exception):\s*.+$/i.test(line),
+  )
+  const diagnostic = exceptionLine ?? lines[lines.length - 1] ?? text
+  const compact = diagnostic.replace(/\s+/g, " ").slice(0, 280)
+  if (lower.includes("traceback") || exceptionLine) {
+    return `审计未能完成，错误详情：${compact}。请根据该原因检查项目文件或运行环境后重试。`
+  }
+  return `审计未能完成，原因：${compact}。请检查所选项目目录和本机运行环境后重试。`
 }
 
 function humanizeDesktopErrorMessage(message: string): string {
