@@ -24,7 +24,7 @@ export function normalizePreviewScale(value: unknown): number {
   if (!Number.isFinite(numeric)) {
     return 1
   }
-  return Math.min(2.3, Math.max(1, numeric))
+  return Math.min(3, Math.max(1, numeric))
 }
 
 export function computeContainSize(natural: PreviewSize, viewport: PreviewSize): PreviewSize {
@@ -48,7 +48,8 @@ export function computeContainSize(natural: PreviewSize, viewport: PreviewSize):
 }
 
 export function computePreviewPanBounds(metrics: PreviewPanMetrics): PreviewPanBounds {
-  const scale = normalizePreviewScale(metrics.scale)
+  // 有效缩放（取景基准 × 用户缩放）可能超出基准钳制范围，这里只保证为正数。
+  const scale = Number.isFinite(metrics.scale) && metrics.scale > 0 ? metrics.scale : 1
   const scaledWidth = Math.max(0, metrics.content.width) * scale
   const scaledHeight = Math.max(0, metrics.content.height) * scale
   return {

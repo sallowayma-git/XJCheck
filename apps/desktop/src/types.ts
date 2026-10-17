@@ -22,6 +22,32 @@ export type ProjectRun = RecentProject & {
   metadata?: Record<string, unknown>
 }
 
+/** 问题涉及的一个图纸位置（后端 locations 数组的一项）。 */
+export type IssueLocationRole = "conflict_party" | "other_party" | "table_row" | "wire" | "unnumbered_symbol"
+
+export type IssueLocation = {
+  location_id: string
+  role: IssueLocationRole
+  sheet_id: string | null
+  file_id: string | null
+  filename: string
+  sheet_no: string
+  sheet_title: string
+  sheet_order: number | null
+  terminal: string | null
+  peer: string | null
+  text_id: string | null
+  point: number[] | null
+  /** 对端端口的坐标（若有） */
+  peer_point?: number[] | null
+  wire: { line_group_id: string | null; start: number[] | null; end: number[] | null } | null
+  bbox: number[] | null
+  pair_id: string | null
+  /** 仅 SuperWORKS 端口项提供 */
+  port_id?: string | null
+  renderable: boolean
+}
+
 export type IssueSummary = {
   issue_id: string
   rule_id: string
@@ -52,6 +78,8 @@ export type IssueSummary = {
   review_group_label?: string | null
   review_group_size?: number | null
   issue_family?: string | null
+  /** 涉及的图纸位置；旧结果没有该字段时由 lib/issueLocations 从证据派生。 */
+  locations?: IssueLocation[]
   evidence: Record<string, unknown>
 }
 
@@ -255,6 +283,8 @@ export type PageFinishedEvent = {
   filename: string
   status: string
   dxf_path?: string | null
+  /** 仅浏览器演示模式（mock）写入；真实 sidecar 事件不含逐页分流信息。 */
+  demo_route?: "v1" | "v2" | null
 }
 
 export type WarningEvent = {

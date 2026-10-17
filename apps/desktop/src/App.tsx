@@ -9,30 +9,25 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react"
 
 import "./App.css"
 import logoUrl from "./assets/logo.png"
 import { AuditFlowDiagram, type AuditFlowDot, type AuditFlowCoverage } from "./components/AuditFlowDiagram"
 import { desktopApi } from "./lib/desktopApi"
+import { IssueInspector, type InspectorTechnicalRow } from "./components/IssueInspector"
+import { getIssueLocations, summarizeLocations } from "./lib/issueLocations"
 import {
-  clampPreviewPan,
-  computeContainSize,
-  computePreviewPanBounds,
-  normalizePreviewScale,
-  type PreviewPanMetrics,
-  type PreviewPoint,
-} from "./lib/previewPan"
-import {
-  createPreviewContextKey,
-  isPreviewOutputCurrent,
-  parsePreviewMode,
-  PREVIEW_MODE_STORAGE_KEY,
-  resolvePreviewEmptyState,
-  shouldRenderPreview,
-} from "./lib/previewPolicy"
+  UI_SCALE_DEFAULT,
+  UI_SCALE_MAX,
+  UI_SCALE_MIN,
+  UI_SCALE_STEP,
+  applyUiScale,
+  clampUiScale,
+  loadUiScale,
+  persistUiScale,
+} from "./lib/uiScale"
+import { loadResultToolbarCollapsed, saveResultToolbarCollapsed } from "./lib/viewPrefs"
 import {
   beginRequest,
   createRequestGeneration,
@@ -49,22 +44,12 @@ import {
   persistSettings,
   type DesktopSettings,
 } from "./lib/settings"
-import type { PreviewMode } from "./lib/previewPolicy"
 import type { DiagnosticPage, IssueQuery, IssueSummary, ProjectResult, ProjectSummary, RecentProject, RecognitionSummary, RunStageCard, SidecarEvent } from "./types"
 
 type Screen = "launch" | "process" | "result" | "settings"
 
 const ISSUE_STATUS_OPTIONS = ["open", "ignored", "resolved", "false_positive"] as const
-const PREVIEW_REQUEST_TIMEOUT_MS = 20_000
 const RESULT_ISSUE_PAGE_SIZE = 500
-const PREVIEW_NATURAL_SIZE = { width: 960, height: 540 }
-
-type PreviewDragState = {
-  pointerId: number
-  startClientX: number
-  startClientY: number
-  startPan: PreviewPoint
-}
 
 function buildIssueQuery(
   search: string,
@@ -147,9 +132,15 @@ type ProcessState = {
   completedProjects: RecentProject[]
   coverageByProject: Array<{ projectName: string; coverageRatio: number | null }>
   flowDots: AuditFlowDot[]
+  /** 按需分流页数；真实运行无逐页分流信息时为 null。 */
+  routeCounts: { v1: number; v2: number } | null
 }
 
-const MAX_FLOW_DOTS = 12
+/** 结果页工具栏“处理顺序”提示文字（原常驻说明，现收入 ⓘ 提示）。 */
+const RESULT_GUIDE_TEXT = "建议顺序：先处理「确定性错误」，再看「可能有错误」，最后批量确认「须人工校验」。原则：可以误报，但不能错过真实错误。同类问题归到同一处理组。"
+const MAX_FLOW_DOTS = 60
+/** 浏览器演示模式下模拟运行使用的示例项目路径（仅用于展示名称）。 */
+const DEMO_INPUT_ROOT = "F:\\workspace\\XJToolkit\\test\\110kV变压器保护柜"
 const MAX_PROCESS_LOG_LINES = 500
 
 type LaunchImportStatusTone = "info" | "ready" | "warn"
@@ -174,17 +165,9 @@ function App() {
   const [isLoadingDiagnostics, setIsLoadingDiagnostics] = useState(false)
   const [diagnosticError, setDiagnosticError] = useState<string | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
-  const [previewOutputContextKey, setPreviewOutputContextKey] = useState<string | null>(null)
-  const [previewStatusContextKey, setPreviewStatusContextKey] = useState<string | null>(null)
-  const [selectedPreviewSheetId, setSelectedPreviewSheetId] = useState<string | null>(null)
-  const [selectedPreviewLineGroupId, setSelectedPreviewLineGroupId] = useState<string | null>(null)
-  const [previewGeneration, setPreviewGeneration] = useState(0)
-  const [previewContextRevision, setPreviewContextRevision] = useState(0)
-  const [previewMode, setPreviewMode] = useState<PreviewMode>(loadStoredPreviewMode)
   const [previewClientSessionId] = useState(createPreviewClientSessionId)
   const [previewClientSessionEpoch, setPreviewClientSessionEpoch] = useState<number | null>(null)
-  const [previewClientSessionError, setPreviewClientSessionError] = useState<string | null>(null)
+  const [, setPreviewClientSessionError] = useState<string | null>(null)
   const [issueSearch, setIssueSearch] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [ruleFilter, setRuleFilter] = useState("all")
@@ -194,16 +177,8 @@ function App() {
   const [issueStatusDraft, setIssueStatusDraft] = useState("open")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isPickingDirectory, setIsPickingDirectory] = useState(false)
-  const [isRefreshingPreview, setIsRefreshingPreview] = useState(false)
-  const [previewError, setPreviewError] = useState<string | null>(null)
-  const [previewViewportScale, setPreviewViewportScale] = useState(1)
-  const [previewPan, setPreviewPan] = useState<PreviewPoint>({ x: 0, y: 0 })
-  const [previewPanMetrics, setPreviewPanMetrics] = useState<PreviewPanMetrics>({
-    viewport: { width: 0, height: 0 },
-    content: { width: 0, height: 0 },
-    scale: 1,
-  })
-  const [isPreviewDragging, setIsPreviewDragging] = useState(false)
+  const [toolbarCollapsed, setToolbarCollapsed] = useState<boolean>(loadResultToolbarCollapsed)
+  const [toolbarGuideOpen, setToolbarGuideOpen] = useState(false)
   const [isSavingIssueStatus, setIsSavingIssueStatus] = useState(false)
   const [isLoadingProjectId, setIsLoadingProjectId] = useState<string | null>(null)
   const [isLoadingMoreIssues, setIsLoadingMoreIssues] = useState(false)
@@ -233,6 +208,7 @@ function App() {
     completedProjects: [],
     coverageByProject: [],
     flowDots: [],
+    routeCounts: desktopApi.isNative() ? null : { v1: 0, v2: 0 },
   })
   const processEventQueueRef = useRef<SidecarEvent[]>([])
   const processFlushTimerRef = useRef<number | null>(null)
@@ -240,14 +216,12 @@ function App() {
   const logAutoFollowRef = useRef(true)
   const analysisInFlightRef = useRef(false)
   const projectLoadGenerationRef = useRef(createRequestGeneration())
-  const previewRequestGenerationRef = useRef(createRequestGeneration())
-  const handledPreviewGenerationRef = useRef(0)
   const screenIntentGenerationRef = useRef(createRequestGeneration())
+  const [uiScale, setUiScale] = useState<number>(loadUiScale)
   const [settings, setSettings] = useState<DesktopSettings>(loadSettings)
   const [settingsSnapshot, setSettingsSnapshot] = useState<DesktopSettings | null>(null)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
-  const previewRequestSequenceRef = useRef(0)
   const selectedProjectIdRef = useRef<string | null>(null)
   const selectedRunIdRef = useRef<string | null>(null)
   const issuePageLoadInFlightRef = useRef<number | null>(null)
@@ -255,9 +229,6 @@ function App() {
   const appliedIssueQueryKeyRef = useRef<string | null>(null)
   const previewClientSessionEpochRef = useRef<number | null>(null)
   const previewClientSessionRegistrationRef = useRef<Promise<number> | null>(null)
-  const previewShellRef = useRef<HTMLDivElement | null>(null)
-  const previewImageRef = useRef<HTMLImageElement | null>(null)
-  const previewDragRef = useRef<PreviewDragState | null>(null)
   const appDisposedRef = useRef(false)
   const activeIssueQuery = useMemo(
     () =>
@@ -312,6 +283,13 @@ function App() {
     })
   }
 
+  function updateUiScale(next: number): void {
+    const clamped = clampUiScale(next)
+    setUiScale(clamped)
+    applyUiScale(clamped)
+    persistUiScale(clamped)
+  }
+
   async function saveSettings(next: DesktopSettings): Promise<void> {
     setSettingsSaving(true)
     setSettingsError(null)
@@ -349,14 +327,6 @@ function App() {
   useEffect(() => {
     void refreshRecentProjects()
   }, [])
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(PREVIEW_MODE_STORAGE_KEY, previewMode)
-    } catch {
-      // Keep the in-memory preference when storage is unavailable.
-    }
-  }, [previewMode])
 
   // On mount, ask the Rust side whether an override file already exists. If
   // yes, its normalized values win over the localStorage defaults so the
@@ -510,12 +480,6 @@ function App() {
     if (appDisposedRef.current || !isCurrentRequest(projectLoadGenerationRef.current, generation)) {
       return
     }
-    invalidateRequests(previewRequestGenerationRef.current)
-    setPreviewContextRevision((current) => current + 1)
-    setPreviewSrc(null)
-    setPreviewOutputContextKey(null)
-    setPreviewStatusContextKey(null)
-    setPreviewError(null)
     setIsLoadingMoreIssues(false)
     setIsReloadingIssueQuery(false)
     setResult(null)
@@ -575,11 +539,6 @@ function App() {
       appliedIssueQueryKeyRef.current = issueQueryKey({})
       const initialIssue = firstPage.items[0] ?? null
       setSelectedIssueId(initialIssue?.issue_id ?? null)
-      setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
-      setSelectedPreviewLineGroupId(initialIssue?.line_group_id ?? null)
-      setPreviewSrc(null)
-      setPreviewOutputContextKey(null)
-      setPreviewStatusContextKey(null)
       setScreen("result")
     } catch (error) {
       if (!isCurrentRequest(projectLoadGenerationRef.current, generation)) {
@@ -737,8 +696,6 @@ function App() {
       appliedIssueQueryKeyRef.current = queryKey
       const initialIssue = page.items[0] ?? null
       setSelectedIssueId(initialIssue?.issue_id ?? null)
-      setSelectedPreviewSheetId(initialIssue?.sheet_id ?? null)
-      setSelectedPreviewLineGroupId(initialIssue?.line_group_id ?? null)
     } catch (error) {
       if (isCurrentRequest(projectLoadGenerationRef.current, generation)) {
         setLoadError(error instanceof Error ? error.message : "筛选问题列表失败，请重试。")
@@ -854,11 +811,12 @@ function App() {
           const id = `${nextState.currentProjectRoot ?? inputRoot}|${event.file_id}`
           const dot: AuditFlowDot = {
             id,
-            label: event.sheet_order != null ? `图 ${event.sheet_order}` : `图 ${formatLogDrawingName(event.filename)}`,
+            label: event.sheet_order != null ? `图${event.sheet_order}` : `图${formatLogDrawingName(event.filename)}`,
             title: event.filename,
             projectName,
             projectRoot: nextState.currentProjectRoot ?? inputRoot,
             phase: "input",
+            branch: null,
             failed: false,
           }
           nextState.flowDots = [...nextState.flowDots.filter((item) => item.id !== id), dot].slice(-MAX_FLOW_DOTS)
@@ -870,13 +828,19 @@ function App() {
           const projectName = nextState.currentProjectName ?? getPathBaseName(nextState.currentProjectRoot ?? inputRoot)
           const id = `${nextState.currentProjectRoot ?? inputRoot}|${event.file_id}`
           const existingDot = nextState.flowDots.find((item) => item.id === id)
+          // demo_route 只由浏览器演示模式的模拟事件携带；真实事件没有逐页分流信息。
+          const branch = event.demo_route ?? null
+          if (branch && nextState.routeCounts) {
+            nextState.routeCounts = { ...nextState.routeCounts, [branch]: nextState.routeCounts[branch] + 1 }
+          }
           const finishedDot: AuditFlowDot = {
             id,
-            label: existingDot?.label ?? `图 ${formatLogDrawingName(event.filename)}`,
+            label: existingDot?.label ?? `图${formatLogDrawingName(event.filename)}`,
             title: event.filename,
             projectName,
             projectRoot: nextState.currentProjectRoot ?? inputRoot,
             phase: "superworks",
+            branch,
             failed: isFailedPageStatus(event.status),
           }
           nextState.flowDots = [...nextState.flowDots.filter((item) => item.id !== id), finishedDot].slice(-MAX_FLOW_DOTS)
@@ -1081,6 +1045,7 @@ function App() {
       completedProjects: [],
       coverageByProject: [],
       flowDots: [],
+      routeCounts: desktopApi.isNative() ? null : { v1: 0, v2: 0 },
     })
 
     try {
@@ -1182,10 +1147,6 @@ function App() {
         setDiagnosticLoadedRunId(null)
         setDiagnosticError(null)
         setSelectedIssueId(null)
-        setPreviewSrc(null)
-        setPreviewOutputContextKey(null)
-        setPreviewStatusContextKey(null)
-        setPreviewError(null)
         setScreen("launch")
       }
     } catch (error) {
@@ -1259,173 +1220,10 @@ function App() {
     recentProjects[0] ??
     null
   const inputHealth = describeInputRoot(inputRoot)
-  const previewOptions = useMemo(() => buildPreviewOptions(selectedIssue), [selectedIssue])
-  const evidenceRefEntries = useMemo(() => buildEvidenceRefEntries(selectedIssue), [selectedIssue])
-  const activePreviewOption =
-    previewOptions.find((option) => option.sheetId === selectedPreviewSheetId) ??
-    previewOptions[0] ??
-    null
-  const previewProjectId = result?.run.project_id ?? selectedProjectId
-  const previewRunId = result?.run.run_id ?? null
-  const previewIssueId = selectedIssue?.issue_id ?? null
-  const previewSheetId = activePreviewOption?.sheetId ?? selectedPreviewSheetId ?? selectedIssue?.sheet_id ?? null
-  const previewLineGroupId =
-    selectedPreviewSheetId === previewSheetId
-      ? selectedPreviewLineGroupId
-      : resolvePreviewLineGroupForSheet(selectedIssue, previewSheetId)
-  const previewContextKey = createPreviewContextKey({
-    revision: previewContextRevision,
-    runId: previewRunId,
-    projectId: previewProjectId,
-    issueId: previewIssueId,
-    sheetId: previewSheetId,
-    lineGroupId: previewLineGroupId,
-  })
-  const visiblePreviewSrc = isPreviewOutputCurrent(previewOutputContextKey, previewContextKey) ? previewSrc : null
-  const previewStatusIsCurrent = previewStatusContextKey === previewContextKey
-  const visiblePreviewError = previewStatusIsCurrent ? previewError : null
-  const visibleIsRefreshingPreview = previewStatusIsCurrent && isRefreshingPreview
-  const previewEmptyState = resolvePreviewEmptyState({
-    hasIssue: Boolean(selectedIssue),
-    isLoading: visibleIsRefreshingPreview,
-    mode: previewMode,
-    hasError: Boolean(visiblePreviewError),
-    hasPreviewOptions: previewOptions.length > 0,
-  })
-  const previewPanBounds = useMemo(() => computePreviewPanBounds(previewPanMetrics), [previewPanMetrics])
-  const previewCanPan = Boolean(visiblePreviewSrc && (previewPanBounds.maxX > 0 || previewPanBounds.maxY > 0))
-  const refreshPreviewPanMetrics = useEffectEvent(() => {
-    const shell = previewShellRef.current
-    if (!shell) {
-      return
-    }
-    const shellRect = shell.getBoundingClientRect()
-    const image = previewImageRef.current
-    const natural = {
-      width: image?.naturalWidth || PREVIEW_NATURAL_SIZE.width,
-      height: image?.naturalHeight || PREVIEW_NATURAL_SIZE.height,
-    }
-    const viewport = { width: shellRect.width, height: shellRect.height }
-    const nextMetrics: PreviewPanMetrics = {
-      viewport,
-      content: computeContainSize(natural, viewport),
-      scale: previewViewportScale,
-    }
-    setPreviewPanMetrics(nextMetrics)
-    setPreviewPan((current) => clampPreviewPan(current, nextMetrics))
-  })
-
-  useLayoutEffect(() => {
-    const activeDrag = previewDragRef.current
-    const shell = previewShellRef.current
-    if (activeDrag && shell?.hasPointerCapture(activeDrag.pointerId)) {
-      shell.releasePointerCapture(activeDrag.pointerId)
-    }
-    previewDragRef.current = null
-    setPreviewPan({ x: 0, y: 0 })
-    setPreviewPanMetrics({
-      viewport: { width: 0, height: 0 },
-      content: { width: 0, height: 0 },
-      scale: previewViewportScale,
-    })
-    setIsPreviewDragging(false)
-  }, [previewContextKey, previewViewportScale, visiblePreviewSrc])
-
-  useEffect(() => {
-    if (!visiblePreviewSrc) {
-      return
-    }
-    const shell = previewShellRef.current
-    if (!shell) {
-      return
-    }
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => refreshPreviewPanMetrics())
-    observer?.observe(shell)
-    window.addEventListener("resize", refreshPreviewPanMetrics)
-    refreshPreviewPanMetrics()
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener("resize", refreshPreviewPanMetrics)
-    }
-  }, [previewViewportScale, visiblePreviewSrc])
-
-  function handlePreviewPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (!previewCanPan || !event.isPrimary || event.button !== 0) {
-      return
-    }
-    event.preventDefault()
-    event.currentTarget.focus()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    previewDragRef.current = {
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startPan: previewPan,
-    }
-    setIsPreviewDragging(true)
-  }
-
-  function handlePreviewPointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
-    const drag = previewDragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return
-    }
-    event.preventDefault()
-    setPreviewPan(
-      clampPreviewPan(
-        {
-          x: drag.startPan.x + (event.clientX - drag.startClientX),
-          y: drag.startPan.y + (event.clientY - drag.startClientY),
-        },
-        previewPanMetrics,
-      ),
-    )
-  }
-
-  function finishPreviewDrag(event: ReactPointerEvent<HTMLDivElement>, releaseCapture: boolean): void {
-    const drag = previewDragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return
-    }
-    if (releaseCapture && event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-    previewDragRef.current = null
-    setIsPreviewDragging(false)
-  }
-
-  function handlePreviewKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
-    if (!previewCanPan) {
-      return
-    }
-    const step = event.shiftKey ? 60 : 24
-    let deltaX = 0
-    let deltaY = 0
-    if (event.key === "ArrowLeft") {
-      deltaX = step
-    } else if (event.key === "ArrowRight") {
-      deltaX = -step
-    } else if (event.key === "ArrowUp") {
-      deltaY = step
-    } else if (event.key === "ArrowDown") {
-      deltaY = -step
-    } else if (event.key === "Home") {
-      event.preventDefault()
-      setPreviewPan({ x: 0, y: 0 })
-      return
-    } else {
-      return
-    }
-    event.preventDefault()
-    setPreviewPan((current) =>
-      clampPreviewPan(
-        {
-          x: current.x + deltaX,
-          y: current.y + deltaY,
-        },
-        previewPanMetrics,
-      ),
-    )
+  function toggleResultToolbar(): void {
+    const next = !toolbarCollapsed
+    setToolbarCollapsed(next)
+    saveResultToolbarCollapsed(next)
   }
 
   const structuredLocation = useMemo(() => readStructuredLocation(selectedIssue), [selectedIssue])
@@ -1440,46 +1238,6 @@ function App() {
 
   useEffect(() => {
     if (!selectedIssue) {
-      if (selectedPreviewSheetId !== null) {
-        setSelectedPreviewSheetId(null)
-      }
-      if (selectedPreviewLineGroupId !== null) {
-        setSelectedPreviewLineGroupId(null)
-      }
-      return
-    }
-
-    if (!previewOptions.length) {
-      if (selectedPreviewSheetId !== selectedIssue.sheet_id) {
-        setSelectedPreviewSheetId(selectedIssue.sheet_id)
-      }
-      if (selectedPreviewLineGroupId !== selectedIssue.line_group_id) {
-        setSelectedPreviewLineGroupId(selectedIssue.line_group_id)
-      }
-      return
-    }
-
-    if (!selectedPreviewSheetId || !previewOptions.some((option) => option.sheetId === selectedPreviewSheetId)) {
-      setSelectedPreviewSheetId(previewOptions[0].sheetId)
-      setSelectedPreviewLineGroupId(resolvePreviewLineGroupForSheet(selectedIssue, previewOptions[0].sheetId))
-      return
-    }
-
-    const selectedLocationExists =
-      (selectedIssue.sheet_id === selectedPreviewSheetId &&
-        selectedIssue.line_group_id === selectedPreviewLineGroupId) ||
-      evidenceRefEntries.some(
-        (entry) =>
-          entry.sheetId === selectedPreviewSheetId &&
-          entry.lineGroupId === selectedPreviewLineGroupId,
-      )
-    if (!selectedLocationExists) {
-      setSelectedPreviewLineGroupId(resolvePreviewLineGroupForSheet(selectedIssue, selectedPreviewSheetId))
-    }
-  }, [evidenceRefEntries, previewOptions, selectedIssue, selectedPreviewLineGroupId, selectedPreviewSheetId])
-
-  useEffect(() => {
-    if (!selectedIssue) {
       if (selectedIssueId !== null) {
         setSelectedIssueId(null)
       }
@@ -1489,142 +1247,6 @@ function App() {
       setSelectedIssueId(selectedIssue.issue_id)
     }
   }, [selectedIssue, selectedIssueId])
-
-  useEffect(() => {
-    const requestGeneration = previewRequestGenerationRef.current
-    const generation = beginRequest(requestGeneration)
-    if (previewClientSessionEpoch === null) {
-      setPreviewSrc(null)
-      setPreviewOutputContextKey(null)
-      setIsRefreshingPreview(false)
-      setPreviewStatusContextKey(previewContextKey)
-      setPreviewError(previewClientSessionError)
-      return
-    }
-    const shouldRender = shouldRenderPreview(
-      previewMode,
-      previewGeneration,
-      handledPreviewGenerationRef.current,
-    )
-    handledPreviewGenerationRef.current = previewGeneration
-    if (screen !== "result") {
-      setPreviewSrc(null)
-      setPreviewOutputContextKey(null)
-      setIsRefreshingPreview(false)
-      setPreviewStatusContextKey(null)
-      setPreviewError(null)
-      return
-    }
-    if (!previewProjectId || !previewIssueId) {
-      setPreviewSrc(null)
-      setPreviewOutputContextKey(null)
-      setPreviewError(null)
-      setIsRefreshingPreview(false)
-      setPreviewStatusContextKey(null)
-      return
-    }
-    if (!shouldRender) {
-      setPreviewSrc(null)
-      setPreviewOutputContextKey(null)
-      setPreviewError(null)
-      setIsRefreshingPreview(false)
-      setPreviewStatusContextKey(null)
-      return
-    }
-
-    let cancelled = false
-    let requestId: string | null = null
-    setIsRefreshingPreview(true)
-    setPreviewStatusContextKey(previewContextKey)
-    setPreviewSrc(null)
-    setPreviewOutputContextKey(null)
-    setPreviewError(null)
-
-    const timer = window.setTimeout(() => {
-      if (cancelled || !isCurrentRequest(requestGeneration, generation)) {
-        return
-      }
-      requestId = createPreviewRequestId(++previewRequestSequenceRef.current)
-      void withTimeout(
-        desktopApi.renderPreview(
-          previewProjectId,
-          previewIssueId,
-          requestId,
-          generation,
-          previewSheetId,
-          previewLineGroupId,
-          previewClientSessionId,
-          previewClientSessionEpoch,
-          previewRunId,
-        ),
-        PREVIEW_REQUEST_TIMEOUT_MS,
-        "Preview request timed out.",
-        () => {
-          if (requestId) {
-            void desktopApi
-              .cancelPreview(requestId, generation, previewClientSessionId, previewClientSessionEpoch)
-              .catch(() => undefined)
-          }
-        },
-      )
-        .then((preview) => {
-          if (
-            cancelled ||
-            !requestId ||
-            preview.request_id !== requestId ||
-            !isCurrentRequest(requestGeneration, generation)
-          ) {
-            return
-          }
-          setPreviewViewportScale(normalizePreviewScale(preview.viewport_scale))
-          setPreviewSrc(preview.preview_src)
-          setPreviewOutputContextKey(previewContextKey)
-          setPreviewStatusContextKey(previewContextKey)
-          setPreviewError(null)
-          setIsRefreshingPreview(false)
-        })
-        .catch((error) => {
-          if (cancelled || !isCurrentRequest(requestGeneration, generation)) {
-            return
-          }
-          const message =
-            error instanceof Error ? humanizePreviewError(error.message) : "无法生成该问题的图纸预览，可先查看下方文字说明。"
-          // Keep preview failures local so the inspector stays usable.
-          setPreviewError(message)
-          setPreviewViewportScale(1)
-          setPreviewStatusContextKey(previewContextKey)
-          setPreviewSrc(null)
-          setPreviewOutputContextKey(null)
-          setIsRefreshingPreview(false)
-        })
-    }, 240)
-
-    return () => {
-      cancelled = true
-      if (isCurrentRequest(requestGeneration, generation)) {
-        invalidateRequests(requestGeneration)
-      }
-      window.clearTimeout(timer)
-      if (requestId) {
-        void desktopApi
-          .cancelPreview(requestId, generation, previewClientSessionId, previewClientSessionEpoch)
-          .catch(() => undefined)
-      }
-    }
-  }, [
-    previewClientSessionEpoch,
-    previewClientSessionError,
-    previewClientSessionId,
-    previewContextKey,
-    previewGeneration,
-    previewIssueId,
-    previewLineGroupId,
-    previewMode,
-    previewProjectId,
-    previewRunId,
-    previewSheetId,
-    screen,
-  ])
 
   async function handleIssueStatusSave() {
     const projectId = result?.run.project_id ?? selectedProjectId
@@ -1675,13 +1297,6 @@ function App() {
     }
   }
 
-  function handlePreviewRegenerateClick() {
-    if (!selectedIssue || previewMode === "off") {
-      return
-    }
-    setPreviewGeneration((current) => current + 1)
-  }
-
   const screenTitle = screen === "launch" ? "项目" : screen === "process" ? "校验中" : screen === "result" ? "问题" : "设置"
   const isNativeRuntime = desktopApi.isNative()
   const sessionLabel = isAnalyzing
@@ -1689,7 +1304,7 @@ function App() {
     : summaryProject?.project_name ?? "尚未打开项目"
   const processStatusText = describeProcessStatus(processState, isAnalyzing)
   const completedFlowSheets = processState.completedProjects.reduce((sum, project) => sum + project.sheet_count, 0)
-  const flowInputName = !isAnalyzing && processState.completedProjects.length
+  const flowInputName = !isAnalyzing && processState.completedProjects.length && inputRoot.trim()
     ? getPathBaseName(inputRoot)
     : processState.currentProjectName ?? getPathBaseName(inputRoot)
   const flowInputPageCount = !isAnalyzing && processState.completedProjects.length
@@ -1908,6 +1523,11 @@ function App() {
                     查看问题清单
                   </button>
                 ) : null}
+                {!isNativeRuntime && !isAnalyzing ? (
+                  <button type="button" className="ghost-button" onClick={() => void handleAnalyzeClick(DEMO_INPUT_ROOT)}>
+                    演示运行
+                  </button>
+                ) : null}
                 {!isAnalyzing && (processState.failureMessage || processState.analysisIncomplete) && (
                   <button type="button" className="primary-button" onClick={() => void handleAnalyzeClick()}>
                     重新分析
@@ -1971,14 +1591,14 @@ function App() {
                       <th>问题</th>
                       <th>端子</th>
                       <th>位置</th>
-                      <th>把握</th>
+                      <th>程序把握度</th>
                     </tr>
                   </thead>
                   <tbody>
                     {processState.liveIssues.length ? (
                       processState.liveIssues.map((issue) => {
                         const source = formatSourcePage(issue)
-                        const location = formatIssueLocation(issue)
+                        const location = describeIssueLocationCell(issue)
                         return (
                           <tr key={issue.issue_id}>
                             <td title={source.detail || source.label}>
@@ -1995,7 +1615,7 @@ function App() {
                             </td>
                             <td>{formatPair(issue)}</td>
                             <td title={location.detail}>{location.label}</td>
-                            <td title="识别把握，不是问题严重程度">{formatConfidence(issue.confidence)}</td>
+                            <td title="程序把握度，不是问题严重程度">{formatConfidence(issue.confidence)}</td>
                           </tr>
                         )
                       })
@@ -2033,6 +1653,9 @@ function App() {
             <AuditFlowDiagram
               projectName={flowInputName || "等待读取项目"}
               pageCount={flowInputPageCount}
+              processedPages={processState.completedPages}
+              coordinatedPages={processState.activeStage === "pair" || processState.activeStage === "audit" || processState.progressRatio >= 1 ? processState.completedPages : 0}
+              routeCounts={processState.routeCounts}
               totalIssues={processState.totalIssueCount}
               coverageByProject={flowCoverage}
               activeStage={processState.activeStage}
@@ -2051,53 +1674,83 @@ function App() {
                 <p>部分图纸未成功读取，当前结果不能作为无问题结论。请检查失败页面后重新分析。</p>
               </div>
             )}
-            <article className="panel result-toolbar">
-              <div className="result-toolbar-metrics">
-                <div className="metric-card">
-                  <strong>{summaryProject?.sheet_count ?? 0}</strong>
-                  <span>图纸页</span>
+            <article className={`panel result-toolbar${toolbarCollapsed ? " is-collapsed" : ""}`}>
+              <div className="result-toolbar-bar">
+                <div className="result-toolbar-metrics">
+                  <span className="tb-stat">
+                    <strong>{summaryProject?.sheet_count ?? 0}</strong>
+                    <span>图纸页</span>
+                  </span>
+                  <button
+                    type="button"
+                    className={`tb-stat tb-action${handlingFilter === "all" ? " is-active" : ""}`}
+                    aria-pressed={handlingFilter === "all"}
+                    onClick={() => setHandlingFilter("all")}
+                  >
+                    <strong>{totalIssueCount}</strong>
+                    <span>问题</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`tb-stat tb-action metric-error${handlingFilter === "error" ? " is-active" : ""}`}
+                    aria-pressed={handlingFilter === "error"}
+                    onClick={() => setHandlingFilter("error")}
+                  >
+                    <strong>{issueStats.errorCount}</strong>
+                    <span>确定性错误</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`tb-stat tb-action metric-warning${handlingFilter === "warning" ? " is-active" : ""}`}
+                    aria-pressed={handlingFilter === "warning"}
+                    onClick={() => setHandlingFilter("warning")}
+                  >
+                    <strong>{issueStats.warningCount}</strong>
+                    <span>可能有错误</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`tb-stat tb-action metric-review${handlingFilter === "review" ? " is-active" : ""}`}
+                    aria-pressed={handlingFilter === "review"}
+                    onClick={() => setHandlingFilter("review")}
+                  >
+                    <strong>{issueStats.reviewCount}</strong>
+                    <span>须人工校验</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`tb-stat tb-action${statusFilter === "open" ? " is-active" : ""}`}
+                    aria-pressed={statusFilter === "open"}
+                    onClick={() => setStatusFilter(statusFilter === "open" ? "all" : "open")}
+                  >
+                    <strong>{issueStats.openCount}</strong>
+                    <span>待处理</span>
+                  </button>
+                  <span className="tb-stat">
+                    <strong>{issueStats.groupCount}</strong>
+                    <span>同类问题组</span>
+                  </span>
                 </div>
-                <div className="metric-card">
-                  <strong>{totalIssueCount}</strong>
-                  <span>问题总数</span>
-                </div>
-                <div className="metric-card metric-error">
-                  <strong>{issueStats.errorCount}</strong>
-                  <span>确定性错误</span>
-                </div>
-                <div className="metric-card metric-warning">
-                  <strong>{issueStats.warningCount}</strong>
-                  <span>可能有错误</span>
-                </div>
-                <div className="metric-card metric-review">
-                  <strong>{issueStats.reviewCount}</strong>
-                  <span>须人工校验</span>
-                </div>
-                <div className="metric-card">
-                  <strong>{issueStats.groupCount}</strong>
-                  <span>处理组</span>
-                </div>
-                <span className="muted" title={summaryProject?.project_name ?? undefined}>
-                  {summaryProject?.project_name ?? "未加载项目"}
-                </span>
-              </div>
-              <div className="recognition-summary" aria-label="识别覆盖率与未闭合诊断">
-                <span>
-                  识别覆盖率 <strong>{formatCoverageRatio(recognitionSummary?.coverage_ratio)}</strong>
-                </span>
-                <span>
-                  <strong>{recognitionSummary?.unclosed_count ?? 0}</strong> 处未闭合
-                </span>
-                <span className="muted">{recognitionSummary?.diagnostic_count ?? 0} 条内部诊断</span>
+                <div className="result-toolbar-meta">
+                  <span className="tb-project" title={summaryProject?.project_name ?? undefined}>
+                    {summaryProject?.project_name ?? "未加载项目"}
+                  </span>
+                  <span className="tb-coverage" aria-label="识别覆盖率与未闭合诊断">
+                    覆盖率 <strong>{formatCoverageRatio(recognitionSummary?.coverage_ratio)}</strong>
+                    <span className="tb-sep">·</span>
+                    {recognitionSummary?.unclosed_count ?? 0} 处未闭合
+                    <span className="tb-sep">·</span>
+                    {recognitionSummary?.diagnostic_count ?? 0} 条内部诊断
+                  </span>
                 <details
-                  className="diagnostic-details"
+                  className="tb-details"
                   onToggle={(event) => {
                     if (event.currentTarget.open && diagnosticLoadedRunId !== result?.run.run_id && !isLoadingDiagnostics) {
                       void loadDiagnostics(0)
                     }
                   }}
                 >
-                  <summary>展开诊断明细</summary>
+                  <summary>诊断明细</summary>
                   {recognitionSummary ? (
                     <div className="diagnostic-summary-content">
                       <div className="diagnostic-breakdown">
@@ -2187,115 +1840,106 @@ function App() {
                     <p className="muted">当前项目未提供识别覆盖率诊断摘要。</p>
                   )}
                 </details>
-              </div>
-              {result?.series_chains && (
-                <div className="section-heading">
-                  <h3>串联链证据</h3>
-                  <span>
-                    {result.series_chains.chain_count} 条链 · {result.series_chains.continuation_count} 个延续
+                {result?.series_chains ? (
+                  <span className="tb-muted tb-chain">
+                    串联链 {result.series_chains.chain_count} 条
+                    <button
+                      type="button"
+                      className="ghost-button tb-small-button"
+                      onClick={() => {
+                        const projectId = result.run.project_id.replace(/[^A-Za-z0-9._-]+/g, "_") || "project"
+                        downloadJsonFile(`series_chains_${projectId}.json`, result.series_chains)
+                      }}
+                    >
+                      下载 JSON
+                    </button>
                   </span>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => {
-                      const projectId = result.run.project_id.replace(/[^A-Za-z0-9._-]+/g, "_") || "project"
-                      downloadJsonFile(`series_chains_${projectId}.json`, result.series_chains)
-                    }}
-                  >
-                    下载 JSON
-                  </button>
+                ) : null}
                 </div>
-              )}
-              <div className="handling-chip-row" aria-label="问题处理分桶">
                 <button
                   type="button"
-                  className={handlingFilter === "all" ? "handling-chip active" : "handling-chip"}
-                  onClick={() => setHandlingFilter("all")}
+                  className="ghost-button tb-small-button tb-toggle"
+                  aria-expanded={!toolbarCollapsed}
+                  onClick={toggleResultToolbar}
                 >
-                  全部 {totalIssueCount}
-                </button>
-                <button
-                  type="button"
-                  className={handlingFilter === "error" ? "handling-chip active handling-error" : "handling-chip handling-error"}
-                  onClick={() => setHandlingFilter("error")}
-                >
-                  确定性错误 {issueStats.errorCount}
-                </button>
-                <button
-                  type="button"
-                  className={handlingFilter === "warning" ? "handling-chip active handling-warning" : "handling-chip handling-warning"}
-                  onClick={() => setHandlingFilter("warning")}
-                >
-                  可能有错误 {issueStats.warningCount}
-                </button>
-                <button
-                  type="button"
-                  className={handlingFilter === "review" ? "handling-chip active handling-review" : "handling-chip handling-review"}
-                  onClick={() => setHandlingFilter("review")}
-                >
-                  须人工校验 {issueStats.reviewCount}
-                </button>
-                <button
-                  type="button"
-                  className={statusFilter === "open" ? "handling-chip active" : "handling-chip"}
-                  onClick={() => setStatusFilter(statusFilter === "open" ? "all" : "open")}
-                >
-                  仅待处理 {issueStats.openCount}
+                  {toolbarCollapsed ? "展开筛选" : "收起"}
                 </button>
               </div>
-              <p className="result-guide muted">
-                建议顺序：先处理「确定性错误」，再看「可能有错误」，最后批量确认「须人工校验」。原则：可以误报，但不能错过真实错误。同类问题归到同一处理组。
-              </p>
-              <div className="result-toolbar-filters">
-                <label className="field compact-field">
+
+              {toolbarCollapsed ? null : (
+                <div className="result-toolbar-row">
+                <label className="tb-search">
                   <span>搜索</span>
                   <input value={issueSearch} onChange={(event) => setIssueSearch(event.target.value)} placeholder="图号 / 端子号 / 说明" />
                 </label>
-                <label className="field compact-field">
-                  <span>严重程度</span>
-                  <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
-                    <option value="all">全部</option>
-                    {issueFilterOptions.severities.map((value) => (
-                      <option key={value} value={value}>
-                        {labelSeverity(value)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field compact-field">
-                  <span>问题类别</span>
-                  <select value={ruleFilter} onChange={(event) => setRuleFilter(event.target.value)}>
-                    <option value="all">全部</option>
-                    {issueFilterOptions.rules.map((value) => (
-                      <option key={value} value={value}>
-                        {labelRule(value)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field compact-field">
-                  <span>处理状态</span>
-                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                    <option value="all">全部</option>
-                    {issueFilterOptions.statuses.map((value) => (
-                      <option key={value} value={value}>
-                        {labelIssueStatus(value)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field compact-field">
-                  <span>连接关系</span>
-                  <select value={triageFilter} onChange={(event) => setTriageFilter(event.target.value)}>
-                    <option value="all">全部</option>
-                    {issueFilterOptions.triages.map((value) => (
-                      <option key={value} value={value}>
-                        {labelTriage(value)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+                  <div className="tb-filters">
+                    <label className="tb-field">
+                      <span>严重程度</span>
+                      <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
+                        <option value="all">全部</option>
+                        {issueFilterOptions.severities.map((value) => (
+                          <option key={value} value={value}>
+                            {labelSeverity(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="tb-field">
+                      <span>问题类别</span>
+                      <select value={ruleFilter} onChange={(event) => setRuleFilter(event.target.value)}>
+                        <option value="all">全部</option>
+                        {issueFilterOptions.rules.map((value) => (
+                          <option key={value} value={value}>
+                            {labelRule(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="tb-field">
+                      <span>处理状态</span>
+                      <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                        <option value="all">全部</option>
+                        {issueFilterOptions.statuses.map((value) => (
+                          <option key={value} value={value}>
+                            {labelIssueStatus(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="tb-field">
+                      <span>连接关系</span>
+                      <select value={triageFilter} onChange={(event) => setTriageFilter(event.target.value)}>
+                        <option value="all">全部</option>
+                        {issueFilterOptions.triages.map((value) => (
+                          <option key={value} value={value}>
+                            {labelTriage(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="tb-guide">
+                    <button
+                      type="button"
+                      className="ghost-button tb-small-button tb-info"
+                      title={RESULT_GUIDE_TEXT}
+                      aria-expanded={toolbarGuideOpen}
+                      onClick={() => setToolbarGuideOpen((open) => !open)}
+                    >
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <circle cx="8" cy="8" r="6.5" />
+                        <path d="M8 7.2v3.8M8 4.9v.2" />
+                      </svg>
+                      处理顺序
+                    </button>
+                    {toolbarGuideOpen ? (
+                      <p className="tb-guide-pop" role="note">
+                        {RESULT_GUIDE_TEXT}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              )}
             </article>
 
             <article className="panel result-issue-list">
@@ -2326,7 +1970,7 @@ function App() {
                       <th>端子连接</th>
                       <th>来源图纸</th>
                       <th>位置</th>
-                      <th>处理组</th>
+                      <th>同类组</th>
                       <th>状态</th>
                     </tr>
                   </thead>
@@ -2365,7 +2009,7 @@ function App() {
                                 }
                                 const handling = resolveHandlingClass(issue)
                                 const source = formatSourcePage(issue)
-                                const location = formatIssueLocation(issue)
+                                const location = describeIssueLocationCell(issue)
                                 return (
                                   <tr
                                     key={issue.issue_id}
@@ -2451,353 +2095,76 @@ function App() {
             </article>
 
             <article className="result-inspector">
-              <div className="panel inspector-header">
-                <div className="section-heading">
-                  <h3>问题详情</h3>
-                  <span title={selectedIssue?.title ?? undefined}>{selectedIssue?.title ?? "未选择"}</span>
-                </div>
-                {selectedIssue ? (
-                  <div className="inspector-badges">
-                    <span className={`chip handling-${normalizeToken(resolveHandlingClass(selectedIssue))}`}>
-                      {labelHandlingClass(resolveHandlingClass(selectedIssue))}
-                    </span>
-                    <span className={`badge severity-${normalizeToken(selectedIssue.severity)}`}>{labelSeverity(selectedIssue.severity)}</span>
-                    <span className={`chip status-${normalizeToken(selectedIssue.status)}`}>{labelIssueStatus(selectedIssue.status)}</span>
-                    <span className={`chip triage-${normalizeToken((selectedIssue.one_to_many_classification ?? readOneToManyClassification(selectedIssue) ?? "none") as string)}`}>
-                      {labelTriage(selectedIssue.one_to_many_classification ?? readOneToManyClassification(selectedIssue))}
-                    </span>
-                  </div>
-                ) : null}
-                {selectedIssue ? (
-                  <div className="status-editor">
-                    <label className="field compact-field" style={{ minWidth: 120 }}>
-                      <span>处理结论</span>
-                      <select value={issueStatusDraft} onChange={(event) => setIssueStatusDraft(event.target.value)}>
-                        {ISSUE_STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {labelIssueStatus(status)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button type="button" className="ghost-button" disabled={isSavingIssueStatus} onClick={() => void handleIssueStatusSave()}>
-                      {isSavingIssueStatus ? "保存中…" : "保存"}
-                    </button>
-                    <label className="field compact-field" style={{ minWidth: 160 }}>
-                      <span>查看图纸</span>
-                      <select
-                        value={selectedPreviewSheetId ?? ""}
-                        onChange={(event) => {
-                          const nextSheetId = event.target.value || null
-                          setSelectedPreviewSheetId(nextSheetId)
-                          setSelectedPreviewLineGroupId(resolvePreviewLineGroupForSheet(selectedIssue, nextSheetId))
-                        }}
-                      >
-                        {previewOptions.length ? (
-                          previewOptions.map((option) => (
-                            <option key={option.sheetId} value={option.sheetId}>
-                              {option.label}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="">暂无关联图纸</option>
-                        )}
-                      </select>
-                    </label>
-                    <div className="field compact-field preview-mode-field">
-                      <span>预览策略</span>
-                      <div className="preview-mode-control" role="group" aria-label="图纸预览策略">
-                        {([
-                          ["auto", "自动"],
-                          ["manual-only", "仅手动"],
-                          ["off", "关闭"],
-                        ] as const).map(([mode, label]) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            className={previewMode === mode ? "active" : ""}
-                            aria-pressed={previewMode === mode}
-                            onClick={() => setPreviewMode(mode)}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      disabled={!selectedIssue || visibleIsRefreshingPreview || previewMode === "off"}
-                      onClick={() => handlePreviewRegenerateClick()}
-                    >
-                        {visibleIsRefreshingPreview ? "生成中…" : previewMode === "manual-only" ? "生成预览" : "刷新预览"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="panel inspector-preview">
-                <div
-                  ref={previewShellRef}
-                  className={`preview-shell${previewCanPan ? " is-pannable" : ""}${isPreviewDragging ? " is-dragging" : ""}`}
-                  aria-label={previewCanPan ? "问题定位预览，可拖动查看周边区域" : "问题定位预览"}
-                  role="group"
-                  tabIndex={previewCanPan ? 0 : undefined}
-                  onKeyDown={handlePreviewKeyDown}
-                  onPointerDown={handlePreviewPointerDown}
-                  onPointerMove={handlePreviewPointerMove}
-                  onPointerUp={(event) => finishPreviewDrag(event, true)}
-                  onPointerCancel={(event) => finishPreviewDrag(event, true)}
-                  onLostPointerCapture={(event) => finishPreviewDrag(event, false)}
-                >
-                  {visiblePreviewSrc ? (
-                    <>
-                      <div
-                        className="preview-pan-layer"
-                        style={{
-                          width: previewPanMetrics.content.width > 0 ? `${previewPanMetrics.content.width}px` : "100%",
-                          height: previewPanMetrics.content.height > 0 ? `${previewPanMetrics.content.height}px` : "100%",
-                          transform: `translate3d(${previewPan.x}px, ${previewPan.y}px, 0) scale(${previewViewportScale})`,
-                        }}
-                      >
-                        <img
-                          ref={previewImageRef}
-                          src={visiblePreviewSrc}
-                          alt="问题定位预览"
-                          className="preview-image"
-                          draggable={false}
-                          onLoad={() => refreshPreviewPanMetrics()}
-                          onDragStart={(event) => event.preventDefault()}
-                          onError={() => {
-                            setPreviewSrc(null)
-                            setPreviewOutputContextKey(null)
-                            setPreviewStatusContextKey(previewContextKey)
-                            setPreviewViewportScale(1)
-                            setPreviewError("预览图未能显示。请查看下方文字说明，或点击“刷新预览”。")
-                          }}
-                        />
-                      </div>
-                      {previewCanPan ? <span className="preview-pan-hint">拖动查看周边</span> : null}
-                    </>
-                  ) : (
-                    <div className={`preview-empty${previewEmptyState === "loading" ? " is-loading" : ""}`}>
-                      {previewEmptyState === "no-issue"
-                        ? "请从左侧选择一条问题进行复核。"
-                        : previewEmptyState === "loading"
-                          ? "正在生成问题区域预览…"
-                          : previewEmptyState === "off"
-                            ? "图纸预览已关闭。"
-                            : previewEmptyState === "error"
-                              ? visiblePreviewError
-                              : previewEmptyState === "manual-only"
-                                ? "当前为仅手动预览，可点击“生成预览”。"
-                                : previewEmptyState === "no-preview"
-                                  ? "暂无预览图。可点击“刷新预览”，或直接阅读下方问题说明。"
-                                  : "当前问题没有可定位的图纸区域，请阅读文字说明。"}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="panel inspector-detail">
-                {selectedIssue ? (
-                  <div className="issue-detail">
-                    <div className="detail-block detail-title">
-                      <span>问题说明</span>
-                      <strong>{selectedIssue.title}</strong>
-                    </div>
-                    <div className="detail-grid">
-                      <div className="detail-block">
-                        <span>处理分桶</span>
-                        <strong>{labelHandlingClass(resolveHandlingClass(selectedIssue))}</strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>处理组</span>
-                        <strong title={selectedIssue.review_group_label || undefined}>
-                          {(selectedIssue.review_group_size ?? 1) > 1
-                            ? `${humanizeReviewGroupLabel(selectedIssue)}（${selectedIssue.review_group_size} 处）`
-                            : humanizeReviewGroupLabel(selectedIssue) || "单条问题"}
-                        </strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>问题类别</span>
-                        <strong>{labelIssueCategory(selectedIssue)}</strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>来源图纸</span>
-                        <strong>
-                          {(() => {
-                            const source = formatSourcePage(selectedIssue)
-                            return source.secondary ? `${source.label} · ${source.secondary}` : source.label
-                          })()}
-                        </strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>端子连接</span>
-                        <strong>{formatPair(selectedIssue)}</strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>相关端子号</span>
-                        <strong>
-                          {selectedIssue.values.length
-                            ? selectedIssue.values.join("、")
-                            : formatPair(selectedIssue)}
-                        </strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>连接关系</span>
-                        <strong>
-                          {labelTriage(selectedIssue.one_to_many_classification ?? readOneToManyClassification(selectedIssue))}
-                        </strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>识别把握</span>
-                        <strong title="识别把握，不是问题严重程度">{formatConfidence(selectedIssue.confidence)}</strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>图纸位置</span>
-                        <strong className={formatIssueLocation(selectedIssue).hasCoord ? "coords-mono" : undefined} title={formatIssueLocation(selectedIssue).detail}>
-                          {formatIssueLocation(selectedIssue).label}
-                        </strong>
-                      </div>
-                    </div>
-                    {formatLineSemantics(selectedIssue) ? (
-                      <div className="detail-block">
-                        <span>线端说明</span>
-                        <strong>{formatLineSemantics(selectedIssue)}</strong>
-                      </div>
-                    ) : null}
-                    <div className="detail-block">
-                      <span>摘要</span>
-                      <strong>{selectedIssue.summary || selectedIssue.title}</strong>
-                    </div>
-                    <div className="detail-grid">
-                      <div className="detail-block">
-                        <span>详细说明</span>
-                        <strong>{selectedIssue.explanation || "-"}</strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>建议处理</span>
-                        <strong>{selectedIssue.recommended_action || "-"}</strong>
-                      </div>
-                    </div>
-                    <div className="detail-block">
-                      <span>关联图纸位置</span>
-                      {evidenceRefEntries.length ? (
-                        <div className="evidence-ref-list">
-                          {evidenceRefEntries.map((entry) => (
-                            <button
-                              key={entry.key}
-                              type="button"
-                              className={`evidence-ref-card ${
-                                entry.sheetId &&
-                                entry.sheetId === selectedPreviewSheetId &&
-                                entry.lineGroupId === selectedPreviewLineGroupId
-                                  ? "active"
-                                  : ""
-                              }`}
-                              onClick={() => {
-                                if (entry.sheetId) {
-                                  setSelectedPreviewSheetId(entry.sheetId)
-                                  setSelectedPreviewLineGroupId(entry.lineGroupId)
-                                }
-                              }}
-                              disabled={!entry.sheetId}
-                            >
-                              <strong>{entry.title}</strong>
-                              <span>{entry.subtitle}</span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <strong className="muted">无额外图纸位置引用</strong>
-                      )}
-                    </div>
-                    <div className="detail-grid">
-                      <div className="detail-block">
-                        <span>关联图纸</span>
-                        <strong>
-                          {formatRelatedSourcePages(selectedIssue).length
-                            ? formatRelatedSourcePages(selectedIssue).join("；")
-                            : formatSourcePage(selectedIssue).label}
-                        </strong>
-                      </div>
-                      <div className="detail-block">
-                        <span>当前预览</span>
-                        <strong>
-                          {visibleIsRefreshingPreview
-                            ? "正在生成…"
-                            : activePreviewOption
-                              ? activePreviewOption.caption
-                              : formatSourcePage(selectedIssue).label}
-                        </strong>
-                      </div>
-                    </div>
-                    <details className="raw-toggle">
-                      <summary>更多技术细节（排障用，一般无需查看）</summary>
-                      <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
-                        以下为内部编号与原始记录，不影响日常复核。
-                      </p>
-                      <div className="detail-block" style={{ marginTop: 8 }}>
-                        <span>识别把握拆解</span>
-                        {Object.keys(scoreBreakdown).length ? (
-                          <div className="metric-row">
-                            {Object.entries(scoreBreakdown).map(([key, value]) => (
-                              <div key={key} className="metric-card compact-metric">
-                                <strong>{formatBreakdownValue(value)}</strong>
-                                <span>{labelBreakdownKey(key)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <strong className="muted">无拆解项，仅有总体识别把握。</strong>
-                        )}
-                      </div>
-                      <div className="detail-block" style={{ marginTop: 8 }}>
-                        <span>内部编号（仅排障）</span>
-                        <strong className="coords-mono">
-                          {[
-                            selectedIssue.issue_id ? `问题 ${selectedIssue.issue_id}` : null,
-                            selectedIssue.rule_id ? `规则 ${selectedIssue.rule_id}` : null,
-                            (selectedIssue.line_group_id ?? structuredLocation.lineGroupId)
-                              ? `线组 ${selectedIssue.line_group_id ?? structuredLocation.lineGroupId}`
-                              : null,
-                            selectedIssue.primary_pair_id ? `主配对 ${selectedIssue.primary_pair_id}` : null,
-                            selectedIssue.related_pair_ids.length
-                              ? `关联配对 ${selectedIssue.related_pair_ids.join("、")}`
-                              : null,
-                            selectedIssue.sheet_id ? `页面 ${selectedIssue.sheet_id}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || "-"}
-                        </strong>
-                      </div>
-                      <div className="detail-block" style={{ marginTop: 8 }}>
-                        <span>证据链（原始）</span>
-                        {readSuperworksEvidence(selectedIssue) && (
-                          <div>
-                            <strong>来源：superworks</strong>
-                            <pre>{JSON.stringify(readSuperworksEvidence(selectedIssue), null, 2)}</pre>
-                          </div>
-                        )}
-                        <pre>{JSON.stringify(readEvidenceChain(selectedIssue), null, 2)}</pre>
-                      </div>
-                      <div className="detail-block" style={{ marginTop: 8 }}>
-                        <span>原始证据</span>
-                        <pre>{JSON.stringify(selectedIssue.evidence, null, 2)}</pre>
-                      </div>
-                    </details>
-                  </div>
-                ) : (
+              {selectedIssue ? (
+                <IssueInspector
+                  key={selectedIssue.issue_id}
+                  issue={selectedIssue}
+                  handlingClass={resolveHandlingClass(selectedIssue)}
+                  projectId={result?.run.project_id ?? selectedProjectId}
+                  runId={result?.run.run_id ?? null}
+                  clientSessionId={previewClientSessionId}
+                  clientSessionEpoch={previewClientSessionEpoch}
+                  statusDraft={issueStatusDraft}
+                  statusOptions={ISSUE_STATUS_OPTIONS}
+                  statusLabel={labelIssueStatus}
+                  onStatusDraftChange={setIssueStatusDraft}
+                  onSaveStatus={() => void handleIssueStatusSave()}
+                  isSavingStatus={isSavingIssueStatus}
+                  technicalRows={buildTechnicalRows(selectedIssue, structuredLocation)}
+                  scoreRows={buildScoreRows(scoreBreakdown)}
+                  rawSections={buildRawSections(selectedIssue)}
+                />
+              ) : (
+                <div className="panel inspector-header">
                   <p className="empty-state">请从左侧选择问题，查看定位预览与处理建议。</p>
-                )}
-              </div>
+                </div>
+              )}
             </article>
           </section>
         )}
 
         {screen === "settings" && (
           <section className="settings-screen">
+            <div className="panel panel-pad">
+              <div className="section-heading">
+                <h3>界面字号</h3>
+                <span>当前 {uiScale}%</span>
+              </div>
+              <p className="muted">调整全部界面文字的大小，包括表格、卡片与数据流图。设置仅保存在本机，不影响校验结果。</p>
+              <div className="ui-scale-control" role="group" aria-label="界面字号">
+                <button
+                  type="button"
+                  className="ghost-button ui-scale-button"
+                  aria-label="减小界面字号"
+                  disabled={uiScale <= UI_SCALE_MIN}
+                  onClick={() => updateUiScale(uiScale - UI_SCALE_STEP)}
+                >
+                  A−
+                </button>
+                <output className="ui-scale-value" aria-live="polite">{uiScale}%</output>
+                <button
+                  type="button"
+                  className="ghost-button ui-scale-button"
+                  aria-label="增大界面字号"
+                  disabled={uiScale >= UI_SCALE_MAX}
+                  onClick={() => updateUiScale(uiScale + UI_SCALE_STEP)}
+                >
+                  A+
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={uiScale === UI_SCALE_DEFAULT}
+                  onClick={() => updateUiScale(UI_SCALE_DEFAULT)}
+                >
+                  恢复默认
+                </button>
+              </div>
+              <div className="ui-scale-sample">
+                示例：图纸端子校验 · 跨页核对 · 110kV 变压器保护柜
+              </div>
+            </div>
+
             <div className="panel panel-pad">
               <div className="section-heading">
                 <h3>性能与运行设置</h3>
@@ -3015,6 +2382,65 @@ function formatSidecarLog(event: SidecarEvent): string {
     default:
       return `[${stamp}] 运行中`
   }
+}
+
+/** 列表“位置”列：简短摘要 + 悬停时列出各位置。 */
+function describeIssueLocationCell(issue: IssueSummary): { label: string; detail: string } {
+  const views = getIssueLocations(issue)
+  return {
+    label: summarizeLocations(views),
+    detail: views.length ? views.map((view) => view.title).join("\n") : "未定位到图纸",
+  }
+}
+
+/** 更多技术细节中的结构化字段（客户界面不直接展示）。 */
+function buildTechnicalRows(
+  issue: IssueSummary,
+  structuredLocation: { coords: string; lineGroupId: string | null },
+): InspectorTechnicalRow[] {
+  const codes: unknown = Array.isArray(issue.evidence.resolution_reason_codes)
+    ? issue.evidence.resolution_reason_codes
+    : issue.evidence.reason_codes
+  const reasonText = Array.isArray(codes) ? codes.map((code) => String(code)).join("、") : ""
+  const pairIds = [issue.primary_pair_id, ...issue.related_pair_ids].filter((value): value is string => Boolean(value))
+  return [
+    { label: "处理分桶", value: labelHandlingClass(resolveHandlingClass(issue)) },
+    {
+      label: "处理组",
+      value:
+        (issue.review_group_size ?? 1) > 1
+          ? `${humanizeReviewGroupLabel(issue)}（${issue.review_group_size} 处）`
+          : humanizeReviewGroupLabel(issue) || "单条问题",
+    },
+    { label: "问题类别", value: labelIssueCategory(issue) },
+    { label: "连接关系", value: labelTriage(issue.one_to_many_classification ?? readOneToManyClassification(issue)) },
+    { label: "程序把握度", value: formatConfidence(issue.confidence) },
+    { label: "线端说明", value: formatLineSemantics(issue) || "-" },
+    { label: "坐标", value: structuredLocation.coords || "-", mono: true },
+    { label: "pair_id", value: pairIds.join("、") || "-", mono: true },
+    { label: "line_group_id", value: issue.line_group_id ?? structuredLocation.lineGroupId ?? "-", mono: true },
+    { label: "rule_id", value: issue.rule_id || "-", mono: true },
+    { label: "reason_codes", value: reasonText || "-", mono: true },
+    { label: "issue_id", value: issue.issue_id, mono: true },
+  ]
+}
+
+function buildScoreRows(scoreBreakdown: Record<string, number | string>): InspectorTechnicalRow[] {
+  return Object.entries(scoreBreakdown).map(([key, value]) => ({
+    label: labelBreakdownKey(key),
+    value: formatBreakdownValue(value),
+  }))
+}
+
+function buildRawSections(issue: IssueSummary): Array<{ title: string; text: string }> {
+  const sections: Array<{ title: string; text: string }> = []
+  const superworks = readSuperworksEvidence(issue)
+  if (superworks) {
+    sections.push({ title: "来源：superworks", text: JSON.stringify(superworks, null, 2) })
+  }
+  sections.push({ title: "证据链（原始）", text: JSON.stringify(readEvidenceChain(issue), null, 2) })
+  sections.push({ title: "原始证据", text: JSON.stringify(issue.evidence, null, 2) })
+  return sections
 }
 
 function formatLogDrawingName(filename: string | null | undefined): string {
@@ -3253,18 +2679,6 @@ function formatSourcePage(
   return { label: "来源页未识别", secondary: "", detail: "未能关联到具体图纸页" }
 }
 
-function formatPointPair(value: unknown): string | null {
-  if (!Array.isArray(value) || value.length < 2) {
-    return null
-  }
-  const x = Number(value[0])
-  const y = Number(value[1])
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return null
-  }
-  return `(${x.toFixed(1)}, ${y.toFixed(1)})`
-}
-
 function readSuperworksEvidence(issue: Pick<IssueSummary, "evidence">): Record<string, unknown> | null {
   const evidence = issue.evidence ?? {}
   const nested = evidence.pair_evidence
@@ -3272,89 +2686,6 @@ function readSuperworksEvidence(issue: Pick<IssueSummary, "evidence">): Record<s
     ? nested as Record<string, unknown> : evidence
   const sw = pair.superworks
   return sw && typeof sw === "object" && !Array.isArray(sw) ? sw as Record<string, unknown> : null
-}
-
-function formatIssueLocation(
-  issue: Pick<IssueSummary, "evidence" | "filename" | "sheet_no" | "left_value" | "right_value">,
-): { label: string; detail: string; hasCoord: boolean } {
-  const evidence = issue.evidence ?? {}
-  const nested =
-    evidence.pair_evidence && typeof evidence.pair_evidence === "object" && !Array.isArray(evidence.pair_evidence)
-      ? (evidence.pair_evidence as Record<string, unknown>)
-      : null
-  const start = formatPointPair(evidence.line_start ?? nested?.line_start)
-  const end = formatPointPair(evidence.line_end ?? nested?.line_end)
-  if (start && end) {
-    return {
-      label: `${start} → ${end}`,
-      detail: `导线坐标 ${start} → ${end}（图纸坐标系）`,
-      hasCoord: true,
-    }
-  }
-  if (start) {
-    return {
-      label: start,
-      detail: `导线端点坐标 ${start}（图纸坐标系）`,
-      hasCoord: true,
-    }
-  }
-  const source = formatSourcePage(issue)
-  const pairHint = [issue.left_value, issue.right_value].filter(Boolean).join(" → ")
-  if (source.label !== "来源页未识别") {
-    return {
-      label: "本页（无坐标）",
-      detail: pairHint
-        ? `已定位到 ${source.detail || source.label}，端子 ${pairHint}；导线几何坐标未写入本条问题`
-        : `已定位到 ${source.detail || source.label}；导线几何坐标未写入本条问题`,
-      hasCoord: false,
-    }
-  }
-  return {
-    label: "位置未知",
-    detail: "未关联到来源图纸，也没有坐标",
-    hasCoord: false,
-  }
-}
-
-function formatRelatedSourcePages(issue: IssueSummary): string[] {
-  const labels: string[] = []
-  const seen = new Set<string>()
-  const push = (meta: { sheet_no?: string | null; filename?: string | null; sheet_title?: string | null }) => {
-    const fake: Pick<IssueSummary, "filename" | "sheet_no" | "evidence"> = {
-      filename: meta.filename || "",
-      sheet_no: meta.sheet_no || "",
-      evidence: {
-        sheet_title: meta.sheet_title || "",
-        filename: meta.filename || "",
-        sheet_no: meta.sheet_no || "",
-      },
-    }
-    const source = formatSourcePage(fake)
-    const key = source.detail || source.label
-    if (!key || seen.has(key) || source.label === "来源页未识别") {
-      return
-    }
-    seen.add(key)
-    labels.push(source.secondary ? `${source.label} · ${source.secondary}` : source.label)
-  }
-
-  push({
-    sheet_no: issue.sheet_no,
-    filename: issue.filename,
-    sheet_title: typeof issue.evidence?.sheet_title === "string" ? issue.evidence.sheet_title : null,
-  })
-
-  for (const ref of issue.evidence_refs) {
-    if (!isRecord(ref)) {
-      continue
-    }
-    push({
-      sheet_no: readString(ref.sheet_no),
-      filename: readString(ref.filename),
-      sheet_title: readString(ref.sheet_title),
-    })
-  }
-  return labels
 }
 
 function readOneToManyClassification(issue: Pick<IssueSummary, "one_to_many_classification" | "evidence">): string | null {
@@ -3622,168 +2953,6 @@ function pickDroppedInputRoot(paths: string[]): string | null {
   return candidate
 }
 
-function buildPreviewOptions(issue: IssueSummary | null): Array<{ sheetId: string; label: string; caption: string }> {
-  if (!issue) {
-    return []
-  }
-
-  const options = new Map<string, { sheetId: string; label: string; caption: string }>()
-
-  const addOption = (
-    sheetId: string | null | undefined,
-    prefix: string,
-    meta?: {
-      sheetNo?: string | null
-      filename?: string | null
-      sheetTitle?: string | null
-    },
-  ) => {
-    const normalized = sheetId?.trim()
-    if (!normalized || options.has(normalized)) {
-      return
-    }
-
-    const source = formatSourcePage({
-      filename: meta?.filename || "",
-      sheet_no: meta?.sheetNo || "",
-      evidence: {
-        sheet_title: meta?.sheetTitle || "",
-        filename: meta?.filename || "",
-        sheet_no: meta?.sheetNo || "",
-      },
-    })
-    const pageText =
-      source.label !== "来源页未识别"
-        ? source.secondary
-          ? `${source.label} · ${source.secondary}`
-          : source.label
-        : "关联图纸"
-    options.set(normalized, {
-      sheetId: normalized,
-      label: `${prefix} · ${pageText}`,
-      caption: source.detail || pageText,
-    })
-  }
-
-  addOption(issue.sheet_id, "本页", {
-    sheetNo: issue.sheet_no || null,
-    filename: issue.filename || null,
-    sheetTitle: typeof issue.evidence?.sheet_title === "string" ? issue.evidence.sheet_title : null,
-  })
-
-  for (const ref of issue.evidence_refs) {
-    const record = isRecord(ref) ? ref : null
-    addOption(readString(record?.sheet_id), "关联页", {
-      sheetNo: readString(record?.sheet_no),
-      filename: readString(record?.filename),
-      sheetTitle: readString(record?.sheet_title),
-    })
-  }
-
-  for (const relatedSheetId of issue.sheet_ids) {
-    const matchingRef = issue.evidence_refs.find((ref) => isRecord(ref) && readString(ref.sheet_id) === relatedSheetId)
-    const record = isRecord(matchingRef) ? matchingRef : null
-    addOption(relatedSheetId, "关联页", {
-      sheetNo: readString(record?.sheet_no),
-      filename: readString(record?.filename),
-      sheetTitle: readString(record?.sheet_title),
-    })
-  }
-
-  if (!options.size && issue.sheet_id) {
-    addOption(issue.sheet_id, "本页", {
-      sheetNo: issue.sheet_no || null,
-      filename: issue.filename || null,
-    })
-  }
-
-  return Array.from(options.values())
-}
-
-function buildEvidenceRefEntries(
-  issue: IssueSummary | null,
-): Array<{ key: string; sheetId: string | null; lineGroupId: string | null; title: string; subtitle: string }> {
-  if (!issue) {
-    return []
-  }
-
-  return issue.evidence_refs.map((ref, index) => {
-    const record = isRecord(ref) ? ref : null
-    const sheetId = readString(record?.sheet_id)
-    const sheetNo = readString(record?.sheet_no)
-    const filename = readString(record?.filename)
-    const sheetTitle = readString(record?.sheet_title)
-    const pairId = readString(record?.pair_id)
-    const lineGroupId = readString(record?.line_group_id)
-    const start = formatPointPair(record?.line_start)
-    const end = formatPointPair(record?.line_end)
-    const coord =
-      start && end ? `${start} → ${end}` : start || formatEvidenceCoord(record?.coord)
-
-    const source = formatSourcePage({
-      filename: filename || "",
-      sheet_no: sheetNo || "",
-      evidence: {
-        sheet_title: sheetTitle || "",
-        filename: filename || "",
-        sheet_no: sheetNo || "",
-      },
-    })
-
-    const titleBits = [`位置 ${index + 1}`]
-    if (source.label !== "来源页未识别") {
-      titleBits.push(source.secondary ? `${source.label} · ${source.secondary}` : source.label)
-    }
-
-    const subtitleBits = [coord || (source.label !== "来源页未识别" ? "本页（无坐标）" : null)].filter(
-      (value): value is string => Boolean(value),
-    )
-
-    return {
-      key: `${sheetId ?? "no-sheet"}:${pairId ?? lineGroupId ?? index}`,
-      sheetId,
-      lineGroupId,
-      title: titleBits.join(" · "),
-      subtitle: subtitleBits.join(" · ") || "点击切换预览图纸",
-    }
-  })
-}
-
-function formatEvidenceCoord(value: unknown): string | null {
-  if (!Array.isArray(value) || value.length < 2) {
-    return null
-  }
-  const [x, y] = value
-  if (typeof x !== "number" || typeof y !== "number") {
-    return null
-  }
-  return `位置 (${x.toFixed(1)}, ${y.toFixed(1)})`
-}
-
-function resolvePreviewLineGroupForSheet(issue: IssueSummary | null, sheetId: string | null): string | null {
-  if (!issue || !sheetId) {
-    return null
-  }
-  if (issue.sheet_id === sheetId) {
-    return issue.line_group_id
-  }
-  const matchingRef = issue.evidence_refs.find((ref) => {
-    if (!isRecord(ref)) {
-      return false
-    }
-    return readString(ref.sheet_id) === sheetId && Boolean(readString(ref.line_group_id))
-  })
-  return isRecord(matchingRef) ? readString(matchingRef.line_group_id) : null
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-}
-
-function readString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null
-}
-
 function normalizeToken(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "_") || "unknown"
 }
@@ -3817,15 +2986,15 @@ function labelIssueStatus(value: string): string {
 
 function labelTriage(value: string | null | undefined): string {
   if (!value) {
-    return "无特殊分支关系"
+    return "普通连接"
   }
   const map: Record<string, string> = {
-    branch: "合法分支",
-    review: "需人工确认",
-    conflict: "存在冲突",
-    none: "无特殊分支关系",
+    branch: "正常分支",
+    review: "待确认",
+    conflict: "有冲突",
+    none: "普通连接",
   }
-  return map[value.toLowerCase()] ?? "需人工确认"
+  return map[value.toLowerCase()] ?? "待确认"
 }
 
 function labelProjectStatus(value: string): string {
@@ -3843,17 +3012,18 @@ function labelRule(value: string | null | undefined): string {
     return "未分类"
   }
   const map: Record<string, string> = {
-    "R-CROSS-PAGE-CONFLICT": "跨页端子冲突",
-    "R-TABLE-MAPPING-SOURCE-CONFLICT": "表格与图内映射不一致",
-    "R-SEMANTIC-MAPPING-CONFLICT": "端子语义映射冲突",
-    "R-ONE-TO-MANY": "一对多连接",
-    "R-MANY-TO-ONE": "多对一连接",
-    "R-MISSING-RECIPROCAL": "缺少对端回指",
-    "R-PAIR-MISSING-SIDE": "端子缺侧",
-    "R-PAIR-LOW-CONFIDENCE": "端子配对不确定",
-    "R-DUPLICATE-SAME-LINE": "同线重复端子",
-    "R-DUPLICATE-PAIR": "重复配对",
-    "R-SHEET-PAGE-MISMATCH": "页码不一致",
+    "R-CROSS-PAGE-CONFLICT": "同一端子跨图接线不一致",
+    "R-TABLE-MAPPING-SOURCE-CONFLICT": "端子表与图内连线不一致",
+    "R-SEMANTIC-MAPPING-CONFLICT": "端子含义对应不一致",
+    "R-ONE-TO-MANY": "一个端子接出多根线",
+    "R-MANY-TO-ONE": "多个端子接到同一端子",
+    "R-MISSING-RECIPROCAL": "连接缺少对向标注",
+    "R-PAIR-MISSING-SIDE": "导线只识别到一端",
+    "R-PAIR-LOW-CONFIDENCE": "导线两端配对不确定",
+    "R-DUPLICATE-SAME-LINE": "同一导线重复标注",
+    "R-DUPLICATE-PAIR": "重复的端子配对",
+    "R-SHEET-PAGE-MISMATCH": "图号与页面不一致",
+    "R-SUPERWORKS-CONFLICT": "端子图形重叠或引用异常",
   }
   if (map[value]) {
     return map[value]
@@ -3869,17 +3039,17 @@ function labelIssueType(value: string | null | undefined): string {
     return "-"
   }
   const map: Record<string, string> = {
-    pair_missing_side: "端子缺侧",
-    pair_low_confidence: "配对不确定",
-    duplicate_same_line: "同线重复",
-    one_to_many: "一对多",
-    many_to_one: "多对一",
+    pair_missing_side: "导线只识别到一端",
+    pair_low_confidence: "导线两端配对不确定",
+    duplicate_same_line: "同一导线重复标注",
+    one_to_many: "一个端子接出多根线",
+    many_to_one: "多个端子接到同一端子",
     cross_page_conflict: "跨页冲突",
-    semantic_mapping_conflict: "语义映射冲突",
-    table_mapping_source_conflict: "表格映射冲突",
+    semantic_mapping_conflict: "端子含义对应不一致",
+    table_mapping_source_conflict: "端子表与图内连线不一致",
     missing_reciprocal: "缺少回指",
-    sheet_page_mismatch: "页码不一致",
-    duplicate_pair: "重复配对",
+    sheet_page_mismatch: "图号与页面不一致",
+    duplicate_pair: "重复的端子配对",
   }
   if (map[value]) {
     return map[value]
@@ -3938,65 +3108,9 @@ function downloadJsonFile(fileName: string, payload: unknown): void {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
-function humanizePreviewError(message: string): string {
-  const lower = message.toLowerCase()
-  if (lower.includes("no stored result") || lower.includes("no issue found")) {
-    return "未找到该问题的校验结果，请重新打开项目或再次校验。"
-  }
-  if (lower.includes("extent") || lower.includes("bbox")) {
-    return "缺少可定位的图纸区域，暂无法生成预览。请查看下方文字说明。"
-  }
-  if (lower.includes("timeout") || lower.includes("timed out")) {
-    return "预览生成超时，请稍后点击“刷新预览”。"
-  }
-  if (message.includes("预览生成失败") || message.includes("preview")) {
-    return "无法生成该问题的图纸预览，可先查看下方文字说明。"
-  }
-  // Strip raw technical prefixes that leak from the sidecar.
-  return message
-    .replace(/^预览生成失败（.*?）[。.]?\s*/u, "")
-    .replace(/^Error:\s*/i, "")
-    .trim() || "无法生成预览，请查看文字说明。"
-}
-
-function loadStoredPreviewMode(): PreviewMode {
-  if (typeof window === "undefined") {
-    return "auto"
-  }
-  try {
-    return parsePreviewMode(window.localStorage.getItem(PREVIEW_MODE_STORAGE_KEY))
-  } catch {
-    return "auto"
-  }
-}
-
 function createPreviewClientSessionId(): string {
   const randomId = globalThis.crypto?.randomUUID?.()
   return randomId ? `session-${randomId}` : `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-}
-
-function createPreviewRequestId(sequence: number): string {
-  const randomId = globalThis.crypto?.randomUUID?.()
-  return randomId ? `preview-${randomId}` : `preview-${Date.now().toString(36)}-${sequence.toString(36)}`
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string, onTimeout?: () => void): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      onTimeout?.()
-      reject(new Error(message))
-    }, timeoutMs)
-    promise.then(
-      (value) => {
-        window.clearTimeout(timeout)
-        resolve(value)
-      },
-      (error) => {
-        window.clearTimeout(timeout)
-        reject(error)
-      },
-    )
-  })
 }
 
 function formatAuditTime(value: string): string {

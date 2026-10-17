@@ -24,7 +24,7 @@ test("preview scale is bounded to the supported interaction range", () => {
   assert.equal(normalizePreviewScale(undefined), 1)
   assert.equal(normalizePreviewScale(0.5), 1)
   assert.equal(normalizePreviewScale(2.1), 2.1)
-  assert.equal(normalizePreviewScale(9), 2.3)
+  assert.equal(normalizePreviewScale(9), 3)
 })
 
 test("contain size preserves the SVG aspect ratio inside the viewport", () => {
