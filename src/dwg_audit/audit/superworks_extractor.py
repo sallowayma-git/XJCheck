@@ -1329,6 +1329,222 @@ def _run_wire_route_admission(output, data, *, lines, line_groups, audit_ids, pa
     data.wire_route_rows = rows
 
 
+def _clear_numeric_candidates_owned_by_nearer_sw_wire(output, data, line_groups, lines, ledger):
+    """Keep an unnumbered component pin unresolved when its selected number belongs to a nearer SW wire.
+
+    This runs after LOGGEN/PCL resolution so the number must be independently present in a resolved
+    SYMB2 text slot at the physical endpoint of another SW-contacted wire. It edits only the selected
+    side of an already ambiguous wire-component mapping; it never creates or discards a connection.
+    """
+    if not data.wire_route_rows:
+        return 0
+    line_by_id = {line.line_id: line for line in lines}
+    line_by_wire = {(line.file_id, line.sheet_id, str(line.handle).upper()): line for line in lines}
+    ports_by_id = {port.record_id: port for port in data.ports}
+    unregistered_terms_by_key = defaultdict(list)
+    for block in data.unregistered_symb2:
+        for termpoint in block.get("termpoints") or []:
+            unregistered_terms_by_key[(block.get("file_id"), block.get("sheet_id"),
+                                       str(block.get("insert_handle") or "").upper(),
+                                       str(termpoint.get("number") or "").strip())].append(termpoint)
+    contacts_by_sheet = defaultdict(set)
+    for port in data.ports:
+        for contact in port.wire_contacts or []:
+            handle = str(contact.get("wire_handle") or "").upper()
+            line = line_by_wire.get((port.file_id, port.sheet_id, handle))
+            if line is not None:
+                contacts_by_sheet[(port.file_id, port.sheet_id)].add(line.line_id)
+
+    routes_by_wire = defaultdict(list)
+    for route in data.wire_route_rows:
+        wire = str(route.get("wire_handle") or "").upper()
+        if not wire or not route.get("both_ends_resolved"):
+            continue
+        try:
+            ends = json.loads(route.get("ends_json") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            continue
+        routes_by_wire[(route.get("file_id"), route.get("sheet_id"), wire)].append((route, ends))
+
+    groups_by_sheet = defaultdict(list)
+    groups_by_id = {}
+    for group in line_groups:
+        groups_by_sheet[(group.file_id, group.sheet_id)].append(group)
+        groups_by_id[group.line_group_id] = group
+
+    changed = 0
+    for index, pair in enumerate(output):
+        evidence = pair.evidence or {}
+        if (pair.status != "review" or pair.pair_kind != "wire_component_mapping"
+                or evidence.get("source") != "wire_component_mapping"):
+            continue
+        sw = evidence.get("superworks") or {}
+        unnumbered = [side for side in ("left", "right")
+                      if (sw.get(side) or {}).get("category") == "内部元件"
+                      and not (sw.get(side) or {}).get("value")
+                      and not (sw.get(side) or {}).get("endpoint_identity")
+                      and (sw.get(side) or {}).get("wire_touched")]
+        if len(unnumbered) != 1:
+            continue
+        side = unnumbered[0]
+        value = getattr(pair, f"{side}_value")
+        text_id = getattr(pair, f"{side}_text_id")
+        x, y = getattr(pair, f"{side}_coord_x"), getattr(pair, f"{side}_coord_y")
+        if not value or not str(value).strip().isdigit() or not text_id or x is None or y is None:
+            continue
+        value = str(value).strip()
+        point = (float(x), float(y))
+        pin_ports = (sw.get(side) or {}).get("ports") or []
+        distances = []
+        for port in pin_ports:
+            start, end = port.get("start"), port.get("end")
+            if start and end:
+                distances.append(_segment_distance(point, start, end))
+        if not distances:
+            continue
+        own_distance = min(distances)
+        if own_distance < 6.0:
+            continue
+
+        own_group = groups_by_id.get(pair.line_group_id)
+        own_members = set(own_group.member_line_ids) if own_group is not None else set()
+        physical_endpoints = {}
+        for group in groups_by_sheet[(pair.file_id, pair.sheet_id)]:
+            if group.line_group_id == pair.line_group_id:
+                continue
+            members = set(group.member_line_ids)
+            contact_members = members & contacts_by_sheet[(pair.file_id, pair.sheet_id)]
+            if not contact_members or members & own_members:
+                continue
+            for endpoint in ((group.start_x, group.start_y), (group.end_x, group.end_y)):
+                endpoint = (float(endpoint[0]), float(endpoint[1]))
+                distance = math.hypot(point[0] - endpoint[0], point[1] - endpoint[1])
+                if distance > 2.0:
+                    continue
+                key = (round(endpoint[0], 2), round(endpoint[1], 2))
+                record = physical_endpoints.setdefault(key, {"xy": endpoint, "distance": distance,
+                    "group_ids": set(), "witnesses": []})
+                record["group_ids"].add(group.line_group_id)
+                for line_id in contact_members:
+                    line = line_by_id.get(line_id)
+                    if line is None:
+                        continue
+                    line_end_distance = min(
+                        math.hypot(endpoint[0] - line.start_x, endpoint[1] - line.start_y),
+                        math.hypot(endpoint[0] - line.end_x, endpoint[1] - line.end_y))
+                    if line_end_distance > 0.1:
+                        continue
+                    for route, ends in routes_by_wire.get((pair.file_id, pair.sheet_id, str(line.handle).upper()), []):
+                        for end in ends:
+                            symb2 = end.get("symb2") or {}
+                            if (end.get("identity_source") != SYMB2_IDENTITY_SOURCE
+                                    or end.get("status") != SYMB2_STATUS
+                                    or str(symb2.get("slot_text") or "").strip() != value):
+                                continue
+                            route_port_ids = end.get("port_ids") or []
+                            route_ports = [ports_by_id[port_id] for port_id in route_port_ids if port_id in ports_by_id]
+                            selected_end_distance = min((
+                                _segment_distance(point, (port.start_x, port.start_y), (port.end_x, port.end_y))
+                                for port in route_ports), default=math.inf)
+                            physical_end_distance = min((
+                                _segment_distance(endpoint, (port.start_x, port.start_y), (port.end_x, port.end_y))
+                                for port in route_ports), default=math.inf)
+                            if selected_end_distance > 2.0 or physical_end_distance > 0.6:
+                                terminal_key = (pair.file_id, pair.sheet_id,
+                                    str(end.get("terminal_handle") or "").upper(),
+                                    str(end.get("port_number") or "").strip())
+                                termpoints = unregistered_terms_by_key.get(terminal_key, [])
+                                selected_end_distance = min((
+                                    _segment_distance(point, termpoint.get("a"), termpoint.get("b"))
+                                    for termpoint in termpoints if termpoint.get("a") and termpoint.get("b")),
+                                    default=math.inf)
+                                physical_end_distance = min((
+                                    _segment_distance(endpoint, termpoint.get("a"), termpoint.get("b"))
+                                    for termpoint in termpoints if termpoint.get("a") and termpoint.get("b")),
+                                    default=math.inf)
+                                if selected_end_distance > 2.0 or physical_end_distance > 0.6:
+                                    continue
+                            record["witnesses"].append({"record_id": route.get("record_id"),
+                                "wire_handle": route.get("wire_handle"), "identity": end.get("identity"),
+                                "slot_text": symb2.get("slot_text"), "port_ids": route_port_ids,
+                                "terminal_handle": end.get("terminal_handle"),
+                                "port_number": end.get("port_number"),
+                                "admission_status": route.get("admission_status"),
+                                "distance_to_selected_text": round(selected_end_distance, 4),
+                                "distance_to_foreign_endpoint": round(physical_end_distance, 4)})
+
+        ordered = sorted(physical_endpoints.values(), key=lambda item: (item["distance"], sorted(item["group_ids"])))
+        if (not ordered or not ordered[0]["witnesses"]
+                or ordered[0]["distance"] >= own_distance / 3.0
+                or own_distance - ordered[0]["distance"] < 6.0
+                or (len(ordered) > 1 and ordered[1]["distance"] - ordered[0]["distance"] < 0.25)):
+            continue
+
+        old = pair
+        rejected = {"side": side, "candidate_id": getattr(pair, f"{side}_candidate_id"),
+            "text_id": text_id, "value": value, "xy": [float(x), float(y)],
+            "pair_candidate_id": pair.selected_pair_candidate_id,
+            "candidate_channel": evidence.get(f"selected_{side}_channel"),
+            "candidate_score": evidence.get("selected_score"),
+            "reason_code": "numeric_candidate_owned_by_nearer_sw_wire",
+            "own_unlabelled_pin_distance": round(own_distance, 4),
+            "nearer_wire_distance": round(ordered[0]["distance"], 4),
+            "foreign_endpoint": list(ordered[0]["xy"]),
+            "foreign_line_groups": sorted(ordered[0]["group_ids"]),
+            "route_witnesses": ordered[0]["witnesses"]}
+        evidence = copy.deepcopy(evidence)
+        evidence["rejected_numeric_candidate"] = rejected
+        evidence["unresolved_pin_assignment"] = {"status": "review",
+            "reason_code": rejected["reason_code"], "reason": "端点为无编号元件引脚；该数字属于更近的另一根 SuperWORKS 导线。"}
+        new_left = None if side == "left" else pair.left_value
+        new_right = None if side == "right" else pair.right_value
+        new_pair_key = f"{new_left or '?'}->{new_right or '?'}"
+        for key in ("selected_pair_candidate_id", f"selected_{side}_candidate_id",
+                    f"selected_{side}_text_id", f"selected_{side}_raw_text", f"selected_{side}_channel",
+                    f"selected_{side}_channel_detail", "numeric_endpoint", "numeric_endpoint_text_id",
+                    "numeric_endpoint_raw", "numeric_endpoint_side", "selected_score"):
+            if key in evidence:
+                evidence[key] = None
+        evidence["pair_key"] = new_pair_key
+        score_breakdown = evidence.get("score_breakdown")
+        if isinstance(score_breakdown, dict):
+            score_breakdown = copy.deepcopy(score_breakdown)
+            score_breakdown[f"{side}_score"] = None
+            evidence["score_breakdown"] = score_breakdown
+        new = replace(pair, **{f"{side}_value": None, f"{side}_candidate_id": None,
+            f"{side}_text_id": None, f"{side}_coord_x": None, f"{side}_coord_y": None,
+            f"{side}_score": None}, selected_pair_candidate_id=None,
+            pair_key=new_pair_key, evidence=evidence,
+            rationale="端点为无编号元件引脚；所选数字已由更近的另一根 SuperWORKS 导线端点占用，本线保持待核验。")
+        output[index] = new
+        changed += 1
+        observation_found = False
+        for observation in data.resolution_observations:
+            if (observation.get("file_id") != pair.file_id or observation.get("sheet_id") != pair.sheet_id
+                    or observation.get("line_group_id") != pair.line_group_id):
+                continue
+            codes = list(observation.get("reason_codes") or [])
+            if rejected["reason_code"] not in codes:
+                codes.append(rejected["reason_code"])
+            observation["reason_codes"] = codes
+            observation["rejected_numeric_candidate"] = rejected
+            observation_found = True
+        if not observation_found:
+            observed_group = groups_by_id.get(pair.line_group_id)
+            observed_coords = ([observed_group.start_x, observed_group.start_y,
+                                observed_group.end_x, observed_group.end_y]
+                               if observed_group is not None else [])
+            data.resolution_observations.append({"record_id": f"unresolved-pin-number:{pair.pair_id}",
+                "object_key": f"{pair.file_id}:{pair.sheet_id}:{pair.line_group_id}:unresolved-pin-number",
+                "file_id": pair.file_id, "sheet_id": pair.sheet_id, "line_group_id": pair.line_group_id,
+                "state": "INCOMPLETE", "reason_codes": ["native_relation_incomplete", rejected["reason_code"]],
+                "rejected_numeric_candidate": rejected, "coords": observed_coords})
+        ledger.append({"element_key": f"sw_route_numeric_ownership:{pair.pair_id}", "category": "F",
+            "reason": "selected_numeric_candidate_owned_by_nearer_sw_wire", "old_pair": asdict(old),
+            "new_pairs": [asdict(new)]})
+    return changed
+
+
 DEVICE_INTERNAL_DISCARD = "device_internal"
 
 
@@ -1986,6 +2202,8 @@ def extract_superworks_pairs(data: SuperworksData, *, pages, texts, lines, line_
         _run_wire_route_admission(output, data, lines=lines, line_groups=line_groups, audit_ids=audit_ids,
                                   page_map=page_map, strip_rows_by_endpoint=strip_rows_by_endpoint,
                                   xml_ranks=xml_ranks, sheet_numbers=wire_route_sheet_numbers, texts=texts)
+    if not native_only:
+        _clear_numeric_candidates_owned_by_nearer_sw_wire(output, data, line_groups, lines, ledger)
     # DEV-INT-DISCARD: after admission, so admission sees the ports exactly as before this rule.
     data.device_internal_discard_stats = _discard_device_internal_pairs(output, data)
     # WIRE-BREAK (round 24): one-sided pairs on cut line groups whose open wire reaches only device-internal pins.
