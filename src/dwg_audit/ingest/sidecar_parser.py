@@ -76,12 +76,13 @@ def _parse_text_prj(text: str) -> list[PrjEntry]:
         if not match:
             continue
         order += 1
-        filename = f"{match.group('page')} {match.group('title')}.dwg"
+        title = match.group("title").strip()
+        filename = f"{match.group('page')} {title}.dwg"
         entries.append(
             PrjEntry(
                 filename=filename,
                 page_no=match.group("page"),
-                title=match.group("title"),
+                title=title,
                 category=current_category,
                 order=order,
             )
