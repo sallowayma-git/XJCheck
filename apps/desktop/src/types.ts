@@ -212,6 +212,9 @@ export type PreviewPayload = {
   lightweight?: boolean
   viewport_scale?: number
   overscan_factor?: number
+  /** 图纸只能输出无定位摘要且几何数据缺失时为 true，界面应提示重新校验。 */
+  geometry_missing?: boolean
+  geometry_missing_message?: string | null
 }
 
 export type AnalyzeSessionRequest = {
