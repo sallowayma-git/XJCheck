@@ -103,6 +103,74 @@ def test_state_store_migrates_legacy_issue_summary_schema(tmp_path: Path) -> Non
     assert loaded["series_chains"] == {"chain_count": 1, "chains": [{"junction_value": "1UD1"}]}
 
 
+def test_state_store_upgrades_august_schema_and_preserves_saved_results(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy_state.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE runs (
+                run_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                project_id TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                input_root TEXT NOT NULL,
+                artifact_dir TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                sheet_count INTEGER NOT NULL,
+                pair_count INTEGER NOT NULL,
+                issue_count INTEGER NOT NULL,
+                metadata_json TEXT NOT NULL
+            );
+            CREATE TABLE issue_summaries (
+                run_id TEXT NOT NULL,
+                issue_id TEXT NOT NULL,
+                rule_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                status TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                filename TEXT NOT NULL,
+                sheet_no TEXT NOT NULL,
+                left_value TEXT NOT NULL,
+                right_value TEXT NOT NULL,
+                evidence_json TEXT NOT NULL,
+                PRIMARY KEY (run_id, issue_id)
+            );
+            INSERT INTO runs VALUES (
+                'august-session:legacy-project', 'august-session', 'legacy-project',
+                'Legacy Project', 'C:/input', 'C:/artifacts',
+                '2026-08-01T12:00:00+00:00', '2026-08-01T12:00:00+00:00',
+                'completed', 24, 18, 1, '{"source":"august-build"}'
+            );
+            INSERT INTO issue_summaries VALUES (
+                'august-session:legacy-project', 'legacy-issue', 'R-PAIR-LOW-CONFIDENCE',
+                'Legacy issue', 'review', 'open', 0.7, '01.dwg', '01', '1A', '2A',
+                '{"source":"saved-session"}'
+            );
+            """
+        )
+
+    store = DesktopStateStore(db_path)
+    loaded = store.load_latest_project_result("legacy-project")
+
+    assert loaded is not None
+    assert loaded["run"]["session_id"] == "august-session"
+    assert loaded["run"]["sheet_count"] == 24
+    assert loaded["run"].get("series_chains") is None
+    assert loaded["issues"][0]["issue_id"] == "legacy-issue"
+    assert loaded["issues"][0]["title"] == "Legacy issue"
+    assert loaded["issues"][0]["evidence"]["source"] == "saved-session"
+    with sqlite3.connect(db_path) as conn:
+        run_columns = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+        schema_marker = conn.execute(
+            "SELECT 1 FROM desktop_schema WHERE key='single_snapshot_v2'"
+        ).fetchone()
+    assert "series_chains_json" in run_columns
+    assert schema_marker is not None
+
+
 def test_state_store_list_issue_summaries_page_paginates_large_runs(tmp_path: Path) -> None:
     """The pagination seam must stay stable for very large runs.
 
